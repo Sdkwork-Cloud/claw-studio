@@ -1,0 +1,23 @@
+{
+  "name": "@sdkwork/claw-studio-chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sdkwork/claw-studio-business": "workspace:*",
+    "@sdkwork/claw-studio-shared-ui": "workspace:*",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.35.0",
+    "react": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.13.1",
+    "react-syntax-highlighter": "^16.1.1",
+    "remark-gfm": "^4.0.1"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./components": "./src/components/index.ts"
+  }
+}

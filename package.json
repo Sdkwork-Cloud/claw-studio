@@ -1,0 +1,16 @@
+{
+  "name": "@sdkwork/claw-studio-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @sdkwork/claw-studio-web dev",
+    "build": "pnpm --filter @sdkwork/claw-studio-web build",
+    "preview": "pnpm --filter @sdkwork/claw-studio-web preview",
+    "lint": "pnpm --filter @sdkwork/claw-studio-web lint && pnpm check:arch",
+    "clean": "pnpm --filter @sdkwork/claw-studio-web clean",
+    "check:arch": "node scripts/check-arch-boundaries.mjs",
+    "check:desktop": "node scripts/check-desktop-platform-foundation.mjs",
+    "sync:features": "node scripts/sync-feature-packages.mjs"
+  }
+}
