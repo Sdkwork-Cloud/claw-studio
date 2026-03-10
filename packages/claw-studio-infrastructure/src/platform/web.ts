@@ -1,4 +1,4 @@
-import { PlatformAPI } from './types';
+import { PlatformAPI, PlatformFileEntry, PlatformPathInfo, PlatformSaveFileOptions, PlatformSelectFileOptions } from './types';
 
 export class WebPlatform implements PlatformAPI {
   getPlatform(): 'web' | 'desktop' {
@@ -30,12 +30,14 @@ export class WebPlatform implements PlatformAPI {
     window.open(url, '_blank');
   }
 
-  async selectFile(options?: { multiple?: boolean }): Promise<string[]> {
+  async selectFile(options?: PlatformSelectFileOptions): Promise<string[]> {
+    void options;
     console.warn('selectFile not fully supported in web without user interaction');
     return [];
   }
 
-  async saveFile(data: Blob, filename: string): Promise<void> {
+  async saveFile(data: Blob, filename: string, options?: PlatformSaveFileOptions): Promise<void> {
+    void options;
     const url = URL.createObjectURL(data);
     const a = document.createElement('a');
     a.href = url;
@@ -56,11 +58,47 @@ export class WebPlatform implements PlatformAPI {
     window.close();
   }
 
-  async readFile(path: string): Promise<string> {
+  async listDirectory(_path = ''): Promise<PlatformFileEntry[]> {
+    throw new Error('listDirectory not supported in web');
+  }
+
+  async pathExists(_path: string): Promise<boolean> {
+    throw new Error('pathExists not supported in web');
+  }
+
+  async getPathInfo(_path: string): Promise<PlatformPathInfo> {
+    throw new Error('getPathInfo not supported in web');
+  }
+
+  async createDirectory(_path: string): Promise<void> {
+    throw new Error('createDirectory not supported in web');
+  }
+
+  async removePath(_path: string): Promise<void> {
+    throw new Error('removePath not supported in web');
+  }
+
+  async copyPath(_sourcePath: string, _destinationPath: string): Promise<void> {
+    throw new Error('copyPath not supported in web');
+  }
+
+  async movePath(_sourcePath: string, _destinationPath: string): Promise<void> {
+    throw new Error('movePath not supported in web');
+  }
+
+  async readBinaryFile(_path: string): Promise<Uint8Array> {
+    throw new Error('readBinaryFile not supported in web');
+  }
+
+  async writeBinaryFile(_path: string, _content: Uint8Array | number[]): Promise<void> {
+    throw new Error('writeBinaryFile not supported in web');
+  }
+
+  async readFile(_path: string): Promise<string> {
     throw new Error('readFile not supported in web');
   }
 
-  async writeFile(path: string, content: string): Promise<void> {
+  async writeFile(_path: string, _content: string): Promise<void> {
     throw new Error('writeFile not supported in web');
   }
 }

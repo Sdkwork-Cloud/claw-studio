@@ -2,7 +2,7 @@ use crate::{
   commands,
   framework::{context::FrameworkContext, events},
   plugins,
-  state::AppState,
+  state::{AppMetadata, AppState},
 };
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
@@ -13,8 +13,14 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
       let app_handle = app.handle().clone();
       let context = Arc::new(FrameworkContext::bootstrap(&app_handle)?);
       context.logger.info("managed desktop state initialized")?;
+      let package_info = app.package_info();
+      let metadata = AppMetadata::new(
+        package_info.name.clone(),
+        package_info.version.to_string(),
+        crate::platform::current_target().to_string(),
+      );
 
-      let state = AppState::from_context(context);
+      let state = AppState::from_metadata(metadata, context);
       app.manage(state);
       app.emit(events::APP_READY, ())?;
 

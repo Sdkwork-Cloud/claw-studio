@@ -5,6 +5,7 @@ export * from './services/chatService';
 export * from './services/clawService';
 export * from './services/communityService';
 export * from './services/deviceService';
+export * from './services/fileDialogService';
 export * from './services/installerService';
 export * from './services/instanceService';
 export * from './services/llmService';

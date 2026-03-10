@@ -1,3 +1,40 @@
+export interface PlatformFileEntry {
+  path: string;
+  name: string;
+  kind: 'file' | 'directory';
+  size: number | null;
+  extension: string | null;
+}
+
+export interface PlatformPathInfo {
+  path: string;
+  name: string;
+  kind: 'file' | 'directory' | 'missing';
+  size: number | null;
+  extension: string | null;
+  exists: boolean;
+  lastModifiedMs: number | null;
+}
+
+export interface PlatformDialogFilter {
+  name: string;
+  extensions: string[];
+}
+
+export interface PlatformSelectFileOptions {
+  multiple?: boolean;
+  directory?: boolean;
+  title?: string;
+  defaultPath?: string;
+  filters?: PlatformDialogFilter[];
+}
+
+export interface PlatformSaveFileOptions {
+  title?: string;
+  defaultPath?: string;
+  filters?: PlatformDialogFilter[];
+}
+
 export interface PlatformAPI {
   getPlatform(): 'web' | 'desktop';
 
@@ -9,13 +46,23 @@ export interface PlatformAPI {
   copy(text: string): Promise<void>;
   openExternal(url: string): Promise<void>;
 
-  selectFile(options?: { multiple?: boolean }): Promise<string[]>;
-  saveFile(data: Blob, filename: string): Promise<void>;
+  selectFile(options?: PlatformSelectFileOptions): Promise<string[]>;
+  saveFile(data: Blob, filename: string, options?: PlatformSaveFileOptions): Promise<void>;
 
   minimizeWindow(): Promise<void>;
   maximizeWindow(): Promise<void>;
   closeWindow(): Promise<void>;
 
+  listDirectory(path?: string): Promise<PlatformFileEntry[]>;
+  pathExists(path: string): Promise<boolean>;
+  getPathInfo(path: string): Promise<PlatformPathInfo>;
+  createDirectory(path: string): Promise<void>;
+  removePath(path: string): Promise<void>;
+  copyPath(sourcePath: string, destinationPath: string): Promise<void>;
+  movePath(sourcePath: string, destinationPath: string): Promise<void>;
+
+  readBinaryFile(path: string): Promise<Uint8Array>;
+  writeBinaryFile(path: string, content: Uint8Array | number[]): Promise<void>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
 }

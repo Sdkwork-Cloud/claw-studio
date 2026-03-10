@@ -21,6 +21,7 @@
     "./services/clawService": "./src/services/clawService.ts",
     "./services/communityService": "./src/services/communityService.ts",
     "./services/deviceService": "./src/services/deviceService.ts",
+    "./services/fileDialogService": "./src/services/fileDialogService.ts",
     "./services/installerService": "./src/services/installerService.ts",
     "./services/instanceService": "./src/services/instanceService.ts",
     "./services/llmService": "./src/services/llmService.ts",
