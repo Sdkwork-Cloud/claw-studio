@@ -29,6 +29,30 @@ export interface RuntimeSystemInfo {
   target: string;
 }
 
+export type RuntimeJobState = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export interface RuntimeJobRecord {
+  id: string;
+  kind: string;
+  state: RuntimeJobState;
+  stage: string;
+}
+
+export interface RuntimeJobUpdateEvent {
+  record: RuntimeJobRecord;
+}
+
+export type RuntimeProcessOutputStream = 'stdout' | 'stderr';
+
+export interface RuntimeProcessOutputEvent {
+  processId: string;
+  command: string;
+  stream: RuntimeProcessOutputStream;
+  chunk: string;
+}
+
+export type RuntimeEventUnsubscribe = () => void | Promise<void>;
+
 export interface RuntimeInfo {
   platform: 'web' | 'desktop';
   app?: RuntimeAppInfo | null;
@@ -39,4 +63,6 @@ export interface RuntimeInfo {
 
 export interface RuntimePlatformAPI {
   getRuntimeInfo(): Promise<RuntimeInfo>;
+  subscribeJobUpdates(listener: (event: RuntimeJobUpdateEvent) => void): Promise<RuntimeEventUnsubscribe>;
+  subscribeProcessOutput(listener: (event: RuntimeProcessOutputEvent) => void): Promise<RuntimeEventUnsubscribe>;
 }

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type {
   InstallScriptRequest,
@@ -8,8 +9,11 @@ import type {
   PlatformPathInfo,
   RuntimeAppInfo,
   RuntimeConfigInfo,
+  RuntimeEventUnsubscribe,
   RuntimeInfo,
+  RuntimeJobUpdateEvent,
   RuntimePathsInfo,
+  RuntimeProcessOutputEvent,
   RuntimeSystemInfo,
 } from '@sdkwork/claw-studio-infrastructure';
 import { configurePlatformBridge } from '@sdkwork/claw-studio-infrastructure';
@@ -27,6 +31,10 @@ export interface DesktopAppConfig extends RuntimeConfigInfo {}
 export interface DesktopSystemInfo extends RuntimeSystemInfo {}
 export interface DesktopFileEntry extends PlatformFileEntry {}
 export interface DesktopPathInfo extends PlatformPathInfo {}
+export interface DesktopJobUpdateEvent extends RuntimeJobUpdateEvent {}
+export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
+
+const noopUnsubscribe: RuntimeEventUnsubscribe = () => {};
 
 function isTauriRuntime() {
   return typeof window !== 'undefined' && typeof (window as TauriWindow).__TAURI_INTERNALS__ !== 'undefined';
@@ -170,6 +178,30 @@ export async function getDeviceId(): Promise<string> {
   return invoke<string>('get_device_id');
 }
 
+export async function subscribeJobUpdates(
+  listener: (event: DesktopJobUpdateEvent) => void,
+): Promise<RuntimeEventUnsubscribe> {
+  if (!isTauriRuntime()) {
+    return noopUnsubscribe;
+  }
+
+  return listen<DesktopJobUpdateEvent>('job://updated', (event) => {
+    listener(event.payload);
+  });
+}
+
+export async function subscribeProcessOutput(
+  listener: (event: DesktopProcessOutputEvent) => void,
+): Promise<RuntimeEventUnsubscribe> {
+  if (!isTauriRuntime()) {
+    return noopUnsubscribe;
+  }
+
+  return listen<DesktopProcessOutputEvent>('process://output', (event) => {
+    listener(event.payload);
+  });
+}
+
 export function configureDesktopPlatformBridge() {
   configurePlatformBridge({
     platform: {
@@ -270,6 +302,8 @@ export function configureDesktopPlatformBridge() {
           system,
         };
       },
+      subscribeJobUpdates: (listener) => subscribeJobUpdates(listener),
+      subscribeProcessOutput: (listener) => subscribeProcessOutput(listener),
     },
   });
 }

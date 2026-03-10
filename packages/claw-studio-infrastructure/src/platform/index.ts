@@ -10,9 +10,15 @@ export type { InstallScriptRequest, InstallerPlatformAPI } from './contracts/ins
 export type {
   RuntimeAppInfo,
   RuntimeConfigInfo,
+  RuntimeEventUnsubscribe,
   RuntimeInfo,
+  RuntimeJobRecord,
+  RuntimeJobState,
+  RuntimeJobUpdateEvent,
   RuntimePathsInfo,
   RuntimePlatformAPI,
+  RuntimeProcessOutputEvent,
+  RuntimeProcessOutputStream,
   RuntimeSystemInfo,
 } from './contracts/runtime';
 export { configurePlatformBridge, getInstallerPlatform, getPlatformBridge, getRuntimePlatform, platform } from './registry';

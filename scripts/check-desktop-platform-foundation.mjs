@@ -140,9 +140,12 @@ assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'expor
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function getPathInfo', 'desktop path info bridge export');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function readBinaryFile', 'desktop binary read bridge export');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function writeBinaryFile', 'desktop binary write bridge export');
+assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function subscribeJobUpdates', 'desktop job event subscription export');
+assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function subscribeProcessOutput', 'desktop process event subscription export');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'invoke<void>(\'open_external\'', 'desktop open external invoke wiring');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'invoke<string[]>(\'select_files\'', 'desktop select files invoke wiring');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'invoke(\'save_blob_file\'', 'desktop save blob file invoke wiring');
+assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'listen<', 'desktop event listener wiring');
 assertIncludes('packages/claw-studio-desktop/src-tauri/Cargo.toml', 'tauri-plugin-single-instance', 'single-instance plugin dependency');
 assertIncludes('packages/claw-studio-desktop/src-tauri/Cargo.toml', 'tauri-plugin-dialog', 'dialog plugin dependency');
 assertIncludes('packages/claw-studio-desktop/src-tauri/Cargo.toml', 'tauri-plugin-opener', 'opener plugin dependency');
@@ -152,6 +155,10 @@ assertIncludes('packages/claw-studio-desktop/src-tauri/src/framework/mod.rs', 'p
 assertIncludes('packages/claw-studio-desktop/src-tauri/src/framework/context.rs', 'services', 'desktop context services wiring');
 assertIncludes('packages/claw-studio-desktop/src-tauri/src/framework/events.rs', 'job://updated', 'desktop job event constant');
 assertIncludes('packages/claw-studio-desktop/src-tauri/src/framework/events.rs', 'process://output', 'desktop process output event constant');
+assertIncludes('packages/claw-studio-infrastructure/src/platform/contracts/runtime.ts', 'subscribeJobUpdates', 'runtime job subscription contract');
+assertIncludes('packages/claw-studio-infrastructure/src/platform/contracts/runtime.ts', 'subscribeProcessOutput', 'runtime process subscription contract');
+assertIncludes('packages/claw-studio-business/src/services/runtimeService.ts', 'subscribeJobUpdates', 'runtime service job subscription helper');
+assertIncludes('packages/claw-studio-business/src/services/runtimeService.ts', 'subscribeProcessOutput', 'runtime service process subscription helper');
 assertIncludes('.gitignore', '.venv/', 'Python virtual environment ignore rule');
 assertIncludes('.gitignore', '__pycache__/', 'Python bytecode cache ignore rule');
 assertIncludes('.gitignore', '*.pyc', 'Python compiled file ignore rule');
