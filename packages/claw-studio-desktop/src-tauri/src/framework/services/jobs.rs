@@ -1,4 +1,4 @@
-use crate::framework::{FrameworkError, Result};
+use crate::framework::{events, FrameworkError, Result};
 use std::{
   collections::HashMap,
   sync::{
@@ -6,6 +6,7 @@ use std::{
     Arc, Mutex, MutexGuard,
   },
 };
+use tauri::{AppHandle, Emitter, Runtime};
 
 static NEXT_JOB_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -27,6 +28,22 @@ pub struct JobRecord {
   pub kind: String,
   pub state: JobState,
   pub stage: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobUpdateEvent {
+  pub record: JobRecord,
+}
+
+pub trait JobEventSink {
+  fn emit_job_updated(&self, payload: JobUpdateEvent) -> Result<()>;
+}
+
+impl<R: Runtime> JobEventSink for AppHandle<R> {
+  fn emit_job_updated(&self, payload: JobUpdateEvent) -> Result<()> {
+    self.emit(events::JOB_UPDATED, payload).map_err(FrameworkError::from)
+  }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -61,6 +78,13 @@ impl JobService {
     Ok(id)
   }
 
+  pub fn submit_and_emit<S: JobEventSink>(&self, kind: &str, sink: &S) -> Result<String> {
+    let id = self.submit(kind)?;
+    let record = self.get(&id)?;
+    emit_job_updated(sink, &record)?;
+    Ok(id)
+  }
+
   pub fn get(&self, id: &str) -> Result<JobRecord> {
     self
       .lock_jobs()?
@@ -81,8 +105,22 @@ impl JobService {
   }
 
   #[allow(dead_code)]
+  pub fn mark_running_and_emit<S: JobEventSink>(&self, id: &str, stage: &str, sink: &S) -> Result<JobRecord> {
+    let record = self.mark_running(id, stage)?;
+    emit_job_updated(sink, &record)?;
+    Ok(record)
+  }
+
+  #[allow(dead_code)]
   pub fn mark_succeeded(&self, id: &str, stage: &str) -> Result<JobRecord> {
     self.transition(id, JobState::Succeeded, stage)
+  }
+
+  #[allow(dead_code)]
+  pub fn mark_succeeded_and_emit<S: JobEventSink>(&self, id: &str, stage: &str, sink: &S) -> Result<JobRecord> {
+    let record = self.mark_succeeded(id, stage)?;
+    emit_job_updated(sink, &record)?;
+    Ok(record)
   }
 
   #[allow(dead_code)]
@@ -90,8 +128,21 @@ impl JobService {
     self.transition(id, JobState::Failed, stage)
   }
 
+  #[allow(dead_code)]
+  pub fn mark_failed_and_emit<S: JobEventSink>(&self, id: &str, stage: &str, sink: &S) -> Result<JobRecord> {
+    let record = self.mark_failed(id, stage)?;
+    emit_job_updated(sink, &record)?;
+    Ok(record)
+  }
+
   pub fn cancel(&self, id: &str) -> Result<JobRecord> {
     self.transition(id, JobState::Cancelled, "cancelled")
+  }
+
+  pub fn cancel_and_emit<S: JobEventSink>(&self, id: &str, sink: &S) -> Result<JobRecord> {
+    let record = self.cancel(id)?;
+    emit_job_updated(sink, &record)?;
+    Ok(record)
   }
 
   fn transition(&self, id: &str, state: JobState, stage: &str) -> Result<JobRecord> {
@@ -120,9 +171,35 @@ impl JobService {
   }
 }
 
+fn emit_job_updated<S: JobEventSink>(sink: &S, record: &JobRecord) -> Result<()> {
+  sink.emit_job_updated(JobUpdateEvent {
+    record: record.clone(),
+  })
+}
+
 #[cfg(test)]
 mod tests {
-  use super::{JobService, JobState};
+  use super::{JobService, JobRecord, JobState, JobUpdateEvent, JobEventSink};
+  use crate::framework::Result;
+  use std::sync::{Arc, Mutex};
+
+  #[derive(Clone, Default)]
+  struct TestJobEventSink {
+    events: Arc<Mutex<Vec<JobUpdateEvent>>>,
+  }
+
+  impl TestJobEventSink {
+    fn emitted(&self) -> Vec<JobUpdateEvent> {
+      self.events.lock().expect("event lock").clone()
+    }
+  }
+
+  impl JobEventSink for TestJobEventSink {
+    fn emit_job_updated(&self, payload: JobUpdateEvent) -> Result<()> {
+      self.events.lock().expect("event lock").push(payload);
+      Ok(())
+    }
+  }
 
   #[test]
   fn job_service_tracks_lifecycle_transitions() {
@@ -160,5 +237,33 @@ mod tests {
 
     assert_eq!(record.state, JobState::Failed);
     assert_eq!(record.stage, "process failed");
+  }
+
+  #[test]
+  fn submit_and_cancel_emit_job_updates() {
+    let jobs = JobService::new();
+    let sink = TestJobEventSink::default();
+
+    let id = jobs
+      .submit_and_emit("process.spawn", &sink)
+      .expect("job submission");
+    let cancelled = jobs
+      .cancel_and_emit(&id, &sink)
+      .expect("job cancellation");
+
+    let events = sink.emitted();
+
+    assert_eq!(events.len(), 2);
+    assert_eq!(
+      events[0].record,
+      JobRecord {
+        id: id.clone(),
+        kind: "process.spawn".to_string(),
+        state: JobState::Queued,
+        stage: "queued".to_string(),
+      }
+    );
+    assert_eq!(events[1].record, cancelled);
+    assert_eq!(events[1].record.state, JobState::Cancelled);
   }
 }
