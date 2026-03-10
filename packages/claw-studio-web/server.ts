@@ -265,7 +265,7 @@ async function startServer() {
 
   app.get("/api/packs/:id", (req, res) => {
     const { id } = req.params;
-    const pack = db.prepare("SELECT * FROM skill_packs WHERE id = ?").get(id);
+    const pack = db.prepare("SELECT * FROM skill_packs WHERE id = ?").get(id) as Record<string, unknown> | undefined;
     if (pack) {
       const skills = db.prepare(`
         SELECT s.* 

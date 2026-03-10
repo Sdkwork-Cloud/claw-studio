@@ -5,6 +5,28 @@ import { WebPlatform } from '@sdkwork/claw-studio-infrastructure/platform/web';
 
 const desktopPlatform = new WebPlatform();
 
+type TauriWindow = Window & {
+  __TAURI_INTERNALS__?: unknown;
+};
+
+export interface DesktopAppInfo {
+  name: string;
+  version: string;
+  target: string;
+}
+
+function isTauriRuntime() {
+  return typeof window !== 'undefined' && typeof (window as TauriWindow).__TAURI_INTERNALS__ !== 'undefined';
+}
+
+export async function getAppInfo(): Promise<DesktopAppInfo | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  return invoke<DesktopAppInfo>('app_info');
+}
+
 export function configureDesktopPlatformBridge() {
   configurePlatformBridge({
     platform: {

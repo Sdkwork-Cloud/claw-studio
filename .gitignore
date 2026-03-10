@@ -35,3 +35,16 @@ Thumbs.db
 .idea/
 .vscode/
 backup/
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+*.pid
+*.seed
+packages/*/src-tauri/gen/

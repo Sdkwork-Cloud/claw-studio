@@ -11,6 +11,10 @@
     "clean": "pnpm --filter @sdkwork/claw-studio-web clean",
     "check:arch": "node scripts/check-arch-boundaries.mjs",
     "check:desktop": "node scripts/check-desktop-platform-foundation.mjs",
-    "sync:features": "node scripts/sync-feature-packages.mjs"
+    "sync:features": "node scripts/sync-feature-packages.mjs",
+    "tauri:dev": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:dev",
+    "tauri:build": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:build",
+    "tauri:icon": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:icon",
+    "tauri:info": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:info"
   }
 }
