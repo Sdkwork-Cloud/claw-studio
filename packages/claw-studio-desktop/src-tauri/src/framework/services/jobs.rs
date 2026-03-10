@@ -9,14 +9,13 @@ use std::{
 
 static NEXT_JOB_ID: AtomicU64 = AtomicU64::new(1);
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum JobState {
   Queued,
   Running,
-  #[allow(dead_code)]
   Succeeded,
-  #[allow(dead_code)]
   Failed,
   Cancelled,
 }
@@ -81,6 +80,16 @@ impl JobService {
     self.transition(id, JobState::Running, stage)
   }
 
+  #[allow(dead_code)]
+  pub fn mark_succeeded(&self, id: &str, stage: &str) -> Result<JobRecord> {
+    self.transition(id, JobState::Succeeded, stage)
+  }
+
+  #[allow(dead_code)]
+  pub fn mark_failed(&self, id: &str, stage: &str) -> Result<JobRecord> {
+    self.transition(id, JobState::Failed, stage)
+  }
+
   pub fn cancel(&self, id: &str) -> Result<JobRecord> {
     self.transition(id, JobState::Cancelled, "cancelled")
   }
@@ -127,5 +136,29 @@ mod tests {
 
     jobs.cancel(&id).expect("cancel");
     assert_eq!(jobs.get(&id).expect("cancelled").state, JobState::Cancelled);
+  }
+
+  #[test]
+  fn job_service_marks_jobs_succeeded() {
+    let jobs = JobService::new();
+    let id = jobs.submit("process.spawn").expect("job id");
+    jobs.mark_running(&id, "running").expect("running");
+
+    let record = jobs.mark_succeeded(&id, "finished").expect("succeeded");
+
+    assert_eq!(record.state, JobState::Succeeded);
+    assert_eq!(record.stage, "finished");
+  }
+
+  #[test]
+  fn job_service_marks_jobs_failed() {
+    let jobs = JobService::new();
+    let id = jobs.submit("process.spawn").expect("job id");
+    jobs.mark_running(&id, "running").expect("running");
+
+    let record = jobs.mark_failed(&id, "process failed").expect("failed");
+
+    assert_eq!(record.state, JobState::Failed);
+    assert_eq!(record.stage, "process failed");
   }
 }
