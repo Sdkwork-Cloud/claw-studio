@@ -66,8 +66,14 @@ const requiredPaths = [
   ['packages/claw-studio-shell/package.json', 'shell package'],
   ['packages/claw-studio-shell/src/index.ts', 'shell entry'],
   ['packages/claw-studio-desktop/package.json', 'desktop package'],
+  ['packages/claw-studio-desktop/.env.example', 'desktop env example'],
   ['packages/claw-studio-desktop/src/main.tsx', 'desktop entry'],
   ['packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'desktop bridge'],
+  ['packages/claw-studio-infrastructure/src/config/env.ts', 'desktop env config module'],
+  ['packages/claw-studio-infrastructure/src/updates/contracts.ts', 'desktop update contracts module'],
+  ['packages/claw-studio-infrastructure/src/updates/updateClient.ts', 'desktop update client module'],
+  ['packages/claw-studio-business/src/services/updateService.ts', 'desktop update business service'],
+  ['packages/claw-studio-business/src/stores/useUpdateStore.ts', 'desktop update state store'],
   ['packages/claw-studio-desktop/src-tauri/Cargo.toml', 'desktop Cargo manifest'],
   ['packages/claw-studio-desktop/src-tauri/tauri.conf.json', 'desktop Tauri config'],
   ['packages/claw-studio-desktop/src-tauri/src/framework/mod.rs', 'desktop framework module'],
@@ -127,7 +133,6 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
 }
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
-
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function getAppInfo', 'desktop app info bridge export');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function getAppPaths', 'desktop app paths bridge export');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function getAppConfig', 'desktop app config bridge export');
@@ -159,6 +164,16 @@ assertIncludes('packages/claw-studio-infrastructure/src/platform/contracts/runti
 assertIncludes('packages/claw-studio-infrastructure/src/platform/contracts/runtime.ts', 'subscribeProcessOutput', 'runtime process subscription contract');
 assertIncludes('packages/claw-studio-business/src/services/runtimeService.ts', 'subscribeJobUpdates', 'runtime service job subscription helper');
 assertIncludes('packages/claw-studio-business/src/services/runtimeService.ts', 'subscribeProcessOutput', 'runtime service process subscription helper');
+assertIncludes('packages/claw-studio-infrastructure/src/config/env.ts', 'export function createAppEnvConfig', 'typed env factory');
+assertIncludes('packages/claw-studio-infrastructure/src/updates/updateClient.ts', 'APP_UPDATE_CHECK_PATH', 'backend update check path constant');
+assertIncludes('packages/claw-studio-business/src/services/updateService.ts', 'checkForAppUpdate', 'business update check service');
+assertIncludes('packages/claw-studio-business/src/services/updateService.ts', 'resolvePreferredUpdateAction', 'business update action resolver');
+assertIncludes('packages/claw-studio-business/src/services/updateService.ts', 'isStartupCheckEnabled', 'business startup update flag helper');
+assertIncludes('packages/claw-studio-business/src/stores/useUpdateStore.ts', 'runStartupCheck', 'startup update store action');
+assertIncludes('packages/claw-studio-business/src/stores/useUpdateStore.ts', 'openLatestUpdateTarget', 'manual update action store helper');
+assertIncludes('packages/claw-studio-desktop/src/desktop/bootstrap/createDesktopApp.tsx', 'configureDesktopPlatformBridge()', 'desktop bridge bootstrap wiring');
+assertIncludes('packages/claw-studio-shell/src/application/providers/AppProviders.tsx', 'runStartupCheck', 'shell startup update check wiring');
+assertIncludes('packages/claw-studio-settings/src/pages/settings/GeneralSettings.tsx', 'Check for updates', 'settings update entry point');
 assertIncludes('.gitignore', '.venv/', 'Python virtual environment ignore rule');
 assertIncludes('.gitignore', '__pycache__/', 'Python bytecode cache ignore rule');
 assertIncludes('.gitignore', '*.pyc', 'Python compiled file ignore rule');

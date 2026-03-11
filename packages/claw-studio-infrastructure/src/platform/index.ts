@@ -5,8 +5,8 @@ export type {
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
-} from './types';
-export type { InstallScriptRequest, InstallerPlatformAPI } from './contracts/installer';
+} from './types.ts';
+export type { InstallScriptRequest, InstallerPlatformAPI } from './contracts/installer.ts';
 export type {
   RuntimeAppInfo,
   RuntimeConfigInfo,
@@ -20,6 +20,6 @@ export type {
   RuntimeProcessOutputEvent,
   RuntimeProcessOutputStream,
   RuntimeSystemInfo,
-} from './contracts/runtime';
-export { configurePlatformBridge, getInstallerPlatform, getPlatformBridge, getRuntimePlatform, platform } from './registry';
-export { WebPlatform } from './web';
+} from './contracts/runtime.ts';
+export { configurePlatformBridge, getInstallerPlatform, getPlatformBridge, getRuntimePlatform, platform } from './registry.ts';
+export { WebPlatform } from './web.ts';

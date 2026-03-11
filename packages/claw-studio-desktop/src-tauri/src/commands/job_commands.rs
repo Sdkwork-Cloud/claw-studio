@@ -18,6 +18,20 @@ pub fn job_submit(
 }
 
 #[tauri::command]
+pub fn job_submit_process(
+  profile_id: String,
+  app: tauri::AppHandle,
+  state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+  state
+    .context
+    .services
+    .jobs
+    .submit_process_and_emit(state.context.services.process.clone(), &profile_id, app)
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn job_get(id: String, state: tauri::State<'_, AppState>) -> Result<JobRecord, String> {
   state
     .context
@@ -43,6 +57,21 @@ pub fn job_cancel(
   app: tauri::AppHandle,
   state: tauri::State<'_, AppState>,
 ) -> Result<JobRecord, String> {
+  let current = state
+    .context
+    .services
+    .jobs
+    .get(&id)
+    .map_err(|error| error.to_string())?;
+
+  if let Some(process_id) = current.process_id.as_deref() {
+    match state.context.services.process.cancel(process_id) {
+      Ok(()) => {}
+      Err(crate::framework::FrameworkError::NotFound(_)) => {}
+      Err(error) => return Err(error.to_string()),
+    }
+  }
+
   state
     .context
     .services

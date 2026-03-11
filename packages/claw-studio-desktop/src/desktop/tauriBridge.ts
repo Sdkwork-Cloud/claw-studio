@@ -178,6 +178,38 @@ export async function getDeviceId(): Promise<string> {
   return invoke<string>('get_device_id');
 }
 
+export async function submitProcessJob(profileId: string): Promise<string> {
+  if (!isTauriRuntime()) {
+    throw new Error('Desktop runtime process jobs are unavailable outside Tauri.');
+  }
+
+  return invoke<string>('job_submit_process', { profileId });
+}
+
+export async function getJob(id: string): Promise<DesktopJobUpdateEvent['record']> {
+  if (!isTauriRuntime()) {
+    throw new Error('Desktop runtime jobs are unavailable outside Tauri.');
+  }
+
+  return invoke<DesktopJobUpdateEvent['record']>('job_get', { id });
+}
+
+export async function listJobs(): Promise<DesktopJobUpdateEvent['record'][]> {
+  if (!isTauriRuntime()) {
+    throw new Error('Desktop runtime jobs are unavailable outside Tauri.');
+  }
+
+  return invoke<DesktopJobUpdateEvent['record'][]>('job_list');
+}
+
+export async function cancelJob(id: string): Promise<DesktopJobUpdateEvent['record']> {
+  if (!isTauriRuntime()) {
+    throw new Error('Desktop runtime jobs are unavailable outside Tauri.');
+  }
+
+  return invoke<DesktopJobUpdateEvent['record']>('job_cancel', { id });
+}
+
 export async function subscribeJobUpdates(
   listener: (event: DesktopJobUpdateEvent) => void,
 ): Promise<RuntimeEventUnsubscribe> {
@@ -302,6 +334,10 @@ export function configureDesktopPlatformBridge() {
           system,
         };
       },
+      submitProcessJob: (profileId) => submitProcessJob(profileId),
+      getJob: (id) => getJob(id),
+      listJobs: () => listJobs(),
+      cancelJob: (id) => cancelJob(id),
       subscribeJobUpdates: (listener) => subscribeJobUpdates(listener),
       subscribeProcessOutput: (listener) => subscribeProcessOutput(listener),
     },

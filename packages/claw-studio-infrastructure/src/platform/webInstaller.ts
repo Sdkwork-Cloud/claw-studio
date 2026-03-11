@@ -1,4 +1,4 @@
-import type { InstallerPlatformAPI, InstallScriptRequest } from './contracts/installer';
+import type { InstallerPlatformAPI, InstallScriptRequest } from './contracts/installer.ts';
 
 export class WebInstallerPlatform implements InstallerPlatformAPI {
   async executeInstallScript(_request: InstallScriptRequest): Promise<string> {

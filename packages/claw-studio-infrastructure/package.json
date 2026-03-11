@@ -7,6 +7,9 @@
     ".": "./src/index.ts",
     "./platform": "./src/platform/index.ts",
     "./platform/web": "./src/platform/web.ts",
-    "./http/httpClient": "./src/http/httpClient.ts"
+    "./http/httpClient": "./src/http/httpClient.ts",
+    "./config/env": "./src/config/env.ts",
+    "./updates/contracts": "./src/updates/contracts.ts",
+    "./updates/updateClient": "./src/updates/updateClient.ts"
   }
 }

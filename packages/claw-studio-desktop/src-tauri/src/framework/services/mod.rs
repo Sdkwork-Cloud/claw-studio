@@ -1,3 +1,5 @@
+use crate::framework::{paths::AppPaths, policy::ExecutionPolicy, Result};
+
 pub mod browser;
 pub mod dialog;
 pub mod filesystem;
@@ -25,14 +27,16 @@ pub struct FrameworkServices {
 }
 
 impl FrameworkServices {
-  pub fn new() -> Self {
-    Self {
+  pub fn new(paths: &AppPaths) -> Result<Self> {
+    let policy = ExecutionPolicy::for_paths(paths)?;
+
+    Ok(Self {
       system: SystemService::new(),
       browser: BrowserService::new(),
       dialog: DialogService::new(),
       filesystem: FileSystemService::new(),
-      process: ProcessService::new(),
+      process: ProcessService::new(policy),
       jobs: JobService::new(),
-    }
+    })
   }
 }

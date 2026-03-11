@@ -29,9 +29,11 @@
     "./services/runtimeService": "./src/services/runtimeService.ts",
     "./services/settingsService": "./src/services/settingsService.ts",
     "./services/taskService": "./src/services/taskService.ts",
+    "./services/updateService": "./src/services/updateService.ts",
     "./stores/useAppStore": "./src/stores/useAppStore.ts",
     "./stores/useChatStore": "./src/stores/useChatStore.ts",
     "./stores/useLLMStore": "./src/stores/useLLMStore.ts",
+    "./stores/useUpdateStore": "./src/stores/useUpdateStore.ts",
     "./stores/useTaskStore": "./src/stores/useTaskStore.ts",
     "./hooks/useKeyboardShortcuts": "./src/hooks/useKeyboardShortcuts.ts"
   }

@@ -1,4 +1,10 @@
-import { PlatformAPI, PlatformFileEntry, PlatformPathInfo, PlatformSaveFileOptions, PlatformSelectFileOptions } from './types';
+import type {
+  PlatformAPI,
+  PlatformFileEntry,
+  PlatformPathInfo,
+  PlatformSaveFileOptions,
+  PlatformSelectFileOptions,
+} from './types.ts';
 
 export class WebPlatform implements PlatformAPI {
   getPlatform(): 'web' | 'desktop' {

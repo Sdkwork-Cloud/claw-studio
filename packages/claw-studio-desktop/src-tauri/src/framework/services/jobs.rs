@@ -1,10 +1,16 @@
-use crate::framework::{events, FrameworkError, Result};
+use crate::framework::{
+  events,
+  services::process::{ProcessEventSink, ProcessService},
+  FrameworkError,
+  Result,
+};
 use std::{
   collections::HashMap,
   sync::{
     atomic::{AtomicU64, Ordering},
     Arc, Mutex, MutexGuard,
   },
+  thread,
 };
 use tauri::{AppHandle, Emitter, Runtime};
 
@@ -28,6 +34,10 @@ pub struct JobRecord {
   pub kind: String,
   pub state: JobState,
   pub stage: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub profile_id: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub process_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -59,6 +69,65 @@ impl JobService {
   }
 
   pub fn submit(&self, kind: &str) -> Result<String> {
+    self.submit_with_metadata(kind, None)
+  }
+
+  pub fn submit_process_and_emit<S>(&self, process_service: ProcessService, profile_id: &str, sink: S) -> Result<String>
+  where
+    S: JobEventSink + ProcessEventSink + Clone + Send + 'static,
+  {
+    let profile = process_service.resolve_profile(profile_id)?;
+    let job_id = self.submit_with_metadata(&profile.job_kind, Some(profile.id.clone()))?;
+    let queued = self.get(&job_id)?;
+    emit_job_updated(&sink, &queued)?;
+
+    let jobs = self.clone();
+    let background_job_id = job_id.clone();
+    thread::spawn(move || {
+      let result = process_service.run_profile_and_emit_with_started(
+        &profile.id,
+        Some(background_job_id.clone()),
+        None,
+        &sink,
+        |process_id| {
+          jobs
+            .mark_running_process_and_emit(
+              &background_job_id,
+              "running",
+              queued.profile_id.clone(),
+              process_id.to_string(),
+              &sink,
+            )
+            .map(|_| ())
+        },
+      );
+      let current = jobs.get(&background_job_id);
+
+      if matches!(current.as_ref().map(|record| &record.state), Ok(JobState::Cancelled)) {
+        return;
+      }
+
+      match result {
+        Ok(_) => {
+          let _ = jobs.mark_succeeded_and_emit(&background_job_id, "completed", &sink);
+        }
+        Err(FrameworkError::Cancelled(_)) => {
+          let _ = jobs.cancel_and_emit(&background_job_id, &sink);
+        }
+        Err(error) => {
+          let _ = jobs.mark_failed_and_emit(
+            &background_job_id,
+            &format!("process failed: {error}"),
+            &sink,
+          );
+        }
+      }
+    });
+
+    Ok(job_id)
+  }
+
+  fn submit_with_metadata(&self, kind: &str, profile_id: Option<String>) -> Result<String> {
     let normalized_kind = kind.trim();
     if normalized_kind.is_empty() {
       return Err(FrameworkError::ValidationFailed(
@@ -72,6 +141,8 @@ impl JobService {
       kind: normalized_kind.to_string(),
       state: JobState::Queued,
       stage: "queued".to_string(),
+      profile_id,
+      process_id: None,
     };
 
     self.lock_jobs()?.insert(id.clone(), record);
@@ -102,6 +173,45 @@ impl JobService {
   #[allow(dead_code)]
   pub fn mark_running(&self, id: &str, stage: &str) -> Result<JobRecord> {
     self.transition(id, JobState::Running, stage)
+  }
+
+  pub fn mark_running_process_and_emit<S: JobEventSink>(
+    &self,
+    id: &str,
+    stage: &str,
+    profile_id: Option<String>,
+    process_id: String,
+    sink: &S,
+  ) -> Result<JobRecord> {
+    let record = self.mark_running_process(id, stage, profile_id, process_id)?;
+    emit_job_updated(sink, &record)?;
+    Ok(record)
+  }
+
+  pub fn mark_running_process(
+    &self,
+    id: &str,
+    stage: &str,
+    profile_id: Option<String>,
+    process_id: String,
+  ) -> Result<JobRecord> {
+    let mut jobs = self.lock_jobs()?;
+    let record = jobs
+      .get_mut(id)
+      .ok_or_else(|| FrameworkError::NotFound(format!("job not found: {id}")))?;
+
+    if matches!(record.state, JobState::Succeeded | JobState::Failed | JobState::Cancelled) {
+      return Err(FrameworkError::Conflict(format!(
+        "cannot transition terminal job {} from {:?}",
+        record.id, record.state
+      )));
+    }
+
+    record.state = JobState::Running;
+    record.stage = stage.trim().to_string();
+    record.profile_id = profile_id;
+    record.process_id = Some(process_id);
+    Ok(record.clone())
   }
 
   #[allow(dead_code)]
@@ -179,24 +289,42 @@ fn emit_job_updated<S: JobEventSink>(sink: &S, record: &JobRecord) -> Result<()>
 
 #[cfg(test)]
 mod tests {
-  use super::{JobService, JobRecord, JobState, JobUpdateEvent, JobEventSink};
-  use crate::framework::Result;
+  use super::{JobEventSink, JobRecord, JobService, JobState, JobUpdateEvent};
+  use crate::framework::{
+    paths::resolve_paths_for_root,
+    policy::ExecutionPolicy,
+    services::process::{ProcessEventSink, ProcessOutputEvent, ProcessService},
+    Result,
+  };
   use std::sync::{Arc, Mutex};
+  use std::time::{Duration, Instant};
 
   #[derive(Clone, Default)]
-  struct TestJobEventSink {
-    events: Arc<Mutex<Vec<JobUpdateEvent>>>,
+  struct TestEventSink {
+    job_events: Arc<Mutex<Vec<JobUpdateEvent>>>,
+    process_events: Arc<Mutex<Vec<ProcessOutputEvent>>>,
   }
 
-  impl TestJobEventSink {
-    fn emitted(&self) -> Vec<JobUpdateEvent> {
-      self.events.lock().expect("event lock").clone()
+  impl TestEventSink {
+    fn job_updates(&self) -> Vec<JobUpdateEvent> {
+      self.job_events.lock().expect("event lock").clone()
+    }
+
+    fn process_updates(&self) -> Vec<ProcessOutputEvent> {
+      self.process_events.lock().expect("event lock").clone()
     }
   }
 
-  impl JobEventSink for TestJobEventSink {
+  impl JobEventSink for TestEventSink {
     fn emit_job_updated(&self, payload: JobUpdateEvent) -> Result<()> {
-      self.events.lock().expect("event lock").push(payload);
+      self.job_events.lock().expect("event lock").push(payload);
+      Ok(())
+    }
+  }
+
+  impl ProcessEventSink for TestEventSink {
+    fn emit_process_output(&self, payload: ProcessOutputEvent) -> Result<()> {
+      self.process_events.lock().expect("event lock").push(payload);
       Ok(())
     }
   }
@@ -242,7 +370,7 @@ mod tests {
   #[test]
   fn submit_and_cancel_emit_job_updates() {
     let jobs = JobService::new();
-    let sink = TestJobEventSink::default();
+    let sink = TestEventSink::default();
 
     let id = jobs
       .submit_and_emit("process.spawn", &sink)
@@ -251,7 +379,7 @@ mod tests {
       .cancel_and_emit(&id, &sink)
       .expect("job cancellation");
 
-    let events = sink.emitted();
+    let events = sink.job_updates();
 
     assert_eq!(events.len(), 2);
     assert_eq!(
@@ -261,9 +389,99 @@ mod tests {
         kind: "process.spawn".to_string(),
         state: JobState::Queued,
         stage: "queued".to_string(),
+        profile_id: None,
+        process_id: None,
       }
     );
     assert_eq!(events[1].record, cancelled);
     assert_eq!(events[1].record.state, JobState::Cancelled);
+  }
+
+  #[test]
+  fn process_job_orchestration_completes_with_profile_and_process_ids() {
+    let jobs = JobService::new();
+    let (_root, process) = test_process_service();
+    let sink = TestEventSink::default();
+
+    let job_id = jobs
+      .submit_process_and_emit(process, "diagnostics.echo", sink.clone())
+      .expect("process job");
+
+    let record = wait_for_terminal_state(&jobs, &job_id);
+
+    assert_eq!(record.state, JobState::Succeeded);
+    assert_eq!(record.profile_id.as_deref(), Some("diagnostics.echo"));
+    assert!(record.process_id.as_deref().is_some_and(|value| value.starts_with("process-")));
+    assert!(
+      sink
+        .process_updates()
+        .iter()
+        .any(|event| event.job_id.as_deref() == Some(job_id.as_str()))
+    );
+  }
+
+  #[test]
+  fn process_job_cancellation_stops_running_job() {
+    let jobs = JobService::new();
+    let (_root, process) = test_process_service();
+    let sink = TestEventSink::default();
+
+    let job_id = jobs
+      .submit_process_and_emit(process.clone(), "diagnostics.wait", sink.clone())
+      .expect("process job");
+
+    wait_for_running_state(&jobs, &job_id);
+    let running = jobs.get(&job_id).expect("running job");
+    let process_id = running.process_id.expect("process id");
+
+    process.cancel(&process_id).expect("cancel process");
+    let cancelled = jobs.cancel_and_emit(&job_id, &sink).expect("cancel job");
+
+    assert_eq!(cancelled.state, JobState::Cancelled);
+    assert_eq!(wait_for_terminal_state(&jobs, &job_id).state, JobState::Cancelled);
+  }
+
+  #[test]
+  fn rejects_unknown_process_profiles() {
+    let jobs = JobService::new();
+    let (_root, process) = test_process_service();
+    let sink = TestEventSink::default();
+
+    let error = jobs
+      .submit_process_and_emit(process, "missing.profile", sink)
+      .expect_err("unknown profile");
+
+    assert!(error.to_string().contains("process profile not found"));
+  }
+
+  fn test_process_service() -> (tempfile::TempDir, ProcessService) {
+    let root = tempfile::tempdir().expect("temp dir");
+    let paths = resolve_paths_for_root(root.path()).expect("paths");
+    let service = ProcessService::new(ExecutionPolicy::for_paths(&paths).expect("policy"));
+    (root, service)
+  }
+
+  fn wait_for_running_state(jobs: &JobService, job_id: &str) {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+      let record = jobs.get(job_id).expect("job record");
+      if record.state == JobState::Running {
+        return;
+      }
+      assert!(Instant::now() < deadline, "job did not reach running state in time");
+      std::thread::sleep(Duration::from_millis(10));
+    }
+  }
+
+  fn wait_for_terminal_state(jobs: &JobService, job_id: &str) -> JobRecord {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+      let record = jobs.get(job_id).expect("job record");
+      if matches!(record.state, JobState::Succeeded | JobState::Failed | JobState::Cancelled) {
+        return record;
+      }
+      assert!(Instant::now() < deadline, "job did not reach terminal state in time");
+      std::thread::sleep(Duration::from_millis(10));
+    }
   }
 }

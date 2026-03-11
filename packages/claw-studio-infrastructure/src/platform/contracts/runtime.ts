@@ -36,6 +36,8 @@ export interface RuntimeJobRecord {
   kind: string;
   state: RuntimeJobState;
   stage: string;
+  profileId?: string;
+  processId?: string;
 }
 
 export interface RuntimeJobUpdateEvent {
@@ -45,6 +47,7 @@ export interface RuntimeJobUpdateEvent {
 export type RuntimeProcessOutputStream = 'stdout' | 'stderr';
 
 export interface RuntimeProcessOutputEvent {
+  jobId?: string;
   processId: string;
   command: string;
   stream: RuntimeProcessOutputStream;
@@ -63,6 +66,10 @@ export interface RuntimeInfo {
 
 export interface RuntimePlatformAPI {
   getRuntimeInfo(): Promise<RuntimeInfo>;
+  submitProcessJob(profileId: string): Promise<string>;
+  getJob(id: string): Promise<RuntimeJobRecord>;
+  listJobs(): Promise<RuntimeJobRecord[]>;
+  cancelJob(id: string): Promise<RuntimeJobRecord>;
   subscribeJobUpdates(listener: (event: RuntimeJobUpdateEvent) => void): Promise<RuntimeEventUnsubscribe>;
   subscribeProcessOutput(listener: (event: RuntimeProcessOutputEvent) => void): Promise<RuntimeEventUnsubscribe>;
 }

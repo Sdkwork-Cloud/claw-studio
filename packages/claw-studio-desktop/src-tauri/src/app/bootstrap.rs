@@ -33,6 +33,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
       commands::get_system_info::get_system_info,
       commands::get_device_id::get_device_id,
       commands::job_commands::job_submit,
+      commands::job_commands::job_submit_process,
       commands::job_commands::job_get,
       commands::job_commands::job_list,
       commands::job_commands::job_cancel,

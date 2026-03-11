@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { Sun, Moon, Laptop, Globe, Check } from 'lucide-react';
+import { ArrowUpRight, Check, Globe, Laptop, LoaderCircle, Moon, RefreshCw, Sun } from 'lucide-react';
 import { Section, ToggleRow } from './Shared';
 import { useAppStore, ThemeMode, ThemeColor, Language } from '@sdkwork/claw-studio-business/stores/useAppStore';
+import { useUpdateStore } from '@sdkwork/claw-studio-business/stores/useUpdateStore';
 
 const THEME_COLORS: { id: ThemeColor; label: string; colorClass: string }[] = [
   { id: 'tech-blue', label: 'Tech Blue', colorClass: 'bg-blue-500' },
@@ -14,6 +15,15 @@ const THEME_COLORS: { id: ThemeColor; label: string; colorClass: string }[] = [
 
 export function GeneralSettings() {
   const { themeMode, setThemeMode, themeColor, setThemeColor, language, setLanguage } = useAppStore();
+  const updateStatus = useUpdateStore((state) => state.status);
+  const updateResult = useUpdateStore((state) => state.result);
+  const updateError = useUpdateStore((state) => state.error);
+  const lastCheckedAt = useUpdateStore((state) => state.lastCheckedAt);
+  const checkForUpdates = useUpdateStore((state) => state.checkForUpdates);
+  const openLatestUpdateTarget = useUpdateStore((state) => state.openLatestUpdateTarget);
+  const isCheckingUpdates = updateStatus === 'checking';
+  const hasUpdate = updateResult?.hasUpdate === true;
+  const checkedAtText = lastCheckedAt ? new Date(lastCheckedAt).toLocaleString() : 'Not checked yet';
 
   return (
     <div className="space-y-8">
@@ -110,6 +120,72 @@ export function GeneralSettings() {
               description="Open the application in the system tray instead of a window."
               enabled={false}
             />
+          </div>
+        </Section>
+
+        <Section title="Application Updates">
+          <div className="space-y-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Desktop update channel</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                  Check the latest desktop version from the configured backend service.
+                </div>
+                <div className="text-xs text-zinc-400 dark:text-zinc-500">Last checked: {checkedAtText}</div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    void checkForUpdates();
+                  }}
+                  disabled={isCheckingUpdates}
+                  className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-800 shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  {isCheckingUpdates ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Check for updates
+                </button>
+                <button
+                  onClick={() => {
+                    void openLatestUpdateTarget();
+                  }}
+                  disabled={!hasUpdate || isCheckingUpdates}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <ArrowUpRight className="h-4 w-4" />
+                  Open update
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {isCheckingUpdates && 'Checking for the latest desktop release...'}
+                {updateStatus === 'idle' && 'Update checks have not started yet.'}
+                {updateStatus === 'unavailable' && 'Desktop update checks are currently unavailable.'}
+                {updateStatus === 'error' && 'The last update check failed.'}
+                {updateStatus === 'ready' && !hasUpdate && 'This desktop build is already up to date.'}
+                {updateStatus === 'ready' && hasUpdate && `Version ${updateResult?.targetVersion || 'latest'} is available.`}
+              </div>
+              <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                {updateStatus === 'ready' && hasUpdate && (updateResult?.summary || updateResult?.content || 'A newer desktop package is ready to download.')}
+                {updateStatus === 'ready' && !hasUpdate && `Current version: ${updateResult?.currentVersion || 'unknown'}`}
+                {(updateStatus === 'unavailable' || updateStatus === 'error') && (updateError || 'Review your desktop env configuration and backend connectivity.')}
+                {(updateStatus === 'idle' || isCheckingUpdates) && 'The application will query the backend update API with your configured release channel and access token.'}
+              </div>
+
+              {hasUpdate && updateResult?.highlights?.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {updateResult.highlights.slice(0, 3).map((highlight) => (
+                    <span
+                      key={highlight}
+                      className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700 dark:border-primary-900/60 dark:bg-primary-500/10 dark:text-primary-300"
+                    >
+                      {highlight}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         </Section>
       </div>

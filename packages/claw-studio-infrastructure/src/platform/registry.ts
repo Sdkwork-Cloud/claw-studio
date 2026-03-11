@@ -1,9 +1,9 @@
-import type { InstallerPlatformAPI } from './contracts/installer';
-import type { RuntimePlatformAPI } from './contracts/runtime';
-import type { PlatformAPI } from './types';
-import { WebInstallerPlatform } from './webInstaller';
-import { WebPlatform } from './web';
-import { WebRuntimePlatform } from './webRuntime';
+import type { InstallerPlatformAPI } from './contracts/installer.ts';
+import type { RuntimePlatformAPI } from './contracts/runtime.ts';
+import type { PlatformAPI } from './types.ts';
+import { WebInstallerPlatform } from './webInstaller.ts';
+import { WebPlatform } from './web.ts';
+import { WebRuntimePlatform } from './webRuntime.ts';
 
 export interface PlatformBridge {
   platform: PlatformAPI;

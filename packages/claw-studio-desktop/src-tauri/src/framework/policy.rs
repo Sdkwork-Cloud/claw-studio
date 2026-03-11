@@ -1,8 +1,64 @@
 use crate::framework::{paths::AppPaths, FrameworkError, Result};
 use std::{
+  ffi::OsString,
   fs,
   path::{Component, Path, PathBuf},
 };
+
+#[derive(Clone, Debug)]
+pub struct ExecutionPolicy {
+  default_working_directory: PathBuf,
+  managed_roots: Vec<PathBuf>,
+}
+
+impl ExecutionPolicy {
+  pub fn for_paths(paths: &AppPaths) -> Result<Self> {
+    let default_working_directory = canonicalize_directory(&paths.data_dir)?;
+    let managed_roots = paths
+      .managed_roots()
+      .into_iter()
+      .map(|root| canonicalize_directory(&root))
+      .collect::<Result<Vec<_>>>()?;
+
+    Ok(Self {
+      default_working_directory,
+      managed_roots,
+    })
+  }
+
+  pub fn validate_command_spawn(&self, command: &str, args: &[String]) -> Result<()> {
+    let _ = self;
+    validate_command_spawn(command, args)
+  }
+
+  pub fn resolve_working_directory(&self, working_directory: Option<&Path>) -> Result<PathBuf> {
+    let directory = match working_directory {
+      Some(directory) => canonicalize_directory(directory)?,
+      None => self.default_working_directory.clone(),
+    };
+
+    if self.managed_roots.iter().any(|root| directory.starts_with(root)) {
+      return Ok(directory);
+    }
+
+    Err(FrameworkError::PolicyViolation {
+      path: directory,
+      reason: "path is outside managed runtime directories".to_string(),
+    })
+  }
+
+  pub fn sanitize_environment<I>(&self, entries: I) -> Vec<(OsString, OsString)>
+  where
+    I: IntoIterator<Item = (OsString, OsString)>,
+  {
+    let _ = self;
+
+    entries
+      .into_iter()
+      .filter(|(key, _)| is_allowed_environment_key(key))
+      .collect()
+  }
+}
 
 pub fn resolve_managed_path(paths: &AppPaths, candidate: &Path) -> Result<PathBuf> {
   let raw = if candidate.as_os_str().is_empty() {
@@ -82,22 +138,30 @@ pub fn validate_command_spawn(command: &str, args: &[String]) -> Result<()> {
   })
 }
 
-pub fn validate_working_directory(working_directory: Option<&Path>) -> Result<()> {
-  let Some(directory) = working_directory else {
-    return Ok(());
-  };
-
-  let metadata = fs::metadata(directory)
-    .map_err(|_| FrameworkError::NotFound(format!("working directory not found: {}", directory.display())))?;
-
-  if metadata.is_dir() {
-    return Ok(());
+fn canonicalize_directory(path: &Path) -> Result<PathBuf> {
+  let metadata = fs::metadata(path).map_err(|_| FrameworkError::NotFound(format!("working directory not found: {}", path.display())))?;
+  if !metadata.is_dir() {
+    return Err(FrameworkError::ValidationFailed(format!(
+      "working directory is not a directory: {}",
+      path.display()
+    )));
   }
 
-  Err(FrameworkError::ValidationFailed(format!(
-    "working directory is not a directory: {}",
-    directory.display()
-  )))
+  fs::canonicalize(path).map_err(FrameworkError::from)
+}
+
+fn is_allowed_environment_key(key: &std::ffi::OsStr) -> bool {
+  let key = key.to_string_lossy();
+
+  #[cfg(windows)]
+  return matches_ci(&key, &["PATH", "SystemRoot", "ComSpec", "PATHEXT", "TEMP", "TMP"]);
+
+  #[cfg(not(windows))]
+  return matches_ci(&key, &["PATH", "HOME", "TMPDIR", "LANG"]);
+}
+
+fn matches_ci(value: &str, allowed: &[&str]) -> bool {
+  allowed.iter().any(|candidate| value.eq_ignore_ascii_case(candidate))
 }
 
 fn normalize_path(path: &Path) -> PathBuf {
@@ -120,8 +184,9 @@ fn normalize_path(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-  use super::{ensure_not_managed_root, resolve_managed_path, validate_command_spawn};
+  use super::{ensure_not_managed_root, resolve_managed_path, validate_command_spawn, ExecutionPolicy};
   use crate::framework::paths::resolve_paths_for_root;
+  use std::ffi::OsString;
 
   #[test]
   fn resolves_relative_path_inside_data_dir() {
@@ -160,5 +225,65 @@ mod tests {
       .expect_err("policy should deny unknown command");
 
     assert!(error.to_string().contains("not allowed"));
+  }
+
+  #[test]
+  fn resolves_managed_working_directory_to_canonical_path() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let paths = resolve_paths_for_root(root.path()).expect("paths");
+    let nested = paths.data_dir.join("work").join("nested");
+    std::fs::create_dir_all(&nested).expect("nested directory");
+    let policy = ExecutionPolicy::for_paths(&paths).expect("policy");
+
+    let resolved = policy
+      .resolve_working_directory(Some(nested.as_path()))
+      .expect("resolved cwd");
+
+    assert_eq!(resolved, std::fs::canonicalize(&nested).expect("canonical cwd"));
+  }
+
+  #[test]
+  fn defaults_working_directory_to_data_dir() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let paths = resolve_paths_for_root(root.path()).expect("paths");
+    let policy = ExecutionPolicy::for_paths(&paths).expect("policy");
+
+    let resolved = policy.resolve_working_directory(None).expect("default cwd");
+
+    assert_eq!(resolved, std::fs::canonicalize(&paths.data_dir).expect("canonical data dir"));
+  }
+
+  #[test]
+  fn rejects_working_directory_outside_managed_roots() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let paths = resolve_paths_for_root(root.path()).expect("paths");
+    let outside = root.path().join("external");
+    std::fs::create_dir_all(&outside).expect("outside dir");
+    let policy = ExecutionPolicy::for_paths(&paths).expect("policy");
+
+    let error = policy
+      .resolve_working_directory(Some(outside.as_path()))
+      .expect_err("outside cwd should be denied");
+
+    assert!(error.to_string().contains("outside managed runtime directories"));
+  }
+
+  #[test]
+  fn sanitizes_environment_to_allow_list() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let paths = resolve_paths_for_root(root.path()).expect("paths");
+    let policy = ExecutionPolicy::for_paths(&paths).expect("policy");
+
+    let sanitized = policy.sanitize_environment(vec![
+      (OsString::from("PATH"), OsString::from("path-value")),
+      (OsString::from("SECRET_TOKEN"), OsString::from("hidden")),
+      #[cfg(windows)]
+      (OsString::from("SystemRoot"), OsString::from("C:\\Windows")),
+      #[cfg(not(windows))]
+      (OsString::from("LANG"), OsString::from("en_US.UTF-8")),
+    ]);
+
+    assert!(sanitized.iter().any(|(key, _)| key == "PATH"));
+    assert!(!sanitized.iter().any(|(key, _)| key == "SECRET_TOKEN"));
   }
 }
