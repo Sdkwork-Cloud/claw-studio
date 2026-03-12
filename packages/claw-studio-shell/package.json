@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@sdkwork/claw-studio-account": "workspace:*",
     "@sdkwork/claw-studio-apps": "workspace:*",
     "@sdkwork/claw-studio-business": "workspace:*",
     "@sdkwork/claw-studio-channels": "workspace:*",
@@ -12,8 +13,10 @@
     "@sdkwork/claw-studio-community": "workspace:*",
     "@sdkwork/claw-studio-devices": "workspace:*",
     "@sdkwork/claw-studio-docs": "workspace:*",
+    "@sdkwork/claw-studio-extensions": "workspace:*",
     "@sdkwork/claw-studio-github": "workspace:*",
     "@sdkwork/claw-studio-huggingface": "workspace:*",
+    "@sdkwork/claw-studio-infrastructure": "workspace:*",
     "@sdkwork/claw-studio-install": "workspace:*",
     "@sdkwork/claw-studio-instances": "workspace:*",
     "@sdkwork/claw-studio-market": "workspace:*",
@@ -28,12 +31,12 @@
     "motion": "^12.35.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "^16.1.0",
     "react-router-dom": "^7.13.1",
     "sonner": "^2.0.7",
     "tailwindcss": "^4.1.14"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./styles.css": "./src/styles/index.css"
+    ".": "./src/index.ts"
   }
 }

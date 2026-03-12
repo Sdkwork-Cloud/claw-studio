@@ -1,5 +1,6 @@
 export * from './pages/settings/AccountSettings';
 export * from './pages/settings/ApiKeysSettings';
+export * from './pages/settings/BillingSettings';
 export * from './pages/settings/DataPrivacySettings';
 export * from './pages/settings/GeneralSettings';
 export * from './pages/settings/LLMSettings';
@@ -7,3 +8,4 @@ export * from './pages/settings/NotificationSettings';
 export * from './pages/settings/SecuritySettings';
 export * from './pages/settings/Settings';
 export * from './pages/settings/Shared';
+export * from './services';

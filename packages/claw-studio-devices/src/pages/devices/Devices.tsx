@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Modal } from '@sdkwork/claw-studio-shared-ui';
 import type { Device, InstalledSkill } from '@sdkwork/claw-studio-domain';
-import { deviceService } from '../../services/deviceService';
+import { deviceService } from '../../services';
 
 export function Devices() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -186,33 +186,36 @@ export function Devices() {
                 </button>
               </div>
 
-              {/* Hardware Specs (Mocked for visual) */}
-              <div className="grid grid-cols-2 gap-3 mb-8">
-                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
-                    <Cpu className="w-3.5 h-3.5" /> SoC
+              {selectedDevice.hardwareSpecs && (
+                <div className="grid grid-cols-2 gap-3 mb-8">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
+                      <Cpu className="w-3.5 h-3.5" /> SoC
+                    </div>
+                    <div className="font-mono text-sm text-zinc-900 dark:text-zinc-100">{selectedDevice.hardwareSpecs.soc}</div>
                   </div>
-                  <div className="font-mono text-sm text-zinc-900 dark:text-zinc-100">ARM Cortex-M4</div>
-                </div>
-                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
-                    <MemoryStick className="w-3.5 h-3.5" /> RAM
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
+                      <MemoryStick className="w-3.5 h-3.5" /> RAM
+                    </div>
+                    <div className="font-mono text-sm text-zinc-900 dark:text-zinc-100">{selectedDevice.hardwareSpecs.ram}</div>
                   </div>
-                  <div className="font-mono text-sm text-zinc-900 dark:text-zinc-100">256 KB</div>
-                </div>
-                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
-                    <HardDrive className="w-3.5 h-3.5" /> Storage
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
+                      <HardDrive className="w-3.5 h-3.5" /> Storage
+                    </div>
+                    <div className="font-mono text-sm text-zinc-900 dark:text-zinc-100">{selectedDevice.hardwareSpecs.storage}</div>
                   </div>
-                  <div className="font-mono text-sm text-zinc-900 dark:text-zinc-100">1 MB Flash</div>
-                </div>
-                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
-                    <Activity className="w-3.5 h-3.5" /> Latency
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
+                      <Activity className="w-3.5 h-3.5" /> Latency
+                    </div>
+                    <div className={`font-mono text-sm ${selectedDevice.hardwareSpecs.latency !== '-' ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                      {selectedDevice.hardwareSpecs.latency}
+                    </div>
                   </div>
-                  <div className="font-mono text-sm text-emerald-600 dark:text-emerald-400">12ms</div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center justify-between">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, Hash, Webhook, Settings, CheckCircle2, X, ExternalLink, AlertCircle, BookOpen, ChevronRight, Smile, MessageCircle, Zap, Building2 } from 'lucide-react';
-import { channelService, Channel } from '../../services/channelService';
+import { channelService, Channel } from '../../services';
 
 export function Channels() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);

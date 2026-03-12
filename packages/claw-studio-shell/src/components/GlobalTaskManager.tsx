@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, CheckCircle2, AlertCircle, Loader2, HardDriveDownload, Package, Terminal, Trash2 } from 'lucide-react';
-import { useTaskStore, Task } from '@sdkwork/claw-studio-business/stores/useTaskStore';
+import { type Task, useTaskStore } from '@sdkwork/claw-studio-business';
 
 const TaskIcon = ({ type, status }: { type: Task['type'], status: Task['status'] }) => {
   if (status === 'success') return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
@@ -62,7 +62,7 @@ export function GlobalTaskManager() {
           </div>
 
           {/* Task List */}
-          <div className="overflow-y-auto p-2 space-y-1 bg-zinc-50/30">
+          <div className="overflow-y-auto scrollbar-hide p-2 space-y-1 bg-zinc-50/30">
             {tasks.length === 0 ? (
               <div className="py-8 text-center text-zinc-500 text-sm">No recent tasks</div>
             ) : (

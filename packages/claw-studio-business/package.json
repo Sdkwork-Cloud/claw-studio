@@ -13,28 +13,6 @@
     "zustand": "^5.0.11"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./services/apiKeyService": "./src/services/apiKeyService.ts",
-    "./services/appStoreService": "./src/services/appStoreService.ts",
-    "./services/channelService": "./src/services/channelService.ts",
-    "./services/chatService": "./src/services/chatService.ts",
-    "./services/clawService": "./src/services/clawService.ts",
-    "./services/communityService": "./src/services/communityService.ts",
-    "./services/deviceService": "./src/services/deviceService.ts",
-    "./services/fileDialogService": "./src/services/fileDialogService.ts",
-    "./services/installerService": "./src/services/installerService.ts",
-    "./services/instanceService": "./src/services/instanceService.ts",
-    "./services/llmService": "./src/services/llmService.ts",
-    "./services/marketService": "./src/services/marketService.ts",
-    "./services/runtimeService": "./src/services/runtimeService.ts",
-    "./services/settingsService": "./src/services/settingsService.ts",
-    "./services/taskService": "./src/services/taskService.ts",
-    "./services/updateService": "./src/services/updateService.ts",
-    "./stores/useAppStore": "./src/stores/useAppStore.ts",
-    "./stores/useChatStore": "./src/stores/useChatStore.ts",
-    "./stores/useLLMStore": "./src/stores/useLLMStore.ts",
-    "./stores/useUpdateStore": "./src/stores/useUpdateStore.ts",
-    "./stores/useTaskStore": "./src/stores/useTaskStore.ts",
-    "./hooks/useKeyboardShortcuts": "./src/hooks/useKeyboardShortcuts.ts"
+    ".": "./src/index.ts"
   }
 }

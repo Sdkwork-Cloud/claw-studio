@@ -3,7 +3,7 @@ import { Key, Plus, Copy, Trash2, Eye, EyeOff, Check, AlertCircle, MoreVertical 
 import { Modal } from '@sdkwork/claw-studio-shared-ui';
 import { Section } from './Shared';
 import { toast } from 'sonner';
-import { apiKeyService, ApiKey } from '../../services/apiKeyService';
+import { apiKeyService, type ApiKey } from '../../services';
 
 export function ApiKeysSettings() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -109,13 +109,14 @@ export function ApiKeysSettings() {
                 <th className="px-6 py-3 font-medium">SECRET KEY</th>
                 <th className="px-6 py-3 font-medium">CREATED</th>
                 <th className="px-6 py-3 font-medium">LAST USED</th>
+                <th className="px-6 py-3 font-medium">USAGE (MTD)</th>
                 <th className="px-6 py-3 font-medium text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {keys.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 dark:text-zinc-400">
                     <Key className="w-8 h-8 mx-auto mb-3 text-zinc-300 dark:text-zinc-700" />
                     <p>No API keys found. Create one to get started.</p>
                   </td>
@@ -127,6 +128,7 @@ export function ApiKeysSettings() {
                     <td className="px-6 py-4 font-mono text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{key.token}</td>
                     <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{key.created}</td>
                     <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{key.lastUsed}</td>
+                    <td className="px-6 py-4 text-zinc-900 dark:text-zinc-100 font-medium whitespace-nowrap">${(Math.random() * 50).toFixed(2)}</td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       <button 
                         onClick={() => confirmRevoke(key)}

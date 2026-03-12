@@ -15,8 +15,7 @@ import {
   Sparkles, CheckSquare, Highlighter, Strikethrough, X, Send, ImagePlus,
   Upload
 } from 'lucide-react';
-import { communityService } from '../../services/communityService';
-import { llmService } from '../../services/llmService';
+import { communityService, llmService } from '../../services';
 import { toast } from 'sonner';
 
 const CATEGORIES = ['Tutorials', 'Discussions', 'Showcase', 'Help', 'News'];

@@ -1,2 +1,2 @@
-export * from '@sdkwork/claw-studio-business/services/instanceService';
+export { instanceService, type Instance } from '@sdkwork/claw-studio-business';
 

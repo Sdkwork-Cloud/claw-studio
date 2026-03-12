@@ -1,2 +1,2 @@
-export * from '@sdkwork/claw-studio-business/services/marketService';
+export { marketService } from '@sdkwork/claw-studio-business';
 

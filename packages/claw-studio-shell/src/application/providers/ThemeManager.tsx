@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAppStore } from '@sdkwork/claw-studio-business/stores/useAppStore';
+import { useAppStore } from '@sdkwork/claw-studio-business';
 
 export function ThemeManager() {
   const { themeMode, themeColor, language } = useAppStore();
@@ -7,18 +7,29 @@ export function ThemeManager() {
   useEffect(() => {
     const root = document.documentElement;
 
-    root.setAttribute('data-theme', themeColor);
+    const applyTheme = () => {
+      root.setAttribute('data-theme', themeColor);
 
-    if (
-      themeMode === 'dark' ||
-      (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    ) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
+      if (
+        themeMode === 'dark' ||
+        (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      ) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+
+      root.setAttribute('lang', language);
+    };
+
+    applyTheme();
+
+    if (themeMode === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme();
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
     }
-
-    root.setAttribute('lang', language);
   }, [themeMode, themeColor, language]);
 
   return null;

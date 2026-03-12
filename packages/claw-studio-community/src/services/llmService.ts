@@ -1,2 +1,2 @@
-export * from '@sdkwork/claw-studio-business/services/llmService';
+export { llmService } from '@sdkwork/claw-studio-business';
 

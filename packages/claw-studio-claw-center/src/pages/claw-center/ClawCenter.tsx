@@ -1,197 +1,300 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Network, Server, Cpu, Activity, Shield, Clock, ChevronRight, Globe, HardDrive } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  ArrowRight,
+  Briefcase,
+  Building2,
+  ChevronDown,
+  ChevronRight,
+  Menu,
+  MessageCircle,
+  Network,
+  Search,
+  ShieldCheck,
+  Star,
+  TrendingUp,
+  Zap,
+} from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { clawService, ClawInstance } from '../../services/clawService';
+import {
+  clawService,
+  type ClawCategory,
+  type ClawInstance,
+} from '../../services';
 
 export function ClawCenter() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
   const [claws, setClaws] = useState<ClawInstance[]>([]);
+  const [categories, setCategories] = useState<ClawCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
-    const fetchClaws = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
-        const data = await clawService.getClaws();
-        setClaws(data);
+        const [clawsData, categoriesData] = await Promise.all([
+          clawService.getClaws(),
+          clawService.getCategories(),
+        ]);
+        setClaws(clawsData);
+        setCategories(categoriesData);
       } catch (error) {
-        console.error('Failed to fetch claws:', error);
+        console.error('Failed to fetch claw center data:', error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchClaws();
+
+    void fetchData();
   }, []);
 
-  const filteredClaws = claws.filter(claw => 
-    claw.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    claw.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    claw.ip.includes(searchQuery)
-  );
+  const filteredClaws = claws.filter((claw) => {
+    const lowerSearchQuery = searchQuery.toLowerCase();
+    const matchesSearch =
+      claw.name.toLowerCase().includes(lowerSearchQuery) ||
+      claw.description.toLowerCase().includes(lowerSearchQuery) ||
+      claw.tags.some((tag) => tag.toLowerCase().includes(lowerSearchQuery));
+    const matchesCategory = activeCategory === 'All' || claw.category === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   if (isLoading) {
     return (
-      <div className="p-8 md:p-12 max-w-7xl mx-auto flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="mx-auto flex h-64 max-w-7xl items-center justify-center p-8 md:p-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="p-8 md:p-12 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 rounded-xl flex items-center justify-center shadow-sm">
-              <Network className="w-5 h-5" />
+    <div className="h-full overflow-y-auto bg-zinc-50 pb-12 scrollbar-hide dark:bg-zinc-950">
+      <div className="sticky top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-8 px-6 py-4">
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm">
+              <Network className="h-6 w-6" />
             </div>
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Claw Center</h1>
+            <span className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">
+              {t('clawCenter.title')}
+              <span className="text-primary-600 dark:text-primary-400">
+                {t('clawCenter.titleHighlight')}
+              </span>
+            </span>
           </div>
-          <p className="text-zinc-500 dark:text-zinc-400 max-w-2xl">
-            Manage and monitor all registered Claw instances across your network. View real-time telemetry, manage configurations, and orchestrate deployments.
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <button className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 px-4 py-2.5 rounded-xl font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-sm text-sm flex items-center gap-2">
-            <Activity className="w-4 h-4" />
-            Network Map
-          </button>
-          <button className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm shadow-primary-500/20 text-sm flex items-center gap-2">
-            <Server className="w-4 h-4" />
-            Register New Claw
-          </button>
+
+          <div className="flex flex-1 items-center">
+            <div className="flex w-full overflow-hidden rounded-full border-2 border-primary-600 bg-white shadow-sm transition-all focus-within:ring-4 focus-within:ring-primary-500/20 dark:bg-zinc-950">
+              <div className="flex items-center justify-center border-r border-zinc-200 bg-zinc-50 px-4 py-3 pr-2 dark:border-zinc-800 dark:bg-zinc-900">
+                <span className="flex items-center gap-1 text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                  {t('clawCenter.services', 'Services')} <ChevronDown className="h-4 w-4" />
+                </span>
+              </div>
+              <input
+                type="text"
+                placeholder={t('clawCenter.searchPlaceholder')}
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="flex-1 bg-transparent px-4 py-3 text-sm focus:outline-none dark:text-zinc-100"
+              />
+              <button className="flex items-center gap-2 bg-primary-600 px-8 py-3 font-bold text-white transition-colors hover:bg-primary-700">
+                <Search className="h-4 w-4" /> {t('clawCenter.search', 'Search')}
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden shrink-0 items-center gap-6 text-sm font-medium text-zinc-600 dark:text-zinc-400 lg:flex">
+            <button className="flex flex-col items-center gap-1 transition-colors hover:text-primary-600 dark:hover:text-primary-400">
+              <MessageCircle className="h-5 w-5" />
+              {t('clawCenter.messages', 'Messages')}
+            </button>
+            <button className="flex flex-col items-center gap-1 transition-colors hover:text-primary-600 dark:hover:text-primary-400">
+              <Briefcase className="h-5 w-5" />
+              {t('clawCenter.myOrders', 'My Orders')}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
-          <div className="text-zinc-500 dark:text-zinc-400 text-sm font-medium mb-1">Total Claws</div>
-          <div className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">{claws.length}</div>
-        </div>
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
-          <div className="text-zinc-500 dark:text-zinc-400 text-sm font-medium mb-1">Online</div>
-          <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{claws.filter(c => c.status === 'online').length}</div>
-        </div>
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
-          <div className="text-zinc-500 dark:text-zinc-400 text-sm font-medium mb-1">Offline</div>
-          <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">{claws.filter(c => c.status === 'offline').length}</div>
-        </div>
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
-          <div className="text-zinc-500 dark:text-zinc-400 text-sm font-medium mb-1">Avg CPU Load</div>
-          <div className="text-3xl font-bold text-primary-600 dark:text-primary-400">
-            {claws.length > 0 ? Math.round(claws.reduce((acc, c) => acc + c.cpuUsage, 0) / claws.length) : 0}%
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative w-full sm:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 dark:text-zinc-500" />
-            <input 
-              type="text" 
-              placeholder="Search by name, ID, or IP..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm dark:text-zinc-100"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <select className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2 shadow-sm outline-none cursor-pointer">
-              <option>All Status</option>
-              <option>Online</option>
-              <option>Offline</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-zinc-600 dark:text-zinc-400">
-            <thead className="text-xs text-zinc-500 dark:text-zinc-400 uppercase bg-zinc-50/50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
-              <tr>
-                <th scope="col" className="px-6 py-4 font-semibold">Claw Instance</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Status</th>
-                <th scope="col" className="px-6 py-4 font-semibold">IP Address</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Resources</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Version</th>
-                <th scope="col" className="px-6 py-4 font-semibold text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {filteredClaws.map((claw) => (
-                <tr key={claw.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/50 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${claw.status === 'online' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500'}`}>
-                        <Server className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{claw.name}</div>
-                        <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mt-0.5">{claw.id} • {claw.location}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      claw.status === 'online' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-500/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${claw.status === 'online' ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-zinc-400 dark:bg-zinc-500'}`}></span>
-                      {claw.status === 'online' ? 'Online' : 'Offline'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1.5 font-mono text-xs">
-                      <Globe className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
-                      {claw.ip}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {claw.status === 'online' ? (
-                      <div className="flex flex-col gap-1.5 w-32">
-                        <div className="flex items-center gap-2 text-[10px] font-medium">
-                          <Cpu className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                          <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${claw.cpuUsage > 80 ? 'bg-rose-500' : claw.cpuUsage > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${claw.cpuUsage}%` }}></div>
-                          </div>
-                          <span className="w-6 text-right">{claw.cpuUsage}%</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[10px] font-medium">
-                          <HardDrive className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                          <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${claw.ramUsage > 80 ? 'bg-rose-500' : claw.ramUsage > 50 ? 'bg-amber-500' : 'bg-primary-500'}`} style={{ width: `${claw.ramUsage}%` }}></div>
-                          </div>
-                          <span className="w-6 text-right">{claw.ramUsage}%</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500 italic">Unavailable</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-mono font-medium">
-                      {claw.version}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => navigate(`/claw-center/${claw.id}`)}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 dark:text-zinc-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
+      <div className="mx-auto max-w-7xl px-6 pt-6">
+        <div className="mb-12 flex flex-col gap-6 lg:flex-row">
+          <div className="flex h-fit w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:w-64">
+            <div className="flex items-center gap-2 bg-primary-600 p-4 font-bold text-white">
+              <Menu className="h-5 w-5" /> {t('clawCenter.allCategories')}
+            </div>
+            <div className="py-2">
+              <div
+                onClick={() => setActiveCategory('All')}
+                className={`group flex cursor-pointer items-center justify-between border-l-4 px-4 py-3 transition-colors ${
+                  activeCategory === 'All'
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-500/10'
+                    : 'border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-3 text-sm font-bold ${
+                    activeCategory === 'All'
+                      ? 'text-primary-600 dark:text-primary-400'
+                      : 'text-zinc-700 group-hover:text-primary-600 dark:text-zinc-300 dark:group-hover:text-primary-400'
+                  }`}
+                >
+                  <Network className="h-4 w-4" /> {t('clawCenter.allCategories')}
+                </div>
+              </div>
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  onClick={() => setActiveCategory(category.id)}
+                  className={`group flex cursor-pointer items-center justify-between border-l-4 px-4 py-3 transition-colors ${
+                    activeCategory === category.id
+                      ? 'border-primary-600 bg-primary-50 dark:bg-primary-500/10'
+                      : 'border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                  }`}
+                >
+                  <div
+                    className={`flex items-center gap-3 text-sm font-bold ${
+                      activeCategory === category.id
+                        ? 'text-primary-600 dark:text-primary-400'
+                        : 'text-zinc-700 group-hover:text-primary-600 dark:text-zinc-300 dark:group-hover:text-primary-400'
+                    }`}
+                  >
+                    <category.icon className="h-4 w-4" />{' '}
+                    {t(`categories.${category.id}`, category.name)}
+                  </div>
+                  <ChevronRight
+                    className={`h-4 w-4 transition-opacity ${
+                      activeCategory === category.id
+                        ? 'text-primary-600 opacity-100'
+                        : 'text-zinc-400 opacity-0 group-hover:opacity-100'
+                    }`}
+                  />
+                </div>
               ))}
-            </tbody>
-          </table>
-          {filteredClaws.length === 0 && (
-            <div className="p-12 text-center text-zinc-500 dark:text-zinc-400">
-              No claws found matching your search.
             </div>
-          )}
+          </div>
+
+          <div className="group relative flex min-h-[420px] flex-1 cursor-pointer flex-col justify-center overflow-hidden rounded-2xl bg-zinc-900 shadow-lg">
+            <div className="absolute inset-0 z-10 bg-gradient-to-r from-primary-900/90 to-rose-900/40" />
+            <img
+              src="https://picsum.photos/seed/ai-banner/1200/600"
+              alt="Banner"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+
+            <div className="relative z-20 max-w-2xl p-10 md:p-16">
+              <span className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/20 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white backdrop-blur-md">
+                <Zap className="h-3.5 w-3.5 text-amber-300" />{' '}
+                {t('clawCenter.supercharge', 'Supercharge Your Business')}
+              </span>
+              <h2 className="mb-4 text-4xl font-black leading-tight text-white md:text-5xl">
+                {t('clawCenter.futureOfB2B', 'The Future of B2B')} <br />
+                <span className="bg-gradient-to-r from-primary-300 to-rose-300 bg-clip-text text-transparent">
+                  {t('clawCenter.aiAgentSourcing', 'AI Agent Sourcing')}
+                </span>
+              </h2>
+              <p className="mb-8 max-w-lg text-lg text-primary-100">
+                {t('clawCenter.subtitle')}
+              </p>
+              <button className="flex items-center gap-2 rounded-full bg-white px-8 py-3.5 font-bold text-primary-900 shadow-xl transition-colors hover:bg-primary-50">
+                {t('clawCenter.exploreProviders', 'Explore Top Providers')}{' '}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
+
+        <div className="mb-6 flex items-center gap-2">
+          <TrendingUp className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            {activeCategory === 'All'
+              ? t('clawCenter.trendingProviders', 'Trending Providers')
+              : `${t(
+                  `categories.${activeCategory}`,
+                  categories.find((category) => category.id === activeCategory)?.name,
+                )} ${t('clawCenter.providers', 'Providers')}`}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredClaws.map((claw) => (
+            <div
+              key={claw.id}
+              onClick={() => navigate(`/claw-center/${claw.id}`)}
+              className="group flex cursor-pointer flex-col rounded-2xl border border-zinc-200 bg-white p-5 transition-all hover:border-primary-500/30 hover:shadow-xl dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-primary-500/50"
+            >
+              <div className="mb-4 flex items-start justify-between">
+                <img
+                  src={claw.logo}
+                  alt={claw.name}
+                  className="h-14 w-14 rounded-xl border border-zinc-100 object-cover shadow-sm dark:border-zinc-800"
+                  referrerPolicy="no-referrer"
+                />
+                {claw.verified && (
+                  <span className="flex items-center gap-1 rounded-full border border-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400">
+                    <ShieldCheck className="h-3 w-3" />
+                    {t('clawCenter.verifiedOnly', 'Verified')}
+                  </span>
+                )}
+              </div>
+
+              <h3 className="mb-1 truncate text-lg font-bold text-zinc-900 transition-colors group-hover:text-primary-600 dark:text-zinc-100 dark:group-hover:text-primary-400">
+                {claw.name}
+              </h3>
+              <p className="mb-3 flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <Briefcase className="h-3.5 w-3.5" /> {t(`categories.${claw.category}`, claw.category)}
+              </p>
+
+              <p className="mb-4 line-clamp-2 flex-1 text-sm text-zinc-600 dark:text-zinc-400">
+                {claw.description}
+              </p>
+
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                {claw.tags.slice(0, 2).map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded border border-zinc-200 bg-zinc-100 px-2 py-1 text-[10px] font-medium text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {claw.tags.length > 2 && (
+                  <span className="rounded border border-zinc-200 bg-zinc-50 px-2 py-1 text-[10px] font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-500">
+                    +{claw.tags.length - 2}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-auto flex items-center justify-between border-t border-zinc-100 pt-4 dark:border-zinc-800">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                    {claw.rating}
+                  </div>
+                  <div className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+                    {claw.completedOrders.toLocaleString()}+ {t('clawCenter.orders')}
+                  </div>
+                </div>
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600 transition-colors group-hover:bg-primary-600 group-hover:text-white dark:bg-primary-500/10 dark:text-primary-400">
+                  <MessageCircle className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {filteredClaws.length === 0 && (
+          <div className="mt-4 flex flex-col items-center justify-center rounded-3xl border border-zinc-200 bg-white py-24 text-center dark:border-zinc-800 dark:bg-zinc-900">
+            <Building2 className="mb-4 h-16 w-16 text-zinc-300 dark:text-zinc-700" />
+            <h3 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
+              {t('clawCenter.noProvidersFound', 'No providers found')}
+            </h3>
+            <p className="max-w-md text-zinc-500 dark:text-zinc-400">
+              {t('clawCenter.noResults')}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

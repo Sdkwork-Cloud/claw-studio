@@ -1,12 +1,16 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import {
+  WebPlatform,
+  configurePlatformBridge,
+} from '@sdkwork/claw-studio-infrastructure';
 import type {
   InstallScriptRequest,
-  PlatformSaveFileOptions,
-  PlatformSelectFileOptions,
   PlatformFileEntry,
   PlatformPathInfo,
+  PlatformSaveFileOptions,
+  PlatformSelectFileOptions,
   RuntimeAppInfo,
   RuntimeConfigInfo,
   RuntimeEventUnsubscribe,
@@ -16,8 +20,6 @@ import type {
   RuntimeProcessOutputEvent,
   RuntimeSystemInfo,
 } from '@sdkwork/claw-studio-infrastructure';
-import { configurePlatformBridge } from '@sdkwork/claw-studio-infrastructure';
-import { WebPlatform } from '@sdkwork/claw-studio-infrastructure/platform/web';
 
 const desktopPlatform = new WebPlatform();
 

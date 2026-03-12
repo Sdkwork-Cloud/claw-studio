@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Server, Settings, Terminal, Shield, RefreshCw, Power, Save, Trash2, Copy, Check, Info } from 'lucide-react';
-import { instanceService, Instance } from '../../services/instanceService';
+import { instanceService, Instance } from '../../services';
 
 export function InstanceDetail() {
   const { id } = useParams<{ id: string }>();

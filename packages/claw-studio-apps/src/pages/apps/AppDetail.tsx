@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, Download, Share, ShieldCheck, HardDrive, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { appStoreService, AppItem } from '../../services/appStoreService';
+import { appStoreService, AppItem } from '../../services';
 
 export function AppDetail() {
   const { id } = useParams();

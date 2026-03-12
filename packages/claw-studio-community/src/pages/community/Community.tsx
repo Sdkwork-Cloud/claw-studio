@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, MessageSquare, Heart, Eye, Plus, TrendingUp, Clock, BookOpen, Users, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
-import { communityService, CommunityPost } from '../../services/communityService';
+import { communityService, CommunityPost } from '../../services';
 
 const CATEGORIES = [
   { id: 'latest', name: 'Latest', icon: Clock },
@@ -40,7 +40,7 @@ export function Community() {
   }, [activeCategory, searchQuery]);
 
   return (
-    <div className="min-h-full bg-zinc-50 dark:bg-zinc-950">
+    <div className="h-full bg-zinc-50 dark:bg-zinc-950 overflow-y-auto scrollbar-hide">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 px-6 md:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">

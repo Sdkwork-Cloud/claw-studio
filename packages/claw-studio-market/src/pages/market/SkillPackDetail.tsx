@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, Package, CheckCircle2, Circle, Cpu, AlertCircle, Loader2, Star, ShieldCheck, LayoutGrid, HardDrive, Server, Apple, Box } from 'lucide-react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
-import type { SkillPack } from '@sdkwork/claw-studio-domain';
-import { marketService } from '../../services/marketService';
-import { instanceService, Instance } from '../../services/instanceService';
-import { useTaskStore } from '@sdkwork/claw-studio-business/stores/useTaskStore';
+import { useInstanceStore, useTaskStore } from '@sdkwork/claw-studio-business';
+import type { SkillPack, Skill } from '@sdkwork/claw-studio-domain';
+import { instanceService, marketService, mySkillService, type Instance } from '../../services';
 
 export function SkillPackDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedInstance, setSelectedInstance] = useState<string>('');
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
+  const { activeInstanceId } = useInstanceStore();
 
   const { data: pack, isLoading: isLoadingPack } = useQuery<SkillPack>({
     queryKey: ['pack', id],
@@ -25,9 +26,15 @@ export function SkillPackDetail() {
     queryFn: instanceService.getInstances
   });
 
+  const { data: mySkills = [] } = useQuery<Skill[]>({
+    queryKey: ['mySkills', activeInstanceId],
+    queryFn: () => activeInstanceId ? mySkillService.getMySkills(activeInstanceId) : Promise.resolve([]),
+    enabled: !!activeInstanceId
+  });
+
   const { addTask, updateTask } = useTaskStore();
 
-  const handleDownloadLocal = () => {
+  const handleDownloadLocal = async () => {
     if (!pack) return;
     
     toast.success(`Started downloading ${pack.name}`);
@@ -38,28 +45,16 @@ export function SkillPackDetail() {
       type: 'download'
     });
 
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress >= 100) {
-        clearInterval(interval);
-        updateTask(taskId, { progress: 100, status: 'success', subtitle: 'Download complete' });
-        toast.success(`${pack.name} downloaded successfully`);
-        
-        // Simulate actual file download trigger
-        const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${pack.id}-pack.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
+    try {
+      await marketService.downloadPackLocal(pack, (progress) => {
         updateTask(taskId, { progress });
-      }
-    }, 500);
+      });
+      updateTask(taskId, { progress: 100, status: 'success', subtitle: 'Download complete' });
+      toast.success(`${pack.name} downloaded successfully`);
+    } catch (error) {
+      updateTask(taskId, { status: 'error', subtitle: 'Download failed' });
+      toast.error(`Failed to download ${pack.name}`);
+    }
   };
 
   const installMutation = useMutation({
@@ -71,6 +66,7 @@ export function SkillPackDetail() {
       toast.success('Installation Started', {
         description: `Installing ${selectedSkills.size} skills to the selected instance.`
       });
+      queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
       setTimeout(() => navigate('/instances'), 1500);
     },
     onError: (error: Error) => {
@@ -83,9 +79,10 @@ export function SkillPackDetail() {
   // Initialize selected skills when pack loads
   React.useEffect(() => {
     if (pack && selectedSkills.size === 0) {
-      setSelectedSkills(new Set(pack.skills.map(s => s.id)));
+      const uninstalledSkills = pack.skills.filter(s => !mySkills.some(ms => ms.id === s.id));
+      setSelectedSkills(new Set(uninstalledSkills.map(s => s.id)));
     }
-  }, [pack]);
+  }, [pack, mySkills]);
 
   // Initialize selected instance when instances load
   React.useEffect(() => {
@@ -106,10 +103,11 @@ export function SkillPackDetail() {
 
   const toggleAll = () => {
     if (!pack) return;
-    if (selectedSkills.size === pack.skills.length) {
+    const uninstalledSkills = pack.skills.filter(s => !mySkills.some(ms => ms.id === s.id));
+    if (selectedSkills.size === uninstalledSkills.length) {
       setSelectedSkills(new Set());
     } else {
-      setSelectedSkills(new Set(pack.skills.map(s => s.id)));
+      setSelectedSkills(new Set(uninstalledSkills.map(s => s.id)));
     }
   };
 
@@ -202,27 +200,31 @@ export function SkillPackDetail() {
                   onClick={toggleAll}
                   className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                 >
-                  {selectedSkills.size === pack.skills.length ? 'Deselect All' : 'Select All'}
+                  {selectedSkills.size === (pack.skills.filter(s => !mySkills.some(ms => ms.id === s.id)).length) ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
               
               <div className="grid grid-cols-1 gap-4">
                 {pack.skills?.map(skill => {
                   const isSelected = selectedSkills.has(skill.id);
+                  const isInstalled = mySkills.some(s => s.id === skill.id);
                   return (
                     <div 
                       key={skill.id} 
-                      onClick={() => toggleSkill(skill.id)}
-                      className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-colors ${isSelected ? 'border-primary-200 dark:border-primary-500/30 bg-primary-50/30 dark:bg-primary-500/10' : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+                      onClick={() => !isInstalled && toggleSkill(skill.id)}
+                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-colors ${isInstalled ? 'border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 opacity-70 cursor-default' : isSelected ? 'border-primary-200 dark:border-primary-500/30 bg-primary-50/30 dark:bg-primary-500/10 cursor-pointer' : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer'}`}
                     >
-                      <div className={`shrink-0 transition-colors ${isSelected ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-300 dark:text-zinc-600'}`}>
-                        {isSelected ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
+                      <div className={`shrink-0 transition-colors ${isInstalled ? 'text-emerald-500' : isSelected ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                        {isInstalled ? <CheckCircle2 className="w-6 h-6" /> : isSelected ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
                       </div>
                       <div className="w-12 h-12 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-primary-500 dark:text-primary-400 rounded-xl flex items-center justify-center font-bold text-lg uppercase shadow-sm shrink-0">
                         {skill.name.substring(0, 2)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className={`text-sm font-bold truncate ${isSelected ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}>{skill.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className={`text-sm font-bold truncate ${isSelected || isInstalled ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}>{skill.name}</h3>
+                          {isInstalled && <span className="text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Installed</span>}
+                        </div>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{skill.category}</p>
                       </div>
                       <button 
@@ -285,7 +287,7 @@ export function SkillPackDetail() {
                   <div className="flex justify-between items-end mb-6">
                     <div>
                       <p className="text-zinc-400 text-sm mb-1">Selected Skills</p>
-                      <p className="text-3xl font-bold">{selectedSkills.size} <span className="text-lg text-zinc-500 font-normal">/ {pack.skills.length}</span></p>
+                      <p className="text-3xl font-bold">{selectedSkills.size} <span className="text-lg text-zinc-500 font-normal">/ {pack.skills.filter(s => !mySkills.some(ms => ms.id === s.id)).length}</span></p>
                     </div>
                   </div>
                   

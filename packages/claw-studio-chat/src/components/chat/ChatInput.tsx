@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Mic, Image as ImageIcon, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
-import { cn } from '@sdkwork/claw-studio-shared-ui/utils';
+import { cn } from '@sdkwork/claw-studio-shared-ui';
 
 interface ChatInputProps {
   onSend: (message: string) => void;

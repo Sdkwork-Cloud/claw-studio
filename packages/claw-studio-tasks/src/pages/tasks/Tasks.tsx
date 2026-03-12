@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Play, Pause, XCircle, RefreshCw, Plus, MoreVertical, Calendar, MessageSquare, Zap, Trash2, Edit2 } from 'lucide-react';
-import { taskService, Task } from '../../services/taskService';
+import { taskService, Task } from '../../services';
 import { toast } from 'sonner';
 
 export function Tasks() {

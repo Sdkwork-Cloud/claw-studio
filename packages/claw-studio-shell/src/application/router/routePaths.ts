@@ -1,5 +1,6 @@
 export const ROUTE_PATHS = {
   ROOT: '/',
+  ACCOUNT: '/account',
   INSTALL: '/install',
   INSTALL_DETAIL: '/install/:method',
   INSTANCES: '/instances',
@@ -12,6 +13,7 @@ export const ROUTE_PATHS = {
   SKILL_PACK_DETAIL: '/market/packs/:id',
   APPS: '/apps',
   APP_DETAIL: '/apps/:id',
+  EXTENSIONS: '/extensions',
   COMMUNITY: '/community',
   COMMUNITY_NEW: '/community/new',
   COMMUNITY_DETAIL: '/community/:id',

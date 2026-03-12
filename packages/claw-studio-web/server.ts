@@ -302,23 +302,31 @@ async function startServer() {
   });
 
   app.post("/api/installations/pack", (req, res) => {
-    const { device_id, pack_id } = req.body;
+    const { device_id, pack_id, skill_ids } = req.body;
     try {
-      const skills = db.prepare("SELECT skill_id FROM skill_pack_items WHERE pack_id = ?").all(pack_id) as { skill_id: string }[];
+      let skillsToInstall: string[] = [];
+
+      if (skill_ids && Array.isArray(skill_ids) && skill_ids.length > 0) {
+        skillsToInstall = skill_ids;
+      } else {
+        const skills = db.prepare("SELECT skill_id FROM skill_pack_items WHERE pack_id = ?").all(pack_id) as { skill_id: string }[];
+        skillsToInstall = skills.map(s => s.skill_id);
+      }
+
       const insert = db.prepare("INSERT OR IGNORE INTO installations (device_id, skill_id) VALUES (?, ?)");
       const update = db.prepare("UPDATE skills SET downloads = downloads + 1 WHERE id = ?");
       
-      const transaction = db.transaction((skills) => {
-        for (const s of skills) {
-          const result = insert.run(device_id, s.skill_id);
+      const transaction = db.transaction((skills: string[]) => {
+        for (const skillId of skills) {
+          const result = insert.run(device_id, skillId);
           if (result.changes > 0) {
-            update.run(s.skill_id);
+            update.run(skillId);
           }
         }
         db.prepare("UPDATE skill_packs SET downloads = downloads + 1 WHERE id = ?").run(pack_id);
       });
       
-      transaction(skills);
+      transaction(skillsToInstall);
       res.json({ success: true });
     } catch (e) {
       res.status(400).json({ error: "Installation failed" });

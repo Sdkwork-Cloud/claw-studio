@@ -1,0 +1,5 @@
+{
+  "name": "Remix: Claw Studio V3",
+  "description": "Manage OpenClaw devices and install skills from the marketplace.",
+  "requestFramePermissions": []
+}

@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@sdkwork/claw-studio-business": "workspace:*",
     "@sdkwork/claw-studio-domain": "workspace:*",
     "@sdkwork/claw-studio-shared-ui": "workspace:*",
     "@types/react": "^19.2.2",

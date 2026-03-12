@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MessageSquare, Heart, Share2, Bookmark, MoreHorizontal, Clock, Eye, Send } from 'lucide-react';
 import { motion } from 'motion/react';
-import { communityService, CommunityPost, CommunityComment } from '../../services/communityService';
+import { communityService, CommunityPost, CommunityComment } from '../../services';
 
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';

@@ -2,8 +2,8 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import { useAppStore } from '@sdkwork/claw-studio-business/stores/useAppStore';
-import { useUpdateStore } from '@sdkwork/claw-studio-business/stores/useUpdateStore';
+import { useAppStore, useUpdateStore } from '@sdkwork/claw-studio-business';
+import { ensureI18n } from '@sdkwork/claw-studio-infrastructure';
 import { ThemeManager } from './ThemeManager';
 
 const queryClient = new QueryClient({
@@ -17,6 +17,7 @@ const queryClient = new QueryClient({
 });
 
 export function AppProviders({ children }: { children: ReactNode }) {
+  void ensureI18n();
   const { themeMode } = useAppStore();
   const startupCheckStartedRef = useRef(false);
   const runStartupCheck = useUpdateStore((state) => state.runStartupCheck);

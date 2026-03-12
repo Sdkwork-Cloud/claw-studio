@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Star, ChevronRight, Download, ShieldCheck, Zap, Cpu, Sparkles, Layers } from 'lucide-react';
-import { appStoreService, AppItem, AppCategory } from '../../services/appStoreService';
+import { appStoreService, AppItem, AppCategory } from '../../services';
 
 export function AppStore() {
   const navigate = useNavigate();

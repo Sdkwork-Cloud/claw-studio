@@ -1,4 +1,4 @@
-import { fileDialogService } from '@sdkwork/claw-studio-business/services/fileDialogService';
+import { fileDialogService } from '@sdkwork/claw-studio-infrastructure';
 
 export const installPathService = {
   async selectInstallDirectory(defaultPath?: string): Promise<string | null> {

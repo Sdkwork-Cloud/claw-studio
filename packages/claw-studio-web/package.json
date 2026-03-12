@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@sdkwork/claw-studio-infrastructure": "workspace:*",
     "@sdkwork/claw-studio-shell": "workspace:*",
     "express": "^4.21.2",
     "react": "^19.0.0",

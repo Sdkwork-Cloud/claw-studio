@@ -5,15 +5,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import Fuse from 'fuse.js';
 import { motion } from 'motion/react';
+import { useInstanceStore } from '@sdkwork/claw-studio-business';
 import { Modal } from '@sdkwork/claw-studio-shared-ui';
 import type { Skill, SkillPack } from '@sdkwork/claw-studio-domain';
-import { marketService } from '../../services/marketService';
-import { instanceService, Instance } from '../../services/instanceService';
+import { instanceService, marketService, mySkillService, type Instance } from '../../services';
 
 export function Market() {
+  const { activeInstanceId } = useInstanceStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [activeMarketTab, setActiveMarketTab] = useState<'skills' | 'packages'>('packages');
+  const [activeMarketTab, setActiveMarketTab] = useState<'skills' | 'packages' | 'myskills'>('packages');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -29,6 +30,12 @@ export function Market() {
   const { data: packs = [], isLoading: isLoadingPacks } = useQuery<SkillPack[]>({
     queryKey: ['packs'],
     queryFn: marketService.getPacks
+  });
+
+  const { data: mySkills = [], isLoading: isLoadingMySkills } = useQuery<Skill[]>({
+    queryKey: ['mySkills', activeInstanceId],
+    queryFn: () => activeInstanceId ? mySkillService.getMySkills(activeInstanceId) : Promise.resolve([]),
+    enabled: !!activeInstanceId
   });
 
   const { data: instances = [] } = useQuery<Instance[]>({
@@ -52,6 +59,7 @@ export function Market() {
         description: `Installing ${skill.name} to the selected instance.`
       });
       queryClient.invalidateQueries({ queryKey: ['skills'] });
+      queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
       setTimeout(() => {
         setInstallModalSkill(null);
       }, 1500);
@@ -72,12 +80,29 @@ export function Market() {
       toast.success('Pack Installation Started', {
         description: `Installing ${pack.name} bundle to the selected instance.`
       });
+      queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
       setTimeout(() => {
         setInstallModalPack(null);
       }, 1500);
     },
     onError: (error: Error) => {
       toast.error('Installation Failed', {
+        description: error.message
+      });
+    }
+  });
+
+  const uninstallSkillMutation = useMutation({
+    mutationFn: async (skillId: string) => {
+      if (!activeInstanceId) throw new Error('No active instance');
+      return mySkillService.uninstallSkill(activeInstanceId, skillId);
+    },
+    onSuccess: () => {
+      toast.success('Skill Uninstalled');
+      queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
+    },
+    onError: (error: Error) => {
+      toast.error('Uninstall Failed', {
         description: error.message
       });
     }
@@ -115,23 +140,30 @@ export function Market() {
     threshold: 0.3,
   }), [packs]);
 
+  const fuseMySkills = useMemo(() => new Fuse(mySkills, {
+    keys: ['name', 'description', 'author', 'category'],
+    threshold: 0.3,
+  }), [mySkills]);
+
   const searchResults = useMemo(() => {
-    if (!searchQuery) return { skills, packs };
+    if (!searchQuery) return { skills, packs, mySkills };
     return {
       skills: fuseSkills.search(searchQuery).map(r => r.item),
-      packs: fusePacks.search(searchQuery).map(r => r.item)
+      packs: fusePacks.search(searchQuery).map(r => r.item),
+      mySkills: fuseMySkills.search(searchQuery).map(r => r.item)
     };
-  }, [searchQuery, skills, packs, fuseSkills, fusePacks]);
+  }, [searchQuery, skills, packs, mySkills, fuseSkills, fusePacks, fuseMySkills]);
 
   const filteredSkills = searchResults.skills.filter(s => activeCategory === 'All' || s.category === activeCategory);
   const filteredPacks = searchResults.packs.filter(p => activeCategory === 'All' || p.category === activeCategory);
+  const filteredMySkills = searchResults.mySkills.filter(s => activeCategory === 'All' || s.category === activeCategory);
 
   const featuredSkill = skills.find(s => s.rating >= 4.8) || skills[0];
   const topSkills = [...skills].sort((a, b) => b.downloads - a.downloads).slice(0, 6);
   const isSearching = searchQuery.length > 0 || activeCategory !== 'All';
 
   return (
-    <div className="min-h-full bg-zinc-50 dark:bg-zinc-950">
+    <div className="h-full bg-zinc-50 dark:bg-zinc-950 overflow-y-auto scrollbar-hide">
       {/* Sticky Header with Search and Tabs */}
       <div className="sticky top-0 z-10 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 px-6 py-4">
         <div className="max-w-7xl mx-auto flex flex-col gap-4">
@@ -162,6 +194,17 @@ export function Market() {
                 <Layers className="w-4 h-4" />
                 Individual Skills
               </button>
+              <button
+                onClick={() => setActiveMarketTab('myskills')}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
+                  activeMarketTab === 'myskills'
+                    ? 'bg-white dark:bg-zinc-800 text-primary-600 dark:text-primary-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'
+                }`}
+              >
+                <Box className="w-4 h-4" />
+                My Skills
+              </button>
             </div>
           </div>
 
@@ -186,15 +229,15 @@ export function Market() {
       <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-12">
         
         {/* Categories */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-hide">
           {categories.map(cat => (
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-300 ${
                 activeCategory === cat.name 
-                  ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' 
-                  : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                  ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md scale-105' 
+                  : 'bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:shadow-sm'
               }`}
             >
               {cat.icon}
@@ -269,26 +312,26 @@ export function Market() {
                       <div 
                         key={pack.id} 
                         onClick={() => navigate(`/market/packs/${pack.id}`)}
-                        className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 hover:shadow-xl hover:shadow-primary-500/5 hover:border-primary-300 dark:hover:border-primary-500/50 transition-all cursor-pointer flex flex-col h-full relative overflow-hidden"
+                        className="group bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] p-6 hover:shadow-xl hover:shadow-primary-500/5 hover:border-primary-300 dark:hover:border-primary-500/50 transition-all duration-300 cursor-pointer flex flex-col h-full relative overflow-hidden"
                       >
-                        <div className="flex items-start gap-4 mb-4">
-                          <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-2xl flex items-center justify-center shadow-sm shrink-0 group-hover:scale-105 transition-transform">
+                        <div className="flex items-start gap-4 mb-5">
+                          <div className="w-16 h-16 bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-[1.25rem] flex items-center justify-center shadow-sm shrink-0 group-hover:scale-105 transition-transform duration-300">
                             <Package className="w-8 h-8" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{pack.name}</h3>
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate">{pack.author}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="flex items-center gap-1 text-xs text-amber-500 font-medium"><Star className="w-3 h-3 fill-amber-500" />{pack.rating.toFixed(1)}</span>
+                            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors tracking-tight">{pack.name}</h3>
+                            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{pack.author}</p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="flex items-center gap-1 text-xs text-amber-500 font-bold"><Star className="w-3.5 h-3.5 fill-amber-500" />{pack.rating.toFixed(1)}</span>
                             </div>
                           </div>
                         </div>
                         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 flex-1 line-clamp-2 leading-relaxed">{pack.description}</p>
-                        <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
-                          <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-md">{pack.downloads.toLocaleString()} installs</span>
+                        <div className="flex items-center justify-between pt-5 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400 font-bold bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-md tracking-wide">{pack.downloads.toLocaleString()} installs</span>
                           <button 
                             onClick={(e) => handleGetPackClick(e, pack)}
-                            className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-primary-500 hover:text-white dark:hover:bg-primary-500 dark:hover:text-white px-5 py-2 rounded-full text-sm font-bold transition-colors"
+                            className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-primary-500 hover:text-white dark:hover:bg-primary-500 dark:hover:text-white px-6 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm"
                           >
                             Get
                           </button>
@@ -356,22 +399,22 @@ export function Market() {
                       See All <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredSkills.map(skill => (
-                      <div key={skill.id} onClick={() => navigate(`/market/${skill.id}`)} className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 hover:shadow-xl hover:border-primary-500/30 dark:hover:border-primary-500/50 transition-all cursor-pointer flex flex-col h-full">
-                        <div className="flex items-start gap-4 mb-4">
-                          <div className="w-14 h-14 bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-primary-500 dark:text-primary-400 rounded-2xl flex items-center justify-center font-bold text-xl uppercase shrink-0">{skill.name.substring(0, 2)}</div>
+                      <div key={skill.id} onClick={() => navigate(`/market/${skill.id}`)} className="group bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] p-6 hover:shadow-xl hover:border-primary-500/30 dark:hover:border-primary-500/50 transition-all duration-300 cursor-pointer flex flex-col h-full">
+                        <div className="flex items-start gap-4 mb-5">
+                          <div className="w-14 h-14 bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-primary-500 dark:text-primary-400 rounded-[1.25rem] flex items-center justify-center font-bold text-xl uppercase shrink-0 shadow-sm group-hover:scale-105 transition-transform duration-300">{skill.name.substring(0, 2)}</div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{skill.name}</h3>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">{skill.author}</p>
+                            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors tracking-tight">{skill.name}</h3>
+                            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{skill.author}</p>
                           </div>
                         </div>
-                        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-5 flex-1 line-clamp-2">{skill.description}</p>
-                        <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
-                          <span className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-medium"><Download className="w-3.5 h-3.5" />{skill.downloads.toLocaleString()}</span>
+                        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 flex-1 line-clamp-2 leading-relaxed">{skill.description}</p>
+                        <div className="flex items-center justify-between pt-5 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
+                          <span className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-bold tracking-wide"><Download className="w-4 h-4" />{skill.downloads.toLocaleString()}</span>
                           <button 
                             onClick={(e) => handleGetSkillClick(e, skill)}
-                            className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-primary-500 hover:text-white dark:hover:bg-primary-500 dark:hover:text-white px-5 py-2 rounded-full text-xs font-bold transition-colors"
+                            className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-primary-500 hover:text-white dark:hover:bg-primary-500 dark:hover:text-white px-6 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm"
                           >
                             GET
                           </button>
@@ -383,6 +426,53 @@ export function Market() {
                         <Layers className="w-12 h-12 text-zinc-300 dark:text-zinc-700 mb-4" />
                         <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-1">No skills found</h3>
                         <p className="text-zinc-500 dark:text-zinc-400">Try adjusting your search terms or filters.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* My Skills Market */}
+            {activeMarketTab === 'myskills' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
+                <div>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">My Installed Skills</h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filteredMySkills.map(skill => (
+                      <div key={skill.id} onClick={() => navigate(`/market/${skill.id}`)} className="group bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] p-6 hover:shadow-xl hover:border-primary-500/30 dark:hover:border-primary-500/50 transition-all duration-300 cursor-pointer flex flex-col h-full">
+                        <div className="flex items-start gap-4 mb-5">
+                          <div className="w-14 h-14 bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-primary-500 dark:text-primary-400 rounded-[1.25rem] flex items-center justify-center font-bold text-xl uppercase shrink-0 shadow-sm group-hover:scale-105 transition-transform duration-300">{skill.name.substring(0, 2)}</div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors tracking-tight">{skill.name}</h3>
+                            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{skill.author}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 flex-1 line-clamp-2 leading-relaxed">{skill.description}</p>
+                        <div className="flex items-center justify-between pt-5 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
+                          <span className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-bold tracking-wide"><CheckCircle2 className="w-4 h-4 text-emerald-500" />Installed</span>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('Are you sure you want to uninstall this skill?')) {
+                                uninstallSkillMutation.mutate(skill.id);
+                              }
+                            }}
+                            disabled={uninstallSkillMutation.isPending}
+                            className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 px-6 py-2 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 shadow-sm"
+                          >
+                            Uninstall
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {filteredMySkills.length === 0 && (
+                      <div className="col-span-full py-24 flex flex-col items-center justify-center text-center">
+                        <Box className="w-12 h-12 text-zinc-300 dark:text-zinc-700 mb-4" />
+                        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-1">No installed skills found</h3>
+                        <p className="text-zinc-500 dark:text-zinc-400">You haven't installed any skills yet, or none match your search.</p>
                       </div>
                     )}
                   </div>

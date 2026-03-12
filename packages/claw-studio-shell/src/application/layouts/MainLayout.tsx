@@ -1,7 +1,7 @@
 import { Sidebar } from '../../components/Sidebar';
 import { CommandPalette } from '../../components/CommandPalette';
 import { GlobalTaskManager } from '../../components/GlobalTaskManager';
-import { useKeyboardShortcuts } from '@sdkwork/claw-studio-business/hooks/useKeyboardShortcuts';
+import { useKeyboardShortcuts } from '@sdkwork/claw-studio-business';
 import { AppRoutes } from '../router/AppRoutes';
 
 export function MainLayout() {

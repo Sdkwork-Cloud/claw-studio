@@ -5,6 +5,12 @@ export interface Device {
   battery: number;
   ip_address: string;
   created_at: string;
+  hardwareSpecs?: {
+    soc: string;
+    ram: string;
+    storage: string;
+    latency: string;
+  };
 }
 
 export interface Skill {

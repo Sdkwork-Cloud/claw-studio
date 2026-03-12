@@ -1,11 +1,11 @@
-# Pages 业务分包迁移清单
+# Pages to Packages Migration
 
-## 目标
-- 将原 `web/src/pages/*` 业务模块全部迁入独立分包。
-- 每个业务分包均具备 `components/pages/services` 目录结构。
-- 保持原有路由路径、页面样式与交互行为一致。
+## Goal
+- Move legacy `web/src/pages/*` business screens into dedicated feature packages.
+- Keep each feature package aligned to `src/components`, `src/pages`, and `src/services`.
+- Preserve strict package layering and eliminate cross-package subpath coupling.
 
-## 分包映射
+## Target Packages
 - `pages/apps` -> `@sdkwork/claw-studio-apps`
 - `pages/channels` -> `@sdkwork/claw-studio-channels`
 - `pages/chat` -> `@sdkwork/claw-studio-chat`
@@ -21,14 +21,20 @@
 - `pages/settings` -> `@sdkwork/claw-studio-settings`
 - `pages/tasks` -> `@sdkwork/claw-studio-tasks`
 
-## 迁移策略
-- 页面源码迁移到各业务包 `src/pages/<module>`。
-- 各业务包按需提供本地桥接：
-  - `src/services/*` -> re-export 到 `@sdkwork/claw-studio-business/services/*`
-  - `src/store/*` -> re-export 到 `@sdkwork/claw-studio-business/stores/*`
-  - `src/types.ts` -> re-export 到 `@sdkwork/claw-studio-domain`
-- `web` 包的 `AppRoutes` 改为直接从业务包导入页面组件。
+## Migration Rules
+- Business pages move into feature packages under `src/pages/<module>`.
+- Shared services, hooks, stores, and platform adapters must be consumed from package roots only.
+- Allowed examples:
+  - `@sdkwork/claw-studio-business`
+  - `@sdkwork/claw-studio-domain`
+  - `@sdkwork/claw-studio-infrastructure`
+- Forbidden examples:
+  - any package-internal service path
+  - any package-internal store path
+  - any package-internal infrastructure adapter path
+- `web` remains the application shell for routes, providers, and bootstrap only.
 
-## 验证
-- `pnpm lint` 通过
-- `pnpm build` 通过
+## Verification
+- `pnpm lint`
+- `pnpm build`
+- `node scripts/check-arch-boundaries.mjs`

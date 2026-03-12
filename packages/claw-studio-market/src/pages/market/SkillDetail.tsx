@@ -4,11 +4,10 @@ import { ArrowLeft, Download, Star, ShieldCheck, Clock, HardDrive, AlertCircle, 
 import Markdown from 'react-markdown';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useInstanceStore, useTaskStore } from '@sdkwork/claw-studio-business';
 import { Modal } from '@sdkwork/claw-studio-shared-ui';
 import type { Skill, Review } from '@sdkwork/claw-studio-domain';
-import { marketService } from '../../services/marketService';
-import { instanceService, Instance } from '../../services/instanceService';
-import { useTaskStore } from '@sdkwork/claw-studio-business/stores/useTaskStore';
+import { instanceService, marketService, mySkillService, type Instance } from '../../services';
 
 export function SkillDetail() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +16,7 @@ export function SkillDetail() {
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'readme' | 'reviews'>('readme');
+  const { activeInstanceId } = useInstanceStore();
 
   const { data: skill, isLoading: isLoadingSkill } = useQuery<Skill>({
     queryKey: ['skill', id],
@@ -33,9 +33,17 @@ export function SkillDetail() {
     queryFn: instanceService.getInstances
   });
 
+  const { data: mySkills = [] } = useQuery<Skill[]>({
+    queryKey: ['mySkills', activeInstanceId],
+    queryFn: () => activeInstanceId ? mySkillService.getMySkills(activeInstanceId) : Promise.resolve([]),
+    enabled: !!activeInstanceId
+  });
+
+  const isInstalled = mySkills.some(s => s.id === id);
+
   const { addTask, updateTask } = useTaskStore();
 
-  const handleDownloadLocal = () => {
+  const handleDownloadLocal = async () => {
     if (!skill) return;
     
     toast.success(`Started downloading ${skill.name}`);
@@ -46,28 +54,16 @@ export function SkillDetail() {
       type: 'download'
     });
 
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress >= 100) {
-        clearInterval(interval);
-        updateTask(taskId, { progress: 100, status: 'success', subtitle: 'Download complete' });
-        toast.success(`${skill.name} downloaded successfully`);
-        
-        // Simulate actual file download trigger
-        const blob = new Blob([JSON.stringify(skill, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${skill.id}-skill.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
+    try {
+      await marketService.downloadSkillLocal(skill, (progress) => {
         updateTask(taskId, { progress });
-      }
-    }, 500);
+      });
+      updateTask(taskId, { progress: 100, status: 'success', subtitle: 'Download complete' });
+      toast.success(`${skill.name} downloaded successfully`);
+    } catch (error) {
+      updateTask(taskId, { status: 'error', subtitle: 'Download failed' });
+      toast.error(`Failed to download ${skill.name}`);
+    }
   };
 
   const installMutation = useMutation({
@@ -80,13 +76,29 @@ export function SkillDetail() {
         description: `Installing ${skill?.name} to the selected instance.`
       });
       queryClient.invalidateQueries({ queryKey: ['skill', id] });
+      queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
       setTimeout(() => {
         setIsInstallModalOpen(false);
-        navigate('/instances');
       }, 1500);
     },
     onError: (error: Error) => {
       toast.error('Installation Failed', {
+        description: error.message
+      });
+    }
+  });
+
+  const uninstallMutation = useMutation({
+    mutationFn: async () => {
+      if (!skill || !activeInstanceId) throw new Error('Invalid selection');
+      return mySkillService.uninstallSkill(activeInstanceId, skill.id);
+    },
+    onSuccess: () => {
+      toast.success('Skill Uninstalled');
+      queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
+    },
+    onError: (error: Error) => {
+      toast.error('Uninstall Failed', {
         description: error.message
       });
     }
@@ -168,13 +180,28 @@ export function SkillDetail() {
         </div>
         
         <div className="flex flex-row md:flex-col items-center md:items-end gap-3 shrink-0 pt-2">
-          <button 
-            onClick={() => setIsInstallModalOpen(true)}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary-500 text-white px-8 py-3.5 rounded-2xl hover:bg-primary-600 transition-all font-bold text-base shadow-lg shadow-primary-500/20 active:scale-95"
-          >
-            <Download className="w-5 h-5" />
-            Get Skill
-          </button>
+          {isInstalled ? (
+            <button 
+              onClick={() => {
+                if (confirm('Are you sure you want to uninstall this skill?')) {
+                  uninstallMutation.mutate();
+                }
+              }}
+              disabled={uninstallMutation.isPending}
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-8 py-3.5 rounded-2xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all font-bold text-base shadow-sm disabled:opacity-50"
+            >
+              {uninstallMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <AlertCircle className="w-5 h-5" />}
+              Uninstall
+            </button>
+          ) : (
+            <button 
+              onClick={() => setIsInstallModalOpen(true)}
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary-500 text-white px-8 py-3.5 rounded-2xl hover:bg-primary-600 transition-all font-bold text-base shadow-lg shadow-primary-500/20 active:scale-95"
+            >
+              <Download className="w-5 h-5" />
+              Get Skill
+            </button>
+          )}
           <button 
             onClick={handleDownloadLocal}
             className="w-full md:w-auto md:px-4 md:py-2 flex items-center justify-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors font-semibold text-sm shadow-sm"

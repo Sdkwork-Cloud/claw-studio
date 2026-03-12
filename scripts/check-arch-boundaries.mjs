@@ -59,9 +59,24 @@ function getImports(file) {
   return imports.filter((i) => i.startsWith('@sdkwork/claw-studio-'));
 }
 
+function getAllImports(file) {
+  const text = fs.readFileSync(file, 'utf8');
+  const imports = [];
+  const re = /from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
+  let m;
+  while ((m = re.exec(text))) {
+    imports.push(m[1] || m[2]);
+  }
+  return imports;
+}
+
 function toPkgName(importPath) {
   const parts = importPath.split('/');
   return `${parts[0]}/${parts[1]}`;
+}
+
+function isRootPackageImport(importPath) {
+  return importPath === toPkgName(importPath);
 }
 
 function isAllowed(fromPkg, toPkg) {
@@ -70,7 +85,7 @@ function isAllowed(fromPkg, toPkg) {
   }
 
   if (fromPkg === SHELL) {
-    return [SHELL, BUSINESS, SHARED_UI, ...featurePackages].includes(toPkg);
+    return [SHELL, BUSINESS, INFRA, SHARED_UI, ...featurePackages].includes(toPkg);
   }
 
   if (fromPkg === DESKTOP) {
@@ -101,8 +116,54 @@ function isAllowed(fromPkg, toPkg) {
 }
 
 const violations = [];
+const rootImportViolations = [];
+const packageExportViolations = [];
 const structureViolations = [];
 const webShellViolations = [];
+const businessBarrelViolations = [];
+const localServiceBarrelViolations = [];
+
+const forbiddenBusinessServiceExports = [
+  'apiKeyService',
+  'appStoreService',
+  'channelService',
+  'chatService',
+  'clawService',
+  'communityService',
+  'deviceService',
+  'fileDialogService',
+  'i18nService',
+  'installerService',
+  'mySkillService',
+  'settingsService',
+  'taskService',
+];
+
+for (const pkg of allPackages) {
+  const short = pkg.replace('@sdkwork/', '');
+  const packageJsonPath = path.join(packagesDir, short, 'package.json');
+
+  if (!fs.existsSync(packageJsonPath)) {
+    continue;
+  }
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  const exportsField = packageJson.exports;
+
+  if (!exportsField || typeof exportsField === 'string') {
+    continue;
+  }
+
+  const exportKeys = Object.keys(exportsField);
+  const nonRootExports = exportKeys.filter((key) => key !== '.');
+
+  if (nonRootExports.length > 0) {
+    packageExportViolations.push({
+      package: pkg,
+      exportKeys: nonRootExports,
+    });
+  }
+}
 
 for (const pkg of featurePackages) {
   const short = pkg.replace('@sdkwork/', '');
@@ -163,6 +224,15 @@ for (const pkg of allPackages) {
     const imports = getImports(file);
     for (const imp of imports) {
       const targetPkg = toPkgName(imp);
+      if (pkg !== targetPkg && !isRootPackageImport(imp)) {
+        rootImportViolations.push({
+          file: path.relative(root, file),
+          from: pkg,
+          to: targetPkg,
+          importPath: imp,
+        });
+      }
+
       if (!isAllowed(pkg, targetPkg)) {
         violations.push({
           file: path.relative(root, file),
@@ -172,12 +242,46 @@ for (const pkg of allPackages) {
         });
       }
     }
+
+    const relativeImports = getAllImports(file);
+    const isTestFile = /\.test\.(ts|tsx)$/.test(file);
+    const isServiceSource = file.includes(`${path.sep}src${path.sep}services${path.sep}`);
+    const isBarrelFile = /(?:^|[\\/])index\.(ts|tsx)$/.test(file);
+
+    if (!isTestFile && !isServiceSource && !isBarrelFile) {
+      for (const imp of relativeImports) {
+        if (
+          /^(\.\.\/|\.\/)+services\/.+/.test(imp) &&
+          !/\/services(?:\/index(?:\.ts|\.tsx)?)?$/.test(imp)
+        ) {
+          localServiceBarrelViolations.push({
+            file: path.relative(root, file),
+            importPath: imp,
+          });
+        }
+      }
+    }
+  }
+}
+
+{
+  const businessIndexPath = path.join(packagesDir, 'claw-studio-business', 'src', 'index.ts');
+  const businessIndexSource = fs.readFileSync(businessIndexPath, 'utf8');
+
+  for (const serviceName of forbiddenBusinessServiceExports) {
+    if (businessIndexSource.includes(`/services/${serviceName}`)) {
+      businessBarrelViolations.push(serviceName);
+    }
   }
 }
 
 if (
   structureViolations.length > 0 ||
   webShellViolations.length > 0 ||
+  packageExportViolations.length > 0 ||
+  businessBarrelViolations.length > 0 ||
+  localServiceBarrelViolations.length > 0 ||
+  rootImportViolations.length > 0 ||
   violations.length > 0
 ) {
   if (structureViolations.length > 0) {
@@ -198,9 +302,40 @@ if (
     }
   }
 
+  if (packageExportViolations.length > 0) {
+    console.error('Package root export violations found:\n');
+    for (const v of packageExportViolations) {
+      console.error(`- ${v.package}\n  exports: ${v.exportKeys.join(', ')}\n`);
+    }
+  }
+
+  if (businessBarrelViolations.length > 0) {
+    console.error('Business package barrel exposes feature-local services:\n');
+    for (const serviceName of businessBarrelViolations) {
+      console.error(`- @sdkwork/claw-studio-business should not export services/${serviceName}`);
+    }
+    console.error('');
+  }
+
+  if (localServiceBarrelViolations.length > 0) {
+    console.error('Local service barrel violations found:\n');
+    for (const v of localServiceBarrelViolations) {
+      console.error(`- ${v.file}\n  import: ${v.importPath}\n`);
+    }
+  }
+
   if (violations.length > 0) {
     console.error('Architecture boundary violations found:\n');
     for (const v of violations) {
+      console.error(
+        `- ${v.file}\n  ${v.from} -> ${v.to}\n  import: ${v.importPath}\n`,
+      );
+    }
+  }
+
+  if (rootImportViolations.length > 0) {
+    console.error('Cross-package root import violations found:\n');
+    for (const v of rootImportViolations) {
       console.error(
         `- ${v.file}\n  ${v.from} -> ${v.to}\n  import: ${v.importPath}\n`,
       );

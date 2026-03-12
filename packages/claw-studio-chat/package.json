@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@google/genai": "^1.44.0",
+    "@sdkwork/claw-studio-domain": "workspace:*",
     "@sdkwork/claw-studio-business": "workspace:*",
     "@sdkwork/claw-studio-shared-ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.21",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "lucide-react": "^0.546.0",
@@ -17,7 +20,6 @@
     "remark-gfm": "^4.0.1"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./components": "./src/components/index.ts"
+    ".": "./src/index.ts"
   }
 }

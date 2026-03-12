@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import type { AppUpdateCheckResult } from '@sdkwork/claw-studio-infrastructure';
-import { updateService, type PreferredUpdateAction, type UpdateCapability } from '../services/updateService.ts';
+import { updateService, type PreferredUpdateAction, type UpdateCapability } from '../services/index.ts';
 
 export type UpdateStatus = 'idle' | 'checking' | 'ready' | 'unavailable' | 'error';
 

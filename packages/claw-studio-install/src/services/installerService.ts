@@ -1,3 +1,3 @@
-import { installerService as businessInstallerService } from '@sdkwork/claw-studio-business/services/installerService';
+import { installerService as infrastructureInstallerService } from '@sdkwork/claw-studio-infrastructure';
 
-export const installerService = businessInstallerService;
+export const installerService = infrastructureInstallerService;

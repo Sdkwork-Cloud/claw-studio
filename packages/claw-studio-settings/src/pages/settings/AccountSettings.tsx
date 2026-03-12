@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
 import { Section } from './Shared';
-import { settingsService, UserProfile } from '../../services/settingsService';
+import { settingsService, type UserProfile } from '../../services';
 import { toast } from 'sonner';
 
 export function AccountSettings() {
@@ -68,7 +68,10 @@ export function AccountSettings() {
               {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
             </div>
             <div>
-              <button className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 px-4 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium shadow-sm mb-2">
+              <button
+                onClick={() => toast.success('Avatar update simulated')}
+                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 px-4 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium shadow-sm mb-2"
+              >
                 Change Avatar
               </button>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">JPG, GIF or PNG. Max size of 800K</p>

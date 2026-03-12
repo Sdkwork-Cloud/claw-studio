@@ -1,52 +1,38 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Github, Filter, ArrowUpDown } from 'lucide-react';
-import { useTaskStore } from '@sdkwork/claw-studio-business/stores/useTaskStore';
+import { useTaskStore } from '@sdkwork/claw-studio-business';
 import { RepositoryCard } from '@sdkwork/claw-studio-shared-ui';
 import { toast } from 'sonner';
 import Fuse from 'fuse.js';
 import { useVirtualizer } from '@tanstack/react-virtual';
-
-// Generate 1000 mock repos to demonstrate extreme performance
-const generateMockRepos = () => {
-  const bases = [
-    { name: 'llama.cpp', author: 'ggerganov', tags: ['C++', 'LLM', 'Inference'] },
-    { name: 'stable-diffusion-webui', author: 'AUTOMATIC1111', tags: ['Python', 'Stable Diffusion', 'UI'] },
-    { name: 'LangChain', author: 'langchain-ai', tags: ['Python', 'LLM', 'Agents'] },
-    { name: 'AutoGPT', author: 'Significant-Gravitas', tags: ['Python', 'Autonomous', 'GPT-4'] },
-    { name: 'ollama', author: 'ollama', tags: ['Go', 'LLM', 'Local'] },
-    { name: 'whisper', author: 'openai', tags: ['Python', 'Speech Recognition', 'Audio'] }
-  ];
-
-  return Array.from({ length: 1000 }).map((_, i) => {
-    const base = bases[i % bases.length];
-    return {
-      id: `gh-${i}`,
-      name: `${base.name}-${i}`,
-      author: base.author,
-      description: `High-performance port of ${base.name} optimized for local execution. Instance #${i}.`,
-      stars: Math.floor(Math.random() * 100000) + 1000,
-      forks: Math.floor(Math.random() * 20000) + 100,
-      tags: base.tags,
-      iconUrl: `https://avatars.githubusercontent.com/u/${Math.floor(Math.random() * 10000000)}?s=200&v=4`
-    };
-  });
-};
-
-export const GITHUB_REPOS = generateMockRepos();
+import { githubService, type GithubRepo } from '../../services';
 
 export function GitHubRepos() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [repos, setRepos] = useState<GithubRepo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { addTask, updateTask } = useTaskStore();
   const parentRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(3);
 
   useEffect(() => {
+    async function fetchRepos() {
+      setIsLoading(true);
+      try {
+        const data = await githubService.getRepos();
+        setRepos(data);
+      } catch (error) {
+        console.error('Failed to fetch repos:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void fetchRepos();
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => {
-      const width = window.innerWidth;
-      // Adjust breakpoints to match Tailwind's md (768px) and lg (1024px)
-      // Note: The container might be smaller than window.innerWidth due to sidebar,
-      // so we use slightly smaller thresholds or measure the container itself.
-      // For simplicity and robustness, measuring the container is better.
       if (parentRef.current) {
         const containerWidth = parentRef.current.offsetWidth;
         if (containerWidth < 640) {
@@ -61,12 +47,11 @@ export function GitHubRepos() {
 
     handleResize();
     window.addEventListener('resize', handleResize);
-    
-    // Also set up a ResizeObserver for the container
+
     const resizeObserver = new ResizeObserver(() => {
       handleResize();
     });
-    
+
     if (parentRef.current) {
       resizeObserver.observe(parentRef.current);
     }
@@ -77,49 +62,44 @@ export function GitHubRepos() {
     };
   }, []);
 
-  const handleInstall = (id: string, name: string) => {
+  async function handleInstall(id: string, name: string) {
     toast.success(`Started installing ${name}`);
-    
+
     const taskId = addTask({
       title: `Installing ${name}`,
       subtitle: 'Cloning repository and setting up environment...',
-      type: 'install'
+      type: 'install',
     });
 
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress >= 100) {
-        clearInterval(interval);
-        updateTask(taskId, { progress: 100, status: 'success', subtitle: 'Installation complete' });
-        toast.success(`${name} installed successfully`);
-      } else {
-        updateTask(taskId, { progress });
-      }
-    }, 1000);
-  };
+    try {
+      await githubService.installRepo(id, name);
+      updateTask(taskId, { progress: 100, status: 'success', subtitle: 'Installation complete' });
+      toast.success(`${name} installed successfully`);
+    } catch (error) {
+      updateTask(taskId, { status: 'error', subtitle: 'Installation failed' });
+      toast.error(`Failed to install ${name}`);
+    }
+  }
 
-  const fuse = useMemo(() => new Fuse(GITHUB_REPOS, {
+  const fuse = useMemo(() => new Fuse(repos, {
     keys: ['name', 'author', 'tags'],
     threshold: 0.3,
-  }), []);
+  }), [repos]);
 
   const filteredRepos = useMemo(() => {
-    if (!searchQuery.trim()) return GITHUB_REPOS;
-    return fuse.search(searchQuery).map(result => result.item);
-  }, [searchQuery, fuse]);
+    if (!searchQuery.trim()) return repos;
+    return fuse.search(searchQuery).map((result) => result.item);
+  }, [searchQuery, fuse, repos]);
 
-  // Virtualization setup
   const rowVirtualizer = useVirtualizer({
     count: Math.ceil(filteredRepos.length / columns),
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 260, // Estimated height of a row (card height + gap)
+    estimateSize: () => 260,
     overscan: 5,
   });
 
   return (
     <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-      {/* Header */}
       <div className="shrink-0 z-20 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -131,15 +111,15 @@ export function GitHubRepos() {
               <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Install popular open-source projects locally ({filteredRepos.length} items)</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="relative w-full md:w-80 group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
-              <input 
-                type="text" 
-                placeholder="Search repos, authors, tags..." 
+              <input
+                type="text"
+                placeholder="Search repos, authors, tags..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-zinc-100/80 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 focus:bg-white dark:focus:bg-zinc-900 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 rounded-2xl text-sm font-medium transition-all outline-none placeholder:text-zinc-500 dark:placeholder:text-zinc-400 shadow-sm"
               />
             </div>
@@ -153,10 +133,13 @@ export function GitHubRepos() {
         </div>
       </div>
 
-      {/* Content */}
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-8 pt-8">
+      <div ref={parentRef} className="flex-1 overflow-y-auto scrollbar-hide px-8 pt-8">
         <div className="max-w-7xl mx-auto w-full">
-          {filteredRepos.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : filteredRepos.length === 0 ? (
             <div className="text-center py-20">
               <Github className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">No repositories found</h3>
@@ -182,14 +165,14 @@ export function GitHubRepos() {
                   {Array.from({ length: columns }).map((_, colIndex) => {
                     const itemIndex = virtualRow.index * columns + colIndex;
                     const repo = filteredRepos[itemIndex];
-                    
+
                     return (
                       <div key={repo ? repo.id : `empty-${colIndex}`} className="flex-1 min-w-0 pb-6">
                         {repo ? (
                           <RepositoryCard
                             {...repo}
                             type="github"
-                            onInstall={handleInstall}
+                            onInstall={(id, name) => void handleInstall(id, name)}
                           />
                         ) : null}
                       </div>
