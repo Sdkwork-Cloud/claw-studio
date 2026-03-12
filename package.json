@@ -7,6 +7,9 @@
     "dev": "pnpm --filter @sdkwork/claw-studio-web dev",
     "build": "pnpm --filter @sdkwork/claw-studio-web build",
     "preview": "pnpm --filter @sdkwork/claw-studio-web preview",
+    "docs:dev": "node node_modules/vitepress/bin/vitepress.js dev docs --host 127.0.0.1 --port 4173",
+    "docs:build": "node node_modules/vitepress/bin/vitepress.js build docs",
+    "docs:preview": "node node_modules/vitepress/bin/vitepress.js preview docs --host 127.0.0.1 --port 4174",
     "lint": "pnpm --filter @sdkwork/claw-studio-web lint && pnpm check:arch && pnpm check:parity",
     "clean": "pnpm --filter @sdkwork/claw-studio-web clean",
     "check:arch": "node scripts/check-arch-boundaries.mjs",
@@ -17,5 +20,10 @@
     "tauri:build": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:build",
     "tauri:icon": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:icon",
     "tauri:info": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:info"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2",
+    "vitepress": "^1.6.3",
+    "vue": "^3.5.30"
   }
 }

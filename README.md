@@ -1,76 +1,105 @@
-# Claw Studio Workspace
+# Claw Studio
 
-基于 `pnpm workspace` 的分包架构工程，遵循 `architect/architect-standard-react+tauri.md` 的分层与低耦合标准。
+[简体中文](./README.zh-CN.md)
 
-## Workspace 包结构
+Claw Studio is a package-first workspace for the modern Claw Studio application, shared web shell, and Tauri desktop runtime. The current implementation is aligned to `upgrade/claw-studio-v3`, but reorganized into maintainable feature packages with strict architecture boundaries and root-only cross-package imports.
+
+This repository focuses on the Claw Studio product. It also contains `packages/cc-switch` as a separate package family, but the primary workspace, scripts, and documentation here center on Claw Studio.
+
+## Highlights
+
+- Shared product shell across web and desktop entry packages
+- Vertical feature packages for chat, apps, market, settings, devices, account, extensions, community, and more
+- Strict dependency layering enforced by repository checks
+- Tauri desktop runtime with update, distribution, and platform foundation checks
+- Multilingual documentation for users and contributors
+
+## Architecture Snapshot
 
 ```text
-packages/
-├─ claw-studio-web             (@sdkwork/claw-studio-web)
-├─ claw-studio-domain          (@sdkwork/claw-studio-domain)
-├─ claw-studio-infrastructure  (@sdkwork/claw-studio-infrastructure)
-├─ claw-studio-shared-ui       (@sdkwork/claw-studio-shared-ui)
-├─ claw-studio-business        (@sdkwork/claw-studio-business)
-├─ claw-studio-apps            (@sdkwork/claw-studio-apps)
-├─ claw-studio-channels        (@sdkwork/claw-studio-channels)
-├─ claw-studio-chat            (@sdkwork/claw-studio-chat)
-├─ claw-studio-claw-center     (@sdkwork/claw-studio-claw-center)
-├─ claw-studio-community       (@sdkwork/claw-studio-community)
-├─ claw-studio-devices         (@sdkwork/claw-studio-devices)
-├─ claw-studio-docs            (@sdkwork/claw-studio-docs)
-├─ claw-studio-github          (@sdkwork/claw-studio-github)
-├─ claw-studio-huggingface     (@sdkwork/claw-studio-huggingface)
-├─ claw-studio-install         (@sdkwork/claw-studio-install)
-├─ claw-studio-instances       (@sdkwork/claw-studio-instances)
-├─ claw-studio-market          (@sdkwork/claw-studio-market)
-├─ claw-studio-settings        (@sdkwork/claw-studio-settings)
-└─ claw-studio-tasks           (@sdkwork/claw-studio-tasks)
+web/desktop -> shell -> feature/business -> (domain + infrastructure)
+feature -> shared-ui
 ```
 
-## 依赖方向（严格）
+Key package roles:
 
-`web -> feature/business -> (domain + infrastructure)`
+- `@sdkwork/claw-studio-web`: runnable web app and development server
+- `@sdkwork/claw-studio-desktop`: Tauri desktop entry and native bridge
+- `@sdkwork/claw-studio-shell`: routes, layouts, providers, sidebar, command palette
+- `@sdkwork/claw-studio-business`: shared stores and cross-feature orchestration
+- `@sdkwork/claw-studio-domain`: pure types and shared models
+- `@sdkwork/claw-studio-infrastructure`: environment, HTTP, i18n, and platform adapters
+- `@sdkwork/claw-studio-*`: vertical feature packages such as `chat`, `market`, `settings`, `account`, and `extensions`
 
-`feature -> shared-ui`（仅复用通用 UI，不允许业务反向依赖）
+The repository rejects cross-package subpath imports. Use package roots such as `@sdkwork/claw-studio-market`, not `@sdkwork/claw-studio-market/src/...`.
 
-- `domain`：实体与核心类型
-- `infrastructure`：平台适配与底层能力（HTTP/平台 API）
-- `business`：services/stores/hooks 业务能力
-- `feature packages`：每个业务域独立分包（均包含 `components/pages/services`）
-- `web`：应用壳层（路由组装、全局布局、应用入口）
-- `web` 不直接导入 `domain/infrastructure`，统一通过 `business/feature/shared-ui` 组合。
-
-## 开发命令（根目录）
+## Quick Start
 
 ```bash
 pnpm install
 pnpm dev
-pnpm lint
-pnpm build
-pnpm preview
-pnpm check:arch
-pnpm sync:features
 ```
 
-上述命令由根脚本转发到 `@sdkwork/claw-studio-web` 包执行。
-- `pnpm check:arch`：校验跨包依赖边界，防止反向依赖和跨业务包耦合。
-- `pnpm check:arch`：校验跨包依赖边界，并强制每个业务包具备 `src/components`、`src/pages`、`src/services` 结构。
-- `pnpm check:arch`：同时强制 `web` 作为壳层不得出现 `src/services`、`src/store`、`src/hooks`、`src/platform*` 的业务实现文件。
-- `pnpm sync:features`：按源码导入同步业务包最小依赖并刷新包导出索引。
+The default web development server runs from `packages/claw-studio-web/server.ts` on `http://localhost:3001`.
 
-## 分包命名规范
+For desktop development and packaging:
 
-所有内部包统一使用：
+```bash
+pnpm tauri:dev
+pnpm tauri:build
+```
 
-`@sdkwork/claw-studio-xxx`
+## Common Commands
 
-- 必须使用 `@sdkwork` 作用域
-- 必须使用 `kebab-case`
-- 新包应明确层级职责，避免跨层反向依赖
+```bash
+pnpm dev           # start the web shell
+pnpm build         # build the web package
+pnpm lint          # TypeScript + architecture + parity checks
+pnpm check:arch    # validate package boundaries and root imports
+pnpm check:parity  # verify critical parity checks against the v3 baseline
+pnpm check:desktop # validate desktop platform wiring
+pnpm docs:dev      # run the VitePress docs site
+pnpm docs:build    # build the VitePress docs site
+```
 
-## 迁移说明
+Package-scoped execution stays available through pnpm filters, for example:
 
-详细改造过程见：
+```bash
+pnpm --filter @sdkwork/claw-studio-web build
+pnpm --filter @sdkwork/claw-studio-desktop tauri:info
+```
 
-- `docs/plans/2026-03-09-workspace-monorepo-design.md`
-- `docs/plans/2026-03-09-workspace-monorepo-implementation.md`
+## Environment
+
+Start from [`.env.example`](./.env.example). The most important variables are:
+
+- `GEMINI_API_KEY`: required for Gemini-backed AI features
+- `VITE_API_BASE_URL`: backend API base URL used by typed clients and desktop update checks
+- `VITE_ACCESS_TOKEN`: optional bearer token for update and backend calls
+- `VITE_APP_ID`, `VITE_RELEASE_CHANNEL`, `VITE_DISTRIBUTION_ID`, `VITE_PLATFORM`, `VITE_TIMEOUT`: desktop runtime and update configuration
+
+Desktop-specific examples are also available in [`packages/claw-studio-desktop/.env.example`](./packages/claw-studio-desktop/.env.example).
+
+## Documentation
+
+- [Getting Started](./docs/guide/getting-started.md)
+- [Development Guide](./docs/guide/development.md)
+- [Architecture](./docs/core/architecture.md)
+- [Package Layout](./docs/core/packages.md)
+- [Desktop Runtime](./docs/core/desktop.md)
+- [Commands Reference](./docs/reference/commands.md)
+- [Contribution Guide](./docs/contributing/index.md)
+
+The repository also ships an in-app documentation feature package at `@sdkwork/claw-studio-docs`. The VitePress site in `docs/` is the public project documentation for GitHub and open-source contributors.
+
+## Contributing
+
+Use Conventional Commits such as `feat:`, `fix:`, `refactor:`, and `docs:`. Before opening a pull request, run:
+
+```bash
+pnpm lint
+pnpm build
+pnpm docs:build
+```
+
+Pull requests should include a concise summary, affected packages, verification commands, and screenshots for UI-facing changes.
