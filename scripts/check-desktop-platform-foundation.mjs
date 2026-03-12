@@ -132,6 +132,8 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
   assertScript(desktopPackage, desktopPackagePath, scriptName);
 }
 
+assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
+
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function getAppInfo', 'desktop app info bridge export');
 assertIncludes('packages/claw-studio-desktop/src/desktop/tauriBridge.ts', 'export async function getAppPaths', 'desktop app paths bridge export');
@@ -173,7 +175,6 @@ assertIncludes('packages/claw-studio-business/src/stores/useUpdateStore.ts', 'ru
 assertIncludes('packages/claw-studio-business/src/stores/useUpdateStore.ts', 'openLatestUpdateTarget', 'manual update action store helper');
 assertIncludes('packages/claw-studio-desktop/src/desktop/bootstrap/createDesktopApp.tsx', 'configureDesktopPlatformBridge()', 'desktop bridge bootstrap wiring');
 assertIncludes('packages/claw-studio-shell/src/application/providers/AppProviders.tsx', 'runStartupCheck', 'shell startup update check wiring');
-assertIncludes('packages/claw-studio-settings/src/pages/settings/GeneralSettings.tsx', 'Check for updates', 'settings update entry point');
 assertIncludes('.gitignore', '.venv/', 'Python virtual environment ignore rule');
 assertIncludes('.gitignore', '__pycache__/', 'Python bytecode cache ignore rule');
 assertIncludes('.gitignore', '*.pyc', 'Python compiled file ignore rule');

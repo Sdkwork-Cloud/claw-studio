@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.sdkwork.claw-studio",
   "build": {
-    "beforeDevCommand": "pnpm run dev -- --host 127.0.0.1 --port 1420",
+    "beforeDevCommand": "pnpm run dev:tauri",
     "beforeBuildCommand": "pnpm run build",
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:1420"

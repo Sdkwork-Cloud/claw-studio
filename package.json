@@ -11,7 +11,7 @@
     "clean": "pnpm --filter @sdkwork/claw-studio-web clean",
     "check:arch": "node scripts/check-arch-boundaries.mjs",
     "check:parity": "node --experimental-strip-types packages/claw-studio-infrastructure/src/i18n/index.test.ts && node --experimental-strip-types packages/claw-studio-settings/src/services/settingsService.test.ts && node --experimental-strip-types packages/claw-studio-market/src/services/mySkillService.test.ts && node --experimental-strip-types scripts/v3-parity-ui-contract.test.ts",
-    "check:desktop": "node scripts/check-desktop-platform-foundation.mjs",
+    "check:desktop": "node scripts/check-desktop-platform-foundation.mjs && node scripts/tauri-dev-command-contract.test.mjs",
     "sync:features": "node scripts/sync-feature-packages.mjs",
     "tauri:dev": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:dev",
     "tauri:build": "pnpm --filter @sdkwork/claw-studio-desktop run tauri:build",
