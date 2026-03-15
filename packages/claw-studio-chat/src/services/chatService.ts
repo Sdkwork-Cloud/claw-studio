@@ -7,6 +7,13 @@ import {
 import type { Skill } from '@sdkwork/claw-studio-domain';
 import type { Agent } from './agentService.ts';
 
+const API_KEY_MAP: Record<string, string> = {
+  anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || '',
+  openai: import.meta.env.VITE_OPENAI_API_KEY || '',
+  google: import.meta.env.VITE_GEMINI_API_KEY || '',
+  azure: import.meta.env.VITE_AZURE_API_KEY || '',
+};
+
 export interface ChatModel {
   id: string;
   name: string;
@@ -57,7 +64,7 @@ class ChatService implements IChatService {
 
   private getClient() {
     if (!this.ai) {
-      this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      this.ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
     }
 
     return this.ai;
@@ -103,7 +110,7 @@ class ChatService implements IChatService {
     }
 
     if (channel && channel.provider !== 'google') {
-      const apiKey = channel.apiKey || process.env[`${channel.provider.toUpperCase()}_API_KEY`];
+      const apiKey = channel.apiKey || API_KEY_MAP[channel.provider];
 
       if (!apiKey) {
         yield `Error: No API key configured for ${channel.name}. Please set it in the Settings.`;

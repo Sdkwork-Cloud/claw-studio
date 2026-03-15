@@ -339,6 +339,28 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // Instance API (for shell)
+  const BUILT_IN_INSTANCE = {
+    id: 'local-built-in',
+    name: 'Local Built-in',
+    type: 'local' as const,
+    endpoint: 'http://localhost:8080',
+    status: 'online' as const,
+  };
+
+  app.get("/api/instances", (req, res) => {
+    res.json([BUILT_IN_INSTANCE]);
+  });
+
+  app.get("/api/instances/:id", (req, res) => {
+    const { id } = req.params;
+    if (id === BUILT_IN_INSTANCE.id) {
+      res.json(BUILT_IN_INSTANCE);
+    } else {
+      res.status(404).json({ error: "Instance not found" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

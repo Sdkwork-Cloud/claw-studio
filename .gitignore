@@ -35,6 +35,8 @@ Thumbs.db
 .idea/
 .vscode/
 backup/
+upgrade/
+.worktrees/
 .venv/
 venv/
 env/

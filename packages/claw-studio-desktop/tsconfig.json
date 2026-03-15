@@ -3,7 +3,11 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "react": ["../claw-studio-shell/node_modules/@types/react"],
+      "react/*": ["../claw-studio-shell/node_modules/@types/react/*"],
+      "react-dom": ["../claw-studio-shell/node_modules/@types/react-dom"],
+      "react-dom/*": ["../claw-studio-shell/node_modules/@types/react-dom/*"]
     }
   },
   "include": ["src", "vite.config.ts"]
