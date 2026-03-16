@@ -1,0 +1,26 @@
+{
+  "name": "@sdkwork/claw-chat",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@google/genai": "^1.44.0",
+    "@sdkwork/claw-core": "workspace:*",
+    "@sdkwork/claw-market": "workspace:*",
+    "@sdkwork/claw-settings": "workspace:*",
+    "@sdkwork/claw-types": "workspace:*",
+    "@sdkwork/claw-ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.21",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.35.0",
+    "react": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.13.1",
+    "react-syntax-highlighter": "^16.1.1",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.8"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

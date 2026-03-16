@@ -18,8 +18,8 @@ function parsePort(url) {
   return new URL(url).port;
 }
 
-const desktopPackage = readJson('packages/claw-studio-desktop/package.json');
-const tauriConfig = readJson('packages/claw-studio-desktop/src-tauri/tauri.conf.json');
+const desktopPackage = readJson('packages/sdkwork-claw-desktop/package.json');
+const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
 
 const tauriDevScript = desktopPackage.scripts?.['dev:tauri'];
 if (typeof tauriDevScript !== 'string' || tauriDevScript.trim().length === 0) {

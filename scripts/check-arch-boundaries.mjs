@@ -6,124 +6,55 @@ const packagesDir = path.join(root, 'packages');
 
 const allPackages = fs
   .readdirSync(packagesDir, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && d.name.startsWith('claw-studio-'))
-  .map((d) => `@sdkwork/${d.name}`);
+  .filter((entry) => entry.isDirectory() && entry.name.startsWith('sdkwork-claw-'))
+  .map((entry) => entry.name);
 
-const WEB = '@sdkwork/claw-studio-web';
-const BUSINESS = '@sdkwork/claw-studio-business';
-const DOMAIN = '@sdkwork/claw-studio-domain';
-const INFRA = '@sdkwork/claw-studio-infrastructure';
-const SHARED_UI = '@sdkwork/claw-studio-shared-ui';
-const SHELL = '@sdkwork/claw-studio-shell';
-const DESKTOP = '@sdkwork/claw-studio-desktop';
-const DISTRIBUTION = '@sdkwork/claw-studio-distribution';
-
-const featurePackages = allPackages.filter(
-  (p) =>
-    ![WEB, BUSINESS, DOMAIN, INFRA, SHARED_UI, SHELL, DESKTOP, DISTRIBUTION].includes(p),
+const packageNameByDir = new Map(
+  allPackages.map((dirName) => [dirName, `@sdkwork/${dirName.replace(/^sdkwork-/, '')}`]),
 );
-const requiredFeatureDirs = ['components', 'pages', 'services'];
-const requiredShellDirs = ['application', 'components'];
-const requiredDesktopDirs = ['desktop'];
-const requiredDistributionDirs = ['manifests', 'providers'];
+
+const WEB = '@sdkwork/claw-web';
+const DESKTOP = '@sdkwork/claw-desktop';
+const SHELL = '@sdkwork/claw-shell';
+const COMMONS = '@sdkwork/claw-commons';
+const CORE = '@sdkwork/claw-core';
+const INFRA = '@sdkwork/claw-infrastructure';
+const TYPES = '@sdkwork/claw-types';
+const UI = '@sdkwork/claw-ui';
+const I18N = '@sdkwork/claw-i18n';
+const DISTRIBUTION = '@sdkwork/claw-distribution';
+
+const sharedPackages = new Set([
+  WEB,
+  DESKTOP,
+  SHELL,
+  COMMONS,
+  CORE,
+  INFRA,
+  TYPES,
+  UI,
+  I18N,
+  DISTRIBUTION,
+]);
+
+const featurePackages = [...packageNameByDir.values()].filter((pkg) => !sharedPackages.has(pkg));
 const webForbiddenSourceDirs = [
   'services',
   'store',
+  'stores',
   'hooks',
   'platform',
   'platform-impl',
 ];
-
-function listSourceFiles(dir) {
-  if (!fs.existsSync(dir)) return [];
-  const out = [];
-  for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, item.name);
-    if (item.isDirectory()) {
-      out.push(...listSourceFiles(full));
-    } else if (/\.(ts|tsx)$/.test(item.name)) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
-function getImports(file) {
-  const text = fs.readFileSync(file, 'utf8');
-  const imports = [];
-  const re = /from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
-  let m;
-  while ((m = re.exec(text))) {
-    imports.push(m[1] || m[2]);
-  }
-  return imports.filter((i) => i.startsWith('@sdkwork/claw-studio-'));
-}
-
-function getAllImports(file) {
-  const text = fs.readFileSync(file, 'utf8');
-  const imports = [];
-  const re = /from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
-  let m;
-  while ((m = re.exec(text))) {
-    imports.push(m[1] || m[2]);
-  }
-  return imports;
-}
-
-function toPkgName(importPath) {
-  const parts = importPath.split('/');
-  return `${parts[0]}/${parts[1]}`;
-}
-
-function isRootPackageImport(importPath) {
-  return importPath === toPkgName(importPath);
-}
-
-function isAllowed(fromPkg, toPkg) {
-  if (fromPkg === WEB) {
-    return [WEB, BUSINESS, SHARED_UI, SHELL, DISTRIBUTION, ...featurePackages].includes(toPkg);
-  }
-
-  if (fromPkg === SHELL) {
-    return [SHELL, BUSINESS, INFRA, SHARED_UI, ...featurePackages].includes(toPkg);
-  }
-
-  if (fromPkg === DESKTOP) {
-    return [DESKTOP, SHELL, DISTRIBUTION, INFRA].includes(toPkg);
-  }
-
-  if (fromPkg === DISTRIBUTION) {
-    return [DISTRIBUTION].includes(toPkg);
-  }
-
-  if (fromPkg === BUSINESS) {
-    return [DOMAIN, INFRA].includes(toPkg);
-  }
-
-  if (fromPkg === DOMAIN) {
-    return false;
-  }
-
-  if (fromPkg === INFRA) {
-    return toPkg === DOMAIN;
-  }
-
-  if (featurePackages.includes(fromPkg)) {
-    return [fromPkg, BUSINESS, DOMAIN, INFRA, SHARED_UI].includes(toPkg);
-  }
-
-  return false;
-}
-
-const violations = [];
-const rootImportViolations = [];
-const packageExportViolations = [];
-const structureViolations = [];
-const webShellViolations = [];
-const businessBarrelViolations = [];
-const localServiceBarrelViolations = [];
-
-const forbiddenBusinessServiceExports = [
+const structureExpectations = [
+  [SHELL, ['application', 'components']],
+  [COMMONS, ['components', 'hooks', 'lib']],
+  [DESKTOP, ['desktop']],
+  [DISTRIBUTION, ['manifests', 'providers']],
+  [CORE, ['hooks', 'services', 'stores']],
+  [INFRA, ['config', 'http', 'i18n', 'platform', 'services', 'updates']],
+];
+const forbiddenCoreServiceExports = [
   'apiKeyService',
   'appStoreService',
   'channelService',
@@ -138,69 +69,118 @@ const forbiddenBusinessServiceExports = [
   'settingsService',
   'taskService',
 ];
+const allowedFeatureDependencies = new Map([
+  ['@sdkwork/claw-chat', new Set(['@sdkwork/claw-market', '@sdkwork/claw-settings'])],
+  ['@sdkwork/claw-market', new Set(['@sdkwork/claw-instances'])],
+  ['@sdkwork/claw-settings', new Set(['@sdkwork/claw-account'])],
+]);
 
-for (const pkg of allPackages) {
-  const short = pkg.replace('@sdkwork/', '');
-  const packageJsonPath = path.join(packagesDir, short, 'package.json');
+function listSourceFiles(dir) {
+  if (!fs.existsSync(dir)) return [];
 
-  if (!fs.existsSync(packageJsonPath)) {
-    continue;
-  }
-
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-  const exportsField = packageJson.exports;
-
-  if (!exportsField || typeof exportsField === 'string') {
-    continue;
-  }
-
-  const exportKeys = Object.keys(exportsField);
-  const nonRootExports = exportKeys.filter((key) => key !== '.');
-
-  if (nonRootExports.length > 0) {
-    packageExportViolations.push({
-      package: pkg,
-      exportKeys: nonRootExports,
-    });
-  }
-}
-
-for (const pkg of featurePackages) {
-  const short = pkg.replace('@sdkwork/', '');
-  const srcDir = path.join(packagesDir, short, 'src');
-
-  for (const requiredDir of requiredFeatureDirs) {
-    const full = path.join(srcDir, requiredDir);
-    if (!fs.existsSync(full) || !fs.statSync(full).isDirectory()) {
-      structureViolations.push({
-        package: pkg,
-        missingDir: path.relative(root, full),
-      });
+  const out = [];
+  for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, item.name);
+    if (item.isDirectory()) {
+      out.push(...listSourceFiles(full));
+    } else if (/\.(ts|tsx)$/.test(item.name)) {
+      out.push(full);
     }
   }
+  return out;
 }
 
-for (const [pkg, requiredDirs] of [
-  [SHELL, requiredShellDirs],
-  [DESKTOP, requiredDesktopDirs],
-  [DISTRIBUTION, requiredDistributionDirs],
-]) {
-  const short = pkg.replace('@sdkwork/', '');
-  const srcDir = path.join(packagesDir, short, 'src');
+function getImports(file) {
+  const source = fs.readFileSync(file, 'utf8');
+  const imports = [];
+  const pattern = /from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
+  let match;
+
+  while ((match = pattern.exec(source))) {
+    imports.push(match[1] || match[2]);
+  }
+
+  return imports;
+}
+
+function toPkgName(importPath) {
+  const [scope, name] = importPath.split('/');
+  return `${scope}/${name}`;
+}
+
+function isRootPackageImport(importPath) {
+  return importPath === toPkgName(importPath);
+}
+
+function isAllowed(fromPkg, toPkg) {
+  if (fromPkg === WEB) {
+    return [WEB, SHELL].includes(toPkg);
+  }
+
+  if (fromPkg === DESKTOP) {
+    return [DESKTOP, SHELL, DISTRIBUTION, INFRA].includes(toPkg);
+  }
+
+  if (fromPkg === SHELL) {
+    return [SHELL, COMMONS, CORE, I18N, UI, ...featurePackages].includes(toPkg);
+  }
+
+  if (fromPkg === COMMONS) {
+    return [COMMONS, CORE, UI].includes(toPkg);
+  }
+
+  if (fromPkg === DISTRIBUTION) {
+    return toPkg === DISTRIBUTION;
+  }
+
+  if (fromPkg === CORE) {
+    return [CORE, INFRA, TYPES].includes(toPkg);
+  }
+
+  if (fromPkg === INFRA) {
+    return [INFRA, TYPES].includes(toPkg);
+  }
+
+  if (fromPkg === TYPES || fromPkg === UI || fromPkg === I18N) {
+    return toPkg === fromPkg;
+  }
+
+  if (featurePackages.includes(fromPkg)) {
+    return (
+      [fromPkg, COMMONS, CORE, INFRA, TYPES, UI].includes(toPkg) ||
+      allowedFeatureDependencies.get(fromPkg)?.has(toPkg) === true
+    );
+  }
+
+  return false;
+}
+
+const structureViolations = [];
+const webShellViolations = [];
+const staleImportViolations = [];
+const packageExportViolations = [];
+const businessBarrelViolations = [];
+const localServiceBarrelViolations = [];
+const rootImportViolations = [];
+const dependencyViolations = [];
+
+for (const [pkgName, requiredDirs] of structureExpectations) {
+  const dirName = pkgName.replace('@sdkwork/', 'sdkwork-');
+  const srcDir = path.join(packagesDir, dirName, 'src');
 
   for (const requiredDir of requiredDirs) {
-    const full = path.join(srcDir, requiredDir);
-    if (!fs.existsSync(full) || !fs.statSync(full).isDirectory()) {
+    const targetDir = path.join(srcDir, requiredDir);
+    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
       structureViolations.push({
-        package: pkg,
-        missingDir: path.relative(root, full),
+        package: pkgName,
+        missingDir: path.relative(root, targetDir),
       });
     }
   }
 }
 
 {
-  const webSrcDir = path.join(packagesDir, 'claw-studio-web', 'src');
+  const webSrcDir = path.join(packagesDir, 'sdkwork-claw-web', 'src');
   for (const forbiddenDir of webForbiddenSourceDirs) {
     const dir = path.join(webSrcDir, forbiddenDir);
     if (!fs.existsSync(dir)) continue;
@@ -209,54 +189,76 @@ for (const [pkg, requiredDirs] of [
     if (files.length > 0) {
       webShellViolations.push({
         dir: path.relative(root, dir),
-        files: files.map((f) => path.relative(root, f)),
+        files: files.map((file) => path.relative(root, file)),
       });
     }
   }
 }
 
-for (const pkg of allPackages) {
-  const short = pkg.replace('@sdkwork/', '');
-  const srcDir = path.join(packagesDir, short, 'src');
-  const files = listSourceFiles(srcDir);
+for (const [dirName, pkgName] of packageNameByDir.entries()) {
+  const packageJsonPath = path.join(packagesDir, dirName, 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  const exportsField = packageJson.exports;
 
-  for (const file of files) {
+  if (exportsField && typeof exportsField !== 'string') {
+    const exportKeys = Object.keys(exportsField);
+    const nonRootExports = exportKeys.filter((key) => key !== '.');
+
+    if (nonRootExports.length > 0) {
+      packageExportViolations.push({
+        package: pkgName,
+        exportKeys: nonRootExports,
+      });
+    }
+  }
+
+  const srcDir = path.join(packagesDir, dirName, 'src');
+  for (const file of listSourceFiles(srcDir)) {
+    const source = fs.readFileSync(file, 'utf8');
+
+    if (/@sdkwork\/claw-studio-/.test(source) || /(?:\.\.\/)+claw-studio-/.test(source)) {
+      staleImportViolations.push(path.relative(root, file));
+    }
+
     const imports = getImports(file);
-    for (const imp of imports) {
-      const targetPkg = toPkgName(imp);
-      if (pkg !== targetPkg && !isRootPackageImport(imp)) {
+    for (const importPath of imports) {
+      if (!importPath.startsWith('@sdkwork/claw-')) {
+        continue;
+      }
+
+      const targetPkg = toPkgName(importPath);
+      if (pkgName !== targetPkg && !isRootPackageImport(importPath)) {
         rootImportViolations.push({
           file: path.relative(root, file),
-          from: pkg,
+          from: pkgName,
           to: targetPkg,
-          importPath: imp,
+          importPath,
         });
       }
 
-      if (!isAllowed(pkg, targetPkg)) {
-        violations.push({
+      if (!isAllowed(pkgName, targetPkg)) {
+        dependencyViolations.push({
           file: path.relative(root, file),
-          from: pkg,
+          from: pkgName,
           to: targetPkg,
-          importPath: imp,
+          importPath,
         });
       }
     }
 
-    const relativeImports = getAllImports(file);
     const isTestFile = /\.test\.(ts|tsx)$/.test(file);
     const isServiceSource = file.includes(`${path.sep}src${path.sep}services${path.sep}`);
     const isBarrelFile = /(?:^|[\\/])index\.(ts|tsx)$/.test(file);
 
     if (!isTestFile && !isServiceSource && !isBarrelFile) {
-      for (const imp of relativeImports) {
+      for (const importPath of imports) {
         if (
-          /^(\.\.\/|\.\/)+services\/.+/.test(imp) &&
-          !/\/services(?:\/index(?:\.ts|\.tsx)?)?$/.test(imp)
+          /^(\.\.\/|\.\/)+services\/.+/.test(importPath) &&
+          !/\/services(?:\/index(?:\.ts|\.tsx)?)?$/.test(importPath)
         ) {
           localServiceBarrelViolations.push({
             file: path.relative(root, file),
-            importPath: imp,
+            importPath,
           });
         }
       }
@@ -265,11 +267,11 @@ for (const pkg of allPackages) {
 }
 
 {
-  const businessIndexPath = path.join(packagesDir, 'claw-studio-business', 'src', 'index.ts');
-  const businessIndexSource = fs.readFileSync(businessIndexPath, 'utf8');
+  const coreIndexPath = path.join(packagesDir, 'sdkwork-claw-core', 'src', 'index.ts');
+  const coreIndexSource = fs.readFileSync(coreIndexPath, 'utf8');
 
-  for (const serviceName of forbiddenBusinessServiceExports) {
-    if (businessIndexSource.includes(`/services/${serviceName}`)) {
+  for (const serviceName of forbiddenCoreServiceExports) {
+    if (coreIndexSource.includes(`/services/${serviceName}`)) {
       businessBarrelViolations.push(serviceName);
     }
   }
@@ -278,66 +280,75 @@ for (const pkg of allPackages) {
 if (
   structureViolations.length > 0 ||
   webShellViolations.length > 0 ||
+  staleImportViolations.length > 0 ||
   packageExportViolations.length > 0 ||
   businessBarrelViolations.length > 0 ||
   localServiceBarrelViolations.length > 0 ||
   rootImportViolations.length > 0 ||
-  violations.length > 0
+  dependencyViolations.length > 0
 ) {
   if (structureViolations.length > 0) {
-    console.error('Feature package structure violations found:\n');
-    for (const v of structureViolations) {
-      console.error(`- ${v.package}\n  missing: ${v.missingDir}\n`);
+    console.error('Package structure violations found:\n');
+    for (const violation of structureViolations) {
+      console.error(`- ${violation.package}\n  missing: ${violation.missingDir}\n`);
     }
   }
 
   if (webShellViolations.length > 0) {
-    console.error('Web shell structure violations found:\n');
-    for (const v of webShellViolations) {
-      console.error(`- ${v.dir}`);
-      for (const file of v.files) {
+    console.error('Web host boundary violations found:\n');
+    for (const violation of webShellViolations) {
+      console.error(`- ${violation.dir}`);
+      for (const file of violation.files) {
         console.error(`  file: ${file}`);
       }
       console.error('');
     }
   }
 
+  if (staleImportViolations.length > 0) {
+    console.error('Stale claw-studio bridge references found:\n');
+    for (const file of staleImportViolations) {
+      console.error(`- ${file}`);
+    }
+    console.error('');
+  }
+
   if (packageExportViolations.length > 0) {
     console.error('Package root export violations found:\n');
-    for (const v of packageExportViolations) {
-      console.error(`- ${v.package}\n  exports: ${v.exportKeys.join(', ')}\n`);
+    for (const violation of packageExportViolations) {
+      console.error(`- ${violation.package}\n  exports: ${violation.exportKeys.join(', ')}\n`);
     }
   }
 
   if (businessBarrelViolations.length > 0) {
-    console.error('Business package barrel exposes feature-local services:\n');
+    console.error('Core package barrel exposes feature-local services:\n');
     for (const serviceName of businessBarrelViolations) {
-      console.error(`- @sdkwork/claw-studio-business should not export services/${serviceName}`);
+      console.error(`- @sdkwork/claw-core should not export services/${serviceName}`);
     }
     console.error('');
   }
 
   if (localServiceBarrelViolations.length > 0) {
     console.error('Local service barrel violations found:\n');
-    for (const v of localServiceBarrelViolations) {
-      console.error(`- ${v.file}\n  import: ${v.importPath}\n`);
+    for (const violation of localServiceBarrelViolations) {
+      console.error(`- ${violation.file}\n  import: ${violation.importPath}\n`);
     }
   }
 
-  if (violations.length > 0) {
+  if (dependencyViolations.length > 0) {
     console.error('Architecture boundary violations found:\n');
-    for (const v of violations) {
+    for (const violation of dependencyViolations) {
       console.error(
-        `- ${v.file}\n  ${v.from} -> ${v.to}\n  import: ${v.importPath}\n`,
+        `- ${violation.file}\n  ${violation.from} -> ${violation.to}\n  import: ${violation.importPath}\n`,
       );
     }
   }
 
   if (rootImportViolations.length > 0) {
     console.error('Cross-package root import violations found:\n');
-    for (const v of rootImportViolations) {
+    for (const violation of rootImportViolations) {
       console.error(
-        `- ${v.file}\n  ${v.from} -> ${v.to}\n  import: ${v.importPath}\n`,
+        `- ${violation.file}\n  ${violation.from} -> ${violation.to}\n  import: ${violation.importPath}\n`,
       );
     }
   }

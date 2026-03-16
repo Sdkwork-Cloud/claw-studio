@@ -2,15 +2,15 @@
 
 ## Overview
 
-Claw Studio ships a Tauri desktop runtime through `@sdkwork/claw-studio-desktop`. It reuses the shared shell and product feature packages while adding native runtime integration, update checks, and packaging commands.
+Claw Studio ships a Tauri desktop runtime through `@sdkwork/claw-desktop`. It reuses the shared shell and product feature packages while adding native runtime integration, update checks, and packaging commands.
 
 ## Important Paths
 
-- `packages/claw-studio-desktop/src/main.tsx`
-- `packages/claw-studio-desktop/src/desktop/bootstrap/createDesktopApp.tsx`
-- `packages/claw-studio-desktop/src/desktop/providers/DesktopProviders.tsx`
-- `packages/claw-studio-desktop/src/desktop/tauriBridge.ts`
-- `packages/claw-studio-desktop/src-tauri/`
+- `packages/sdkwork-claw-desktop/src/main.tsx`
+- `packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx`
+- `packages/sdkwork-claw-desktop/src/desktop/providers/DesktopProviders.tsx`
+- `packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts`
+- `packages/sdkwork-claw-desktop/src-tauri/`
 
 ## Run Desktop Development
 
@@ -47,13 +47,13 @@ Desktop runtime behavior relies on typed environment configuration from the infr
 - `VITE_TIMEOUT`
 - `VITE_ENABLE_STARTUP_UPDATE_CHECK`
 
-The root `.env.example` and `packages/claw-studio-desktop/.env.example` document these values.
+The root `.env.example` and `packages/sdkwork-claw-desktop/.env.example` document these values.
 
 ## Desktop Architecture Notes
 
 - the desktop entry package stays thin
-- shell composition remains in `@sdkwork/claw-studio-shell`
-- update and configuration logic flow through shared infrastructure and business layers
+- shell composition remains in `@sdkwork/claw-shell`
+- update and configuration logic flow through shared infrastructure and core layers
 - native execution and packaging live under `src-tauri`
 
 This split matters because the desktop runtime must stay aligned with the same UI and feature surface used by the web application.

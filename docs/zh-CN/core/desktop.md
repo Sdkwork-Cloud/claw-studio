@@ -2,15 +2,15 @@
 
 ## 总览
 
-Claw Studio 通过 `@sdkwork/claw-studio-desktop` 提供 Tauri 桌面运行时。它复用共享 Shell 与全部业务功能包，同时叠加原生桥接、更新检查和打包能力。
+Claw Studio 通过 `@sdkwork/claw-desktop` 提供 Tauri 桌面运行时。它复用共享 Shell 与全部业务功能包，同时叠加原生桥接、更新检查和打包能力。
 
 ## 关键路径
 
-- `packages/claw-studio-desktop/src/main.tsx`
-- `packages/claw-studio-desktop/src/desktop/bootstrap/createDesktopApp.tsx`
-- `packages/claw-studio-desktop/src/desktop/providers/DesktopProviders.tsx`
-- `packages/claw-studio-desktop/src/desktop/tauriBridge.ts`
-- `packages/claw-studio-desktop/src-tauri/`
+- `packages/sdkwork-claw-desktop/src/main.tsx`
+- `packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx`
+- `packages/sdkwork-claw-desktop/src/desktop/providers/DesktopProviders.tsx`
+- `packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts`
+- `packages/sdkwork-claw-desktop/src-tauri/`
 
 ## 启动桌面开发
 
@@ -47,13 +47,13 @@ pnpm check:desktop
 - `VITE_TIMEOUT`
 - `VITE_ENABLE_STARTUP_UPDATE_CHECK`
 
-这些变量在根 `.env.example` 和 `packages/claw-studio-desktop/.env.example` 中都有说明。
+这些变量在根 `.env.example` 和 `packages/sdkwork-claw-desktop/.env.example` 中都有说明。
 
 ## 桌面端架构要点
 
 - 桌面入口包保持轻量
-- 壳层组合仍由 `@sdkwork/claw-studio-shell` 负责
-- 更新与配置逻辑通过共享 `infrastructure` 和 `business` 流转
+- 壳层组合仍由 `@sdkwork/claw-shell` 负责
+- 更新与配置逻辑通过共享 `infrastructure` 和 `core` 流转
 - 原生执行与打包能力位于 `src-tauri`
 
 这种拆分确保桌面端与 Web 端始终共享同一套产品 UI 和业务表面。

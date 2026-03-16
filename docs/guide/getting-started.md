@@ -7,7 +7,7 @@ This repository contains the package-based Claw Studio workspace. It includes:
 - a web entry package
 - a Tauri desktop entry package
 - a shared shell package
-- shared `business`, `domain`, and `infrastructure` packages
+- shared `core`, `types`, and `infrastructure` packages
 - vertical feature packages such as `chat`, `market`, `settings`, `account`, and `extensions`
 
 ## Prerequisites
@@ -30,7 +30,7 @@ pnpm install
 pnpm dev
 ```
 
-This starts the development server from `packages/claw-studio-web/server.ts` on `http://localhost:3001`.
+This starts the development server from `packages/sdkwork-claw-web/server.ts` on `http://localhost:3001`.
 
 ## Run The Desktop App
 
@@ -61,7 +61,7 @@ Important variables:
 - `VITE_ACCESS_TOKEN`: optional backend token
 - desktop update variables such as `VITE_APP_ID` and `VITE_RELEASE_CHANNEL`
 
-Desktop-specific examples also exist in `packages/claw-studio-desktop/.env.example`.
+Desktop-specific examples also exist in `packages/sdkwork-claw-desktop/.env.example`.
 
 ## Next Steps
 

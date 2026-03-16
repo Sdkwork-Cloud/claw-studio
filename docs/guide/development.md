@@ -24,7 +24,7 @@ Repository verification is intentionally layered:
 - `pnpm lint`: TypeScript checks for the web package, architecture boundaries, and parity checks
 - `pnpm build`: production build for the web package
 - `pnpm check:arch`: package structure, layering rules, and root-only import validation
-- `pnpm check:parity`: focused checks that keep critical behavior aligned with the v3 baseline
+- `pnpm check:parity`: focused checks that keep critical behavior aligned with the `upgrade/claw-studio-v5` baseline
 - `pnpm check:desktop`: desktop platform and Tauri command contract checks
 
 ## Package-Scoped Execution
@@ -32,34 +32,34 @@ Repository verification is intentionally layered:
 Use pnpm filters when you need to work on one package directly:
 
 ```bash
-pnpm --filter @sdkwork/claw-studio-web build
-pnpm --filter @sdkwork/claw-studio-desktop tauri:info
-pnpm --filter @sdkwork/claw-studio-market lint
+pnpm --filter @sdkwork/claw-web build
+pnpm --filter @sdkwork/claw-desktop tauri:info
+pnpm --filter @sdkwork/claw-market lint
 ```
 
 ## Rules That Matter
 
 ### Keep Entry Packages Thin
 
-`@sdkwork/claw-studio-web` is an application entry. It should not absorb new stores, hooks, or business services. The same principle applies to `@sdkwork/claw-studio-desktop`.
+`@sdkwork/claw-web` is an application entry. It should not absorb new stores, hooks, or business services. The same principle applies to `@sdkwork/claw-desktop`.
 
 ### Import Package Roots Only
 
 Cross-package imports must target package roots:
 
 ```ts
-import { Market } from '@sdkwork/claw-studio-market';
+import { Market } from '@sdkwork/claw-market';
 ```
 
 Do not import feature internals across packages:
 
 ```ts
-import { Market } from '@sdkwork/claw-studio-market/src/pages/market/Market';
+import { Market } from '@sdkwork/claw-market/src/pages/market/Market';
 ```
 
 ### Keep Feature Logic Inside Feature Packages
 
-Feature-local pages, components, and services belong in their own package. Promote code to `business` only when it is genuinely shared across multiple features.
+Feature-local pages, components, and services belong in their own package. Promote code to `core` only when it is genuinely shared across multiple features.
 
 ## Documentation Workflow
 

@@ -29,5 +29,5 @@
 ## 相关文件
 
 - `./.env.example`
-- `./packages/claw-studio-web/.env.example`
-- `./packages/claw-studio-desktop/.env.example`
+- `./packages/sdkwork-claw-web/.env.example`
+- `./packages/sdkwork-claw-desktop/.env.example`

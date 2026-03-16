@@ -29,5 +29,5 @@ Start from the root `.env.example`. Package-level `.env.example` files add runti
 ## Related Files
 
 - `./.env.example`
-- `./packages/claw-studio-web/.env.example`
-- `./packages/claw-studio-desktop/.env.example`
+- `./packages/sdkwork-claw-web/.env.example`
+- `./packages/sdkwork-claw-desktop/.env.example`

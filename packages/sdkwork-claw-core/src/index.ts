@@ -1,0 +1,13 @@
+export * from './platform';
+export * from './platform-impl';
+export * from './store';
+export * from './components/CommandPalette';
+export * from './components/Sidebar';
+export * from './lib/llmService';
+export * from './services/updateService';
+export * from './stores/useAppStore';
+export * from './stores/useInstanceStore';
+export { useTaskStore } from './stores/useTaskStore';
+export type { Task, TaskStatus, TaskType } from './stores/useTaskStore';
+export * from './stores/useUpdateStore';
+export * from './hooks/useKeyboardShortcuts';

@@ -1,0 +1,62 @@
+export type {
+  PlatformAPI,
+  PlatformDialogFilter,
+  PlatformFileEntry,
+  PlatformPathInfo,
+  PlatformSaveFileOptions,
+  PlatformSelectFileOptions,
+} from './types.ts';
+export type { InstallScriptRequest, InstallerPlatformAPI } from './contracts/installer.ts';
+export type {
+  RuntimeAppInfo,
+  RuntimeConfigInfo,
+  RuntimeDesktopFilesystemInfo,
+  RuntimeDesktopIntegrationInfo,
+  RuntimeDesktopIntegrationAdapterInfo,
+  RuntimeDesktopKernelInfo,
+  RuntimeDesktopNotificationInfo,
+  RuntimeDesktopNotificationProviderInfo,
+  RuntimeDesktopPaymentInfo,
+  RuntimeDesktopPaymentProviderInfo,
+  RuntimeDesktopPermissionInfo,
+  RuntimeDesktopPermissionsInfo,
+  RuntimeDesktopPermissionStatus,
+  RuntimeDesktopProviderAvailability,
+  RuntimeDesktopProcessInfo,
+  RuntimeDesktopProcessProfileInfo,
+  RuntimeDesktopSecurityInfo,
+  RuntimeEventUnsubscribe,
+  RuntimeInfo,
+  RuntimeJobRecord,
+  RuntimeJobState,
+  RuntimeJobUpdateEvent,
+  RuntimePathsInfo,
+  RuntimePlatformAPI,
+  RuntimeProcessOutputEvent,
+  RuntimeProcessOutputStream,
+  RuntimeStorageInfo,
+  RuntimeSystemInfo,
+} from './contracts/runtime.ts';
+export type {
+  StorageDeleteRequest,
+  StorageDeleteResult,
+  StorageGetTextRequest,
+  StorageGetTextResult,
+  StorageListKeysRequest,
+  StorageListKeysResult,
+  StoragePlatformAPI,
+  StoragePlatformInfo,
+  StoragePutTextRequest,
+  StoragePutTextResult,
+} from './contracts/storage.ts';
+export {
+  configurePlatformBridge,
+  getInstallerPlatform,
+  getPlatformBridge,
+  getRuntimePlatform,
+  getStoragePlatform,
+  platform,
+  storage,
+} from './registry.ts';
+export { WebPlatform } from './web.ts';
+export { WebStoragePlatform } from './webStorage.ts';

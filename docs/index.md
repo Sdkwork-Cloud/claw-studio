@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Claw Studio
   text: A package-first workspace for web and desktop.
-  tagline: Shared shell, vertical feature packages, root-only imports, and a Tauri runtime aligned to the v3 product baseline.
+  tagline: Shared shell, vertical feature packages, root-only imports, and a Tauri runtime aligned to the v5 product baseline.
   image:
     src: /logo.svg
     alt: Claw Studio
@@ -25,20 +25,20 @@ features:
     details: Repository checks validate layering, required package structure, and root-only cross-package imports.
   - title: Desktop Distribution
     details: Tauri packaging, runtime providers, update checks, and distribution metadata live in dedicated desktop packages.
-  - title: v3 Parity
-    details: The workspace tracks the functionality and UI surface of upgrade/claw-studio-v3 while improving maintainability.
+  - title: v5 Parity
+    details: The workspace tracks the functionality and UI surface of upgrade/claw-studio-v5 while improving maintainability.
   - title: Contributor Ready
     details: Commands, environment variables, package roles, and contribution rules are documented for everyday development.
 ---
 
 ## Why This Workspace
 
-Claw Studio is organized as a `pnpm` workspace so product growth does not collapse into a single application package. The result is a clear split between shell, shared business state, infrastructure, and business feature packages.
+Claw Studio is organized as a `pnpm` workspace so product growth does not collapse into a single application package. The result is a clear split between shell, shared core state, infrastructure, and feature packages.
 
 <div class="site-grid">
   <div class="site-card">
     <h3>Thin Entry Packages</h3>
-    <p>`@sdkwork/claw-studio-web` and `@sdkwork/claw-studio-desktop` bootstrap the app. They do not own business stores or feature-local services.</p>
+    <p>`@sdkwork/claw-web` and `@sdkwork/claw-desktop` bootstrap the app. They do not own core stores or feature-local services.</p>
   </div>
   <div class="site-card">
     <h3>Stable Boundaries</h3>
@@ -59,4 +59,4 @@ Claw Studio is organized as a `pnpm` workspace so product growth does not collap
 - Find scripts fast: [Commands Reference](/reference/commands)
 - Follow repository rules: [Contributing](/contributing/)
 
-> The public VitePress site complements the in-app `@sdkwork/claw-studio-docs` package. Use this site for repository onboarding and contributor guidance.
+> The public VitePress site complements the in-app `@sdkwork/claw-docs` package. Use this site for repository onboarding and contributor guidance.

@@ -1,7 +1,6 @@
 packages:
-  - 'packages/*'
+  - 'packages/sdkwork-claw-*'
 
 ignoredBuiltDependencies:
-  - better-sqlite3
   - esbuild
   - protobufjs

@@ -1,0 +1,294 @@
+export interface RuntimeAppInfo {
+  name: string;
+  version: string;
+  target: string;
+}
+
+export interface RuntimePathsInfo {
+  configDir: string;
+  dataDir: string;
+  cacheDir: string;
+  logsDir: string;
+  stateDir: string;
+  storageDir: string;
+  pluginsDir: string;
+  integrationsDir: string;
+  backupsDir: string;
+  configFile: string;
+  deviceIdFile: string;
+  mainLogFile: string;
+}
+
+export interface RuntimeConfigStorageProfile {
+  id: string;
+  label: string;
+  provider: 'memory' | 'localFile' | 'sqlite' | 'postgres' | 'remoteApi';
+  namespace: string;
+  path?: string | null;
+  connectionConfigured: boolean;
+  databaseConfigured: boolean;
+  endpointConfigured: boolean;
+  readOnly: boolean;
+}
+
+export interface RuntimeConfigStorageInfo {
+  activeProfileId: string;
+  profiles: RuntimeConfigStorageProfile[];
+}
+
+export interface RuntimeConfigSecurityInfo {
+  strictPathPolicy: boolean;
+  allowExternalHttp: boolean;
+  allowCustomProcessCwd: boolean;
+}
+
+export interface RuntimeConfigNotificationsInfo {
+  enabled: boolean;
+  provider: string;
+  requireUserConsent: boolean;
+}
+
+export interface RuntimeConfigPaymentsInfo {
+  provider: string;
+  sandbox: boolean;
+}
+
+export interface RuntimeConfigIntegrationsInfo {
+  pluginsEnabled: boolean;
+  remoteApiEnabled: boolean;
+  allowUnsignedPlugins: boolean;
+}
+
+export interface RuntimeConfigProcessInfo {
+  defaultTimeoutMs: number;
+  maxConcurrentJobs: number;
+}
+
+export interface RuntimeConfigInfo {
+  version: number;
+  distribution: string;
+  logLevel: string;
+  theme: string;
+  telemetryEnabled: boolean;
+  security: RuntimeConfigSecurityInfo;
+  storage: RuntimeConfigStorageInfo;
+  notifications: RuntimeConfigNotificationsInfo;
+  payments: RuntimeConfigPaymentsInfo;
+  integrations: RuntimeConfigIntegrationsInfo;
+  process: RuntimeConfigProcessInfo;
+}
+
+export interface RuntimeSystemInfo {
+  os: string;
+  arch: string;
+  family: string;
+  target: string;
+}
+
+export type RuntimeJobState = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export interface RuntimeJobRecord {
+  id: string;
+  kind: string;
+  state: RuntimeJobState;
+  stage: string;
+  profileId?: string;
+  processId?: string;
+}
+
+export interface RuntimeJobUpdateEvent {
+  record: RuntimeJobRecord;
+}
+
+export type RuntimeProcessOutputStream = 'stdout' | 'stderr';
+
+export interface RuntimeProcessOutputEvent {
+  jobId?: string;
+  processId: string;
+  command: string;
+  stream: RuntimeProcessOutputStream;
+  chunk: string;
+}
+
+export type RuntimeStorageAvailability = 'ready' | 'configurationRequired' | 'planned';
+
+export interface RuntimeStorageCapabilities {
+  durable: boolean;
+  structured: boolean;
+  queryable: boolean;
+  transactional: boolean;
+  remote: boolean;
+}
+
+export interface RuntimeStorageProviderInfo {
+  id: string;
+  kind: 'memory' | 'localFile' | 'sqlite' | 'postgres' | 'remoteApi';
+  label: string;
+  availability: RuntimeStorageAvailability;
+  requiresConfiguration: boolean;
+  capabilities: RuntimeStorageCapabilities;
+}
+
+export interface RuntimeStorageProfileInfo {
+  id: string;
+  label: string;
+  provider: 'memory' | 'localFile' | 'sqlite' | 'postgres' | 'remoteApi';
+  active: boolean;
+  availability: RuntimeStorageAvailability;
+  namespace: string;
+  readOnly: boolean;
+  path?: string | null;
+  connectionConfigured: boolean;
+  databaseConfigured: boolean;
+  endpointConfigured: boolean;
+}
+
+export interface RuntimeStorageInfo {
+  activeProfileId: string;
+  rootDir: string;
+  providers: RuntimeStorageProviderInfo[];
+  profiles: RuntimeStorageProfileInfo[];
+}
+
+export type RuntimeDesktopKernelCapabilityStatus = 'ready' | 'planned';
+export type RuntimeDesktopProviderAvailability = 'ready' | 'configurationRequired' | 'planned';
+
+export interface RuntimeDesktopKernelCapability {
+  key: string;
+  status: RuntimeDesktopKernelCapabilityStatus;
+  detail: string;
+}
+
+export interface RuntimeDesktopKernelDirectories {
+  storageDir: string;
+  pluginsDir: string;
+  integrationsDir: string;
+  backupsDir: string;
+}
+
+export interface RuntimeDesktopFilesystemInfo {
+  defaultWorkingDirectory: string;
+  managedRoots: string[];
+  supportsBinaryIo: boolean;
+}
+
+export interface RuntimeDesktopSecurityInfo {
+  strictPathPolicy: boolean;
+  allowExternalHttp: boolean;
+  allowCustomProcessCwd: boolean;
+  allowedSpawnCommands: string[];
+}
+
+export interface RuntimeDesktopProcessProfileInfo {
+  id: string;
+  jobKind: string;
+  command: string;
+  args: string[];
+  defaultTimeoutMs: number;
+  allowCancellation: boolean;
+}
+
+export interface RuntimeDesktopProcessInfo {
+  defaultTimeoutMs: number;
+  maxConcurrentJobs: number;
+  activeJobCount: number;
+  activeProcessJobCount: number;
+  availableProfiles: RuntimeDesktopProcessProfileInfo[];
+}
+
+export type RuntimeDesktopPermissionStatus = 'granted' | 'managed' | 'planned';
+
+export interface RuntimeDesktopPermissionInfo {
+  key: string;
+  status: RuntimeDesktopPermissionStatus;
+  required: boolean;
+  detail: string;
+}
+
+export interface RuntimeDesktopPermissionsInfo {
+  entries: RuntimeDesktopPermissionInfo[];
+}
+
+export interface RuntimeDesktopNotificationProviderInfo {
+  id: string;
+  label: string;
+  availability: RuntimeDesktopProviderAvailability;
+  transport: string;
+  requiresUserConsent: boolean;
+}
+
+export interface RuntimeDesktopNotificationInfo {
+  enabled: boolean;
+  provider: string;
+  requireUserConsent: boolean;
+  status: RuntimeDesktopKernelCapabilityStatus;
+  availableProviders: RuntimeDesktopNotificationProviderInfo[];
+}
+
+export interface RuntimeDesktopPaymentProviderInfo {
+  id: string;
+  label: string;
+  availability: RuntimeDesktopProviderAvailability;
+  supportsSandbox: boolean;
+  remote: boolean;
+}
+
+export interface RuntimeDesktopPaymentInfo {
+  provider: string;
+  sandbox: boolean;
+  status: RuntimeDesktopKernelCapabilityStatus;
+  availableProviders: RuntimeDesktopPaymentProviderInfo[];
+}
+
+export interface RuntimeDesktopIntegrationAdapterInfo {
+  id: string;
+  label: string;
+  kind: string;
+  availability: RuntimeDesktopProviderAvailability;
+  enabled: boolean;
+  requiresSignedPlugins: boolean;
+}
+
+export interface RuntimeDesktopIntegrationInfo {
+  pluginsEnabled: boolean;
+  remoteApiEnabled: boolean;
+  allowUnsignedPlugins: boolean;
+  pluginsDir: string;
+  integrationsDir: string;
+  installedPluginCount: number;
+  status: RuntimeDesktopKernelCapabilityStatus;
+  availableAdapters: RuntimeDesktopIntegrationAdapterInfo[];
+}
+
+export interface RuntimeDesktopKernelInfo {
+  directories: RuntimeDesktopKernelDirectories;
+  capabilities: RuntimeDesktopKernelCapability[];
+  filesystem: RuntimeDesktopFilesystemInfo;
+  security: RuntimeDesktopSecurityInfo;
+  process: RuntimeDesktopProcessInfo;
+  permissions: RuntimeDesktopPermissionsInfo;
+  notifications: RuntimeDesktopNotificationInfo;
+  payments: RuntimeDesktopPaymentInfo;
+  integrations: RuntimeDesktopIntegrationInfo;
+  storage: RuntimeStorageInfo;
+}
+
+export type RuntimeEventUnsubscribe = () => void | Promise<void>;
+
+export interface RuntimeInfo {
+  platform: 'web' | 'desktop';
+  app?: RuntimeAppInfo | null;
+  paths?: RuntimePathsInfo | null;
+  config?: RuntimeConfigInfo | null;
+  system?: RuntimeSystemInfo | null;
+}
+
+export interface RuntimePlatformAPI {
+  getRuntimeInfo(): Promise<RuntimeInfo>;
+  submitProcessJob(profileId: string): Promise<string>;
+  getJob(id: string): Promise<RuntimeJobRecord>;
+  listJobs(): Promise<RuntimeJobRecord[]>;
+  cancelJob(id: string): Promise<RuntimeJobRecord>;
+  subscribeJobUpdates(listener: (event: RuntimeJobUpdateEvent) => void): Promise<RuntimeEventUnsubscribe>;
+  subscribeProcessOutput(listener: (event: RuntimeProcessOutputEvent) => void): Promise<RuntimeEventUnsubscribe>;
+}

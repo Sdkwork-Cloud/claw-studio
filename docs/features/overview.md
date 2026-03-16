@@ -2,10 +2,11 @@
 
 ## Product Surface
 
-The workspace reproduces the Claw Studio product surface from `upgrade/claw-studio-v3` while mapping responsibilities into dedicated packages.
+The workspace reproduces the Claw Studio product surface from `upgrade/claw-studio-v5` while mapping responsibilities into dedicated packages and a shared dual-host shell.
 
 ## Workspace Group
 
+- `auth`: authentication entry and sign-in flows
 - `chat`: AI chat experience
 - `channels`: provider and channel views
 - `tasks`: scheduled task surface
@@ -38,4 +39,4 @@ Each feature package owns its pages, components, and services. This keeps busine
 
 ## UI Parity Goal
 
-The migration target is functional and visual parity with `upgrade/claw-studio-v3`. Package extraction is a maintainability improvement, not a product redesign.
+The migration target is functional and visual parity with `upgrade/claw-studio-v5`. Package extraction is a maintainability improvement, not a product redesign.

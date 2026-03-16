@@ -28,24 +28,24 @@
 正确方式：
 
 ```ts
-import { Chat } from '@sdkwork/claw-studio-chat';
+import { Chat } from '@sdkwork/claw-chat';
 ```
 
 错误方式：
 
 ```ts
-import { Chat } from '@sdkwork/claw-studio-chat/src/pages/chat/Chat';
+import { Chat } from '@sdkwork/claw-chat/src/pages/chat/Chat';
 ```
 
 ### 保持 Shell 和入口层干净
 
-- `@sdkwork/claw-studio-web` 应始终是入口壳层
-- `@sdkwork/claw-studio-desktop` 应始终是桌面入口壳层
-- `@sdkwork/claw-studio-shell` 负责组合路由与全局 UX，不承载功能私有服务
+- `@sdkwork/claw-web` 应始终是入口壳层
+- `@sdkwork/claw-desktop` 应始终是桌面入口壳层
+- `@sdkwork/claw-shell` 负责组合路由与全局 UX，不承载功能私有服务
 
 ### 尊重功能归属
 
-功能私有的页面、组件和服务应位于对应业务包中。只有真正跨多个功能复用的逻辑才应进入 `business`。
+功能私有的页面、组件和服务应位于对应业务包中。只有真正跨多个功能复用的逻辑才应进入 `core`。
 
 ## 提交前验证
 

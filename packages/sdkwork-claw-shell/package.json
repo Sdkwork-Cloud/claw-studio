@@ -1,0 +1,42 @@
+{
+  "name": "@sdkwork/claw-shell",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@sdkwork/claw-account": "workspace:*",
+    "@sdkwork/claw-apps": "workspace:*",
+    "@sdkwork/claw-auth": "workspace:*",
+    "@sdkwork/claw-center": "workspace:*",
+    "@sdkwork/claw-channels": "workspace:*",
+    "@sdkwork/claw-chat": "workspace:*",
+    "@sdkwork/claw-community": "workspace:*",
+    "@sdkwork/claw-core": "workspace:*",
+    "@sdkwork/claw-devices": "workspace:*",
+    "@sdkwork/claw-docs": "workspace:*",
+    "@sdkwork/claw-extensions": "workspace:*",
+    "@sdkwork/claw-github": "workspace:*",
+    "@sdkwork/claw-huggingface": "workspace:*",
+    "@sdkwork/claw-i18n": "workspace:*",
+    "@sdkwork/claw-install": "workspace:*",
+    "@sdkwork/claw-instances": "workspace:*",
+    "@sdkwork/claw-market": "workspace:*",
+    "@sdkwork/claw-settings": "workspace:*",
+    "@sdkwork/claw-tasks": "workspace:*",
+    "@sdkwork/claw-ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.21",
+    "fuse.js": "^7.1.0",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.35.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-i18next": "^16.1.0",
+    "react-router-dom": "^7.13.1",
+    "sonner": "^2.0.7",
+    "tailwindcss": "^4.1.14",
+    "@tailwindcss/typography": "^0.5.19"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

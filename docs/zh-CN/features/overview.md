@@ -2,10 +2,11 @@
 
 ## 产品表面
 
-当前工作区在职责拆分为业务包的同时，保持与 `upgrade/claw-studio-v3` 一致的产品表面。
+当前工作区在职责拆分为业务包的同时，保持与 `upgrade/claw-studio-v5` 一致的产品表面，并通过共享 Shell 同时服务 Web 与桌面端。
 
 ## Workspace 分组
 
+- `auth`：认证入口与登录流程
 - `chat`：AI 对话体验
 - `channels`：Provider 与渠道视图
 - `tasks`：定时任务能力
@@ -38,4 +39,4 @@
 
 ## 对齐目标
 
-迁移的目标是与 `upgrade/claw-studio-v3` 在功能和界面上保持一致。分包提炼是维护性优化，而不是产品重设计。
+迁移的目标是与 `upgrade/claw-studio-v5` 在功能和界面上保持一致。分包提炼是维护性优化，而不是产品重设计。

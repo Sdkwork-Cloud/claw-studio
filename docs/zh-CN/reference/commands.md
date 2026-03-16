@@ -16,7 +16,7 @@
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm check:arch` | 校验分包边界、目录结构与根级导入 |
-| `pnpm check:parity` | 校验关键功能与 v3 基线的一致性 |
+| `pnpm check:parity` | 校验关键功能与 `upgrade/claw-studio-v5` 基线的一致性 |
 | `pnpm sync:features` | 同步仓库维护的功能包接线脚本 |
 
 ## 桌面端命令
@@ -42,7 +42,7 @@
 通过 pnpm filter 可以只针对某个包执行命令：
 
 ```bash
-pnpm --filter @sdkwork/claw-studio-web build
-pnpm --filter @sdkwork/claw-studio-desktop tauri:info
-pnpm --filter @sdkwork/claw-studio-market lint
+pnpm --filter @sdkwork/claw-web build
+pnpm --filter @sdkwork/claw-desktop tauri:info
+pnpm --filter @sdkwork/claw-market lint
 ```

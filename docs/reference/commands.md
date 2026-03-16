@@ -16,7 +16,7 @@
 | Command | Purpose |
 | --- | --- |
 | `pnpm check:arch` | Validate package boundaries, structure, and root-only imports |
-| `pnpm check:parity` | Run focused parity checks against critical v3-aligned behavior |
+| `pnpm check:parity` | Run focused parity checks against critical `upgrade/claw-studio-v5` behavior |
 | `pnpm sync:features` | Sync feature package wiring helpers maintained by repository scripts |
 
 ## Desktop Commands
@@ -42,7 +42,7 @@
 Use pnpm filters to target one package:
 
 ```bash
-pnpm --filter @sdkwork/claw-studio-web build
-pnpm --filter @sdkwork/claw-studio-desktop tauri:info
-pnpm --filter @sdkwork/claw-studio-market lint
+pnpm --filter @sdkwork/claw-web build
+pnpm --filter @sdkwork/claw-desktop tauri:info
+pnpm --filter @sdkwork/claw-market lint
 ```

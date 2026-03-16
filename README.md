@@ -2,7 +2,7 @@
 
 [简体中文](./README.zh-CN.md)
 
-Claw Studio is a package-first workspace for the modern Claw Studio application, shared web shell, and Tauri desktop runtime. The current implementation is aligned to `upgrade/claw-studio-v3`, but reorganized into maintainable feature packages with strict architecture boundaries and root-only cross-package imports.
+Claw Studio is a package-first workspace for the modern Claw Studio application, shared browser shell, and Tauri desktop runtime. The current implementation is aligned to `upgrade/claw-studio-v5`, reorganized into maintainable feature packages with strict architecture boundaries and root-only cross-package imports.
 
 This repository focuses on the Claw Studio product. It also contains `packages/cc-switch` as a separate package family, but the primary workspace, scripts, and documentation here center on Claw Studio.
 
@@ -17,21 +17,21 @@ This repository focuses on the Claw Studio product. It also contains `packages/c
 ## Architecture Snapshot
 
 ```text
-web/desktop -> shell -> feature/business -> (domain + infrastructure)
-feature -> shared-ui
+web/desktop -> shell -> feature -> (core + infrastructure + types + ui)
+shell -> (core + i18n + ui + feature)
 ```
 
 Key package roles:
 
-- `@sdkwork/claw-studio-web`: runnable web app and development server
-- `@sdkwork/claw-studio-desktop`: Tauri desktop entry and native bridge
-- `@sdkwork/claw-studio-shell`: routes, layouts, providers, sidebar, command palette
-- `@sdkwork/claw-studio-business`: shared stores and cross-feature orchestration
-- `@sdkwork/claw-studio-domain`: pure types and shared models
-- `@sdkwork/claw-studio-infrastructure`: environment, HTTP, i18n, and platform adapters
-- `@sdkwork/claw-studio-*`: vertical feature packages such as `chat`, `market`, `settings`, `account`, and `extensions`
+- `@sdkwork/claw-web`: runnable web app and development server
+- `@sdkwork/claw-desktop`: Tauri desktop entry and native bridge
+- `@sdkwork/claw-shell`: routes, layouts, providers, sidebar, command palette
+- `@sdkwork/claw-core`: shared stores and cross-feature orchestration
+- `@sdkwork/claw-types`: pure types and shared models
+- `@sdkwork/claw-infrastructure`: environment, HTTP, i18n, and platform adapters
+- `@sdkwork/claw-*`: vertical feature packages such as `chat`, `market`, `settings`, `account`, and `extensions`
 
-The repository rejects cross-package subpath imports. Use package roots such as `@sdkwork/claw-studio-market`, not `@sdkwork/claw-studio-market/src/...`.
+The repository rejects cross-package subpath imports. Use package roots such as `@sdkwork/claw-market`, not `@sdkwork/claw-market/src/...`.
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ pnpm install
 pnpm dev
 ```
 
-The default web development server runs from `packages/claw-studio-web/server.ts` on `http://localhost:3001`.
+The default web development server runs from `packages/sdkwork-claw-web/server.ts` on `http://localhost:3001`.
 
 For desktop development and packaging:
 
@@ -56,7 +56,7 @@ pnpm dev           # start the web shell
 pnpm build         # build the web package
 pnpm lint          # TypeScript + architecture + parity checks
 pnpm check:arch    # validate package boundaries and root imports
-pnpm check:parity  # verify critical parity checks against the v3 baseline
+pnpm check:parity  # verify critical parity checks against the v5 baseline
 pnpm check:desktop # validate desktop platform wiring
 pnpm docs:dev      # run the VitePress docs site
 pnpm docs:build    # build the VitePress docs site
@@ -65,8 +65,8 @@ pnpm docs:build    # build the VitePress docs site
 Package-scoped execution stays available through pnpm filters, for example:
 
 ```bash
-pnpm --filter @sdkwork/claw-studio-web build
-pnpm --filter @sdkwork/claw-studio-desktop tauri:info
+pnpm --filter @sdkwork/claw-web build
+pnpm --filter @sdkwork/claw-desktop tauri:info
 ```
 
 ## Environment
@@ -78,7 +78,7 @@ Start from [`.env.example`](./.env.example). The most important variables are:
 - `VITE_ACCESS_TOKEN`: optional bearer token for update and backend calls
 - `VITE_APP_ID`, `VITE_RELEASE_CHANNEL`, `VITE_DISTRIBUTION_ID`, `VITE_PLATFORM`, `VITE_TIMEOUT`: desktop runtime and update configuration
 
-Desktop-specific examples are also available in [`packages/claw-studio-desktop/.env.example`](./packages/claw-studio-desktop/.env.example).
+Desktop-specific examples are also available in [`packages/sdkwork-claw-desktop/.env.example`](./packages/sdkwork-claw-desktop/.env.example).
 
 ## Documentation
 
@@ -90,7 +90,7 @@ Desktop-specific examples are also available in [`packages/claw-studio-desktop/.
 - [Commands Reference](./docs/reference/commands.md)
 - [Contribution Guide](./docs/contributing/index.md)
 
-The repository also ships an in-app documentation feature package at `@sdkwork/claw-studio-docs`. The VitePress site in `docs/` is the public project documentation for GitHub and open-source contributors.
+The repository also ships an in-app documentation feature package at `@sdkwork/claw-docs`. The VitePress site in `docs/` is the public project documentation for GitHub and open-source contributors.
 
 ## Contributing
 

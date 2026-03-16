@@ -7,7 +7,7 @@
 - Web 入口包
 - Tauri 桌面入口包
 - 共享 Shell 包
-- 共享 `business`、`domain`、`infrastructure` 包
+- 共享 `core`、`types`、`infrastructure` 包
 - `chat`、`market`、`settings`、`account`、`extensions` 等垂直业务包
 
 ## 前置条件
@@ -30,7 +30,7 @@ pnpm install
 pnpm dev
 ```
 
-这会启动 `packages/claw-studio-web/server.ts` 中的开发服务器，默认地址是 `http://localhost:3001`。
+这会启动 `packages/sdkwork-claw-web/server.ts` 中的开发服务器，默认地址是 `http://localhost:3001`。
 
 ## 启动桌面应用
 
@@ -61,7 +61,7 @@ pnpm docs:build
 - `VITE_ACCESS_TOKEN`：可选的后端访问令牌
 - `VITE_APP_ID`、`VITE_RELEASE_CHANNEL` 等桌面更新配置
 
-桌面端补充示例见 `packages/claw-studio-desktop/.env.example`。
+桌面端补充示例见 `packages/sdkwork-claw-desktop/.env.example`。
 
 ## 下一步
 

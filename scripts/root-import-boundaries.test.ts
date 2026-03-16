@@ -35,7 +35,7 @@ function getImports(file: string): string[] {
   let match: RegExpExecArray | null = null;
   while ((match = importPattern.exec(source))) {
     const importPath = match[1] || match[2];
-    if (importPath?.startsWith('@sdkwork/claw-studio-')) {
+    if (importPath?.startsWith('@sdkwork/claw-')) {
       imports.push(importPath);
     }
   }
@@ -51,7 +51,7 @@ function toPackageName(importPath: string) {
 function getCurrentPackageName(file: string) {
   const relativePath = path.relative(packagesDir, file);
   const [packageDir] = relativePath.split(path.sep);
-  return `@sdkwork/${packageDir}`;
+  return `@sdkwork/${packageDir.replace(/^sdkwork-/, '')}`;
 }
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -67,7 +67,7 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
 await runTest('cross-package imports use package roots only', () => {
   const packageDirs = fs
     .readdirSync(packagesDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith('claw-studio-'))
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('sdkwork-claw-'))
     .map((entry) => entry.name);
 
   const violations: string[] = [];

@@ -1,0 +1,17 @@
+{
+  "name": "@sdkwork/claw-docs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.35.0",
+    "react": "^19.0.0",
+    "react-router-dom": "^7.13.1"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
