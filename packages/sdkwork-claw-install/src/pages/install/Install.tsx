@@ -58,24 +58,29 @@ type ProductConfig = {
   methods: InstallMethod[];
 };
 
-function formatProgressEvent(event: HubInstallProgressEvent) {
+function formatProgressEvent(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  event: HubInstallProgressEvent,
+) {
   switch (event.type) {
     case 'stageStarted':
-      return `[stage] ${event.stage} (${event.totalSteps})`;
     case 'stageCompleted':
-      return `[stage] ${event.stage} ${event.success ? 'done' : 'failed'} (${event.failedSteps}/${event.totalSteps})`;
     case 'artifactStarted':
-      return `[artifact] ${event.artifactId} (${event.artifactType})`;
+      return '';
     case 'artifactCompleted':
-      return `[artifact] ${event.artifactId} ${event.success ? 'done' : 'failed'}`;
+      return event.success ? '' : t('install.page.modal.progress.downloadFailed');
     case 'stepStarted':
-      return `[step] ${event.description}`;
+      return event.description;
     case 'stepCommandStarted':
-      return event.commandLine;
+      return '';
     case 'stepLogChunk':
       return event.chunk;
     case 'stepCompleted':
-      return `[step] ${event.stepId} ${event.success ? 'done' : 'failed'}${event.skipped ? ' (skipped)' : ''}`;
+      if (event.skipped) {
+        return t('install.page.modal.progress.stepSkipped');
+      }
+
+      return event.success ? '' : t('install.page.modal.progress.stepFailed');
     default:
       return '';
   }
@@ -271,11 +276,11 @@ export function Install() {
       `${t('install.page.modal.output.preparing', {
         product: t(selectedProduct.nameKey),
         method: t(selectedMethod.titleKey),
-      })}\n${t('install.page.modal.output.executingViaHubInstaller')}\n`,
+      })}\n${t('install.page.modal.output.startingInstall')}\n`,
     );
 
     progressUnsubscribeRef.current = await installerService.subscribeHubInstallProgress((event) => {
-      const line = formatProgressEvent(event).trim();
+      const line = formatProgressEvent(t, event).trim();
       if (!line) {
         return;
       }
@@ -526,14 +531,6 @@ export function Install() {
                             {t('install.page.modal.methodLabel')}:
                           </span>{' '}
                           {t(selectedMethod.titleKey)}
-                        </div>
-                        <div>
-                          <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                            {t('install.page.modal.profileLabel')}:
-                          </span>{' '}
-                          <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800">
-                            {selectedMethod.request.softwareName}
-                          </code>
                         </div>
                       </div>
                     </div>

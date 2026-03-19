@@ -45,6 +45,8 @@ runTest('sdkwork-claw-install keeps the install feature package local to the wor
 
 runTest('sdkwork-claw-install turns the install page into a product-tabbed claw installer surface', () => {
   const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
+  const enLocale = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
 
   assert.match(installSource, /useTranslation/);
   assert.match(installSource, /openclaw/);
@@ -54,6 +56,13 @@ runTest('sdkwork-claw-install turns the install page into a product-tabbed claw 
   assert.doesNotMatch(installSource, /install\.mobileGuide\.section/);
   assert.doesNotMatch(installSource, /executeInstallScript/);
   assert.match(installSource, /runHubInstall/);
+  assert.doesNotMatch(installSource, /selectedMethod\.request\.softwareName/);
+  assert.doesNotMatch(installSource, /\[stage\]/);
+  assert.doesNotMatch(installSource, /\[artifact\]/);
+  assert.doesNotMatch(installSource, /event\.commandLine/);
+  assert.doesNotMatch(installSource, /profileLabel/);
+  assert.doesNotMatch(enLocale, /hub-installer|Hub installer|registry|Hub profile/);
+  assert.doesNotMatch(zhLocale, /hub-installer|registry|Hub 配置/);
 });
 
 runTest('sdkwork-claw-install routes installation through the shared hub-installer contract', () => {

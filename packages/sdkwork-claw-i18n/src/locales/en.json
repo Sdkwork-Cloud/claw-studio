@@ -2360,7 +2360,7 @@
   "install": {
     "page": {
       "hero": {
-        "subtitle": "Switch between OpenClaw, ZeroClaw, and IronClaw, then install the profile that matches how your team actually runs each tool.",
+        "subtitle": "Switch between OpenClaw, ZeroClaw, and IronClaw, then choose the install path that fits how your team runs each tool.",
         "title": "Install Claw"
       },
       "products": {
@@ -2369,10 +2369,10 @@
           "description": "The full OpenClaw gateway and workspace stack.",
           "methods": {
             "recommended": {
-              "description": "Use the upstream recommended profile with the bundled hub-installer registry."
+              "description": "Install OpenClaw with the recommended setup."
             },
             "docker": {
-              "description": "Run the containerized gateway profile for OpenClaw."
+              "description": "Install OpenClaw with a reproducible Docker gateway setup."
             },
             "pnpm": {
               "description": "Install the CLI globally with pnpm when Node.js is already available."
@@ -2384,10 +2384,10 @@
         },
         "zeroclaw": {
           "name": "ZeroClaw",
-          "description": "A lighter-weight Claw toolchain with fast pnpm and source profiles.",
+          "description": "A lighter-weight Claw toolchain with quick pnpm or source installs.",
           "methods": {
             "recommended": {
-              "description": "Start with the recommended ZeroClaw profile from the local registry."
+              "description": "Install ZeroClaw with the recommended setup."
             },
             "pnpm": {
               "description": "Install ZeroClaw globally with pnpm."
@@ -2402,7 +2402,7 @@
           "description": "A heavier-duty Claw toolchain for source-first or packaged installs.",
           "methods": {
             "recommended": {
-              "description": "Use the recommended IronClaw profile from the local registry."
+              "description": "Install IronClaw with the recommended setup."
             },
             "pnpm": {
               "description": "Install IronClaw globally with pnpm."
@@ -2415,12 +2415,12 @@
       },
       "methods": {
         "recommended": {
-          "title": "Recommended profile",
-          "description": "Use the default hub-installer profile."
+          "title": "Recommended install",
+          "description": "Use the default setup for the fastest installation path."
         },
         "docker": {
           "title": "Docker gateway",
-          "description": "Run a reproducible container profile."
+          "description": "Use a reproducible Docker-based installation."
         },
         "pnpm": {
           "title": "pnpm global install",
@@ -2459,20 +2459,24 @@
         "actions": {
           "close": "Close",
           "done": "Done",
-          "startDeployment": "Start deployment"
+          "startDeployment": "Start installation"
         },
-        "info": "The selected product profile will run through the bundled hub-installer runtime and stream structured progress events back into this window.",
+        "info": "Start the selected installation and follow live progress and results in this window.",
         "output": {
           "errorPrefix": "Error",
-          "executingViaHubInstaller": "Starting hub-installer session...",
+          "startingInstall": "Starting installation...",
           "preparing": "Preparing {{product}} via {{method}}...",
-          "completed": "Hub installer finished successfully.",
-          "failed": "Hub installer returned a failure result."
+          "completed": "Installation completed successfully.",
+          "failed": "Installation did not complete."
         },
         "summaryLabel": "Install summary",
         "productLabel": "Product",
         "methodLabel": "Method",
-        "profileLabel": "Hub profile",
+        "progress": {
+          "downloadFailed": "A required download did not complete.",
+          "stepFailed": "A setup step did not complete.",
+          "stepSkipped": "A setup step was skipped."
+        },
         "status": {
           "error": "Installation failed",
           "running": "Installation in progress",

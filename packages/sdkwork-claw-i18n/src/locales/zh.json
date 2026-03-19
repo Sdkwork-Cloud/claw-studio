@@ -2360,7 +2360,7 @@
     "install":  {
                     "page":  {
                                  "hero":  {
-                                              "subtitle":  "在 OpenClaw、ZeroClaw 和 IronClaw 之间切换，并为当前产品选择最合适的安装模式。",
+                                              "subtitle":  "在 OpenClaw、ZeroClaw 和 IronClaw 之间切换，并为当前产品选择最合适的安装方式。",
                                               "title":  "安装 Claw"
                                           },
                                  "products":  {
@@ -2369,10 +2369,10 @@
                                                                      "description":  "完整的 OpenClaw 网关与工作区工具链。",
                                                                      "methods":  {
                                                                                      "recommended":  {
-                                                                                                         "description":  "使用内置 hub-installer registry 的推荐安装配置。"
+                                                                                                         "description":  "使用推荐方式安装 OpenClaw。"
                                                                                                      },
                                                                                      "docker":  {
-                                                                                                    "description":  "使用 OpenClaw 的容器网关安装配置。"
+                                                                                                    "description":  "使用可复现的 Docker 网关方式安装 OpenClaw。"
                                                                                                 },
                                                                                      "pnpm":  {
                                                                                                   "description":  "当主机已经准备好 Node.js 时，使用 pnpm 全局安装。"
@@ -2387,7 +2387,7 @@
                                                                      "description":  "更轻量的 Claw 工具链，适合 pnpm 或源码方式快速安装。",
                                                                      "methods":  {
                                                                                      "recommended":  {
-                                                                                                         "description":  "使用本地 registry 中推荐的 ZeroClaw 配置。"
+                                                                                                         "description":  "使用推荐方式安装 ZeroClaw。"
                                                                                                      },
                                                                                      "pnpm":  {
                                                                                                   "description":  "使用 pnpm 全局安装 ZeroClaw。"
@@ -2402,7 +2402,7 @@
                                                                      "description":  "面向重型工作流的 Claw 工具链，支持打包安装或源码安装。",
                                                                      "methods":  {
                                                                                      "recommended":  {
-                                                                                                         "description":  "使用本地 registry 中推荐的 IronClaw 配置。"
+                                                                                                         "description":  "使用推荐方式安装 IronClaw。"
                                                                                                      },
                                                                                      "pnpm":  {
                                                                                                   "description":  "使用 pnpm 全局安装 IronClaw。"
@@ -2415,12 +2415,12 @@
                                               },
                                  "methods":  {
                                                  "recommended":  {
-                                                                     "title":  "推荐配置",
-                                                                     "description":  "使用默认的 hub-installer 配置。"
+                                                                     "title":  "推荐安装",
+                                                                     "description":  "使用默认设置，以最快路径完成安装。"
                                                                  },
                                                  "docker":  {
                                                                 "title":  "Docker 网关",
-                                                                "description":  "运行可复现的容器安装配置。"
+                                                                "description":  "使用可复现的 Docker 安装方式。"
                                                             },
                                                  "pnpm":  {
                                                               "title":  "pnpm 全局安装",
@@ -2461,18 +2461,22 @@
                                                                "done":  "完成",
                                                                "startDeployment":  "开始安装"
                                                            },
-                                               "info":  "所选产品配置会通过内置 hub-installer 运行，并将结构化进度事件实时回传到当前窗口。",
+                                               "info":  "开始所选安装后，可在当前窗口实时查看进度与结果。",
                                                "output":  {
                                                               "errorPrefix":  "错误",
-                                                              "executingViaHubInstaller":  "正在启动 hub-installer 会话...",
+                                                              "startingInstall":  "正在启动安装...",
                                                               "preparing":  "正在准备通过 {{method}} 安装 {{product}}...",
-                                                              "completed":  "Hub installer 已成功完成。",
-                                                              "failed":  "Hub installer 返回失败结果。"
-                                                          },
+                                                              "completed":  "安装已成功完成。",
+                                                              "failed":  "安装未能完成。"
+                                                           },
                                                "summaryLabel":  "安装摘要",
                                                "productLabel":  "产品",
                                                "methodLabel":  "方式",
-                                               "profileLabel":  "Hub 配置",
+                                               "progress":  {
+                                                                "downloadFailed":  "所需下载未能完成。",
+                                                                "stepFailed":  "某个安装步骤未能完成。",
+                                                                "stepSkipped":  "某个安装步骤已跳过。"
+                                                            },
                                                "status":  {
                                                               "error":  "安装失败",
                                                               "running":  "安装进行中",
