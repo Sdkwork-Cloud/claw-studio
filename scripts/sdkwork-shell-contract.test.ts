@@ -8,6 +8,10 @@ function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
 }
 
+function readJson<T>(relPath: string): T {
+  return JSON.parse(read(relPath)) as T;
+}
+
 function runTest(name: string, fn: () => void) {
   try {
     fn();
@@ -200,4 +204,19 @@ runTest('sdkwork-claw-shell removes codebox from the setup sidebar while keeping
 
   assert.doesNotMatch(sidebarSource, /id: 'codebox'/);
   assert.match(sidebarSource, /id: 'api-router'/);
+});
+
+runTest('sdkwork-claw-shell labels the setup entry as Install Claw in both locales', () => {
+  const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
+  const enLocale = readJson<{ sidebar: { install: string } }>(
+    'packages/sdkwork-claw-i18n/src/locales/en.json',
+  );
+  const zhLocale = readJson<{ sidebar: { install: string } }>(
+    'packages/sdkwork-claw-i18n/src/locales/zh.json',
+  );
+
+  assert.match(sidebarSource, /id: 'install'/);
+  assert.match(sidebarSource, /label: t\('sidebar\.install'\)/);
+  assert.equal(enLocale.sidebar.install, 'Install Claw');
+  assert.equal(zhLocale.sidebar.install, '安装 Claw');
 });

@@ -15,15 +15,22 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import type { HubInstallRequest } from '@sdkwork/claw-infrastructure';
 import { installerService } from '../../services';
 
 type CodeBlockProps = {
   code: string;
   language?: string;
   executable?: boolean;
+  installRequest?: HubInstallRequest;
 };
 
-function CodeBlock({ code, language = 'bash', executable = false }: CodeBlockProps) {
+function CodeBlock({
+  code,
+  language = 'bash',
+  executable = false,
+  installRequest,
+}: CodeBlockProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
@@ -36,12 +43,19 @@ function CodeBlock({ code, language = 'bash', executable = false }: CodeBlockPro
   };
 
   const handleRun = async () => {
+    if (!installRequest) {
+      return;
+    }
+
     setStatus('running');
     setOutput(`$ ${code}\n${t('install.detail.codeBlock.executingViaTauri')}\n`);
     try {
-      const result = await installerService.executeInstallScript(code);
-      setOutput((previous) => `${previous}\n${result}`);
-      setStatus('success');
+      const result = await installerService.runHubInstall(installRequest);
+      setOutput(
+        (previous) =>
+          `${previous}\n${t('install.page.modal.output.completed')}\n${result.resolvedInstallRoot}`,
+      );
+      setStatus(result.success ? 'success' : 'error');
     } catch (error: any) {
       setStatus('error');
       setOutput(
@@ -60,7 +74,7 @@ function CodeBlock({ code, language = 'bash', executable = false }: CodeBlockPro
         <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/50 px-4 py-2">
           <span className="text-xs font-mono text-zinc-400">{language}</span>
           <div className="flex items-center gap-3">
-            {executable && (
+            {executable && installRequest && (
               <button
                 onClick={handleRun}
                 disabled={status === 'running'}

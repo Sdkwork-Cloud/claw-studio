@@ -1,12 +1,21 @@
 import type {
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
+  HubInstallProgressEvent,
+  HubInstallRequest,
+  HubInstallResult,
+  RuntimeEventUnsubscribe,
 } from '../platform/index.ts';
 import { getInstallerPlatform } from '../platform/index.ts';
 
 export const installerService = {
-  executeInstallScript: async (command: string): Promise<string> => {
-    return getInstallerPlatform().executeInstallScript({ command });
+  runHubInstall: async (request: HubInstallRequest): Promise<HubInstallResult> => {
+    return getInstallerPlatform().runHubInstall(request);
+  },
+  subscribeHubInstallProgress: async (
+    listener: (event: HubInstallProgressEvent) => void,
+  ): Promise<RuntimeEventUnsubscribe> => {
+    return getInstallerPlatform().subscribeHubInstallProgress(listener);
   },
   installApiRouterClientSetup: async (
     request: ApiRouterClientInstallRequest,

@@ -50,7 +50,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::move_path::move_path,
             commands::path_exists::path_exists,
             commands::get_path_info::get_path_info,
-            commands::execute_install_script::execute_install_script,
+            commands::run_hub_install::run_hub_install,
             commands::install_api_router_client_setup::install_api_router_client_setup,
             commands::read_binary_file::read_binary_file,
             commands::write_binary_file::write_binary_file,

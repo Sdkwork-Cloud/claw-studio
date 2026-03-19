@@ -6,7 +6,9 @@ import {
 import type {
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
-  InstallScriptRequest,
+  HubInstallProgressEvent,
+  HubInstallRequest,
+  HubInstallResult,
   PlatformFileEntry,
   PlatformPathInfo,
   PlatformSaveFileOptions,
@@ -394,6 +396,22 @@ export async function subscribeProcessOutput(
   );
 }
 
+export async function subscribeHubInstallProgress(
+  listener: (event: HubInstallProgressEvent) => void,
+): Promise<RuntimeEventUnsubscribe> {
+  if (!isTauriRuntime()) {
+    return noopUnsubscribe;
+  }
+
+  return listenDesktopEvent<HubInstallProgressEvent>(
+    DESKTOP_EVENTS.hubInstallProgress,
+    listener,
+    {
+      operation: 'installer.subscribeHubInstallProgress',
+    },
+  );
+}
+
 export async function openExternal(url: string): Promise<void> {
   await runDesktopOrFallback(
     'shell.openExternal',
@@ -535,13 +553,13 @@ export async function closeWindow(): Promise<void> {
   await currentWindow.close();
 }
 
-export async function executeInstallScript(
-  request: InstallScriptRequest,
-): Promise<string> {
-  return invokeDesktopCommand<string>(
-    DESKTOP_COMMANDS.executeInstallScript,
-    { command: request.command },
-    { operation: 'installer.executeInstallScript' },
+export async function runHubInstall(
+  request: HubInstallRequest,
+): Promise<HubInstallResult> {
+  return invokeDesktopCommand<HubInstallResult>(
+    DESKTOP_COMMANDS.runHubInstall,
+    { request },
+    { operation: 'installer.runHubInstall' },
   );
 }
 
@@ -633,7 +651,8 @@ export const desktopTemplateApi = {
     closeWindow,
   },
   installer: {
-    executeInstallScript,
+    runHubInstall,
+    subscribeHubInstallProgress,
     installApiRouterClientSetup,
   },
   runtime: {
@@ -673,7 +692,8 @@ export function configureDesktopPlatformBridge() {
       writeFile: (path, content) => writeTextFile(path, content),
     },
     installer: {
-      executeInstallScript: (request) => executeInstallScript(request),
+      runHubInstall: (request) => runHubInstall(request),
+      subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
       installApiRouterClientSetup: (request) => installApiRouterClientSetup(request),
     },
     storage: {

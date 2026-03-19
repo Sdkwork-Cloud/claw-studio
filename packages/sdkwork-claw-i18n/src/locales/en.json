@@ -34,7 +34,7 @@
     "clawMall": "Claw Mall",
     "instances": "Instances",
     "devices": "Devices",
-    "install": "Install Claw Studio",
+    "install": "Install Claw",
     "market": "ClawHub",
     "aiChat": "AI Chat",
     "channels": "Channels",
@@ -2360,55 +2360,88 @@
   "install": {
     "page": {
       "hero": {
-        "subtitle": "Choose the setup path that matches your operating system, runtime, and team workflow.",
-        "title": "Install OpenClaw your way"
+        "subtitle": "Switch between OpenClaw, ZeroClaw, and IronClaw, then install the profile that matches how your team actually runs each tool.",
+        "title": "Install Claw"
+      },
+      "products": {
+        "openclaw": {
+          "name": "OpenClaw",
+          "description": "The full OpenClaw gateway and workspace stack.",
+          "methods": {
+            "recommended": {
+              "description": "Use the upstream recommended profile with the bundled hub-installer registry."
+            },
+            "docker": {
+              "description": "Run the containerized gateway profile for OpenClaw."
+            },
+            "pnpm": {
+              "description": "Install the CLI globally with pnpm when Node.js is already available."
+            },
+            "source": {
+              "description": "Clone and build OpenClaw from source for local development."
+            }
+          }
+        },
+        "zeroclaw": {
+          "name": "ZeroClaw",
+          "description": "A lighter-weight Claw toolchain with fast pnpm and source profiles.",
+          "methods": {
+            "recommended": {
+              "description": "Start with the recommended ZeroClaw profile from the local registry."
+            },
+            "pnpm": {
+              "description": "Install ZeroClaw globally with pnpm."
+            },
+            "source": {
+              "description": "Clone and build ZeroClaw from its source repository."
+            }
+          }
+        },
+        "ironclaw": {
+          "name": "IronClaw",
+          "description": "A heavier-duty Claw toolchain for source-first or packaged installs.",
+          "methods": {
+            "recommended": {
+              "description": "Use the recommended IronClaw profile from the local registry."
+            },
+            "pnpm": {
+              "description": "Install IronClaw globally with pnpm."
+            },
+            "source": {
+              "description": "Clone and build IronClaw from its source repository."
+            }
+          }
+        }
       },
       "methods": {
-        "script": {
-          "title": "Installer script",
-          "description": "The fastest way to bootstrap OpenClaw on a local machine."
+        "recommended": {
+          "title": "Recommended profile",
+          "description": "Use the default hub-installer profile."
         },
         "docker": {
           "title": "Docker gateway",
-          "description": "Run a reproducible gateway on servers, NAS devices, or homelabs."
+          "description": "Run a reproducible container profile."
         },
-        "npm": {
-          "title": "npm / pnpm",
-          "description": "Install the CLI globally when you already manage Node.js on the host."
-        },
-        "cloud": {
-          "title": "Cloud deployment",
-          "description": "Prepare a remote Linux gateway for team-wide access."
+        "pnpm": {
+          "title": "pnpm global install",
+          "description": "Install the CLI globally with pnpm."
         },
         "source": {
           "title": "Build from source",
-          "description": "Clone, build, and run OpenClaw from the repository."
+          "description": "Clone, build, and run the selected product from source."
         }
       },
-      "os": {
-        "macos": "macOS",
-        "linux": "Linux",
-        "windowsPowerShell": "Windows PowerShell",
-        "windowsWsl": "Windows + WSL",
-        "crossPlatformNode": "Cross-platform Node.js",
-        "crossPlatformGit": "Cross-platform Git"
-      },
       "tags": {
+        "recommended": "Recommended",
+        "managed": "Managed",
         "macos": "macOS",
         "linux": "Linux",
-        "wsl2": "WSL2",
         "windows": "Windows",
         "docker": "Docker",
-        "nas": "NAS",
-        "homeServer": "Home Server",
         "nodejs": "Node.js",
-        "npm": "npm",
         "pnpm": "pnpm",
-        "vps": "VPS",
-        "cloud": "Cloud",
-        "ubuntu": "Ubuntu",
         "git": "Git",
-        "development": "Development"
+        "source": "Source"
       },
       "method": {
         "actions": {
@@ -2428,24 +2461,33 @@
           "done": "Done",
           "startDeployment": "Start deployment"
         },
-        "info": "The selected command will run locally through the desktop runtime. Confirm the target OS before continuing.",
+        "info": "The selected product profile will run through the bundled hub-installer runtime and stream structured progress events back into this window.",
         "output": {
           "errorPrefix": "Error",
-          "executingViaTauri": "Executing via desktop runtime...",
-          "preparing": "Preparing installation for {{os}}..."
+          "executingViaHubInstaller": "Starting hub-installer session...",
+          "preparing": "Preparing {{product}} via {{method}}...",
+          "completed": "Hub installer finished successfully.",
+          "failed": "Hub installer returned a failure result."
         },
-        "selectTargetOs": "Select target OS",
+        "summaryLabel": "Install summary",
+        "productLabel": "Product",
+        "methodLabel": "Method",
+        "profileLabel": "Hub profile",
         "status": {
           "error": "Installation failed",
           "running": "Installation in progress",
           "success": "Installation complete"
         },
-        "subtitle": "OpenClaw will execute the installer command on your machine.",
+        "subtitle": "Install the selected Claw product without leaving the desktop app.",
         "terminalOutput": "Terminal output",
-        "title": "Install via {{method}}"
+        "title": "Install {{product}} via {{method}}",
+        "result": {
+          "installRoot": "Install root",
+          "dataRoot": "Data root"
+        }
       },
       "systemRequirements": {
-        "description": "A modern CPU, stable network access, and enough disk space for models or skills are recommended for the smoothest setup.",
+        "description": "A modern CPU, stable network access, and enough disk space for {{product}} artifacts are recommended for the smoothest setup.",
         "title": "System requirements"
       }
     },

@@ -1,0 +1,43 @@
+schemaVersion: "1.0"
+$schema: "../../schemas/hub-installer.manifest.schema.json"
+metadata:
+  name: "IronClaw Install (Source)"
+  version: "2026.03.19"
+  description: "Clone or update the IronClaw repository and run the workspace build."
+  homepage: "https://github.com/Sdkwork-Cloud/ironclaw"
+platforms:
+  - windows
+  - macos
+  - ubuntu
+variables:
+  hub_software_name: "ironclaw"
+  hub_install_control_level: "managed"
+  repo_url: "https://github.com/Sdkwork-Cloud/ironclaw.git"
+  destination: "{{hub_work_root}}/ironclaw"
+defaults:
+  sudo: false
+  timeoutMs: 900000
+dependencies:
+  - id: "git"
+    check:
+      type: "command"
+      name: "git"
+artifacts:
+  - id: "ironclaw-source"
+    type: "git"
+    repository: "{{repo_url}}"
+    destination: "{{destination}}"
+    strategy: "clone-or-pull"
+    build:
+      - run: "pnpm install --frozen-lockfile"
+        cwd: "{{destination}}"
+        when:
+          fileExists: "{{destination}}/pnpm-lock.yaml"
+      - run: "pnpm build"
+        cwd: "{{destination}}"
+        continueOnError: true
+        when:
+          fileExists: "{{destination}}/package.json"
+lifecycle:
+  healthcheck:
+    - run: "git -C {{destination}} rev-parse --is-inside-work-tree"

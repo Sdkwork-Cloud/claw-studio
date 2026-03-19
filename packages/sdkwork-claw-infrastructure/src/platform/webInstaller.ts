@@ -1,15 +1,21 @@
 import type {
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
+  HubInstallRequest,
+  HubInstallResult,
   InstallerPlatformAPI,
-  InstallScriptRequest,
 } from './contracts/installer.ts';
+import type { RuntimeEventUnsubscribe } from './contracts/runtime.ts';
 
 export class WebInstallerPlatform implements InstallerPlatformAPI {
-  async executeInstallScript(_request: InstallScriptRequest): Promise<string> {
+  async runHubInstall(_request: HubInstallRequest): Promise<HubInstallResult> {
     throw new Error(
-      'Tauri API is not available in this web preview environment. In a real Tauri app, this would execute the native installation script.',
+      'Tauri API is not available in this web preview environment. In a real Tauri app, this would run hub-installer through the desktop runtime.',
     );
+  }
+
+  async subscribeHubInstallProgress(): Promise<RuntimeEventUnsubscribe> {
+    return () => {};
   }
 
   async installApiRouterClientSetup(

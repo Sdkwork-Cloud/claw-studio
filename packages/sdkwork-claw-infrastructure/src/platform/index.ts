@@ -19,7 +19,16 @@ export type {
   ApiRouterInstallerModel,
   ApiRouterInstallerOpenClawOptions,
   ApiRouterInstallerProvider,
-  InstallScriptRequest,
+  HubInstallArtifactReport,
+  HubInstallContainerRuntimePreference,
+  HubInstallControlLevel,
+  HubInstallPlatform,
+  HubInstallProgressEvent,
+  HubInstallProgressStream,
+  HubInstallRequest,
+  HubInstallResult,
+  HubInstallScope,
+  HubInstallStageReport,
   InstallerPlatformAPI,
 } from './contracts/installer.ts';
 export type {

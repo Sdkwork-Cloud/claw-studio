@@ -34,7 +34,7 @@
                     "clawMall":  "Claw Mall",
                     "instances":  "实例",
                     "devices":  "Devices",
-                    "install":  "Install Claw Studio",
+                    "install":  "安装 Claw",
                     "market":  "ClawHub",
                     "aiChat":  "AI Chat",
                     "channels":  "Channels",
@@ -2360,95 +2360,137 @@
     "install":  {
                     "page":  {
                                  "hero":  {
-                                              "subtitle":  "Choose the setup path that matches your operating system, runtime, and team workflow.",
-                                              "title":  "Install OpenClaw your way"
+                                              "subtitle":  "在 OpenClaw、ZeroClaw 和 IronClaw 之间切换，并为当前产品选择最合适的安装模式。",
+                                              "title":  "安装 Claw"
                                           },
+                                 "products":  {
+                                                  "openclaw":  {
+                                                                     "name":  "OpenClaw",
+                                                                     "description":  "完整的 OpenClaw 网关与工作区工具链。",
+                                                                     "methods":  {
+                                                                                     "recommended":  {
+                                                                                                         "description":  "使用内置 hub-installer registry 的推荐安装配置。"
+                                                                                                     },
+                                                                                     "docker":  {
+                                                                                                    "description":  "使用 OpenClaw 的容器网关安装配置。"
+                                                                                                },
+                                                                                     "pnpm":  {
+                                                                                                  "description":  "当主机已经准备好 Node.js 时，使用 pnpm 全局安装。"
+                                                                                              },
+                                                                                     "source":  {
+                                                                                                    "description":  "从源码克隆并构建 OpenClaw。"
+                                                                                                }
+                                                                                 }
+                                                                 },
+                                                  "zeroclaw":  {
+                                                                     "name":  "ZeroClaw",
+                                                                     "description":  "更轻量的 Claw 工具链，适合 pnpm 或源码方式快速安装。",
+                                                                     "methods":  {
+                                                                                     "recommended":  {
+                                                                                                         "description":  "使用本地 registry 中推荐的 ZeroClaw 配置。"
+                                                                                                     },
+                                                                                     "pnpm":  {
+                                                                                                  "description":  "使用 pnpm 全局安装 ZeroClaw。"
+                                                                                              },
+                                                                                     "source":  {
+                                                                                                    "description":  "从 ZeroClaw 源代码仓库克隆并构建。"
+                                                                                                }
+                                                                                 }
+                                                                 },
+                                                  "ironclaw":  {
+                                                                     "name":  "IronClaw",
+                                                                     "description":  "面向重型工作流的 Claw 工具链，支持打包安装或源码安装。",
+                                                                     "methods":  {
+                                                                                     "recommended":  {
+                                                                                                         "description":  "使用本地 registry 中推荐的 IronClaw 配置。"
+                                                                                                     },
+                                                                                     "pnpm":  {
+                                                                                                  "description":  "使用 pnpm 全局安装 IronClaw。"
+                                                                                              },
+                                                                                     "source":  {
+                                                                                                    "description":  "从 IronClaw 源代码仓库克隆并构建。"
+                                                                                                }
+                                                                                 }
+                                                                 }
+                                              },
                                  "methods":  {
-                                                 "script":  {
-                                                                "title":  "Installer script",
-                                                                "description":  "The fastest way to bootstrap OpenClaw on a local machine."
-                                                            },
+                                                 "recommended":  {
+                                                                     "title":  "推荐配置",
+                                                                     "description":  "使用默认的 hub-installer 配置。"
+                                                                 },
                                                  "docker":  {
-                                                                "title":  "Docker gateway",
-                                                                "description":  "Run a reproducible gateway on servers, NAS devices, or homelabs."
+                                                                "title":  "Docker 网关",
+                                                                "description":  "运行可复现的容器安装配置。"
                                                             },
-                                                 "npm":  {
-                                                             "title":  "npm / pnpm",
-                                                             "description":  "Install the CLI globally when you already manage Node.js on the host."
-                                                         },
-                                                 "cloud":  {
-                                                               "title":  "Cloud deployment",
-                                                               "description":  "Prepare a remote Linux gateway for team-wide access."
-                                                           },
+                                                 "pnpm":  {
+                                                              "title":  "pnpm 全局安装",
+                                                              "description":  "使用 pnpm 全局安装 CLI。"
+                                                          },
                                                  "source":  {
-                                                                "title":  "Build from source",
-                                                                "description":  "Clone, build, and run OpenClaw from the repository."
+                                                                "title":  "源码构建",
+                                                                "description":  "从源码克隆、构建并运行当前产品。"
                                                             }
                                              },
-                                 "os":  {
-                                            "macos":  "macOS",
-                                            "linux":  "Linux",
-                                            "windowsPowerShell":  "Windows PowerShell",
-                                            "windowsWsl":  "Windows + WSL",
-                                            "crossPlatformNode":  "Cross-platform Node.js",
-                                            "crossPlatformGit":  "Cross-platform Git"
-                                        },
                                  "tags":  {
+                                              "recommended":  "推荐",
+                                              "managed":  "受管",
                                               "macos":  "macOS",
                                               "linux":  "Linux",
-                                              "wsl2":  "WSL2",
                                               "windows":  "Windows",
                                               "docker":  "Docker",
-                                              "nas":  "NAS",
-                                              "homeServer":  "Home Server",
                                               "nodejs":  "Node.js",
-                                              "npm":  "npm",
                                               "pnpm":  "pnpm",
-                                              "vps":  "VPS",
-                                              "cloud":  "Cloud",
-                                              "ubuntu":  "Ubuntu",
                                               "git":  "Git",
-                                              "development":  "Development"
+                                              "source":  "源码"
                                           },
                                  "method":  {
                                                 "actions":  {
-                                                                "install":  "Install now",
-                                                                "viewDocumentation":  "View documentation"
+                                                                "install":  "立即安装",
+                                                                "viewDocumentation":  "查看文档"
                                                             },
                                                 "badge":  {
-                                                              "recommended":  "Recommended"
+                                                              "recommended":  "推荐"
                                                           },
                                                 "labels":  {
-                                                               "unavailable":  "Manual steps required"
+                                                               "unavailable":  "需要手动处理"
                                                            }
                                             },
                                  "modal":  {
                                                "actions":  {
-                                                               "close":  "Close",
-                                                               "done":  "Done",
-                                                               "startDeployment":  "Start deployment"
+                                                               "close":  "关闭",
+                                                               "done":  "完成",
+                                                               "startDeployment":  "开始安装"
                                                            },
-                                               "info":  "The selected command will run locally through the desktop runtime. Confirm the target OS before continuing.",
+                                               "info":  "所选产品配置会通过内置 hub-installer 运行，并将结构化进度事件实时回传到当前窗口。",
                                                "output":  {
-                                                              "errorPrefix":  "Error",
-                                                              "executingViaTauri":  "Executing via desktop runtime...",
-                                                              "preparing":  "Preparing installation for {{os}}..."
+                                                              "errorPrefix":  "错误",
+                                                              "executingViaHubInstaller":  "正在启动 hub-installer 会话...",
+                                                              "preparing":  "正在准备通过 {{method}} 安装 {{product}}...",
+                                                              "completed":  "Hub installer 已成功完成。",
+                                                              "failed":  "Hub installer 返回失败结果。"
                                                           },
-                                               "selectTargetOs":  "Select target OS",
+                                               "summaryLabel":  "安装摘要",
+                                               "productLabel":  "产品",
+                                               "methodLabel":  "方式",
+                                               "profileLabel":  "Hub 配置",
                                                "status":  {
-                                                              "error":  "Installation failed",
-                                                              "running":  "Installation in progress",
-                                                              "success":  "Installation complete"
+                                                              "error":  "安装失败",
+                                                              "running":  "安装进行中",
+                                                              "success":  "安装完成"
                                                           },
-                                               "subtitle":  "OpenClaw will execute the installer command on your machine.",
-                                               "terminalOutput":  "Terminal output",
-                                               "title":  "Install via {{method}}"
+                                               "subtitle":  "直接在桌面应用中安装当前选择的 Claw 产品。",
+                                               "terminalOutput":  "安装输出",
+                                               "title":  "通过 {{method}} 安装 {{product}}",
+                                               "result":  {
+                                                              "installRoot":  "安装目录",
+                                                              "dataRoot":  "数据目录"
+                                                          }
                                            },
-                                "systemRequirements":  {
-                                                           "description":  "A modern CPU, stable network access, and enough disk space for models or skills are recommended for the smoothest setup.",
-                                                           "title":  "System requirements"
-                                                       }
-                            },
+                                 "systemRequirements":  {
+                                                            "description":  "建议为 {{product}} 预留现代 CPU、稳定网络以及足够的磁盘空间，以获得更顺畅的安装体验。",
+                                                            "title":  "系统要求"
+                                                        }
+                             },
                     "mobileGuide":  {
                                          "headerAction":  "\u79fb\u52a8\u7aef App",
                                          "badges":  {

@@ -26,67 +26,64 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-install keeps the V5 install package surface locally', () => {
+runTest('sdkwork-claw-install keeps the install feature package local to the workspace', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-install/package.json');
   const indexSource = read('packages/sdkwork-claw-install/src/index.ts');
 
   assert.ok(exists('packages/sdkwork-claw-install/src/Install.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/InstallDetail.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/components/MobileAppDownloadDialog.tsx'));
-  assert.ok(exists('packages/sdkwork-claw-install/src/components/MobileAppDownloadQrCode.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/components/MobileAppDownloadSection.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/pages/install/Install.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/pages/install/InstallDetail.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/services/installerService.ts'));
-  assert.ok(exists('packages/sdkwork-claw-install/src/services/mobileAppGuideService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-install']);
-  assert.equal(typeof pkg.dependencies?.qrcode, 'string');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-install/);
   assert.match(indexSource, /MobileAppDownloadDialog/);
-  assert.match(indexSource, /MobileAppDownloadSection/);
 });
 
-runTest('sdkwork-claw-install preserves the V5 installation methods and system requirements surface', () => {
+runTest('sdkwork-claw-install turns the install page into a product-tabbed claw installer surface', () => {
   const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
-  const sectionSource = read('packages/sdkwork-claw-install/src/components/MobileAppDownloadSection.tsx');
 
   assert.match(installSource, /useTranslation/);
-  assert.match(installSource, /translateMethodText/);
-  assert.match(installSource, /t\('install\.page\.systemRequirements\.title'\)/);
-  assert.match(installSource, /id: 'script'/);
-  assert.match(installSource, /id: 'docker'/);
-  assert.match(installSource, /id: 'npm'/);
-  assert.match(installSource, /id: 'cloud'/);
-  assert.match(installSource, /id: 'source'/);
-  assert.match(installSource, /installerService\.executeInstallScript/);
-  assert.match(installSource, /MobileAppDownloadSection/);
-  assert.match(sectionSource, /install\.mobileGuide\.section/);
+  assert.match(installSource, /openclaw/);
+  assert.match(installSource, /zeroclaw/);
+  assert.match(installSource, /ironclaw/);
+  assert.doesNotMatch(installSource, /MobileAppDownloadSection/);
+  assert.doesNotMatch(installSource, /install\.mobileGuide\.section/);
+  assert.doesNotMatch(installSource, /executeInstallScript/);
+  assert.match(installSource, /runHubInstall/);
 });
 
-runTest('sdkwork-claw-install keeps install execution behind infrastructure abstraction', () => {
-  const serviceSource = read('packages/sdkwork-claw-install/src/services/installerService.ts');
-  const infraSource = read('packages/sdkwork-claw-infrastructure/src/services/installerService.ts');
+runTest('sdkwork-claw-install routes installation through the shared hub-installer contract', () => {
+  const featureServiceSource = read('packages/sdkwork-claw-install/src/services/installerService.ts');
+  const infraContractSource = read('packages/sdkwork-claw-infrastructure/src/platform/contracts/installer.ts');
+  const infraServiceSource = read('packages/sdkwork-claw-infrastructure/src/services/installerService.ts');
+  const bridgeSource = read('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
 
-  assert.match(serviceSource, /@sdkwork\/claw-infrastructure/);
-  assert.doesNotMatch(serviceSource, /@tauri-apps\/api\/core/);
-  assert.match(infraSource, /getInstallerPlatform/);
-  assert.match(infraSource, /executeInstallScript/);
+  assert.match(featureServiceSource, /@sdkwork\/claw-infrastructure/);
+  assert.doesNotMatch(featureServiceSource, /@tauri-apps\/api\/core/);
+
+  assert.match(infraContractSource, /HubInstallRequest/);
+  assert.match(infraContractSource, /HubInstallResult/);
+  assert.match(infraContractSource, /HubInstallProgressEvent/);
+  assert.match(infraContractSource, /runHubInstall/);
+  assert.match(infraContractSource, /subscribeHubInstallProgress/);
+  assert.doesNotMatch(infraContractSource, /InstallScriptRequest/);
+  assert.doesNotMatch(infraContractSource, /executeInstallScript/);
+
+  assert.match(infraServiceSource, /runHubInstall/);
+  assert.match(infraServiceSource, /subscribeHubInstallProgress/);
+  assert.doesNotMatch(infraServiceSource, /executeInstallScript/);
+
+  assert.match(bridgeSource, /runHubInstall/);
+  assert.match(bridgeSource, /subscribeHubInstallProgress/);
+  assert.doesNotMatch(bridgeSource, /executeInstallScript/);
 });
 
-runTest('sdkwork-claw-install resolves mobile guidance through feature-local service, sdkwork download links, and QR affordances', () => {
-  const serviceSource = read('packages/sdkwork-claw-install/src/services/mobileAppGuideService.ts');
-  const dialogSource = read('packages/sdkwork-claw-install/src/components/MobileAppDownloadDialog.tsx');
-  const cardSource = read('packages/sdkwork-claw-install/src/components/MobileAppDownloadChannelCard.tsx');
-
-  assert.match(serviceSource, /APP_ENV/);
-  assert.match(serviceSource, /https:\/\/clawstudio\.sdkwork\.com\/platforms\/android/);
-  assert.match(serviceSource, /https:\/\/clawstudio\.sdkwork\.com\/platforms\/ios/);
-  assert.match(serviceSource, /https:\/\/clawstudio\.sdkwork\.com\/platforms\/harmony/);
-  assert.match(serviceSource, /'harmony'/);
-  assert.match(dialogSource, /mobileAppGuideService/);
-  assert.match(dialogSource, /QRCode|QrCode|qrCode|qr code/);
-  assert.match(dialogSource, /platform\.openExternal/);
-  assert.match(dialogSource, /platform\.copy/);
-  assert.match(cardSource, /channel\.href/);
+runTest('sdkwork-claw-install vendors hub-installer registry assets for the desktop runtime', () => {
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/rust/Cargo.toml'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/software-registry.yaml'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs'));
 });

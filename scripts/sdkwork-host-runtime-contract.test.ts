@@ -95,25 +95,34 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
 });
 
-runTest('sdkwork-claw-desktop wires install execution through a real Tauri command', () => {
+runTest('sdkwork-claw-desktop wires hub-installer execution through a real Tauri command and progress event', () => {
   const bridgeSource = read('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
   const catalogSource = read('packages/sdkwork-claw-desktop/src/desktop/catalog.ts');
   const commandsMod = read('packages/sdkwork-claw-desktop/src-tauri/src/commands/mod.rs');
   const bootstrap = read('packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs');
+  const tauriConfig = read('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
 
-  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/execute_install_script.rs'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs'));
+  assert.ok(
+    exists(
+      'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/software-registry.yaml',
+    ),
+  );
   assert.doesNotMatch(
     bridgeSource,
     /Desktop installer runtime is not enabled in the base Tauri foundation\./,
   );
-  assert.match(catalogSource, /executeInstallScript:\s*'execute_install_script'/);
+  assert.match(catalogSource, /runHubInstall:\s*'run_hub_install'/);
+  assert.match(catalogSource, /hubInstallProgress:\s*'hub-installer:progress'/);
   assert.match(
     bridgeSource,
-    /invokeDesktopCommand<string>\(\s*DESKTOP_COMMANDS\.executeInstallScript,\s*\{\s*command:\s*request\.command\s*\}/,
+    /invokeDesktopCommand<HubInstallResult>\(\s*DESKTOP_COMMANDS\.runHubInstall,\s*\{\s*request\s*\}/,
   );
-  assert.match(commandsMod, /pub mod execute_install_script;/);
+  assert.match(bridgeSource, /subscribeHubInstallProgress/);
+  assert.match(commandsMod, /pub mod run_hub_install;/);
   assert.match(
     bootstrap,
-    /commands::execute_install_script::execute_install_script/,
+    /commands::run_hub_install::run_hub_install/,
   );
+  assert.match(tauriConfig, /vendor\/hub-installer\/registry/);
 });

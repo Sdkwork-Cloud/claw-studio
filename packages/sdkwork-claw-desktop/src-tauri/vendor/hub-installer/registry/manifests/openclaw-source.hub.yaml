@@ -1,0 +1,105 @@
+schemaVersion: "1.0"
+$schema: "../../schemas/hub-installer.manifest.schema.json"
+metadata:
+  name: "OpenClaw Install (Source Build)"
+  version: "2026.03.08"
+  description: "Build OpenClaw from source repository and link globally."
+  homepage: "https://docs.openclaw.ai/install"
+platforms:
+  - windows
+  - macos
+  - ubuntu
+variables:
+  hub_software_name: "openclaw"
+  hub_install_control_level: "managed"
+  openclaw_source_dir: "{{hub_work_root}}"
+  openclaw_git_update: "true"
+  openclaw_onboard: "true"
+defaults:
+  sudo: true
+  timeoutMs: 2400000
+  env:
+    SHARP_IGNORE_GLOBAL_LIBVIPS: "1"
+lifecycle:
+  preflight:
+    - id: "show-openclaw-source-profile-unix"
+      shell: bash
+      when:
+        platforms: [macos, ubuntu]
+      run: "echo OpenClaw profile=source source_dir={{openclaw_source_dir}} onboard={{openclaw_onboard}}"
+    - id: "show-openclaw-source-profile-win"
+      shell: powershell
+      when:
+        platforms: [windows]
+      run: "Write-Host \"OpenClaw profile=source source_dir={{openclaw_source_dir}} onboard={{openclaw_onboard}}\""
+  healthcheck:
+    - id: "openclaw-source-version"
+      run: "openclaw --version"
+    - id: "openclaw-source-doctor"
+      run: "openclaw doctor --non-interactive"
+      continueOnError: true
+artifacts:
+  - id: "openclaw-source-build-unix"
+    type: "command"
+    when:
+      platforms: [macos, ubuntu]
+    commands:
+      - id: "build-openclaw-from-source-unix"
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v git >/dev/null 2>&1; then
+            echo "git is required for source install."
+            exit 1
+          fi
+          if ! command -v pnpm >/dev/null 2>&1; then
+            corepack enable
+            corepack prepare pnpm@latest --activate
+          fi
+          if [ ! -d "{{openclaw_source_dir}}/.git" ]; then
+            git clone https://github.com/openclaw/openclaw.git "{{openclaw_source_dir}}"
+          fi
+          cd "{{openclaw_source_dir}}"
+          if [ "{{openclaw_git_update}}" = "true" ]; then
+            git pull --rebase || git pull --ff-only
+          fi
+          pnpm install
+          pnpm ui:build
+          pnpm build
+          pnpm link --global
+          if [ "{{openclaw_onboard}}" = "true" ]; then
+            openclaw onboard --install-daemon
+          fi
+  - id: "openclaw-source-build-win"
+    type: "command"
+    when:
+      platforms: [windows]
+    commands:
+      - id: "build-openclaw-from-source-win"
+        shell: powershell
+        run: |
+          if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            throw "git is required for source install."
+          }
+          if (-not (Test-Path "{{openclaw_source_dir}}\\.git")) {
+            git clone https://github.com/openclaw/openclaw.git "{{openclaw_source_dir}}"
+          }
+          Set-Location "{{openclaw_source_dir}}"
+          if ("{{openclaw_git_update}}" -eq "true") {
+            try {
+              git pull --rebase
+            } catch {
+              git pull --ff-only
+            }
+          }
+          if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+            corepack enable
+            corepack prepare pnpm@latest --activate
+          }
+          pnpm install
+          pnpm ui:build
+          pnpm build
+          pnpm link --global
+          if ("{{openclaw_onboard}}" -eq "true") {
+            openclaw onboard --install-daemon
+          }

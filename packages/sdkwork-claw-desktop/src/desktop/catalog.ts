@@ -26,7 +26,7 @@ export const DESKTOP_COMMANDS = {
   jobGet: 'job_get',
   jobList: 'job_list',
   jobCancel: 'job_cancel',
-  executeInstallScript: 'execute_install_script',
+  runHubInstall: 'run_hub_install',
   installApiRouterClientSetup: 'install_api_router_client_setup',
   openExternal: 'open_external',
   selectFiles: 'select_files',
@@ -38,6 +38,7 @@ export type DesktopCommandName =
 
 export const DESKTOP_EVENTS = {
   appReady: 'app://ready',
+  hubInstallProgress: 'hub-installer:progress',
   jobUpdated: 'job://updated',
   processOutput: 'process://output',
 } as const;
