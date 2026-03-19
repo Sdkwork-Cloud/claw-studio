@@ -69,6 +69,40 @@ export interface HubInstallResult {
   artifactReports: HubInstallArtifactReport[];
 }
 
+export interface HubUninstallRequest extends HubInstallRequest {
+  purgeData?: boolean;
+  backupBeforeUninstall?: boolean;
+}
+
+export type HubUninstallTarget = 'data' | 'install' | 'work';
+export type HubUninstallTargetStatus = 'removed' | 'missing' | 'preserved';
+
+export interface HubUninstallTargetReport {
+  target: HubUninstallTarget;
+  status: HubUninstallTargetStatus;
+}
+
+export interface HubUninstallResult {
+  registryName: string;
+  registrySource: string;
+  softwareName: string;
+  manifestSource: string;
+  manifestName: string;
+  success: boolean;
+  durationMs: number;
+  platform: HubInstallPlatform;
+  effectiveRuntimePlatform: HubInstallPlatform;
+  resolvedInstallScope: HubInstallScope;
+  resolvedInstallRoot: string;
+  resolvedWorkRoot: string;
+  resolvedBinDir: string;
+  resolvedDataRoot: string;
+  installControlLevel: HubInstallControlLevel;
+  purgeData: boolean;
+  stageReports: HubInstallStageReport[];
+  targetReports: HubUninstallTargetReport[];
+}
+
 export type HubInstallProgressEvent =
   | {
       type: 'stageStarted';
@@ -179,6 +213,7 @@ export interface ApiRouterClientInstallResult {
 
 export interface InstallerPlatformAPI {
   runHubInstall(request: HubInstallRequest): Promise<HubInstallResult>;
+  runHubUninstall(request: HubUninstallRequest): Promise<HubUninstallResult>;
   subscribeHubInstallProgress(
     listener: (event: HubInstallProgressEvent) => void,
   ): Promise<RuntimeEventUnsubscribe>;

@@ -35,6 +35,35 @@ lifecycle:
     - id: "openclaw-npm-doctor"
       run: "openclaw doctor --non-interactive"
       continueOnError: true
+  uninstall:
+    - id: "openclaw-npm-uninstall-unix"
+      shell: bash
+      when:
+        platforms: [macos, ubuntu]
+      run: |
+        if command -v npm >/dev/null 2>&1; then
+          npm uninstall -g openclaw || true
+        elif command -v pnpm >/dev/null 2>&1; then
+          pnpm remove -g openclaw || true
+        fi
+    - id: "openclaw-npm-uninstall-win"
+      shell: powershell
+      when:
+        platforms: [windows]
+      run: |
+        if (Get-Command npm -ErrorAction SilentlyContinue) {
+          try {
+            npm uninstall -g openclaw
+          } catch {
+            Write-Host "OpenClaw was not removed through npm."
+          }
+        } elseif (Get-Command pnpm -ErrorAction SilentlyContinue) {
+          try {
+            pnpm remove -g openclaw
+          } catch {
+            Write-Host "OpenClaw was not removed through pnpm."
+          }
+        }
 artifacts:
   - id: "openclaw-install-npm"
     type: "command"

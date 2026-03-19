@@ -27,6 +27,7 @@ export const DESKTOP_COMMANDS = {
   jobList: 'job_list',
   jobCancel: 'job_cancel',
   runHubInstall: 'run_hub_install',
+  runHubUninstall: 'run_hub_uninstall',
   installApiRouterClientSetup: 'install_api_router_client_setup',
   openExternal: 'open_external',
   selectFiles: 'select_files',

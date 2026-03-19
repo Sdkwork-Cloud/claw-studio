@@ -4,6 +4,8 @@ import type {
   HubInstallProgressEvent,
   HubInstallRequest,
   HubInstallResult,
+  HubUninstallRequest,
+  HubUninstallResult,
   RuntimeEventUnsubscribe,
 } from '../platform/index.ts';
 import { getInstallerPlatform } from '../platform/index.ts';
@@ -11,6 +13,9 @@ import { getInstallerPlatform } from '../platform/index.ts';
 export const installerService = {
   runHubInstall: async (request: HubInstallRequest): Promise<HubInstallResult> => {
     return getInstallerPlatform().runHubInstall(request);
+  },
+  runHubUninstall: async (request: HubUninstallRequest): Promise<HubUninstallResult> => {
+    return getInstallerPlatform().runHubUninstall(request);
   },
   subscribeHubInstallProgress: async (
     listener: (event: HubInstallProgressEvent) => void,

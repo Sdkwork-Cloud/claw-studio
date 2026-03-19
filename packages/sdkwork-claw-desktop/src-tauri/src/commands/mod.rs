@@ -19,6 +19,7 @@ pub mod read_binary_file;
 pub mod read_text_file;
 pub mod remove_path;
 pub mod run_hub_install;
+pub mod run_hub_uninstall;
 pub mod save_blob_file;
 pub mod select_files;
 pub mod storage_commands;

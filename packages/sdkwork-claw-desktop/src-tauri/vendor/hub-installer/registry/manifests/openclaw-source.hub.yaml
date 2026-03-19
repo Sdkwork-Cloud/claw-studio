@@ -38,6 +38,29 @@ lifecycle:
     - id: "openclaw-source-doctor"
       run: "openclaw doctor --non-interactive"
       continueOnError: true
+  uninstall:
+    - id: "openclaw-source-unlink-unix"
+      shell: bash
+      when:
+        platforms: [macos, ubuntu]
+      run: |
+        if command -v pnpm >/dev/null 2>&1 && [ -d "{{openclaw_source_dir}}" ]; then
+          cd "{{openclaw_source_dir}}"
+          pnpm unlink --global || true
+        fi
+    - id: "openclaw-source-unlink-win"
+      shell: powershell
+      when:
+        platforms: [windows]
+      run: |
+        if ((Get-Command pnpm -ErrorAction SilentlyContinue) -and (Test-Path "{{openclaw_source_dir}}")) {
+          Set-Location "{{openclaw_source_dir}}"
+          try {
+            pnpm unlink --global
+          } catch {
+            Write-Host "OpenClaw source link was already removed."
+          }
+        }
 artifacts:
   - id: "openclaw-source-build-unix"
     type: "command"

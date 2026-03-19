@@ -99,6 +99,17 @@ entries:
       hub_install_control_level: "partial"
       openclaw_channel: "latest"
       openclaw_onboard: "true"
+  - name: "openclaw-wsl"
+    aliases: ["claw-wsl"]
+    description: "OpenClaw WSL install profile for Windows hosts."
+    homepage: "https://docs.openclaw.ai/install"
+    tags: ["ai", "agent", "cli", "gateway", "wsl"]
+    manifest: "./manifests/openclaw-wsl.hub.yaml"
+    variables:
+      hub_software_name: "openclaw"
+      hub_install_control_level: "partial"
+      openclaw_channel: "latest"
+      openclaw_onboard: "false"
   - name: "openclaw-pnpm"
     aliases: ["claw-pnpm"]
     description: "OpenClaw pnpm global install profile."

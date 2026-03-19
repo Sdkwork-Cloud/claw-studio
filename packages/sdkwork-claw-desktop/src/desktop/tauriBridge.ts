@@ -9,6 +9,8 @@ import type {
   HubInstallProgressEvent,
   HubInstallRequest,
   HubInstallResult,
+  HubUninstallRequest,
+  HubUninstallResult,
   PlatformFileEntry,
   PlatformPathInfo,
   PlatformSaveFileOptions,
@@ -563,6 +565,16 @@ export async function runHubInstall(
   );
 }
 
+export async function runHubUninstall(
+  request: HubUninstallRequest,
+): Promise<HubUninstallResult> {
+  return invokeDesktopCommand<HubUninstallResult>(
+    DESKTOP_COMMANDS.runHubUninstall,
+    { request },
+    { operation: 'installer.runHubUninstall' },
+  );
+}
+
 export async function installApiRouterClientSetup(
   request: ApiRouterClientInstallRequest,
 ): Promise<ApiRouterClientInstallResult> {
@@ -652,6 +664,7 @@ export const desktopTemplateApi = {
   },
   installer: {
     runHubInstall,
+    runHubUninstall,
     subscribeHubInstallProgress,
     installApiRouterClientSetup,
   },
@@ -693,6 +706,7 @@ export function configureDesktopPlatformBridge() {
     },
     installer: {
       runHubInstall: (request) => runHubInstall(request),
+      runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
       installApiRouterClientSetup: (request) => installApiRouterClientSetup(request),
     },

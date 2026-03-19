@@ -2360,139 +2360,237 @@
   "install": {
     "page": {
       "hero": {
-        "subtitle": "Switch between OpenClaw, ZeroClaw, and IronClaw, then choose the install path that fits how your team runs each tool.",
         "title": "Install Claw"
+      },
+      "tabs": {
+        "install": "Install",
+        "uninstall": "Uninstall",
+        "migrate": "Migrate"
+      },
+      "modes": {
+        "install": {
+          "description": "Choose a Claw product, match the install mode to the current system, and complete setup without leaving the desktop app."
+        },
+        "uninstall": {
+          "description": "Remove an existing OpenClaw installation with the uninstall flow that matches how it was originally installed."
+        },
+        "migrate": {
+          "description": "Migrate OpenClaw content into Claw Studio and bring over settings, workspace data, and related files."
+        }
+      },
+      "runtime": {
+        "label": "Detected platform",
+        "detectedInstall": "OpenClaw detected",
+        "values": {
+          "windows": "Windows",
+          "macos": "macOS",
+          "linux": "Linux",
+          "unknown": "Unknown"
+        }
       },
       "products": {
         "openclaw": {
           "name": "OpenClaw",
-          "description": "The full OpenClaw gateway and workspace stack.",
-          "methods": {
-            "recommended": {
-              "description": "Install OpenClaw with the recommended setup."
-            },
-            "docker": {
-              "description": "Install OpenClaw with a reproducible Docker gateway setup."
-            },
-            "pnpm": {
-              "description": "Install the CLI globally with pnpm when Node.js is already available."
-            },
-            "source": {
-              "description": "Clone and build OpenClaw from source for local development."
-            }
-          }
+          "description": "The full OpenClaw gateway and workspace stack."
         },
         "zeroclaw": {
           "name": "ZeroClaw",
-          "description": "A lighter-weight Claw toolchain with quick pnpm or source installs.",
-          "methods": {
-            "recommended": {
-              "description": "Install ZeroClaw with the recommended setup."
-            },
-            "pnpm": {
-              "description": "Install ZeroClaw globally with pnpm."
-            },
-            "source": {
-              "description": "Clone and build ZeroClaw from its source repository."
-            }
-          }
+          "description": "A lighter-weight Claw toolchain for faster utility installs."
         },
         "ironclaw": {
           "name": "IronClaw",
-          "description": "A heavier-duty Claw toolchain for source-first or packaged installs.",
-          "methods": {
-            "recommended": {
-              "description": "Install IronClaw with the recommended setup."
-            },
-            "pnpm": {
-              "description": "Install IronClaw globally with pnpm."
-            },
-            "source": {
-              "description": "Clone and build IronClaw from its source repository."
-            }
-          }
+          "description": "A heavier-duty Claw toolchain for source-first workflows."
         }
       },
       "methods": {
-        "recommended": {
-          "title": "Recommended install",
-          "description": "Use the default setup for the fastest installation path."
+        "wsl": {
+          "title": "WSL install",
+          "description": "Install OpenClaw inside WSL on Windows for a Linux-style runtime path."
         },
         "docker": {
-          "title": "Docker gateway",
-          "description": "Use a reproducible Docker-based installation."
+          "title": "Docker install",
+          "description": "Install with Docker and support local Docker or Docker running inside WSL."
+        },
+        "npm": {
+          "title": "npm install",
+          "description": "Install globally with npm when Node.js is already available on the host."
         },
         "pnpm": {
-          "title": "pnpm global install",
-          "description": "Install the CLI globally with pnpm."
+          "title": "pnpm install",
+          "description": "Install globally with pnpm for teams already using a pnpm-based toolchain."
         },
         "source": {
-          "title": "Build from source",
+          "title": "Source install",
           "description": "Clone, build, and run the selected product from source."
+        },
+        "cloud": {
+          "title": "Cloud install",
+          "description": "Provision the selected product in the cloud. This mode is in development."
         }
       },
       "tags": {
-        "recommended": "Recommended",
-        "managed": "Managed",
-        "macos": "macOS",
-        "linux": "Linux",
-        "windows": "Windows",
+        "cloud": "Cloud",
         "docker": "Docker",
-        "nodejs": "Node.js",
-        "pnpm": "pnpm",
         "git": "Git",
-        "source": "Source"
+        "linux": "Linux",
+        "macos": "macOS",
+        "managed": "Managed",
+        "nodejs": "Node.js",
+        "npm": "npm",
+        "pnpm": "pnpm",
+        "source": "Source",
+        "windows": "Windows",
+        "wsl": "WSL"
       },
       "method": {
         "actions": {
           "install": "Install now",
-          "viewDocumentation": "View documentation"
-        },
-        "badge": {
-          "recommended": "Recommended"
-        },
-        "labels": {
-          "unavailable": "Manual steps required"
-        }
-      },
-      "modal": {
-        "actions": {
-          "close": "Close",
-          "done": "Done",
-          "startDeployment": "Start installation"
-        },
-        "info": "Start the selected installation and follow live progress and results in this window.",
-        "output": {
-          "errorPrefix": "Error",
-          "startingInstall": "Starting installation...",
-          "preparing": "Preparing {{product}} via {{method}}...",
-          "completed": "Installation completed successfully.",
-          "failed": "Installation did not complete."
-        },
-        "summaryLabel": "Install summary",
-        "productLabel": "Product",
-        "methodLabel": "Method",
-        "progress": {
-          "downloadFailed": "A required download did not complete.",
-          "stepFailed": "A setup step did not complete.",
-          "stepSkipped": "A setup step was skipped."
-        },
-        "status": {
-          "error": "Installation failed",
-          "running": "Installation in progress",
-          "success": "Installation complete"
-        },
-        "subtitle": "Install the selected Claw product without leaving the desktop app.",
-        "terminalOutput": "Terminal output",
-        "title": "Install {{product}} via {{method}}",
-        "result": {
-          "installRoot": "Install root",
-          "dataRoot": "Data root"
+          "uninstall": "Uninstall now",
+          "comingSoon": "In development"
         }
       },
       "systemRequirements": {
-        "description": "A modern CPU, stable network access, and enough disk space for {{product}} artifacts are recommended for the smoothest setup.",
-        "title": "System requirements"
+        "title": "System requirements",
+        "description": "A modern CPU, stable network access, and enough disk space for {{product}} artifacts are recommended for the smoothest setup."
+      },
+      "uninstall": {
+        "title": "Uninstall OpenClaw",
+        "description": "Pick the uninstall mode that matches the current OpenClaw installation and remove the existing runtime cleanly.",
+        "detected": {
+          "installMode": "Detected install mode",
+          "installRoot": "Install root",
+          "dataRoot": "Data root",
+          "notFound": "Not detected"
+        },
+        "methods": {
+          "wsl": {
+            "description": "Remove the OpenClaw runtime that was installed inside WSL."
+          },
+          "docker": {
+            "description": "Stop and remove the OpenClaw Docker deployment."
+          },
+          "npm": {
+            "description": "Remove the global OpenClaw package that was installed through npm."
+          },
+          "pnpm": {
+            "description": "Remove the global OpenClaw package that was installed through pnpm."
+          },
+          "source": {
+            "description": "Remove the source-linked OpenClaw runtime and local build output."
+          }
+        }
+      },
+      "migrate": {
+        "title": "Migrate OpenClaw",
+        "description": "Import settings, workspace data, and related files into Claw Studio.",
+        "customSourceLabel": "Manual source folder",
+        "customSourcePlaceholder": "No manual folder selected yet.",
+        "readyTitle": "Ready to migrate",
+        "readyDescription": "Review the detected folders, choose what should be imported, and start the migration when you are ready.",
+        "actions": {
+          "rescan": "Scan again",
+          "selectSource": "Choose folder",
+          "start": "Start migration"
+        },
+        "status": {
+          "idle": "Waiting to migrate",
+          "running": "Migration in progress",
+          "success": "Migration complete",
+          "error": "Migration needs attention"
+        },
+        "labels": {
+          "source": "Source",
+          "destination": "Destination",
+          "notFound": "Not found"
+        },
+        "sections": {
+          "config": {
+            "title": "Configuration",
+            "description": "Import configuration files and local preferences."
+          },
+          "data": {
+            "title": "Data",
+            "description": "Import local data files and runtime state."
+          },
+          "workspace": {
+            "title": "Workspace",
+            "description": "Import the working directory and related project content."
+          },
+          "logs": {
+            "title": "Logs",
+            "description": "Import diagnostic logs that still need to be kept."
+          },
+          "manual": {
+            "title": "Manual folder",
+            "description": "Import a custom folder when the automatic scan misses the original location."
+          }
+        },
+        "output": {
+          "title": "Migration output",
+          "placeholder": "Migration output will appear here.",
+          "starting": "Starting migration...",
+          "copying": "Importing {{title}}...",
+          "completedSection": "Import completed for this section.",
+          "missing": "The source folder could not be found.",
+          "partial": "Migration finished with warnings.",
+          "completed": "Migration completed successfully."
+        }
+      },
+      "modal": {
+        "title": {
+          "install": "Install {{product}} via {{method}}",
+          "uninstall": "Uninstall OpenClaw via {{method}}"
+        },
+        "subtitle": {
+          "install": "Install the selected product directly inside the desktop app.",
+          "uninstall": "Remove the selected OpenClaw runtime directly inside the desktop app."
+        },
+        "summaryLabel": "Operation summary",
+        "operationLabel": "Mode",
+        "productLabel": "Product",
+        "methodLabel": "Method",
+        "info": {
+          "install": "Start the selected installation and follow live progress in this window.",
+          "uninstall": "Start the selected uninstall flow and follow live progress in this window."
+        },
+        "output": {
+          "preparingInstall": "Preparing {{product}} via {{method}}...",
+          "preparingUninstall": "Preparing to uninstall via {{method}}...",
+          "starting": "Starting operation...",
+          "errorPrefix": "Error",
+          "completedInstall": "Installation completed successfully.",
+          "completedUninstall": "Uninstall completed successfully.",
+          "failedInstall": "Installation did not complete.",
+          "failedUninstall": "Uninstall did not complete."
+        },
+        "progress": {
+          "downloadFailed": "A required download did not complete.",
+          "stepSkipped": "A setup step was skipped.",
+          "stepFailed": "A setup step did not complete."
+        },
+        "status": {
+          "install": {
+            "running": "Installation in progress",
+            "success": "Installation complete",
+            "error": "Installation failed"
+          },
+          "uninstall": {
+            "running": "Uninstall in progress",
+            "success": "Uninstall complete",
+            "error": "Uninstall failed"
+          }
+        },
+        "terminalOutput": "Terminal output",
+        "result": {
+          "installRoot": "Install root",
+          "dataRoot": "Data root"
+        },
+        "actions": {
+          "close": "Close",
+          "done": "Done",
+          "startInstall": "Start installation",
+          "startUninstall": "Start uninstall"
+        }
       }
     },
     "mobileGuide": {

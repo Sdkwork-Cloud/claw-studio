@@ -29,6 +29,11 @@ export type {
   HubInstallResult,
   HubInstallScope,
   HubInstallStageReport,
+  HubUninstallRequest,
+  HubUninstallResult,
+  HubUninstallTarget,
+  HubUninstallTargetReport,
+  HubUninstallTargetStatus,
   InstallerPlatformAPI,
 } from './contracts/installer.ts';
 export type {
