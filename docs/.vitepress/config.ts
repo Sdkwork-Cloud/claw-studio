@@ -41,6 +41,7 @@ const enSidebar = [
     items: [
       { text: 'Commands', link: '/reference/commands' },
       { text: 'Environment', link: '/reference/environment' },
+      { text: 'Upstream Integration', link: '/reference/upstream-integration' },
     ],
   },
   {

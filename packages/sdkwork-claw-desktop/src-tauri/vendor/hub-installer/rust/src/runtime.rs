@@ -33,6 +33,7 @@ pub trait RuntimeProbe {
     fn command_exists(&self, command: &str) -> bool;
     fn list_wsl_distros(&self) -> Vec<String>;
     fn wsl_command_exists(&self, distro: Option<&str>, command: &str) -> bool;
+    fn wsl_read_env(&self, distro: Option<&str>, name: &str) -> Option<String>;
     fn docker_available_on_host(&self) -> bool;
     fn wsl_docker_available(&self, distro: Option<&str>) -> bool;
     fn wsl_home_dir(&self, distro: Option<&str>) -> Option<String>;
@@ -82,6 +83,26 @@ impl RuntimeProbe for SystemRuntimeProbe {
             .status()
             .map(|status| status.success())
             .unwrap_or(false)
+    }
+
+    fn wsl_read_env(&self, distro: Option<&str>, name: &str) -> Option<String> {
+        if !cfg!(windows) || which::which("wsl.exe").is_err() || !is_safe_env_name(name) {
+            return None;
+        }
+
+        let mut process = Command::new("wsl.exe");
+        if let Some(distro) = distro {
+            process.args(["-d", distro]);
+        }
+        process.args(["--", "bash", "-lc"]);
+        process.arg(format!("printenv {name}"));
+        let output = process.output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+
+        let value = decode_command_output(&output.stdout).trim().to_owned();
+        if value.is_empty() { None } else { Some(value) }
     }
 
     fn docker_available_on_host(&self) -> bool {
@@ -342,6 +363,15 @@ fn decode_command_output(bytes: &[u8]) -> String {
     } else {
         String::from_utf8_lossy(bytes).to_string()
     }
+}
+
+fn is_safe_env_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) if first == '_' || first.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
 }
 
 fn normalize_windows_path_for_wsl(value: &str) -> String {

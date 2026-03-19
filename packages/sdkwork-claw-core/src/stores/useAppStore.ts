@@ -10,6 +10,7 @@ import {
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ThemeColor = 'lobster' | 'tech-blue' | 'green-tech' | 'zinc' | 'violet' | 'rose';
 export type Language = SupportedLanguage;
+export type LanguagePreference = Language | 'system';
 
 interface AppState {
   isSidebarCollapsed: boolean;
@@ -24,7 +25,8 @@ interface AppState {
   themeColor: ThemeColor;
   setThemeColor: (color: ThemeColor) => void;
   language: Language;
-  setLanguage: (lang: Language) => void;
+  languagePreference: LanguagePreference;
+  setLanguage: (lang: LanguagePreference) => void;
   isMobileAppDialogOpen: boolean;
   hasSeenMobileAppPrompt: boolean;
   openMobileAppDialog: () => void;
@@ -40,11 +42,28 @@ type PersistedAppState = Pick<
   | 'themeMode'
   | 'themeColor'
   | 'language'
+  | 'languagePreference'
   | 'hasSeenMobileAppPrompt'
 >;
 
 const getDefaultLanguage = (): Language => {
   return resolveInitialLanguage();
+};
+
+const normalizeLanguagePreference = (value?: string | null): LanguagePreference => {
+  if (value === 'system') {
+    return 'system';
+  }
+
+  return normalizeLanguage(value);
+};
+
+const resolveLanguageFromPreference = (preference: LanguagePreference): Language => {
+  if (preference === 'system') {
+    return getDefaultLanguage();
+  }
+
+  return normalizeLanguage(preference);
 };
 
 export const useAppStore = create<AppState>()(
@@ -66,8 +85,15 @@ export const useAppStore = create<AppState>()(
       setThemeMode: (themeMode) => set({ themeMode }),
       themeColor: 'lobster',
       setThemeColor: (themeColor) => set({ themeColor }),
+      languagePreference: 'system',
       language: getDefaultLanguage(),
-      setLanguage: (language) => set({ language: normalizeLanguage(language) }),
+      setLanguage: (languagePreference) => {
+        const nextLanguagePreference = normalizeLanguagePreference(languagePreference);
+        set({
+          languagePreference: nextLanguagePreference,
+          language: resolveLanguageFromPreference(nextLanguagePreference),
+        });
+      },
       isMobileAppDialogOpen: false,
       hasSeenMobileAppPrompt: false,
       openMobileAppDialog: () => set({ isMobileAppDialogOpen: true }),
@@ -83,14 +109,20 @@ export const useAppStore = create<AppState>()(
         themeMode: state.themeMode,
         themeColor: state.themeColor,
         language: state.language,
+        languagePreference: state.languagePreference,
         hasSeenMobileAppPrompt: state.hasSeenMobileAppPrompt,
       }),
       merge: (persistedState, currentState) => {
         const nextState = (persistedState as Partial<PersistedAppState>) || {};
+        const languagePreference = normalizeLanguagePreference(
+          nextState.languagePreference ?? nextState.language ?? 'system',
+        );
+
         return {
           ...currentState,
           ...nextState,
-          language: normalizeLanguage(nextState.language ?? currentState.language ?? defaultLanguage),
+          languagePreference,
+          language: resolveLanguageFromPreference(languagePreference ?? defaultLanguage),
           isMobileAppDialogOpen: false,
           hasSeenMobileAppPrompt:
             nextState.hasSeenMobileAppPrompt ?? currentState.hasSeenMobileAppPrompt ?? false,

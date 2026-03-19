@@ -3,6 +3,7 @@ import type {
   RuntimeInfo,
   RuntimeJobRecord,
   RuntimeJobUpdateEvent,
+  RuntimeLanguagePreference,
   RuntimePlatformAPI,
   RuntimeProcessOutputEvent,
 } from './contracts/runtime.ts';
@@ -11,6 +12,8 @@ export class WebRuntimePlatform implements RuntimePlatformAPI {
   async getRuntimeInfo(): Promise<RuntimeInfo> {
     return { platform: 'web' };
   }
+
+  async setAppLanguage(_language: RuntimeLanguagePreference): Promise<void> {}
 
   async submitProcessJob(_profileId: string): Promise<string> {
     throw new Error('Desktop runtime process jobs are unavailable on web.');

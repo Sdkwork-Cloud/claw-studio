@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Check, Globe, Laptop, Moon, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { type Language, type ThemeColor, useAppStore } from '@sdkwork/claw-core';
+import { type LanguagePreference, type ThemeColor, useAppStore } from '@sdkwork/claw-core';
 import { LANGUAGE_LABELS, supportedLanguages } from '@sdkwork/claw-i18n';
 import {
   Checkbox,
@@ -54,7 +54,7 @@ export function GeneralSettings() {
     setThemeMode,
     themeColor,
     setThemeColor,
-    language,
+    languagePreference,
     setLanguage,
     hiddenSidebarItems,
     toggleSidebarItem,
@@ -98,8 +98,8 @@ export function GeneralSettings() {
     { id: 'install', label: t('sidebar.install') },
     { id: 'instances', label: t('sidebar.instances') },
     { id: 'devices', label: t('sidebar.devices') },
-    { id: 'codebox', label: t('sidebar.codebox') },
     { id: 'api-router', label: t('sidebar.apiRouter') },
+    { id: 'model-purchase', label: t('sidebar.modelPurchase') },
   ];
 
   return (
@@ -197,13 +197,16 @@ export function GeneralSettings() {
                 </div>
               </div>
               <Select
-                value={language}
-                onValueChange={(value) => setLanguage(value as Language)}
+                value={languagePreference}
+                onValueChange={(value) => setLanguage(value as LanguagePreference)}
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="system">
+                    {t('settings.general.themeModes.system')}
+                  </SelectItem>
                   {supportedLanguages.map((supportedLanguage) => (
                     <SelectItem key={supportedLanguage} value={supportedLanguage}>
                       {LANGUAGE_LABELS[supportedLanguage]}

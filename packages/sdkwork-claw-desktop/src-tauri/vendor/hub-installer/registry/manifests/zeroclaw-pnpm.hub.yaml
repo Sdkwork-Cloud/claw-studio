@@ -3,8 +3,8 @@ $schema: "../../schemas/hub-installer.manifest.schema.json"
 metadata:
   name: "ZeroClaw Install (pnpm)"
   version: "2026.03.19"
-  description: "Install ZeroClaw via pnpm global package."
-  homepage: "https://github.com/Sdkwork-Cloud/zeroclaw"
+  description: "Legacy ZeroClaw pnpm placeholder retained for compatibility; registry defaults now route to the official Rust-native source profile."
+  homepage: "https://github.com/zeroclaw-labs/zeroclaw"
 platforms:
   - windows
   - macos

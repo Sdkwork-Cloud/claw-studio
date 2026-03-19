@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Router,
   Server,
+  ShoppingCart,
   Settings,
   Terminal,
 } from 'lucide-react';
@@ -123,6 +124,14 @@ export function buildCommandPaletteCommands({
       icon: Router,
       category: t('commandPalette.categories.navigation'),
       action: () => navigate('/api-router'),
+    },
+    {
+      id: 'nav-model-purchase',
+      title: t('commandPalette.commands.modelPurchase.title'),
+      subtitle: t('commandPalette.commands.modelPurchase.subtitle'),
+      icon: ShoppingCart,
+      category: t('commandPalette.categories.navigation'),
+      action: () => navigate('/model-purchase'),
     },
     {
       id: 'nav-settings',

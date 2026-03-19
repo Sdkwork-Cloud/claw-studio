@@ -6,6 +6,7 @@ import {
 import type {
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
+  HubInstallAssessmentResult,
   HubInstallProgressEvent,
   HubInstallRequest,
   HubInstallResult,
@@ -21,6 +22,7 @@ import type {
   RuntimeEventUnsubscribe,
   RuntimeInfo,
   RuntimeJobUpdateEvent,
+  RuntimeLanguagePreference,
   RuntimePathsInfo,
   RuntimeProcessOutputEvent,
   RuntimeStorageInfo,
@@ -90,6 +92,19 @@ export async function getAppConfig(): Promise<DesktopAppConfig | null> {
         operation: 'app.getConfig',
       }),
     async () => null,
+  );
+}
+
+export async function setAppLanguage(language: RuntimeLanguagePreference): Promise<void> {
+  await runDesktopOrFallback(
+    'app.setLanguage',
+    () =>
+      invokeDesktopCommand<void>(
+        DESKTOP_COMMANDS.setAppLanguage,
+        { language },
+        { operation: 'app.setLanguage' },
+      ),
+    async () => {},
   );
 }
 
@@ -485,12 +500,38 @@ export async function restoreWindow(): Promise<void> {
     return webPlatform.restoreWindow();
   }
 
-  if (await currentWindow.isFullscreen()) {
+  const [
+    isFullscreenWindow,
+    isMaximizedWindow,
+    isMinimizedWindow,
+    isHiddenWindow,
+  ] = await Promise.all([
+    currentWindow.isFullscreen(),
+    currentWindow.isMaximized(),
+    currentWindow.isMinimized(),
+    currentWindow.isVisible().then((isVisibleWindow) => !isVisibleWindow),
+  ]);
+
+  if (isHiddenWindow) {
+    await currentWindow.show();
+  }
+
+  if (isFullscreenWindow) {
     await currentWindow.setFullscreen(false);
   }
 
-  if (await currentWindow.isMaximized()) {
+  if (isMinimizedWindow) {
+    await currentWindow.unminimize();
+  }
+
+  if (isMaximizedWindow) {
     await currentWindow.unmaximize();
+  }
+
+  if (isFullscreenWindow || isMinimizedWindow || isHiddenWindow) {
+    await currentWindow.setFocus().catch(() => {
+      // Focus is best-effort after restoring window visibility.
+    });
   }
 }
 
@@ -552,7 +593,7 @@ export async function closeWindow(): Promise<void> {
     return webPlatform.closeWindow();
   }
 
-  await currentWindow.close();
+  await currentWindow.hide();
 }
 
 export async function runHubInstall(
@@ -562,6 +603,16 @@ export async function runHubInstall(
     DESKTOP_COMMANDS.runHubInstall,
     { request },
     { operation: 'installer.runHubInstall' },
+  );
+}
+
+export async function inspectHubInstall(
+  request: HubInstallRequest,
+): Promise<HubInstallAssessmentResult> {
+  return invokeDesktopCommand<HubInstallAssessmentResult>(
+    DESKTOP_COMMANDS.inspectHubInstall,
+    { request },
+    { operation: 'installer.inspectHubInstall' },
   );
 }
 
@@ -615,6 +666,7 @@ export const desktopTemplateApi = {
     getInfo: getAppInfo,
     getPaths: getAppPaths,
     getConfig: getAppConfig,
+    setLanguage: setAppLanguage,
     getSystemInfo,
     getDeviceId,
   },
@@ -663,6 +715,7 @@ export const desktopTemplateApi = {
     closeWindow,
   },
   installer: {
+    inspectHubInstall,
     runHubInstall,
     runHubUninstall,
     subscribeHubInstallProgress,
@@ -670,6 +723,7 @@ export const desktopTemplateApi = {
   },
   runtime: {
     getInfo: getRuntimeInfo,
+    setAppLanguage,
   },
 };
 
@@ -705,6 +759,7 @@ export function configureDesktopPlatformBridge() {
       writeFile: (path, content) => writeTextFile(path, content),
     },
     installer: {
+      inspectHubInstall: (request) => inspectHubInstall(request),
       runHubInstall: (request) => runHubInstall(request),
       runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
@@ -722,6 +777,7 @@ export function configureDesktopPlatformBridge() {
     },
     runtime: {
       getRuntimeInfo: () => getRuntimeInfo(),
+      setAppLanguage: (language) => setAppLanguage(language),
       submitProcessJob: (profileId) => submitProcessJob(profileId),
       getJob: (id) => getJob(id),
       listJobs: () => listJobs(),

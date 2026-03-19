@@ -167,6 +167,31 @@ pub struct DesktopIntegrationInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DesktopSupervisorServiceInfo {
+    pub id: String,
+    pub display_name: String,
+    pub lifecycle: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_exit_code: Option<i32>,
+    pub restart_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopSupervisorInfo {
+    pub lifecycle: String,
+    pub shutdown_requested: bool,
+    pub service_count: usize,
+    pub managed_service_ids: Vec<String>,
+    pub services: Vec<DesktopSupervisorServiceInfo>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DesktopKernelInfo {
     pub directories: DesktopKernelDirectories,
     pub capabilities: Vec<DesktopCapabilityInfo>,
@@ -177,5 +202,6 @@ pub struct DesktopKernelInfo {
     pub notifications: DesktopNotificationInfo,
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
+    pub supervisor: DesktopSupervisorInfo,
     pub storage: StorageInfo,
 }

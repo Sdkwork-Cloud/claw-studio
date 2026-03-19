@@ -46,11 +46,39 @@ export interface InstanceWorkbenchChannel {
 export interface InstanceWorkbenchTask {
   id: string;
   name: string;
+  description?: string;
+  prompt: string;
   schedule: string;
+  scheduleMode: 'interval' | 'datetime' | 'cron';
+  scheduleConfig: {
+    intervalValue?: number;
+    intervalUnit?: 'minute' | 'hour' | 'day';
+    scheduledDate?: string;
+    scheduledTime?: string;
+    cronExpression?: string;
+  };
+  cronExpression?: string;
   actionType: 'message' | 'skill';
   status: 'active' | 'paused' | 'failed';
+  executionContent: 'runAssistantTask' | 'sendPromptMessage';
+  deliveryMode: 'publishSummary' | 'none';
+  deliveryChannel?: string;
+  deliveryLabel?: string;
+  recipient?: string;
   lastRun?: string;
   nextRun?: string;
+  latestExecution?: InstanceWorkbenchTaskExecution | null;
+}
+
+export interface InstanceWorkbenchTaskExecution {
+  id: string;
+  taskId: string;
+  status: 'success' | 'failed' | 'running';
+  trigger: 'schedule' | 'manual' | 'clone';
+  startedAt: string;
+  finishedAt?: string;
+  summary: string;
+  details?: string;
 }
 
 export interface InstanceWorkbenchAgent {

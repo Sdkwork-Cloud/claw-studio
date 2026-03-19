@@ -1,10 +1,10 @@
 use crate::{
-    framework::config::{AppConfig, PublicAppConfig},
+    framework::config::PublicAppConfig,
     state::AppState,
 };
 
 pub fn app_config_from_state(state: &AppState) -> PublicAppConfig {
-    state.config.public_projection()
+    state.config_snapshot().public_projection()
 }
 
 #[tauri::command]

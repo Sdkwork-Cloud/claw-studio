@@ -4,17 +4,21 @@ use crate::{
 };
 
 pub fn desktop_kernel_info_from_state(state: &AppState) -> FrameworkResult<DesktopKernelInfo> {
+    let config = state.config_snapshot();
+
     state
         .context
         .services
-        .desktop_kernel_info(&state.paths, &state.config)
+        .desktop_kernel_info(&state.paths, &config)
 }
 
 pub fn desktop_storage_info_from_state(state: &AppState) -> StorageInfo {
+    let config = state.config_snapshot();
+
     state
         .context
         .services
-        .desktop_storage_info(&state.paths, &state.config)
+        .desktop_storage_info(&state.paths, &config)
 }
 
 #[tauri::command]
@@ -113,6 +117,16 @@ mod tests {
             .available_adapters
             .iter()
             .any(|adapter| adapter.id == "plugin-host"));
+        assert_eq!(info.supervisor.service_count, 3);
+        assert_eq!(
+            info.supervisor.managed_service_ids,
+            vec![
+                "openclaw_gateway".to_string(),
+                "web_server".to_string(),
+                "api_router".to_string(),
+            ]
+        );
+        assert_eq!(info.supervisor.lifecycle, "running");
     }
 
     #[test]

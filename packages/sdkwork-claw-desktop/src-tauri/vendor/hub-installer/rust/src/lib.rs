@@ -14,8 +14,10 @@ pub mod types;
 
 pub use crate::engine::{
     ApplyManifestOptions, ApplyManifestResult, BackupManifestOptions, BackupManifestResult,
-    BackupTarget, BackupTargetReport, InstallEngine, RegistryBackupOptions,
-    RegistryBackupResult, RegistryInstallOptions, RegistryInstallResult,
+    BackupTarget, BackupTargetReport, InstallAssessmentCommand,
+    InstallAssessmentDependency, InstallAssessmentIssue, InstallAssessmentResult,
+    InstallAssessmentRuntime, InstallEngine, RegistryBackupOptions, RegistryBackupResult,
+    RegistryInstallAssessmentResult, RegistryInstallOptions, RegistryInstallResult,
     RegistryUninstallOptions, RegistryUninstallResult, UninstallManifestOptions,
     UninstallManifestResult, UninstallTargetReport,
 };

@@ -109,7 +109,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/desktop_kernel.rs', 'desktop kernel command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_paths.rs', 'desktop app paths command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_config.rs', 'desktop app config command'],
-  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/execute_install_script.rs', 'desktop install script command'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs', 'desktop hub install command'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_uninstall.rs', 'desktop hub uninstall command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/process_commands.rs', 'desktop process command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/job_commands.rs', 'desktop job command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/list_directory.rs', 'desktop list directory command'],
@@ -371,8 +372,13 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  'DESKTOP_COMMANDS.executeInstallScript',
-  'desktop install script invoke wiring',
+  'DESKTOP_COMMANDS.runHubInstall',
+  'desktop hub install invoke wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'DESKTOP_COMMANDS.runHubUninstall',
+  'desktop hub uninstall invoke wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
@@ -421,8 +427,13 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
-  'commands::execute_install_script::execute_install_script',
-  'desktop install script command registration',
+  'commands::run_hub_install::run_hub_install',
+  'desktop hub install command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::run_hub_uninstall::run_hub_uninstall',
+  'desktop hub uninstall command registration',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',

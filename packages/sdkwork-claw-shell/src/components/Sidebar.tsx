@@ -24,6 +24,7 @@ import {
   Puzzle,
   Router,
   Server,
+  ShoppingCart,
   Settings2,
   Users,
 } from 'lucide-react';
@@ -195,6 +196,12 @@ export function Sidebar() {
         { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
         { id: 'devices', to: '/devices', icon: Cpu, label: t('sidebar.devices') },
         { id: 'api-router', to: '/api-router', icon: Router, label: t('sidebar.apiRouter') },
+        {
+          id: 'model-purchase',
+          to: '/model-purchase',
+          icon: ShoppingCart,
+          label: t('sidebar.modelPurchase'),
+        },
       ],
     },
   ]

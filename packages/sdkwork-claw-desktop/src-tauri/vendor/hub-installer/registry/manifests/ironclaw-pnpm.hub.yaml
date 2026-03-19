@@ -3,8 +3,8 @@ $schema: "../../schemas/hub-installer.manifest.schema.json"
 metadata:
   name: "IronClaw Install (pnpm)"
   version: "2026.03.19"
-  description: "Install IronClaw via pnpm global package."
-  homepage: "https://github.com/Sdkwork-Cloud/ironclaw"
+  description: "Legacy IronClaw pnpm placeholder retained for compatibility; registry defaults now route to the official Rust-native source profile."
+  homepage: "https://github.com/nearai/ironclaw"
 platforms:
   - windows
   - macos

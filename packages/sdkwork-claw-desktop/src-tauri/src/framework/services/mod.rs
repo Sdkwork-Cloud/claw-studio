@@ -17,6 +17,7 @@ pub mod process;
 pub mod retention;
 pub mod security;
 pub mod storage;
+pub mod supervisor;
 pub mod system;
 
 use self::{
@@ -34,6 +35,7 @@ use self::{
     retention::RetentionService,
     security::SecurityService,
     storage::StorageService,
+    supervisor::SupervisorService,
     system::SystemService,
 };
 
@@ -51,9 +53,11 @@ pub struct FrameworkServices {
     pub permissions: PermissionService,
     pub process: ProcessService,
     pub jobs: JobService,
+    #[allow(dead_code)]
     pub retention: RetentionService,
     pub storage: StorageService,
     pub kernel: KernelService,
+    pub supervisor: SupervisorService,
 }
 
 impl FrameworkServices {
@@ -76,6 +80,7 @@ impl FrameworkServices {
             retention: RetentionService::new(),
             storage: StorageService::new(),
             kernel: KernelService::new(),
+            supervisor: SupervisorService::new(),
         })
     }
 
@@ -113,6 +118,7 @@ impl FrameworkServices {
                 notifications: self.notifications.kernel_info(&normalized),
                 payments: self.payments.kernel_info(&normalized),
                 integrations: self.integrations.kernel_info(paths, &normalized)?,
+                supervisor: self.supervisor.kernel_info()?,
                 storage: self.storage.storage_info(paths, &normalized),
             },
         ))

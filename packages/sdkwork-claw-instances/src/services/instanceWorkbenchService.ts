@@ -2,6 +2,7 @@ import {
   studioMockService,
   type MockInstanceLLMProvider,
   type MockInstanceMemoryEntry,
+  type MockTaskExecutionHistoryEntry,
   type MockInstanceTool,
 } from '@sdkwork/claw-infrastructure';
 import type { Agent, Skill } from '@sdkwork/claw-types';
@@ -13,6 +14,7 @@ import type {
   InstanceWorkbenchMemoryEntry,
   InstanceWorkbenchSnapshot,
   InstanceWorkbenchTask,
+  InstanceWorkbenchTaskExecution,
   InstanceWorkbenchTool,
 } from '../types';
 
@@ -105,7 +107,7 @@ class InstanceWorkbenchService {
       token,
       logs,
       channels,
-      tasks,
+      rawTasks,
       skills,
       agents,
       files,
@@ -142,7 +144,28 @@ class InstanceWorkbenchService {
       setupSteps: [...channel.setupGuide],
     }));
 
-    const mappedTasks: InstanceWorkbenchTask[] = tasks.map((task) => ({ ...task }));
+    const deliveryChannelNameMap = Object.fromEntries(
+      mappedChannels.map((channel) => [channel.id, channel.name]),
+    ) as Record<string, string>;
+    const taskExecutions = await Promise.all(
+      rawTasks.map(async (task) => {
+        const executions = await studioMockService.listTaskExecutions(task.id);
+        return [task.id, executions] as const;
+      }),
+    );
+    const taskExecutionsById = Object.fromEntries(
+      taskExecutions,
+    ) as Record<string, MockTaskExecutionHistoryEntry[]>;
+    const mappedTasks: InstanceWorkbenchTask[] = rawTasks.map((task) => ({
+      ...task,
+      deliveryLabel:
+        task.deliveryMode === 'none'
+          ? undefined
+          : deliveryChannelNameMap[task.deliveryChannel || ''] ||
+            task.deliveryChannel ||
+            undefined,
+      latestExecution: taskExecutionsById[task.id]?.[0] || null,
+    }));
     const mappedFiles: InstanceWorkbenchFile[] = files.map((file) => ({ ...file }));
     const mappedLlmProviders = llmProviders.map(mapLlmProvider);
     const mappedMemories = memories.map(mapMemoryEntry);
@@ -192,6 +215,39 @@ class InstanceWorkbenchService {
       memories: mappedMemories,
       tools: mappedTools,
     };
+  }
+
+  async cloneTask(id: string, name?: string): Promise<void> {
+    const cloned = await studioMockService.cloneTask(id, name ? { name } : {});
+    if (!cloned) {
+      throw new Error('Failed to clone task');
+    }
+  }
+
+  async runTaskNow(id: string): Promise<InstanceWorkbenchTaskExecution> {
+    const execution = await studioMockService.runTaskNow(id);
+    if (!execution) {
+      throw new Error('Failed to run task');
+    }
+    return execution;
+  }
+
+  async listTaskExecutions(id: string): Promise<InstanceWorkbenchTaskExecution[]> {
+    return studioMockService.listTaskExecutions(id);
+  }
+
+  async updateTaskStatus(id: string, status: 'active' | 'paused'): Promise<void> {
+    const updated = await studioMockService.updateTaskStatus(id, status);
+    if (!updated) {
+      throw new Error('Failed to update task status');
+    }
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    const deleted = await studioMockService.deleteTask(id);
+    if (!deleted) {
+      throw new Error('Failed to delete task');
+    }
   }
 }
 

@@ -2,7 +2,10 @@ use crate::{
     framework::{config::AppConfig, context::FrameworkContext, paths::AppPaths},
     platform,
 };
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, RwLock,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AppMetadata {
@@ -31,6 +34,21 @@ impl Default for AppMetadata {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct ShutdownIntent {
+    requested: Arc<AtomicBool>,
+}
+
+impl ShutdownIntent {
+    pub fn is_requested(&self) -> bool {
+        self.requested.load(Ordering::Relaxed)
+    }
+
+    pub fn request(&self) -> bool {
+        !self.requested.swap(true, Ordering::Relaxed)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub app_name: String,
@@ -38,7 +56,8 @@ pub struct AppState {
     pub target: String,
     pub context: Arc<FrameworkContext>,
     pub paths: AppPaths,
-    pub config: AppConfig,
+    pub config: Arc<RwLock<AppConfig>>,
+    pub shutdown_intent: ShutdownIntent,
 }
 
 impl AppState {
@@ -54,14 +73,26 @@ impl AppState {
             target: metadata.target,
             context: context.clone(),
             paths: context.paths.clone(),
-            config: context.config.clone(),
+            config: Arc::new(RwLock::new(context.config.clone())),
+            shutdown_intent: ShutdownIntent::default(),
         }
+    }
+
+    pub fn config_snapshot(&self) -> AppConfig {
+        self.config
+            .read()
+            .expect("application config read lock")
+            .clone()
+    }
+
+    pub fn replace_config(&self, next_config: AppConfig) {
+        *self.config.write().expect("application config write lock") = next_config;
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AppMetadata, AppState};
+    use super::{AppMetadata, AppState, ShutdownIntent};
     use crate::framework::{
         config::AppConfig, context::FrameworkContext, logging::init_logger,
         paths::resolve_paths_for_root,
@@ -88,7 +119,9 @@ mod tests {
         assert!(Arc::ptr_eq(&state.context, &context));
         assert_eq!(state.context.paths, paths);
         assert_eq!(state.context.config, config);
+        assert_eq!(state.config_snapshot(), config);
         assert_eq!(state.target, crate::platform::current_target());
+        assert!(!state.shutdown_intent.is_requested());
     }
 
     #[test]
@@ -112,5 +145,17 @@ mod tests {
         assert_eq!(state.app_name, metadata.app_name);
         assert_eq!(state.app_version, metadata.app_version);
         assert_eq!(state.target, metadata.target);
+        assert_eq!(state.config_snapshot(), AppConfig::default());
+    }
+
+    #[test]
+    fn shutdown_intent_is_shared_across_clones() {
+        let intent = ShutdownIntent::default();
+        let clone = intent.clone();
+
+        assert!(intent.request());
+        assert!(intent.is_requested());
+        assert!(clone.is_requested());
+        assert!(!clone.request());
     }
 }

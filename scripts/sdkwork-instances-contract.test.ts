@@ -85,6 +85,25 @@ runTest('sdkwork-claw-instances uses a wider detail canvas and row-based operati
   assert.match(detailSource, /data-slot="instance-workbench-row-list"/);
 });
 
+runTest('sdkwork-claw-instances reuses the shared task catalog surface for cron tasks', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+
+  assert.match(detailSource, /TaskCatalog/);
+  assert.match(detailSource, /TaskExecutionHistoryDrawer/);
+  assert.match(detailSource, /getTaskToggleStatusTarget/);
+  assert.match(detailSource, /tasks\.page\.actions\.edit/);
+  assert.match(detailSource, /tasks\.page\.actions\.runNow/);
+  assert.match(detailSource, /tasks\.page\.actions\.history/);
+  assert.doesNotMatch(detailSource, /<TaskRow/);
+});
+
+runTest('sdkwork-claw-instances opens channel official setup links through the host external browser bridge', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+
+  assert.match(detailSource, /openExternalUrl/);
+  assert.match(detailSource, /onOpenOfficialLink=\{\(_channel, link\) => void openOfficialLink\(link\.href\)\}/);
+});
+
 runTest('sdkwork-claw-instances keeps agents and skills visible in the top summary card deck', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
 

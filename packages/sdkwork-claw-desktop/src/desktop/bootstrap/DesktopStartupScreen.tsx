@@ -137,13 +137,13 @@ function StartupWindowControls({ language }: { language: StartupLanguage }) {
           minimize: '\u6700\u5c0f\u5316\u7a97\u53e3',
           maximize: '\u6700\u5927\u5316\u7a97\u53e3',
           restore: '\u6062\u590d\u7a97\u53e3',
-          close: '\u5173\u95ed\u7a97\u53e3',
+          close: '\u9690\u85cf\u5230\u6258\u76d8',
         }
       : {
           minimize: 'Minimize window',
           maximize: 'Maximize window',
           restore: 'Restore window',
-          close: 'Close window',
+          close: 'Hide to tray',
         };
 
   return (

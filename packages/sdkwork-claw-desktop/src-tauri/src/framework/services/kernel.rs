@@ -3,7 +3,7 @@ use crate::framework::{
         DesktopCapabilityInfo, DesktopCapabilityStatus, DesktopFileSystemInfo,
         DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
         DesktopNotificationInfo, DesktopPaymentInfo, DesktopPermissionsInfo, DesktopProcessInfo,
-        DesktopSecurityInfo,
+        DesktopSecurityInfo, DesktopSupervisorInfo,
     },
     paths::AppPaths,
     storage::StorageInfo,
@@ -20,6 +20,7 @@ pub struct KernelDomainSnapshots {
     pub notifications: DesktopNotificationInfo,
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
+    pub supervisor: DesktopSupervisorInfo,
     pub storage: StorageInfo,
 }
 
@@ -122,6 +123,14 @@ impl KernelService {
                     }
                 ),
             },
+            DesktopCapabilityInfo {
+                key: "supervisor".to_string(),
+                status: DesktopCapabilityStatus::Ready,
+                detail: format!(
+                    "Supervisor tracks {} managed background services with lifecycle \"{}\".",
+                    domains.supervisor.service_count, domains.supervisor.lifecycle
+                ),
+            },
         ];
 
         DesktopKernelInfo {
@@ -148,6 +157,7 @@ impl KernelService {
             notifications: domains.notifications,
             payments: domains.payments,
             integrations: domains.integrations,
+            supervisor: domains.supervisor,
             storage: domains.storage,
         }
     }

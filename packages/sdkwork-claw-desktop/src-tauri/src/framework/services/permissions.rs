@@ -18,13 +18,13 @@ impl PermissionService {
                     key: "window.chromeControls".to_string(),
                     status: DesktopPermissionStatus::Granted,
                     required: true,
-                    detail: "Desktop capability grants the custom title-bar controls permission to minimize, maximize, restore, drag, and close the main window.".to_string(),
+                    detail: "Desktop capability grants the custom title-bar controls permission to minimize, maximize, restore, hide to tray, reveal, drag, and close the main window.".to_string(),
                 },
                 DesktopPermissionInfo {
                     key: "window.stateInspection".to_string(),
                     status: DesktopPermissionStatus::Granted,
                     required: true,
-                    detail: "Desktop capability grants window fullscreen and maximized state inspection so the shell can keep custom chrome in sync.".to_string(),
+                    detail: "Desktop capability grants fullscreen, maximized, minimized, and visibility inspection so the shell can recover the main window from tray and keep custom chrome in sync.".to_string(),
                 },
                 DesktopPermissionInfo {
                     key: "dialog.fileOpen".to_string(),

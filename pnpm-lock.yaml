@@ -683,6 +683,9 @@ importers:
       '@sdkwork/claw-types':
         specifier: workspace:*
         version: link:../sdkwork-claw-types
+      '@sdkwork/claw-ui':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-ui
       lucide-react:
         specifier: ^0.546.0
         version: 0.546.0(react@19.2.4)
@@ -749,6 +752,33 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+
+  packages/sdkwork-claw-model-purchase:
+    dependencies:
+      '@sdkwork/claw-i18n':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-i18n
+      '@sdkwork/claw-infrastructure':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-infrastructure
+      '@sdkwork/claw-types':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-types
+      '@sdkwork/claw-ui':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-ui
+      '@tanstack/react-query':
+        specifier: ^5.90.21
+        version: 5.90.21(react@19.2.4)
+      lucide-react:
+        specifier: ^0.546.0
+        version: 0.546.0(react@19.2.4)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      react-i18next:
+        specifier: ^16.1.0
+        version: 16.5.8(i18next@25.8.18(typescript@5.8.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.8.3)
 
   packages/sdkwork-claw-settings:
     dependencies:
@@ -842,9 +872,6 @@ importers:
       '@sdkwork/claw-i18n':
         specifier: workspace:*
         version: link:../sdkwork-claw-i18n
-      '@sdkwork/claw-infrastructure':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-infrastructure
       '@sdkwork/claw-install':
         specifier: workspace:*
         version: link:../sdkwork-claw-install
@@ -854,6 +881,9 @@ importers:
       '@sdkwork/claw-market':
         specifier: workspace:*
         version: link:../sdkwork-claw-market
+      '@sdkwork/claw-model-purchase':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-model-purchase
       '@sdkwork/claw-settings':
         specifier: workspace:*
         version: link:../sdkwork-claw-settings

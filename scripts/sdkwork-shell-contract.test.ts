@@ -22,14 +22,18 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-shell keeps the V5 route shell surface while routing api-router to a real feature module', () => {
+runTest('sdkwork-claw-shell keeps dedicated routes for api-router and model-purchase feature pages', () => {
   const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
 
   assert.doesNotMatch(routesSource, /FeaturePlaceholder/);
   assert.match(routesSource, /@sdkwork\/claw-apirouter/);
+  assert.match(routesSource, /@sdkwork\/claw-model-purchase/);
   assert.match(routesSource, /routes\.codeboxComingSoon/);
   assert.doesNotMatch(routesSource, /routes\.apiRouterComingSoon/);
+  assert.match(routesSource, /path="\/api-router"/);
+  assert.match(routesSource, /path="\/model-purchase"/);
   assert.match(routesSource, /<ApiRouter \/>/);
+  assert.match(routesSource, /<ModelPurchase \/>/);
 });
 
 runTest('sdkwork-claw-shell keeps the dual-host provider stack', () => {
@@ -41,18 +45,24 @@ runTest('sdkwork-claw-shell keeps the dual-host provider stack', () => {
   assert.match(providersSource, /Toaster/);
   assert.match(providersSource, /ThemeManager/);
   assert.match(providersSource, /LanguageManager/);
+  assert.match(providersSource, /onLanguagePreferenceChange\?:/);
+  assert.match(providersSource, /<LanguageManager onLanguagePreferenceChange=\{onLanguagePreferenceChange\} \/>/);
+  assert.doesNotMatch(languageManagerSource, /@sdkwork\/claw-infrastructure/);
+  assert.doesNotMatch(languageManagerSource, /getRuntimePlatform\(\)\.setAppLanguage\(languagePreference\)/);
+  assert.match(languageManagerSource, /onLanguagePreferenceChange\?:/);
+  assert.match(languageManagerSource, /onLanguagePreferenceChange\?\.\(languagePreference\)/);
   assert.match(languageManagerSource, /i18n\.changeLanguage/);
   assert.match(languageManagerSource, /document\.documentElement\.setAttribute\('lang'/);
 });
 
-runTest('sdkwork-claw-shell owns the pre-render i18n bootstrap for both hosts', () => {
+runTest('sdkwork-claw-shell keeps i18n bootstrapped before render with a provider-level client fallback', () => {
   const shellIndexSource = read('packages/sdkwork-claw-shell/src/index.ts');
   const bootstrapSource = read('packages/sdkwork-claw-shell/src/application/bootstrap/bootstrapShellRuntime.ts');
   const providersSource = read('packages/sdkwork-claw-shell/src/application/providers/AppProviders.tsx');
 
   assert.match(shellIndexSource, /bootstrapShellRuntime/);
   assert.match(bootstrapSource, /ensureI18n/);
-  assert.doesNotMatch(providersSource, /ensureI18n/);
+  assert.match(providersSource, /ensureI18n/);
 });
 
 runTest('sdkwork-claw-shell keeps theme and language side effects in separate providers', () => {
@@ -201,9 +211,19 @@ runTest('sdkwork-claw-shell promotes dashboard as the leading workspace entry ac
 
 runTest('sdkwork-claw-shell removes codebox from the setup sidebar while keeping api-router available', () => {
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
+  const commandPaletteSource = read('packages/sdkwork-claw-shell/src/components/commandPaletteCommands.ts');
+  const settingsSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
 
   assert.doesNotMatch(sidebarSource, /id: 'codebox'/);
   assert.match(sidebarSource, /id: 'api-router'/);
+  assert.match(sidebarSource, /id: 'model-purchase'/);
+  assert.match(sidebarSource, /to: '\/api-router'/);
+  assert.match(sidebarSource, /to: '\/model-purchase'/);
+  assert.match(sidebarSource, /label: t\('sidebar\.modelPurchase'\)/);
+  assert.match(commandPaletteSource, /id: 'nav-model-purchase'/);
+  assert.match(commandPaletteSource, /navigate\('\/model-purchase'\)/);
+  assert.doesNotMatch(settingsSource, /id: 'codebox'/);
+  assert.match(settingsSource, /id: 'model-purchase', label: t\('sidebar\.modelPurchase'\)/);
 });
 
 runTest('sdkwork-claw-shell labels the setup entry as Install Claw in both locales', () => {

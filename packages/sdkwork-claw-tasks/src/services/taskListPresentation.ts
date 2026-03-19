@@ -8,9 +8,24 @@ export interface TaskCardState {
   canRunNow: boolean;
   nextRunLabel: string;
   promptExcerpt: string;
+  summaryText: string;
+  latestExecutionSummary: string | null;
 }
 
-function truncatePrompt(prompt: string, maxLength = 160) {
+function getTaskCardTone(
+  status: Task['status'],
+  latestExecutionStatus?: TaskExecutionHistoryEntry['status'],
+): TaskCardTone {
+  if (status === 'failed' || latestExecutionStatus === 'failed') {
+    return 'danger';
+  }
+  if (status === 'paused') {
+    return 'paused';
+  }
+  return 'healthy';
+}
+
+function getTaskPreview(prompt: string, maxLength = 160) {
   const normalized = prompt.trim().replace(/\s+/g, ' ');
   if (normalized.length <= maxLength) {
     return normalized;
@@ -23,20 +38,15 @@ export function buildTaskCardState(
   executions: TaskExecutionHistoryEntry[],
 ): TaskCardState {
   const latestExecution = executions[0] || null;
-
-  let tone: TaskCardTone = 'healthy';
-  if (task.status === 'paused') {
-    tone = 'paused';
-  }
-  if (task.status === 'failed' || latestExecution?.status === 'failed') {
-    tone = 'danger';
-  }
+  const promptExcerpt = getTaskPreview(task.prompt, 160);
 
   return {
-    tone,
+    tone: getTaskCardTone(task.status, latestExecution?.status),
     latestExecution,
     canRunNow: true,
     nextRunLabel: task.nextRun || '-',
-    promptExcerpt: truncatePrompt(task.prompt),
+    promptExcerpt,
+    summaryText: task.description?.trim() || promptExcerpt,
+    latestExecutionSummary: latestExecution?.summary || null,
   };
 }

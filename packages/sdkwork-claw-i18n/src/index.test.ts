@@ -88,6 +88,14 @@ await runTest('normalizeLanguage collapses locale variants and rejects unsupport
 await runTest('getAppStoreLanguageFromSnapshot safely parses persisted Zustand state', () => {
   assert.equal(getAppStoreLanguageFromSnapshot('{"state":{"language":"zh"}}'), 'zh');
   assert.equal(getAppStoreLanguageFromSnapshot('{"language":"en"}'), 'en');
+  assert.equal(
+    getAppStoreLanguageFromSnapshot('{"state":{"languagePreference":"system","language":"zh"}}'),
+    undefined,
+  );
+  assert.equal(
+    getAppStoreLanguageFromSnapshot('{"state":{"languagePreference":"en","language":"zh"}}'),
+    'en',
+  );
   assert.equal(getAppStoreLanguageFromSnapshot('{"state":{"language":1}}'), undefined);
   assert.equal(getAppStoreLanguageFromSnapshot('not-json'), undefined);
 });

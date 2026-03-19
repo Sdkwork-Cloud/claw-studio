@@ -43,6 +43,10 @@ impl RuntimeProbe for FakeRuntimeProbe {
             })
     }
 
+    fn wsl_read_env(&self, _distro: Option<&str>, _name: &str) -> Option<String> {
+        None
+    }
+
     fn docker_available_on_host(&self) -> bool {
         self.host_docker_available
     }

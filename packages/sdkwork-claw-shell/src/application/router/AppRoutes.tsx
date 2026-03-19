@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { ApiRouter } from '@sdkwork/claw-apirouter';
 import { AppDetail, AppStore } from '@sdkwork/claw-apps';
+import { ApiRouter } from '@sdkwork/claw-apirouter';
 import { AuthPage } from '@sdkwork/claw-auth';
 import { ClawCenter, ClawDetail, ClawUpload } from '@sdkwork/claw-center';
 import { Channels } from '@sdkwork/claw-channels';
@@ -18,6 +18,7 @@ import { HuggingFaceModelDetail, HuggingFaceModels } from '@sdkwork/claw-hugging
 import { Install, InstallDetail } from '@sdkwork/claw-install';
 import { InstanceDetail, Instances } from '@sdkwork/claw-instances';
 import { Market, SkillDetail, SkillPackDetail } from '@sdkwork/claw-market';
+import { ModelPurchase } from '@sdkwork/claw-model-purchase';
 import { Settings } from '@sdkwork/claw-settings';
 import { Tasks } from '@sdkwork/claw-tasks';
 
@@ -92,6 +93,10 @@ export function AppRoutes() {
         <Route
           path="/api-router"
           element={<PageWrapper><ApiRouter /></PageWrapper>}
+        />
+        <Route
+          path="/model-purchase"
+          element={<PageWrapper><ModelPurchase /></PageWrapper>}
         />
       </Routes>
     </AnimatePresence>

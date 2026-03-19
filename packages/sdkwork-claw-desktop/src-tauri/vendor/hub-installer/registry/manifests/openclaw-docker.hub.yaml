@@ -28,6 +28,17 @@ defaults:
     OPENCLAW_EXTRA_MOUNTS: "{{openclaw_docker_extra_mounts}}"
     OPENCLAW_HOME_VOLUME: "{{openclaw_docker_home_volume}}"
     OPENCLAW_DOCKER_APT_PACKAGES: "{{openclaw_docker_apt_packages}}"
+dependencies:
+  - id: "git"
+    description: "Git is required to fetch the OpenClaw Docker source tree."
+    check:
+      type: "command"
+      name: "git"
+  - id: "docker"
+    description: "Docker is required to build and run the OpenClaw container stack."
+    check:
+      type: "command"
+      name: "docker"
 lifecycle:
   preflight:
     - id: "show-openclaw-docker-profile"

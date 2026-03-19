@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
-  Calendar,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -24,6 +23,10 @@ import { useInstanceStore } from '@sdkwork/claw-core';
 import {
   Button,
   DateInput,
+  getTaskExecutionBadgeTone,
+  getTaskHistoryBadgeTone,
+  getTaskStatusBadgeTone,
+  getTaskToggleStatusTarget,
   Input,
   Label,
   OverlaySurface,
@@ -33,6 +36,9 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  TaskCatalog,
+  TaskExecutionHistoryDrawer,
+  type TaskCatalogItem,
   Textarea,
   cn,
 } from '@sdkwork/claw-ui';
@@ -59,6 +65,10 @@ import {
 } from '../services';
 
 type CreateSectionId = 'basicInfo' | 'execution';
+type TaskRouteIntent =
+  | { mode: 'create' }
+  | { mode: 'edit'; taskId: string }
+  | null;
 
 const fieldSectionMap: Record<TaskFormErrorKey, CreateSectionId> = {
   name: 'basicInfo',
@@ -76,6 +86,39 @@ function addPendingId(ids: string[], id: string) {
 
 function removePendingId(ids: string[], id: string) {
   return ids.filter((item) => item !== id);
+}
+
+function readTaskRouteIntent(): TaskRouteIntent {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('taskMode');
+  if (mode === 'create') {
+    return { mode: 'create' };
+  }
+
+  if (mode === 'edit') {
+    const taskId = params.get('taskId');
+    if (taskId) {
+      return { mode: 'edit', taskId };
+    }
+  }
+
+  return null;
+}
+
+function clearTaskRouteIntent() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete('taskMode');
+  url.searchParams.delete('taskId');
+  const nextSearch = url.search ? `${url.search}` : '';
+  window.history.replaceState({}, '', `${url.pathname}${nextSearch}${url.hash}`);
 }
 
 function getIntervalUnitLabel(
@@ -171,6 +214,7 @@ export function Tasks() {
   const [taskForm, setTaskForm] = useState<TaskFormValues>(createDefaultTaskFormValues());
   const [activeCreateSection, setActiveCreateSection] = useState<CreateSectionId>('basicInfo');
   const [attemptedSave, setAttemptedSave] = useState(false);
+  const [hasConsumedRouteIntent, setHasConsumedRouteIntent] = useState(false);
 
   const editorErrors = collectTaskFormErrors(taskForm);
   const workspaceState = buildTaskCreateWorkspaceState(taskForm, editorErrors);
@@ -196,6 +240,7 @@ export function Tasks() {
     setTaskForm(createDefaultTaskFormValues());
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
+    setHasConsumedRouteIntent(false);
   }, [activeInstanceId]);
 
   async function refreshTaskStudio(mode: 'initial' | 'refresh' = 'refresh') {
@@ -252,6 +297,32 @@ export function Tasks() {
   useEffect(() => {
     void refreshTaskStudio('initial');
   }, [activeInstanceId]);
+
+  useEffect(() => {
+    if (isLoading || !activeInstanceId || hasConsumedRouteIntent) {
+      return;
+    }
+
+    const intent = readTaskRouteIntent();
+    if (!intent) {
+      setHasConsumedRouteIntent(true);
+      return;
+    }
+
+    if (intent.mode === 'create') {
+      openCreateEditor();
+      clearTaskRouteIntent();
+      setHasConsumedRouteIntent(true);
+      return;
+    }
+
+    const task = tasks.find((item) => item.id === intent.taskId);
+    if (task) {
+      openEditEditor(task);
+    }
+    clearTaskRouteIntent();
+    setHasConsumedRouteIntent(true);
+  }, [activeInstanceId, hasConsumedRouteIntent, isLoading, tasks]);
 
   function updateTaskFormField<Key extends keyof TaskFormValues>(field: Key, value: TaskFormValues[Key]) {
     setTaskForm((current) => ({ ...current, [field]: value }));
@@ -348,8 +419,12 @@ export function Tasks() {
   }
 
   async function handleToggleTaskStatus(task: Task) {
+    const nextStatus = getTaskToggleStatusTarget(task.status);
+    if (!nextStatus) {
+      return;
+    }
+
     setStatusTaskIds((current) => addPendingId(current, task.id));
-    const nextStatus = task.status === 'active' ? 'paused' : 'active';
     try {
       await taskService.updateTaskStatus(task.id, nextStatus);
       toast.success(t(nextStatus === 'active' ? 'tasks.page.toasts.enabled' : 'tasks.page.toasts.disabled'));
@@ -840,6 +915,180 @@ export function Tasks() {
       );
     }
 
+    const taskCatalogItems: TaskCatalogItem[] = tasks.map((task) => {
+      const cardState = buildTaskCardState(task, executionsByTaskId[task.id] || []);
+      const isBusy =
+        cloningTaskIds.includes(task.id) ||
+        runningTaskIds.includes(task.id) ||
+        statusTaskIds.includes(task.id) ||
+        deletingTaskIds.includes(task.id);
+      const latest = cardState.latestExecution;
+      const delivery =
+        task.deliveryMode === 'none'
+          ? t('tasks.page.deliveryModes.none.title')
+          : channelNameMap[task.deliveryChannel || ''] || task.deliveryChannel || t('common.none');
+
+      return {
+        id: task.id,
+        name: task.name,
+        tone: cardState.tone,
+        badges: [
+          {
+            id: 'status',
+            tone: getTaskStatusBadgeTone(task.status),
+            icon: <span className="h-2 w-2 rounded-full bg-current" />,
+            label: t(`tasks.page.status.${task.status}`),
+          },
+          {
+            id: 'execution-content',
+            tone: getTaskExecutionBadgeTone(task.executionContent),
+            icon:
+              task.executionContent === 'sendPromptMessage' ? (
+                <MessageSquare className="h-3.5 w-3.5" />
+              ) : (
+                <Zap className="h-3.5 w-3.5" />
+              ),
+            label: t(`tasks.page.executionContents.${task.executionContent}.title`),
+          },
+        ],
+        description: (
+          <div className="space-y-2">
+            <p>{cardState.summaryText}</p>
+            {task.description?.trim() ? (
+              <div className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                <span className="font-semibold uppercase tracking-[0.16em]">
+                  {t('tasks.page.cards.prompt')}
+                </span>{' '}
+                {cardState.promptExcerpt}
+              </div>
+            ) : null}
+          </div>
+        ),
+        metrics: [
+          {
+            id: 'schedule',
+            label: t('tasks.page.cards.schedule'),
+            value: buildTaskScheduleSummary(t, task),
+          },
+          {
+            id: 'next-run',
+            label: t('tasks.page.cards.nextRun'),
+            value: cardState.nextRunLabel,
+          },
+          {
+            id: 'last-run',
+            label: t('tasks.page.cards.lastRun'),
+            value: task.lastRun || '-',
+          },
+        ],
+        summaryTitle: t('tasks.page.cards.latestExecution'),
+        summaryBadges: latest
+          ? [
+              {
+                id: 'execution-status',
+                tone: getTaskHistoryBadgeTone(latest.status),
+                icon: <span className="h-2 w-2 rounded-full bg-current" />,
+                label: t(`tasks.page.history.status.${latest.status}`),
+              },
+              {
+                id: 'execution-trigger',
+                tone: 'neutral',
+                label: t(`tasks.page.history.triggers.${latest.trigger}`),
+              },
+            ]
+          : undefined,
+        summaryContent: latest
+          ? cardState.latestExecutionSummary
+          : t('tasks.page.cards.noExecutionYet'),
+        summaryDetails: latest?.details || (!latest ? cardState.promptExcerpt : undefined),
+        summaryFooter: (
+          <>
+            {t('tasks.page.cards.delivery')}: {delivery}
+            {task.recipient ? ` / ${task.recipient}` : ''}
+          </>
+        ),
+        actions: (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openEditEditor(task)}
+              disabled={isBusy}
+            >
+              <Edit2 className="h-4 w-4" />
+              {t('tasks.page.actions.edit')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCloneTask(task)}
+              disabled={isBusy}
+            >
+              {cloningTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              {t('tasks.page.actions.clone')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleToggleTaskStatus(task)}
+              disabled={isBusy || !getTaskToggleStatusTarget(task.status)}
+            >
+              {statusTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : task.status === 'active' ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {task.status === 'active'
+                ? t('tasks.page.actions.disable')
+                : t('tasks.page.actions.enable')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleRunTaskNow(task)}
+              disabled={isBusy || !cardState.canRunNow}
+            >
+              {runningTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {t('tasks.page.actions.runNow')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void openHistoryDrawer(task)}
+              disabled={isBusy}
+            >
+              <History className="h-4 w-4" />
+              {t('tasks.page.actions.history')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+              onClick={() => void handleDeleteTask(task)}
+              disabled={isBusy}
+            >
+              {deletingTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {t('tasks.page.actions.delete')}
+            </Button>
+          </>
+        ),
+      };
+    });
+
     return (
       <div className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="mx-auto max-w-[1440px] space-y-8">
@@ -936,157 +1185,8 @@ export function Tasks() {
               </Button>
             </section>
           ) : (
-            <section className="grid gap-6 xl:grid-cols-2">
-              {tasks.map((task) => {
-                const cardState = buildTaskCardState(task, executionsByTaskId[task.id] || []);
-                const isBusy =
-                  cloningTaskIds.includes(task.id) ||
-                  runningTaskIds.includes(task.id) ||
-                  statusTaskIds.includes(task.id) ||
-                  deletingTaskIds.includes(task.id);
-                const latest = cardState.latestExecution;
-                const delivery =
-                  task.deliveryMode === 'none'
-                    ? t('tasks.page.deliveryModes.none.title')
-                    : channelNameMap[task.deliveryChannel || ''] || task.deliveryChannel || t('common.none');
-
-                return (
-                  <article key={task.id} className="rounded-[30px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-xl font-bold text-zinc-950 dark:text-zinc-50">{task.name}</h2>
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                            <span className="h-2 w-2 rounded-full bg-current" />
-                            {t(`tasks.page.status.${task.status}`)}
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                            {task.executionContent === 'sendPromptMessage' ? (
-                              <MessageSquare className="h-3.5 w-3.5" />
-                            ) : (
-                              <Zap className="h-3.5 w-3.5" />
-                            )}
-                            {t(`tasks.page.executionContents.${task.executionContent}.title`)}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                          {task.description || t('tasks.page.cards.noDescription')}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-right dark:border-zinc-800 dark:bg-zinc-950">
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                          {t('tasks.page.cards.nextRun')}
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                          {cardState.nextRunLabel}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 grid gap-4 xl:grid-cols-[1.15fr,0.85fr]">
-                      <div className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {t('tasks.page.cards.schedule')}
-                            </div>
-                            <div className="mt-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                              {buildTaskScheduleSummary(t, task)}
-                            </div>
-                          </div>
-                          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                              {t('tasks.page.cards.delivery')}
-                            </div>
-                            <div className="mt-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">{delivery}</div>
-                            <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                              {task.recipient || t('common.none')}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                            {t('tasks.page.cards.prompt')}
-                          </div>
-                          <p className="mt-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
-                            {cardState.promptExcerpt}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                            {t('tasks.page.cards.latestExecution')}
-                          </div>
-                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {t('tasks.page.cards.lastRun')}: {task.lastRun || '-'}
-                          </div>
-                        </div>
-                        {latest ? (
-                          <>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-                                <span className="h-2 w-2 rounded-full bg-current" />
-                                {t(`tasks.page.history.status.${latest.status}`)}
-                              </span>
-                              <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-                                {t(`tasks.page.history.triggers.${latest.trigger}`)}
-                              </span>
-                            </div>
-                            <div className="mt-3 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                              {latest.summary}
-                            </div>
-                            {latest.details ? (
-                              <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                                {latest.details}
-                              </p>
-                            ) : null}
-                          </>
-                        ) : (
-                          <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
-                            {t('tasks.page.cards.noExecutionYet')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 flex flex-wrap gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-                      <Button variant="outline" size="sm" onClick={() => openEditEditor(task)} disabled={isBusy}>
-                        <Edit2 className="h-4 w-4" />
-                        {t('tasks.page.actions.edit')}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => void handleCloneTask(task)} disabled={isBusy}>
-                        {cloningTaskIds.includes(task.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
-                        {t('tasks.page.actions.clone')}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => void handleToggleTaskStatus(task)} disabled={isBusy}>
-                        {statusTaskIds.includes(task.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : task.status === 'active' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                        {task.status === 'active' ? t('tasks.page.actions.disable') : t('tasks.page.actions.enable')}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => void handleRunTaskNow(task)} disabled={isBusy || !cardState.canRunNow}>
-                        {runningTaskIds.includes(task.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                        {t('tasks.page.actions.runNow')}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => void openHistoryDrawer(task)} disabled={isBusy}>
-                        <History className="h-4 w-4" />
-                        {t('tasks.page.actions.history')}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                        onClick={() => void handleDeleteTask(task)}
-                        disabled={isBusy}
-                      >
-                        {deletingTaskIds.includes(task.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        {t('tasks.page.actions.delete')}
-                      </Button>
-                    </div>
-                  </article>
-                );
-              })}
+            <section>
+              <TaskCatalog items={taskCatalogItems} />
             </section>
           )}
         </div>
@@ -1243,84 +1343,25 @@ export function Tasks() {
           </div>
         </div>
       </OverlaySurface>
-      <OverlaySurface
+      <TaskExecutionHistoryDrawer
         isOpen={Boolean(historyTask)}
         onClose={() => setHistoryTaskId(null)}
-        variant="drawer"
-        className="max-w-[560px]"
-      >
-        {historyTask ? (
-          <>
-            <div className="flex items-start justify-between gap-4 border-b border-zinc-200/80 bg-zinc-50/80 px-6 py-5 dark:border-zinc-800 dark:bg-zinc-950/70">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                  {t('tasks.page.history.title')}
-                </div>
-                <h2 className="mt-2 text-xl font-bold text-zinc-950 dark:text-zinc-50">
-                  {t('tasks.page.history.subtitle', { name: historyTask.name })}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                  {t('tasks.page.history.description')}
-                </p>
-              </div>
-              <button type="button" onClick={() => setHistoryTaskId(null)} className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-6">
-              {isHistoryLoading ? (
-                <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('tasks.page.history.loading')}</p>
-                </div>
-              ) : historyEntries.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center dark:border-zinc-800 dark:bg-zinc-950">
-                  <h3 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-                    {t('tasks.page.history.emptyTitle')}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                    {t('tasks.page.history.emptyDescription')}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {historyEntries.map((entry) => (
-                    <article key={entry.id} className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                      <div className="flex flex-wrap gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                          <span className="h-2 w-2 rounded-full bg-current" />
-                          {t(`tasks.page.history.status.${entry.status}`)}
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                          {t(`tasks.page.history.triggers.${entry.trigger}`)}
-                        </span>
-                      </div>
-                      <h3 className="mt-4 text-base font-semibold text-zinc-950 dark:text-zinc-50">{entry.summary}</h3>
-                      {entry.details ? (
-                        <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{entry.details}</p>
-                      ) : null}
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                            {t('tasks.page.history.startedAt')}
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">{entry.startedAt}</div>
-                        </div>
-                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                            {t('tasks.page.history.finishedAt')}
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">{entry.finishedAt || '-'}</div>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        ) : null}
-      </OverlaySurface>
+        taskName={historyTask?.name}
+        entries={historyEntries}
+        isLoading={isHistoryLoading}
+        title={t('tasks.page.history.title')}
+        getSubtitle={(taskName) => t('tasks.page.history.subtitle', { name: taskName })}
+        description={t('tasks.page.history.description')}
+        loadingText={t('tasks.page.history.loading')}
+        emptyTitle={t('tasks.page.history.emptyTitle')}
+        emptyDescription={t('tasks.page.history.emptyDescription')}
+        startedAtLabel={t('tasks.page.history.startedAt')}
+        finishedAtLabel={t('tasks.page.history.finishedAt')}
+        getStatusLabel={(status) => t(`tasks.page.history.status.${status}`)}
+        getTriggerLabel={(trigger) => t(`tasks.page.history.triggers.${trigger}`)}
+      />
     </div>
   );
 }
+
+

@@ -5,6 +5,28 @@ use crate::framework::{
 };
 use std::fs;
 
+pub const APP_LANGUAGE_PREFERENCE_SYSTEM: &str = "system";
+pub const APP_LANGUAGE_PREFERENCE_ENGLISH: &str = "en";
+pub const APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE: &str = "zh";
+
+pub fn normalize_app_language_preference(value: &str) -> &'static str {
+    let normalized = value.trim().to_lowercase().replace('_', "-");
+
+    if normalized.starts_with("zh") {
+        return APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE;
+    }
+
+    if normalized.starts_with("en") {
+        return APP_LANGUAGE_PREFERENCE_ENGLISH;
+    }
+
+    if normalized == APP_LANGUAGE_PREFERENCE_SYSTEM {
+        return APP_LANGUAGE_PREFERENCE_SYSTEM;
+    }
+
+    APP_LANGUAGE_PREFERENCE_SYSTEM
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SecurityConfig {
@@ -98,6 +120,7 @@ pub struct AppConfig {
     pub distribution: String,
     pub log_level: String,
     pub theme: String,
+    pub language: String,
     pub telemetry_enabled: bool,
     pub security: SecurityConfig,
     pub storage: StorageConfig,
@@ -114,6 +137,7 @@ impl Default for AppConfig {
             distribution: "global".to_string(),
             log_level: "info".to_string(),
             theme: "system".to_string(),
+            language: APP_LANGUAGE_PREFERENCE_SYSTEM.to_string(),
             telemetry_enabled: false,
             security: SecurityConfig::default(),
             storage: StorageConfig::default(),
@@ -154,6 +178,7 @@ pub struct PublicAppConfig {
     pub distribution: String,
     pub log_level: String,
     pub theme: String,
+    pub language: String,
     pub telemetry_enabled: bool,
     pub security: SecurityConfig,
     pub storage: PublicStorageConfig,
@@ -188,6 +213,7 @@ impl AppConfig {
         if next.version == 0 {
             next.version = 1;
         }
+        next.language = normalize_app_language_preference(&next.language).to_string();
         next.storage = next.storage.normalized();
         next
     }
@@ -200,6 +226,7 @@ impl AppConfig {
             distribution: normalized.distribution,
             log_level: normalized.log_level,
             theme: normalized.theme,
+            language: normalized.language,
             telemetry_enabled: normalized.telemetry_enabled,
             security: normalized.security,
             storage: project_storage_config(&normalized.storage),
@@ -305,6 +332,23 @@ mod tests {
     }
 
     #[test]
+    fn default_config_uses_system_language_preference() {
+        let config = AppConfig::default();
+
+        assert_eq!(config.language, "system");
+    }
+
+    #[test]
+    fn config_normalizes_language_preference() {
+        let config = AppConfig {
+            language: "zh-CN".to_string(),
+            ..AppConfig::default()
+        };
+
+        assert_eq!(config.normalized().language, "zh");
+    }
+
+    #[test]
     fn public_projection_redacts_storage_connection_values() {
         let config = AppConfig {
             storage: crate::framework::storage::StorageConfig {
@@ -335,6 +379,7 @@ mod tests {
         assert!(profile.connection_configured);
         assert!(profile.database_configured);
         assert!(profile.endpoint_configured);
+        assert_eq!(projection.language, "system");
         assert_eq!(
             value.pointer("/storage/profiles/0/connection"),
             None,

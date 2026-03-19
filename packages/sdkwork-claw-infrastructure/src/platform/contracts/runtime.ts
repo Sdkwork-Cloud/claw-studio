@@ -98,11 +98,14 @@ export interface RuntimeConfigProcessInfo {
   maxConcurrentJobs: number;
 }
 
+export type RuntimeLanguagePreference = 'system' | 'en' | 'zh';
+
 export interface RuntimeConfigInfo {
   version: number;
   distribution: string;
   logLevel: string;
   theme: string;
+  language: RuntimeLanguagePreference;
   telemetryEnabled: boolean;
   security: RuntimeConfigSecurityInfo;
   storage: RuntimeConfigStorageInfo;
@@ -303,6 +306,24 @@ export interface RuntimeDesktopIntegrationInfo {
   availableAdapters: RuntimeDesktopIntegrationAdapterInfo[];
 }
 
+export interface RuntimeDesktopSupervisorServiceInfo {
+  id: string;
+  displayName: string;
+  lifecycle: string;
+  pid?: number;
+  lastExitCode?: number;
+  restartCount: number;
+  lastError?: string;
+}
+
+export interface RuntimeDesktopSupervisorInfo {
+  lifecycle: string;
+  shutdownRequested: boolean;
+  serviceCount: number;
+  managedServiceIds: string[];
+  services: RuntimeDesktopSupervisorServiceInfo[];
+}
+
 export interface RuntimeDesktopKernelInfo {
   directories: RuntimeDesktopKernelDirectories;
   capabilities: RuntimeDesktopKernelCapability[];
@@ -313,6 +334,7 @@ export interface RuntimeDesktopKernelInfo {
   notifications: RuntimeDesktopNotificationInfo;
   payments: RuntimeDesktopPaymentInfo;
   integrations: RuntimeDesktopIntegrationInfo;
+  supervisor: RuntimeDesktopSupervisorInfo;
   storage: RuntimeStorageInfo;
 }
 
@@ -328,6 +350,7 @@ export interface RuntimeInfo {
 
 export interface RuntimePlatformAPI {
   getRuntimeInfo(): Promise<RuntimeInfo>;
+  setAppLanguage(language: RuntimeLanguagePreference): Promise<void>;
   submitProcessJob(profileId: string): Promise<string>;
   getJob(id: string): Promise<RuntimeJobRecord>;
   listJobs(): Promise<RuntimeJobRecord[]>;

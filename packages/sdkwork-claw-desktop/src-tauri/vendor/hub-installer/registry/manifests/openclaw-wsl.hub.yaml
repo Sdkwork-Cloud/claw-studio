@@ -15,6 +15,32 @@ variables:
 defaults:
   sudo: false
   timeoutMs: 1800000
+dependencies:
+  - id: "node"
+    description: "Node.js is required inside WSL before OpenClaw can be installed."
+    check:
+      type: "command"
+      name: "node"
+    install:
+      - id: "install-node-wsl"
+        shell: bash
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+  - id: "pnpm"
+    description: "pnpm is required inside WSL before OpenClaw can be installed."
+    check:
+      type: "command"
+      name: "pnpm"
+    install:
+      - id: "install-pnpm-wsl"
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
 lifecycle:
   preflight:
     - id: "openclaw-wsl-preflight"

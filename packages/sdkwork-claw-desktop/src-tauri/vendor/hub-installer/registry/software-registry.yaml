@@ -212,69 +212,69 @@ entries:
       openclaw_installer_verbose: "false"
   - name: "zeroclaw"
     aliases: ["zero-claw"]
-    description: "ZeroClaw recommended pnpm install profile."
-    homepage: "https://github.com/Sdkwork-Cloud/zeroclaw"
-    tags: ["ai", "agent", "cli", "pnpm"]
-    manifest: "./manifests/zeroclaw-pnpm.hub.yaml"
-    variables:
-      hub_software_name: "zeroclaw"
-      hub_install_control_level: "partial"
-      zeroclaw_channel: "latest"
-      zeroclaw_onboard: "true"
-  - name: "zeroclaw-pnpm"
-    aliases: ["zero-claw-pnpm"]
-    description: "ZeroClaw pnpm global install profile."
-    homepage: "https://github.com/Sdkwork-Cloud/zeroclaw"
-    tags: ["ai", "agent", "cli", "pnpm"]
-    manifest: "./manifests/zeroclaw-pnpm.hub.yaml"
-    variables:
-      hub_software_name: "zeroclaw"
-      hub_install_control_level: "partial"
-      zeroclaw_channel: "latest"
-      zeroclaw_onboard: "true"
-  - name: "zeroclaw-source"
-    aliases: ["zero-claw-source"]
-    description: "ZeroClaw source clone and build profile."
-    homepage: "https://github.com/Sdkwork-Cloud/zeroclaw"
-    tags: ["ai", "agent", "cli", "source"]
+    description: "ZeroClaw recommended Rust-native source install profile."
+    homepage: "https://github.com/zeroclaw-labs/zeroclaw"
+    tags: ["ai", "agent", "cli", "rust", "source"]
     manifest: "./manifests/zeroclaw-source.hub.yaml"
     variables:
       hub_software_name: "zeroclaw"
       hub_install_control_level: "managed"
-      repo_url: "https://github.com/Sdkwork-Cloud/zeroclaw.git"
+      repo_url: "https://github.com/zeroclaw-labs/zeroclaw.git"
+      destination: "{{hub_work_root}}/zeroclaw"
+  - name: "zeroclaw-pnpm"
+    aliases: ["zero-claw-pnpm"]
+    description: "Legacy ZeroClaw compatibility alias routed to the Rust-native source install profile."
+    homepage: "https://github.com/zeroclaw-labs/zeroclaw"
+    tags: ["ai", "agent", "cli", "legacy", "rust", "source"]
+    manifest: "./manifests/zeroclaw-source.hub.yaml"
+    variables:
+      hub_software_name: "zeroclaw"
+      hub_install_control_level: "managed"
+      repo_url: "https://github.com/zeroclaw-labs/zeroclaw.git"
+      destination: "{{hub_work_root}}/zeroclaw"
+  - name: "zeroclaw-source"
+    aliases: ["zero-claw-source"]
+    description: "ZeroClaw Rust-native source clone and install profile."
+    homepage: "https://github.com/zeroclaw-labs/zeroclaw"
+    tags: ["ai", "agent", "cli", "rust", "source"]
+    manifest: "./manifests/zeroclaw-source.hub.yaml"
+    variables:
+      hub_software_name: "zeroclaw"
+      hub_install_control_level: "managed"
+      repo_url: "https://github.com/zeroclaw-labs/zeroclaw.git"
       destination: "{{hub_work_root}}/zeroclaw"
   - name: "ironclaw"
     aliases: ["iron-claw"]
-    description: "IronClaw recommended pnpm install profile."
-    homepage: "https://github.com/Sdkwork-Cloud/ironclaw"
-    tags: ["ai", "agent", "cli", "pnpm"]
-    manifest: "./manifests/ironclaw-pnpm.hub.yaml"
-    variables:
-      hub_software_name: "ironclaw"
-      hub_install_control_level: "partial"
-      ironclaw_channel: "latest"
-      ironclaw_onboard: "true"
-  - name: "ironclaw-pnpm"
-    aliases: ["iron-claw-pnpm"]
-    description: "IronClaw pnpm global install profile."
-    homepage: "https://github.com/Sdkwork-Cloud/ironclaw"
-    tags: ["ai", "agent", "cli", "pnpm"]
-    manifest: "./manifests/ironclaw-pnpm.hub.yaml"
-    variables:
-      hub_software_name: "ironclaw"
-      hub_install_control_level: "partial"
-      ironclaw_channel: "latest"
-      ironclaw_onboard: "true"
-  - name: "ironclaw-source"
-    aliases: ["iron-claw-source"]
-    description: "IronClaw source clone and build profile."
-    homepage: "https://github.com/Sdkwork-Cloud/ironclaw"
-    tags: ["ai", "agent", "cli", "source"]
+    description: "IronClaw recommended Rust-native source install profile."
+    homepage: "https://github.com/nearai/ironclaw"
+    tags: ["ai", "agent", "cli", "rust", "source"]
     manifest: "./manifests/ironclaw-source.hub.yaml"
     variables:
       hub_software_name: "ironclaw"
       hub_install_control_level: "managed"
-      repo_url: "https://github.com/Sdkwork-Cloud/ironclaw.git"
+      repo_url: "https://github.com/nearai/ironclaw.git"
+      destination: "{{hub_work_root}}/ironclaw"
+  - name: "ironclaw-pnpm"
+    aliases: ["iron-claw-pnpm"]
+    description: "Legacy IronClaw compatibility alias routed to the Rust-native source install profile."
+    homepage: "https://github.com/nearai/ironclaw"
+    tags: ["ai", "agent", "cli", "legacy", "rust", "source"]
+    manifest: "./manifests/ironclaw-source.hub.yaml"
+    variables:
+      hub_software_name: "ironclaw"
+      hub_install_control_level: "managed"
+      repo_url: "https://github.com/nearai/ironclaw.git"
+      destination: "{{hub_work_root}}/ironclaw"
+  - name: "ironclaw-source"
+    aliases: ["iron-claw-source"]
+    description: "IronClaw Rust-native source clone and install profile."
+    homepage: "https://github.com/nearai/ironclaw"
+    tags: ["ai", "agent", "cli", "rust", "source"]
+    manifest: "./manifests/ironclaw-source.hub.yaml"
+    variables:
+      hub_software_name: "ironclaw"
+      hub_install_control_level: "managed"
+      repo_url: "https://github.com/nearai/ironclaw.git"
       destination: "{{hub_work_root}}/ironclaw"
   - name: "codex"
     aliases: ["openai-codex", "codex-cli"]

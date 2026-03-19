@@ -4,7 +4,9 @@ mod runtime;
 
 pub use self::profiles::ProcessProfile;
 pub use self::requests::ProcessRequest;
-pub use self::runtime::{ProcessEventSink, ProcessOutputEvent, ProcessOutputStream, ProcessResult};
+pub use self::runtime::{ProcessEventSink, ProcessResult};
+#[cfg(test)]
+pub use self::runtime::ProcessOutputEvent;
 
 use self::{
     profiles::{
@@ -89,8 +91,8 @@ impl ProcessService {
         self.runtime.cancel(process_id)
     }
 
-    pub fn active_process_count(&self) -> Result<usize> {
-        self.runtime.active_process_count()
+    pub fn cancel_all(&self) -> Result<()> {
+        self.runtime.cancel_all()
     }
 
     pub fn available_profiles(&self) -> Vec<ProcessProfile> {

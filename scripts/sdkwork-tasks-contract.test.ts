@@ -87,6 +87,15 @@ runTest('sdkwork-claw-tasks page composes the refined task workspace and card ac
   assert.match(pageSource, /taskService\.deleteTask\(/);
 });
 
+runTest('sdkwork-claw-tasks page uses the shared task catalog surface', () => {
+  const pageSource = read('packages/sdkwork-claw-tasks/src/pages/Tasks.tsx');
+
+  assert.match(pageSource, /TaskCatalog/);
+  assert.match(pageSource, /TaskExecutionHistoryDrawer/);
+  assert.match(pageSource, /getTaskToggleStatusTarget/);
+  assert.doesNotMatch(pageSource, /<TaskRow/);
+});
+
 runTest('sdkwork-claw-tasks ships readable zh task copy without mojibake placeholders', () => {
   const zh = readJson<{ tasks: { page: Record<string, unknown> } }>(
     'packages/sdkwork-claw-i18n/src/locales/zh.json',

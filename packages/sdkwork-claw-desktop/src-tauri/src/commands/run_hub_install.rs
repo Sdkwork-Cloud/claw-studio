@@ -4,7 +4,7 @@ use crate::{
 };
 use hub_installer_rs::{
     ApplyManifestOptions, InstallEngine, ProgressEvent, RegistryInstallOptions,
-    RegistryInstallResult,
+    RegistryInstallAssessmentResult, RegistryInstallResult,
     types::{ContainerRuntimePreference, EffectiveRuntimePlatform, InstallControlLevel, InstallScope},
 };
 use std::{
@@ -78,6 +78,82 @@ pub struct HubInstallArtifactReport {
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HubInstallAssessmentCommand {
+    pub description: String,
+    pub command_line: String,
+    pub shell_kind: Option<String>,
+    pub working_directory: Option<String>,
+    pub requires_elevation: bool,
+    pub auto_run: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubInstallAssessmentDependency {
+    pub id: String,
+    pub description: Option<String>,
+    pub required: bool,
+    pub check_type: String,
+    pub target: String,
+    pub status: String,
+    pub supports_auto_remediation: bool,
+    pub remediation_commands: Vec<HubInstallAssessmentCommand>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubInstallAssessmentIssue {
+    pub severity: String,
+    pub code: String,
+    pub message: String,
+    pub dependency_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubInstallAssessmentRuntime {
+    pub host_platform: String,
+    pub requested_runtime_platform: String,
+    pub effective_runtime_platform: String,
+    pub container_runtime_preference: Option<String>,
+    pub resolved_container_runtime: Option<String>,
+    pub wsl_distribution: Option<String>,
+    pub available_wsl_distributions: Vec<String>,
+    pub wsl_available: bool,
+    pub host_docker_available: bool,
+    pub wsl_docker_available: bool,
+    pub runtime_home_dir: Option<String>,
+    pub command_availability: BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubInstallAssessmentResult {
+    pub registry_name: String,
+    pub registry_source: String,
+    pub software_name: String,
+    pub manifest_source: String,
+    pub manifest_name: String,
+    pub manifest_description: Option<String>,
+    pub manifest_homepage: Option<String>,
+    pub ready: bool,
+    pub requires_elevated_setup: bool,
+    pub platform: String,
+    pub effective_runtime_platform: String,
+    pub resolved_install_scope: String,
+    pub resolved_install_root: String,
+    pub resolved_work_root: String,
+    pub resolved_bin_dir: String,
+    pub resolved_data_root: String,
+    pub install_control_level: String,
+    pub dependencies: Vec<HubInstallAssessmentDependency>,
+    pub issues: Vec<HubInstallAssessmentIssue>,
+    pub recommendations: Vec<String>,
+    pub runtime: HubInstallAssessmentRuntime,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HubInstallResult {
     pub registry_name: String,
     pub registry_source: String,
@@ -107,6 +183,15 @@ pub fn run_hub_install(
     run_hub_install_at(&app, &state, request).map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+pub fn inspect_hub_install(
+    request: RunHubInstallRequest,
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<HubInstallAssessmentResult, String> {
+    inspect_hub_install_at(&app, &state, request).map_err(|error| error.to_string())
+}
+
 pub fn run_hub_install_at<R: Runtime>(
     app: &AppHandle<R>,
     state: &AppState,
@@ -131,6 +216,24 @@ pub fn run_hub_install_at<R: Runtime>(
     .map_err(|error| FrameworkError::Internal(error.to_string()))?;
 
     Ok(HubInstallResult::from(result))
+}
+
+pub fn inspect_hub_install_at<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    request: RunHubInstallRequest,
+) -> FrameworkResult<HubInstallAssessmentResult> {
+    let software_name = validate_software_name(&request.software_name)?.to_owned();
+    let registry_source = resolve_registry_source(
+        request.registry_source.as_deref(),
+        resolve_bundled_registry_path(app),
+        vendor_registry_source(),
+    )?;
+    let options = build_registry_install_options(state, &software_name, request, &registry_source)?;
+    let result = InstallEngine::inspect_from_registry(&software_name, options)
+        .map_err(|error| FrameworkError::Internal(error.to_string()))?;
+
+    Ok(HubInstallAssessmentResult::from(result))
 }
 
 fn build_registry_install_options(
@@ -329,6 +432,103 @@ impl From<RegistryInstallResult> for HubInstallResult {
     }
 }
 
+impl From<RegistryInstallAssessmentResult> for HubInstallAssessmentResult {
+    fn from(value: RegistryInstallAssessmentResult) -> Self {
+        let assessment = value.assessment_result;
+
+        Self {
+            registry_name: value.registry_name,
+            registry_source: value.registry_source,
+            software_name: value.software_name,
+            manifest_source: value.manifest_source,
+            manifest_name: assessment.manifest_name,
+            manifest_description: assessment.manifest_description,
+            manifest_homepage: assessment.manifest_homepage,
+            ready: assessment.ready,
+            requires_elevated_setup: assessment.requires_elevated_setup,
+            platform: assessment.platform.as_str().to_string(),
+            effective_runtime_platform: assessment
+                .effective_runtime_platform
+                .as_str()
+                .to_string(),
+            resolved_install_scope: install_scope_to_string(assessment.resolved_install_scope),
+            resolved_install_root: assessment.resolved_install_root,
+            resolved_work_root: assessment.resolved_work_root,
+            resolved_bin_dir: assessment.resolved_bin_dir,
+            resolved_data_root: assessment.resolved_data_root,
+            install_control_level: install_control_level_to_string(
+                assessment.install_control_level,
+            ),
+            dependencies: assessment
+                .dependencies
+                .into_iter()
+                .map(|dependency| HubInstallAssessmentDependency {
+                    id: dependency.id,
+                    description: dependency.description,
+                    required: dependency.required,
+                    check_type: dependency.check_type,
+                    target: dependency.target,
+                    status: dependency.status,
+                    supports_auto_remediation: dependency.supports_auto_remediation,
+                    remediation_commands: dependency
+                        .remediation_commands
+                        .into_iter()
+                        .map(|command| HubInstallAssessmentCommand {
+                            description: command.description,
+                            command_line: command.command_line,
+                            shell_kind: command
+                                .shell_kind
+                                .map(|shell_kind| shell_kind_label(shell_kind).to_string()),
+                            working_directory: command.working_directory,
+                            requires_elevation: command.requires_elevation,
+                            auto_run: command.auto_run,
+                        })
+                        .collect(),
+                })
+                .collect(),
+            issues: assessment
+                .issues
+                .into_iter()
+                .map(|issue| HubInstallAssessmentIssue {
+                    severity: issue.severity,
+                    code: issue.code,
+                    message: issue.message,
+                    dependency_id: issue.dependency_id,
+                })
+                .collect(),
+            recommendations: assessment.recommendations,
+            runtime: HubInstallAssessmentRuntime {
+                host_platform: assessment.runtime.host_platform.as_str().to_string(),
+                requested_runtime_platform: assessment
+                    .runtime
+                    .requested_runtime_platform
+                    .as_str()
+                    .to_string(),
+                effective_runtime_platform: assessment
+                    .runtime
+                    .effective_runtime_platform
+                    .as_str()
+                    .to_string(),
+                container_runtime_preference: assessment
+                    .runtime
+                    .container_runtime_preference
+                    .map(|preference| container_runtime_preference_label(preference).to_string()),
+                resolved_container_runtime: assessment
+                    .runtime
+                    .resolved_container_runtime
+                    .map(|runtime| container_runtime_label(runtime).to_string()),
+                wsl_distribution: assessment.runtime.wsl_distribution,
+                available_wsl_distributions: assessment.runtime.available_wsl_distributions,
+                wsl_available: assessment.runtime.wsl_available,
+                host_docker_available: assessment.runtime.host_docker_available,
+                wsl_docker_available: assessment.runtime.wsl_docker_available,
+                runtime_home_dir: assessment.runtime.runtime_home_dir,
+                command_availability: assessment.runtime.command_availability,
+            },
+        }
+    }
+}
+
 fn install_scope_to_string(scope: InstallScope) -> String {
     match scope {
         InstallScope::System => "system".to_string(),
@@ -341,6 +541,31 @@ fn install_control_level_to_string(level: InstallControlLevel) -> String {
         InstallControlLevel::Managed => "managed".to_string(),
         InstallControlLevel::Partial => "partial".to_string(),
         InstallControlLevel::Opaque => "opaque".to_string(),
+    }
+}
+
+fn container_runtime_preference_label(
+    value: ContainerRuntimePreference,
+) -> &'static str {
+    match value {
+        ContainerRuntimePreference::Auto => "auto",
+        ContainerRuntimePreference::Host => "host",
+        ContainerRuntimePreference::Wsl => "wsl",
+    }
+}
+
+fn container_runtime_label(value: hub_installer_rs::types::ContainerRuntime) -> &'static str {
+    match value {
+        hub_installer_rs::types::ContainerRuntime::Host => "host",
+        hub_installer_rs::types::ContainerRuntime::Wsl => "wsl",
+    }
+}
+
+fn shell_kind_label(value: hub_installer_rs::types::ShellKind) -> &'static str {
+    match value {
+        hub_installer_rs::types::ShellKind::Bash => "bash",
+        hub_installer_rs::types::ShellKind::Powershell => "powershell",
+        hub_installer_rs::types::ShellKind::Cmd => "cmd",
     }
 }
 

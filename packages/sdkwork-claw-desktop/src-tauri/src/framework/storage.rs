@@ -259,7 +259,3 @@ pub struct StorageListKeysResponse {
     pub namespace: String,
     pub keys: Vec<String>,
 }
-
-pub use crate::framework::kernel::{
-    DesktopCapabilityInfo, DesktopCapabilityStatus, DesktopKernelDirectories, DesktopKernelInfo,
-};

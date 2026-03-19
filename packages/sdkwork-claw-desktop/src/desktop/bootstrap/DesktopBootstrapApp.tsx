@@ -9,13 +9,15 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from 'react';
-import { AppRoot, bootstrapShellRuntime } from '@sdkwork/claw-shell';
+import { AppProviders, MainLayout, bootstrapShellRuntime } from '@sdkwork/claw-shell';
 import type { DistributionId } from '@sdkwork/claw-distribution';
 import { getDistributionManifest } from '@sdkwork/claw-distribution';
+import type { RuntimeLanguagePreference } from '@sdkwork/claw-infrastructure';
 import { getDesktopWindow, isTauriRuntime } from '../runtime';
-import { getAppInfo } from '../tauriBridge';
+import { getAppInfo, setAppLanguage } from '../tauriBridge';
 import { DesktopProviders } from '../providers/DesktopProviders';
 import { DesktopStartupScreen } from './DesktopStartupScreen';
+import { DesktopTrayRouteBridge } from './DesktopTrayRouteBridge';
 import {
   getStartupMinimumWaitMs,
   getStartupProgressModel,
@@ -280,6 +282,12 @@ export function DesktopBootstrapApp({
     );
   });
 
+  const handleLanguagePreferenceChange = useEffectEvent(
+    (languagePreference: RuntimeLanguagePreference) => {
+      void setAppLanguage(languagePreference);
+    },
+  );
+
   useEffect(() => {
     if (!shouldRenderShell || status !== 'launching' || milestones.hasShellMounted) {
       return;
@@ -452,7 +460,10 @@ export function DesktopBootstrapApp({
             onError={handleShellRenderError}
           >
             <div className="h-full w-full">
-              <AppRoot />
+              <AppProviders onLanguagePreferenceChange={handleLanguagePreferenceChange}>
+                <DesktopTrayRouteBridge />
+                <MainLayout />
+              </AppProviders>
             </div>
           </DesktopShellErrorBoundary>
         </DesktopProviders>

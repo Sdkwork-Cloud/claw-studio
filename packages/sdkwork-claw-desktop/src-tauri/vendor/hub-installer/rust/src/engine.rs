@@ -25,8 +25,9 @@ use crate::{
     progress::{ProgressEvent, ProgressObserver, emit},
     registry::{load_registry, resolve_software_entry},
     runtime::{
-        ExecutionContext, RuntimeOptions, normalize_path_for_runtime,
-        resolve_execution_context, resolve_host_path_for_runtime,
+        ExecutionContext, RuntimeOptions, RuntimeProbe, SystemRuntimeProbe,
+        normalize_path_for_runtime, resolve_execution_context,
+        resolve_execution_context_with_probe, resolve_host_path_for_runtime,
     },
     state::{
         InstallRecord, InstallRecordStatus, read_install_record, resolve_backup_root_dir,
@@ -244,6 +245,82 @@ pub struct RegistryInstallResult {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct InstallAssessmentCommand {
+    pub description: String,
+    pub command_line: String,
+    pub shell_kind: Option<ShellKind>,
+    pub working_directory: Option<String>,
+    pub requires_elevation: bool,
+    pub auto_run: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct InstallAssessmentDependency {
+    pub id: String,
+    pub description: Option<String>,
+    pub required: bool,
+    pub check_type: String,
+    pub target: String,
+    pub status: String,
+    pub supports_auto_remediation: bool,
+    pub remediation_commands: Vec<InstallAssessmentCommand>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct InstallAssessmentIssue {
+    pub severity: String,
+    pub code: String,
+    pub message: String,
+    pub dependency_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct InstallAssessmentRuntime {
+    pub host_platform: SupportedPlatform,
+    pub requested_runtime_platform: EffectiveRuntimePlatform,
+    pub effective_runtime_platform: EffectiveRuntimePlatform,
+    pub container_runtime_preference: Option<ContainerRuntimePreference>,
+    pub resolved_container_runtime: Option<ContainerRuntime>,
+    pub wsl_distribution: Option<String>,
+    pub available_wsl_distributions: Vec<String>,
+    pub wsl_available: bool,
+    pub host_docker_available: bool,
+    pub wsl_docker_available: bool,
+    pub runtime_home_dir: Option<String>,
+    pub command_availability: BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct InstallAssessmentResult {
+    pub manifest_name: String,
+    pub manifest_description: Option<String>,
+    pub manifest_homepage: Option<String>,
+    pub platform: SupportedPlatform,
+    pub effective_runtime_platform: EffectiveRuntimePlatform,
+    pub resolved_install_scope: InstallScope,
+    pub resolved_install_root: String,
+    pub resolved_work_root: String,
+    pub resolved_bin_dir: String,
+    pub resolved_data_root: String,
+    pub install_control_level: InstallControlLevel,
+    pub ready: bool,
+    pub requires_elevated_setup: bool,
+    pub dependencies: Vec<InstallAssessmentDependency>,
+    pub issues: Vec<InstallAssessmentIssue>,
+    pub recommendations: Vec<String>,
+    pub runtime: InstallAssessmentRuntime,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RegistryInstallAssessmentResult {
+    pub registry_name: String,
+    pub registry_source: String,
+    pub software_name: String,
+    pub manifest_source: String,
+    pub assessment_result: InstallAssessmentResult,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RegistryBackupResult {
     pub registry_name: String,
     pub registry_source: String,
@@ -390,6 +467,46 @@ impl InstallEngine {
             software_name: resolved.entry.name,
             manifest_source: resolved.manifest_source,
             apply_result,
+        })
+    }
+
+    pub fn inspect_from_registry(
+        software_name: &str,
+        options: RegistryInstallOptions,
+    ) -> Result<RegistryInstallAssessmentResult> {
+        let registry_source = options.registry_source.unwrap_or_else(|| ".".to_owned());
+        let loaded_registry = load_registry(&registry_source)?;
+        let platform = options.apply.platform.unwrap_or(detect_host_platform()?);
+        let resolved = resolve_software_entry(&loaded_registry, software_name, platform)?;
+
+        let mut inspect_options = options.apply.clone();
+        inspect_options.software_name = Some(
+            resolved
+                .entry
+                .variables
+                .get("hub_software_name")
+                .cloned()
+                .unwrap_or_else(|| resolved.entry.name.clone()),
+        );
+        inspect_options.effective_runtime_platform = inspect_options
+            .effective_runtime_platform
+            .or_else(|| resolve_registry_effective_runtime_platform(&resolved.entry, platform));
+        for (key, value) in &resolved.entry.variables {
+            inspect_options
+                .variables
+                .entry(key.clone())
+                .or_insert_with(|| value.clone());
+        }
+
+        let loaded_manifest = load_manifest(&resolved.manifest_source)?;
+        let assessment_result = inspect_loaded_manifest(&loaded_manifest, &inspect_options)?;
+
+        Ok(RegistryInstallAssessmentResult {
+            registry_name: loaded_registry.registry.metadata.name,
+            registry_source: loaded_registry.absolute_path,
+            software_name: resolved.entry.name,
+            manifest_source: resolved.manifest_source,
+            assessment_result,
         })
     }
 
@@ -1166,6 +1283,610 @@ fn resolve_operation_context(
     })
 }
 
+fn inspect_loaded_manifest(
+    loaded: &LoadedManifest,
+    options: &ApplyManifestOptions,
+) -> Result<InstallAssessmentResult> {
+    let platform = options.platform.unwrap_or(detect_host_platform()?);
+    validate_manifest_platforms(&loaded.manifest, platform)?;
+
+    let install_scope = options
+        .install_scope
+        .or_else(|| hinted_install_scope(loaded, options))
+        .unwrap_or(InstallScope::User);
+    let software_name = options
+        .software_name
+        .clone()
+        .or_else(|| hinted_software_name(loaded, options))
+        .unwrap_or_else(|| loaded.manifest.metadata.name.clone());
+    let control_level = options
+        .install_control_level
+        .or_else(|| hinted_install_control_level(loaded, options))
+        .unwrap_or(InstallControlLevel::Managed);
+    let runtime_options = RuntimeOptions {
+        effective_runtime_platform: options.effective_runtime_platform.or(
+            parse_effective_runtime_platform_option(
+                hinted_manifest_variable(loaded, options, "hub_effective_runtime_platform")
+                    .as_deref(),
+            )?,
+        ),
+        container_runtime: options.container_runtime.or(parse_container_runtime_option(
+            hinted_manifest_variable(loaded, options, "hub_container_runtime_preference")
+                .or_else(|| hinted_manifest_variable(loaded, options, "hub_container_runtime"))
+                .as_deref(),
+        )?),
+        wsl_distribution: options
+            .wsl_distribution
+            .clone()
+            .or_else(|| hinted_manifest_variable(loaded, options, "hub_wsl_distribution")),
+        docker_context: options
+            .docker_context
+            .clone()
+            .or_else(|| hinted_manifest_variable(loaded, options, "hub_docker_context")),
+        docker_host: options
+            .docker_host
+            .clone()
+            .or_else(|| hinted_manifest_variable(loaded, options, "hub_docker_host")),
+    };
+    let requested_runtime_platform = runtime_options
+        .effective_runtime_platform
+        .unwrap_or(EffectiveRuntimePlatform::from(platform));
+    let host_home_dir = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .display()
+        .to_string();
+    let runtime_probe = SystemRuntimeProbe;
+    let available_wsl_distributions = runtime_probe
+        .list_wsl_distros()
+        .into_iter()
+        .filter(|distro| !is_reserved_wsl_distribution(distro))
+        .collect::<Vec<_>>();
+    let host_docker_available = runtime_probe.docker_available_on_host();
+
+    let resolved_execution = resolve_execution_context_with_probe(
+        platform,
+        platform,
+        &runtime_options,
+        &runtime_probe,
+    );
+    let mut issues = Vec::new();
+    if let Err(error) = &resolved_execution {
+        issues.push(assessment_issue_from_error(error, "error", None));
+    }
+
+    let mut execution_context = resolved_execution.unwrap_or_else(|_| ExecutionContext {
+        host_platform: platform,
+        target_platform: platform,
+        effective_runtime_platform: requested_runtime_platform,
+        container_runtime: None,
+        wsl_distribution: runtime_options.wsl_distribution.clone(),
+        docker_context: runtime_options.docker_context.clone(),
+        docker_host: runtime_options.docker_host.clone(),
+        runtime_home_dir: None,
+    });
+
+    let runtime_home_dir = execution_context
+        .runtime_home_dir
+        .clone()
+        .unwrap_or_else(|| {
+            normalize_path_for_runtime(&host_home_dir, execution_context.effective_runtime_platform)
+        });
+    execution_context.runtime_home_dir = Some(runtime_home_dir.clone());
+
+    let local_data_dir = dirs::data_local_dir().map(|path| {
+        normalize_path_for_runtime(
+            &path.display().to_string(),
+            execution_context.effective_runtime_platform,
+        )
+    });
+    let policy = resolve_install_policy(InstallPolicyInput {
+        platform,
+        effective_runtime_platform: execution_context.effective_runtime_platform,
+        software_name: software_name.clone(),
+        home_dir: runtime_home_dir.clone(),
+        local_data_dir,
+        install_scope,
+        install_control_level: control_level,
+        installer_home_override: options.installer_home.clone(),
+        install_root_override: options.install_root.clone(),
+        work_root_override: options.work_root.clone(),
+        bin_dir_override: options.bin_dir.clone(),
+        data_root_override: options.data_root.clone(),
+    });
+
+    let install_record = resolve_host_path_for_runtime(&policy.installer_home, &execution_context)
+        .ok()
+        .and_then(|host_installer_home| read_install_record(&host_installer_home, &software_name).ok())
+        .flatten();
+    let state = merge_operation_state(&policy, install_record.as_ref(), options, true);
+    let runtime_install_record_file = resolve_install_record_file(&policy.installer_home, &software_name);
+
+    let runtime = RuntimeContext {
+        platform,
+        host_platform: execution_context.host_platform,
+        effective_runtime_platform: state.effective_runtime_platform,
+        manifest_dir: normalize_path_for_runtime(&loaded.base_directory, state.effective_runtime_platform),
+        cwd: normalize_path_for_runtime(
+            &options.cwd.clone().unwrap_or_else(current_dir_string),
+            state.effective_runtime_platform,
+        ),
+        home: runtime_home_dir.clone(),
+        temp: if state.effective_runtime_platform == EffectiveRuntimePlatform::Wsl {
+            "/tmp".to_owned()
+        } else {
+            normalize_path_for_runtime(
+                &env::temp_dir().display().to_string(),
+                state.effective_runtime_platform,
+            )
+        },
+        user: env::var("USER")
+            .or_else(|_| env::var("USERNAME"))
+            .unwrap_or_else(|_| "unknown".to_owned()),
+        path_separator: if state.effective_runtime_platform == EffectiveRuntimePlatform::Windows {
+            "\\".to_owned()
+        } else {
+            "/".to_owned()
+        },
+        software_name: Some(software_name.clone()),
+        installer_home: Some(policy.installer_home.clone()),
+        install_scope: Some(state.install_scope),
+        install_root: Some(state.install_root.clone()),
+        work_root: Some(state.work_root.clone()),
+        bin_dir: Some(state.bin_dir.clone()),
+        data_root: Some(state.data_root.clone()),
+        install_control_level: Some(state.install_control_level),
+        container_runtime: execution_context.container_runtime,
+        wsl_distribution: execution_context.wsl_distribution.clone(),
+        docker_context: execution_context.docker_context.clone(),
+        docker_host: execution_context.docker_host.clone(),
+        backup_root: None,
+        backup_session_dir: None,
+        backup_data_dir: None,
+        backup_install_dir: None,
+        backup_work_dir: None,
+        install_record_file: Some(runtime_install_record_file),
+        install_status: install_record
+            .as_ref()
+            .map(|record| install_status_string(&record.status)),
+    };
+    let variables = merge_variables(&loaded.manifest, &runtime, &options.variables);
+
+    let mut dependencies = Vec::new();
+    let mut command_availability = BTreeMap::new();
+    let runtime_blocked = issues.iter().any(|issue| issue.severity == "error");
+
+    for dependency in &loaded.manifest.dependencies {
+        let target = dependency_target(dependency, &variables, platform);
+        let auto_remediation_commands = render_commands(
+            &dependency.install,
+            &variables,
+            platform,
+            &loaded.manifest.defaults,
+        )
+        .into_iter()
+        .map(|step| assessment_command_from_step(&step, true))
+        .collect::<Vec<_>>();
+        let manual_remediation_commands = if auto_remediation_commands.is_empty() {
+            suggested_dependency_commands(&target, &execution_context)
+        } else {
+            Vec::new()
+        };
+        let present = evaluate_dependency_with_probe(
+            dependency,
+            &variables,
+            platform,
+            &execution_context,
+            &runtime_probe,
+        )?;
+
+        if matches!(&dependency.check, DependencyCheck::Command { .. }) {
+            command_availability.insert(target.clone(), present);
+        }
+
+        let required = dependency.required.unwrap_or(true);
+        let supports_auto_remediation = !auto_remediation_commands.is_empty();
+        let remediation_commands = if supports_auto_remediation {
+            auto_remediation_commands
+        } else {
+            manual_remediation_commands
+        };
+        let status = if present {
+            "available"
+        } else if matches!(&dependency.check, DependencyCheck::Platform { .. }) {
+            "unsupported"
+        } else if supports_auto_remediation {
+            "remediable"
+        } else {
+            "missing"
+        };
+
+        if !present {
+            let severity = dependency_issue_severity(status, required, runtime_blocked);
+            if severity != "info" || required {
+                issues.push(InstallAssessmentIssue {
+                    severity: severity.to_owned(),
+                    code: dependency_issue_code(status).to_owned(),
+                    message: dependency_issue_message(
+                        dependency,
+                        &target,
+                        status,
+                        supports_auto_remediation,
+                    ),
+                    dependency_id: Some(dependency.id.clone()),
+                });
+            }
+        }
+
+        dependencies.push(InstallAssessmentDependency {
+            id: dependency.id.clone(),
+            description: dependency.description.clone(),
+            required,
+            check_type: dependency_check_type(dependency),
+            target,
+            status: status.to_owned(),
+            supports_auto_remediation,
+            remediation_commands,
+        });
+    }
+
+    let requires_elevated_setup = dependencies.iter().any(|dependency| {
+        dependency
+            .remediation_commands
+            .iter()
+            .any(|command| command.requires_elevation)
+    });
+    let mut recommendations = build_assessment_recommendations(
+        &dependencies,
+        &execution_context,
+        host_docker_available,
+        control_level,
+    );
+    if loaded.manifest.dependencies.is_empty() {
+        recommendations.push(
+            "This install profile relies on artifact-level checks, so prerequisite guidance is partial.".to_owned(),
+        );
+    }
+
+    let wsl_docker_available = execution_context
+        .wsl_distribution
+        .as_deref()
+        .map(|distro| runtime_probe.wsl_docker_available(Some(distro)))
+        .unwrap_or_else(|| {
+            available_wsl_distributions
+                .iter()
+                .any(|distro| runtime_probe.wsl_docker_available(Some(distro.as_str())))
+        });
+    let ready = !issues.iter().any(|issue| issue.severity == "error");
+
+    Ok(InstallAssessmentResult {
+        manifest_name: loaded.manifest.metadata.name.clone(),
+        manifest_description: loaded.manifest.metadata.description.clone(),
+        manifest_homepage: loaded.manifest.metadata.homepage.clone(),
+        platform,
+        effective_runtime_platform: execution_context.effective_runtime_platform,
+        resolved_install_scope: state.install_scope,
+        resolved_install_root: state.install_root,
+        resolved_work_root: state.work_root,
+        resolved_bin_dir: state.bin_dir,
+        resolved_data_root: state.data_root,
+        install_control_level: state.install_control_level,
+        ready,
+        requires_elevated_setup,
+        dependencies,
+        issues,
+        recommendations: {
+            recommendations.sort();
+            recommendations.dedup();
+            recommendations
+        },
+        runtime: InstallAssessmentRuntime {
+            host_platform: execution_context.host_platform,
+            requested_runtime_platform,
+            effective_runtime_platform: execution_context.effective_runtime_platform,
+            container_runtime_preference: runtime_options.container_runtime,
+            resolved_container_runtime: execution_context.container_runtime,
+            wsl_distribution: execution_context.wsl_distribution.clone(),
+            available_wsl_distributions,
+            wsl_available: !runtime_probe.list_wsl_distros().is_empty(),
+            host_docker_available,
+            wsl_docker_available,
+            runtime_home_dir: execution_context.runtime_home_dir.clone(),
+            command_availability,
+        },
+    })
+}
+
+fn dependency_check_type(dependency: &ManifestDependency) -> String {
+    match &dependency.check {
+        DependencyCheck::Command { .. } => "command",
+        DependencyCheck::File { .. } => "file",
+        DependencyCheck::Env { .. } => "env",
+        DependencyCheck::Platform { .. } => "platform",
+    }
+    .to_owned()
+}
+
+fn dependency_target(
+    dependency: &ManifestDependency,
+    variables: &BTreeMap<String, String>,
+    platform: SupportedPlatform,
+) -> String {
+    match &dependency.check {
+        DependencyCheck::Command { name } => render_template(name, variables),
+        DependencyCheck::File { path } => render_template(path, variables),
+        DependencyCheck::Env { name, .. } => render_template(name, variables),
+        DependencyCheck::Platform { platforms } => {
+            let rendered = platforms
+                .iter()
+                .map(|item| item.as_str())
+                .collect::<Vec<_>>()
+                .join(",");
+            if rendered.is_empty() {
+                platform.as_str().to_owned()
+            } else {
+                rendered
+            }
+        }
+    }
+}
+
+fn suggested_dependency_commands(
+    target: &str,
+    execution_context: &ExecutionContext,
+) -> Vec<InstallAssessmentCommand> {
+    let normalized = target.trim().to_ascii_lowercase();
+    match runtime_shell_for_context(execution_context) {
+        ShellKind::Powershell => match normalized.as_str() {
+            "git" => vec![manual_assessment_command(
+                "Install Git with winget",
+                "winget install --id Git.Git -e --source winget",
+                ShellKind::Powershell,
+                true,
+            )],
+            "node" | "npm" => vec![manual_assessment_command(
+                "Install Node.js LTS with winget",
+                "winget install --id OpenJS.NodeJS.LTS -e --source winget",
+                ShellKind::Powershell,
+                true,
+            )],
+            "pnpm" => vec![manual_assessment_command(
+                "Enable pnpm through Corepack",
+                "corepack enable; corepack prepare pnpm@latest --activate",
+                ShellKind::Powershell,
+                false,
+            )],
+            "cargo" | "rustc" => vec![manual_assessment_command(
+                "Install Rustup with winget",
+                "winget install --id Rustlang.Rustup -e --source winget",
+                ShellKind::Powershell,
+                true,
+            )],
+            "docker" => vec![manual_assessment_command(
+                "Install Docker Desktop with winget",
+                "winget install --id Docker.DockerDesktop -e --source winget",
+                ShellKind::Powershell,
+                true,
+            )],
+            _ => Vec::new(),
+        },
+        _ => match normalized.as_str() {
+            "git" => vec![manual_assessment_command(
+                "Install Git from the system package manager",
+                "sudo apt-get update && sudo apt-get install -y git",
+                ShellKind::Bash,
+                true,
+            )],
+            "node" | "npm" => vec![manual_assessment_command(
+                "Install Node.js and npm from the system package manager",
+                "sudo apt-get update && sudo apt-get install -y nodejs npm",
+                ShellKind::Bash,
+                true,
+            )],
+            "pnpm" => vec![manual_assessment_command(
+                "Enable pnpm through Corepack",
+                "corepack enable && corepack prepare pnpm@latest --activate",
+                ShellKind::Bash,
+                false,
+            )],
+            "cargo" | "rustc" => vec![manual_assessment_command(
+                "Install Rust with rustup",
+                "curl https://sh.rustup.rs -sSf | sh -s -- -y",
+                ShellKind::Bash,
+                false,
+            )],
+            "docker" => vec![manual_assessment_command(
+                "Install Docker from the system package manager",
+                "sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin",
+                ShellKind::Bash,
+                true,
+            )],
+            _ => Vec::new(),
+        },
+    }
+}
+
+fn manual_assessment_command(
+    description: &str,
+    command_line: &str,
+    shell_kind: ShellKind,
+    requires_elevation: bool,
+) -> InstallAssessmentCommand {
+    InstallAssessmentCommand {
+        description: description.to_owned(),
+        command_line: command_line.to_owned(),
+        shell_kind: Some(shell_kind),
+        working_directory: None,
+        requires_elevation,
+        auto_run: false,
+    }
+}
+
+fn assessment_command_from_step(
+    step: &InstallStep,
+    auto_run: bool,
+) -> InstallAssessmentCommand {
+    let command_line = if step.shell || step.args.is_empty() {
+        step.command.clone()
+    } else {
+        format!("{} {}", step.command, step.args.join(" "))
+    };
+
+    InstallAssessmentCommand {
+        description: step.description.clone(),
+        command_line,
+        shell_kind: step.shell_kind,
+        working_directory: step.working_directory.clone(),
+        requires_elevation: step.requires_elevation,
+        auto_run,
+    }
+}
+
+fn build_assessment_recommendations(
+    dependencies: &[InstallAssessmentDependency],
+    execution_context: &ExecutionContext,
+    host_docker_available: bool,
+    control_level: InstallControlLevel,
+) -> Vec<String> {
+    let mut recommendations = Vec::new();
+    let auto_dependencies = dependencies
+        .iter()
+        .filter(|dependency| dependency.status == "remediable")
+        .map(|dependency| dependency.id.clone())
+        .collect::<Vec<_>>();
+    if !auto_dependencies.is_empty() {
+        recommendations.push(format!(
+            "Claw Studio can attempt prerequisite setup for: {}.",
+            auto_dependencies.join(", ")
+        ));
+    }
+
+    let manual_dependencies = dependencies
+        .iter()
+        .filter(|dependency| {
+            dependency.required
+                && matches!(dependency.status.as_str(), "missing" | "unsupported")
+                && !dependency.remediation_commands.is_empty()
+        })
+        .map(|dependency| dependency.id.clone())
+        .collect::<Vec<_>>();
+    if !manual_dependencies.is_empty() {
+        recommendations.push(format!(
+            "Manual prerequisite setup is recommended before install for: {}.",
+            manual_dependencies.join(", ")
+        ));
+    }
+
+    if execution_context.effective_runtime_platform == EffectiveRuntimePlatform::Wsl {
+        recommendations.push(format!(
+            "This profile will execute inside WSL{}.",
+            execution_context
+                .wsl_distribution
+                .as_ref()
+                .map(|distro| format!(" ({distro})"))
+                .unwrap_or_default()
+        ));
+    }
+
+    if matches!(execution_context.container_runtime, Some(ContainerRuntime::Host))
+        && host_docker_available
+    {
+        recommendations.push("Docker host runtime is available for this profile.".to_owned());
+    }
+
+    if control_level != InstallControlLevel::Managed {
+        recommendations.push(format!(
+            "This profile uses {} control, so some lifecycle steps remain upstream-owned.",
+            install_control_level_label(control_level)
+        ));
+    }
+
+    recommendations
+}
+
+fn dependency_issue_severity(status: &str, required: bool, runtime_blocked: bool) -> &'static str {
+    if runtime_blocked {
+        return "info";
+    }
+
+    match (status, required) {
+        ("remediable", true) => "warning",
+        ("missing", true) | ("unsupported", true) => "error",
+        ("remediable", false) => "info",
+        ("missing", false) | ("unsupported", false) => "info",
+        _ => "info",
+    }
+}
+
+fn dependency_issue_code(status: &str) -> &'static str {
+    match status {
+        "remediable" => "DEPENDENCY_REMEDIABLE",
+        "unsupported" => "DEPENDENCY_UNSUPPORTED",
+        _ => "DEPENDENCY_MISSING",
+    }
+}
+
+fn dependency_issue_message(
+    dependency: &ManifestDependency,
+    target: &str,
+    status: &str,
+    supports_auto_remediation: bool,
+) -> String {
+    let label = dependency
+        .description
+        .clone()
+        .unwrap_or_else(|| dependency.id.clone());
+    match status {
+        "remediable" if supports_auto_remediation => format!(
+            "{label} ({target}) is missing. Claw Studio can try to install it automatically during setup."
+        ),
+        "unsupported" => format!(
+            "{label} ({target}) does not match the current platform or runtime requirements."
+        ),
+        _ => format!(
+            "{label} ({target}) is missing and must be installed before setup can complete."
+        ),
+    }
+}
+
+fn runtime_shell_for_context(execution_context: &ExecutionContext) -> ShellKind {
+    if execution_context.effective_runtime_platform == EffectiveRuntimePlatform::Windows {
+        ShellKind::Powershell
+    } else {
+        ShellKind::Bash
+    }
+}
+
+fn assessment_issue_from_error(
+    error: &HubError,
+    severity: &str,
+    dependency_id: Option<String>,
+) -> InstallAssessmentIssue {
+    let (code, message) = match error {
+        HubError::Message { code, message } => (code.to_string(), message.clone()),
+        _ => ("INSPECTION_FAILED".to_owned(), error.to_string()),
+    };
+
+    InstallAssessmentIssue {
+        severity: severity.to_owned(),
+        code,
+        message,
+        dependency_id,
+    }
+}
+
+fn is_reserved_wsl_distribution(value: &str) -> bool {
+    let normalized = value.trim().to_ascii_lowercase();
+    normalized == "docker-desktop" || normalized == "docker-desktop-data"
+}
+
+fn install_control_level_label(level: InstallControlLevel) -> &'static str {
+    match level {
+        InstallControlLevel::Managed => "managed",
+        InstallControlLevel::Partial => "partial",
+        InstallControlLevel::Opaque => "opaque",
+    }
+}
+
 fn normalized_backup_targets(targets: &[BackupTarget]) -> Vec<BackupTarget> {
     if targets.is_empty() {
         vec![BackupTarget::Data]
@@ -1620,10 +2341,17 @@ fn run_dependencies(
     let timer = Instant::now();
     let mut total_steps = 0;
     let mut failed_steps = 0;
+    let runtime_probe = SystemRuntimeProbe;
 
     for dependency in dependencies {
         total_steps += 1;
-        if evaluate_dependency(dependency, variables, platform)? {
+        if evaluate_dependency_with_probe(
+            dependency,
+            variables,
+            platform,
+            execution_context,
+            &runtime_probe,
+        )? {
             continue;
         }
 
@@ -1651,7 +2379,13 @@ fn run_dependencies(
             observer,
             execution_context,
         )?;
-        if !evaluate_dependency(dependency, variables, platform)?
+        if !evaluate_dependency_with_probe(
+            dependency,
+            variables,
+            platform,
+            execution_context,
+            &runtime_probe,
+        )?
             && dependency.required.unwrap_or(true)
         {
             return Err(HubError::message(
@@ -1673,16 +2407,30 @@ fn run_dependencies(
     })
 }
 
-fn evaluate_dependency(
+fn evaluate_dependency_with_probe<P: RuntimeProbe>(
     dependency: &ManifestDependency,
     variables: &BTreeMap<String, String>,
     platform: SupportedPlatform,
+    execution_context: &ExecutionContext,
+    runtime_probe: &P,
 ) -> Result<bool> {
     Ok(match &dependency.check {
-        DependencyCheck::Command { name } => which::which(render_template(name, variables)).is_ok(),
-        DependencyCheck::File { path } => Path::new(&render_template(path, variables)).exists(),
+        DependencyCheck::Command { name } => command_exists_for_context(
+            &render_template(name, variables),
+            execution_context,
+            runtime_probe,
+        ),
+        DependencyCheck::File { path } => file_exists_for_context(
+            &render_template(path, variables),
+            execution_context,
+        ),
         DependencyCheck::Env { name, equals } => {
-            let value = env::var(render_template(name, variables)).ok();
+            let variable_name = render_template(name, variables);
+            let value = env_value_for_context(
+                &variable_name,
+                execution_context,
+                runtime_probe,
+            );
             match (value, equals) {
                 (Some(current), Some(expected)) => current == render_template(expected, variables),
                 (Some(_), None) => true,
@@ -1691,6 +2439,36 @@ fn evaluate_dependency(
         }
         DependencyCheck::Platform { platforms } => platforms.contains(&platform),
     })
+}
+
+fn command_exists_for_context<P: RuntimeProbe>(
+    command: &str,
+    execution_context: &ExecutionContext,
+    runtime_probe: &P,
+) -> bool {
+    if execution_context.effective_runtime_platform == EffectiveRuntimePlatform::Wsl {
+        runtime_probe.wsl_command_exists(execution_context.wsl_distribution.as_deref(), command)
+    } else {
+        runtime_probe.command_exists(command)
+    }
+}
+
+fn file_exists_for_context(path: &str, execution_context: &ExecutionContext) -> bool {
+    let host_path = resolve_host_path_for_runtime(path, execution_context)
+        .unwrap_or_else(|_| path.to_owned());
+    Path::new(&host_path).exists()
+}
+
+fn env_value_for_context<P: RuntimeProbe>(
+    name: &str,
+    execution_context: &ExecutionContext,
+    runtime_probe: &P,
+) -> Option<String> {
+    if execution_context.effective_runtime_platform == EffectiveRuntimePlatform::Wsl {
+        runtime_probe.wsl_read_env(execution_context.wsl_distribution.as_deref(), name)
+    } else {
+        env::var(name).ok()
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

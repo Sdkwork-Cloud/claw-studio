@@ -19,6 +19,15 @@ export type {
   ApiRouterInstallerModel,
   ApiRouterInstallerOpenClawOptions,
   ApiRouterInstallerProvider,
+  HubInstallAssessmentCheckType,
+  HubInstallAssessmentCommand,
+  HubInstallAssessmentDependency,
+  HubInstallAssessmentDependencyStatus,
+  HubInstallAssessmentIssue,
+  HubInstallAssessmentResult,
+  HubInstallAssessmentRuntime,
+  HubInstallAssessmentSeverity,
+  HubInstallAssessmentShellKind,
   HubInstallArtifactReport,
   HubInstallContainerRuntimePreference,
   HubInstallControlLevel,
@@ -26,6 +35,7 @@ export type {
   HubInstallProgressEvent,
   HubInstallProgressStream,
   HubInstallRequest,
+  HubInstallResolvedContainerRuntime,
   HubInstallResult,
   HubInstallScope,
   HubInstallStageReport,
@@ -59,6 +69,7 @@ export type {
   RuntimeJobRecord,
   RuntimeJobState,
   RuntimeJobUpdateEvent,
+  RuntimeLanguagePreference,
   RuntimePathsInfo,
   RuntimePlatformAPI,
   RuntimeProcessOutputEvent,
@@ -87,5 +98,6 @@ export {
   platform,
   storage,
 } from './registry.ts';
+export { openExternalUrl } from './openExternalUrl.ts';
 export { WebPlatform } from './web.ts';
 export { WebStoragePlatform } from './webStorage.ts';

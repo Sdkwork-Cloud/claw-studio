@@ -1,8 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, ExternalLink, Settings, X } from 'lucide-react';
+import { BookOpen, ExternalLink, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useInstanceStore } from '@sdkwork/claw-core';
-import { Input, Label, OverlaySurface, Switch } from '@sdkwork/claw-ui';
+import { openExternalUrl } from '@sdkwork/claw-infrastructure';
+import {
+  Button,
+  ChannelCatalog,
+  Input,
+  Label,
+  OverlaySurface,
+  getChannelOfficialLink,
+} from '@sdkwork/claw-ui';
 import { Channel, channelService } from '../../services';
 
 export function Channels() {
@@ -43,18 +51,20 @@ export function Channels() {
     setIsPanelOpen(true);
   };
 
-  const handleToggleEnable = async (id: string, currentEnabled: boolean) => {
+  const handleToggleEnable = async (channel: Channel, nextEnabled: boolean) => {
     if (!activeInstanceId) return;
-    const channel = channels.find((item) => item.id === id);
-    if (!channel) return;
 
-    if (!currentEnabled && channel.status === 'not_configured') {
+    if (nextEnabled && channel.status === 'not_configured') {
       handleConfigure(channel);
       return;
     }
 
     try {
-      const updatedChannels = await channelService.updateChannelStatus(activeInstanceId, id, !currentEnabled);
+      const updatedChannels = await channelService.updateChannelStatus(
+        activeInstanceId,
+        channel.id,
+        nextEnabled,
+      );
       setChannels(updatedChannels);
     } catch (error) {
       console.error('Failed to update channel status:', error);
@@ -63,6 +73,10 @@ export function Channels() {
 
   const handleFieldChange = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const openOfficialLink = async (href: string) => {
+    await openExternalUrl(href);
   };
 
   const handleSave = async () => {
@@ -111,80 +125,40 @@ export function Channels() {
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {channels.map((channel) => (
-                <div
-                  key={channel.id}
-                  className="group flex flex-col justify-between gap-6 p-6 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 sm:flex-row sm:items-center"
-                >
-                  <div className="flex flex-1 items-start gap-5">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white to-zinc-50 shadow-sm transition-transform duration-300 group-hover:scale-105 dark:border-zinc-700/80 dark:from-zinc-800 dark:to-zinc-900">
-                      {channel.icon}
-                    </div>
-                    <div className="flex-1">
-                      <div className="mb-1.5 flex items-center gap-3">
-                        <h3 className="text-lg font-bold text-zinc-900 transition-colors group-hover:text-primary-600 dark:text-zinc-100 dark:group-hover:text-primary-400">
-                          {channel.name}
-                        </h3>
-                        {channel.status === 'connected' && channel.enabled && (
-                          <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                            {t('channels.page.status.active')}
-                          </span>
-                        )}
-                        {channel.status === 'not_configured' && (
-                          <span className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-                            {t('channels.page.status.notConfigured')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-                        {channel.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 sm:border-l sm:border-zinc-100 sm:pl-6 dark:sm:border-zinc-800">
-                    {channel.status === 'not_configured' ? (
-                      <button
-                        onClick={() => handleConfigure(channel)}
-                        className="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors duration-200 hover:-translate-y-0.5 hover:bg-zinc-800 hover:shadow-md dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
-                      >
-                        {t('channels.page.actions.connect')}
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleConfigure(channel)}
-                          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-600 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:text-zinc-400 dark:hover:bg-primary-500/10 dark:hover:text-primary-400"
-                        >
-                          <Settings className="h-4 w-4" />
-                          {t('channels.page.actions.configure')}
-                        </button>
-
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={channel.enabled}
-                            onCheckedChange={() =>
-                              handleToggleEnable(channel.id, channel.enabled)
-                            }
-                            aria-label={t('channels.page.actions.enableChannel', {
-                              name: channel.name,
-                            })}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ChannelCatalog
+            items={channels}
+            variant="management"
+            texts={{
+              statusActive: t('channels.page.status.active'),
+              statusConnected: t('dashboard.status.connected'),
+              statusDisconnected: t('channels.page.status.disconnected'),
+              statusNotConfigured: t('channels.page.status.notConfigured'),
+              actionConnect: t('channels.page.actions.connect'),
+              actionConfigure: t('channels.page.actions.configure'),
+              actionOpenOfficialSite: t('channels.page.actions.openOfficialSite'),
+              actionEnableChannel: (name: string) =>
+                t('channels.page.actions.enableChannel', { name }),
+              metricConfiguredFields: '',
+              metricSetupSteps: '',
+              metricDeliveryState: '',
+              stateEnabled: '',
+              statePending: '',
+              summaryFallback: '',
+            }}
+            onOpenOfficialLink={(_channel, link) => void openOfficialLink(link.href)}
+            onConfigure={handleConfigure}
+            onToggleEnabled={(channel, nextEnabled) => {
+              void handleToggleEnable(channel as Channel, nextEnabled);
+            }}
+          />
         </div>
       </div>
     );
   };
+
+  const selectedChannelOfficialLink = selectedChannel
+    ? getChannelOfficialLink(selectedChannel.id)
+    : null;
 
   return (
     <div className="flex h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
@@ -239,13 +213,19 @@ export function Channels() {
                     </li>
                   ))}
                 </ol>
-                <a
-                  href="#"
-                  className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline dark:text-primary-300 dark:hover:text-primary-200"
-                >
-                  {t('channels.page.panel.readFullDocumentation')}{' '}
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                {selectedChannelOfficialLink ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    type="button"
+                    title={selectedChannelOfficialLink.label}
+                    onClick={() => void openOfficialLink(selectedChannelOfficialLink.href)}
+                  >
+                    {t('channels.page.panel.openOfficialSite')}
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
               </div>
 
               <div className="space-y-5">
@@ -276,10 +256,10 @@ export function Channels() {
 
           <div className="border-t border-zinc-100 bg-zinc-50/70 p-6 dark:border-zinc-800 dark:bg-zinc-800/50">
             <div className="flex flex-col gap-3">
-              <button
+              <Button
                 onClick={() => void handleSave()}
                 disabled={isSaving}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 py-3 text-sm font-bold text-white shadow-md shadow-primary-500/20 transition-colors hover:bg-primary-600 disabled:opacity-50"
+                className="w-full"
               >
                 {isSaving ? (
                   <>
@@ -289,7 +269,7 @@ export function Channels() {
                 ) : (
                   t('channels.page.actions.saveAndEnable')
                 )}
-              </button>
+              </Button>
               {selectedChannel.status !== 'not_configured' && (
                 <button
                   onClick={() => void handleDeleteConfig()}

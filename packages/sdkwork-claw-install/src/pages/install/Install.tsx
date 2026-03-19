@@ -23,6 +23,7 @@ import {
   fileDialogService,
   getRuntimePlatform,
   platform,
+  type HubInstallAssessmentResult,
   type HubInstallProgressEvent,
   type HubInstallRequest,
   type HubInstallResult,
@@ -66,14 +67,6 @@ type InstallChoice = {
   disabled?: boolean;
 };
 
-type ProductConfig = {
-  id: ProductId;
-  nameKey: string;
-  descriptionKey: string;
-  accent: string;
-  methods: InstallChoice[];
-};
-
 type UninstallChoice = {
   id: Exclude<MethodId, 'cloud'>;
   titleKey: string;
@@ -96,6 +89,30 @@ type LegacyInstallRecord = {
   status: string;
 };
 
+type RuntimePaths = NonNullable<RuntimeInfo['paths']>;
+
+type MigrationDefinition = {
+  id: MigrationId;
+  titleKey: string;
+  descriptionKey: string;
+  destinationRootKey: 'configDir' | 'dataDir' | 'workspacesDir' | 'logsDir';
+  destinationSegments: string[];
+  detectedSourceSegments?: string[][];
+  installRecordField?: keyof Pick<LegacyInstallRecord, 'dataRoot' | 'workRoot'>;
+  sourceKind: 'detected' | 'manual';
+};
+
+type ProductConfig = {
+  id: ProductId;
+  nameKey: string;
+  descriptionKey: string;
+  accent: string;
+  methods: InstallChoice[];
+  uninstallMethods: UninstallChoice[];
+  migrationDefinitions: MigrationDefinition[];
+  legacyRecordFileName: string;
+};
+
 type MigrationCandidate = {
   id: MigrationId;
   titleKey: string;
@@ -103,6 +120,14 @@ type MigrationCandidate = {
   sourcePath: string | null;
   destinationRoot: string;
   sourceKind: 'detected' | 'manual';
+};
+
+type AssessmentLoadStatus = 'idle' | 'loading' | 'success' | 'error';
+
+type InstallAssessmentState = {
+  status: AssessmentLoadStatus;
+  result?: HubInstallAssessmentResult;
+  error?: string;
 };
 
 const PAGE_MODE_TABS: Array<{
@@ -116,6 +141,62 @@ const PAGE_MODE_TABS: Array<{
   { id: 'uninstall', labelKey: 'install.page.tabs.uninstall' },
   { id: 'migrate', labelKey: 'install.page.tabs.migrate' },
 ];
+
+function createLegacyRecordFileName(productId: ProductId) {
+  return `${productId}.json`;
+}
+
+function createMigrationDefinitions(productId: ProductId): MigrationDefinition[] {
+  const hiddenRoot = `.${productId}`;
+  return [
+    {
+      id: 'config',
+      titleKey: 'install.page.migrate.sections.config.title',
+      descriptionKey: 'install.page.migrate.sections.config.description',
+      destinationRootKey: 'configDir',
+      destinationSegments: [productId],
+      detectedSourceSegments: [[hiddenRoot], ['.config', productId]],
+      sourceKind: 'detected',
+    },
+    {
+      id: 'data',
+      titleKey: 'install.page.migrate.sections.data.title',
+      descriptionKey: 'install.page.migrate.sections.data.description',
+      destinationRootKey: 'dataDir',
+      destinationSegments: [productId],
+      detectedSourceSegments: [['.local', 'share', productId]],
+      installRecordField: 'dataRoot',
+      sourceKind: 'detected',
+    },
+    {
+      id: 'workspace',
+      titleKey: 'install.page.migrate.sections.workspace.title',
+      descriptionKey: 'install.page.migrate.sections.workspace.description',
+      destinationRootKey: 'workspacesDir',
+      destinationSegments: [productId],
+      detectedSourceSegments: [[hiddenRoot, 'workspace']],
+      installRecordField: 'workRoot',
+      sourceKind: 'detected',
+    },
+    {
+      id: 'logs',
+      titleKey: 'install.page.migrate.sections.logs.title',
+      descriptionKey: 'install.page.migrate.sections.logs.description',
+      destinationRootKey: 'logsDir',
+      destinationSegments: [productId],
+      detectedSourceSegments: [[hiddenRoot, 'logs'], ['.local', 'state', productId]],
+      sourceKind: 'detected',
+    },
+    {
+      id: 'manual',
+      titleKey: 'install.page.migrate.sections.manual.title',
+      descriptionKey: 'install.page.migrate.sections.manual.description',
+      destinationRootKey: 'dataDir',
+      destinationSegments: [productId, 'imports'],
+      sourceKind: 'manual',
+    },
+  ];
+}
 
 const OPENCLAW_METHODS: InstallChoice[] = [
   {
@@ -175,31 +256,49 @@ const OPENCLAW_METHODS: InstallChoice[] = [
   },
 ];
 
-const PRODUCTS: ProductConfig[] = [
+const ZEROCLAW_METHODS: InstallChoice[] = [
   {
-    id: 'openclaw',
-    nameKey: 'install.page.products.openclaw.name',
-    descriptionKey: 'install.page.products.openclaw.description',
-    accent: 'from-primary-500/15 via-primary-500/5 to-transparent',
-    methods: OPENCLAW_METHODS,
+    id: 'pnpm',
+    titleKey: 'install.page.methods.pnpm.title',
+    descriptionKey: 'install.page.methods.pnpm.description',
+    icon: <Package className="h-6 w-6 text-amber-500 dark:text-amber-400" />,
+    tags: ['nodejs', 'pnpm', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'zeroclaw-pnpm' },
+    supportedHosts: ['windows', 'macos', 'linux'],
   },
   {
-    id: 'zeroclaw',
-    nameKey: 'install.page.products.zeroclaw.name',
-    descriptionKey: 'install.page.products.zeroclaw.description',
-    accent: 'from-cyan-500/15 via-cyan-500/5 to-transparent',
-    methods: OPENCLAW_METHODS.filter((choice) => !['wsl', 'docker', 'npm'].includes(choice.id)),
-  },
-  {
-    id: 'ironclaw',
-    nameKey: 'install.page.products.ironclaw.name',
-    descriptionKey: 'install.page.products.ironclaw.description',
-    accent: 'from-amber-500/20 via-amber-500/5 to-transparent',
-    methods: OPENCLAW_METHODS.filter((choice) => !['wsl', 'docker', 'npm'].includes(choice.id)),
+    id: 'source',
+    titleKey: 'install.page.methods.source.title',
+    descriptionKey: 'install.page.methods.source.description',
+    icon: <Github className="h-6 w-6 text-zinc-700 dark:text-zinc-300" />,
+    tags: ['source', 'git', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'zeroclaw-source' },
+    supportedHosts: ['windows', 'macos', 'linux'],
   },
 ];
 
-const UNINSTALL_CHOICES: UninstallChoice[] = [
+const IRONCLAW_METHODS: InstallChoice[] = [
+  {
+    id: 'pnpm',
+    titleKey: 'install.page.methods.pnpm.title',
+    descriptionKey: 'install.page.methods.pnpm.description',
+    icon: <Package className="h-6 w-6 text-amber-500 dark:text-amber-400" />,
+    tags: ['nodejs', 'pnpm', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'ironclaw-pnpm' },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+  {
+    id: 'source',
+    titleKey: 'install.page.methods.source.title',
+    descriptionKey: 'install.page.methods.source.description',
+    icon: <Github className="h-6 w-6 text-zinc-700 dark:text-zinc-300" />,
+    tags: ['source', 'git', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'ironclaw-source' },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+];
+
+const OPENCLAW_UNINSTALL_METHODS: UninstallChoice[] = [
   {
     id: 'wsl',
     titleKey: 'install.page.methods.wsl.title',
@@ -244,6 +343,81 @@ const UNINSTALL_CHOICES: UninstallChoice[] = [
     tags: ['source', 'git', 'windows', 'macos', 'linux'],
     request: { softwareName: 'openclaw-source', purgeData: false },
     supportedHosts: ['windows', 'macos', 'linux'],
+  },
+];
+
+const ZEROCLAW_UNINSTALL_METHODS: UninstallChoice[] = [
+  {
+    id: 'pnpm',
+    titleKey: 'install.page.methods.pnpm.title',
+    descriptionKey: 'install.page.uninstall.methods.pnpm.description',
+    icon: <Trash2 className="h-6 w-6 text-amber-500 dark:text-amber-400" />,
+    tags: ['pnpm', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'zeroclaw-pnpm', purgeData: false },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+  {
+    id: 'source',
+    titleKey: 'install.page.methods.source.title',
+    descriptionKey: 'install.page.uninstall.methods.source.description',
+    icon: <Trash2 className="h-6 w-6 text-zinc-700 dark:text-zinc-300" />,
+    tags: ['source', 'git', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'zeroclaw-source', purgeData: false },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+];
+
+const IRONCLAW_UNINSTALL_METHODS: UninstallChoice[] = [
+  {
+    id: 'pnpm',
+    titleKey: 'install.page.methods.pnpm.title',
+    descriptionKey: 'install.page.uninstall.methods.pnpm.description',
+    icon: <Trash2 className="h-6 w-6 text-amber-500 dark:text-amber-400" />,
+    tags: ['pnpm', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'ironclaw-pnpm', purgeData: false },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+  {
+    id: 'source',
+    titleKey: 'install.page.methods.source.title',
+    descriptionKey: 'install.page.uninstall.methods.source.description',
+    icon: <Trash2 className="h-6 w-6 text-zinc-700 dark:text-zinc-300" />,
+    tags: ['source', 'git', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'ironclaw-source', purgeData: false },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+];
+
+const PRODUCTS: ProductConfig[] = [
+  {
+    id: 'openclaw',
+    nameKey: 'install.page.products.openclaw.name',
+    descriptionKey: 'install.page.products.openclaw.description',
+    accent: 'from-primary-500/15 via-primary-500/5 to-transparent',
+    methods: OPENCLAW_METHODS,
+    uninstallMethods: OPENCLAW_UNINSTALL_METHODS,
+    migrationDefinitions: createMigrationDefinitions('openclaw'),
+    legacyRecordFileName: createLegacyRecordFileName('openclaw'),
+  },
+  {
+    id: 'zeroclaw',
+    nameKey: 'install.page.products.zeroclaw.name',
+    descriptionKey: 'install.page.products.zeroclaw.description',
+    accent: 'from-cyan-500/15 via-cyan-500/5 to-transparent',
+    methods: ZEROCLAW_METHODS,
+    uninstallMethods: ZEROCLAW_UNINSTALL_METHODS,
+    migrationDefinitions: createMigrationDefinitions('zeroclaw'),
+    legacyRecordFileName: createLegacyRecordFileName('zeroclaw'),
+  },
+  {
+    id: 'ironclaw',
+    nameKey: 'install.page.products.ironclaw.name',
+    descriptionKey: 'install.page.products.ironclaw.description',
+    accent: 'from-amber-500/20 via-amber-500/5 to-transparent',
+    methods: IRONCLAW_METHODS,
+    uninstallMethods: IRONCLAW_UNINSTALL_METHODS,
+    migrationDefinitions: createMigrationDefinitions('ironclaw'),
+    legacyRecordFileName: createLegacyRecordFileName('ironclaw'),
   },
 ];
 
@@ -292,6 +466,26 @@ function supports(hostOs: HostOs, choice: { id: string; supportedHosts: HostOs[]
   return hostOs === 'unknown' ? choice.id !== 'wsl' : choice.supportedHosts.includes(hostOs);
 }
 
+function getInstallRequestKey(request: HubInstallRequest) {
+  return JSON.stringify({
+    softwareName: request.softwareName,
+    effectiveRuntimePlatform: request.effectiveRuntimePlatform ?? null,
+    containerRuntimePreference: request.containerRuntimePreference ?? null,
+    wslDistribution: request.wslDistribution ?? null,
+  });
+}
+
+function getAssessmentCounts(assessment?: HubInstallAssessmentResult) {
+  return {
+    blockers: assessment?.issues.filter((item) => item.severity === 'error').length ?? 0,
+    warnings: assessment?.issues.filter((item) => item.severity === 'warning').length ?? 0,
+    autoFixes:
+      assessment?.dependencies.filter(
+        (item) => item.status === 'remediable' && item.supportsAutoRemediation,
+      ).length ?? 0,
+  };
+}
+
 export function Install() {
   const { t } = useTranslation();
   const progressUnsubscribeRef = useRef<RuntimeEventUnsubscribe | null>(null);
@@ -309,14 +503,26 @@ export function Install() {
   const [migrationOutput, setMigrationOutput] = useState('');
   const [migrationCandidates, setMigrationCandidates] = useState<MigrationCandidate[]>([]);
   const [selectedMigrationIds, setSelectedMigrationIds] = useState<MigrationId[]>([]);
+  const [installAssessments, setInstallAssessments] = useState<
+    Record<string, InstallAssessmentState>
+  >({});
+  const [assessmentRefreshTick, setAssessmentRefreshTick] = useState(0);
+  const [copiedCommandId, setCopiedCommandId] = useState<string | null>(null);
 
   const hostOs = useMemo(() => getHostOs(runtimeInfo), [runtimeInfo]);
   const product = PRODUCTS.find((item) => item.id === productId) ?? PRODUCTS[0];
-  const installChoices = product.methods.filter((choice) => supports(hostOs, choice));
-  const uninstallChoices = UNINSTALL_CHOICES.filter((choice) => supports(hostOs, choice));
-  const selectedMigrationCandidates = migrationCandidates.filter(
+  const productSidebar = PRODUCTS;
+  const workspaceModeTabs = PAGE_MODE_TABS;
+  const currentInstallChoices = product.methods.filter((choice) => supports(hostOs, choice));
+  const currentUninstallChoices = product.uninstallMethods.filter((choice) => supports(hostOs, choice));
+  const currentMigrationCandidates = migrationCandidates;
+  const selectedMigrationCandidates = currentMigrationCandidates.filter(
     (item) => item.sourcePath && selectedMigrationIds.includes(item.id),
   );
+  const actionAssessment =
+    action?.kind === 'install'
+      ? installAssessments[getInstallRequestKey(action.choice.request)]
+      : undefined;
 
   const cleanupProgress = async () => {
     const unsubscribe = progressUnsubscribeRef.current;
@@ -327,7 +533,14 @@ export function Install() {
   const refreshInstallRecord = async (nextRuntimeInfo: RuntimeInfo | null) => {
     const userRoot = nextRuntimeInfo?.paths?.userRoot;
     if (!userRoot) return setInstallRecord(null);
-    const recordPath = pathJoin(getHostOs(nextRuntimeInfo), userRoot, 'hub-installer', 'state', 'install-records', 'openclaw.json');
+    const recordPath = pathJoin(
+      getHostOs(nextRuntimeInfo),
+      userRoot,
+      'hub-installer',
+      'state',
+      'install-records',
+      product.legacyRecordFileName,
+    );
     try {
       if (!(await platform.pathExists(recordPath))) return setInstallRecord(null);
       const parsed = JSON.parse(await platform.readFile(recordPath)) as LegacyInstallRecord;
@@ -346,52 +559,84 @@ export function Install() {
     if (!paths) return;
     const nextHostOs = getHostOs(nextRuntimeInfo);
     const home = pathParent(pathParent(paths.userRoot)) ?? pathParent(paths.userRoot) ?? paths.userRoot;
-    const nextCandidates: MigrationCandidate[] = [
-      {
-        id: 'config',
-        titleKey: 'install.page.migrate.sections.config.title',
-        descriptionKey: 'install.page.migrate.sections.config.description',
-        sourcePath: await firstExisting([pathJoin(nextHostOs, home, '.openclaw'), pathJoin(nextHostOs, home, '.config', 'openclaw')]),
-        destinationRoot: pathJoin(nextHostOs, paths.configDir, 'openclaw'),
-        sourceKind: 'detected',
+    const nextCandidates = await Promise.all(
+      product.migrationDefinitions.map(async (definition) => {
+        const detectedPaths =
+          definition.detectedSourceSegments?.map((segments) => pathJoin(nextHostOs, home, ...segments)) ?? [];
+        const sourcePath =
+          definition.sourceKind === 'manual'
+            ? manualSource
+            : await firstExisting([
+                definition.installRecordField ? nextRecord?.[definition.installRecordField] : null,
+                ...detectedPaths,
+              ]);
+
+        return {
+          id: definition.id,
+          titleKey: definition.titleKey,
+          descriptionKey: definition.descriptionKey,
+          sourcePath,
+          destinationRoot: pathJoin(
+            nextHostOs,
+            paths[definition.destinationRootKey as keyof RuntimePaths],
+            ...definition.destinationSegments,
+          ),
+          sourceKind: definition.sourceKind,
+        } satisfies MigrationCandidate;
+      }),
+    );
+    const visibleCandidates = manualSource
+      ? nextCandidates
+      : nextCandidates.filter((item) => item.sourceKind !== 'manual');
+    setMigrationCandidates(visibleCandidates);
+    setSelectedMigrationIds(
+      visibleCandidates.filter((item) => item.sourcePath).map((item) => item.id),
+    );
+  };
+
+  const inspectInstallChoice = async (
+    choice: InstallChoice,
+    options: { force?: boolean } = {},
+  ) => {
+    if (choice.disabled) return;
+    const key = getInstallRequestKey(choice.request);
+    if (!options.force && installAssessments[key]?.status === 'success') return;
+
+    setInstallAssessments((previous) => ({
+      ...previous,
+      [key]: {
+        status: 'loading',
+        result: previous[key]?.result,
       },
-      {
-        id: 'data',
-        titleKey: 'install.page.migrate.sections.data.title',
-        descriptionKey: 'install.page.migrate.sections.data.description',
-        sourcePath: await firstExisting([nextRecord?.dataRoot, pathJoin(nextHostOs, home, '.local', 'share', 'openclaw')]),
-        destinationRoot: pathJoin(nextHostOs, paths.dataDir, 'openclaw'),
-        sourceKind: 'detected',
-      },
-      {
-        id: 'workspace',
-        titleKey: 'install.page.migrate.sections.workspace.title',
-        descriptionKey: 'install.page.migrate.sections.workspace.description',
-        sourcePath: await firstExisting([nextRecord?.workRoot, pathJoin(nextHostOs, home, '.openclaw', 'workspace')]),
-        destinationRoot: pathJoin(nextHostOs, paths.workspacesDir, 'openclaw'),
-        sourceKind: 'detected',
-      },
-      {
-        id: 'logs',
-        titleKey: 'install.page.migrate.sections.logs.title',
-        descriptionKey: 'install.page.migrate.sections.logs.description',
-        sourcePath: await firstExisting([pathJoin(nextHostOs, home, '.openclaw', 'logs'), pathJoin(nextHostOs, home, '.local', 'state', 'openclaw')]),
-        destinationRoot: pathJoin(nextHostOs, paths.logsDir, 'openclaw'),
-        sourceKind: 'detected',
-      },
-    ];
-    if (manualSource) {
-      nextCandidates.push({
-        id: 'manual',
-        titleKey: 'install.page.migrate.sections.manual.title',
-        descriptionKey: 'install.page.migrate.sections.manual.description',
-        sourcePath: manualSource,
-        destinationRoot: pathJoin(nextHostOs, paths.dataDir, 'openclaw', 'imports'),
-        sourceKind: 'manual',
-      });
+    }));
+
+    try {
+      const result = await installerService.inspectHubInstall(choice.request);
+      setInstallAssessments((previous) => ({
+        ...previous,
+        [key]: {
+          status: 'success',
+          result,
+        },
+      }));
+    } catch (error: unknown) {
+      setInstallAssessments((previous) => ({
+        ...previous,
+        [key]: {
+          status: 'error',
+          result: previous[key]?.result,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }));
     }
-    setMigrationCandidates(nextCandidates);
-    setSelectedMigrationIds(nextCandidates.filter((item) => item.sourcePath).map((item) => item.id));
+  };
+
+  const copyAssessmentCommand = async (commandLine: string, commandId: string) => {
+    await platform.copy(commandLine);
+    setCopiedCommandId(commandId);
+    window.setTimeout(() => {
+      setCopiedCommandId((previous) => (previous === commandId ? null : previous));
+    }, 1500);
   };
 
   useEffect(() => {
@@ -404,11 +649,33 @@ export function Install() {
 
   useEffect(() => {
     void refreshInstallRecord(runtimeInfo);
-  }, [runtimeInfo]);
+  }, [runtimeInfo, product]);
 
   useEffect(() => {
     void refreshMigrationCandidates(runtimeInfo, installRecord, customMigrationSource);
-  }, [runtimeInfo, installRecord, customMigrationSource]);
+  }, [runtimeInfo, installRecord, customMigrationSource, product]);
+
+  useEffect(() => {
+    if (pageMode !== 'install') return;
+
+    let cancelled = false;
+
+    void (async () => {
+      for (const choice of currentInstallChoices) {
+        if (cancelled || choice.disabled) continue;
+        await inspectInstallChoice(choice, { force: assessmentRefreshTick > 0 });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pageMode, product.id, hostOs, assessmentRefreshTick, runtimeInfo]);
+
+  useEffect(() => {
+    if (!isModalOpen || action?.kind !== 'install') return;
+    void inspectInstallChoice(action.choice);
+  }, [action, isModalOpen]);
 
   const startAction = async () => {
     if (!action) return;
@@ -458,123 +725,653 @@ export function Install() {
     setMigrationOutput((previous) => `${previous}${t(failed ? 'install.page.migrate.output.partial' : 'install.page.migrate.output.completed')}\n`);
   };
 
-  return (
-    <div className="mx-auto h-full max-w-7xl overflow-y-auto bg-zinc-50 p-6 scrollbar-hide dark:bg-zinc-950 md:p-10">
-      <div className="mx-auto mb-8 max-w-4xl text-center">
-        <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary-100/50 bg-primary-50 text-primary-600 shadow-inner dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-400">
-          {pageMode === 'install' && <DownloadCloud className="h-10 w-10" />}
-          {pageMode === 'uninstall' && <Trash2 className="h-10 w-10" />}
-          {pageMode === 'migrate' && <ArrowRightLeft className="h-10 w-10" />}
-        </motion.div>
-        <h1 className="mb-4 text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-5xl">{t('install.page.hero.title')}</h1>
-        <p className="mx-auto max-w-3xl text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">{t(`install.page.modes.${pageMode}.description`)}</p>
+  const workspaceHeader = {
+    icon:
+      pageMode === 'install' ? (
+        <DownloadCloud className="h-5 w-5" />
+      ) : pageMode === 'uninstall' ? (
+        <Trash2 className="h-5 w-5" />
+      ) : (
+        <ArrowRightLeft className="h-5 w-5" />
+      ),
+    title: t('install.page.hero.title'),
+    eyebrow: t('install.page.header.eyebrow'),
+    description: t(`install.page.modes.${pageMode}.description`),
+  };
+
+  const workspaceStatusBadges: Array<{
+    key: string;
+    label: string;
+    value: string;
+    tone: 'zinc' | 'emerald' | 'sky' | 'amber';
+  }> = [
+    {
+      key: 'current-product',
+      label: t('install.page.header.badges.currentProduct'),
+      value: t(product.nameKey),
+      tone: 'zinc',
+    },
+    {
+      key: 'lifecycle-mode',
+      label: t('install.page.header.badges.lifecycleMode'),
+      value: t(`install.page.tabs.${pageMode}`),
+      tone: 'sky',
+    },
+    {
+      key: 'platform',
+      label: t('install.page.runtime.label'),
+      value: t(`install.page.runtime.values.${hostOs}`),
+      tone: 'zinc',
+    },
+    ...(installRecord
+      ? [
+          {
+            key: 'detected-install',
+            label: t('install.page.header.badges.detectedInstall'),
+            value: t('install.page.uninstall.detectedTitle'),
+            tone: 'emerald' as const,
+          },
+        ]
+      : []),
+    pageMode === 'install'
+      ? {
+          key: 'install-paths',
+          label: t('install.page.header.badges.availableForProduct'),
+          value: `${currentInstallChoices.length} ${t('install.page.header.badges.installPaths')}`,
+          tone: 'sky',
+        }
+      : pageMode === 'uninstall'
+        ? {
+            key: 'uninstall-paths',
+            label: t('install.page.header.badges.availableForProduct'),
+            value: `${currentUninstallChoices.length} ${t('install.page.header.badges.uninstallPaths')}`,
+            tone: 'amber',
+          }
+        : {
+            key: 'migration-sources',
+            label: t('install.page.header.badges.availableForProduct'),
+            value: `${currentMigrationCandidates.filter((item) => item.sourcePath).length} ${t('install.page.header.badges.migrationSources')}`,
+            tone: 'sky',
+          },
+  ];
+
+  const installPrimaryChoices = currentInstallChoices;
+  const installSupportNote = {
+    title: t('install.page.install.supportTitle'),
+    description: t('install.page.install.supportDescription', {
+      product: t(product.nameKey),
+    }),
+  };
+
+  const uninstallWorkspace = (
+    <div className="uninstallWorkspace space-y-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('install.page.uninstall.detectedTitle')}
+              </div>
+              <h2 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                {t('install.page.uninstall.title')}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                {t('install.page.uninstall.description')}
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                {t('install.page.uninstall.detected.installMode')}
+              </div>
+              <div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {installRecord?.manifestName ?? t('install.page.uninstall.detected.notFound')}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                {t('install.page.uninstall.detected.installRoot')}
+              </div>
+              <div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {installRecord?.installRoot ?? t('install.page.uninstall.detected.notFound')}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                {t('install.page.uninstall.detected.dataRoot')}
+              </div>
+              <div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {installRecord?.dataRoot ?? t('install.page.uninstall.detected.notFound')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-amber-200 bg-amber-50/80 p-6 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+            {t('install.page.uninstall.reviewTitle')}
+          </div>
+          <h3 className="mt-3 text-lg font-bold text-amber-950 dark:text-amber-100">
+            {t('install.page.uninstall.reviewHeading')}
+          </h3>
+          <p className="mt-2 text-sm leading-relaxed text-amber-800 dark:text-amber-200">
+            {t('install.page.uninstall.reviewDescription', { product: t(product.nameKey) })}
+          </p>
+        </div>
       </div>
 
-      <div className="mx-auto mb-6 flex max-w-3xl flex-wrap items-center justify-center gap-3 rounded-3xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        {PAGE_MODE_TABS.map((tab) => (
-          <button key={tab.id} type="button" onClick={() => setPageMode(tab.id)} className={`rounded-2xl px-5 py-3 text-sm font-bold transition-all ${pageMode === tab.id ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}>
-            {t(tab.labelKey)}
-          </button>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {currentUninstallChoices.map((choice) => (
+          <div
+            key={choice.id}
+            className="flex h-full flex-col rounded-[2rem] border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:shadow-zinc-900/50"
+          >
+            <div className="mb-5 mt-1 flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+              {choice.icon}
+            </div>
+            <h3 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
+              {t(choice.titleKey)}
+            </h3>
+            <p className="mb-6 flex-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {t(choice.descriptionKey)}
+            </p>
+            <div className="mb-8 flex flex-wrap gap-2">
+              {choice.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-400"
+                >
+                  {t(`install.page.tags.${tag}`)}
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAction({ kind: 'uninstall', choice });
+                setStatus('idle');
+                setOutput('');
+                setResult(null);
+                setIsModalOpen(true);
+              }}
+              className="mt-auto flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              <Trash2 className="h-4 w-4" />
+              {t('install.page.method.actions.uninstall')}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const migrationWorkspace = (
+    <div className="migrationWorkspace space-y-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('install.page.migrate.workspaceTitle')}
+              </div>
+              <h2 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                {t('install.page.migrate.title')}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                {t('install.page.migrate.productDescription', { product: t(product.nameKey) })}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  void refreshMigrationCandidates(runtimeInfo, installRecord, customMigrationSource);
+                }}
+                className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t('install.page.migrate.actions.rescan')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void (async () => {
+                    const selected = await fileDialogService.selectDirectory({
+                      title: t('install.page.migrate.actions.selectSource'),
+                    });
+                    if (selected) setCustomMigrationSource(selected);
+                  })();
+                }}
+                className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                <FolderOpen className="h-4 w-4" />
+                {t('install.page.migrate.actions.selectSource')}
+              </button>
+            </div>
+          </div>
+          <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              {t('install.page.migrate.customSourceLabel')}
+            </div>
+            <div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">
+              {customMigrationSource ?? t('install.page.migrate.customSourcePlaceholder')}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-sky-200 bg-sky-50/80 p-6 shadow-sm dark:border-sky-500/30 dark:bg-sky-500/10">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+            {t('install.page.migrate.workspaceTitle')}
+          </div>
+          <h3 className="mt-3 text-lg font-bold text-sky-950 dark:text-sky-100">
+            {t('install.page.migrate.readyTitle')}
+          </h3>
+          <p className="mt-2 text-sm leading-relaxed text-sky-800 dark:text-sky-200">
+            {t('install.page.migrate.readyDescription')}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {currentMigrationCandidates.map((item) => (
+          <label
+            key={item.id}
+            className="flex h-full cursor-pointer flex-col rounded-[2rem] border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:shadow-zinc-900/50"
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+                {item.id === 'manual' ? (
+                  <ArrowRightLeft className="h-6 w-6 text-sky-500 dark:text-sky-400" />
+                ) : (
+                  <FileText className="h-6 w-6 text-primary-500 dark:text-primary-400" />
+                )}
+              </div>
+              <Checkbox
+                checked={selectedMigrationIds.includes(item.id)}
+                disabled={!item.sourcePath || migrationStatus === 'running'}
+                onCheckedChange={() =>
+                  setSelectedMigrationIds((previous) =>
+                    previous.includes(item.id)
+                      ? previous.filter((value) => value !== item.id)
+                      : [...previous, item.id],
+                  )
+                }
+                aria-label={t(item.titleKey)}
+              />
+            </div>
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{t(item.titleKey)}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {t(item.descriptionKey)}
+            </p>
+            <div className="mt-5 space-y-4 text-sm">
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  {t('install.page.migrate.labels.source')}
+                </div>
+                <div className="mt-2 break-all text-zinc-700 dark:text-zinc-300">
+                  {item.sourcePath ?? t('install.page.migrate.labels.notFound')}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  {t('install.page.migrate.labels.destination')}
+                </div>
+                <div className="mt-2 break-all text-zinc-700 dark:text-zinc-300">
+                  {item.destinationRoot}
+                </div>
+              </div>
+            </div>
+          </label>
         ))}
       </div>
 
-      <div className="mx-auto mb-8 flex max-w-4xl flex-wrap items-center justify-center gap-3 rounded-3xl border border-zinc-200 bg-white px-5 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t('install.page.runtime.label')}</span>
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t(`install.page.runtime.values.${hostOs}`)}</span>
-        {installRecord && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">{t('install.page.runtime.detectedInstall')}</span>}
+      <div className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+              {t('install.page.migrate.readyTitle')}
+            </h3>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {t('install.page.migrate.readyDescription')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void startMigration();
+            }}
+            disabled={migrationStatus === 'running' || !selectedMigrationCandidates.length}
+            className="flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary-900/20 transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+          >
+            <ArrowRightLeft className="h-4 w-4" />
+            {t('install.page.migrate.actions.start')}
+          </button>
+        </div>
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60">
+          {migrationStatus === 'running' && (
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+          )}
+          {migrationStatus === 'success' && <CheckCircle2 className="h-6 w-6 text-emerald-500" />}
+          {migrationStatus === 'error' && <AlertCircle className="h-6 w-6 text-red-500" />}
+          <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+            {t(`install.page.migrate.status.${migrationStatus}`)}
+          </span>
+        </div>
+        <div className="mt-6 flex h-72 flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-inner">
+          <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800 bg-zinc-900 px-4 py-3">
+            <SquareTerminal className="h-4 w-4 text-zinc-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+              {t('install.page.migrate.output.title')}
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+            <span className={migrationStatus === 'error' ? 'text-red-400' : 'text-emerald-400'}>
+              {migrationOutput || t('install.page.migrate.output.placeholder')}
+            </span>
+            {migrationStatus === 'running' && (
+              <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-zinc-400 align-middle" />
+            )}
+          </div>
+        </div>
       </div>
+    </div>
+  );
 
-      {pageMode === 'install' && (
-        <>
-          <div className="mx-auto mb-8 grid max-w-4xl grid-cols-1 gap-3 md:grid-cols-3">
-            {PRODUCTS.map((item) => (
-              <button key={item.id} type="button" onClick={() => setProductId(item.id)} className={`rounded-3xl border p-5 text-left transition-all ${product.id === item.id ? 'border-zinc-900 bg-zinc-900 text-white shadow-lg dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900' : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-700'}`}>
-                <div className="text-lg font-bold">{t(item.nameKey)}</div>
-                <div className={`mt-2 text-sm leading-relaxed ${product.id === item.id ? 'text-zinc-300 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'}`}>{t(item.descriptionKey)}</div>
+  return (
+    <div className="mx-auto h-full max-w-7xl overflow-y-auto bg-zinc-50 p-5 scrollbar-hide dark:bg-zinc-950 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="workspaceHeader overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          <div className="border-b border-zinc-100 px-5 py-5 dark:border-zinc-800 md:px-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-100 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
+                  {workspaceHeader.icon}
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+                    {workspaceHeader.eyebrow}
+                  </div>
+                  <h1 className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-[2.25rem]">
+                    {workspaceHeader.title}
+                  </h1>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 md:text-base">
+                    {workspaceHeader.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-1.5 dark:border-zinc-800 dark:bg-zinc-950/80">
+                <div className="flex flex-wrap gap-1">
+                  {workspaceModeTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setPageMode(tab.id)}
+                      className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                        pageMode === tab.id
+                          ? 'bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900'
+                          : 'text-zinc-600 hover:bg-white dark:text-zinc-400 dark:hover:bg-zinc-900'
+                      }`}
+                    >
+                      {t(tab.labelKey)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-5 py-4 md:px-6">
+            <div className="workspaceStatusBadges flex flex-wrap items-center gap-3">
+              {workspaceStatusBadges.map((badge) => (
+                <div
+                  key={badge.key}
+                  className={`rounded-2xl border px-3.5 py-2.5 ${
+                    badge.tone === 'emerald'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                      : badge.tone === 'sky'
+                        ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300'
+                        : badge.tone === 'amber'
+                          ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                  }`}
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-75">
+                    {badge.label}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold">{badge.value}</div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setAssessmentRefreshTick((previous) => previous + 1)}
+                className="ml-auto flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t('install.page.runtime.actions.rescan')}
               </button>
-            ))}
+            </div>
           </div>
-          <div className={`relative mx-auto mb-10 flex max-w-5xl items-center gap-6 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}><div className={`absolute inset-0 bg-gradient-to-r ${product.accent}`} /><div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-800 text-zinc-300"><Cpu className="h-7 w-7" /></div><div className="relative z-10"><h3 className="mb-1 text-lg font-bold text-white">{t('install.page.systemRequirements.title')}</h3><p className="text-sm leading-relaxed text-zinc-300">{t('install.page.systemRequirements.description', { product: t(product.nameKey) })}</p></div></div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {installChoices.map((choice) => (
-              <div key={`${product.id}-${choice.id}`} className="flex h-full flex-col rounded-3xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:shadow-zinc-900/50">
-                <div className="mb-5 mt-2 flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">{choice.icon}</div>
-                <h3 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">{t(choice.titleKey)}</h3>
-                <p className="mb-6 flex-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{t(choice.descriptionKey)}</p>
-                <div className="mb-8 flex flex-wrap gap-2">{choice.tags.map((tag) => <span key={tag} className="rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-400">{t(`install.page.tags.${tag}`)}</span>)}</div>
-                <button type="button" onClick={() => { if (!choice.disabled) { setAction({ kind: 'install', product, choice }); setStatus('idle'); setOutput(''); setResult(null); setIsModalOpen(true); } }} disabled={choice.disabled} className={`mt-auto flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all ${choice.disabled ? 'cursor-not-allowed bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500' : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200'}`}><DownloadCloud className="h-4 w-4" />{t(choice.disabled ? 'install.page.method.actions.comingSoon' : 'install.page.method.actions.install')}</button>
+        </motion.div>
+
+        {pageMode === 'install' && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+                {t('install.page.install.sectionTitle')}
               </div>
-            ))}
+              <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-3xl">
+                {t('install.page.install.sectionHeading')}
+              </h2>
+              <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 md:text-base">
+                {t('install.page.install.sectionDescription')}
+              </p>
+            </div>
+
+            <div className="productSidebar grid grid-cols-1 gap-3 md:grid-cols-3">
+              {productSidebar.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setProductId(item.id)}
+                  data-slot={product.id === item.id ? 'active-product' : 'product-option'}
+                  className={`rounded-[1.75rem] border p-5 text-left transition-all ${
+                    product.id === item.id
+                      ? 'border-zinc-900 bg-zinc-900 text-white shadow-lg dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                      : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-lg font-bold">{t(item.nameKey)}</div>
+                      <div
+                        className={`mt-2 text-sm leading-relaxed ${
+                          product.id === item.id
+                            ? 'text-zinc-300 dark:text-zinc-700'
+                            : 'text-zinc-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {t(item.descriptionKey)}
+                      </div>
+                    </div>
+                    {product.id === item.id && (
+                      <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-900 dark:text-zinc-100">
+                        {t('install.page.install.selectedProduct')}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="installSupportNote rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex items-start gap-4">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-gradient-to-br ${product.accent} dark:border-zinc-700`}>
+                  <Cpu className="h-5 w-5 text-zinc-800 dark:text-zinc-100" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {installSupportNote.title}
+                  </div>
+                  <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                    {installSupportNote.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {installPrimaryChoices.map((choice) => {
+                const assessmentState = installAssessments[getInstallRequestKey(choice.request)];
+                const assessment = assessmentState?.result;
+                const assessmentCounts = getAssessmentCounts(assessment);
+                const assessmentStatusKey =
+                  assessmentState?.status === 'loading'
+                    ? 'install.page.assessment.status.inspecting'
+                    : assessmentState?.status === 'error'
+                      ? 'install.page.assessment.status.failed'
+                      : assessment
+                        ? assessment.ready
+                          ? assessmentCounts.blockers > 0
+                            ? 'install.page.assessment.status.blocked'
+                            : assessmentCounts.warnings > 0 || assessmentCounts.autoFixes > 0
+                              ? 'install.page.assessment.status.needsSetup'
+                              : 'install.page.assessment.status.ready'
+                          : 'install.page.assessment.status.blocked'
+                        : 'install.page.assessment.status.inspecting';
+                const assessmentTone =
+                  assessmentState?.status === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300'
+                    : assessment?.ready
+                      ? assessmentCounts.warnings > 0 || assessmentCounts.autoFixes > 0
+                        ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                      : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
+
+                return (
+                  <div
+                    key={`${product.id}-${choice.id}`}
+                    className="flex h-full flex-col rounded-[2rem] border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:shadow-zinc-900/50"
+                  >
+                    <div className="mb-5 flex items-start justify-between gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+                        {choice.icon}
+                      </div>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${assessmentTone}`}
+                      >
+                        {t(assessmentStatusKey)}
+                      </span>
+                    </div>
+                    <h3 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                      {t(choice.titleKey)}
+                    </h3>
+                    <p className="mb-5 flex-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                      {t(choice.descriptionKey)}
+                    </p>
+                    <div className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${assessmentTone}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-semibold uppercase tracking-wider">
+                          {t('install.page.assessment.title')}
+                        </span>
+                        <span className="font-semibold">
+                          {assessment
+                            ? t('install.page.install.readyHint')
+                            : t('install.page.assessment.status.inspecting')}
+                        </span>
+                      </div>
+                      {assessmentState?.status === 'error' && (
+                        <p className="mt-2 leading-relaxed">{assessmentState.error}</p>
+                      )}
+                      {assessment && (
+                        <>
+                          <p className="mt-2 leading-relaxed">
+                            {t('install.page.assessment.runtimeSummary', {
+                              runtime: assessment.runtime.effectiveRuntimePlatform,
+                            })}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {assessmentCounts.blockers > 0 && (
+                              <span className="rounded-full border border-current/20 px-2.5 py-1 text-xs font-medium">
+                                {t('install.page.assessment.summary.blockers', {
+                                  count: assessmentCounts.blockers,
+                                })}
+                              </span>
+                            )}
+                            {assessmentCounts.warnings > 0 && (
+                              <span className="rounded-full border border-current/20 px-2.5 py-1 text-xs font-medium">
+                                {t('install.page.assessment.summary.warnings', {
+                                  count: assessmentCounts.warnings,
+                                })}
+                              </span>
+                            )}
+                            {assessmentCounts.autoFixes > 0 && (
+                              <span className="rounded-full border border-current/20 px-2.5 py-1 text-xs font-medium">
+                                {t('install.page.assessment.summary.autoFixes', {
+                                  count: assessmentCounts.autoFixes,
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="mb-8 flex flex-wrap gap-2">
+                      {choice.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-400"
+                        >
+                          {t(`install.page.tags.${tag}`)}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      data-slot="recommended-action"
+                      onClick={() => {
+                        if (!choice.disabled) {
+                          void inspectInstallChoice(choice, { force: true });
+                          setAction({ kind: 'install', product, choice });
+                          setStatus('idle');
+                          setOutput('');
+                          setResult(null);
+                          setIsModalOpen(true);
+                        }
+                      }}
+                      disabled={choice.disabled}
+                      className={`mt-auto flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all ${
+                        choice.disabled
+                          ? 'cursor-not-allowed bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500'
+                          : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200'
+                      }`}
+                    >
+                      <DownloadCloud className="h-4 w-4" />
+                      {t(
+                        choice.disabled
+                          ? 'install.page.method.actions.comingSoon'
+                          : 'install.page.method.actions.install',
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </>
       )}
 
-      {pageMode === 'uninstall' && (
-        <div className="space-y-8">
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{t('install.page.uninstall.title')}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{t('install.page.uninstall.description')}</p>
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.uninstall.detected.installMode')}</div><div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">{installRecord?.manifestName ?? t('install.page.uninstall.detected.notFound')}</div></div>
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.uninstall.detected.installRoot')}</div><div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">{installRecord?.installRoot ?? t('install.page.uninstall.detected.notFound')}</div></div>
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.uninstall.detected.dataRoot')}</div><div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">{installRecord?.dataRoot ?? t('install.page.uninstall.detected.notFound')}</div></div>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {uninstallChoices.map((choice) => (
-              <div key={choice.id} className="flex h-full flex-col rounded-3xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:shadow-zinc-900/50">
-                <div className="mb-5 mt-2 flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">{choice.icon}</div>
-                <h3 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">{t(choice.titleKey)}</h3>
-                <p className="mb-6 flex-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{t(choice.descriptionKey)}</p>
-                <div className="mb-8 flex flex-wrap gap-2">{choice.tags.map((tag) => <span key={tag} className="rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-400">{t(`install.page.tags.${tag}`)}</span>)}</div>
-                <button type="button" onClick={() => { setAction({ kind: 'uninstall', choice }); setStatus('idle'); setOutput(''); setResult(null); setIsModalOpen(true); }} className="mt-auto flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"><Trash2 className="h-4 w-4" />{t('install.page.method.actions.uninstall')}</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        {pageMode === 'uninstall' && uninstallWorkspace}
 
-      {pageMode === 'migrate' && (
-        <div className="space-y-8">
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{t('install.page.migrate.title')}</h3>
-                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{t('install.page.migrate.description')}</p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button type="button" onClick={() => { void refreshMigrationCandidates(runtimeInfo, installRecord, customMigrationSource); }} className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"><RefreshCw className="h-4 w-4" />{t('install.page.migrate.actions.rescan')}</button>
-                <button type="button" onClick={() => { void (async () => { const selected = await fileDialogService.selectDirectory({ title: t('install.page.migrate.actions.selectSource') }); if (selected) setCustomMigrationSource(selected); })(); }} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"><FolderOpen className="h-4 w-4" />{t('install.page.migrate.actions.selectSource')}</button>
-              </div>
-            </div>
-            <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.migrate.customSourceLabel')}</div><div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">{customMigrationSource ?? t('install.page.migrate.customSourcePlaceholder')}</div></div>
-          </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {migrationCandidates.map((item) => (
-              <label key={item.id} className="flex h-full cursor-pointer flex-col rounded-3xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:shadow-zinc-900/50">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">{item.id === 'manual' ? <ArrowRightLeft className="h-6 w-6 text-sky-500 dark:text-sky-400" /> : <FileText className="h-6 w-6 text-primary-500 dark:text-primary-400" />}</div>
-                  <Checkbox checked={selectedMigrationIds.includes(item.id)} disabled={!item.sourcePath || migrationStatus === 'running'} onCheckedChange={() => setSelectedMigrationIds((previous) => previous.includes(item.id) ? previous.filter((value) => value !== item.id) : [...previous, item.id])} aria-label={t(item.titleKey)} />
-                </div>
-                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{t(item.titleKey)}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{t(item.descriptionKey)}</p>
-                <div className="mt-5 space-y-4 text-sm">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.migrate.labels.source')}</div><div className="mt-2 break-all text-zinc-700 dark:text-zinc-300">{item.sourcePath ?? t('install.page.migrate.labels.notFound')}</div></div>
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.migrate.labels.destination')}</div><div className="mt-2 break-all text-zinc-700 dark:text-zinc-300">{item.destinationRoot}</div></div>
-                </div>
-              </label>
-            ))}
-          </div>
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div><h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('install.page.migrate.readyTitle')}</h3><p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{t('install.page.migrate.readyDescription')}</p></div>
-              <button type="button" onClick={() => { void startMigration(); }} disabled={migrationStatus === 'running' || !selectedMigrationCandidates.length} className="flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary-900/20 transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"><ArrowRightLeft className="h-4 w-4" />{t('install.page.migrate.actions.start')}</button>
-            </div>
-            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60">{migrationStatus === 'running' && <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />}{migrationStatus === 'success' && <CheckCircle2 className="h-6 w-6 text-emerald-500" />}{migrationStatus === 'error' && <AlertCircle className="h-6 w-6 text-red-500" />}<span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{t(`install.page.migrate.status.${migrationStatus}`)}</span></div>
-            <div className="mt-6 flex h-72 flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-inner"><div className="flex shrink-0 items-center gap-2 border-b border-zinc-800 bg-zinc-900 px-4 py-3"><SquareTerminal className="h-4 w-4 text-zinc-400" /><span className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t('install.page.migrate.output.title')}</span></div><div className="flex-1 overflow-y-auto p-5 font-mono text-sm whitespace-pre-wrap leading-relaxed"><span className={migrationStatus === 'error' ? 'text-red-400' : 'text-emerald-400'}>{migrationOutput || t('install.page.migrate.output.placeholder')}</span>{migrationStatus === 'running' && <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-zinc-400 align-middle" />}</div></div>
-          </div>
-        </div>
-      )}
+        {pageMode === 'migrate' && migrationWorkspace}
 
       <AnimatePresence>
         {isModalOpen && action && (
@@ -583,13 +1380,272 @@ export function Install() {
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center justify-between border-b border-zinc-100 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900"><div className="flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">{action.choice.icon}</div><div><h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{action.kind === 'install' ? t('install.page.modal.title.install', { product: t(action.product.nameKey), method: t(action.choice.titleKey) }) : t('install.page.modal.title.uninstall', { method: t(action.choice.titleKey) })}</h2><p className="mt-0.5 text-sm font-medium text-zinc-500 dark:text-zinc-400">{t(`install.page.modal.subtitle.${action.kind}`)}</p></div></div><button type="button" onClick={() => { if (status !== 'running') setIsModalOpen(false); }} disabled={status === 'running'} aria-label={t('install.page.modal.actions.close')} className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 disabled:opacity-50"><X className="h-5 w-5" /></button></div>
               <div className="flex-1 overflow-y-auto bg-zinc-50/50 p-6 dark:bg-zinc-950/50">
-                {status === 'idle' ? <div className="space-y-6"><div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.modal.summaryLabel')}</div><div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-300"><div><span className="font-semibold text-zinc-900 dark:text-zinc-100">{t('install.page.modal.operationLabel')}:</span> {t(`install.page.tabs.${action.kind}`)}</div>{action.kind === 'install' && <div><span className="font-semibold text-zinc-900 dark:text-zinc-100">{t('install.page.modal.productLabel')}:</span> {t(action.product.nameKey)}</div>}<div><span className="font-semibold text-zinc-900 dark:text-zinc-100">{t('install.page.modal.methodLabel')}:</span> {t(action.choice.titleKey)}</div></div></div><div className="flex gap-4 rounded-2xl border border-primary-100 bg-primary-50/50 p-5 dark:border-primary-500/20 dark:bg-primary-500/5"><Sparkles className="h-6 w-6 shrink-0 text-primary-500 dark:text-primary-400" /><p className="text-sm font-medium leading-relaxed text-primary-900 dark:text-primary-200">{t(`install.page.modal.info.${action.kind}`)}</p></div></div> : <div className="space-y-6"><div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">{status === 'running' && <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />}{status === 'success' && <CheckCircle2 className="h-6 w-6 text-emerald-500" />}{status === 'error' && <AlertCircle className="h-6 w-6 text-red-500" />}<span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{t(`install.page.modal.status.${action.kind}.${status}`)}</span></div>{result && <div className="grid grid-cols-1 gap-4 md:grid-cols-2"><div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.modal.result.installRoot')}</div><div className="mt-2 break-all text-sm text-zinc-700 dark:text-zinc-300">{result.resolvedInstallRoot}</div></div><div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.modal.result.dataRoot')}</div><div className="mt-2 break-all text-sm text-zinc-700 dark:text-zinc-300">{result.resolvedDataRoot}</div></div></div>}<div className="flex h-80 flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-inner"><div className="flex shrink-0 items-center gap-2 border-b border-zinc-800 bg-zinc-900 px-4 py-3"><SquareTerminal className="h-4 w-4 text-zinc-400" /><span className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t('install.page.modal.terminalOutput')}</span></div><div className="flex-1 overflow-y-auto p-5 font-mono text-sm whitespace-pre-wrap leading-relaxed"><span className={status === 'error' ? 'text-red-400' : 'text-emerald-400'}>{output}</span>{status === 'running' && <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-zinc-400 align-middle" />}</div></div></div>}
+                {status === 'idle' ? (
+                  <div className="space-y-6">
+                    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                      <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                        {t('install.page.modal.summaryLabel')}
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                        <div>
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                            {t('install.page.modal.operationLabel')}:
+                          </span>{' '}
+                          {t(`install.page.tabs.${action.kind}`)}
+                        </div>
+                        {action.kind === 'install' && (
+                          <div>
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              {t('install.page.modal.productLabel')}:
+                            </span>{' '}
+                            {t(action.product.nameKey)}
+                          </div>
+                        )}
+                        <div>
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                            {t('install.page.modal.methodLabel')}:
+                          </span>{' '}
+                          {t(action.choice.titleKey)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 rounded-2xl border border-primary-100 bg-primary-50/50 p-5 dark:border-primary-500/20 dark:bg-primary-500/5">
+                      <Sparkles className="h-6 w-6 shrink-0 text-primary-500 dark:text-primary-400" />
+                      <p className="text-sm font-medium leading-relaxed text-primary-900 dark:text-primary-200">
+                        {t(`install.page.modal.info.${action.kind}`)}
+                      </p>
+                    </div>
+
+                    {action.kind === 'install' && (
+                      <div className="space-y-4">
+                        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                {t('install.page.assessment.title')}
+                              </div>
+                              <h3 className="mt-2 text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                                {t('install.page.assessment.modalTitle')}
+                              </h3>
+                            </div>
+                            <button type="button" onClick={() => { void inspectInstallChoice(action.choice, { force: true }); }} className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                              <RefreshCw className="h-4 w-4" />
+                              {t('install.page.assessment.actions.refresh')}
+                            </button>
+                          </div>
+
+                          {actionAssessment?.status === 'loading' && (
+                            <div className="mt-5 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+                              <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                                {t('install.page.assessment.status.inspecting')}
+                              </span>
+                            </div>
+                          )}
+
+                          {actionAssessment?.status === 'error' && (
+                            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                              {actionAssessment.error}
+                            </div>
+                          )}
+
+                          {actionAssessment?.result && (
+                            <div className="mt-5 space-y-5">
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    {t('install.page.assessment.labels.runtime')}
+                                  </div>
+                                  <div className="mt-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                                    {actionAssessment.result.runtime.effectiveRuntimePlatform}
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    {t('install.page.assessment.labels.controlLevel')}
+                                  </div>
+                                  <div className="mt-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                                    {actionAssessment.result.installControlLevel}
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    {t('install.page.assessment.labels.installRoot')}
+                                  </div>
+                                  <div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                                    {actionAssessment.result.resolvedInstallRoot}
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    {t('install.page.assessment.labels.dataRoot')}
+                                  </div>
+                                  <div className="mt-2 break-all text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                                    {actionAssessment.result.resolvedDataRoot}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    {t('install.page.assessment.labels.availableWslDistributions')}
+                                  </div>
+                                  <div className="mt-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                                    {actionAssessment.result.runtime.availableWslDistributions.length
+                                      ? actionAssessment.result.runtime.availableWslDistributions.join(', ')
+                                      : t('install.page.uninstall.detected.notFound')}
+                                  </div>
+                                </div>
+                                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    {t('install.page.assessment.labels.commands')}
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium">
+                                    {Object.entries(actionAssessment.result.runtime.commandAvailability).length
+                                      ? Object.entries(actionAssessment.result.runtime.commandAvailability).map(([name, present]) => (
+                                        <span key={name} className={`rounded-full px-2.5 py-1 ${present ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+                                          {name}: {present ? 'ok' : 'missing'}
+                                        </span>
+                                      ))
+                                      : <span className="text-zinc-500 dark:text-zinc-400">{t('install.page.uninstall.detected.notFound')}</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {actionAssessment.result.issues.length > 0 && (
+                                <div className="space-y-3">
+                                  <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                    {t('install.page.assessment.sections.issues')}
+                                  </div>
+                                  <div className="space-y-3">
+                                    {actionAssessment.result.issues.map((issue) => (
+                                      <div key={`${issue.code}-${issue.dependencyId ?? 'general'}`} className={`rounded-2xl border p-4 text-sm leading-relaxed ${issue.severity === 'error' ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300' : issue.severity === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300' : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300'}`}>
+                                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                                          <span>{t(`install.page.assessment.issueSeverity.${issue.severity}`)}</span>
+                                          <span className="opacity-70">{issue.code}</span>
+                                        </div>
+                                        <div>{issue.message}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="space-y-3">
+                                <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                  {t('install.page.assessment.sections.dependencies')}
+                                </div>
+                                <div className="space-y-3">
+                                  {actionAssessment.result.dependencies.map((dependency) => (
+                                    <div key={dependency.id} className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                          <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                            {dependency.description ?? dependency.id}
+                                          </div>
+                                          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                            {dependency.target}
+                                          </div>
+                                        </div>
+                                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${dependency.status === 'available' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : dependency.status === 'remediable' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' : dependency.status === 'unsupported' ? 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+                                          {t(`install.page.assessment.dependencyStatus.${dependency.status}`)}
+                                        </span>
+                                      </div>
+                                      {!!dependency.remediationCommands.length && (
+                                        <div className="mt-4 space-y-3">
+                                          {dependency.remediationCommands.map((command, index) => {
+                                            const commandId = `${dependency.id}-${index}`;
+                                            return (
+                                              <div key={commandId} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                                                <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                                                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                                                    {command.autoRun
+                                                      ? t('install.page.assessment.actions.autoRun')
+                                                      : t('install.page.assessment.actions.manualFix')}
+                                                  </div>
+                                                  <button type="button" onClick={() => { void copyAssessmentCommand(command.commandLine, commandId); }} className="rounded-lg border border-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200 transition-colors hover:bg-zinc-800">
+                                                    {copiedCommandId === commandId ? t('common.copied') : t('common.copy')}
+                                                  </button>
+                                                </div>
+                                                <div className="mb-2 text-sm font-medium text-zinc-100">
+                                                  {command.description}
+                                                </div>
+                                                <pre className="overflow-x-auto text-xs leading-relaxed whitespace-pre-wrap text-emerald-300">{command.commandLine}</pre>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                  {t('install.page.assessment.sections.recommendations')}
+                                </div>
+                                <div className="space-y-3">
+                                  {actionAssessment.result.recommendations.length ? actionAssessment.result.recommendations.map((item) => (
+                                    <div key={item} className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-sm leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-300">
+                                      {item}
+                                    </div>
+                                  )) : (
+                                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-sm leading-relaxed text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-400">
+                                      {t('install.page.assessment.emptyRecommendations')}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {!actionAssessment.result.ready && (
+                                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                                  {t('install.page.assessment.blockedDescription')}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                      {status === 'running' && <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />}
+                      {status === 'success' && <CheckCircle2 className="h-6 w-6 text-emerald-500" />}
+                      {status === 'error' && <AlertCircle className="h-6 w-6 text-red-500" />}
+                      <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{t(`install.page.modal.status.${action.kind}.${status}`)}</span>
+                    </div>
+                    {result && <div className="grid grid-cols-1 gap-4 md:grid-cols-2"><div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.modal.result.installRoot')}</div><div className="mt-2 break-all text-sm text-zinc-700 dark:text-zinc-300">{result.resolvedInstallRoot}</div></div><div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('install.page.modal.result.dataRoot')}</div><div className="mt-2 break-all text-sm text-zinc-700 dark:text-zinc-300">{result.resolvedDataRoot}</div></div></div>}
+                    <div className="flex h-80 flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-inner"><div className="flex shrink-0 items-center gap-2 border-b border-zinc-800 bg-zinc-900 px-4 py-3"><SquareTerminal className="h-4 w-4 text-zinc-400" /><span className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t('install.page.modal.terminalOutput')}</span></div><div className="flex-1 overflow-y-auto p-5 font-mono text-sm whitespace-pre-wrap leading-relaxed"><span className={status === 'error' ? 'text-red-400' : 'text-emerald-400'}>{output}</span>{status === 'running' && <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-zinc-400 align-middle" />}</div></div>
+                  </div>
+                )}
               </div>
-              <div className="flex justify-end gap-3 border-t border-zinc-100 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">{status === 'idle' ? <><button type="button" onClick={() => setIsModalOpen(false)} className="rounded-xl px-6 py-3 text-sm font-bold text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800">{t('common.cancel')}</button><button type="button" onClick={() => { void startAction(); }} className="flex items-center gap-2 rounded-xl bg-primary-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-primary-900/20 transition-colors hover:bg-primary-700"><Play className="h-4 w-4" />{t(`install.page.modal.actions.start${action.kind === 'install' ? 'Install' : 'Uninstall'}`)}</button></> : <button type="button" onClick={() => setIsModalOpen(false)} disabled={status === 'running'} className="rounded-xl bg-zinc-900 px-8 py-3 text-sm font-bold text-white shadow-md transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">{status === 'success' ? t('install.page.modal.actions.done') : t('install.page.modal.actions.close')}</button>}</div>
+              <div className="flex justify-end gap-3 border-t border-zinc-100 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
+                {status === 'idle' ? (
+                  <>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-xl px-6 py-3 text-sm font-bold text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800">
+                      {t('common.cancel')}
+                    </button>
+                    <button type="button" onClick={() => { void startAction(); }} disabled={action.kind === 'install' && (actionAssessment?.status === 'loading' || actionAssessment?.status === 'error' || !actionAssessment?.result?.ready)} className="flex items-center gap-2 rounded-xl bg-primary-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-primary-900/20 transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500">
+                      <Play className="h-4 w-4" />
+                      {t(`install.page.modal.actions.start${action.kind === 'install' ? 'Install' : 'Uninstall'}`)}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => setIsModalOpen(false)} disabled={status === 'running'} className="rounded-xl bg-zinc-900 px-8 py-3 text-sm font-bold text-white shadow-md transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
+                    {status === 'success' ? t('install.page.modal.actions.done') : t('install.page.modal.actions.close')}
+                  </button>
+                )}
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 }

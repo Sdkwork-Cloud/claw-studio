@@ -14,7 +14,8 @@ tauri-build = { version = "2", features = [] }
 hub-installer-rs = { path = "vendor/hub-installer/rust" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2", features = [] }
+sys-locale = "0.3"
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"

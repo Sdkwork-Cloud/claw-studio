@@ -194,6 +194,32 @@ impl ProcessRuntime {
         Ok(())
     }
 
+    pub(crate) fn cancel_all(&self) -> Result<()> {
+        let handles = self
+            .lock_active_processes()?
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut failures = Vec::new();
+
+        for handle in handles {
+            if let Err(error) = force_terminate_handle(&handle) {
+                failures.push(error.to_string());
+            }
+        }
+
+        if failures.is_empty() {
+            return Ok(());
+        }
+
+        Err(FrameworkError::Internal(format!(
+            "failed to terminate {} active processes: {}",
+            failures.len(),
+            failures.join("; ")
+        )))
+    }
+
+    #[cfg(test)]
     pub(crate) fn active_process_count(&self) -> Result<usize> {
         Ok(self.lock_active_processes()?.len())
     }
@@ -425,6 +451,19 @@ fn wait_child(child: &Arc<Mutex<Child>>) -> Result<ExitStatus> {
     child.wait().map_err(FrameworkError::from)
 }
 
+fn force_terminate_handle(handle: &ActiveProcessHandle) -> Result<()> {
+    handle.cancellation_requested.store(true, Ordering::Relaxed);
+    let mut child = handle
+        .child
+        .lock()
+        .map_err(|_| FrameworkError::Internal("active process lock poisoned".to_string()))?;
+    if child.try_wait()?.is_none() {
+        child.kill()?;
+    }
+
+    Ok(())
+}
+
 fn map_result(
     status: ExitStatus,
     process_id: &str,
@@ -555,6 +594,48 @@ mod tests {
             }
             other => panic!("expected timeout error, got {other}"),
         }
+    }
+
+    #[test]
+    fn cancel_all_terminates_active_processes() {
+        let runtime = ProcessRuntime::new();
+        let running_runtime = runtime.clone();
+
+        let handle = std::thread::spawn(move || {
+            running_runtime.run_with_sink(
+                test_sleep_request(5_000),
+                Some("process-under-test".to_string()),
+                None,
+                true,
+                &TestProcessEventSink::default(),
+                |_| Ok(()),
+            )
+        });
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        while runtime.active_process_count().expect("active process count") == 0 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "process did not register as active in time"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        runtime.cancel_all().expect("cancel all");
+
+        let error = handle
+            .join()
+            .expect("background process thread")
+            .expect_err("process should be cancelled");
+
+        match error {
+            FrameworkError::Cancelled(message) => {
+                assert!(message.contains("process cancelled"));
+            }
+            other => panic!("expected cancellation error, got {other}"),
+        }
+
+        assert_eq!(runtime.active_process_count().expect("active process count"), 0);
     }
 
     #[cfg(windows)]

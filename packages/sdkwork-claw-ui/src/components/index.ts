@@ -1,4 +1,5 @@
 export * from './Button';
+export * from './ChannelCatalog';
 export * from './Checkbox';
 export * from './DateInput';
 export * from './Dialog';
@@ -9,4 +10,9 @@ export * from './RepositoryCard';
 export * from './Select';
 export * from './Slider';
 export * from './Switch';
+export * from './TaskCatalog';
+export * from './TaskExecutionHistoryDrawer';
+export * from './TaskRowList';
 export * from './Textarea';
+export * from './channelCatalogMeta';
+export * from './taskCatalogMeta';

@@ -33,4 +33,5 @@ export const ROUTE_PATHS = {
   DOCS: '/docs',
   CODEBOX: '/codebox',
   API_ROUTER: '/api-router',
+  MODEL_PURCHASE: '/model-purchase',
 } as const;

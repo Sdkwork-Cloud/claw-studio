@@ -41,7 +41,7 @@
     "cronTasks": "Cron Tasks",
     "appStore": "App Store",
     "extensions": "Extensions",
-    "community": "Community",
+    "community": "Classifieds",
     "githubRepos": "GitHub Repos",
     "huggingFace": "Hugging Face",
     "workspace": "Workspace",
@@ -49,6 +49,7 @@
     "setup": "Setup",
     "codebox": "CodeBox",
     "apiRouter": "API Router",
+    "modelPurchase": "Model Purchase",
     "clawUpload": "Claw Upload",
     "systemResources": "System Resources",
     "cpu": "CPU",
@@ -190,6 +191,10 @@
       "apiRouter": {
         "title": "Go to API Router",
         "subtitle": "Manage model channels and proxy providers"
+      },
+      "modelPurchase": {
+        "title": "Go to Model Purchase",
+        "subtitle": "Browse standalone model packages and billing plans"
       },
       "settings": {
         "title": "Go to Settings",
@@ -1043,105 +1048,328 @@
   },
   "community": {
     "page": {
-      "title": "Community",
-      "subtitle": "Learn, share, and connect",
-      "searchPlaceholder": "Search articles, discussions...",
-      "newPost": "New Post",
+      "title": "OpenClaw Classifieds",
+      "subtitle": "A recruitment-first classifieds entrance powered by OpenClaw for personal job seeking, company hiring, online-deliverable services, partnerships, and retained news.",
+      "searchPlaceholder": "Search jobs, candidates, legal services, online delivery offers, partnerships, or platform news...",
+      "newPost": "Publish with OpenClaw",
       "categories": {
-        "posts": "Posts",
+        "jobSeeking": "Job Seeking",
+        "recruitment": "Recruitment",
+        "services": "Services",
+        "partnerships": "Partnerships",
         "news": "News"
       },
-      "loadingPosts": "Loading posts...",
-      "officialBadge": "Official",
-      "noPostsTitle": "No posts found",
-      "noPostsDescription": "Try adjusting your search or category filter.",
-      "latestClaw": "Latest Claw",
-      "onlineClaw": "Online Claw",
-      "hottestClaw": "Hottest Claw",
-      "viewRankings": "View Rankings",
-      "latestItems": {
-        "one": {
-          "name": "Auto-GPT Agent",
-          "author": "AI Labs",
-          "time": "2h ago"
-        },
-        "two": {
-          "name": "Vision Analyzer",
-          "author": "Tech Corp",
-          "time": "5h ago"
-        },
-        "three": {
-          "name": "Data Scraper Pro",
-          "author": "DevTeam",
-          "time": "1d ago"
+      "categorySummaries": {
+        "jobSeeking": "Publish candidate profiles, target roles, and preferred cities in a structured format.",
+        "recruitment": "Prioritize company hiring, urgent roles, and employer-facing demand generation.",
+        "services": "Match legal, tax, design, development, consulting, content, data, HR, and other online-deliverable services with structured follow-up.",
+        "partnerships": "Open channel collaborations, lead-sharing, and ecosystem partnership opportunities.",
+        "news": "Keep platform announcements, product updates, and market signals in a retained news rail."
+      },
+      "loadingPosts": "Loading classified entries...",
+      "emptyTitle": "No listings matched this view",
+      "emptyDescription": "Try another category or broaden your search terms.",
+      "noPostsTitle": "No listings matched this view",
+      "noPostsDescription": "Try another category or broaden your search terms.",
+      "noNewsTitle": "No news items matched this view",
+      "noNewsDescription": "Try another keyword or switch back to the classified feed.",
+      "hero": {
+        "eyebrow": "Recruitment-first entrance",
+        "badge": "Recruitment-first entrance",
+        "primaryCta": "Publish with OpenClaw",
+        "secondaryCta": "Browse news",
+        "newsCta": "Browse news",
+        "metrics": {
+          "recruitment": {
+            "label": "Hiring",
+            "description": "Active company-side opportunities"
+          },
+          "jobSeeking": {
+            "label": "Candidates",
+            "description": "Personal job-seeking profiles ready to match"
+          },
+          "news": {
+            "label": "News",
+            "description": "Platform and market updates"
+          }
         }
       },
-      "onlineItems": {
-        "one": "Trading Bot V2",
-        "two": "SEO Optimizer",
-        "three": "Image Generator"
+      "classifiedHub": {
+        "title": "High-value categories first",
+        "description": "Start with recruitment and job seeking, then expand into services, partnerships, and retained news.",
+        "badge": "58-style revenue logic"
       },
-      "hottestItems": {
-        "one": "Code Assistant",
-        "two": "UI Builder",
-        "three": "DB Manager"
+      "assistantWorkbench": {
+        "title": "OpenClaw assistant workbench",
+        "description": "Turn publishing, screening, and follow-up into structured assistant workflows instead of raw text posting.",
+        "cards": {
+          "jobSeeking": {
+            "title": "Job-seeking assistant",
+            "description": "Draft profile summaries, refine resumes, and generate multiple application-ready versions."
+          },
+          "recruitment": {
+            "title": "Recruitment assistant",
+            "description": "Generate stronger role highlights, sharpen compensation copy, and prepare hiring messages."
+          },
+          "followUp": {
+            "title": "Lead follow-up assistant",
+            "description": "Organize interested leads, prepare next-step notes, and surface the highest-intent matches."
+          },
+          "jobSeeker": {
+            "title": "Job-seeker assistant",
+            "description": "Draft profile summaries, refine resumes, and generate multiple application-ready versions."
+          },
+          "recruiter": {
+            "title": "Recruiter assistant",
+            "description": "Strengthen job highlights, sharpen compensation copy, and prepare cleaner outreach."
+          },
+          "leadFollowup": {
+            "title": "Lead follow-up assistant",
+            "description": "Organize high-intent replies, prepare next-step notes, and queue the right follow-up actions."
+          }
+        }
+      },
+      "serviceCatalog": {
+        "title": "Online service catalog",
+        "description": "Lead with legal services, then expand into consulting, content, data, HR, and every service line that can be scoped, quoted, and delivered online with OpenClaw support.",
+        "items": {
+          "legal": {
+            "title": "Legal services",
+            "description": "Contracts, compliance reviews, privacy policies, labor documents, and risk memos delivered remotely."
+          },
+          "tax": {
+            "title": "Tax and bookkeeping",
+            "description": "Remote bookkeeping, filing support, invoice workflows, and recurring compliance operations."
+          },
+          "design": {
+            "title": "Brand and design",
+            "description": "Decks, visual systems, hiring assets, websites, and launch materials produced fully online."
+          },
+          "development": {
+            "title": "Development and automation",
+            "description": "Landing pages, OpenClaw workflows, internal tools, and AI-powered automations shipped remotely."
+          },
+          "marketing": {
+            "title": "Marketing and growth",
+            "description": "SEO, content operations, employer-brand campaigns, and online lead-conversion programs."
+          },
+          "translation": {
+            "title": "Translation and localization",
+            "description": "Bilingual product copy, legal text, help-center content, and website localization."
+          },
+          "operations": {
+            "title": "Remote operations",
+            "description": "Customer support SOPs, community operations, playbooks, and response-process design."
+          },
+          "training": {
+            "title": "Training and enablement",
+            "description": "Online workshops, AI onboarding, workflow walkthroughs, and team enablement sessions."
+          },
+          "consulting": {
+            "title": "Consulting and strategy",
+            "description": "GTM reviews, pricing design, business diagnostics, founder advisory, and structured decision support."
+          },
+          "content": {
+            "title": "Content and copywriting",
+            "description": "Website copy, whitepapers, help-center articles, scripts, product pages, and launch narratives."
+          },
+          "data": {
+            "title": "Data and analytics",
+            "description": "Dashboards, BI reports, funnel analysis, metric systems, and remote data interpretation."
+          },
+          "hr": {
+            "title": "Talent and HR services",
+            "description": "Resume polishing, interview coaching, screening SOPs, hiring-process templates, and remote talent workflows."
+          }
+        }
+      },
+      "feedEyebrow": "Classified feed",
+      "feed": {
+        "title": "Classified feed",
+        "description": "A structured stream of hiring, job seeking, service, partnership, and news entries.",
+        "featuredBadge": "Featured",
+        "publisherTypes": {
+          "personal": "Personal",
+          "company": "Company",
+          "official": "Official"
+        },
+        "openclawAction": "Let OpenClaw handle it"
+      },
+      "listing": {
+        "openclawAction": "Let OpenClaw handle it",
+        "readMore": "Read more",
+        "viewAll": "View all"
+      },
+      "featuredBadge": "Featured",
+      "officialBadge": "Official",
+      "meta": {
+        "location": "Location",
+        "compensation": "Salary / budget",
+        "company": "Company",
+        "publisher": "Publisher",
+        "serviceLine": "Service line",
+        "deliveryMode": "Delivery mode",
+        "turnaround": "Turnaround"
+      },
+      "rails": {
+        "urgentRecruitment": "Urgent recruitment",
+        "onlineServices": "Online services",
+        "platformNews": "Platform news"
+      },
+      "rail": {
+        "hotRecruitment": "Urgent recruitment",
+        "latestNews": "Platform news",
+        "featuredServices": "Featured services"
+      },
+      "revenueServices": {
+        "title": "Revenue surfaces",
+        "items": {
+          "featured": {
+            "title": "Smart featured placement",
+            "description": "Reserve premium slots for higher visibility across the home feed and category views."
+          },
+          "accelerator": {
+            "title": "Enterprise hiring accelerator",
+            "description": "Give urgent recruitment posts stronger exposure, sharper copy, and faster candidate reach."
+          },
+          "assistant": {
+            "title": "OpenClaw managed assistant",
+            "description": "Turn publishing, screening, follow-up, and reposting into an ongoing paid assistant service."
+          },
+          "urgent": {
+            "title": "Urgent hiring boost",
+            "description": "Promote enterprise hiring posts to high-intent candidates with accelerated exposure."
+          },
+          "resume": {
+            "title": "Priority resume matching",
+            "description": "Push stronger candidate profiles into recommended enterprise shortlists."
+          }
+        }
       }
     },
-    "categories": {
-      "announcements": "Announcements",
-      "discussions": "Discussions",
-      "help": "Help",
-      "showcase": "Showcase",
-      "tutorials": "Tutorials"
-    },
     "newPost": {
+      "hero": {
+        "badge": "Structured publishing",
+        "title": "Publish a classified entry with OpenClaw",
+        "description": "Choose the entry type, complete the structured fields, then let OpenClaw refine the copy before you publish."
+      },
+      "entryTypes": {
+        "jobSeeking": "Personal job seeking",
+        "recruitment": "Company recruitment",
+        "services": "Online services",
+        "partnerships": "Business partnerships",
+        "news": "News"
+      },
+      "publisherTypes": {
+        "personal": "Personal publisher",
+        "company": "Company publisher",
+        "official": "Official publisher"
+      },
+      "fields": {
+        "entryType": "Entry type",
+        "publisherType": "Publisher identity",
+        "location": "Location",
+        "compensation": "Salary / budget",
+        "serviceLine": "Service line",
+        "deliveryMode": "Delivery mode",
+        "turnaround": "Turnaround",
+        "company": "Company or brand",
+        "contactPreference": "OpenClaw follow-up note"
+      },
+      "placeholders": {
+        "location": "Shanghai / Remote",
+        "compensation": "Expected 25k-35k or project budget 6k+",
+        "company": "OpenClaw",
+        "contactPreference": "Let OpenClaw screen and organize replies first"
+      },
+      "defaults": {
+        "newsLocation": "Platform bulletin",
+        "newsCompensation": "Official update",
+        "serviceLocation": "Remote / online delivery",
+        "serviceCompensation": "Package fee, quote, or monthly retainer",
+        "serviceTurnaround": "For example: first draft in 48 hours"
+      },
+      "serviceLines": {
+        "legal": "Legal services",
+        "tax": "Tax and bookkeeping",
+        "design": "Brand and design",
+        "development": "Development and automation",
+        "marketing": "Marketing and growth",
+        "translation": "Translation and localization",
+        "operations": "Remote operations",
+        "training": "Training and enablement"
+        ,
+        "consulting": "Consulting and strategy",
+        "content": "Content and copywriting",
+        "data": "Data and analytics",
+        "hr": "Talent and HR services"
+      },
+      "deliveryModes": {
+        "online": "Online delivery",
+        "hybrid": "Hybrid delivery",
+        "onsite": "On-site delivery"
+      },
+      "employmentTypes": {
+        "fullTime": "Full-time",
+        "candidateOpen": "Open to discussion",
+        "news": "News",
+        "project": "Project-based"
+      },
+      "assistantActions": {
+        "polish": "Polish the headline",
+        "duplicate": "Create more distribution variants",
+        "match": "Prepare matching suggestions"
+      },
+      "assistantPanel": {
+        "title": "What OpenClaw can help with",
+        "description": "Use the assistant to improve copy quality, structure service scope, prepare quote variants, and queue the right downstream follow-up."
+      },
+      "assistantCards": {
+        "jobSeeking": "Candidate positioning",
+        "jobSeekingDescription": "Highlight strengths, target roles, and priority locations in a cleaner listing summary.",
+        "recruitment": "Hiring narrative",
+        "recruitmentDescription": "Turn a rough JD into a stronger recruiting message with sharper benefits and role framing.",
+        "distribution": "Distribution readiness",
+        "distributionDescription": "Prepare versions for featured slots, service briefs, quotes, and future multi-channel posting."
+      },
+      "publishChecklist": {
+        "title": "Publish checklist",
+        "items": {
+          "structured": "Complete structured fields so the listing can be searched and matched cleanly.",
+          "headline": "Use OpenClaw to sharpen the title and opening summary.",
+          "contact": "Add a clear follow-up note so replies can be triaged faster."
+        }
+      },
       "addCover": "Add cover",
       "addTag": "Add tag...",
       "addTags": "Add tags...",
       "ai": {
         "askAi": "Ask AI",
-        "askAiTitle": "Prompt AI to draft content",
-        "continue": "Continue",
-        "continueTitle": "Continue writing from the current cursor position",
-        "fix": "Fix",
-        "fixTitle": "Fix spelling and grammar",
-        "improve": "Improve",
-        "improveTitle": "Improve tone and clarity",
-        "longer": "Longer",
-        "longerTitle": "Expand the selected text",
-        "promptPlaceholder": "Describe what you want AI to write...",
-        "shorter": "Shorter",
-        "shorterTitle": "Make the selected text more concise",
-        "summarize": "Summarize",
-        "summarizeTitle": "Summarize the article so far"
+        "promptPlaceholder": "Describe what OpenClaw should write..."
       },
       "changeCover": "Change cover",
-      "coverAlt": "Post cover",
+      "coverAlt": "Entry cover",
       "draft": "Draft",
-      "editorActions": {
-        "addImage": "Add image",
-        "bulletList": "Bullet list",
-        "codeBlock": "Code block",
-        "headingTwo": "Heading",
-        "taskList": "Task list"
-      },
-      "editorPlaceholder": "Start writing your post...",
+      "editorPlaceholder": "Write the detailed description, requirements, or background here...",
       "prompts": {
         "imageUrl": "Enter an image URL",
         "linkUrl": "Enter a link URL"
       },
-      "publish": "Publish",
+      "publish": "Publish entry",
       "removeCover": "Remove cover",
-      "titlePlaceholder": "Write a memorable title",
+      "titlePlaceholder": "Write a headline that converts browsing into inquiry",
       "toasts": {
-        "aiActionCompleted": "AI update applied",
-        "aiActionFailed": "AI action failed",
         "contentGenerated": "Content generated",
+        "enterCompensation": "Please enter salary or budget information",
         "enterContent": "Please enter some content",
+        "enterDeliveryMode": "Please select a delivery mode",
+        "enterLocation": "Please enter a location",
+        "enterServiceLine": "Please select a service line",
         "enterTitle": "Please enter a title",
+        "enterTurnaround": "Please enter a turnaround commitment",
         "generateFailed": "Content generation failed",
-        "publishFailed": "Failed to publish post",
-        "publishSuccess": "Post published successfully"
+        "publishFailed": "Failed to publish entry",
+        "publishSuccess": "Entry published successfully"
       }
     },
     "postDetail": {
@@ -1153,17 +1381,62 @@
         "sendComment": "Send comment",
         "share": "Share"
       },
-      "backToCommunity": "Back to Community",
-      "commentPlaceholder": "Add to the discussion...",
+      "assistantCta": {
+        "title": "OpenClaw can take the next step",
+        "description": "Use the assistant to optimize this entry, prepare repost variants, or organize the next follow-up action.",
+        "primaryAction": "Ask OpenClaw to continue"
+      },
+      "backToCommunity": "Back to classifieds",
+      "commentPlaceholder": "Add a follow-up note or question...",
       "commentsTitle": "Comments ({{count, number}})",
       "currentUserInitials": "ME",
+      "featuredBadge": "Featured",
+      "listingMeta": {
+        "title": "Listing metadata",
+        "location": "Location",
+        "compensation": "Salary / budget",
+        "company": "Company",
+        "serviceLine": "Service line",
+        "deliveryMode": "Delivery mode",
+        "turnaround": "Turnaround",
+        "contactPreference": "Follow-up preference",
+        "employmentType": "Engagement",
+        "publisherType": "Publisher type",
+        "publisherTypes": {
+          "personal": "Personal",
+          "company": "Company",
+          "official": "Official"
+        },
+        "serviceLines": {
+          "legal": "Legal services",
+          "tax": "Tax and bookkeeping",
+          "design": "Brand and design",
+          "development": "Development and automation",
+          "marketing": "Marketing and growth",
+          "translation": "Translation and localization",
+          "operations": "Remote operations",
+          "training": "Training and enablement"
+          ,
+          "consulting": "Consulting and strategy",
+          "content": "Content and copywriting",
+          "data": "Data and analytics",
+          "hr": "Talent and HR services"
+        },
+        "deliveryModes": {
+          "online": "Online delivery",
+          "hybrid": "Hybrid delivery",
+          "onsite": "On-site delivery"
+        }
+      },
       "meta": {
         "views": "{{count, number}} views"
       },
-      "notFoundTitle": "Post not found",
+      "newsPanelTitle": "Platform news",
+      "newsPanelDescription": "This is an official news entry, so it stays readable as a retained news module inside the broader classifieds entrance.",
+      "notFoundTitle": "Entry not found",
       "roles": {
-        "coreContributor": "Core Contributor",
-        "official": "Official"
+        "official": "Official",
+        "coreContributor": "Core Contributor"
       }
     }
   },
@@ -1348,12 +1621,14 @@
       "subtitle": "Connect your OpenClaw agents to external messaging platforms and APIs.",
       "status": {
         "active": "Active",
+        "disconnected": "Disconnected",
         "notConfigured": "Not Configured"
       },
       "actions": {
         "connect": "Connect",
         "configure": "Configure",
         "enableChannel": "Enable {{name}}",
+        "openOfficialSite": "Open official setup",
         "saveAndEnable": "Save & Enable Channel",
         "deleteConfiguration": "Delete Configuration",
         "saving": "Saving..."
@@ -1361,6 +1636,7 @@
       "panel": {
         "configuration": "Channel Configuration",
         "setupGuide": "Setup Guide",
+        "openOfficialSite": "Open official setup page",
         "readFullDocumentation": "Read full documentation",
         "credentials": "Credentials"
       }
@@ -1837,6 +2113,7 @@
           "configuredFields": "Configured Fields",
           "deliveryState": "Delivery State",
           "setupSteps": "Setup Steps",
+          "schedule": "Schedule",
           "lastRun": "Last Run",
           "nextRun": "Next Run",
           "actionType": "Action Type",
@@ -2320,7 +2597,7 @@
         "title": "Model stats"
       },
       "tabs": {
-        "community": "Community",
+        "community": "Classifieds",
         "files": "Files",
         "modelCard": "Model card"
       },
@@ -2362,6 +2639,19 @@
       "hero": {
         "title": "Install Claw"
       },
+      "header": {
+        "eyebrow": "Task-focused setup",
+        "badges": {
+          "detectedInstall": "Detected runtime",
+          "currentProduct": "Current product",
+          "lifecycleMode": "Lifecycle mode",
+          "availableActions": "Available now",
+          "availableForProduct": "Available for this product",
+          "installPaths": "install paths",
+          "uninstallPaths": "uninstall paths",
+          "migrationSources": "import sources"
+        }
+      },
       "tabs": {
         "install": "Install",
         "uninstall": "Uninstall",
@@ -2369,24 +2659,75 @@
       },
       "modes": {
         "install": {
-          "description": "Choose a Claw product, match the install mode to the current system, and complete setup without leaving the desktop app."
+          "description": "Choose an install path, review readiness, and start setup without leaving the desktop app."
         },
         "uninstall": {
-          "description": "Remove an existing OpenClaw installation with the uninstall flow that matches how it was originally installed."
+          "description": "Review the detected runtime and remove the current OpenClaw installation with the matching uninstall path."
         },
         "migrate": {
-          "description": "Migrate OpenClaw content into Claw Studio and bring over settings, workspace data, and related files."
+          "description": "Choose sources to import, review detected folders, and migrate OpenClaw content into Claw Studio."
         }
       },
       "runtime": {
         "label": "Detected platform",
         "detectedInstall": "OpenClaw detected",
+        "actions": {
+          "rescan": "Rescan environment"
+        },
         "values": {
           "windows": "Windows",
           "macos": "macOS",
           "linux": "Linux",
           "unknown": "Unknown"
         }
+      },
+      "assessment": {
+        "title": "Environment check",
+        "modalTitle": "Review prerequisites before installation",
+        "status": {
+          "inspecting": "Inspecting environment",
+          "ready": "Ready to install",
+          "needsSetup": "Needs setup",
+          "blocked": "Blocked",
+          "failed": "Inspection failed"
+        },
+        "runtimeSummary": "Runtime target: {{runtime}}",
+        "summary": {
+          "blockers": "{{count}} blockers",
+          "warnings": "{{count}} warnings",
+          "autoFixes": "{{count}} auto fixes"
+        },
+        "sections": {
+          "issues": "Issues",
+          "dependencies": "Dependencies",
+          "recommendations": "Recommendations"
+        },
+        "labels": {
+          "runtime": "Runtime",
+          "controlLevel": "Control level",
+          "installRoot": "Install root",
+          "dataRoot": "Data root",
+          "availableWslDistributions": "Available WSL distros",
+          "commands": "Command availability"
+        },
+        "issueSeverity": {
+          "error": "Blocking",
+          "warning": "Attention",
+          "info": "Info"
+        },
+        "dependencyStatus": {
+          "available": "Available",
+          "missing": "Missing",
+          "remediable": "Auto-fix available",
+          "unsupported": "Unsupported"
+        },
+        "actions": {
+          "refresh": "Refresh check",
+          "autoRun": "Automatic fix",
+          "manualFix": "Manual fix"
+        },
+        "emptyRecommendations": "No additional recommendations.",
+        "blockedDescription": "Resolve the blocking issues above before starting installation."
       },
       "products": {
         "openclaw": {
@@ -2449,6 +2790,15 @@
           "comingSoon": "In development"
         }
       },
+      "install": {
+        "sectionTitle": "Choose a product",
+        "sectionHeading": "Ready to install on this device",
+        "sectionDescription": "Pick a product, compare the paths that fit this machine, and start with the option that gets you running fastest.",
+        "supportTitle": "Quick system note",
+        "supportDescription": "Keep a modern CPU, stable network access, and enough free disk space available for {{product}} before you begin.",
+        "selectedProduct": "Selected",
+        "readyHint": "Ready to install"
+      },
       "systemRequirements": {
         "title": "System requirements",
         "description": "A modern CPU, stable network access, and enough disk space for {{product}} artifacts are recommended for the smoothest setup."
@@ -2456,6 +2806,10 @@
       "uninstall": {
         "title": "Uninstall OpenClaw",
         "description": "Pick the uninstall mode that matches the current OpenClaw installation and remove the existing runtime cleanly.",
+        "detectedTitle": "Detected OpenClaw runtime",
+        "reviewTitle": "Review first",
+        "reviewHeading": "Confirm the runtime before you remove it",
+        "reviewDescription": "Review the current {{product}} runtime before removing it.",
         "detected": {
           "installMode": "Detected install mode",
           "installRoot": "Install root",
@@ -2483,6 +2837,8 @@
       "migrate": {
         "title": "Migrate OpenClaw",
         "description": "Import settings, workspace data, and related files into Claw Studio.",
+        "productDescription": "Import settings, workspace data, and related files from {{product}} into Claw Studio.",
+        "workspaceTitle": "Choose sources to import",
         "customSourceLabel": "Manual source folder",
         "customSourcePlaceholder": "No manual folder selected yet.",
         "readyTitle": "Ready to migrate",
@@ -2989,6 +3345,154 @@
       "selectSkillsTitle": "Select skills",
       "selectedSkills": "Selected skills",
       "targetInstance": "Target instance"
+    }
+  },
+  "apiRouterWorkspace": {
+    "eyebrow": "Commercial Routing",
+    "title": "API Router Workspace",
+    "description": "Switch between operational route management and model package procurement without leaving the existing API Router surface.",
+    "tabs": {
+      "routerConsole": "Router Console",
+      "modelPurchase": "Model Purchase"
+    }
+  },
+  "modelPurchase": {
+    "eyebrow": "Model Commerce",
+    "title": "Model Purchase",
+    "description": "Browse curated default, ChatGPT, MiniMax, and top US-China model packages with billing-ready monthly, quarterly, and yearly plans.",
+    "loading": "Loading model purchase catalog...",
+    "empty": {
+      "title": "No model packages available",
+      "description": "The purchase catalog returned no vendor packages. Refresh and try again."
+    },
+    "error": {
+      "title": "Unable to load the model purchase catalog",
+      "description": "We could not fetch vendor packages right now. Please retry."
+    },
+    "actions": {
+      "retry": "Retry"
+    },
+    "currency": {
+      "cny": "CNY"
+    },
+    "regions": {
+      "global": "Global",
+      "us": "US",
+      "china": "China"
+    },
+    "billingCycle": {
+      "title": "Billing cycle"
+    },
+    "badges": {
+      "mostPopular": "Most Popular",
+      "bestValue": "Best Value",
+      "enterprise": "Enterprise"
+    },
+    "cycles": {
+      "monthly": {
+        "label": "Monthly",
+        "description": "Flexible monthly procurement for launch and testing.",
+        "savingsHint": "Best for fast iteration."
+      },
+      "quarterly": {
+        "label": "Quarterly",
+        "description": "A steadier package for teams with predictable growth.",
+        "savingsHint": "Save 8% versus monthly."
+      },
+      "yearly": {
+        "label": "Yearly",
+        "description": "The strongest quota, support, and cost envelope.",
+        "savingsHint": "Save 23% versus monthly."
+      }
+    },
+    "sidebar": {
+      "defaultGroup": "Default Package",
+      "usTop10": "US Top 10",
+      "chinaTop10": "China Top 10",
+      "catalogTitle": "Purchase Catalog",
+      "spotlight": "Hot"
+    },
+    "summary": {
+      "region": "Coverage",
+      "globalBlend": "Global blended package",
+      "usTop10Value": "US top-model lineup",
+      "chinaTop10Value": "China top-model lineup",
+      "highlightModels": "Highlight models",
+      "activeCycle": "Active cycle"
+    },
+    "hero": {
+      "defaultBundle": "Default Router Bundle",
+      "topModelPackage": "{{region}} Top Model Package",
+      "procurementWindow": "{{cycle}} procurement window",
+      "savings": "Savings",
+      "fit": "Fit"
+    },
+    "planGrid": {
+      "period": {
+        "month": "month",
+        "quarter": "quarter",
+        "year": "year"
+      },
+      "quota": "Quota",
+      "support": "Support",
+      "seats": "Seats",
+      "concurrency": "Concurrency",
+      "includedModels": "Included models",
+      "startPlan": "Start {{planName}}"
+    },
+    "metrics": {
+      "curatedRoutes": {
+        "label": "Curated routes",
+        "value": "20 premium vendor lanes"
+      },
+      "packagingMode": {
+        "label": "Packaging mode",
+        "value": "Hybrid blended procurement"
+      },
+      "routedProviders": {
+        "label": "Routed providers",
+        "value": "{{active}}/{{total}} active"
+      },
+      "modelFamily": {
+        "label": "Model family"
+      },
+      "bestFor": {
+        "label": "Best for"
+      }
+    },
+    "plans": {
+      "tokens": "{{value}}M tokens",
+      "taglines": {
+        "launch": "Fast-start package for {{vendor}}.",
+        "pro": "Most adopted package for {{vendor}}.",
+        "enterprise": "Full enterprise package for {{vendor}}."
+      },
+      "seats": {
+        "starter": "1 seat",
+        "growth": "5 seats",
+        "enterprise": "20 seats"
+      },
+      "concurrency": {
+        "starter": "3 concurrent tasks",
+        "growth": "8 concurrent tasks",
+        "enterprise": "24 concurrent tasks"
+      },
+      "support": {
+        "starter": "Business hours",
+        "growth": "Priority support",
+        "enterprise": "SLA + dedicated TAM"
+      },
+      "benefits": {
+        "usageOverview": "Usage overview",
+        "keyRotationReminders": "Key rotation reminders",
+        "priorityProcurement": "Priority procurement",
+        "routeHealthDigest": "Route health digest",
+        "dedicatedOnboarding": "Dedicated onboarding",
+        "privateRoutingAdvisory": "Private routing advisory",
+        "includesModels": "Includes {{models}}",
+        "channelNamed": "Channel: {{name}}",
+        "channelDefault": "Channel: Hybrid Default routing"
+      }
     }
   }
 }

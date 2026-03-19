@@ -41,7 +41,7 @@
     "cronTasks": "Cron Tasks",
     "appStore": "App Store",
     "extensions": "Extensions",
-    "community": "Community",
+    "community": "分类信息",
     "githubRepos": "GitHub Repos",
     "huggingFace": "Hugging Face",
     "workspace": "Workspace",
@@ -49,6 +49,7 @@
     "setup": "Setup",
     "codebox": "CodeBox",
     "apiRouter": "API Router",
+    "modelPurchase": "模型购买",
     "clawUpload": "Claw Upload",
     "systemResources": "System Resources",
     "cpu": "CPU",
@@ -190,6 +191,10 @@
       "apiRouter": {
         "title": "Go to API Router",
         "subtitle": "Manage model channels and proxy providers"
+      },
+      "modelPurchase": {
+        "title": "前往模型购买",
+        "subtitle": "浏览独立模型套餐与计费方案"
       },
       "settings": {
         "title": "Go to Settings",
@@ -1043,127 +1048,395 @@
   },
   "community": {
     "page": {
-      "title": "Community",
-      "subtitle": "Learn, share, and connect",
-      "searchPlaceholder": "Search articles, discussions...",
-      "newPost": "New Post",
+      "title": "OpenClaw 分类信息",
+      "subtitle": "由 OpenClaw 驱动的分类信息入口，优先服务个人求职、企业招聘、线上可交付服务、商务合作与平台资讯。",
+      "searchPlaceholder": "搜索岗位、候选人、法律服务、线上交付服务、合作机会或平台资讯...",
+      "newPost": "用 OpenClaw 发布",
       "categories": {
-        "posts": "Posts",
-        "news": "News"
+        "jobSeeking": "求职",
+        "recruitment": "招聘",
+        "services": "服务",
+        "partnerships": "合作",
+        "news": "资讯"
       },
-      "loadingPosts": "Loading posts...",
-      "officialBadge": "Official",
-      "noPostsTitle": "No posts found",
-      "noPostsDescription": "Try adjusting your search or category filter.",
-      "latestClaw": "Latest Claw",
-      "onlineClaw": "Online Claw",
-      "hottestClaw": "Hottest Claw",
-      "viewRankings": "View Rankings",
-      "latestItems": {
-        "one": {
-          "name": "Auto-GPT Agent",
-          "author": "AI Labs",
-          "time": "2h ago"
-        },
-        "two": {
-          "name": "Vision Analyzer",
-          "author": "Tech Corp",
-          "time": "5h ago"
-        },
-        "three": {
-          "name": "Data Scraper Pro",
-          "author": "DevTeam",
-          "time": "1d ago"
+      "categorySummaries": {
+        "jobSeeking": "发布个人求职画像、目标岗位与意向城市，提升匹配效率。",
+        "recruitment": "优先承接企业招聘、急招岗位与雇主品牌类信息。",
+        "services": "连接法律、财税、设计、开发、咨询、内容、数据、人才服务等可直接在线完成交付的服务供给。",
+        "partnerships": "承接渠道合作、线索联营与生态伙伴拓展机会。",
+        "news": "保留平台公告、产品更新与行业动态，作为独立资讯模块。"
+      },
+      "loadingPosts": "正在加载分类信息...",
+      "emptyTitle": "当前视图暂无匹配信息",
+      "emptyDescription": "可以切换分类，或放宽搜索条件后再试。",
+      "noPostsTitle": "当前视图暂无匹配信息",
+      "noPostsDescription": "可以切换分类，或放宽搜索条件后再试。",
+      "noNewsTitle": "暂无匹配资讯",
+      "noNewsDescription": "换个关键词，或切回分类信息流查看。",
+      "hero": {
+        "eyebrow": "招聘优先入口",
+        "badge": "招聘优先入口",
+        "primaryCta": "用 OpenClaw 发布",
+        "secondaryCta": "浏览平台资讯",
+        "newsCta": "浏览平台资讯",
+        "metrics": {
+          "recruitment": {
+            "label": "招聘",
+            "description": "面向企业侧的高价值岗位需求"
+          },
+          "jobSeeking": {
+            "label": "求职",
+            "description": "可被快速匹配的个人求职信息"
+          },
+          "news": {
+            "label": "资讯",
+            "description": "平台公告与行业动态"
+          }
         }
       },
-      "onlineItems": {
-        "one": "Trading Bot V2",
-        "two": "SEO Optimizer",
-        "three": "Image Generator"
+      "classifiedHub": {
+        "title": "高营收业务优先",
+        "description": "先聚焦招聘与求职，再逐步扩展服务、合作和资讯，形成更稳的分类信息入口。",
+        "badge": "参考 58 类业务逻辑"
       },
-      "hottestItems": {
-        "one": "Code Assistant",
-        "two": "UI Builder",
-        "three": "DB Manager"
+      "assistantWorkbench": {
+        "title": "OpenClaw 智能工作台",
+        "description": "让发布、筛选和跟进从纯文本发帖升级为结构化智能协作。",
+        "cards": {
+          "jobSeeking": {
+            "title": "求职助手",
+            "description": "提炼个人优势、润色简历摘要，并生成多版本投递文案。"
+          },
+          "recruitment": {
+            "title": "招聘助手",
+            "description": "强化岗位亮点、薪酬表达与沟通话术，提升招聘转化。"
+          },
+          "followUp": {
+            "title": "线索跟进助手",
+            "description": "整理高意向回复、生成下一步建议，并沉淀可执行动作。"
+          },
+          "jobSeeker": {
+            "title": "求职助手",
+            "description": "提炼个人优势、润色简历摘要，并生成多版本投递文案。"
+          },
+          "recruiter": {
+            "title": "招聘助手",
+            "description": "强化岗位亮点、薪酬表达与沟通话术，帮助招聘信息更快转化。"
+          },
+          "leadFollowup": {
+            "title": "线索跟进助手",
+            "description": "整理高意向回复、补全跟进建议，并把后续动作排进工作流。"
+          }
+        }
+      },
+      "serviceCatalog": {
+        "title": "线上服务目录",
+        "description": "以法律服务为首位，再扩展到咨询顾问、内容代写、数据分析、人才服务等所有可以借助 OpenClaw 完成需求梳理、报价、交付与跟进的线上服务线。",
+        "items": {
+          "legal": {
+            "title": "法律服务",
+            "description": "覆盖合同审核、合规检查、隐私政策、劳动文档与风险说明等远程交付服务。"
+          },
+          "tax": {
+            "title": "财税与代账",
+            "description": "支持远程记账、报税辅导、发票流转和持续性合规操作。"
+          },
+          "design": {
+            "title": "品牌与设计",
+            "description": "可在线完成品牌视觉、路演 Deck、招聘物料、官网页面与活动设计。"
+          },
+          "development": {
+            "title": "开发与自动化",
+            "description": "交付落地页、OpenClaw 工作流、内部工具和 AI 自动化能力。"
+          },
+          "marketing": {
+            "title": "营销与增长",
+            "description": "适合 SEO、内容运营、雇主品牌活动和线上获客转化场景。"
+          },
+          "translation": {
+            "title": "翻译与本地化",
+            "description": "支持产品文案、法律文本、帮助中心和官网页面的双语本地化。"
+          },
+          "operations": {
+            "title": "远程运营",
+            "description": "适合客服 SOP、社群运营、响应流程与运营机制搭建。"
+          },
+          "training": {
+            "title": "培训与赋能",
+            "description": "支持在线培训、AI 上手辅导、工作流演示和团队能力提升。"
+          },
+          "consulting": {
+            "title": "咨询与策略顾问",
+            "description": "适合 GTM 诊断、定价策略、商业化路径、创始人顾问与决策支持。"
+          },
+          "content": {
+            "title": "内容与代写",
+            "description": "支持官网文案、白皮书、帮助中心、脚本、产品页面和发布内容代写。"
+          },
+          "data": {
+            "title": "数据与分析",
+            "description": "可交付 dashboard、BI 看板、漏斗分析、指标体系与远程数据解读报告。"
+          },
+          "hr": {
+            "title": "人才与 HR 服务",
+            "description": "适合简历优化、面试辅导、筛选 SOP、招聘流程模板和远程人才工作流。"
+          }
+        }
+      },
+      "feedEyebrow": "分类信息流",
+      "feed": {
+        "title": "分类信息流",
+        "description": "用结构化方式承载招聘、求职、服务、合作与资讯内容。",
+        "featuredBadge": "精选",
+        "publisherTypes": {
+          "personal": "个人",
+          "company": "企业",
+          "official": "官方"
+        },
+        "openclawAction": "让 OpenClaw 继续处理"
+      },
+      "listing": {
+        "openclawAction": "让 OpenClaw 继续处理",
+        "readMore": "查看详情",
+        "viewAll": "查看全部"
+      },
+      "featuredBadge": "精选",
+      "officialBadge": "官方",
+      "meta": {
+        "location": "地点",
+        "compensation": "薪资 / 预算",
+        "company": "公司",
+        "publisher": "发布者",
+        "serviceLine": "服务线",
+        "deliveryMode": "交付方式",
+        "turnaround": "交付时效"
+      },
+      "rails": {
+        "urgentRecruitment": "急招岗位",
+        "onlineServices": "线上服务",
+        "platformNews": "平台资讯"
+      },
+      "rail": {
+        "hotRecruitment": "急招岗位",
+        "latestNews": "平台资讯",
+        "featuredServices": "精选服务"
+      },
+      "revenueServices": {
+        "title": "营收能力",
+        "items": {
+          "featured": {
+            "title": "精选推荐位",
+            "description": "提供首页与类目的优先曝光，提升高价值信息的可见度。"
+          },
+          "accelerator": {
+            "title": "企业加速服务",
+            "description": "为急招企业提供更高频曝光、文案优化与候选人触达加速。"
+          },
+          "assistant": {
+            "title": "OpenClaw 代运营助手",
+            "description": "围绕发帖、筛选、跟进与复投形成持续付费的智能服务能力。"
+          },
+          "urgent": {
+            "title": "急招加速",
+            "description": "帮助企业招聘信息获得更高频曝光，并更快触达到高意向候选人。"
+          },
+          "resume": {
+            "title": "简历优先匹配",
+            "description": "将更优质的候选人资料优先推入企业推荐名单。"
+          }
+        }
       }
     },
-    "categories": {
-      "announcements": "Announcements",
-      "discussions": "Discussions",
-      "help": "Help",
-      "showcase": "Showcase",
-      "tutorials": "Tutorials"
-    },
     "newPost": {
-      "addCover": "Add cover",
-      "addTag": "Add tag...",
-      "addTags": "Add tags...",
+      "hero": {
+        "badge": "结构化发布",
+        "title": "用 OpenClaw 发布分类信息",
+        "description": "先选择信息类型，再补全结构化字段，让 OpenClaw 帮你润色内容并生成更适合投放的版本。"
+      },
+      "entryTypes": {
+        "jobSeeking": "个人求职",
+        "recruitment": "企业招聘",
+        "services": "线上服务",
+        "partnerships": "商务合作",
+        "news": "平台资讯"
+      },
+      "publisherTypes": {
+        "personal": "个人发布",
+        "company": "企业发布",
+        "official": "官方发布"
+      },
+      "fields": {
+        "entryType": "信息类型",
+        "publisherType": "发布身份",
+        "location": "地点",
+        "compensation": "薪资 / 预算",
+        "serviceLine": "服务线",
+        "deliveryMode": "交付方式",
+        "turnaround": "交付时效",
+        "company": "公司 / 品牌",
+        "contactPreference": "跟进方式"
+      },
+      "placeholders": {
+        "location": "上海 / 远程",
+        "compensation": "期望 25k-35k 或项目预算 6k+",
+        "company": "OpenClaw",
+        "contactPreference": "让 OpenClaw 先筛选并整理回复"
+      },
+      "defaults": {
+        "newsLocation": "平台公告",
+        "newsCompensation": "官方资讯",
+        "serviceLocation": "远程 / 在线交付",
+        "serviceCompensation": "套餐报价、定制报价或月度顾问费",
+        "serviceTurnaround": "例如：48 小时内交付首版"
+      },
+      "serviceLines": {
+        "legal": "法律服务",
+        "tax": "财税与代账",
+        "design": "品牌与设计",
+        "development": "开发与自动化",
+        "marketing": "营销与增长",
+        "translation": "翻译与本地化",
+        "operations": "远程运营",
+        "training": "培训与赋能"
+        ,
+        "consulting": "咨询与策略顾问",
+        "content": "内容与代写",
+        "data": "数据与分析",
+        "hr": "人才与 HR 服务"
+      },
+      "deliveryModes": {
+        "online": "线上交付",
+        "hybrid": "线上为主 / 可线下配合",
+        "onsite": "线下交付"
+      },
+      "employmentTypes": {
+        "fullTime": "全职",
+        "candidateOpen": "开放沟通",
+        "news": "资讯",
+        "project": "项目合作"
+      },
+      "assistantActions": {
+        "polish": "润色标题",
+        "duplicate": "生成更多投放版本",
+        "match": "准备匹配建议"
+      },
+      "assistantPanel": {
+        "title": "OpenClaw 可以帮你做什么",
+        "description": "将一条信息拆成多版本发布文案，并帮助你结构化服务范围、报价版本和后续跟进。"
+      },
+      "assistantCards": {
+        "jobSeeking": "候选人定位",
+        "jobSeekingDescription": "突出个人优势、目标岗位和优先城市，让求职信息更清晰。",
+        "recruitment": "招聘叙事",
+        "recruitmentDescription": "把粗糙 JD 整理成更强的招聘表达，突出福利、岗位价值和转化点。",
+        "distribution": "分发就绪",
+        "distributionDescription": "提前准备适合精选位、服务方案、报价单和多渠道投放的版本。"
+      },
+      "publishChecklist": {
+        "title": "发布检查清单",
+        "items": {
+          "structured": "补全结构化字段，保证信息可被准确检索与匹配。",
+          "headline": "用 OpenClaw 打磨标题与开头摘要，提升咨询转化。",
+          "contact": "补充清晰的跟进说明，帮助回复更快进入处理流程。"
+        }
+      },
+      "addCover": "添加封面",
+      "addTag": "添加标签...",
+      "addTags": "添加标签...",
       "ai": {
-        "askAi": "Ask AI",
-        "askAiTitle": "Prompt AI to draft content",
-        "continue": "Continue",
-        "continueTitle": "Continue writing from the current cursor position",
-        "fix": "Fix",
-        "fixTitle": "Fix spelling and grammar",
-        "improve": "Improve",
-        "improveTitle": "Improve tone and clarity",
-        "longer": "Longer",
-        "longerTitle": "Expand the selected text",
-        "promptPlaceholder": "Describe what you want AI to write...",
-        "shorter": "Shorter",
-        "shorterTitle": "Make the selected text more concise",
-        "summarize": "Summarize",
-        "summarizeTitle": "Summarize the article so far"
+        "askAi": "问 AI",
+        "promptPlaceholder": "告诉 OpenClaw 你想生成什么内容..."
       },
-      "changeCover": "Change cover",
-      "coverAlt": "Post cover",
-      "draft": "Draft",
-      "editorActions": {
-        "addImage": "Add image",
-        "bulletList": "Bullet list",
-        "codeBlock": "Code block",
-        "headingTwo": "Heading",
-        "taskList": "Task list"
-      },
-      "editorPlaceholder": "Start writing your post...",
+      "changeCover": "更换封面",
+      "coverAlt": "信息封面",
+      "draft": "草稿",
+      "editorPlaceholder": "在这里补充详细描述、要求、背景或合作说明...",
       "prompts": {
-        "imageUrl": "Enter an image URL",
-        "linkUrl": "Enter a link URL"
+        "imageUrl": "输入图片地址",
+        "linkUrl": "输入链接地址"
       },
-      "publish": "Publish",
-      "removeCover": "Remove cover",
-      "titlePlaceholder": "Write a memorable title",
+      "publish": "发布信息",
+      "removeCover": "移除封面",
+      "titlePlaceholder": "写一个能把浏览转成咨询的标题",
       "toasts": {
-        "aiActionCompleted": "AI update applied",
-        "aiActionFailed": "AI action failed",
-        "contentGenerated": "Content generated",
-        "enterContent": "Please enter some content",
-        "enterTitle": "Please enter a title",
-        "generateFailed": "Content generation failed",
-        "publishFailed": "Failed to publish post",
-        "publishSuccess": "Post published successfully"
+        "contentGenerated": "内容已生成",
+        "enterCompensation": "请输入薪资或预算信息",
+        "enterContent": "请输入内容",
+        "enterDeliveryMode": "请选择交付方式",
+        "enterLocation": "请输入地点",
+        "enterServiceLine": "请选择服务线",
+        "enterTitle": "请输入标题",
+        "enterTurnaround": "请输入交付时效",
+        "generateFailed": "内容生成失败",
+        "publishFailed": "发布失败",
+        "publishSuccess": "发布成功"
       }
     },
     "postDetail": {
       "actions": {
-        "bookmark": "Bookmark",
-        "follow": "Follow",
-        "more": "More options",
-        "reply": "Reply",
-        "sendComment": "Send comment",
-        "share": "Share"
+        "bookmark": "收藏",
+        "follow": "关注",
+        "more": "更多操作",
+        "reply": "回复",
+        "sendComment": "发送评论",
+        "share": "分享"
       },
-      "backToCommunity": "Back to Community",
-      "commentPlaceholder": "Add to the discussion...",
-      "commentsTitle": "Comments ({{count, number}})",
-      "currentUserInitials": "ME",
+      "assistantCta": {
+        "title": "OpenClaw 后续处理",
+        "description": "让助手继续优化这条信息、生成复投版本，或组织下一步跟进动作。",
+        "primaryAction": "让 OpenClaw 继续"
+      },
+      "backToCommunity": "返回分类信息",
+      "commentPlaceholder": "补充跟进说明或提问...",
+      "commentsTitle": "评论（{{count, number}}）",
+      "currentUserInitials": "我",
+      "featuredBadge": "精选",
+      "listingMeta": {
+        "title": "信息元数据",
+        "location": "地点",
+        "compensation": "薪资 / 预算",
+        "company": "公司",
+        "serviceLine": "服务线",
+        "deliveryMode": "交付方式",
+        "turnaround": "交付时效",
+        "contactPreference": "跟进方式",
+        "employmentType": "合作类型",
+        "publisherType": "发布身份",
+        "publisherTypes": {
+          "personal": "个人",
+          "company": "企业",
+          "official": "官方"
+        },
+        "serviceLines": {
+          "legal": "法律服务",
+          "tax": "财税与代账",
+          "design": "品牌与设计",
+          "development": "开发与自动化",
+          "marketing": "营销与增长",
+          "translation": "翻译与本地化",
+          "operations": "远程运营",
+          "training": "培训与赋能"
+          ,
+          "consulting": "咨询与策略顾问",
+          "content": "内容与代写",
+          "data": "数据与分析",
+          "hr": "人才与 HR 服务"
+        },
+        "deliveryModes": {
+          "online": "线上交付",
+          "hybrid": "线上为主 / 可线下配合",
+          "onsite": "线下交付"
+        }
+      },
       "meta": {
-        "views": "{{count, number}} views"
+        "views": "{{count, number}} 次浏览"
       },
-      "notFoundTitle": "Post not found",
+      "newsPanelTitle": "平台资讯",
+      "newsPanelDescription": "这是一条官方资讯内容，适合保留在资讯模块中集中浏览、转发与归档。",
+      "notFoundTitle": "未找到该信息",
       "roles": {
-        "coreContributor": "Core Contributor",
-        "official": "Official"
+        "official": "官方",
+        "coreContributor": "核心贡献者"
       }
     }
   },
@@ -1347,22 +1620,25 @@
       "title": "Channels",
       "subtitle": "Connect your OpenClaw agents to external messaging platforms and APIs.",
       "status": {
-        "active": "Active",
-        "notConfigured": "Not Configured"
+        "active": "已启用",
+        "disconnected": "未连接",
+        "notConfigured": "未配置"
       },
       "actions": {
-        "connect": "Connect",
-        "configure": "Configure",
-        "enableChannel": "Enable {{name}}",
-        "saveAndEnable": "Save & Enable Channel",
-        "deleteConfiguration": "Delete Configuration",
-        "saving": "Saving..."
+        "connect": "连接",
+        "configure": "配置",
+        "enableChannel": "启用 {{name}}",
+        "openOfficialSite": "前往开放平台",
+        "saveAndEnable": "保存并启用渠道",
+        "deleteConfiguration": "删除配置",
+        "saving": "保存中..."
       },
       "panel": {
-        "configuration": "Channel Configuration",
-        "setupGuide": "Setup Guide",
-        "readFullDocumentation": "Read full documentation",
-        "credentials": "Credentials"
+        "configuration": "渠道配置",
+        "setupGuide": "配置指南",
+        "openOfficialSite": "前往官方配置页",
+        "readFullDocumentation": "查看完整文档",
+        "credentials": "凭证信息"
       }
     }
   },
@@ -1837,6 +2113,7 @@
           "configuredFields": "Configured Fields",
           "deliveryState": "Delivery State",
           "setupSteps": "Setup Steps",
+          "schedule": "Schedule",
           "lastRun": "Last Run",
           "nextRun": "Next Run",
           "actionType": "Action Type",
@@ -2320,7 +2597,7 @@
         "title": "Model stats"
       },
       "tabs": {
-        "community": "Community",
+        "community": "分类信息",
         "files": "Files",
         "modelCard": "Model card"
       },
@@ -2362,6 +2639,19 @@
       "hero": {
         "title": "安装 Claw"
       },
+      "header": {
+        "eyebrow": "聚焦任务的安装工作台",
+        "badges": {
+          "detectedInstall": "已检测运行环境",
+          "currentProduct": "当前产品",
+          "lifecycleMode": "生命周期模式",
+          "availableActions": "当前可用",
+          "availableForProduct": "当前产品可用",
+          "installPaths": "种安装路径",
+          "uninstallPaths": "种卸载路径",
+          "migrationSources": "个导入来源"
+        }
+      },
       "tabs": {
         "install": "安装",
         "uninstall": "卸载",
@@ -2369,13 +2659,13 @@
       },
       "modes": {
         "install": {
-          "description": "选择要安装的 Claw 产品，自动匹配当前系统支持的安装方式，并在桌面应用内完成安装。"
+          "description": "选择安装路径，确认环境是否就绪，然后直接在桌面应用里开始安装。"
         },
         "uninstall": {
-          "description": "按原始安装方式选择对应卸载流程，清理现有的 OpenClaw 安装。"
+          "description": "先确认已检测到的运行环境，再按匹配的卸载路径移除当前 OpenClaw 安装。"
         },
         "migrate": {
-          "description": "将 OpenClaw 的配置、工作区数据以及相关文件迁移到 Claw Studio。"
+          "description": "选择要导入的来源，检查已检测目录，然后把 OpenClaw 内容迁移到 Claw Studio。"
         }
       },
       "runtime": {
@@ -2387,6 +2677,54 @@
           "linux": "Linux",
           "unknown": "未知"
         }
+      },
+      "assessment": {
+        "title": "环境检查",
+        "modalTitle": "安装前请先检查前置条件",
+        "status": {
+          "inspecting": "正在检查环境",
+          "ready": "可以开始安装",
+          "needsSetup": "仍需准备",
+          "blocked": "已阻塞",
+          "failed": "检查失败"
+        },
+        "runtimeSummary": "运行时目标：{{runtime}}",
+        "summary": {
+          "blockers": "{{count}} 个阻塞项",
+          "warnings": "{{count}} 个提醒",
+          "autoFixes": "{{count}} 个自动修复"
+        },
+        "sections": {
+          "issues": "问题",
+          "dependencies": "依赖",
+          "recommendations": "建议"
+        },
+        "labels": {
+          "runtime": "运行时",
+          "controlLevel": "控制级别",
+          "installRoot": "安装目录",
+          "dataRoot": "数据目录",
+          "availableWslDistributions": "可用 WSL 发行版",
+          "commands": "命令可用性"
+        },
+        "issueSeverity": {
+          "error": "阻塞",
+          "warning": "注意",
+          "info": "信息"
+        },
+        "dependencyStatus": {
+          "available": "已就绪",
+          "missing": "缺失",
+          "remediable": "可自动修复",
+          "unsupported": "不支持"
+        },
+        "actions": {
+          "refresh": "重新检查",
+          "autoRun": "自动修复",
+          "manualFix": "手动修复"
+        },
+        "emptyRecommendations": "暂无额外建议。",
+        "blockedDescription": "请先解决上方阻塞项，再开始安装。"
       },
       "products": {
         "openclaw": {
@@ -2449,6 +2787,15 @@
           "comingSoon": "开发中"
         }
       },
+      "install": {
+        "sectionTitle": "选择产品",
+        "sectionHeading": "当前设备已准备好安装",
+        "sectionDescription": "先选择产品，再比较适合当前机器的安装方式，直接从最合适的路径开始。",
+        "supportTitle": "快速环境提示",
+        "supportDescription": "开始前请确认 {{product}} 所需的 CPU、网络连接与可用磁盘空间已经准备好。",
+        "selectedProduct": "已选择",
+        "readyHint": "可以安装"
+      },
       "systemRequirements": {
         "title": "系统要求",
         "description": "建议准备现代 CPU、稳定的网络连接，以及足够的磁盘空间来完成 {{product}} 的安装与运行。"
@@ -2456,6 +2803,10 @@
       "uninstall": {
         "title": "卸载 OpenClaw",
         "description": "选择与当前 OpenClaw 安装方式匹配的卸载模式，干净移除现有运行环境。",
+        "detectedTitle": "已检测到 OpenClaw 运行环境",
+        "reviewTitle": "卸载前确认",
+        "reviewHeading": "确认当前运行环境后再移除",
+        "reviewDescription": "先确认当前 {{product}} 运行环境，再执行移除。",
         "detected": {
           "installMode": "已检测安装方式",
           "installRoot": "安装目录",
@@ -2483,6 +2834,8 @@
       "migrate": {
         "title": "迁移 OpenClaw",
         "description": "将 OpenClaw 的设置、工作区数据以及相关文件迁移到 Claw Studio。",
+        "productDescription": "将 {{product}} 的设置、工作区数据和相关文件导入到 Claw Studio。",
+        "workspaceTitle": "选择要导入的来源",
         "customSourceLabel": "手动选择的源目录",
         "customSourcePlaceholder": "尚未选择手动目录。",
         "readyTitle": "准备开始迁移",
@@ -2989,6 +3342,366 @@
       "selectSkillsTitle": "Select skills",
       "selectedSkills": "Selected skills",
       "targetInstance": "Target instance"
+    }
+  },
+  "apiRouterWorkspace": {
+    "eyebrow": "路由商业区",
+    "title": "API Router 工作区",
+    "description": "在不新增顶级路由的前提下，把路由运维和模型采购整合到同一个 API Router 工作区中。",
+    "tabs": {
+      "routerConsole": "路由控制台",
+      "modelPurchase": "模型购买"
+    }
+  },
+  "modelPurchase": {
+    "eyebrow": "模型商业区",
+    "title": "模型购买",
+    "description": "集中浏览默认套餐、ChatGPT、MiniMax 以及中美头部模型套餐，并按月、按季度、按年切换采购方案。",
+    "loading": "正在加载模型购买目录...",
+    "empty": {
+      "title": "暂无可用模型套餐",
+      "description": "当前采购目录未返回任何厂商套餐，请刷新后重试。"
+    },
+    "error": {
+      "title": "模型购买目录加载失败",
+      "description": "暂时无法获取厂商套餐，请稍后重试。"
+    },
+    "actions": {
+      "retry": "重试"
+    },
+    "currency": {
+      "cny": "CNY"
+    },
+    "regions": {
+      "global": "全球",
+      "us": "美国",
+      "china": "中国"
+    },
+    "billingCycle": {
+      "title": "计费周期"
+    },
+    "badges": {
+      "mostPopular": "最受欢迎",
+      "bestValue": "最佳价值",
+      "enterprise": "企业级"
+    },
+    "cycles": {
+      "monthly": {
+        "label": "按月",
+        "description": "适合启动与验证阶段的灵活月度采购。",
+        "savingsHint": "适合快速迭代。"
+      },
+      "quarterly": {
+        "label": "按季度",
+        "description": "适合增长节奏稳定团队的季度方案。",
+        "savingsHint": "相比按月节省 8%。"
+      },
+      "yearly": {
+        "label": "按年",
+        "description": "提供最强额度、支持与成本效率的年度方案。",
+        "savingsHint": "相比按月节省 23%。"
+      }
+    },
+    "sidebar": {
+      "defaultGroup": "默认套餐",
+      "usTop10": "美国 Top 10",
+      "chinaTop10": "中国 Top 10",
+      "catalogTitle": "采购目录",
+      "spotlight": "热门"
+    },
+    "summary": {
+      "region": "覆盖范围",
+      "globalBlend": "全球混合套餐",
+      "usTop10Value": "美国头部模型阵容",
+      "chinaTop10Value": "中国头部模型阵容",
+      "highlightModels": "重点模型",
+      "activeCycle": "当前周期"
+    },
+    "hero": {
+      "defaultBundle": "默认路由组合",
+      "topModelPackage": "{{region}}头部模型套餐",
+      "procurementWindow": "{{cycle}}采购窗口",
+      "savings": "优惠",
+      "fit": "适配团队"
+    },
+    "planGrid": {
+      "period": {
+        "month": "月",
+        "quarter": "季度",
+        "year": "年"
+      },
+      "quota": "额度",
+      "support": "支持",
+      "seats": "席位",
+      "concurrency": "并发",
+      "includedModels": "包含模型",
+      "startPlan": "开通 {{planName}}"
+    },
+    "metrics": {
+      "curatedRoutes": {
+        "label": "精选路由",
+        "value": "20 条高价值厂商通道"
+      },
+      "packagingMode": {
+        "label": "打包方式",
+        "value": "中美混合采购"
+      },
+      "routedProviders": {
+        "label": "已接入提供方",
+        "value": "{{active}}/{{total}} 已启用"
+      },
+      "modelFamily": {
+        "label": "模型家族"
+      },
+      "bestFor": {
+        "label": "适合"
+      }
+    },
+    "plans": {
+      "tokens": "{{value}}M Tokens",
+      "taglines": {
+        "launch": "适合快速启动 {{vendor}} 的入门方案。",
+        "pro": "最常被采用的 {{vendor}} 主力方案。",
+        "enterprise": "面向企业级部署的 {{vendor}} 完整方案。"
+      },
+      "seats": {
+        "starter": "1 个席位",
+        "growth": "5 个席位",
+        "enterprise": "20 个席位"
+      },
+      "concurrency": {
+        "starter": "3 个并发任务",
+        "growth": "8 个并发任务",
+        "enterprise": "24 个并发任务"
+      },
+      "support": {
+        "starter": "工作时间支持",
+        "growth": "优先支持",
+        "enterprise": "SLA + 专属 TAM"
+      },
+      "benefits": {
+        "usageOverview": "用量概览",
+        "keyRotationReminders": "密钥轮换提醒",
+        "priorityProcurement": "优先采购通道",
+        "routeHealthDigest": "路由健康摘要",
+        "dedicatedOnboarding": "专属上线辅导",
+        "privateRoutingAdvisory": "私有路由咨询",
+        "includesModels": "包含 {{models}}",
+        "channelNamed": "通道：{{name}}",
+        "channelDefault": "通道：默认混合路由"
+      }
+    },
+    "vendors": {
+      "default": {
+        "tagline": "为希望统一商业通道的团队提供均衡路由套餐。",
+        "heroDescription": "将中美模型通道整合进同一个共享额度池。",
+        "audience": "跨境产品团队",
+        "modelHighlights": [
+          "智能路由",
+          "统一额度",
+          "故障切换就绪"
+        ]
+      },
+      "openai": {
+        "tagline": "面向智能体、对话与推理场景的高阶 GPT 套餐。",
+        "heroDescription": "适合打造高端助手与运营副驾驶体验。",
+        "audience": "产品与智能体团队",
+        "modelHighlights": [
+          "GPT-4.1",
+          "o4-mini",
+          "实时能力"
+        ]
+      },
+      "anthropic": {
+        "tagline": "面向长上下文写作与知识工作的采购套餐。",
+        "heroDescription": "适合评审、政策与文档密集型业务场景。",
+        "audience": "研究与写作工作流",
+        "modelHighlights": [
+          "Claude Sonnet",
+          "Claude Opus",
+          "长上下文"
+        ]
+      },
+      "google": {
+        "tagline": "适合搜索、文档与工作空间 AI 的多模态套餐。",
+        "heroDescription": "非常适合图像、文档与多模态产品流程。",
+        "audience": "多模态产品团队",
+        "modelHighlights": [
+          "Gemini 2.5 Pro",
+          "Gemini Flash",
+          "Workspace"
+        ]
+      },
+      "xai": {
+        "tagline": "面向热点敏感产品的高时效响应套餐。",
+        "heroDescription": "适合媒体、社交与实时助手体验。",
+        "audience": "媒体与社交应用",
+        "modelHighlights": [
+          "Grok 推理",
+          "时效优先",
+          "快速迭代"
+        ]
+      },
+      "meta": {
+        "tagline": "结合开放权重与受管路由治理的采购套餐。",
+        "heroDescription": "适合希望兼顾开源灵活性与托管路由的构建者。",
+        "audience": "开放模型平台团队",
+        "modelHighlights": [
+          "Llama",
+          "可微调",
+          "适合自托管"
+        ]
+      },
+      "mistral": {
+        "tagline": "面向成本敏感副驾驶产品的高效欧洲套餐。",
+        "heroDescription": "适合自动化与生产力场景，同时控制高级模型支出。",
+        "audience": "自动化团队",
+        "modelHighlights": [
+          "Mistral Large",
+          "低延迟",
+          "高性价比"
+        ]
+      },
+      "cohere": {
+        "tagline": "具备企业姿态的搜索与 RAG 采购套餐。",
+        "heroDescription": "面向检索、Embedding 与企业副驾驶构建。",
+        "audience": "搜索与 RAG 平台",
+        "modelHighlights": [
+          "Command",
+          "RAG",
+          "搜索质量"
+        ]
+      },
+      "microsoft": {
+        "tagline": "适合微软技术栈的企业级采购套餐。",
+        "heroDescription": "非常适合工作流自动化与企业采购体系。",
+        "audience": "企业 IT 团队",
+        "modelHighlights": [
+          "Copilot",
+          "工作流 AI",
+          "治理能力"
+        ]
+      },
+      "amazon-nova": {
+        "tagline": "面向 AWS 原生团队的可扩展采购套餐。",
+        "heroDescription": "为 AWS 原生产品团队提供干净直接的购买路径。",
+        "audience": "AWS 原生应用团队",
+        "modelHighlights": [
+          "Nova",
+          "AWS 对齐",
+          "可扩展吞吐"
+        ]
+      },
+      "nvidia": {
+        "tagline": "面向 GPU 优先平台团队的推理型套餐。",
+        "heroDescription": "适合关注吞吐率与混合部署能力的团队。",
+        "audience": "推理平台团队",
+        "modelHighlights": [
+          "NIM",
+          "GPU 吞吐",
+          "混合部署"
+        ]
+      },
+      "deepseek": {
+        "tagline": "高性价比推理与代码场景采购套餐。",
+        "heroDescription": "非常适合工程、分析与高价格效率路由场景。",
+        "audience": "工程与推理负载",
+        "modelHighlights": [
+          "DeepSeek 推理",
+          "编码能力",
+          "Token 性价比"
+        ]
+      },
+      "qwen": {
+        "tagline": "适合多语言企业 AI 的均衡型国产套餐。",
+        "heroDescription": "是国内通用业务应用的稳妥选择。",
+        "audience": "通用企业应用",
+        "modelHighlights": [
+          "Qwen 推理",
+          "多语言",
+          "企业就绪"
+        ]
+      },
+      "zhipu": {
+        "tagline": "结构清晰的国产 GLM 采购套餐。",
+        "heroDescription": "适合企业部署与合规要求较高的采购方。",
+        "audience": "国内企业团队",
+        "modelHighlights": [
+          "GLM",
+          "国内合规",
+          "开发者流程"
+        ]
+      },
+      "baidu": {
+        "tagline": "适合搜索与知识系统的企业友好型套餐。",
+        "heroDescription": "非常适合助手、搜索与知识工作流采购。",
+        "audience": "搜索与知识团队",
+        "modelHighlights": [
+          "ERNIE",
+          "搜索原生",
+          "企业支持"
+        ]
+      },
+      "tencent-hunyuan": {
+        "tagline": "面向消费级规模 AI 产品的腾讯生态套餐。",
+        "heroDescription": "适合大型服务平台与高流量助手产品。",
+        "audience": "消费与服务平台",
+        "modelHighlights": [
+          "混元",
+          "腾讯生态",
+          "大流量场景"
+        ]
+      },
+      "doubao": {
+        "tagline": "面向创作者规模 AI 的高速成长型套餐。",
+        "heroDescription": "适合高用户量产品与创作工具场景。",
+        "audience": "消费级 AI 团队",
+        "modelHighlights": [
+          "豆包",
+          "消费级规模",
+          "创作者工作流"
+        ]
+      },
+      "moonshot": {
+        "tagline": "适合研究与文档副驾驶的长上下文套餐。",
+        "heroDescription": "当长文档处理是核心路径时表现尤佳。",
+        "audience": "研究与重文档团队",
+        "modelHighlights": [
+          "长上下文",
+          "研究能力",
+          "文档副驾驶"
+        ]
+      },
+      "minimax": {
+        "tagline": "面向表达型 AI 产品体验的多模态套餐。",
+        "heroDescription": "适合长会话、多模态应用与富媒体场景。",
+        "audience": "多模态产品团队",
+        "modelHighlights": [
+          "多模态",
+          "长上下文",
+          "媒体生成"
+        ]
+      },
+      "baichuan": {
+        "tagline": "适合助手规模化落地的稳定国产套餐。",
+        "heroDescription": "兼顾企业采购流程与稳定的路由接入能力。",
+        "audience": "企业助手落地团队",
+        "modelHighlights": [
+          "百川",
+          "生产力场景",
+          "稳定采购"
+        ]
+      },
+      "yi": {
+        "tagline": "结构清晰的通用型国产采购套餐。",
+        "heroDescription": "是主流国产 AI 应用的灵活选择。",
+        "audience": "通用型国产 AI 应用",
+        "modelHighlights": [
+          "Yi",
+          "通用能力",
+          "灵活路由"
+        ]
+      }
     }
   }
 }

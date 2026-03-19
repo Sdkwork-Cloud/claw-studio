@@ -14,44 +14,52 @@ pub fn storage_get_text_from_state(
     state: &AppState,
     request: StorageGetTextRequest,
 ) -> FrameworkResult<StorageGetTextResponse> {
+    let config = state.config_snapshot();
+
     state
         .context
         .services
         .storage
-        .get_text(&state.paths, &state.config, request)
+        .get_text(&state.paths, &config, request)
 }
 
 pub fn storage_put_text_from_state(
     state: &AppState,
     request: StoragePutTextRequest,
 ) -> FrameworkResult<StoragePutTextResponse> {
+    let config = state.config_snapshot();
+
     state
         .context
         .services
         .storage
-        .put_text(&state.paths, &state.config, request)
+        .put_text(&state.paths, &config, request)
 }
 
 pub fn storage_delete_from_state(
     state: &AppState,
     request: StorageDeleteRequest,
 ) -> FrameworkResult<StorageDeleteResponse> {
+    let config = state.config_snapshot();
+
     state
         .context
         .services
         .storage
-        .delete(&state.paths, &state.config, request)
+        .delete(&state.paths, &config, request)
 }
 
 pub fn storage_list_keys_from_state(
     state: &AppState,
     request: StorageListKeysRequest,
 ) -> FrameworkResult<StorageListKeysResponse> {
+    let config = state.config_snapshot();
+
     state
         .context
         .services
         .storage
-        .list_keys(&state.paths, &state.config, request)
+        .list_keys(&state.paths, &config, request)
 }
 
 #[tauri::command]

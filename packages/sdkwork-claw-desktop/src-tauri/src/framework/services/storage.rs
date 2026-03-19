@@ -2,8 +2,6 @@ mod drivers;
 mod profiles;
 mod registry;
 
-pub use self::drivers::UnavailableStorageDriver;
-pub use self::profiles::StorageDriverScope;
 use self::profiles::{build_storage_snapshot, normalize_string, resolve_scope};
 pub use self::registry::{StorageDriver, StorageDriverRegistry};
 

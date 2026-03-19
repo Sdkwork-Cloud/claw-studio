@@ -81,13 +81,66 @@ runTest('desktop shell grants custom title-bar window permissions through a real
   assert.ok(capability.permissions.includes('core:default'));
   assert.ok(capability.permissions.includes('core:window:allow-start-dragging'));
   assert.ok(capability.permissions.includes('core:window:allow-internal-toggle-maximize'));
+  assert.ok(capability.permissions.includes('core:window:allow-hide'));
   assert.ok(capability.permissions.includes('core:window:allow-is-fullscreen'));
   assert.ok(capability.permissions.includes('core:window:allow-maximize'));
   assert.ok(capability.permissions.includes('core:window:allow-minimize'));
   assert.ok(capability.permissions.includes('core:window:allow-is-maximized'));
+  assert.ok(capability.permissions.includes('core:window:allow-is-minimized'));
+  assert.ok(capability.permissions.includes('core:window:allow-is-visible'));
+  assert.ok(capability.permissions.includes('core:window:allow-show'));
+  assert.ok(capability.permissions.includes('core:window:allow-set-focus'));
+  assert.ok(capability.permissions.includes('core:window:allow-set-fullscreen'));
   assert.ok(capability.permissions.includes('core:window:allow-toggle-maximize'));
   assert.ok(capability.permissions.includes('core:window:allow-unmaximize'));
+  assert.ok(capability.permissions.includes('core:window:allow-unminimize'));
   assert.ok(capability.permissions.includes('core:window:allow-close'));
+});
+
+runTest('desktop capability stays aligned with the window APIs used by the desktop host', () => {
+  const capability = readJson('packages/sdkwork-claw-desktop/src-tauri/capabilities/default.json');
+  const bridgeSource = readText('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
+  const bootstrapSource = readText(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
+  );
+
+  assert.match(bridgeSource, /currentWindow\.hide\(\)/);
+  assert.match(bridgeSource, /currentWindow\.minimize\(\)/);
+  assert.match(bridgeSource, /currentWindow\.maximize\(\)/);
+  assert.match(bridgeSource, /currentWindow\.unmaximize\(\)/);
+  assert.match(bridgeSource, /currentWindow\.isMaximized\(\)/);
+  assert.match(bridgeSource, /currentWindow\.isFullscreen\(\)/);
+  assert.match(bridgeSource, /currentWindow\.isMinimized\(\)/);
+  assert.match(bridgeSource, /currentWindow\.isVisible\(\)/);
+  assert.match(bridgeSource, /currentWindow\.setFullscreen\(false\)/);
+  assert.match(bridgeSource, /currentWindow\.show\(\)/);
+  assert.match(bridgeSource, /currentWindow\.unminimize\(\)/);
+  assert.match(bridgeSource, /currentWindow\.setFocus\(\)/);
+  assert.match(bootstrapSource, /desktopWindow\.show\(\)/);
+  assert.match(bootstrapSource, /desktopWindow\.setFocus\(\)/);
+
+  const requiredPermissions = [
+    'core:default',
+    'core:window:allow-hide',
+    'core:window:allow-is-fullscreen',
+    'core:window:allow-is-maximized',
+    'core:window:allow-is-minimized',
+    'core:window:allow-is-visible',
+    'core:window:allow-maximize',
+    'core:window:allow-minimize',
+    'core:window:allow-set-focus',
+    'core:window:allow-set-fullscreen',
+    'core:window:allow-show',
+    'core:window:allow-unmaximize',
+    'core:window:allow-unminimize',
+  ];
+
+  for (const permission of requiredPermissions) {
+    assert.ok(
+      capability.permissions.includes(permission),
+      `expected desktop capability to include ${permission}`,
+    );
+  }
 });
 
 runTest('desktop shell keeps header interactions outside the drag region hitbox', () => {
@@ -115,4 +168,50 @@ runTest('desktop startup host avoids StrictMode replays for one-shot window boot
   assert.match(bootstrapSource, /createRoot/);
   assert.match(bootstrapSource, /<DesktopBootstrapApp/);
   assert.doesNotMatch(bootstrapSource, /StrictMode/);
+});
+
+runTest('desktop tray route bridge stays host-local and drives navigation through browser history', () => {
+  const bridgeSource = readText(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopTrayRouteBridge.tsx',
+  );
+
+  assert.doesNotMatch(bridgeSource, /react-router-dom/);
+  assert.match(bridgeSource, /ROUTE_PATHS\.INSTALL/);
+  assert.match(bridgeSource, /ROUTE_PATHS\.TASKS/);
+  assert.match(bridgeSource, /window\.history\.pushState/);
+  assert.match(bridgeSource, /new PopStateEvent\('popstate'\)/);
+  assert.match(bridgeSource, /window\.__CLAW_PENDING_TRAY_ROUTE__/);
+  assert.match(bridgeSource, /DESKTOP_EVENTS\.trayNavigate/);
+});
+
+runTest('desktop bridge exposes host language sync for tray localization', () => {
+  const catalogSource = readText('packages/sdkwork-claw-desktop/src/desktop/catalog.ts');
+  const bridgeSource = readText('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
+  const indexSource = readText('packages/sdkwork-claw-desktop/src/index.ts');
+  const appProvidersSource = readText(
+    'packages/sdkwork-claw-shell/src/application/providers/AppProviders.tsx',
+  );
+  const languageManagerSource = readText(
+    'packages/sdkwork-claw-shell/src/application/providers/LanguageManager.tsx',
+  );
+  const bootstrapSource = readText(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
+  );
+  const settingsSource = readText('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
+  const appStoreSource = readText('packages/sdkwork-claw-core/src/stores/useAppStore.ts');
+
+  assert.match(catalogSource, /setAppLanguage: 'set_app_language'/);
+  assert.match(bridgeSource, /export async function setAppLanguage/);
+  assert.match(bridgeSource, /DESKTOP_COMMANDS\.setAppLanguage/);
+  assert.match(indexSource, /setAppLanguage/);
+  assert.match(appProvidersSource, /onLanguagePreferenceChange\?:/);
+  assert.match(languageManagerSource, /languagePreference/);
+  assert.match(languageManagerSource, /onLanguagePreferenceChange\?\.\(languagePreference\)/);
+  assert.doesNotMatch(languageManagerSource, /getRuntimePlatform\(\)\.setAppLanguage/);
+  assert.match(bootstrapSource, /handleLanguagePreferenceChange/);
+  assert.match(bootstrapSource, /void setAppLanguage\(languagePreference\);/);
+  assert.match(settingsSource, /languagePreference/);
+  assert.match(settingsSource, /value="system"/);
+  assert.match(appStoreSource, /languagePreference/);
+  assert.match(appStoreSource, /type LanguagePreference = Language \| 'system'/);
 });

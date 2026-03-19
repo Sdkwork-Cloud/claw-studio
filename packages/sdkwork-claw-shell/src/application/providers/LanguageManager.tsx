@@ -1,9 +1,14 @@
 import { useEffect } from 'react';
-import { useAppStore } from '@sdkwork/claw-core';
+import { useAppStore, type LanguagePreference } from '@sdkwork/claw-core';
 import { i18n, normalizeLanguage } from '@sdkwork/claw-i18n';
 
-export function LanguageManager() {
+interface LanguageManagerProps {
+  onLanguagePreferenceChange?: (languagePreference: LanguagePreference) => void;
+}
+
+export function LanguageManager({ onLanguagePreferenceChange }: LanguageManagerProps) {
   const language = useAppStore((state) => state.language);
+  const languagePreference = useAppStore((state) => state.languagePreference);
 
   useEffect(() => {
     const nextLanguage = normalizeLanguage(language);
@@ -14,6 +19,10 @@ export function LanguageManager() {
       void i18n.changeLanguage(nextLanguage);
     }
   }, [language]);
+
+  useEffect(() => {
+    onLanguagePreferenceChange?.(languagePreference);
+  }, [languagePreference, onLanguagePreferenceChange]);
 
   return null;
 }

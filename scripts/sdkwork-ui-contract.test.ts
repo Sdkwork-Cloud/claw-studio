@@ -49,6 +49,13 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-ui/package.json');
   const indexSource = read('packages/sdkwork-claw-ui/src/index.ts');
   const componentsIndexSource = read('packages/sdkwork-claw-ui/src/components/index.ts');
+  const taskRowListSource = read('packages/sdkwork-claw-ui/src/components/TaskRowList.tsx');
+  const taskCatalogSource = read('packages/sdkwork-claw-ui/src/components/TaskCatalog.tsx');
+  const taskCatalogMetaSource = read('packages/sdkwork-claw-ui/src/components/taskCatalogMeta.ts');
+  const taskExecutionHistoryDrawerSource = read(
+    'packages/sdkwork-claw-ui/src/components/TaskExecutionHistoryDrawer.tsx',
+  );
+  const channelCatalogSource = read('packages/sdkwork-claw-ui/src/components/ChannelCatalog.tsx');
 
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Modal.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Button.tsx'));
@@ -61,6 +68,10 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Switch.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Slider.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/RepositoryCard.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/TaskRowList.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/TaskCatalog.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/TaskExecutionHistoryDrawer.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/taskCatalogMeta.ts'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/lib/utils.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-shared-ui']);
@@ -77,6 +88,21 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(componentsIndexSource, /Checkbox/);
   assert.match(componentsIndexSource, /Switch/);
   assert.match(componentsIndexSource, /Slider/);
+  assert.match(componentsIndexSource, /\.\/TaskCatalog/);
+  assert.match(componentsIndexSource, /\.\/TaskExecutionHistoryDrawer/);
+  assert.match(componentsIndexSource, /\.\/TaskRowList/);
+  assert.match(componentsIndexSource, /\.\/taskCatalogMeta/);
+  assert.match(
+    taskRowListSource,
+    /interface TaskRowProps extends Omit<React\.HTMLAttributes<HTMLDivElement>, 'title'>/,
+  );
+  assert.match(taskRowListSource, /title: React\.ReactNode;/);
+  assert.match(taskCatalogSource, /export interface TaskCatalogItem/);
+  assert.match(taskCatalogSource, /export function TaskCatalog/);
+  assert.match(taskCatalogMetaSource, /export function getTaskCatalogTone/);
+  assert.match(taskExecutionHistoryDrawerSource, /export function TaskExecutionHistoryDrawer/);
+  assert.match(channelCatalogSource, /onOpenOfficialLink\?:/);
+  assert.match(channelCatalogSource, /onOpenOfficialLink\(channel, link\)/);
 });
 
 runTest('feature packages use shared shadcn-style form primitives instead of native controls', () => {

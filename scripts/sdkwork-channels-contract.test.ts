@@ -55,7 +55,12 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.match(pageSource, /useInstanceStore/);
   assert.match(pageSource, /const \{ activeInstanceId \} = useInstanceStore\(\)/);
   assert.match(pageSource, /channelService\.getChannels\(activeInstanceId\)/);
-  assert.match(pageSource, /channelService\.updateChannelStatus\(activeInstanceId, id, !currentEnabled\)/);
+  assert.match(pageSource, /channelService\.updateChannelStatus\(\s*activeInstanceId,\s*channel\.id,\s*nextEnabled,\s*\)/);
   assert.match(pageSource, /channelService\.saveChannelConfig\(activeInstanceId, selectedChannel\.id, formData\)/);
   assert.match(pageSource, /channelService\.deleteChannelConfig\(activeInstanceId, selectedChannel\.id\)/);
+  assert.match(pageSource, /ChannelCatalog/);
+  assert.match(pageSource, /getChannelOfficialLink/);
+  assert.match(pageSource, /openExternalUrl/);
+  assert.match(pageSource, /onOpenOfficialLink=\{\(_channel, link\) => void openOfficialLink\(link\.href\)\}/);
+  assert.doesNotMatch(pageSource, /href=\{selectedChannelOfficialLink\.href\}/);
 });

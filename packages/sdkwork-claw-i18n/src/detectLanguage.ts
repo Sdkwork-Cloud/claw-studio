@@ -60,13 +60,29 @@ export function getAppStoreLanguageFromSnapshot(snapshot?: string | null) {
   try {
     const parsed = JSON.parse(snapshot) as
       | {
-          state?: { language?: string } | null;
+          state?: { language?: string; languagePreference?: string } | null;
+          languagePreference?: string;
           language?: string;
         }
       | null;
 
     if (!parsed || typeof parsed !== 'object') {
       return undefined;
+    }
+
+    const languagePreference =
+      typeof parsed.state?.languagePreference === 'string'
+        ? parsed.state.languagePreference
+        : typeof parsed.languagePreference === 'string'
+          ? parsed.languagePreference
+          : undefined;
+
+    if (languagePreference === 'system') {
+      return undefined;
+    }
+
+    if (typeof languagePreference === 'string') {
+      return languagePreference;
     }
 
     if (typeof parsed.state?.language === 'string') {

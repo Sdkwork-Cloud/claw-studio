@@ -2,6 +2,7 @@ export const DESKTOP_COMMANDS = {
   appInfo: 'app_info',
   appPaths: 'get_app_paths',
   appConfig: 'get_app_config',
+  setAppLanguage: 'set_app_language',
   systemInfo: 'get_system_info',
   desktopKernelInfo: 'desktop_kernel_info',
   desktopStorageInfo: 'desktop_storage_info',
@@ -26,6 +27,7 @@ export const DESKTOP_COMMANDS = {
   jobGet: 'job_get',
   jobList: 'job_list',
   jobCancel: 'job_cancel',
+  inspectHubInstall: 'inspect_hub_install',
   runHubInstall: 'run_hub_install',
   runHubUninstall: 'run_hub_uninstall',
   installApiRouterClientSetup: 'install_api_router_client_setup',
@@ -42,6 +44,7 @@ export const DESKTOP_EVENTS = {
   hubInstallProgress: 'hub-installer:progress',
   jobUpdated: 'job://updated',
   processOutput: 'process://output',
+  trayNavigate: 'tray://navigate',
 } as const;
 
 export type DesktopEventName = (typeof DESKTOP_EVENTS)[keyof typeof DESKTOP_EVENTS];

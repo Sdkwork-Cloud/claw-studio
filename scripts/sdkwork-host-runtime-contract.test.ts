@@ -12,6 +12,19 @@ function readJson<T>(relPath: string): T {
   return JSON.parse(read(relPath)) as T;
 }
 
+function extractDesktopLockImporter() {
+  const lockSource = read('pnpm-lock.yaml');
+  const match = lockSource.match(
+    /packages\/sdkwork-claw-desktop:\n([\s\S]*?)(?:\n  packages\/|\npackages:|\nimporters:|$)/,
+  );
+
+  if (!match) {
+    throw new Error('Unable to locate the packages/sdkwork-claw-desktop importer in pnpm-lock.yaml');
+  }
+
+  return match[1];
+}
+
 function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
 }
@@ -54,14 +67,20 @@ runTest('sdkwork-claw-web bootstraps shell runtime before mounting the React tre
 });
 
 runTest('sdkwork-claw-desktop contains the Tauri runtime package surface', () => {
-  const pkg = readJson<{ scripts?: Record<string, string> }>(
+  const pkg = readJson<{
+    scripts?: Record<string, string>;
+    dependencies?: Record<string, string>;
+  }>(
     'packages/sdkwork-claw-desktop/package.json',
   );
+  const desktopLockImporter = extractDesktopLockImporter();
 
   assert.ok(exists('packages/sdkwork-claw-desktop/.env.example'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/Cargo.toml'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json'));
   assert.equal(pkg.scripts?.['dev:tauri'], 'vite --host 127.0.0.1 --port 1420 --strictPort');
+  assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], undefined);
+  assert.doesNotMatch(desktopLockImporter, /'@sdkwork\/claw-core':/);
 });
 
 runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React tree', () => {
@@ -91,8 +110,41 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     desktopBootstrapAppSource,
-    /shouldRenderShell \? \([\s\S]*<AppRoot \/>/,
+    /shouldRenderShell \? \([\s\S]*<DesktopProviders>[\s\S]*<AppProviders onLanguagePreferenceChange=\{handleLanguagePreferenceChange\}>[\s\S]*<DesktopTrayRouteBridge \/>[\s\S]*<MainLayout \/>/,
   );
+});
+
+runTest('sdkwork hosts persist app language through a host callback while the shared runtime bridge exposes the desktop command', () => {
+  const shellProvidersSource = read(
+    'packages/sdkwork-claw-shell/src/application/providers/AppProviders.tsx',
+  );
+  const shellLanguageManagerSource = read(
+    'packages/sdkwork-claw-shell/src/application/providers/LanguageManager.tsx',
+  );
+  const desktopBootstrapAppSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
+  );
+  const desktopBridgeSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  );
+  const webRuntimeSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/webRuntime.ts',
+  );
+  const runtimeContractSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  );
+
+  assert.match(runtimeContractSource, /setAppLanguage\(language: RuntimeLanguagePreference\)/);
+  assert.match(shellProvidersSource, /onLanguagePreferenceChange\?:/);
+  assert.match(shellLanguageManagerSource, /onLanguagePreferenceChange\?:/);
+  assert.match(shellLanguageManagerSource, /onLanguagePreferenceChange\?\.\(languagePreference\)/);
+  assert.doesNotMatch(shellLanguageManagerSource, /getRuntimePlatform\(\)\.setAppLanguage\(languagePreference\)/);
+  assert.match(desktopBootstrapAppSource, /import \{ getAppInfo, setAppLanguage \} from '\.\.\/tauriBridge';/);
+  assert.match(desktopBootstrapAppSource, /const handleLanguagePreferenceChange = useEffectEvent\(/);
+  assert.match(desktopBootstrapAppSource, /void setAppLanguage\(languagePreference\);/);
+  assert.match(desktopBridgeSource, /export async function setAppLanguage/);
+  assert.match(desktopBridgeSource, /DESKTOP_COMMANDS\.setAppLanguage/);
+  assert.match(webRuntimeSource, /async setAppLanguage\(_language: RuntimeLanguagePreference\): Promise<void> \{\}/);
 });
 
 runTest('sdkwork-claw-desktop wires hub-installer execution through a real Tauri command and progress event', () => {

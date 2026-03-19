@@ -8,12 +8,19 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  Edit2,
   FileCode2,
   Files,
   FolderTree,
   Hash,
+  History,
+  Loader2,
   MemoryStick,
+  MessageSquare,
   Package,
+  Pause,
+  Play,
+  Plus,
   Power,
   RefreshCw,
   RotateCcw,
@@ -23,12 +30,27 @@ import {
   Sparkles,
   Trash2,
   Wrench,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useInstanceStore } from '@sdkwork/claw-core';
-import { Input } from '@sdkwork/claw-ui';
+import { openExternalUrl } from '@sdkwork/claw-infrastructure';
+import {
+  Button,
+  ChannelCatalog,
+  getTaskCatalogTone,
+  getTaskExecutionBadgeTone,
+  getTaskHistoryBadgeTone,
+  getTaskPreview,
+  getTaskStatusBadgeTone,
+  getTaskToggleStatusTarget,
+  Input,
+  TaskCatalog,
+  TaskExecutionHistoryDrawer,
+  type TaskCatalogItem,
+} from '@sdkwork/claw-ui';
 import { InstanceFileExplorer } from '../components/InstanceFileExplorer';
 import { InstanceLLMConfigPanel } from '../components/InstanceLLMConfigPanel';
 import { instanceService, instanceWorkbenchService } from '../services';
@@ -37,6 +59,7 @@ import type {
   InstanceLLMProviderUpdate,
   InstanceWorkbenchSectionId,
   InstanceWorkbenchSnapshot,
+  InstanceWorkbenchTaskExecution,
 } from '../types';
 
 interface WorkbenchSectionDefinition {
@@ -156,6 +179,41 @@ function getDangerBadge(status: string) {
   return getStatusBadge(status);
 }
 
+function getIntervalUnitLabel(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  unit: 'minute' | 'hour' | 'day',
+  value: string | number,
+) {
+  const numericValue = Number(value);
+  const suffix = numericValue === 1 ? unit : `${unit}s`;
+  return t(`tasks.page.intervalUnits.${suffix}`);
+}
+
+function buildTaskScheduleSummary(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  task: InstanceWorkbenchSnapshot['tasks'][number],
+) {
+  if (task.scheduleMode === 'interval') {
+    return t('tasks.page.scheduleSummary.interval', {
+      value: task.scheduleConfig.intervalValue ?? '--',
+      unit: getIntervalUnitLabel(
+        t,
+        task.scheduleConfig.intervalUnit ?? 'minute',
+        task.scheduleConfig.intervalValue ?? 0,
+      ),
+    });
+  }
+
+  if (task.scheduleMode === 'datetime') {
+    return t('tasks.page.scheduleSummary.datetime', {
+      date: task.scheduleConfig.scheduledDate || '--',
+      time: task.scheduleConfig.scheduledTime || '--',
+    });
+  }
+
+  return task.cronExpression || task.schedule;
+}
+
 function SectionHeading({
   title,
   description,
@@ -219,6 +277,14 @@ function RowMetric({
   );
 }
 
+function addPendingId(ids: string[], id: string) {
+  return ids.includes(id) ? ids : [...ids, id];
+}
+
+function removePendingId(ids: string[], id: string) {
+  return ids.filter((item) => item !== id);
+}
+
 export function InstanceDetail() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
@@ -236,9 +302,24 @@ export function InstanceDetail() {
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, InstanceLLMProviderUpdate>>({});
   const [isSavingProviderConfig, setIsSavingProviderConfig] = useState(false);
+  const [taskExecutionsById, setTaskExecutionsById] = useState<Record<string, InstanceWorkbenchTaskExecution[]>>({});
+  const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isRefreshingTasks, setIsRefreshingTasks] = useState(false);
+  const [cloningTaskIds, setCloningTaskIds] = useState<string[]>([]);
+  const [runningTaskIds, setRunningTaskIds] = useState<string[]>([]);
+  const [statusTaskIds, setStatusTaskIds] = useState<string[]>([]);
+  const [deletingTaskIds, setDeletingTaskIds] = useState<string[]>([]);
 
-  const loadWorkbench = async (instanceId: string) => {
-    setIsLoading(true);
+  const loadWorkbench = async (
+    instanceId: string,
+    options: {
+      withSpinner?: boolean;
+    } = {},
+  ) => {
+    if (options.withSpinner !== false) {
+      setIsLoading(true);
+    }
     try {
       const nextWorkbench = await instanceWorkbenchService.getInstanceWorkbench(instanceId);
       setWorkbench(nextWorkbench);
@@ -248,7 +329,9 @@ export function InstanceDetail() {
       setWorkbench(null);
       setConfig(null);
     } finally {
-      setIsLoading(false);
+      if (options.withSpinner !== false) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -307,8 +390,27 @@ export function InstanceDetail() {
     );
   }, [workbench]);
 
+  useEffect(() => {
+    if (historyTaskId && !workbench?.tasks.some((task) => task.id === historyTaskId)) {
+      setHistoryTaskId(null);
+    }
+  }, [historyTaskId, workbench]);
+
+  useEffect(() => {
+    setTaskExecutionsById({});
+    setHistoryTaskId(null);
+    setIsHistoryLoading(false);
+    setIsRefreshingTasks(false);
+    setCloningTaskIds([]);
+    setRunningTaskIds([]);
+    setStatusTaskIds([]);
+    setDeletingTaskIds([]);
+  }, [id]);
+
   const instance = workbench?.instance || null;
   const token = workbench?.token || '';
+  const historyTask = historyTaskId ? workbench?.tasks.find((task) => task.id === historyTaskId) || null : null;
+  const historyEntries = historyTaskId ? taskExecutionsById[historyTaskId] || [] : [];
 
   const activeSectionMeta = useMemo(
     () => workbenchSections.find((section) => section.id === activeSection),
@@ -540,6 +642,113 @@ export function InstanceDetail() {
     }
   };
 
+  const openOfficialLink = async (href: string) => {
+    await openExternalUrl(href);
+  };
+
+  const openTaskWorkspace = (params?: Record<string, string>) => {
+    if (!instance) {
+      return;
+    }
+
+    if (activeInstanceId !== instance.id) {
+      setActiveInstanceId(instance.id);
+    }
+
+    const search = params ? new URLSearchParams(params).toString() : '';
+    navigate(search ? `/tasks?${search}` : '/tasks');
+  };
+
+  async function refreshTasksSection() {
+    if (!id) {
+      return;
+    }
+
+    setIsRefreshingTasks(true);
+    try {
+      await loadWorkbench(id, { withSpinner: false });
+    } finally {
+      setIsRefreshingTasks(false);
+    }
+  }
+
+  async function openTaskHistoryDrawer(taskId: string) {
+    setHistoryTaskId(taskId);
+    setIsHistoryLoading(true);
+    try {
+      const entries = await instanceWorkbenchService.listTaskExecutions(taskId);
+      setTaskExecutionsById((current) => ({ ...current, [taskId]: entries }));
+    } catch {
+      toast.error(t('tasks.page.toasts.failedToLoadHistory'));
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }
+
+  async function handleCloneTask(taskId: string, taskName: string) {
+    setCloningTaskIds((current) => addPendingId(current, taskId));
+    try {
+      await instanceWorkbenchService.cloneTask(
+        taskId,
+        t('tasks.page.actions.cloneName', { name: taskName }),
+      );
+      toast.success(t('tasks.page.toasts.cloned'));
+      await refreshTasksSection();
+    } catch {
+      toast.error(t('tasks.page.toasts.failedToClone'));
+    } finally {
+      setCloningTaskIds((current) => removePendingId(current, taskId));
+    }
+  }
+
+  async function handleRunTaskNow(taskId: string) {
+    setRunningTaskIds((current) => addPendingId(current, taskId));
+    try {
+      await instanceWorkbenchService.runTaskNow(taskId);
+      toast.success(t('tasks.page.toasts.ranNow'));
+      await refreshTasksSection();
+    } catch {
+      toast.error(t('tasks.page.toasts.failedToRunNow'));
+    } finally {
+      setRunningTaskIds((current) => removePendingId(current, taskId));
+    }
+  }
+
+  async function handleToggleTaskStatus(taskId: string, currentStatus: 'active' | 'paused' | 'failed') {
+    const nextStatus = getTaskToggleStatusTarget(currentStatus);
+    if (!nextStatus) {
+      return;
+    }
+
+    setStatusTaskIds((current) => addPendingId(current, taskId));
+    try {
+      await instanceWorkbenchService.updateTaskStatus(taskId, nextStatus);
+      toast.success(t(nextStatus === 'active' ? 'tasks.page.toasts.enabled' : 'tasks.page.toasts.disabled'));
+      await refreshTasksSection();
+    } catch {
+      toast.error(t('tasks.page.toasts.failedToUpdateStatus'));
+    } finally {
+      setStatusTaskIds((current) => removePendingId(current, taskId));
+    }
+  }
+
+  async function handleDeleteTask(taskId: string, taskName: string) {
+    if (!window.confirm(t('tasks.page.confirmDelete', { name: taskName }))) {
+      return;
+    }
+
+    setDeletingTaskIds((current) => addPendingId(current, taskId));
+    try {
+      await instanceWorkbenchService.deleteTask(taskId);
+      toast.success(t('tasks.page.toasts.deleted'));
+      await refreshTasksSection();
+    } catch {
+      toast.error(t('tasks.page.toasts.failedToDelete'));
+    } finally {
+      setDeletingTaskIds((current) => removePendingId(current, taskId));
+    }
+  }
+
   const handleDelete = async () => {
     if (!id) {
       return;
@@ -571,110 +780,262 @@ export function InstanceDetail() {
     }
 
     return (
-      <WorkbenchRowList>
-        {workbench.channels.map((channel, index) => (
-          <WorkbenchRow key={channel.id} isLast={index === workbench.channels.length - 1}>
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                  {channel.name}
-                </h3>
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusBadge(
-                    channel.status,
-                  )}`}
-                >
-                  {t(`dashboard.status.${channel.status}`)}
-                </span>
-              </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                {channel.description}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-5">
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.configuredFields')}
-                value={`${channel.configuredFieldCount}/${channel.fieldCount}`}
-              />
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.setupSteps')}
-                value={channel.setupSteps.length}
-              />
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.deliveryState')}
-                value={
-                  channel.enabled
-                    ? t('instances.detail.instanceWorkbench.state.enabled')
-                    : t('instances.detail.instanceWorkbench.state.pending')
-                }
-              />
-            </div>
-            <div className="xl:max-w-sm">
-              <div className="rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
-                {channel.setupSteps[0] || t('instances.detail.instanceWorkbench.empty.channels')}
-              </div>
-            </div>
-          </WorkbenchRow>
-        ))}
-      </WorkbenchRowList>
+      <ChannelCatalog
+        items={workbench.channels}
+        variant="summary"
+        texts={{
+          statusActive: t('channels.page.status.active'),
+          statusConnected: t('dashboard.status.connected'),
+          statusDisconnected: t('dashboard.status.disconnected'),
+          statusNotConfigured: t('dashboard.status.not_configured'),
+          actionConnect: t('channels.page.actions.connect'),
+          actionConfigure: t('channels.page.actions.configure'),
+          actionOpenOfficialSite: t('channels.page.actions.openOfficialSite'),
+          actionEnableChannel: (name: string) => t('channels.page.actions.enableChannel', { name }),
+          metricConfiguredFields: t('instances.detail.instanceWorkbench.metrics.configuredFields'),
+          metricSetupSteps: t('instances.detail.instanceWorkbench.metrics.setupSteps'),
+          metricDeliveryState: t('instances.detail.instanceWorkbench.metrics.deliveryState'),
+          stateEnabled: t('instances.detail.instanceWorkbench.state.enabled'),
+          statePending: t('instances.detail.instanceWorkbench.state.pending'),
+          summaryFallback: t('instances.detail.instanceWorkbench.empty.channels'),
+        }}
+        onOpenOfficialLink={(_channel, link) => void openOfficialLink(link.href)}
+      />
     );
   };
 
   const renderTasksSection = () => {
-    if (!workbench || workbench.tasks.length === 0) {
-      return (
-        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
-          {t('instances.detail.instanceWorkbench.empty.cronTasks')}
-        </div>
-      );
+    if (!workbench) {
+      return null;
     }
 
+    const taskCatalogItems: TaskCatalogItem[] = workbench.tasks.map((task) => {
+      const latest = task.latestExecution;
+      const isBusy =
+        cloningTaskIds.includes(task.id) ||
+        runningTaskIds.includes(task.id) ||
+        statusTaskIds.includes(task.id) ||
+        deletingTaskIds.includes(task.id);
+      const deliveryTarget =
+        task.deliveryMode === 'none'
+          ? t('tasks.page.deliveryModes.none.title')
+          : task.deliveryLabel || task.deliveryChannel || t('common.none');
+      const promptPreview = getTaskPreview(task.prompt);
+      const description = getTaskPreview(task.description) || promptPreview;
+      const latestExecutionSummary = getTaskPreview(latest?.summary);
+
+      return {
+        id: task.id,
+        name: task.name,
+        tone: getTaskCatalogTone(task.status, latest?.status),
+        badges: [
+          {
+            id: 'status',
+            tone: getTaskStatusBadgeTone(task.status),
+            icon: <span className="h-2 w-2 rounded-full bg-current" />,
+            label: t(`tasks.page.status.${task.status}`),
+          },
+          {
+            id: 'execution-content',
+            tone: getTaskExecutionBadgeTone(task.executionContent),
+            icon:
+              task.executionContent === 'sendPromptMessage' ? (
+                <MessageSquare className="h-3.5 w-3.5" />
+              ) : (
+                <Zap className="h-3.5 w-3.5" />
+              ),
+            label: t(`tasks.page.executionContents.${task.executionContent}.title`),
+          },
+        ],
+        description: (
+          <div className="space-y-2">
+            <p>{description}</p>
+            {task.description?.trim() ? (
+              <div className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                <span className="font-semibold uppercase tracking-[0.16em]">
+                  {t('tasks.page.cards.prompt')}
+                </span>{' '}
+                {promptPreview}
+              </div>
+            ) : null}
+          </div>
+        ),
+        metrics: [
+          {
+            id: 'schedule',
+            label: t('tasks.page.cards.schedule'),
+            value: buildTaskScheduleSummary(t, task),
+          },
+          {
+            id: 'next-run',
+            label: t('tasks.page.cards.nextRun'),
+            value: task.nextRun || '-',
+          },
+          {
+            id: 'last-run',
+            label: t('tasks.page.cards.lastRun'),
+            value: task.lastRun || '-',
+          },
+        ],
+        summaryTitle: t('tasks.page.cards.latestExecution'),
+        summaryBadges: latest
+          ? [
+              {
+                id: 'execution-status',
+                tone: getTaskHistoryBadgeTone(latest.status),
+                icon: <span className="h-2 w-2 rounded-full bg-current" />,
+                label: t(`tasks.page.history.status.${latest.status}`),
+              },
+              {
+                id: 'execution-trigger',
+                tone: 'neutral',
+                label: t(`tasks.page.history.triggers.${latest.trigger}`),
+              },
+            ]
+          : undefined,
+        summaryContent: latestExecutionSummary || t('tasks.page.cards.noExecutionYet'),
+        summaryDetails: latest?.details || (!latest ? promptPreview : undefined),
+        summaryFooter: deliveryTarget ? (
+          <span>
+            {t('tasks.page.cards.delivery')}: {deliveryTarget}
+            {task.recipient ? ` / ${task.recipient}` : ''}
+          </span>
+        ) : undefined,
+        actions: (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openTaskWorkspace({ taskMode: 'edit', taskId: task.id })}
+              disabled={isBusy}
+            >
+              <Edit2 className="h-4 w-4" />
+              {t('tasks.page.actions.edit')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCloneTask(task.id, task.name)}
+              disabled={isBusy}
+            >
+              {cloningTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              {t('tasks.page.actions.clone')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleToggleTaskStatus(task.id, task.status)}
+              disabled={isBusy || !getTaskToggleStatusTarget(task.status)}
+            >
+              {statusTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : task.status === 'active' ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {task.status === 'active'
+                ? t('tasks.page.actions.disable')
+                : t('tasks.page.actions.enable')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleRunTaskNow(task.id)}
+              disabled={isBusy}
+            >
+              {runningTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {t('tasks.page.actions.runNow')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void openTaskHistoryDrawer(task.id)}
+              disabled={isBusy}
+            >
+              <History className="h-4 w-4" />
+              {t('tasks.page.actions.history')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+              onClick={() => void handleDeleteTask(task.id, task.name)}
+              disabled={isBusy}
+            >
+              {deletingTaskIds.includes(task.id) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {t('tasks.page.actions.delete')}
+            </Button>
+          </>
+        ),
+      };
+    });
+
     return (
-      <WorkbenchRowList>
-        {workbench.tasks.map((task, index) => (
-          <WorkbenchRow key={task.id} isLast={index === workbench.tasks.length - 1}>
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                  {task.name}
-                </h3>
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                    task.status === 'failed' ? getDangerBadge(task.status) : getStatusBadge(task.status)
-                  }`}
-                >
-                  {t(`dashboard.status.${task.status}`)}
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{task.schedule}</p>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+            {t('tasks.page.title')}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refreshTasksSection()}
+              disabled={isRefreshingTasks}
+            >
+              {isRefreshingTasks ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {t('tasks.page.actions.refresh')}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => openTaskWorkspace({ taskMode: 'create' })}
+            >
+              <Plus className="h-4 w-4" />
+              {t('tasks.page.actions.newTask')}
+            </Button>
+          </div>
+        </div>
+
+        <TaskCatalog
+          className="bg-white/75 shadow-none dark:bg-zinc-950/35"
+          items={taskCatalogItems}
+          emptyState={
+            <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/75 px-6 py-12 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950/35">
+              <Zap className="mx-auto h-10 w-10 text-primary-500 dark:text-primary-300" />
+              <h3 className="mt-5 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
+                {t('tasks.page.empty.title')}
+              </h3>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {t('tasks.page.empty.description')}
+              </p>
+              <Button
+                className="mt-6"
+                onClick={() => openTaskWorkspace({ taskMode: 'create' })}
+              >
+                <Plus className="h-4 w-4" />
+                {t('tasks.page.actions.newTask')}
+              </Button>
             </div>
-            <div className="flex flex-wrap gap-5">
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.lastRun')}
-                value={task.lastRun || '--'}
-              />
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.nextRun')}
-                value={task.nextRun || '--'}
-              />
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.actionType')}
-                value={t(`instances.detail.instanceWorkbench.actionTypes.${task.actionType}`)}
-              />
-            </div>
-            <div className="text-right">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                {t('instances.detail.instanceWorkbench.sections.cronTasks.title')}
-              </div>
-              <div className="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">
-                {task.status === 'active'
-                  ? t('instances.detail.instanceWorkbench.state.enabled')
-                  : t('instances.detail.instanceWorkbench.state.pending')}
-              </div>
-            </div>
-          </WorkbenchRow>
-        ))}
-      </WorkbenchRowList>
+          }
+        />
+      </div>
     );
   };
 
@@ -1625,6 +1986,24 @@ export function InstanceDetail() {
           </section>
         </div>
       </div>
+
+      <TaskExecutionHistoryDrawer
+        isOpen={Boolean(historyTask)}
+        onClose={() => setHistoryTaskId(null)}
+        taskName={historyTask?.name}
+        entries={historyEntries}
+        isLoading={isHistoryLoading}
+        title={t('tasks.page.history.title')}
+        getSubtitle={(taskName) => t('tasks.page.history.subtitle', { name: taskName })}
+        description={t('tasks.page.history.description')}
+        loadingText={t('tasks.page.history.loading')}
+        emptyTitle={t('tasks.page.history.emptyTitle')}
+        emptyDescription={t('tasks.page.history.emptyDescription')}
+        startedAtLabel={t('tasks.page.history.startedAt')}
+        finishedAtLabel={t('tasks.page.history.finishedAt')}
+        getStatusLabel={(status) => t(`tasks.page.history.status.${status}`)}
+        getTriggerLabel={(trigger) => t(`tasks.page.history.triggers.${trigger}`)}
+      />
     </div>
   );
 }

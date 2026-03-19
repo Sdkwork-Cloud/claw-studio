@@ -69,6 +69,82 @@ export interface HubInstallResult {
   artifactReports: HubInstallArtifactReport[];
 }
 
+export type HubInstallAssessmentSeverity = 'error' | 'warning' | 'info';
+export type HubInstallAssessmentDependencyStatus =
+  | 'available'
+  | 'missing'
+  | 'remediable'
+  | 'unsupported';
+export type HubInstallAssessmentCheckType = 'command' | 'file' | 'env' | 'platform';
+export type HubInstallAssessmentShellKind = 'bash' | 'powershell' | 'cmd';
+export type HubInstallResolvedContainerRuntime = 'host' | 'wsl';
+
+export interface HubInstallAssessmentCommand {
+  description: string;
+  commandLine: string;
+  shellKind?: HubInstallAssessmentShellKind | null;
+  workingDirectory?: string | null;
+  requiresElevation: boolean;
+  autoRun: boolean;
+}
+
+export interface HubInstallAssessmentDependency {
+  id: string;
+  description?: string | null;
+  required: boolean;
+  checkType: HubInstallAssessmentCheckType;
+  target: string;
+  status: HubInstallAssessmentDependencyStatus;
+  supportsAutoRemediation: boolean;
+  remediationCommands: HubInstallAssessmentCommand[];
+}
+
+export interface HubInstallAssessmentIssue {
+  severity: HubInstallAssessmentSeverity;
+  code: string;
+  message: string;
+  dependencyId?: string | null;
+}
+
+export interface HubInstallAssessmentRuntime {
+  hostPlatform: HubInstallPlatform;
+  requestedRuntimePlatform: HubInstallPlatform;
+  effectiveRuntimePlatform: HubInstallPlatform;
+  containerRuntimePreference?: HubInstallContainerRuntimePreference | null;
+  resolvedContainerRuntime?: HubInstallResolvedContainerRuntime | null;
+  wslDistribution?: string | null;
+  availableWslDistributions: string[];
+  wslAvailable: boolean;
+  hostDockerAvailable: boolean;
+  wslDockerAvailable: boolean;
+  runtimeHomeDir?: string | null;
+  commandAvailability: Record<string, boolean>;
+}
+
+export interface HubInstallAssessmentResult {
+  registryName: string;
+  registrySource: string;
+  softwareName: string;
+  manifestSource: string;
+  manifestName: string;
+  manifestDescription?: string | null;
+  manifestHomepage?: string | null;
+  ready: boolean;
+  requiresElevatedSetup: boolean;
+  platform: HubInstallPlatform;
+  effectiveRuntimePlatform: HubInstallPlatform;
+  resolvedInstallScope: HubInstallScope;
+  resolvedInstallRoot: string;
+  resolvedWorkRoot: string;
+  resolvedBinDir: string;
+  resolvedDataRoot: string;
+  installControlLevel: HubInstallControlLevel;
+  dependencies: HubInstallAssessmentDependency[];
+  issues: HubInstallAssessmentIssue[];
+  recommendations: string[];
+  runtime: HubInstallAssessmentRuntime;
+}
+
 export interface HubUninstallRequest extends HubInstallRequest {
   purgeData?: boolean;
   backupBeforeUninstall?: boolean;
@@ -212,6 +288,7 @@ export interface ApiRouterClientInstallResult {
 }
 
 export interface InstallerPlatformAPI {
+  inspectHubInstall(request: HubInstallRequest): Promise<HubInstallAssessmentResult>;
   runHubInstall(request: HubInstallRequest): Promise<HubInstallResult>;
   runHubUninstall(request: HubUninstallRequest): Promise<HubUninstallResult>;
   subscribeHubInstallProgress(

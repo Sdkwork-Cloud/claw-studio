@@ -2,16 +2,21 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Bookmark,
+  BriefcaseBusiness,
+  Building2,
   Clock,
   Eye,
   Heart,
+  MapPin,
   MessageSquare,
   MoreHorizontal,
   Send,
   Share2,
+  Sparkles,
+  Wallet,
+  Wrench,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
-import { motion } from 'motion/react';
 import rehypeRaw from 'rehype-raw';
 import { useTranslation } from 'react-i18next';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -23,11 +28,32 @@ import type { CommunityComment, CommunityPost } from '../../services';
 import { communityService } from '../../services';
 
 const COMMUNITY_CATEGORY_LABEL_KEYS: Record<string, string> = {
-  announcements: 'community.categories.announcements',
-  discussions: 'community.categories.discussions',
-  help: 'community.categories.help',
-  showcase: 'community.categories.showcase',
-  tutorials: 'community.categories.tutorials',
+  'job-seeking': 'community.newPost.entryTypes.jobSeeking',
+  recruitment: 'community.newPost.entryTypes.recruitment',
+  services: 'community.newPost.entryTypes.services',
+  partnerships: 'community.newPost.entryTypes.partnerships',
+  news: 'community.newPost.entryTypes.news',
+};
+
+const COMMUNITY_SERVICE_LINE_KEYS: Record<string, string> = {
+  legal: 'community.postDetail.listingMeta.serviceLines.legal',
+  tax: 'community.postDetail.listingMeta.serviceLines.tax',
+  design: 'community.postDetail.listingMeta.serviceLines.design',
+  development: 'community.postDetail.listingMeta.serviceLines.development',
+  marketing: 'community.postDetail.listingMeta.serviceLines.marketing',
+  translation: 'community.postDetail.listingMeta.serviceLines.translation',
+  operations: 'community.postDetail.listingMeta.serviceLines.operations',
+  training: 'community.postDetail.listingMeta.serviceLines.training',
+  consulting: 'community.postDetail.listingMeta.serviceLines.consulting',
+  content: 'community.postDetail.listingMeta.serviceLines.content',
+  data: 'community.postDetail.listingMeta.serviceLines.data',
+  hr: 'community.postDetail.listingMeta.serviceLines.hr',
+};
+
+const COMMUNITY_DELIVERY_MODE_KEYS: Record<string, string> = {
+  online: 'community.postDetail.listingMeta.deliveryModes.online',
+  hybrid: 'community.postDetail.listingMeta.deliveryModes.hybrid',
+  onsite: 'community.postDetail.listingMeta.deliveryModes.onsite',
 };
 
 export function CommunityPostDetail() {
@@ -42,27 +68,41 @@ export function CommunityPostDetail() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+
     const fetchPostData = async () => {
       if (!id) {
         return;
       }
 
       setLoading(true);
+
       try {
         const [postData, commentsData] = await Promise.all([
           communityService.getPost(id),
           communityService.getComments(id),
         ]);
+
+        if (!active) {
+          return;
+        }
+
         setPost(postData);
         setComments(commentsData);
       } catch (error) {
         console.error('Failed to fetch post details:', error);
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchPostData();
+    void fetchPostData();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   const roleLabels = useMemo(
@@ -88,6 +128,92 @@ export function CommunityPostDetail() {
 
     const translationKey = COMMUNITY_CATEGORY_LABEL_KEYS[post.category];
     return translationKey ? t(translationKey) : post.category;
+  }, [post, t]);
+  const isNewsEntry = post?.category === 'news';
+  const listingMeta = useMemo(() => {
+    if (!post) {
+      return [];
+    }
+
+    return [
+      post.location
+        ? {
+            id: 'location',
+            label: t('community.postDetail.listingMeta.location'),
+            value: post.location,
+            icon: MapPin,
+          }
+        : null,
+      post.compensation
+        ? {
+            id: 'compensation',
+            label: t('community.postDetail.listingMeta.compensation'),
+            value: post.compensation,
+            icon: Wallet,
+          }
+        : null,
+      post.company
+        ? {
+            id: 'company',
+            label: t('community.postDetail.listingMeta.company'),
+            value: post.company,
+            icon: Building2,
+          }
+        : null,
+      post.serviceLine
+        ? {
+            id: 'serviceLine',
+            label: t('community.postDetail.listingMeta.serviceLine'),
+            value: t(COMMUNITY_SERVICE_LINE_KEYS[post.serviceLine] ?? post.serviceLine),
+            icon: Wrench,
+          }
+        : null,
+      post.deliveryMode
+        ? {
+            id: 'deliveryMode',
+            label: t('community.postDetail.listingMeta.deliveryMode'),
+            value: t(COMMUNITY_DELIVERY_MODE_KEYS[post.deliveryMode] ?? post.deliveryMode),
+            icon: Send,
+          }
+        : null,
+      post.turnaround
+        ? {
+            id: 'turnaround',
+            label: t('community.postDetail.listingMeta.turnaround'),
+            value: post.turnaround,
+            icon: Clock,
+          }
+        : null,
+      post.employmentType
+        ? {
+            id: 'employmentType',
+            label: t('community.postDetail.listingMeta.employmentType'),
+            value: post.employmentType,
+            icon: BriefcaseBusiness,
+          }
+        : null,
+      post.publisherType
+        ? {
+            id: 'publisherType',
+            label: t('community.postDetail.listingMeta.publisherType'),
+            value: t(`community.postDetail.listingMeta.publisherTypes.${post.publisherType}`),
+            icon: Sparkles,
+          }
+        : null,
+      post.contactPreference
+        ? {
+            id: 'contactPreference',
+            label: t('community.postDetail.listingMeta.contactPreference'),
+            value: post.contactPreference,
+            icon: MessageSquare,
+          }
+        : null,
+    ].filter(Boolean) as Array<{
+      id: string;
+      label: string;
+      value: string;
+      icon: typeof MapPin;
+    }>;
   }, [post, t]);
 
   const handleLike = async () => {
@@ -184,7 +310,7 @@ export function CommunityPostDetail() {
       </div>
 
       <div className="mx-auto max-w-4xl pb-24">
-        {post.coverImage && (
+        {post.coverImage ? (
           <div className="relative h-64 w-full md:h-96">
             <img
               src={post.coverImage}
@@ -194,11 +320,11 @@ export function CommunityPostDetail() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-zinc-50 to-transparent dark:from-zinc-950" />
           </div>
-        )}
+        ) : null}
 
         <div className="relative z-10 -mt-20 px-6 md:px-12">
           <div className="mb-10">
-            <div className="mb-6 flex items-center gap-3">
+            <div className="mb-6 flex flex-wrap items-center gap-3">
               <span className="rounded-full bg-primary-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm">
                 {translatedCategory}
               </span>
@@ -218,7 +344,7 @@ export function CommunityPostDetail() {
               {post.title}
             </h1>
 
-            <div className="flex items-center justify-between border-y border-zinc-200 py-6 dark:border-zinc-800">
+            <div className="flex flex-col gap-4 border-y border-zinc-200 py-6 dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-4">
                 <img
                   src={post.author.avatar}
@@ -246,6 +372,42 @@ export function CommunityPostDetail() {
             </div>
           </div>
 
+          {isNewsEntry ? (
+            <div className="mb-10 rounded-3xl border border-zinc-200 bg-white/80 p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-600">
+                {t('community.postDetail.newsPanelTitle')}
+              </p>
+              <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                {t('community.postDetail.newsPanelDescription')}
+              </p>
+            </div>
+          ) : listingMeta.length > 0 ? (
+            <div className="mb-10 rounded-3xl border border-zinc-200 bg-white/80 p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-600">
+                {t('community.postDetail.listingMeta.title')}
+              </p>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                {listingMeta.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                        <Icon className="h-4 w-4 text-primary-500" />
+                        {item.label}
+                      </div>
+                      <p className="mt-3 text-sm font-medium leading-6 text-zinc-900 dark:text-zinc-100">
+                        {item.value}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <div className="prose prose-zinc prose-lg mb-12 max-w-none prose-a:text-primary-500 prose-headings:font-bold prose-img:rounded-2xl prose-pre:border prose-pre:border-zinc-800 prose-pre:bg-zinc-900 dark:prose-invert">
             <Markdown
               rehypePlugins={[rehypeRaw]}
@@ -271,6 +433,23 @@ export function CommunityPostDetail() {
             >
               {post.content}
             </Markdown>
+          </div>
+
+          <div className="mb-12 rounded-3xl border border-primary-200 bg-primary-50/70 p-6 dark:border-primary-900/40 dark:bg-primary-950/20">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-600">
+                  {t('community.postDetail.assistantCta.title')}
+                </p>
+                <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                  {t('community.postDetail.assistantCta.description')}
+                </p>
+              </div>
+              <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-700">
+                <Sparkles className="h-4 w-4" />
+                {t('community.postDetail.assistantCta.primaryAction')}
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col items-center justify-between gap-6 border-t border-zinc-200 py-8 dark:border-zinc-800 sm:flex-row">

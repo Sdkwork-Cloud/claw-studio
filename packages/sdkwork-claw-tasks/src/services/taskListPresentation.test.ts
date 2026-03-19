@@ -62,6 +62,8 @@ runTest('active tasks with successful executions get a healthy card state', () =
   assert.equal(state.tone, 'healthy');
   assert.equal(state.latestExecution?.status, 'success');
   assert.equal(state.canRunNow, true);
+  assert.equal(state.summaryText, 'Collect the daily operator summary.');
+  assert.equal(state.latestExecutionSummary, 'Everything completed successfully.');
 });
 
 runTest('paused tasks keep a paused card state even if they have no latest execution', () => {
@@ -76,6 +78,7 @@ runTest('paused tasks keep a paused card state even if they have no latest execu
   assert.equal(state.tone, 'paused');
   assert.equal(state.latestExecution, null);
   assert.equal(state.nextRunLabel, '-');
+  assert.equal(state.latestExecutionSummary, null);
 });
 
 runTest('failed tasks surface execution failure as the dominant visual state', () => {
@@ -94,4 +97,33 @@ runTest('failed tasks surface execution failure as the dominant visual state', (
   assert.equal(state.tone, 'danger');
   assert.equal(state.latestExecution?.status, 'failed');
   assert.equal(state.promptExcerpt.endsWith('...'), false);
+  assert.equal(state.latestExecutionSummary, 'Delivery failed because the channel is offline.');
+});
+
+runTest('active tasks still surface the danger tone when the latest execution failed', () => {
+  const state = buildTaskCardState(createTask(), [
+    createExecution({
+      status: 'failed',
+      summary: 'The task failed on its latest scheduled run.',
+    }),
+  ]);
+
+  assert.equal(state.tone, 'danger');
+  assert.equal(state.latestExecution?.status, 'failed');
+});
+
+runTest('tasks without a description fall back to the prompt excerpt for row summary text', () => {
+  const state = buildTaskCardState(
+    createTask({
+      description: '',
+      prompt:
+        'Summarize the last 24 hours for the ops team and highlight any channel delivery regressions that still need attention.',
+    }),
+    [],
+  );
+
+  assert.equal(
+    state.summaryText,
+    'Summarize the last 24 hours for the ops team and highlight any channel delivery regressions that still need attention.',
+  );
 });

@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use crate::framework::{
     layout::{ActiveState, PinnedState, RetentionState},
     paths::AppPaths,

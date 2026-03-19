@@ -3,8 +3,8 @@ $schema: "../../schemas/hub-installer.manifest.schema.json"
 metadata:
   name: "IronClaw Install (Source)"
   version: "2026.03.19"
-  description: "Clone or update the IronClaw repository and run the workspace build."
-  homepage: "https://github.com/Sdkwork-Cloud/ironclaw"
+  description: "Clone or update the official IronClaw repository and install it through Cargo."
+  homepage: "https://github.com/nearai/ironclaw"
 platforms:
   - windows
   - macos
@@ -12,16 +12,20 @@ platforms:
 variables:
   hub_software_name: "ironclaw"
   hub_install_control_level: "managed"
-  repo_url: "https://github.com/Sdkwork-Cloud/ironclaw.git"
+  repo_url: "https://github.com/nearai/ironclaw.git"
   destination: "{{hub_work_root}}/ironclaw"
 defaults:
   sudo: false
-  timeoutMs: 900000
+  timeoutMs: 3600000
 dependencies:
   - id: "git"
     check:
       type: "command"
       name: "git"
+  - id: "cargo"
+    check:
+      type: "command"
+      name: "cargo"
 artifacts:
   - id: "ironclaw-source"
     type: "git"
@@ -29,15 +33,32 @@ artifacts:
     destination: "{{destination}}"
     strategy: "clone-or-pull"
     build:
-      - run: "pnpm install --frozen-lockfile"
+      - run: "cargo install --path . --locked --force --root \"{{hub_install_root}}\""
         cwd: "{{destination}}"
         when:
-          fileExists: "{{destination}}/pnpm-lock.yaml"
-      - run: "pnpm build"
-        cwd: "{{destination}}"
-        continueOnError: true
-        when:
-          fileExists: "{{destination}}/package.json"
+          fileExists: "{{destination}}/Cargo.toml"
 lifecycle:
+  preflight:
+    - id: "show-ironclaw-source-profile-unix"
+      shell: bash
+      when:
+        platforms: [macos, ubuntu]
+      run: "echo IronClaw profile=source repo={{repo_url}} destination={{destination}}"
+    - id: "show-ironclaw-source-profile-win"
+      shell: powershell
+      when:
+        platforms: [windows]
+      run: "Write-Host \"IronClaw profile=source repo={{repo_url}} destination={{destination}}\""
   healthcheck:
-    - run: "git -C {{destination}} rev-parse --is-inside-work-tree"
+    - id: "ironclaw-source-git"
+      run: "git -C {{destination}} rev-parse --is-inside-work-tree"
+    - id: "ironclaw-source-version-unix"
+      shell: bash
+      when:
+        platforms: [macos, ubuntu]
+      run: "\"{{hub_install_root}}/bin/ironclaw\" --version"
+    - id: "ironclaw-source-version-win"
+      shell: powershell
+      when:
+        platforms: [windows]
+      run: "& \"{{hub_install_root}}\\bin\\ironclaw.exe\" --version"

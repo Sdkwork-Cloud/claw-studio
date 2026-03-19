@@ -20,6 +20,77 @@ defaults:
   timeoutMs: 2400000
   env:
     SHARP_IGNORE_GLOBAL_LIBVIPS: "1"
+dependencies:
+  - id: "git"
+    description: "Git is required to clone and update the OpenClaw source tree."
+    check:
+      type: "command"
+      name: "git"
+    install:
+      - id: "install-git-unix"
+        shell: bash
+        when:
+          platforms: [macos, ubuntu]
+        run: |
+          if command -v brew >/dev/null 2>&1; then
+            brew install git
+          elif command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y git
+          else
+            echo "Git must be installed manually on this platform." >&2
+            exit 1
+          fi
+      - id: "install-git-win"
+        shell: powershell
+        when:
+          platforms: [windows]
+        run: "winget install --id Git.Git -e --source winget"
+  - id: "node"
+    description: "Node.js is required to build OpenClaw from source."
+    check:
+      type: "command"
+      name: "node"
+    install:
+      - id: "install-node-unix"
+        shell: bash
+        when:
+          platforms: [macos, ubuntu]
+        run: |
+          if command -v brew >/dev/null 2>&1; then
+            brew install node
+          elif command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y nodejs npm
+          else
+            echo "Node.js must be installed manually on this platform." >&2
+            exit 1
+          fi
+      - id: "install-node-win"
+        shell: powershell
+        when:
+          platforms: [windows]
+        run: "winget install --id OpenJS.NodeJS.LTS -e --source winget"
+  - id: "pnpm"
+    description: "pnpm is required to install and link the OpenClaw workspace."
+    check:
+      type: "command"
+      name: "pnpm"
+    install:
+      - id: "install-pnpm-unix"
+        shell: bash
+        when:
+          platforms: [macos, ubuntu]
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+      - id: "install-pnpm-win"
+        shell: powershell
+        when:
+          platforms: [windows]
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
 lifecycle:
   preflight:
     - id: "show-openclaw-source-profile-unix"

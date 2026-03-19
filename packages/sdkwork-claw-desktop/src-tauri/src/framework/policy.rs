@@ -13,6 +13,7 @@ pub struct ExecutionPolicy {
 }
 
 impl ExecutionPolicy {
+    #[cfg(test)]
     pub fn for_paths(paths: &AppPaths) -> Result<Self> {
         Self::for_paths_with_security(paths, &SecurityConfig::default())
     }
@@ -73,12 +74,6 @@ impl ExecutionPolicy {
             .collect()
     }
 
-    pub fn allowed_spawn_commands(&self) -> Vec<String> {
-        allowed_spawn_commands()
-            .iter()
-            .map(|value| value.to_string())
-            .collect()
-    }
 }
 
 pub fn resolve_managed_path(paths: &AppPaths, candidate: &Path) -> Result<PathBuf> {
