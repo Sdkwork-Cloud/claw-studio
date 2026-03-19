@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
+import { ApiRouter } from '@sdkwork/claw-apirouter';
 import { AppDetail, AppStore } from '@sdkwork/claw-apps';
 import { AuthPage } from '@sdkwork/claw-auth';
 import { ClawCenter, ClawDetail, ClawUpload } from '@sdkwork/claw-center';
@@ -8,6 +10,7 @@ import { Channels } from '@sdkwork/claw-channels';
 import { Chat } from '@sdkwork/claw-chat';
 import { Community, CommunityPostDetail, NewPost } from '@sdkwork/claw-community';
 import { Devices } from '@sdkwork/claw-devices';
+import { Dashboard } from '@sdkwork/claw-dashboard';
 import { Docs } from '@sdkwork/claw-docs';
 import { Extensions } from '@sdkwork/claw-extensions';
 import { GitHubRepoDetail, GitHubRepos } from '@sdkwork/claw-github';
@@ -32,14 +35,27 @@ function PageWrapper({ children }: { children: ReactNode }) {
   );
 }
 
+function ComingSoonRoute({ message }: { message: string }) {
+  return (
+    <PageWrapper>
+      <div className="p-8 text-center text-zinc-500">{message}</div>
+    </PageWrapper>
+  );
+}
+
 export function AppRoutes() {
   const location = useLocation();
+  const { t } = useTranslation();
 
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<Navigate to="/chat" replace />} />
-        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/auth" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/register" element={<AuthPage />} />
+        <Route path="/forgot-password" element={<AuthPage />} />
+        <Route path="/dashboard" element={<PageWrapper><Dashboard /></PageWrapper>} />
         <Route path="/install" element={<PageWrapper><Install /></PageWrapper>} />
         <Route path="/install/:method" element={<PageWrapper><InstallDetail /></PageWrapper>} />
         <Route path="/instances" element={<PageWrapper><Instances /></PageWrapper>} />
@@ -60,7 +76,10 @@ export function AppRoutes() {
         <Route path="/github" element={<PageWrapper><GitHubRepos /></PageWrapper>} />
         <Route path="/github/:id" element={<PageWrapper><GitHubRepoDetail /></PageWrapper>} />
         <Route path="/huggingface" element={<PageWrapper><HuggingFaceModels /></PageWrapper>} />
-        <Route path="/huggingface/:id" element={<PageWrapper><HuggingFaceModelDetail /></PageWrapper>} />
+        <Route
+          path="/huggingface/:id"
+          element={<PageWrapper><HuggingFaceModelDetail /></PageWrapper>}
+        />
         <Route path="/channels" element={<PageWrapper><Channels /></PageWrapper>} />
         <Route path="/tasks" element={<PageWrapper><Tasks /></PageWrapper>} />
         <Route path="/chat" element={<PageWrapper><Chat /></PageWrapper>} />
@@ -68,19 +87,11 @@ export function AppRoutes() {
         <Route path="/docs" element={<PageWrapper><Docs /></PageWrapper>} />
         <Route
           path="/codebox"
-          element={
-            <PageWrapper>
-              <div className="p-8 text-center text-zinc-500">CodeBox integration coming soon.</div>
-            </PageWrapper>
-          }
+          element={<ComingSoonRoute message={t('routes.codeboxComingSoon')} />}
         />
         <Route
           path="/api-router"
-          element={
-            <PageWrapper>
-              <div className="p-8 text-center text-zinc-500">Api Router integration coming soon.</div>
-            </PageWrapper>
-          }
+          element={<PageWrapper><ApiRouter /></PageWrapper>}
         />
       </Routes>
     </AnimatePresence>

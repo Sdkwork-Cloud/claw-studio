@@ -14,9 +14,10 @@ import {
   Star,
   Trash2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { useInstanceStore } from '@sdkwork/claw-core';
-import { Modal } from '@sdkwork/claw-ui';
+import { instanceDirectoryService, useInstanceStore } from '@sdkwork/claw-core';
+import { Input, Modal } from '@sdkwork/claw-ui';
 import { extensionService, type Extension } from '../../services';
 
 interface ExtensionInstance {
@@ -27,21 +28,12 @@ interface ExtensionInstance {
   iconType?: 'apple' | 'box' | 'server';
 }
 
-async function loadInstances(): Promise<ExtensionInstance[]> {
-  try {
-    const response = await fetch('/api/instances');
-    if (!response.ok) {
-      throw new Error('Failed to fetch instances');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch instances for extensions:', error);
-    return [];
-  }
+function formatDownloadCount(downloads: number) {
+  return `${(downloads / 1000).toFixed(1)}k`;
 }
 
 export function Extensions() {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'discover' | 'installed'>('discover');
   const [extensions, setExtensions] = useState<Extension[]>([]);
@@ -58,7 +50,7 @@ export function Extensions() {
       try {
         const [extensionResult, instanceResult] = await Promise.all([
           extensionService.getExtensions(),
-          loadInstances(),
+          instanceDirectoryService.listInstances(),
         ]);
         setExtensions(extensionResult.items);
         setInstances(instanceResult);
@@ -99,28 +91,30 @@ export function Extensions() {
           extension.id === installModalExt.id ? { ...extension, installed: true } : extension,
         ),
       );
-      toast.success('Extension installed successfully');
+      toast.success(t('extensions.page.toasts.installSuccess'));
       setInstallModalExt(null);
     } catch {
-      toast.error('Failed to install extension');
+      toast.error(t('extensions.page.toasts.installFailed'));
     } finally {
       setIsInstalling(false);
     }
   }
 
   async function handleUninstall(id: string) {
-    if (!window.confirm('Are you sure you want to uninstall this extension?')) {
+    if (!window.confirm(t('extensions.page.confirmUninstall'))) {
       return;
     }
 
     try {
       await extensionService.uninstallExtension(id);
       setExtensions((current) =>
-        current.map((extension) => (extension.id === id ? { ...extension, installed: false } : extension)),
+        current.map((extension) =>
+          extension.id === id ? { ...extension, installed: false } : extension,
+        ),
       );
-      toast.success('Extension uninstalled successfully');
+      toast.success(t('extensions.page.toasts.uninstallSuccess'));
     } catch {
-      toast.error('Failed to uninstall extension');
+      toast.error(t('extensions.page.toasts.uninstallFailed'));
     }
   }
 
@@ -140,7 +134,7 @@ export function Extensions() {
             <Puzzle className="h-5 w-5" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Extensions
+            {t('extensions.page.title')}
           </h1>
         </div>
 
@@ -154,7 +148,7 @@ export function Extensions() {
                   : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
               }`}
             >
-              Discover
+              {t('extensions.page.tabs.discover')}
             </button>
             <button
               onClick={() => setActiveTab('installed')}
@@ -164,18 +158,18 @@ export function Extensions() {
                   : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
               }`}
             >
-              Installed
+              {t('extensions.page.tabs.installed')}
             </button>
           </div>
 
           <div className="group relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-indigo-500 dark:text-zinc-500" />
-            <input
+            <Input
               type="text"
-              placeholder="Search extensions..."
+              placeholder={t('extensions.page.searchPlaceholder')}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-100/80 py-2 pl-9 pr-4 text-sm font-medium text-zinc-900 outline-none transition-all placeholder:text-zinc-500 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100 dark:placeholder:text-zinc-400 dark:focus:bg-zinc-900"
+              className="rounded-xl bg-zinc-100/80 py-2 pl-9 pr-4 font-medium focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-indigo-500/20 focus-visible:ring-offset-0 dark:border-zinc-700 dark:bg-zinc-800/80 dark:focus-visible:bg-zinc-900 dark:focus-visible:ring-offset-0"
             />
           </div>
         </div>
@@ -194,17 +188,17 @@ export function Extensions() {
                   <div className="absolute right-0 top-0 h-64 w-64 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
                   <div className="relative z-10 max-w-2xl">
                     <span className="mb-4 inline-block rounded-full border border-white/10 bg-white/20 px-3 py-1 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
-                      Featured
+                      {t('extensions.page.featured.badge')}
                     </span>
                     <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                      Supercharge Your Workflow
+                      {t('extensions.page.featured.title')}
                     </h2>
                     <p className="mb-8 text-lg leading-relaxed text-indigo-100">
-                      Discover powerful extensions to customize your Claw environment. Add new
-                      tools, integrations, and capabilities with just one click.
+                      {t('extensions.page.featured.description')}
                     </p>
                     <button className="flex items-center gap-2 rounded-full bg-white px-6 py-3 font-bold text-indigo-900 shadow-lg transition-colors hover:bg-indigo-50">
-                      Browse Top Extensions <ChevronRight className="h-4 w-4" />
+                      {t('extensions.page.featured.browse')}
+                      <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -248,7 +242,7 @@ export function Extensions() {
                       </span>
                       <span className="flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         <Download className="h-3.5 w-3.5" />
-                        {(extension.downloads / 1000).toFixed(1)}k
+                        {formatDownloadCount(extension.downloads)}
                       </span>
                     </div>
 
@@ -260,7 +254,7 @@ export function Extensions() {
                         <button
                           onClick={() => void handleUninstall(extension.id)}
                           className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
-                          title="Uninstall"
+                          title={t('extensions.page.actions.uninstall')}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -270,7 +264,7 @@ export function Extensions() {
                         onClick={() => handleInstallClick(extension)}
                         className="rounded-full bg-indigo-50 px-4 py-1.5 text-xs font-bold text-indigo-600 transition-colors hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20"
                       >
-                        Install
+                        {t('common.install')}
                       </button>
                     )}
                   </div>
@@ -281,10 +275,10 @@ export function Extensions() {
                 <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
                   <Puzzle className="mb-4 h-12 w-12 text-zinc-300 dark:text-zinc-700" />
                   <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                    No extensions found
+                    {t('extensions.page.empty.title')}
                   </h3>
                   <p className="text-zinc-500 dark:text-zinc-400">
-                    Try adjusting your search terms or filters.
+                    {t('extensions.page.empty.description')}
                   </p>
                 </div>
               ) : null}
@@ -293,7 +287,11 @@ export function Extensions() {
         )}
       </div>
 
-      <Modal isOpen={!!installModalExt} onClose={() => setInstallModalExt(null)} title="Install Extension">
+      <Modal
+        isOpen={!!installModalExt}
+        onClose={() => setInstallModalExt(null)}
+        title={t('extensions.page.modal.title')}
+      >
         {installModalExt ? (
           <div className="space-y-6">
             <div className="flex items-center gap-4 rounded-2xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -304,9 +302,11 @@ export function Extensions() {
                 referrerPolicy="no-referrer"
               />
               <div>
-                <h4 className="font-bold text-zinc-900 dark:text-zinc-100">{installModalExt.name}</h4>
+                <h4 className="font-bold text-zinc-900 dark:text-zinc-100">
+                  {installModalExt.name}
+                </h4>
                 <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
-                  by {installModalExt.author}
+                  {t('extensions.page.modal.byAuthor', { author: installModalExt.author })}
                 </p>
               </div>
             </div>
@@ -314,14 +314,16 @@ export function Extensions() {
             {instances.length === 0 ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-500">
                 <AlertCircle className="mx-auto mb-2 h-6 w-6 opacity-80" />
-                <p className="text-sm font-bold">No instances available</p>
-                <p className="mt-1 text-xs opacity-80">Please create an instance first.</p>
+                <p className="text-sm font-bold">{t('extensions.page.modal.noInstancesTitle')}</p>
+                <p className="mt-1 text-xs opacity-80">
+                  {t('extensions.page.modal.noInstancesDescription')}
+                </p>
               </div>
             ) : (
               <div className="space-y-5">
                 <div>
                   <label className="mb-2 block text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                    Select Target Instances
+                    {t('extensions.page.modal.selectTargetInstances')}
                   </label>
                   <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
                     {instances.map((instance) => {
@@ -374,7 +376,12 @@ export function Extensions() {
                                   : 'text-zinc-500 dark:text-zinc-400'
                               }`}
                             >
-                              {instance.status === 'online' ? 'Online' : 'Offline'} • {instance.ip}
+                              {t(
+                                instance.status === 'online'
+                                  ? 'extensions.page.status.online'
+                                  : 'extensions.page.status.offline',
+                              )}{' '}
+                              - {instance.ip}
                             </p>
                           </div>
                         </div>
@@ -391,12 +398,12 @@ export function Extensions() {
                   {isInstalling ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Installing...
+                      {t('extensions.page.modal.installing')}
                     </>
                   ) : (
                     <>
                       <Download className="h-5 w-5" />
-                      Install to Instance
+                      {t('extensions.page.modal.installToInstance')}
                     </>
                   )}
                 </button>

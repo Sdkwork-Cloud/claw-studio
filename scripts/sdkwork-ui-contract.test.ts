@@ -16,6 +16,25 @@ function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
 }
 
+function walkFiles(dirPath: string, predicate: (filePath: string) => boolean): string[] {
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const absolutePath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...walkFiles(absolutePath, predicate));
+      continue;
+    }
+
+    if (predicate(absolutePath)) {
+      files.push(absolutePath);
+    }
+  }
+
+  return files;
+}
+
 function runTest(name: string, fn: () => void) {
   try {
     fn();
@@ -29,13 +48,81 @@ function runTest(name: string, fn: () => void) {
 runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-studio-shared-ui', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-ui/package.json');
   const indexSource = read('packages/sdkwork-claw-ui/src/index.ts');
+  const componentsIndexSource = read('packages/sdkwork-claw-ui/src/components/index.ts');
 
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Modal.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Button.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Input.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Textarea.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Label.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Select.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Dialog.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Checkbox.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Switch.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/Slider.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/RepositoryCard.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/lib/utils.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-shared-ui']);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-shared-ui/);
-  assert.match(indexSource, /Modal/);
-  assert.match(indexSource, /RepositoryCard/);
+  assert.match(indexSource, /export \* from '\.\/components'/);
+  assert.match(indexSource, /OverlaySurface/);
+  assert.match(indexSource, /overlayLayout/);
+  assert.match(componentsIndexSource, /Button/);
+  assert.match(componentsIndexSource, /Input/);
+  assert.match(componentsIndexSource, /Textarea/);
+  assert.match(componentsIndexSource, /Label/);
+  assert.match(componentsIndexSource, /Select/);
+  assert.match(componentsIndexSource, /Dialog/);
+  assert.match(componentsIndexSource, /Checkbox/);
+  assert.match(componentsIndexSource, /Switch/);
+  assert.match(componentsIndexSource, /Slider/);
+});
+
+runTest('feature packages use shared shadcn-style form primitives instead of native controls', () => {
+  const packagesRoot = path.join(root, 'packages');
+  const architectureAllowList = new Set([
+    // @sdkwork/claw-core is not allowed to depend on @sdkwork/claw-ui by repo architecture rules.
+    'packages/sdkwork-claw-core/src/components/CommandPalette.tsx',
+  ]);
+  const sourceFiles = walkFiles(
+    packagesRoot,
+    (filePath) =>
+      filePath.endsWith('.tsx') &&
+      !filePath.includes(`${path.sep}sdkwork-claw-ui${path.sep}src${path.sep}components${path.sep}`),
+  );
+
+  const nativeControlPattern = /<(input|select|textarea)\b[\s\S]*?>/g;
+  const allowedInputTypePattern = /type=(['"])(file|hidden)\1/;
+  const violations: string[] = [];
+
+  for (const filePath of sourceFiles) {
+    const relativePath = path.relative(root, filePath).replaceAll(path.sep, '/');
+
+    if (architectureAllowList.has(relativePath)) {
+      continue;
+    }
+
+    const source = fs.readFileSync(filePath, 'utf8');
+    const matches = source.matchAll(nativeControlPattern);
+
+    for (const match of matches) {
+      const [tag] = match;
+      const tagName = match[1];
+
+      if (tagName === 'input' && allowedInputTypePattern.test(tag)) {
+        continue;
+      }
+
+      const startIndex = match.index ?? 0;
+      const lineNumber = source.slice(0, startIndex).split('\n').length;
+      violations.push(`${relativePath}:${lineNumber} uses native <${tagName}>`);
+    }
+  }
+
+  assert.deepEqual(
+    violations,
+    [],
+    `Native form controls remain outside @sdkwork/claw-ui:\n${violations.join('\n')}`,
+  );
 });

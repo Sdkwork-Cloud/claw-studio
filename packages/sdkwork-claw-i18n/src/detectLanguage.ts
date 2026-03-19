@@ -1,0 +1,135 @@
+import {
+  APP_STORE_STORAGE_KEY,
+  DEFAULT_LANGUAGE,
+  I18N_STORAGE_KEY,
+  LANGUAGE_COOKIE_KEY,
+  type AppLanguage,
+  normalizeLanguage,
+} from './config.ts';
+
+export interface ResolveLanguageOptions {
+  appStoreLanguage?: string | null;
+  detectorLanguage?: string | null;
+  cookieLanguage?: string | null;
+  requestLanguage?: string | null;
+  htmlLanguage?: string | null;
+  navigatorLanguage?: string | null;
+}
+
+interface BrowserLanguageOptions {
+  storage?: Pick<Storage, 'getItem'> | null;
+  cookie?: string | null;
+  htmlLanguage?: string | null;
+  navigatorLanguage?: string | null;
+}
+
+export function parseCookieValue(cookieHeader?: string | null) {
+  if (!cookieHeader) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    cookieHeader
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [name, ...rest] = part.split('=');
+        return [name, decodeURIComponent(rest.join('='))];
+      }),
+  );
+}
+
+export function getLanguageFromCookieString(cookieHeader?: string | null) {
+  const value = parseCookieValue(cookieHeader)[LANGUAGE_COOKIE_KEY];
+  return value ? normalizeLanguage(value) : null;
+}
+
+export function extractLanguageFromAcceptLanguage(header?: string | null) {
+  return header
+    ?.split(',')
+    .map((entry) => entry.trim().split(';')[0]?.trim())
+    .find(Boolean);
+}
+
+export function getAppStoreLanguageFromSnapshot(snapshot?: string | null) {
+  if (!snapshot) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(snapshot) as
+      | {
+          state?: { language?: string } | null;
+          language?: string;
+        }
+      | null;
+
+    if (!parsed || typeof parsed !== 'object') {
+      return undefined;
+    }
+
+    if (typeof parsed.state?.language === 'string') {
+      return parsed.state.language;
+    }
+
+    return typeof parsed.language === 'string' ? parsed.language : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolveLanguage(options: ResolveLanguageOptions = {}): AppLanguage {
+  const candidates = [
+    options.requestLanguage,
+    options.cookieLanguage,
+    options.appStoreLanguage,
+    options.detectorLanguage,
+    options.htmlLanguage,
+    options.navigatorLanguage,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate) {
+      return normalizeLanguage(candidate);
+    }
+  }
+
+  return DEFAULT_LANGUAGE;
+}
+
+export function detectBrowserLanguage(options: BrowserLanguageOptions = {}) {
+  const storage =
+    options.storage ??
+    (typeof window !== 'undefined' ? window.localStorage : null);
+  const cookie =
+    options.cookie ??
+    (typeof document !== 'undefined' ? document.cookie : undefined);
+  const htmlLanguage =
+    options.htmlLanguage ??
+    (typeof document !== 'undefined' ? document.documentElement.getAttribute('lang') : undefined);
+  const navigatorLanguage =
+    options.navigatorLanguage ??
+    (typeof navigator !== 'undefined' ? navigator.language : undefined);
+
+  const appStoreLanguage = storage
+    ? getAppStoreLanguageFromSnapshot(storage.getItem(APP_STORE_STORAGE_KEY))
+    : undefined;
+
+  const detectorLanguage = storage?.getItem(I18N_STORAGE_KEY);
+  const cookieLanguage = getLanguageFromCookieString(cookie);
+
+  return resolveLanguage({
+    appStoreLanguage,
+    detectorLanguage,
+    cookieLanguage,
+    htmlLanguage,
+    navigatorLanguage,
+  });
+}
+
+export function detectRequestLanguage(acceptLanguageHeader?: string | null) {
+  return resolveLanguage({
+    requestLanguage: extractLanguageFromAcceptLanguage(acceptLanguageHeader),
+  });
+}

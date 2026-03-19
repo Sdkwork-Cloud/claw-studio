@@ -48,7 +48,7 @@ const DEFAULT_CHANNELS: LLMChannel[] = [
     provider: 'google',
     baseUrl: 'https://generativelanguage.googleapis.com',
     apiKey: '',
-    icon: '✨',
+    icon: '\u2728',
     defaultModelId: 'gemini-3-flash-preview',
     models: [
       { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
@@ -61,7 +61,7 @@ const DEFAULT_CHANNELS: LLMChannel[] = [
     provider: 'openai',
     baseUrl: 'https://api.openai.com/v1',
     apiKey: '',
-    icon: '🤖',
+    icon: '\ud83e\udde0',
     defaultModelId: 'gpt-4o',
     models: [
       { id: 'gpt-4o', name: 'GPT-4o' },
@@ -75,7 +75,7 @@ const DEFAULT_CHANNELS: LLMChannel[] = [
     provider: 'moonshot',
     baseUrl: 'https://api.moonshot.cn/v1',
     apiKey: '',
-    icon: '🌙',
+    icon: '\ud83c\udf19',
     defaultModelId: 'moonshot-v1-8k',
     models: [
       { id: 'moonshot-v1-8k', name: 'Moonshot v1 8K' },
@@ -89,7 +89,7 @@ const DEFAULT_CHANNELS: LLMChannel[] = [
     provider: 'deepseek',
     baseUrl: 'https://api.deepseek.com/v1',
     apiKey: '',
-    icon: '🐋',
+    icon: '\ud83d\udd0d',
     defaultModelId: 'deepseek-chat',
     models: [
       { id: 'deepseek-chat', name: 'DeepSeek Chat' },
@@ -102,7 +102,7 @@ const DEFAULT_CHANNELS: LLMChannel[] = [
     provider: 'qwen',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     apiKey: '',
-    icon: '🚀',
+    icon: '\u2601\ufe0f',
     defaultModelId: 'qwen-turbo',
     models: [
       { id: 'qwen-turbo', name: 'Qwen Turbo' },

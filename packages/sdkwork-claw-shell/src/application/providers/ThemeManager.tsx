@@ -1,17 +1,14 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@sdkwork/claw-core';
-import { i18n } from '@sdkwork/claw-i18n';
 
 export function ThemeManager() {
-  const { themeMode, themeColor, language } = useAppStore();
+  const { themeMode, themeColor } = useAppStore();
 
   useEffect(() => {
     const root = document.documentElement;
 
     const applyTheme = () => {
       root.setAttribute('data-theme', themeColor);
-      root.setAttribute('lang', language);
-      void i18n.changeLanguage(language);
 
       if (
         themeMode === 'dark' ||
@@ -31,7 +28,7 @@ export function ThemeManager() {
       mediaQuery.addEventListener('change', handleChange);
       return () => mediaQuery.removeEventListener('change', handleChange);
     }
-  }, [language, themeColor, themeMode]);
+  }, [themeColor, themeMode]);
 
   return null;
 }

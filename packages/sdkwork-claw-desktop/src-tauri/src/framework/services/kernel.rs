@@ -92,9 +92,9 @@ impl KernelService {
             },
             DesktopCapabilityInfo {
                 key: "permissions".to_string(),
-                status: DesktopCapabilityStatus::Planned,
+                status: DesktopCapabilityStatus::Ready,
                 detail: format!(
-                    "{} permission policy entries are standardized for future native adapters.",
+                    "{} permission policy entries are standardized across granted, managed, and planned desktop access surfaces.",
                     domains.permissions.entries.len()
                 ),
             },
@@ -126,6 +126,15 @@ impl KernelService {
 
         DesktopKernelInfo {
             directories: DesktopKernelDirectories {
+                install_root: paths.install_root.to_string_lossy().into_owned(),
+                modules_dir: paths.modules_dir.to_string_lossy().into_owned(),
+                runtimes_dir: paths.runtimes_dir.to_string_lossy().into_owned(),
+                machine_root: paths.machine_root.to_string_lossy().into_owned(),
+                machine_state_dir: paths.machine_state_dir.to_string_lossy().into_owned(),
+                machine_store_dir: paths.machine_store_dir.to_string_lossy().into_owned(),
+                machine_staging_dir: paths.machine_staging_dir.to_string_lossy().into_owned(),
+                user_root: paths.user_root.to_string_lossy().into_owned(),
+                studio_dir: paths.studio_dir.to_string_lossy().into_owned(),
                 storage_dir: paths.storage_dir.to_string_lossy().into_owned(),
                 plugins_dir: paths.plugins_dir.to_string_lossy().into_owned(),
                 integrations_dir: paths.integrations_dir.to_string_lossy().into_owned(),

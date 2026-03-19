@@ -5,6 +5,31 @@ export interface RuntimeAppInfo {
 }
 
 export interface RuntimePathsInfo {
+  installRoot: string;
+  foundationDir: string;
+  modulesDir: string;
+  runtimesDir: string;
+  toolsDir: string;
+  trustDir: string;
+  packsDir: string;
+  extensionsDir: string;
+  machineRoot: string;
+  machineStateDir: string;
+  machineStoreDir: string;
+  machineStagingDir: string;
+  machineReceiptsDir: string;
+  machineRuntimeDir: string;
+  machineRecoveryDir: string;
+  machineLogsDir: string;
+  userRoot: string;
+  userDir: string;
+  userAuthDir: string;
+  userStorageDir: string;
+  userIntegrationsDir: string;
+  studioDir: string;
+  workspacesDir: string;
+  studioBackupsDir: string;
+  userLogsDir: string;
   configDir: string;
   dataDir: string;
   cacheDir: string;
@@ -15,6 +40,15 @@ export interface RuntimePathsInfo {
   integrationsDir: string;
   backupsDir: string;
   configFile: string;
+  layoutFile: string;
+  activeFile: string;
+  inventoryFile: string;
+  retentionFile: string;
+  pinnedFile: string;
+  channelsFile: string;
+  policiesFile: string;
+  sourcesFile: string;
+  serviceFile: string;
   deviceIdFile: string;
   mainLogFile: string;
 }
@@ -160,6 +194,15 @@ export interface RuntimeDesktopKernelCapability {
 }
 
 export interface RuntimeDesktopKernelDirectories {
+  installRoot: string;
+  modulesDir: string;
+  runtimesDir: string;
+  machineRoot: string;
+  machineStateDir: string;
+  machineStoreDir: string;
+  machineStagingDir: string;
+  userRoot: string;
+  studioDir: string;
   storageDir: string;
   pluginsDir: string;
   integrationsDir: string;

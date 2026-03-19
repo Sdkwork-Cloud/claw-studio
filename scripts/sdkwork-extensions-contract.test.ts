@@ -41,9 +41,10 @@ runTest('sdkwork-claw-extensions keeps the V5 extension package surface locally'
 runTest('sdkwork-claw-extensions preserves the V5 install flow with modal instance targeting', () => {
   const pageSource = read('packages/sdkwork-claw-extensions/src/pages/extensions/Extensions.tsx');
 
+  assert.match(pageSource, /useTranslation/);
   assert.match(pageSource, /installModalExt/);
   assert.match(pageSource, /selectedInstanceIds/);
-  assert.match(pageSource, /Install Extension/);
+  assert.match(pageSource, /t\('extensions\.page\.modal\.title'\)/);
   assert.match(pageSource, /@sdkwork\/claw-core/);
   assert.doesNotMatch(pageSource, /@sdkwork\/claw-instances/);
 });

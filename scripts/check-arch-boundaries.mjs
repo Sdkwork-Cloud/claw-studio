@@ -126,7 +126,7 @@ function isAllowed(fromPkg, toPkg) {
   }
 
   if (fromPkg === COMMONS) {
-    return [COMMONS, CORE, UI].includes(toPkg);
+    return [COMMONS, CORE, I18N, UI].includes(toPkg);
   }
 
   if (fromPkg === DISTRIBUTION) {
@@ -134,11 +134,11 @@ function isAllowed(fromPkg, toPkg) {
   }
 
   if (fromPkg === CORE) {
-    return [CORE, INFRA, TYPES].includes(toPkg);
+    return [CORE, INFRA, I18N, TYPES].includes(toPkg);
   }
 
   if (fromPkg === INFRA) {
-    return [INFRA, TYPES].includes(toPkg);
+    return [INFRA, I18N, TYPES].includes(toPkg);
   }
 
   if (fromPkg === TYPES || fromPkg === UI || fromPkg === I18N) {
@@ -147,7 +147,7 @@ function isAllowed(fromPkg, toPkg) {
 
   if (featurePackages.includes(fromPkg)) {
     return (
-      [fromPkg, COMMONS, CORE, INFRA, TYPES, UI].includes(toPkg) ||
+      [fromPkg, COMMONS, CORE, INFRA, I18N, TYPES, UI].includes(toPkg) ||
       allowedFeatureDependencies.get(fromPkg)?.has(toPkg) === true
     );
   }

@@ -38,6 +38,7 @@ runTest('sdkwork-claw-account is implemented locally instead of re-exporting cla
   assert.match(indexSource, /Account/);
 
   const accountSource = read('packages/sdkwork-claw-account/src/Account.tsx');
-  assert.match(accountSource, /Account & Wallet/);
+  assert.match(accountSource, /useTranslation/);
+  assert.match(accountSource, /t\('account\.title'\)/);
   assert.match(accountSource, /wallet/i);
 });

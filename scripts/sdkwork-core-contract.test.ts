@@ -56,3 +56,35 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.match(indexSource, /useAppStore/);
   assert.match(indexSource, /useKeyboardShortcuts/);
 });
+
+runTest('sdkwork-claw-core app store persists sidebar width for shell chrome resizing', () => {
+  const storeSource = read('packages/sdkwork-claw-core/src/stores/useAppStore.ts');
+
+  assert.match(storeSource, /sidebarWidth:\s*number/);
+  assert.match(storeSource, /setSidebarWidth:\s*\(width:\s*number\)\s*=>\s*void/);
+  assert.match(storeSource, /sidebarWidth:\s*252/);
+  assert.match(storeSource, /setSidebarWidth:\s*\(sidebarWidth\)\s*=>\s*set\(\{\s*sidebarWidth\s*\}\)/);
+});
+
+runTest('sdkwork-claw-core app store tracks one-time mobile guide exposure separately from dialog visibility', () => {
+  const storeSource = read('packages/sdkwork-claw-core/src/stores/useAppStore.ts');
+
+  assert.match(storeSource, /isMobileAppDialogOpen:\s*boolean/);
+  assert.match(storeSource, /hasSeenMobileAppPrompt:\s*boolean/);
+  assert.match(storeSource, /openMobileAppDialog:\s*\(\)\s*=>\s*void/);
+  assert.match(storeSource, /closeMobileAppDialog:\s*\(\)\s*=>\s*void/);
+  assert.match(storeSource, /markMobileAppPromptSeen:\s*\(\)\s*=>\s*void/);
+  assert.match(storeSource, /hasSeenMobileAppPrompt:\s*false/);
+  assert.match(storeSource, /partialize/);
+  assert.doesNotMatch(
+    storeSource,
+    /partialize:\s*\(state\):\s*PersistedAppState\s*=>\s*\(\{[\s\S]*isMobileAppDialogOpen:[\s\S]*\}\),\s*merge:/,
+  );
+});
+
+runTest('sdkwork-claw-core sidebar removes codebox while keeping api-router available', () => {
+  const sidebarSource = read('packages/sdkwork-claw-core/src/components/Sidebar.tsx');
+
+  assert.doesNotMatch(sidebarSource, /id: 'codebox'/);
+  assert.match(sidebarSource, /id: 'api-router'/);
+});

@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Filter, ArrowUpDown } from 'lucide-react';
-import { useTaskStore } from '@sdkwork/claw-core';
-import { RepositoryCard } from '@sdkwork/claw-ui';
-import { toast } from 'sonner';
+import { ArrowUpDown, Filter, Search } from 'lucide-react';
 import Fuse from 'fuse.js';
+import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { toast } from 'sonner';
+import { useTaskStore } from '@sdkwork/claw-core';
+import { Input, RepositoryCard } from '@sdkwork/claw-ui';
 import { huggingfaceService, type HuggingFaceModel } from '../../services';
 
+const HUGGING_FACE_MONOGRAM = 'HF';
+
 export function HuggingFaceModels() {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [models, setModels] = useState<HuggingFaceModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,33 +67,46 @@ export function HuggingFaceModels() {
   }, []);
 
   async function handleInstall(id: string, name: string) {
-    toast.success(`Started downloading ${name}`);
+    toast.success(t('huggingface.models.toast.downloadStarted', { name }));
 
     const taskId = addTask({
-      title: `Downloading ${name}`,
-      subtitle: 'Fetching weights and configuration files...',
+      title: t('huggingface.models.task.downloadTitle', { name }),
+      subtitle: t('huggingface.models.task.downloadSubtitle'),
       type: 'download',
     });
 
     try {
       await huggingfaceService.downloadModel(id, name);
-      updateTask(taskId, { progress: 100, status: 'success', subtitle: 'Download complete' });
-      toast.success(`${name} downloaded successfully`);
+      updateTask(taskId, {
+        progress: 100,
+        status: 'success',
+        subtitle: t('huggingface.models.task.downloadComplete'),
+      });
+      toast.success(t('huggingface.models.toast.downloadSuccess', { name }));
     } catch (error) {
-      updateTask(taskId, { status: 'error', subtitle: 'Download failed' });
-      toast.error(`Failed to download ${name}`);
+      updateTask(taskId, {
+        status: 'error',
+        subtitle: t('huggingface.models.task.downloadFailed'),
+      });
+      toast.error(t('huggingface.models.toast.downloadFailed', { name }));
     }
   }
 
-  const fuse = useMemo(() => new Fuse(models, {
-    keys: ['name', 'author', 'tags'],
-    threshold: 0.3,
-  }), [models]);
+  const fuse = useMemo(
+    () =>
+      new Fuse(models, {
+        keys: ['name', 'author', 'tags'],
+        threshold: 0.3,
+      }),
+    [models],
+  );
 
   const filteredModels = useMemo(() => {
-    if (!searchQuery.trim()) return models;
+    if (!searchQuery.trim()) {
+      return models;
+    }
     return fuse.search(searchQuery).map((result) => result.item);
-  }, [searchQuery, fuse, models]);
+  }, [fuse, models, searchQuery]);
 
   const rowVirtualizer = useVirtualizer({
     count: Math.ceil(filteredModels.length / columns),
@@ -99,51 +116,69 @@ export function HuggingFaceModels() {
   });
 
   return (
-    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
-      <div className="shrink-0 z-20 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 px-8 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="flex h-full flex-col bg-zinc-50 dark:bg-zinc-950">
+      <div className="shrink-0 z-20 border-b border-zinc-200 bg-white/80 px-8 py-4 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-400 rounded-xl flex items-center justify-center shadow-md border border-primary-500/20">
-              <span className="text-2xl leading-none">🤗</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-400 shadow-md">
+              <span className="text-sm font-bold text-white">{HUGGING_FACE_MONOGRAM}</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Hugging Face Models</h1>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Download and deploy state-of-the-art AI models ({filteredModels.length} items)</p>
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+                {t('huggingface.models.title')}
+              </h1>
+              <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                {t('huggingface.models.subtitle', { count: filteredModels.length })}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative w-full md:w-80 group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
-              <input
+            <div className="group relative w-full md:w-80">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-primary-500" />
+              <Input
                 type="text"
-                placeholder="Search models, authors, tasks..."
+                placeholder={t('huggingface.models.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full pl-12 pr-4 py-2.5 bg-zinc-100/80 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 focus:bg-white dark:focus:bg-zinc-900 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 rounded-2xl text-sm font-medium transition-all outline-none placeholder:text-zinc-500 dark:placeholder:text-zinc-400 shadow-sm"
+                className="rounded-2xl bg-zinc-100/80 py-2.5 pl-12 pr-4 font-medium focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-primary-500/10 focus-visible:ring-offset-0 dark:border-zinc-700 dark:bg-zinc-800/80 dark:focus-visible:bg-zinc-900 dark:focus-visible:ring-offset-0"
               />
             </div>
-            <button className="p-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-sm">
-              <Filter className="w-5 h-5" />
+            <button
+              type="button"
+              title={t('huggingface.models.filter')}
+              className="rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            >
+              <Filter className="h-5 w-5" />
             </button>
-            <button className="p-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-sm">
-              <ArrowUpDown className="w-5 h-5" />
+            <button
+              type="button"
+              title={t('huggingface.models.sort')}
+              className="rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            >
+              <ArrowUpDown className="h-5 w-5" />
             </button>
           </div>
         </div>
       </div>
 
-      <div ref={parentRef} className="flex-1 overflow-y-auto scrollbar-hide px-8 pt-8">
-        <div className="max-w-7xl mx-auto w-full">
+      <div ref={parentRef} className="flex-1 overflow-y-auto px-8 pt-8 scrollbar-hide">
+        <div className="mx-auto w-full max-w-7xl">
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
             </div>
           ) : filteredModels.length === 0 ? (
-            <div className="text-center py-20">
-              <span className="text-6xl mb-4 block opacity-50 grayscale">🤗</span>
-              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">No models found</h3>
-              <p className="text-zinc-500 dark:text-zinc-400">Try adjusting your search query or filters.</p>
+            <div className="py-20 text-center">
+              <span className="mb-4 block text-4xl font-bold text-zinc-300 dark:text-zinc-700">
+                {HUGGING_FACE_MONOGRAM}
+              </span>
+              <h3 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                {t('huggingface.models.emptyTitle')}
+              </h3>
+              <p className="text-zinc-500 dark:text-zinc-400">
+                {t('huggingface.models.emptyDescription')}
+              </p>
             </div>
           ) : (
             <div
@@ -156,7 +191,7 @@ export function HuggingFaceModels() {
               {rowVirtualizer.getVirtualItems().map((virtualRow) => (
                 <div
                   key={virtualRow.index}
-                  className="absolute top-0 left-0 w-full flex gap-6"
+                  className="absolute left-0 top-0 flex w-full gap-6"
                   style={{
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
@@ -167,7 +202,10 @@ export function HuggingFaceModels() {
                     const model = filteredModels[itemIndex];
 
                     return (
-                      <div key={model ? model.id : `empty-${colIndex}`} className="flex-1 min-w-0 pb-6">
+                      <div
+                        key={model ? model.id : `empty-${colIndex}`}
+                        className="min-w-0 flex-1 pb-6"
+                      >
                         {model ? (
                           <RepositoryCard
                             {...model}

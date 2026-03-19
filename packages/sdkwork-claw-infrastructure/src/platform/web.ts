@@ -60,6 +60,18 @@ export class WebPlatform implements PlatformAPI {
     console.warn('maximizeWindow not supported in web');
   }
 
+  async restoreWindow(): Promise<void> {
+    console.warn('restoreWindow not supported in web');
+  }
+
+  async isWindowMaximized(): Promise<boolean> {
+    return false;
+  }
+
+  async subscribeWindowMaximized(_listener: (isMaximized: boolean) => void): Promise<() => void> {
+    return () => {};
+  }
+
   async closeWindow(): Promise<void> {
     window.close();
   }

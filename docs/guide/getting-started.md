@@ -30,7 +30,7 @@ pnpm install
 pnpm dev
 ```
 
-This starts the development server from `packages/sdkwork-claw-web/server.ts` on `http://localhost:3001`.
+This starts the Vite development server for `@sdkwork/claw-web` on `http://localhost:3001`.
 
 ## Run The Desktop App
 

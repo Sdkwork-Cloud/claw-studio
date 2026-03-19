@@ -9,6 +9,8 @@ coverage/
 out/
 tmp/
 temp/
+%TEMP%/
+tmp-dashboard-encoding-test.txt
 
 target/
 src-tauri/target/

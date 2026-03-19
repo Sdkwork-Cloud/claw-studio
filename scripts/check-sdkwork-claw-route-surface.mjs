@@ -29,8 +29,11 @@ function extractRoutes(source) {
 
 const shellRoutes = extractRoutes(read(shellRoutesPath));
 const v5Routes = extractRoutes(read(v5RoutesPath));
+const approvedTemplateExtensions = new Set(['/dashboard']);
 const missingRoutes = v5Routes.filter((route) => !shellRoutes.includes(route));
-const extraRoutes = shellRoutes.filter((route) => !v5Routes.includes(route));
+const extraRoutes = shellRoutes.filter(
+  (route) => !v5Routes.includes(route) && !approvedTemplateExtensions.has(route),
+);
 
 if (missingRoutes.length > 0 || extraRoutes.length > 0) {
   console.error('SDKWork Claw route surface check failed:');
@@ -43,4 +46,8 @@ if (missingRoutes.length > 0 || extraRoutes.length > 0) {
   process.exit(1);
 }
 
-console.log('SDKWork Claw route surface check passed.');
+console.log(
+  `SDKWork Claw route surface check passed. Approved template extensions: ${[
+    ...approvedTemplateExtensions,
+  ].join(', ')}`,
+);

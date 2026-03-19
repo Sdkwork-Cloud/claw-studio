@@ -26,7 +26,7 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-apps is implemented locally with the V5 app store API service surface', () => {
+runTest('sdkwork-claw-apps is implemented locally with the service-first app store surface', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-apps/package.json');
   const indexSource = read('packages/sdkwork-claw-apps/src/index.ts');
   const serviceSource = read('packages/sdkwork-claw-apps/src/services/appStoreService.ts');
@@ -39,10 +39,13 @@ runTest('sdkwork-claw-apps is implemented locally with the V5 app store API serv
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-apps/);
 
-  assert.match(serviceSource, /fetch\('\/api\/appstore\/topcharts'\)/);
-  assert.match(serviceSource, /fetch\('\/api\/appstore\/featured'\)/);
-  assert.match(serviceSource, /fetch\('\/api\/appstore\/categories'\)/);
-  assert.match(serviceSource, /fetch\(`\/api\/appstore\/apps\/\$\{id\}`\)/);
+  assert.match(serviceSource, /import\s+\{\s*studioMockService\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
+  assert.match(serviceSource, /getFeaturedApp\(\): Promise<AppItem>/);
+  assert.match(serviceSource, /studioMockService\.getFeaturedApp\(\)/);
+  assert.match(serviceSource, /studioMockService\.getTopChartApps\(\)/);
+  assert.match(serviceSource, /studioMockService\.getAppCategories\(\)/);
+  assert.match(serviceSource, /studioMockService\.getApp\(id\)/);
+  assert.doesNotMatch(serviceSource, /fetch\('/);
   assert.doesNotMatch(serviceSource, /const FEATURED_APP/);
   assert.doesNotMatch(serviceSource, /const TOP_CHARTS/);
   assert.doesNotMatch(serviceSource, /const ALL_APPS/);

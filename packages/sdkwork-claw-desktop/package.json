@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:tauri": "vite --host 127.0.0.1 --port 1420",
+    "dev:tauri": "vite --host 127.0.0.1 --port 1420 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "node ../../scripts/run-workspace-tsc.mjs --noEmit",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:dev": "node ../../scripts/ensure-tauri-target-clean.mjs src-tauri && node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420 && tauri dev",
+    "tauri:build": "node ../../scripts/ensure-tauri-target-clean.mjs src-tauri && tauri build",
     "tauri:icon": "tauri icon src-tauri/app-icon.svg",
     "tauri:info": "tauri info"
   },

@@ -6,6 +6,7 @@ The workspace reproduces the Claw Studio product surface from `upgrade/claw-stud
 
 ## Workspace Group
 
+- `dashboard`: operator control plane for workspace health, instances, agents, and delivery readiness
 - `auth`: authentication entry and sign-in flows
 - `chat`: AI chat experience
 - `channels`: provider and channel views
@@ -40,3 +41,5 @@ Each feature package owns its pages, components, and services. This keeps busine
 ## UI Parity Goal
 
 The migration target is functional and visual parity with `upgrade/claw-studio-v5`. Package extraction is a maintainability improvement, not a product redesign.
+
+The approved template extension is `dashboard`, which intentionally upgrades the entry experience beyond V5 parity so new applications open on an operational control plane instead of a single feature page.

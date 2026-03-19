@@ -1,6 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, Download, Server, Folder, GitBranch, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  Folder,
+  GitBranch,
+  Loader2,
+  Server,
+  X,
+} from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import {
+  Checkbox,
+  Input,
+  Label,
+  OverlaySurface,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@sdkwork/claw-ui';
 
 export interface InstallModalProps {
   isOpen: boolean;
@@ -11,239 +31,331 @@ export interface InstallModalProps {
   instances?: { id: string; name: string; status: string; ip: string; iconType: string }[];
 }
 
-export function InstallModal({ isOpen, onClose, title, repoName, type, instances = [] }: InstallModalProps) {
+export function InstallModal({
+  isOpen,
+  onClose,
+  title,
+  repoName,
+  type,
+  instances = [],
+}: InstallModalProps) {
+  const { t } = useTranslation();
+  const revisionOptions = ['main', 'v1.0.0', 'dev'];
   const [step, setStep] = useState<'config' | 'installing' | 'success' | 'error'>('config');
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
+  const [targetEnvironment, setTargetEnvironment] = useState('local');
+  const [installPath, setInstallPath] = useState('');
+  const [selectedRevision, setSelectedRevision] = useState(revisionOptions[0]);
 
-  // Reset state when modal opens
+  const sourceLabel = useMemo(
+    () =>
+      type === 'github'
+        ? t('installModal.sources.github')
+        : t('installModal.sources.huggingFace'),
+    [t, type],
+  );
+
   useEffect(() => {
     if (isOpen) {
       setStep('config');
       setProgress(0);
       setLogs([]);
+      setTargetEnvironment('local');
+      setInstallPath(
+        `~/openclaw/${type === 'github' ? 'repos' : 'models'}/${repoName.split('/').pop()}`,
+      );
+      setSelectedRevision(revisionOptions[0]);
       if (instances.length > 0) {
         setSelectedInstanceIds([instances[0].id]);
       }
     }
-  }, [isOpen, instances]);
+  }, [instances, isOpen]);
 
   const handleInstall = () => {
     setStep('installing');
-    setLogs([`Starting installation for ${repoName}...`, `Connecting to ${type === 'github' ? 'GitHub' : 'HuggingFace'}...`]);
-    
-    // Simulate installation process
+    setLogs([
+      t('installModal.logs.startingInstallation', { repoName }),
+      t('installModal.logs.connectingTo', { source: sourceLabel }),
+    ]);
+
     let currentProgress = 0;
     const interval = setInterval(() => {
       currentProgress += Math.random() * 15;
+
       if (currentProgress >= 100) {
         currentProgress = 100;
         clearInterval(interval);
-        setLogs(prev => [...prev, 'Installation completed successfully.']);
+        setLogs((currentLogs) => [
+          ...currentLogs,
+          t('installModal.logs.installationCompleted'),
+        ]);
         setTimeout(() => setStep('success'), 500);
       } else {
-        const newLogs = [...logs];
-        if (currentProgress > 20 && logs.length < 3) newLogs.push('Downloading repository metadata...');
-        if (currentProgress > 50 && logs.length < 4) newLogs.push('Fetching files and dependencies...');
-        if (currentProgress > 80 && logs.length < 5) newLogs.push('Configuring local environment...');
-        setLogs(newLogs);
+        setLogs((currentLogs) => {
+          const nextLogs = [...currentLogs];
+
+          if (currentProgress > 20 && nextLogs.length < 3) {
+            nextLogs.push(t('installModal.logs.downloadingMetadata'));
+          }
+          if (currentProgress > 50 && nextLogs.length < 4) {
+            nextLogs.push(t('installModal.logs.fetchingFiles'));
+          }
+          if (currentProgress > 80 && nextLogs.length < 5) {
+            nextLogs.push(t('installModal.logs.configuringEnvironment'));
+          }
+
+          return nextLogs;
+        });
       }
+
       setProgress(currentProgress);
     }, 500);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm"
-          onClick={step === 'installing' ? undefined : onClose}
-        />
-        
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 bg-zinc-50/50">
-            <div>
-              <h2 className="text-lg font-bold text-zinc-900">{title}</h2>
-              <p className="text-sm text-zinc-500">{repoName}</p>
-            </div>
-            {step !== 'installing' && (
-              <button 
-                onClick={onClose}
-                className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-
-          {/* Content */}
-          <div className="p-6 overflow-y-auto">
-            {step === 'config' && (
-              <div className="space-y-5">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
-                    <Server className="w-4 h-4 text-zinc-400" /> Target Instances
-                  </label>
-                  {instances.length > 0 ? (
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                      {instances.map(instance => {
-                        const isSelected = selectedInstanceIds.includes(instance.id);
-                        return (
-                        <div 
-                          key={instance.id}
-                          onClick={() => {
-                            setSelectedInstanceIds(prev => 
-                              prev.includes(instance.id) 
-                                ? prev.filter(id => id !== instance.id)
-                                : [...prev, instance.id]
-                            );
-                          }}
-                          className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-all border ${
-                            isSelected 
-                              ? 'bg-primary-50 dark:bg-primary-500/10 border-primary-500 ring-1 ring-primary-500' 
-                              : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                          }`}
-                        >
-                          <div>
-                            <h4 className={`font-bold text-sm ${isSelected ? 'text-primary-900 dark:text-primary-100' : 'text-zinc-900 dark:text-zinc-100'}`}>{instance.name}</h4>
-                            <p className={`text-xs ${isSelected ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                              {instance.status === 'online' ? 'Online' : 'Offline'} • {instance.ip}
-                            </p>
-                          </div>
-                        </div>
-                      )})}
-                    </div>
-                  ) : (
-                    <select className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all">
-                      <option>Local Environment (Default)</option>
-                      <option>Docker Container (claw-env-1)</option>
-                    </select>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
-                    <Folder className="w-4 h-4 text-zinc-400" /> Install Path
-                  </label>
-                  <input 
-                    type="text" 
-                    defaultValue={`~/openclaw/${type === 'github' ? 'repos' : 'models'}/${repoName.split('/').pop()}`}
-                    className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-mono"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-zinc-400" /> {type === 'github' ? 'Branch / Tag' : 'Revision'}
-                  </label>
-                  <select className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all">
-                    <option>main</option>
-                    <option>v1.0.0</option>
-                    <option>dev</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {step === 'installing' && (
-              <div className="py-8 flex flex-col items-center justify-center text-center space-y-6">
-                <div className="relative">
-                  <svg className="w-24 h-24 transform -rotate-90">
-                    <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-zinc-100" />
-                    <circle 
-                      cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" 
-                      strokeDasharray={251.2} 
-                      strokeDashoffset={251.2 - (251.2 * progress) / 100}
-                      className="text-primary-500 transition-all duration-300 ease-out" 
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-zinc-900">{Math.round(progress)}%</span>
-                  </div>
-                </div>
-                
-                <div className="w-full max-w-sm space-y-2">
-                  <div className="text-sm font-medium text-zinc-900">Installing {repoName}...</div>
-                  <div className="h-32 bg-zinc-950 rounded-xl p-3 overflow-y-auto text-left font-mono text-[10px] text-zinc-400 space-y-1">
-                    {logs.map((log, i) => (
-                      <div key={i} className="animate-fade-in">{`> ${log}`}</div>
-                    ))}
-                    <div className="flex items-center gap-2 text-primary-400">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Processing...
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {step === 'success' && (
-              <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-2">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-                <h3 className="text-xl font-bold text-zinc-900">Installation Complete</h3>
-                <p className="text-sm text-zinc-500 max-w-xs">
-                  {repoName} has been successfully installed and is ready to use.
-                </p>
-              </div>
-            )}
-
-            {step === 'error' && (
-              <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
-                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-2">
-                  <AlertCircle className="w-8 h-8" />
-                </div>
-                <h3 className="text-xl font-bold text-zinc-900">Installation Failed</h3>
-                <p className="text-sm text-zinc-500 max-w-xs">
-                  An error occurred while installing {repoName}. Please check the logs and try again.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-zinc-100 bg-zinc-50/50 flex justify-end gap-3">
-            {step === 'config' && (
-              <>
-                <button 
-                  onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleInstall}
-                  disabled={instances.length > 0 && selectedInstanceIds.length === 0}
-                  className="px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white text-sm font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Start Install
-                </button>
-              </>
-            )}
-            {(step === 'success' || step === 'error') && (
-              <button 
-                onClick={onClose}
-                className="px-6 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
-              >
-                Close
-              </button>
-            )}
-          </div>
-        </motion.div>
+    <OverlaySurface
+      isOpen={isOpen}
+      onClose={onClose}
+      closeOnBackdrop={step !== 'installing'}
+      className="max-w-lg"
+      backdropClassName="bg-zinc-900/42"
+    >
+      <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/70 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/70">
+        <div>
+          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{title}</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{repoName}</p>
+        </div>
+        {step !== 'installing' && (
+          <button
+            onClick={onClose}
+            className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
-    </AnimatePresence>
+
+      <div className="overflow-y-auto p-6">
+        {step === 'config' && (
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <Server className="h-4 w-4 text-zinc-400" />
+                {t('installModal.fields.targetInstances')}
+              </Label>
+              {instances.length > 0 ? (
+                <div className="custom-scrollbar max-h-48 space-y-2 overflow-y-auto pr-1">
+                  {instances.map((instance) => {
+                    const isSelected = selectedInstanceIds.includes(instance.id);
+                    return (
+                      <div
+                        key={instance.id}
+                        onClick={() => {
+                          setSelectedInstanceIds((current) =>
+                            current.includes(instance.id)
+                              ? current.filter((id) => id !== instance.id)
+                              : [...current, instance.id],
+                          );
+                        }}
+                        className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
+                          isSelected
+                            ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500 dark:bg-primary-500/10'
+                            : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        <Checkbox checked={isSelected} className="pointer-events-none" />
+                        <div>
+                          <h4
+                            className={`text-sm font-bold ${
+                              isSelected
+                                ? 'text-primary-900 dark:text-primary-100'
+                                : 'text-zinc-900 dark:text-zinc-100'
+                            }`}
+                          >
+                            {instance.name}
+                          </h4>
+                          <p
+                            className={`text-xs ${
+                              isSelected
+                                ? 'text-primary-600 dark:text-primary-400'
+                                : 'text-zinc-500 dark:text-zinc-400'
+                            }`}
+                          >
+                            {t(
+                              instance.status === 'online'
+                                ? 'installModal.status.online'
+                                : 'installModal.status.offline',
+                            )}{' '}
+                            - {instance.ip}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Select value={targetEnvironment} onValueChange={setTargetEnvironment}>
+                  <SelectTrigger className="bg-zinc-50 dark:bg-zinc-950">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="local">
+                      {t('installModal.fields.localEnvironmentDefault')}
+                    </SelectItem>
+                    <SelectItem value="docker">
+                      {t('installModal.fields.dockerContainerDefault')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <Folder className="h-4 w-4 text-zinc-400" />
+                {t('installModal.fields.installPath')}
+              </Label>
+              <Input
+                type="text"
+                value={installPath}
+                onChange={(event) => setInstallPath(event.target.value)}
+                className="bg-zinc-50 font-mono dark:bg-zinc-950"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <GitBranch className="h-4 w-4 text-zinc-400" />
+                {t(
+                  type === 'github'
+                    ? 'installModal.fields.branchOrTag'
+                    : 'installModal.fields.revision',
+                )}
+              </Label>
+              <Select value={selectedRevision} onValueChange={setSelectedRevision}>
+                <SelectTrigger className="bg-zinc-50 dark:bg-zinc-950">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {revisionOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        {step === 'installing' && (
+          <div className="flex flex-col items-center justify-center space-y-6 py-8 text-center">
+            <div className="relative">
+              <svg className="h-24 w-24 -rotate-90 transform">
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
+                  className="text-zinc-100 dark:text-zinc-800"
+                />
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
+                  strokeDasharray={251.2}
+                  strokeDashoffset={251.2 - (251.2 * progress) / 100}
+                  className="text-primary-500 transition-all duration-300 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+            </div>
+
+            <div className="w-full max-w-sm space-y-2">
+              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {t('installModal.progress.installingRepo', { repoName })}
+              </div>
+              <div className="h-32 space-y-1 overflow-y-auto rounded-xl bg-zinc-950 p-3 text-left font-mono text-[10px] text-zinc-400">
+                {logs.map((log, index) => (
+                  <div key={index} className="animate-fade-in">{`> ${log}`}</div>
+                ))}
+                <div className="flex items-center gap-2 text-primary-400">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {t('installModal.progress.processing')}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 'success' && (
+          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-center">
+            <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+              {t('installModal.success.title')}
+            </h3>
+            <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
+              {t('installModal.success.description', { repoName })}
+            </p>
+          </div>
+        )}
+
+        {step === 'error' && (
+          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-center">
+            <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <AlertCircle className="h-8 w-8" />
+            </div>
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+              {t('installModal.error.title')}
+            </h3>
+            <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
+              {t('installModal.error.description', { repoName })}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-3 border-t border-zinc-100 bg-zinc-50/70 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/70">
+        {step === 'config' && (
+          <>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={handleInstall}
+              disabled={instances.length > 0 && selectedInstanceIds.length === 0}
+              className="flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:bg-primary-300"
+            >
+              <Download className="h-4 w-4" />
+              {t('installModal.actions.startInstall')}
+            </button>
+          </>
+        )}
+        {(step === 'success' || step === 'error') && (
+          <button
+            onClick={onClose}
+            className="rounded-xl bg-zinc-900 px-6 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            {t('installModal.actions.close')}
+          </button>
+        )}
+      </div>
+    </OverlaySurface>
   );
 }

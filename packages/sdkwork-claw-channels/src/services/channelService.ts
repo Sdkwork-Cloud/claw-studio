@@ -1,4 +1,5 @@
 import React from 'react';
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import {
   Building2,
   Hash,
@@ -128,12 +129,8 @@ class ChannelService implements IChannelService {
   }
 
   async getChannels(instanceId: string): Promise<Channel[]> {
-    const res = await fetch(`/api/instances/${instanceId}/channels`);
-    if (!res.ok) {
-      throw new Error('Failed to fetch channels');
-    }
-    const channels = await res.json();
-    return channels.map((channel: Channel & { icon: string }) => ({
+    const channels = await studioMockService.listChannels(instanceId);
+    return channels.map((channel) => ({
       ...channel,
       icon: getIconComponent(channel.icon),
     }));
@@ -144,12 +141,8 @@ class ChannelService implements IChannelService {
     channelId: string,
     enabled: boolean,
   ): Promise<Channel[]> {
-    const res = await fetch(`/api/channels/${channelId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
-    });
-    if (!res.ok) {
+    const updated = await studioMockService.updateChannelStatus(channelId, enabled);
+    if (!updated) {
       throw new Error('Failed to update channel status');
     }
     return this.getChannels(instanceId);
@@ -160,22 +153,16 @@ class ChannelService implements IChannelService {
     channelId: string,
     configData: Record<string, string>,
   ): Promise<Channel[]> {
-    const res = await fetch(`/api/channels/${channelId}/config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(configData),
-    });
-    if (!res.ok) {
+    const updated = await studioMockService.saveChannelConfig(channelId, configData);
+    if (!updated) {
       throw new Error('Failed to save channel config');
     }
     return this.getChannels(instanceId);
   }
 
   async deleteChannelConfig(instanceId: string, channelId: string): Promise<Channel[]> {
-    const res = await fetch(`/api/channels/${channelId}/config`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
+    const updated = await studioMockService.deleteChannelConfig(channelId);
+    if (!updated) {
       throw new Error('Failed to delete channel config');
     }
     return this.getChannels(instanceId);

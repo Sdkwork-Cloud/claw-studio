@@ -18,6 +18,15 @@ pub struct DesktopCapabilityInfo {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopKernelDirectories {
+    pub install_root: String,
+    pub modules_dir: String,
+    pub runtimes_dir: String,
+    pub machine_root: String,
+    pub machine_state_dir: String,
+    pub machine_store_dir: String,
+    pub machine_staging_dir: String,
+    pub user_root: String,
+    pub studio_dir: String,
     pub storage_dir: String,
     pub plugins_dir: String,
     pub integrations_dir: String,

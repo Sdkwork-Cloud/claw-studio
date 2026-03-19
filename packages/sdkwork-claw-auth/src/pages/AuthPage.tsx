@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
   Chrome,
@@ -10,83 +10,163 @@ import {
   User,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuthStore } from '@sdkwork/claw-core';
+import { Button, Input, Label } from '@sdkwork/claw-ui';
+
+type AuthMode = 'login' | 'register' | 'forgot';
+
+function resolveAuthMode(pathname: string): AuthMode {
+  if (pathname === '/register') {
+    return 'register';
+  }
+
+  if (pathname === '/forgot-password') {
+    return 'forgot';
+  }
+
+  return 'login';
+}
+
+function resolveRedirectTarget(rawTarget: string | null) {
+  if (!rawTarget || !rawTarget.startsWith('/')) {
+    return '/dashboard';
+  }
+
+  if (
+    rawTarget === '/auth' ||
+    rawTarget === '/login' ||
+    rawTarget === '/register' ||
+    rawTarget === '/forgot-password'
+  ) {
+    return '/dashboard';
+  }
+
+  return rawTarget;
+}
 
 export function AuthPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated, signIn, register } = useAuthStore();
+  const mode = resolveAuthMode(location.pathname);
+  const redirectTarget = resolveRedirectTarget(searchParams.get('redirect'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    navigate('/');
+  useEffect(() => {
+    const nextEmail = searchParams.get('email');
+    if (nextEmail) {
+      setEmail(nextEmail);
+    }
+  }, [searchParams]);
+
+  const withRedirect = (pathname: string) => {
+    const params = new URLSearchParams();
+    if (redirectTarget !== '/dashboard') {
+      params.set('redirect', redirectTarget);
+    }
+
+    const queryString = params.toString();
+    return queryString ? `${pathname}?${queryString}` : pathname;
   };
 
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (mode === 'login') {
+        await signIn({ email, password });
+        navigate(redirectTarget, { replace: true });
+        return;
+      }
+
+      if (mode === 'register') {
+        await register({ name, email, password });
+        navigate(redirectTarget, { replace: true });
+        return;
+      }
+
+      navigate(withRedirect('/login'), { replace: true });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isAuthenticated) {
+    return <Navigate to={redirectTarget} replace />;
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-4 sm:p-8">
-      <div className="max-w-4xl w-full bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
-        <div className="w-full md:w-2/5 bg-zinc-900 dark:bg-black p-8 text-white flex flex-col items-center justify-center relative overflow-hidden">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-4 dark:bg-zinc-950 sm:p-8">
+      <div className="flex w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-zinc-900 md:flex-row">
+        <div className="relative flex w-full flex-col items-center justify-center overflow-hidden bg-zinc-900 p-8 text-white dark:bg-black md:w-2/5">
           <div className="absolute inset-0 bg-gradient-to-br from-primary-600/20 to-transparent" />
           <div className="relative z-10 flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-              <QrCode className="w-8 h-8 text-white" />
+            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-600 shadow-lg">
+              <QrCode className="h-8 w-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">{t('auth.qrLogin', 'Scan to Login')}</h2>
-            <p className="text-zinc-400 text-sm mb-8 max-w-[200px]">
-              {t('auth.qrDesc', 'Use the SDKWork mobile app to scan the QR code for instant access.')}
-            </p>
+            <h2 className="mb-2 text-2xl font-bold">{t('auth.qrLogin')}</h2>
+            <p className="mb-8 max-w-[200px] text-sm text-zinc-400">{t('auth.qrDesc')}</p>
 
-            <div className="bg-white p-4 rounded-2xl shadow-xl mb-6">
-              <div className="w-48 h-48 bg-zinc-100 rounded-xl border-2 border-dashed border-zinc-300 flex items-center justify-center">
-                <QrCode className="w-24 h-24 text-zinc-400" />
+            <div className="mb-6 rounded-2xl bg-white p-4 shadow-xl">
+              <div className="flex h-48 w-48 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-100">
+                <QrCode className="h-24 w-24 text-zinc-400" />
               </div>
             </div>
 
             <div className="flex items-center gap-2 text-sm text-zinc-400">
-              <Smartphone className="w-4 h-4" />
-              <span>{t('auth.openApp', 'Open SDKWork App')}</span>
+              <Smartphone className="h-4 w-4" />
+              <span>{t('auth.openApp')}</span>
             </div>
           </div>
         </div>
 
-        <div className="w-full md:w-3/5 p-8 md:p-12">
-          <div className="max-w-md mx-auto">
+        <div className="w-full p-8 md:w-3/5 md:p-12">
+          <div className="mx-auto max-w-md">
             <div className="mb-8">
-              <h1 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight mb-2">
+              <h1 className="mb-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
                 {mode === 'login'
-                  ? t('auth.welcomeBack', 'Welcome back')
+                  ? t('auth.welcomeBack')
                   : mode === 'register'
-                    ? t('auth.createAccount', 'Create an account')
-                    : t('auth.resetPassword', 'Reset password')}
+                    ? t('auth.createAccount')
+                    : t('auth.resetPassword')}
               </h1>
               <p className="text-zinc-500 dark:text-zinc-400">
                 {mode === 'login'
-                  ? t('auth.loginDesc', 'Enter your details to access your account.')
+                  ? t('auth.loginDesc')
                   : mode === 'register'
-                    ? t('auth.registerDesc', 'Join us to start building amazing things.')
-                    : t('auth.resetDesc', 'Enter your email to receive a reset link.')}
+                    ? t('auth.registerDesc')
+                    : t('auth.resetDesc')}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {mode === 'register' ? (
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                    {t('auth.name', 'Full Name')}
-                  </label>
+                  <Label className="mb-1.5 block text-zinc-700 dark:text-zinc-300">
+                    {t('auth.name')}
+                  </Label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                       <User className="h-5 w-5 text-zinc-400" />
                     </div>
-                    <input
+                    <Input
                       type="text"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      className="block w-full pl-10 pr-3 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                      placeholder="John Doe"
+                      className="py-2.5 pl-10 pr-3"
+                      placeholder={t('auth.placeholders.name')}
                       required
                     />
                   </div>
@@ -94,19 +174,19 @@ export function AuthPage() {
               ) : null}
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  {t('auth.email', 'Email Address')}
-                </label>
+                <Label className="mb-1.5 block text-zinc-700 dark:text-zinc-300">
+                  {t('auth.email')}
+                </Label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                     <Mail className="h-5 w-5 text-zinc-400" />
                   </div>
-                  <input
+                  <Input
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    className="block w-full pl-10 pr-3 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    placeholder="you@example.com"
+                    className="py-2.5 pl-10 pr-3"
+                    placeholder={t('auth.placeholders.email')}
                     required
                   />
                 </div>
@@ -114,47 +194,50 @@ export function AuthPage() {
 
               {mode !== 'forgot' ? (
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      {t('auth.password', 'Password')}
-                    </label>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <Label className="text-zinc-700 dark:text-zinc-300">
+                      {t('auth.password')}
+                    </Label>
                     {mode === 'login' ? (
                       <button
                         type="button"
-                        onClick={() => setMode('forgot')}
-                        className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors"
+                        onClick={() => navigate(withRedirect('/forgot-password'))}
+                        className="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500"
                       >
-                        {t('auth.forgotPassword', 'Forgot password?')}
+                        {t('auth.forgotPassword')}
                       </button>
                     ) : null}
                   </div>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                       <Lock className="h-5 w-5 text-zinc-400" />
                     </div>
-                    <input
+                    <Input
                       type="password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      className="block w-full pl-10 pr-3 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                      placeholder="••••••••"
+                      className="py-2.5 pl-10 pr-3"
+                      placeholder={t('auth.placeholders.password')}
                       required
                     />
                   </div>
                 </div>
               ) : null}
 
-              <button
+              <Button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+                disabled={isSubmitting}
+                className="h-auto w-full py-3 font-bold"
               >
-                {mode === 'login'
-                  ? t('auth.signIn', 'Sign In')
-                  : mode === 'register'
-                    ? t('auth.signUp', 'Sign Up')
-                    : t('auth.sendResetLink', 'Send Reset Link')}
-                <ArrowRight className="w-4 h-4" />
-              </button>
+                {isSubmitting
+                  ? t('common.loading')
+                  : mode === 'login'
+                    ? t('auth.signIn')
+                    : mode === 'register'
+                      ? t('auth.signUp')
+                      : t('auth.sendResetLink')}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </form>
 
             {mode === 'login' ? (
@@ -164,20 +247,20 @@ export function AuthPage() {
                     <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-500">
-                      {t('auth.continueWith', 'Or continue with')}
+                    <span className="bg-white px-2 text-zinc-500 dark:bg-zinc-900">
+                      {t('auth.continueWith')}
                     </span>
                   </div>
                 </div>
 
                 <div className="mt-6 grid grid-cols-2 gap-3">
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
-                    <Github className="w-5 h-5" />
-                    GitHub
+                  <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                    <Github className="h-5 w-5" />
+                    {t('auth.providers.github')}
                   </button>
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
-                    <Chrome className="w-5 h-5" />
-                    Google
+                  <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                    <Chrome className="h-5 w-5" />
+                    {t('auth.providers.google')}
                   </button>
                 </div>
               </div>
@@ -186,34 +269,46 @@ export function AuthPage() {
             <div className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
               {mode === 'login' ? (
                 <>
-                  {t('auth.noAccount', "Don't have an account?")}{' '}
+                  {t('auth.noAccount')}{' '}
                   <button
-                    onClick={() => setMode('register')}
-                    className="font-bold text-primary-600 hover:text-primary-500 transition-colors"
+                    onClick={() => navigate(withRedirect('/register'))}
+                    className="font-bold text-primary-600 transition-colors hover:text-primary-500"
                   >
-                    {t('auth.signUp', 'Sign up')}
+                    {t('auth.signUp')}
                   </button>
                 </>
               ) : mode === 'register' ? (
                 <>
-                  {t('auth.hasAccount', 'Already have an account?')}{' '}
+                  {t('auth.hasAccount')}{' '}
                   <button
-                    onClick={() => setMode('login')}
-                    className="font-bold text-primary-600 hover:text-primary-500 transition-colors"
+                    onClick={() => navigate(withRedirect('/login'))}
+                    className="font-bold text-primary-600 transition-colors hover:text-primary-500"
                   >
-                    {t('auth.signIn', 'Sign in')}
+                    {t('auth.signIn')}
                   </button>
                 </>
               ) : (
                 <button
-                  onClick={() => setMode('login')}
-                  className="font-bold text-primary-600 hover:text-primary-500 transition-colors flex items-center justify-center gap-1 mx-auto"
+                  onClick={() => navigate(withRedirect('/login'))}
+                  className="mx-auto flex items-center justify-center gap-1 font-bold text-primary-600 transition-colors hover:text-primary-500"
                 >
-                  <ArrowRight className="w-4 h-4 rotate-180" />
-                  {t('auth.backToLogin', 'Back to login')}
+                  <ArrowRight className="h-4 w-4 rotate-180" />
+                  {t('auth.backToLogin')}
                 </button>
               )}
             </div>
+
+            {mode === 'login' ? null : mode === 'register' ? null : (
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => navigate(withRedirect('/register'))}
+                  className="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500"
+                >
+                  {t('auth.signUp')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

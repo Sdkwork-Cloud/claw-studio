@@ -21,12 +21,22 @@ import {
   Trash2,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useInstanceStore } from '@sdkwork/claw-core';
 import { instanceService } from '../services';
 import { Instance } from '../types';
 
+function formatMemoryLabel(memory: number) {
+  return `${memory} MB`;
+}
+
+function formatVersionLabel(version: string) {
+  return `v${version}`;
+}
+
 export function Instances() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -92,6 +102,9 @@ export function Instances() {
     }
   };
 
+  const getStatusLabel = (status: string) => t(`instances.shared.status.${status}`);
+  const getActionLabel = (action: string) => t(`instances.list.actionNames.${action}`);
+
   const handleAction = async (event: React.MouseEvent, action: string, id: string) => {
     event.stopPropagation();
     setActiveDropdown(null);
@@ -99,20 +112,20 @@ export function Instances() {
     try {
       if (action === 'start') {
         await instanceService.startInstance(id);
-        toast.success('Instance started');
+        toast.success(t('instances.list.toasts.started'));
       } else if (action === 'stop') {
         await instanceService.stopInstance(id);
-        toast.success('Instance stopped');
+        toast.success(t('instances.list.toasts.stopped'));
       } else if (action === 'restart') {
         await instanceService.restartInstance(id);
-        toast.success('Instance restarted');
+        toast.success(t('instances.list.toasts.restarted'));
       } else if (action === 'delete') {
-        if (!window.confirm('Are you sure you want to uninstall this instance?')) {
+        if (!window.confirm(t('instances.list.confirmUninstall'))) {
           return;
         }
 
         await instanceService.deleteInstance(id);
-        toast.success('Instance uninstalled');
+        toast.success(t('instances.list.toasts.uninstalled'));
         if (activeInstanceId === id) {
           setActiveInstanceId(null);
         }
@@ -122,7 +135,9 @@ export function Instances() {
       setInstances(data);
     } catch (error: any) {
       console.error(`Failed to ${action} instance:`, error);
-      toast.error(`Failed to ${action} instance`, { description: error.message });
+      toast.error(t('instances.list.toasts.actionFailed', { action: getActionLabel(action) }), {
+        description: error.message,
+      });
     }
   };
 
@@ -139,10 +154,10 @@ export function Instances() {
       <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Instances
+            {t('instances.list.title')}
           </h1>
           <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-            Manage, monitor, and configure your Claw Studio compute nodes.
+            {t('instances.list.subtitle')}
           </p>
         </div>
         <button
@@ -150,7 +165,7 @@ export function Instances() {
           className="flex w-fit items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
         >
           <Server className="h-4 w-4" />
-          Deploy Instance
+          {t('instances.list.actions.deployInstance')}
         </button>
       </div>
 
@@ -171,7 +186,8 @@ export function Instances() {
             >
               {isActive && (
                 <div className="absolute -right-3 -top-3 flex items-center gap-1.5 rounded-full bg-primary-500 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Active
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {t('instances.list.activeBadge')}
                 </div>
               )}
 
@@ -199,8 +215,10 @@ export function Instances() {
                           instance.status,
                         )}`}
                       >
-                        <div className={`h-1.5 w-1.5 rounded-full shadow-sm ${getStatusColor(instance.status)}`} />
-                        {instance.status}
+                        <div
+                          className={`h-1.5 w-1.5 rounded-full shadow-sm ${getStatusColor(instance.status)}`}
+                        />
+                        {getStatusLabel(instance.status)}
                       </div>
                     </div>
                     <div className="mt-1.5 flex items-center gap-3">
@@ -224,7 +242,7 @@ export function Instances() {
                       }}
                       className="hidden items-center gap-1.5 rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 sm:flex dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                     >
-                      Set Active
+                      {t('instances.list.actions.setActive')}
                     </button>
                   )}
                   <button
@@ -252,23 +270,23 @@ export function Instances() {
                                 className="flex w-full items-center gap-2 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 sm:hidden dark:text-zinc-300 dark:hover:bg-zinc-800"
                               >
                                 <CheckCircle2 className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                                Set as Active
+                                {t('instances.list.actions.setAsActive')}
                               </button>
                             )}
                             <button className="flex w-full items-center gap-2 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800">
                               <Terminal className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                              Open Terminal
+                              {t('instances.list.actions.openTerminal')}
                             </button>
                             <button className="flex w-full items-center gap-2 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800">
                               <FileText className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                              View Logs
+                              {t('instances.list.actions.viewLogs')}
                             </button>
                             <button
                               onClick={(event) => void handleAction(event, 'restart', instance.id)}
                               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
                             >
                               <RefreshCw className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                              Restart
+                              {t('instances.list.actions.restart')}
                             </button>
                             <div className="my-1 h-px bg-zinc-100 dark:bg-zinc-800" />
                             <button
@@ -276,14 +294,14 @@ export function Instances() {
                               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-500 dark:hover:bg-amber-500/10"
                             >
                               <Square className="h-4 w-4" />
-                              Stop Instance
+                              {t('instances.list.actions.stopInstance')}
                             </button>
                             <button
                               onClick={(event) => void handleAction(event, 'delete', instance.id)}
                               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-500/10"
                             >
                               <Trash2 className="h-4 w-4" />
-                              Uninstall
+                              {t('instances.list.actions.uninstall')}
                             </button>
                           </>
                         ) : (
@@ -293,7 +311,7 @@ export function Instances() {
                               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-500 dark:hover:bg-emerald-500/10"
                             >
                               <Play className="h-4 w-4" />
-                              Start Instance
+                              {t('instances.list.actions.startInstance')}
                             </button>
                             <div className="my-1 h-px bg-zinc-100 dark:bg-zinc-800" />
                             <button
@@ -301,7 +319,7 @@ export function Instances() {
                               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-500/10"
                             >
                               <Trash2 className="h-4 w-4" />
-                              Uninstall
+                              {t('instances.list.actions.uninstall')}
                             </button>
                           </>
                         )}
@@ -315,7 +333,8 @@ export function Instances() {
                 <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      <Cpu className="h-3.5 w-3.5" /> CPU
+                      <Cpu className="h-3.5 w-3.5" />
+                      {t('instances.list.metrics.cpu')}
                     </div>
                     <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
                       {instance.cpu}%
@@ -329,10 +348,11 @@ export function Instances() {
                 <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      <MemoryStick className="h-3.5 w-3.5" /> Memory
+                      <MemoryStick className="h-3.5 w-3.5" />
+                      {t('instances.list.metrics.memory')}
                     </div>
                     <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                      {instance.memory} MB
+                      {formatMemoryLabel(instance.memory)}
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
@@ -342,35 +362,39 @@ export function Instances() {
                     />
                   </div>
                   <div className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-                    Total: {instance.totalMemory}
+                    {t('instances.list.metrics.totalMemory', { value: instance.totalMemory })}
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      <DollarSign className="h-3.5 w-3.5" /> Est. Cost
+                      <DollarSign className="h-3.5 w-3.5" />
+                      {t('instances.list.metrics.estimatedCost')}
                     </div>
                     <span className="text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">
-                      {instance.status === 'online' ? '$14.40/mo' : '$0.00/mo'}
+                      {t('instances.list.metrics.monthlyCost', {
+                        value: instance.status === 'online' ? '$14.40' : '$0.00',
+                      })}
                     </span>
                   </div>
                   <div className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-                    Based on $0.02/hr rate
+                    {t('instances.list.metrics.hourlyRate', { value: '$0.02' })}
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      <Sparkles className="h-3.5 w-3.5" /> API Tokens
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {t('instances.list.metrics.apiTokens')}
                     </div>
                     <span className="text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">
                       {instance.status === 'online' ? '1.2M' : '0'}
                     </span>
                   </div>
                   <div className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-                    This billing cycle
+                    {t('instances.list.metrics.billingCycle')}
                   </div>
                 </div>
               </div>
@@ -379,17 +403,23 @@ export function Instances() {
                 <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
                   <span className="flex items-center gap-1.5">
                     <Activity className="h-3.5 w-3.5" />
-                    Uptime: {instance.status === 'online' ? instance.uptime : 'Offline'}
+                    {t('instances.list.metrics.uptime', {
+                      value:
+                        instance.status === 'online'
+                          ? instance.uptime
+                          : t('instances.shared.status.offline'),
+                    })}
                   </span>
                   <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-                  <span className="font-mono">v{instance.version}</span>
+                  <span className="font-mono">{formatVersionLabel(instance.version)}</span>
                 </div>
 
                 <button
                   onClick={() => navigate(`/instances/${instance.id}`)}
                   className="flex items-center gap-1 text-sm font-medium text-zinc-900 transition-colors hover:text-primary-600 dark:text-zinc-100 dark:hover:text-primary-400"
                 >
-                  Details <ChevronRight className="h-4 w-4" />
+                  {t('instances.list.actions.details')}
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </motion.div>

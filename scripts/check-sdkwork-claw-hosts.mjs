@@ -20,8 +20,27 @@ function assertIncludes(relPath, pattern, label) {
   }
 }
 
+function assertAnyIncludes(relPaths, pattern, label) {
+  const sources = relPaths.map((relPath) => ({
+    relPath,
+    source: read(relPath),
+  }));
+  if (sources.some(({ source }) => source.includes(pattern))) {
+    return;
+  }
+  errors.push(`Missing ${label} in any of: ${relPaths.join(', ')}`);
+}
+
 assertIncludes('packages/sdkwork-claw-web/src/App.tsx', '@sdkwork/claw-shell', 'web host shell dependency');
-assertIncludes('packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx', '@sdkwork/claw-shell', 'desktop host shell dependency');
+assertIncludes('packages/sdkwork-claw-desktop/package.json', '@sdkwork/claw-shell', 'desktop package shell dependency');
+assertAnyIncludes(
+  [
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx',
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
+  ],
+  '@sdkwork/claw-shell',
+  'desktop host shell dependency',
+);
 assertIncludes('packages/sdkwork-claw-shell/package.json', '@sdkwork/claw-core', 'shell core dependency');
 
 const featurePackageDirs = fs.existsSync(path.join(root, 'packages'))

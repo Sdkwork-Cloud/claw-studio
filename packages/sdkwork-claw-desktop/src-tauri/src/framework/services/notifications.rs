@@ -19,7 +19,7 @@ impl NotificationService {
                 DesktopNotificationProviderInfo {
                     id: "native".to_string(),
                     label: "Native Desktop".to_string(),
-                    availability: DesktopProviderAvailability::Ready,
+                    availability: DesktopProviderAvailability::Planned,
                     transport: "native".to_string(),
                     requires_user_consent: true,
                 },
@@ -85,7 +85,7 @@ mod tests {
             .available_providers
             .iter()
             .any(|provider| provider.id == "native"
-                && provider.availability == DesktopProviderAvailability::Ready));
+                && provider.availability == DesktopProviderAvailability::Planned));
         assert!(info
             .available_providers
             .iter()
@@ -94,13 +94,26 @@ mod tests {
     }
 
     #[test]
-    fn disabled_notifications_resolve_to_ready_status() {
+    fn native_notifications_remain_planned_until_adapters_are_wired() {
         let service = NotificationService::new();
         let info = service.kernel_info(&AppConfig::default());
 
         assert_eq!(
             info.status,
-            crate::framework::kernel::DesktopCapabilityStatus::Ready
+            crate::framework::kernel::DesktopCapabilityStatus::Planned
         );
+    }
+
+    #[test]
+    fn native_provider_is_not_reported_ready_before_runtime_adapter_exists() {
+        let service = NotificationService::new();
+        let info = service.kernel_info(&AppConfig::default());
+        let provider = info
+            .available_providers
+            .iter()
+            .find(|entry| entry.id == "native")
+            .expect("native provider");
+
+        assert_eq!(provider.availability, DesktopProviderAvailability::Planned);
     }
 }

@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@sdkwork/claw-core';
+import { useLocalizedText } from '@sdkwork/claw-i18n';
+import { Button, Input, Label } from '@sdkwork/claw-ui';
 import { Section } from './Shared';
 import { settingsService, type UserProfile } from './services';
 
 export function AccountSettings() {
+  const navigate = useNavigate();
+  const { isAuthenticated, user, signOut, syncUserProfile } = useAuthStore();
   const [profile, setProfile] = useState<UserProfile>({
     firstName: '',
     lastName: '',
@@ -12,41 +18,73 @@ export function AccountSettings() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const { text } = useLocalizedText();
 
   useEffect(() => {
+    if (user) {
+      setProfile({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+      });
+    }
+
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
+
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
         const data = await settingsService.getProfile();
         setProfile(data);
-      } catch (error) {
-        toast.error('Failed to load profile');
+      } catch {
+        toast.error(text('Failed to load profile', '\u52a0\u8f7d\u4e2a\u4eba\u8d44\u6599\u5931\u8d25'));
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProfile();
-  }, []);
+    void fetchProfile();
+  }, [isAuthenticated, user]);
 
   const handleSave = async () => {
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
     setIsSaving(true);
     try {
-      await settingsService.updateProfile(profile);
-      toast.success('Profile updated successfully');
-    } catch (error) {
-      toast.error('Failed to update profile');
+      const updatedProfile = await settingsService.updateProfile(profile);
+      syncUserProfile(updatedProfile);
+      toast.success(
+        text('Profile updated successfully', '\u4e2a\u4eba\u8d44\u6599\u5df2\u66f4\u65b0'),
+      );
+    } catch {
+      toast.error(
+        text('Failed to update profile', '\u66f4\u65b0\u4e2a\u4eba\u8d44\u6599\u5931\u8d25'),
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleSignOut = async () => {
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
     try {
       await settingsService.signOut();
-      toast.success('Signed out successfully');
-    } catch (error) {
-      toast.error('Failed to sign out');
+      await signOut();
+      toast.success(text('Signed out successfully', '\u5df2\u6210\u529f\u9000\u51fa\u767b\u5f55'));
+      navigate('/login', { replace: true });
+    } catch {
+      toast.error(text('Failed to sign out', '\u9000\u51fa\u767b\u5f55\u5931\u8d25'));
     }
   };
 
@@ -58,107 +96,159 @@ export function AccountSettings() {
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h2 className="mb-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            {text('Account', '\u8d26\u6237')}
+          </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {text(
+              'Sign in to manage your profile and personal details.',
+              '\u767b\u5f55\u540e\u5373\u53ef\u7ba1\u7406\u4f60\u7684\u4e2a\u4eba\u8d44\u6599\u4e0e\u8d26\u6237\u8bbe\u7f6e\u3002',
+            )}
+          </p>
+        </div>
+
+        <Section title={text('Sign In Required', '\u9700\u8981\u767b\u5f55')}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {text('You are currently signed out.', '\u5f53\u524d\u5c1a\u672a\u767b\u5f55\u3002')}
+              </div>
+              <div className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {text(
+                  'Go to the login page to update your profile or sign in again.',
+                  '\u8bf7\u524d\u5f80\u767b\u5f55\u9875\u9762\u540e\u518d\u7f16\u8f91\u4e2a\u4eba\u8d44\u6599\u6216\u91cd\u65b0\u767b\u5f55\u3002',
+                )}
+              </div>
+            </div>
+            <Button
+              onClick={() => navigate('/login?redirect=%2Fsettings%3Ftab%3Daccount')}
+              className="min-w-[140px]"
+            >
+              {text('Go to Login', '\u524d\u5f80\u767b\u5f55')}
+            </Button>
+          </div>
+        </Section>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="mb-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Account
+          {text('Account', '\u8d26\u6237')}
         </h2>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Update your profile and personal details.
+          {text(
+            'Update your profile and personal details.',
+            '\u66f4\u65b0\u4f60\u7684\u4e2a\u4eba\u8d44\u6599\u4e0e\u8be6\u7ec6\u4fe1\u606f\u3002',
+          )}
         </p>
       </div>
 
       <div className="space-y-6">
-        <Section title="Profile">
+        <Section title={text('Profile', '\u4e2a\u4eba\u8d44\u6599')}>
           <div className="mb-6 flex items-center gap-6">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xl font-bold text-primary-600 dark:bg-primary-500/20 dark:text-primary-400">
               {profile.firstName.charAt(0)}
               {profile.lastName.charAt(0)}
             </div>
             <div>
-              <button
-                onClick={() => toast.success('Avatar update simulated')}
-                className="mb-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              <Button
+                variant="outline"
+                onClick={() =>
+                  toast.success(
+                    text('Avatar update simulated', '\u5df2\u6a21\u62df\u5934\u50cf\u66f4\u65b0'),
+                  )
+                }
+                className="mb-2"
               >
-                Change Avatar
-              </button>
+                {text('Change Avatar', '\u66f4\u6362\u5934\u50cf')}
+              </Button>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                JPG, GIF or PNG. Max size of 800K
+                {text(
+                  'JPG, GIF or PNG. Max size of 800K',
+                  '\u652f\u6301 JPG\u3001GIF \u6216 PNG\uff0c\u6700\u5927 800K',
+                )}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                First Name
-              </label>
-              <input
+              <Label className="mb-2 block">
+                {text('First Name', '\u540d')}
+              </Label>
+              <Input
                 type="text"
                 value={profile.firstName}
                 onChange={(event) =>
                   setProfile({ ...profile, firstName: event.target.value })
                 }
-                className="block w-full rounded-lg border border-zinc-200 bg-white p-2.5 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-primary-500 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
               />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                Last Name
-              </label>
-              <input
+              <Label className="mb-2 block">
+                {text('Last Name', '\u59d3')}
+              </Label>
+              <Input
                 type="text"
                 value={profile.lastName}
                 onChange={(event) =>
                   setProfile({ ...profile, lastName: event.target.value })
                 }
-                className="block w-full rounded-lg border border-zinc-200 bg-white p-2.5 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-primary-500 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                Email Address
-              </label>
-              <input
+              <Label className="mb-2 block">
+                {text('Email Address', '\u90ae\u7bb1\u5730\u5740')}
+              </Label>
+              <Input
                 type="email"
                 value={profile.email}
                 onChange={(event) =>
                   setProfile({ ...profile, email: event.target.value })
                 }
-                className="block w-full rounded-lg border border-zinc-200 bg-white p-2.5 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-primary-500 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
               />
             </div>
           </div>
 
           <div className="mt-6 flex justify-end">
-            <button
+            <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600 disabled:opacity-50"
             >
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
+              {isSaving
+                ? text('Saving...', '\u4fdd\u5b58\u4e2d...')
+                : text('Save Changes', '\u4fdd\u5b58\u66f4\u6539')}
+            </Button>
           </div>
         </Section>
 
-        <Section title="Danger Zone">
+        <Section title={text('Danger Zone', '\u5371\u9669\u64cd\u4f5c')}>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                Sign Out
+                {text('Sign Out', '\u9000\u51fa\u767b\u5f55')}
               </div>
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                Sign out of your Claw Studio account on this device.
+                {text(
+                  'Sign out of your Claw Studio account on this device.',
+                  '\u5728\u5f53\u524d\u8bbe\u5907\u4e0a\u9000\u51fa\u4f60\u7684 Claw Studio \u8d26\u6237\u3002',
+                )}
               </div>
             </div>
-            <button
+            <Button
+              variant="destructive"
               onClick={handleSignOut}
-              className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-red-500 dark:hover:border-red-500/30 dark:hover:bg-red-500/10"
             >
               <LogOut className="h-4 w-4" />
-              Sign Out
-            </button>
+              {text('Sign Out', '\u9000\u51fa\u767b\u5f55')}
+            </Button>
           </div>
         </Section>
       </div>

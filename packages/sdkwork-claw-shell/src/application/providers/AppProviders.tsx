@@ -3,7 +3,7 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { useAppStore, useUpdateStore } from '@sdkwork/claw-core';
-import { ensureI18n } from '@sdkwork/claw-i18n';
+import { LanguageManager } from './LanguageManager';
 import { ThemeManager } from './ThemeManager';
 
 const queryClient = new QueryClient({
@@ -17,9 +17,7 @@ const queryClient = new QueryClient({
 });
 
 export function AppProviders({ children }: { children: ReactNode }) {
-  void ensureI18n();
-
-  const { themeMode } = useAppStore();
+  const themeMode = useAppStore((state) => state.themeMode);
   const startupCheckStartedRef = useRef(false);
   const runStartupCheck = useUpdateStore((state) => state.runStartupCheck);
 
@@ -33,6 +31,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeManager />
+      <LanguageManager />
       <Router>
         {children}
         <Toaster

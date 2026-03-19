@@ -5,7 +5,6 @@ import {
   Check,
   ChevronDown,
   Clock,
-  Code,
   Cpu,
   Download,
   Github,
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
+import { instanceDirectoryService } from '../services';
 import { useAppStore } from '../stores/useAppStore';
 import { useInstanceStore } from '../stores/useInstanceStore';
 
@@ -33,20 +33,6 @@ interface InstanceSummary {
   name: string;
   ip: string;
   status: string;
-}
-
-async function loadInstances(): Promise<InstanceSummary[]> {
-  try {
-    const response = await fetch('/api/instances');
-    if (!response.ok) {
-      throw new Error('Failed to fetch instances');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch instances:', error);
-    return [];
-  }
 }
 
 export function Sidebar() {
@@ -59,7 +45,7 @@ export function Sidebar() {
 
   useEffect(() => {
     async function fetchInstances() {
-      const data = await loadInstances();
+      const data = await instanceDirectoryService.listInstances();
       setInstances(data);
       if (data.length > 0 && !activeInstanceId) {
         setActiveInstanceId(data[0].id);
@@ -73,34 +59,39 @@ export function Sidebar() {
 
   const navItems = [
     {
-      section: t('sidebar.workspace', 'Workspace'),
+      section: t('sidebar.workspace'),
       items: [
-        { id: 'chat', to: '/chat', icon: MessageCircle, label: t('sidebar.aiChat', 'AI Chat') },
-        { id: 'channels', to: '/channels', icon: Hash, label: t('sidebar.channels', 'Channels') },
-        { id: 'tasks', to: '/tasks', icon: Clock, label: t('sidebar.cronTasks', 'Cron Tasks') },
+        { id: 'chat', to: '/chat', icon: MessageCircle, label: t('sidebar.aiChat') },
+        { id: 'channels', to: '/channels', icon: Hash, label: t('sidebar.channels') },
+        { id: 'tasks', to: '/tasks', icon: Clock, label: t('sidebar.cronTasks') },
       ],
     },
     {
-      section: t('sidebar.ecosystem', 'Ecosystem'),
+      section: t('sidebar.ecosystem'),
       items: [
-        { id: 'apps', to: '/apps', icon: LayoutGrid, label: t('sidebar.appStore', 'App Store'), badge: 'HOT' },
-        { id: 'market', to: '/market', icon: Package, label: t('sidebar.market', 'ClawHub') },
-        { id: 'extensions', to: '/extensions', icon: Puzzle, label: t('sidebar.extensions', 'Extensions') },
-        { id: 'claw-upload', to: '/claw-upload', icon: Globe, label: t('sidebar.clawUpload', 'Claw Upload') },
-        { id: 'community', to: '/community', icon: Users, label: t('sidebar.community', 'Community') },
-        { id: 'github', to: '/github', icon: Github, label: t('sidebar.githubRepos', 'GitHub Repos') },
-        { id: 'huggingface', to: '/huggingface', icon: Box, label: t('sidebar.huggingFace', 'Hugging Face') },
-        { id: 'claw-center', to: '/claw-center', icon: Network, label: t('sidebar.clawMall', 'Claw Mall') },
+        {
+          id: 'apps',
+          to: '/apps',
+          icon: LayoutGrid,
+          label: t('sidebar.appStore'),
+          badge: t('sidebar.hotBadge'),
+        },
+        { id: 'market', to: '/market', icon: Package, label: t('sidebar.market') },
+        { id: 'extensions', to: '/extensions', icon: Puzzle, label: t('sidebar.extensions') },
+        { id: 'claw-upload', to: '/claw-upload', icon: Globe, label: t('sidebar.clawUpload') },
+        { id: 'community', to: '/community', icon: Users, label: t('sidebar.community') },
+        { id: 'github', to: '/github', icon: Github, label: t('sidebar.githubRepos') },
+        { id: 'huggingface', to: '/huggingface', icon: Box, label: t('sidebar.huggingFace') },
+        { id: 'claw-center', to: '/claw-center', icon: Network, label: t('sidebar.clawMall') },
       ],
     },
     {
-      section: t('sidebar.setup', 'Setup'),
+      section: t('sidebar.setup'),
       items: [
-        { id: 'install', to: '/install', icon: Download, label: t('sidebar.install', 'Install Claw Studio') },
-        { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances', 'Instances') },
-        { id: 'devices', to: '/devices', icon: Cpu, label: t('sidebar.devices', 'Devices') },
-        { id: 'codebox', to: '/codebox', icon: Code, label: t('sidebar.codebox', 'CodeBox') },
-        { id: 'api-router', to: '/api-router', icon: Router, label: t('sidebar.apiRouter', 'Api Router') },
+        { id: 'install', to: '/install', icon: Download, label: t('sidebar.install') },
+        { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
+        { id: 'devices', to: '/devices', icon: Cpu, label: t('sidebar.devices') },
+        { id: 'api-router', to: '/api-router', icon: Router, label: t('sidebar.apiRouter') },
       ],
     },
   ]
@@ -146,13 +137,15 @@ export function Sidebar() {
               <path d="M12 18a6 6 0 0 1-6-6" />
             </svg>
           </div>
-          {!isSidebarCollapsed ? <span className="text-xl font-bold tracking-tight text-white">Claw Studio</span> : null}
+          {!isSidebarCollapsed ? (
+            <span className="text-xl font-bold tracking-tight text-white">{t('sidebar.brand')}</span>
+          ) : null}
 
           {!isSidebarCollapsed ? (
             <button
               onClick={toggleSidebar}
               className="absolute right-4 top-6 rounded-md p-1 text-zinc-500 transition-opacity hover:bg-zinc-800 hover:text-white"
-              title="Collapse Sidebar"
+              title={t('common.collapseSidebar')}
             >
               <PanelLeftClose className="h-4 w-4" />
             </button>
@@ -167,7 +160,7 @@ export function Sidebar() {
                 ? 'group relative flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 transition-colors hover:bg-zinc-800'
                 : 'flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 transition-colors hover:bg-zinc-800'
             }
-            title={isSidebarCollapsed ? activeInstance?.name || t('sidebar.selectInstance', 'Select Instance') : undefined}
+            title={isSidebarCollapsed ? activeInstance?.name || t('sidebar.selectInstance') : undefined}
           >
             {isSidebarCollapsed ? (
               <>
@@ -189,7 +182,7 @@ export function Sidebar() {
                     }`}
                   />
                   <span className="truncate text-sm font-medium text-zinc-200">
-                    {activeInstance ? activeInstance.name : t('sidebar.selectInstance', 'Select Instance')}
+                    {activeInstance ? activeInstance.name : t('sidebar.selectInstance')}
                   </span>
                 </div>
                 <ChevronDown
@@ -216,7 +209,7 @@ export function Sidebar() {
                 >
                   <div className="flex items-center justify-between border-b border-zinc-800/50 bg-zinc-950/30 px-3 py-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                      {t('sidebar.switchInstance', 'Switch Instance')}
+                      {t('sidebar.switchInstance')}
                     </span>
                     <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[10px] text-zinc-600">
                       {instances.length}
@@ -261,8 +254,8 @@ export function Sidebar() {
                     {instances.length === 0 ? (
                       <div className="flex flex-col items-center justify-center px-3 py-6 text-center">
                         <Server className="mb-2 h-8 w-8 text-zinc-700" />
-                        <span className="text-sm text-zinc-400">{t('sidebar.noInstances', 'No instances found')}</span>
-                        <span className="mt-1 text-xs text-zinc-500">{t('sidebar.addOne', 'Add one to get started')}</span>
+                        <span className="text-sm text-zinc-400">{t('sidebar.noInstances')}</span>
+                        <span className="mt-1 text-xs text-zinc-500">{t('sidebar.addOne')}</span>
                       </div>
                     ) : null}
                   </div>
@@ -275,7 +268,7 @@ export function Sidebar() {
                       className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-800 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-white"
                     >
                       <Settings className="h-3.5 w-3.5" />
-                      {t('sidebar.manageInstances', 'Manage Instances')}
+                      {t('sidebar.manageInstances')}
                     </button>
                   </div>
                 </motion.div>
@@ -344,7 +337,7 @@ export function Sidebar() {
       <div className="flex flex-col gap-1 border-t border-zinc-900 p-4">
         <NavLink
           to="/docs"
-          title={isSidebarCollapsed ? t('sidebar.documentation', 'Documentation') : undefined}
+          title={isSidebarCollapsed ? t('sidebar.documentation') : undefined}
           className={({ isActive }) =>
             `group relative flex items-center rounded-xl transition-all duration-200 ${
               isSidebarCollapsed ? 'mx-auto h-10 w-10 justify-center' : 'gap-3 px-3 py-2.5'
@@ -369,14 +362,14 @@ export function Sidebar() {
                 }`}
               />
               {!isSidebarCollapsed ? (
-                <span className="text-[14px] tracking-tight">{t('sidebar.documentation', 'Documentation')}</span>
+                <span className="text-[14px] tracking-tight">{t('sidebar.documentation')}</span>
               ) : null}
             </>
           )}
         </NavLink>
         <NavLink
           to="/settings"
-          title={isSidebarCollapsed ? t('sidebar.settings', 'Settings') : undefined}
+          title={isSidebarCollapsed ? t('sidebar.settings') : undefined}
           className={({ isActive }) =>
             `group relative flex items-center rounded-xl transition-all duration-200 ${
               isSidebarCollapsed ? 'mx-auto h-10 w-10 justify-center' : 'gap-3 px-3 py-2.5'
@@ -401,7 +394,7 @@ export function Sidebar() {
                 }`}
               />
               {!isSidebarCollapsed ? (
-                <span className="flex-1 text-[14px] tracking-tight">{t('sidebar.settings', 'Settings')}</span>
+                <span className="flex-1 text-[14px] tracking-tight">{t('sidebar.settings')}</span>
               ) : null}
             </>
           )}

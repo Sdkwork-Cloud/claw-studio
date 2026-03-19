@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { AnimatePresence, motion } from 'motion/react';
 import { Image as ImageIcon, Mic, Paperclip, Send, StopCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '@sdkwork/claw-ui';
+import { cn, Textarea } from '@sdkwork/claw-ui';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -13,6 +14,7 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -59,15 +61,15 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
             : 'bg-zinc-100/80 hover:bg-zinc-200/60 dark:bg-zinc-800/80 dark:hover:bg-zinc-800',
         )}
       >
-        <textarea
+        <Textarea
           ref={textareaRef}
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder="Ask Claw Studio..."
-          className="min-h-[56px] w-full max-h-[400px] resize-none border-none bg-transparent px-4 pb-12 pt-4 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-500 focus:ring-0 sm:px-6 sm:pb-14 sm:pt-5 dark:text-zinc-100 dark:placeholder:text-zinc-400"
+          placeholder={t('chat.input.placeholder')}
+          className="min-h-[56px] max-h-[400px] w-full resize-none border-none bg-transparent px-4 pb-12 pt-4 text-[16px] leading-relaxed shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:px-6 sm:pb-14 sm:pt-5"
           rows={1}
           disabled={isLoading}
         />
@@ -75,20 +77,20 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between sm:bottom-3 sm:left-3 sm:right-3">
           <div className="flex items-center gap-0.5 sm:gap-1">
             <button
-              className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 sm:p-2.5 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              title="Attach file"
+              className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 sm:p-2.5"
+              title={t('chat.input.attachFile')}
             >
               <Paperclip className="h-5 w-5" />
             </button>
             <button
-              className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 sm:p-2.5 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              title="Upload image"
+              className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 sm:p-2.5"
+              title={t('chat.input.uploadImage')}
             >
               <ImageIcon className="h-5 w-5" />
             </button>
             <button
-              className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 sm:p-2.5 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              title="Voice input"
+              className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 sm:p-2.5"
+              title={t('chat.input.voiceInput')}
             >
               <Mic className="h-5 w-5" />
             </button>
@@ -102,8 +104,8 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 onClick={onStop}
-                className="group flex items-center justify-center rounded-full bg-zinc-900 p-2 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 sm:p-2.5 dark:bg-zinc-100 dark:text-zinc-900"
-                title="Stop generating"
+                className="group flex items-center justify-center rounded-full bg-zinc-900 p-2 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900 sm:p-2.5"
+                title={t('chat.input.stopGenerating')}
               >
                 <StopCircle className="h-5 w-5 transition-colors group-hover:text-red-400" />
               </motion.button>
@@ -129,9 +131,9 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
         </div>
       </motion.div>
 
-      <div className="mt-3 text-center sm:mt-4">
-        <p className="text-[10px] font-medium tracking-wide text-zinc-400 sm:text-[11px] dark:text-zinc-500">
-          AI models can make mistakes. Consider verifying important information.
+      <div className="mt-3 text-center dark:text-zinc-500 sm:mt-4">
+        <p className="text-[10px] font-medium tracking-wide text-zinc-400 sm:text-[11px]">
+          {t('chat.input.disclaimer')}
         </p>
       </div>
     </div>

@@ -32,24 +32,36 @@ runTest('sdkwork-claw-install keeps the V5 install package surface locally', () 
 
   assert.ok(exists('packages/sdkwork-claw-install/src/Install.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/InstallDetail.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-install/src/components/MobileAppDownloadDialog.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-install/src/components/MobileAppDownloadQrCode.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-install/src/components/MobileAppDownloadSection.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/pages/install/Install.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/pages/install/InstallDetail.tsx'));
   assert.ok(exists('packages/sdkwork-claw-install/src/services/installerService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-install/src/services/mobileAppGuideService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-install']);
+  assert.equal(typeof pkg.dependencies?.qrcode, 'string');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-install/);
+  assert.match(indexSource, /MobileAppDownloadDialog/);
+  assert.match(indexSource, /MobileAppDownloadSection/);
 });
 
 runTest('sdkwork-claw-install preserves the V5 installation methods and system requirements surface', () => {
   const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
+  const sectionSource = read('packages/sdkwork-claw-install/src/components/MobileAppDownloadSection.tsx');
 
-  assert.match(installSource, /Quick Install Script/);
-  assert.match(installSource, /Docker Gateway/);
-  assert.match(installSource, /NPM \/ PNPM/);
-  assert.match(installSource, /Cloud Deploy/);
-  assert.match(installSource, /From Source/);
-  assert.match(installSource, /System Requirements/);
+  assert.match(installSource, /useTranslation/);
+  assert.match(installSource, /translateMethodText/);
+  assert.match(installSource, /t\('install\.page\.systemRequirements\.title'\)/);
+  assert.match(installSource, /id: 'script'/);
+  assert.match(installSource, /id: 'docker'/);
+  assert.match(installSource, /id: 'npm'/);
+  assert.match(installSource, /id: 'cloud'/);
+  assert.match(installSource, /id: 'source'/);
   assert.match(installSource, /installerService\.executeInstallScript/);
+  assert.match(installSource, /MobileAppDownloadSection/);
+  assert.match(sectionSource, /install\.mobileGuide\.section/);
 });
 
 runTest('sdkwork-claw-install keeps install execution behind infrastructure abstraction', () => {
@@ -60,4 +72,21 @@ runTest('sdkwork-claw-install keeps install execution behind infrastructure abst
   assert.doesNotMatch(serviceSource, /@tauri-apps\/api\/core/);
   assert.match(infraSource, /getInstallerPlatform/);
   assert.match(infraSource, /executeInstallScript/);
+});
+
+runTest('sdkwork-claw-install resolves mobile guidance through feature-local service, sdkwork download links, and QR affordances', () => {
+  const serviceSource = read('packages/sdkwork-claw-install/src/services/mobileAppGuideService.ts');
+  const dialogSource = read('packages/sdkwork-claw-install/src/components/MobileAppDownloadDialog.tsx');
+  const cardSource = read('packages/sdkwork-claw-install/src/components/MobileAppDownloadChannelCard.tsx');
+
+  assert.match(serviceSource, /APP_ENV/);
+  assert.match(serviceSource, /https:\/\/clawstudio\.sdkwork\.com\/platforms\/android/);
+  assert.match(serviceSource, /https:\/\/clawstudio\.sdkwork\.com\/platforms\/ios/);
+  assert.match(serviceSource, /https:\/\/clawstudio\.sdkwork\.com\/platforms\/harmony/);
+  assert.match(serviceSource, /'harmony'/);
+  assert.match(dialogSource, /mobileAppGuideService/);
+  assert.match(dialogSource, /QRCode|QrCode|qrCode|qr code/);
+  assert.match(dialogSource, /platform\.openExternal/);
+  assert.match(dialogSource, /platform\.copy/);
+  assert.match(cardSource, /channel\.href/);
 });

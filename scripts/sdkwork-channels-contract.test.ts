@@ -41,11 +41,16 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-channels/);
 
+  assert.match(serviceSource, /import\s+\{\s*studioMockService\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
   assert.match(serviceSource, /getChannels\(instanceId: string\): Promise<Channel\[]>/);
-  assert.match(serviceSource, /fetch\(`\/api\/instances\/\$\{instanceId\}\/channels`\)/);
+  assert.match(serviceSource, /studioMockService\.listChannels\(instanceId\)/);
   assert.match(serviceSource, /updateChannelStatus\(instanceId: string, channelId: string, enabled: boolean\)/);
+  assert.match(serviceSource, /studioMockService\.updateChannelStatus\(channelId, enabled\)/);
   assert.match(serviceSource, /saveChannelConfig\(instanceId: string, channelId: string, configData: Record<string, string>\)/);
+  assert.match(serviceSource, /studioMockService\.saveChannelConfig\(channelId, configData\)/);
   assert.match(serviceSource, /deleteChannelConfig\(instanceId: string, channelId: string\)/);
+  assert.match(serviceSource, /studioMockService\.deleteChannelConfig\(channelId\)/);
+  assert.doesNotMatch(serviceSource, /fetch\('/);
 
   assert.match(pageSource, /useInstanceStore/);
   assert.match(pageSource, /const \{ activeInstanceId \} = useInstanceStore\(\)/);

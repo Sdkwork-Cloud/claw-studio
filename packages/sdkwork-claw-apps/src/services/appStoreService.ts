@@ -1,3 +1,4 @@
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
 
 export interface AppCategory {
@@ -83,11 +84,7 @@ class AppStoreServiceImpl implements IAppStoreService {
   }
 
   async getList(params: ListParams = {}): Promise<PaginatedResult<AppItem>> {
-    const res = await fetch('/api/appstore/topcharts');
-    if (!res.ok) {
-      throw new Error('Failed to fetch apps');
-    }
-    const items: AppItem[] = await res.json();
+    const items = await studioMockService.getTopChartApps();
 
     let filtered = items;
     if (params.keyword) {
@@ -135,35 +132,27 @@ class AppStoreServiceImpl implements IAppStoreService {
   }
 
   async getFeaturedApp(): Promise<AppItem> {
-    const res = await fetch('/api/appstore/featured');
-    if (!res.ok) {
+    const app = await studioMockService.getFeaturedApp();
+    if (!app) {
       throw new Error('Failed to fetch featured app');
     }
-    return res.json();
+    return app;
   }
 
   async getTopCharts(): Promise<AppItem[]> {
-    const res = await fetch('/api/appstore/topcharts');
-    if (!res.ok) {
-      throw new Error('Failed to fetch top charts');
-    }
-    return res.json();
+    return studioMockService.getTopChartApps();
   }
 
   async getCategories(): Promise<AppCategory[]> {
-    const res = await fetch('/api/appstore/categories');
-    if (!res.ok) {
-      throw new Error('Failed to fetch categories');
-    }
-    return res.json();
+    return studioMockService.getAppCategories();
   }
 
   async getApp(id: string): Promise<AppItem> {
-    const res = await fetch(`/api/appstore/apps/${id}`);
-    if (!res.ok) {
+    const app = await studioMockService.getApp(id);
+    if (!app) {
       throw new Error('Failed to fetch app');
     }
-    return res.json();
+    return app;
   }
 }
 

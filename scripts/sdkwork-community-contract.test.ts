@@ -43,11 +43,12 @@ runTest('sdkwork-claw-community keeps the V5 community package surface locally',
 runTest('sdkwork-claw-community preserves the V5 community landing affordances', () => {
   const pageSource = read('packages/sdkwork-claw-community/src/pages/community/Community.tsx');
 
+  assert.match(pageSource, /useTranslation/);
   assert.match(pageSource, /id: 'posts'/);
   assert.match(pageSource, /id: 'news'/);
-  assert.match(pageSource, /Latest Claw/);
-  assert.match(pageSource, /Online Claw/);
-  assert.match(pageSource, /Hottest Claw/);
+  assert.match(pageSource, /t\('community\.page\.latestClaw'\)/);
+  assert.match(pageSource, /t\('community\.page\.onlineClaw'\)/);
+  assert.match(pageSource, /t\('community\.page\.hottestClaw'\)/);
 });
 
 runTest('sdkwork-claw-community keeps the V5 community mock content model', () => {

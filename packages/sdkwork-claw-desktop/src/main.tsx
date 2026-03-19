@@ -1,3 +1,3 @@
 import { createDesktopApp } from './desktop/bootstrap/createDesktopApp';
 
-createDesktopApp();
+void createDesktopApp();

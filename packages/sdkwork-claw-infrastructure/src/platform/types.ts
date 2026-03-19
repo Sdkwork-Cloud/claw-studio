@@ -35,6 +35,8 @@ export interface PlatformSaveFileOptions {
   filters?: PlatformDialogFilter[];
 }
 
+export type PlatformWindowStateUnsubscribe = () => void | Promise<void>;
+
 export interface PlatformAPI {
   getPlatform(): 'web' | 'desktop';
 
@@ -51,6 +53,11 @@ export interface PlatformAPI {
 
   minimizeWindow(): Promise<void>;
   maximizeWindow(): Promise<void>;
+  restoreWindow(): Promise<void>;
+  isWindowMaximized(): Promise<boolean>;
+  subscribeWindowMaximized(
+    listener: (isMaximized: boolean) => void,
+  ): Promise<PlatformWindowStateUnsubscribe>;
   closeWindow(): Promise<void>;
 
   listDirectory(path?: string): Promise<PlatformFileEntry[]>;

@@ -5,11 +5,14 @@
   "type": "module",
   "dependencies": {
     "@sdkwork/claw-core": "workspace:*",
+    "@sdkwork/claw-infrastructure": "workspace:*",
     "@sdkwork/claw-types": "workspace:*",
+    "@sdkwork/claw-ui": "workspace:*",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "lucide-react": "^0.546.0",
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "react-i18next": "^16.1.0"
   },
   "exports": {
     ".": "./src/index.ts"

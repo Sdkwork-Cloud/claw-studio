@@ -1,6 +1,10 @@
 export const ROUTE_PATHS = {
   ROOT: '/',
+  DASHBOARD: '/dashboard',
   AUTH: '/auth',
+  LOGIN: '/login',
+  REGISTER: '/register',
+  FORGOT_PASSWORD: '/forgot-password',
   INSTALL: '/install',
   INSTALL_DETAIL: '/install/:method',
   INSTANCES: '/instances',

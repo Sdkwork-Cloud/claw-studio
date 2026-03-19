@@ -1,20 +1,57 @@
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
+import type {
+  TaskActionType,
+  TaskCreateInput,
+  TaskDeliveryMode,
+  TaskExecutionConfig,
+  TaskExecutionContent,
+  TaskScheduleConfig,
+  TaskScheduleMode,
+  TaskSessionMode,
+  TaskStatus,
+  TaskWakeUpMode,
+} from './taskSchedule';
 
-export interface Task {
+export interface Task extends TaskCreateInput {
   id: string;
-  name: string;
-  schedule: string;
-  actionType: 'message' | 'skill';
-  status: 'active' | 'paused' | 'failed';
   lastRun?: string;
   nextRun?: string;
 }
 
+export interface TaskExecutionHistoryEntry {
+  id: string;
+  taskId: string;
+  status: 'success' | 'failed' | 'running';
+  trigger: 'schedule' | 'manual' | 'clone';
+  startedAt: string;
+  finishedAt?: string;
+  summary: string;
+  details?: string;
+}
+
+export interface TaskDeliveryChannelOption {
+  id: string;
+  name: string;
+}
+
 export interface CreateTaskDTO {
   name: string;
+  description?: string;
+  prompt: string;
   schedule: string;
-  actionType: 'message' | 'skill';
-  status: 'active' | 'paused' | 'failed';
+  scheduleMode: TaskScheduleMode;
+  scheduleConfig: TaskScheduleConfig;
+  cronExpression?: string;
+  actionType: TaskActionType;
+  status: TaskStatus;
+  sessionMode: TaskSessionMode;
+  wakeUpMode: TaskWakeUpMode;
+  executionContent: TaskExecutionContent;
+  timeoutSeconds?: number;
+  deliveryMode: TaskDeliveryMode;
+  deliveryChannel?: string;
+  recipient?: string;
   lastRun?: string;
   nextRun?: string;
 }
@@ -27,11 +64,16 @@ export interface ITaskService {
   create(instanceId: string, data: CreateTaskDTO): Promise<Task>;
   update(id: string, data: UpdateTaskDTO): Promise<Task>;
   delete(id: string): Promise<boolean>;
+  cloneTask(id: string, overrides?: UpdateTaskDTO): Promise<Task>;
+  runTaskNow(id: string): Promise<TaskExecutionHistoryEntry>;
+  listTaskExecutions(id: string): Promise<TaskExecutionHistoryEntry[]>;
+  listDeliveryChannels(instanceId: string): Promise<TaskDeliveryChannelOption[]>;
 
   // Legacy methods
   getTasks(instanceId: string): Promise<Task[]>;
   createTask(instanceId: string, task: Omit<Task, 'id'>): Promise<Task>;
-  updateTaskStatus(id: string, status: 'active' | 'paused'): Promise<void>;
+  updateTask(id: string, data: UpdateTaskDTO): Promise<Task>;
+  updateTaskStatus(id: string, status: Extract<TaskStatus, 'active' | 'paused'>): Promise<void>;
   deleteTask(id: string): Promise<void>;
 }
 
@@ -69,8 +111,8 @@ class TaskService implements ITaskService {
     return this.createTask(instanceId, data);
   }
 
-  async update(_id: string, _data: UpdateTaskDTO): Promise<Task> {
-    throw new Error('Method not implemented.');
+  async update(id: string, data: UpdateTaskDTO): Promise<Task> {
+    return this.updateTask(id, data);
   }
 
   async delete(id: string): Promise<boolean> {
@@ -79,41 +121,61 @@ class TaskService implements ITaskService {
   }
 
   async getTasks(instanceId: string): Promise<Task[]> {
-    const res = await fetch(`/api/instances/${instanceId}/tasks`);
-    if (!res.ok) {
-      throw new Error('Failed to fetch tasks');
-    }
-    return res.json();
+    return studioMockService.listTasks(instanceId);
   }
 
   async createTask(instanceId: string, task: Omit<Task, 'id'>): Promise<Task> {
-    const res = await fetch(`/api/instances/${instanceId}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(task),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to create task');
-    }
-    return res.json();
+    return studioMockService.createTask(instanceId, task);
   }
 
-  async updateTaskStatus(id: string, status: 'active' | 'paused'): Promise<void> {
-    const res = await fetch(`/api/tasks/${id}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    if (!res.ok) {
+  async updateTask(id: string, data: UpdateTaskDTO): Promise<Task> {
+    const updated = await studioMockService.updateTask(id, data);
+    if (!updated) {
+      throw new Error('Failed to update task');
+    }
+    return updated;
+  }
+
+  async cloneTask(id: string, overrides: UpdateTaskDTO = {}): Promise<Task> {
+    const cloned = await studioMockService.cloneTask(id, overrides);
+    if (!cloned) {
+      throw new Error('Failed to clone task');
+    }
+    return cloned;
+  }
+
+  async runTaskNow(id: string): Promise<TaskExecutionHistoryEntry> {
+    const execution = await studioMockService.runTaskNow(id);
+    if (!execution) {
+      throw new Error('Failed to run task');
+    }
+    return execution;
+  }
+
+  async listTaskExecutions(id: string): Promise<TaskExecutionHistoryEntry[]> {
+    return studioMockService.listTaskExecutions(id);
+  }
+
+  async listDeliveryChannels(instanceId: string): Promise<TaskDeliveryChannelOption[]> {
+    const channels = await studioMockService.listChannels(instanceId);
+    return channels
+      .filter((channel) => channel.enabled && channel.status === 'connected')
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+      }));
+  }
+
+  async updateTaskStatus(id: string, status: Extract<TaskStatus, 'active' | 'paused'>): Promise<void> {
+    const updated = await studioMockService.updateTaskStatus(id, status);
+    if (!updated) {
       throw new Error('Failed to update task status');
     }
   }
 
   async deleteTask(id: string): Promise<void> {
-    const res = await fetch(`/api/tasks/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
+    const deleted = await studioMockService.deleteTask(id);
+    if (!deleted) {
       throw new Error('Failed to delete task');
     }
   }

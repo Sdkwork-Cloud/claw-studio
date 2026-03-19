@@ -1,0 +1,18 @@
+{
+  "name": "@sdkwork/claw-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@sdkwork/claw-ui": "workspace:*",
+    "@sdkwork/claw-infrastructure": "workspace:*",
+    "@sdkwork/claw-types": "workspace:*",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.0",
+    "react-i18next": "^16.1.0",
+    "react-router-dom": "^7.13.1"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   AlertCircle,
-  ChevronDown,
   Cpu,
   Edit2,
   Globe,
@@ -16,6 +15,18 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useInstanceStore } from '@sdkwork/claw-core';
+import { useLocalizedText } from '@sdkwork/claw-i18n';
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+} from '@sdkwork/claw-ui';
 import { type LLMChannel, useLLMStore } from './store/useLLMStore';
 
 export function LLMSettings() {
@@ -30,6 +41,7 @@ export function LLMSettings() {
     setActiveModel,
     getInstanceConfig,
   } = useLLMStore();
+  const { text } = useLocalizedText();
 
   const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
   const activeChannelId = instanceConfig?.activeChannelId ?? '';
@@ -41,6 +53,9 @@ export function LLMSettings() {
   const [isAdding, setIsAdding] = useState(false);
 
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? channels[0];
+  const selectedChannelId = activeChannelId || activeChannel?.id;
+  const selectedModelId =
+    activeModelId || activeChannel?.defaultModelId || activeChannel?.models[0]?.id;
 
   const handleEdit = (channel: LLMChannel) => {
     setEditingChannelId(channel.id);
@@ -52,12 +67,17 @@ export function LLMSettings() {
     setIsAdding(true);
     setEditingChannelId(null);
     setEditForm({
-      name: 'New Channel',
+      name: text('New Channel', '\u65b0\u6e20\u9053'),
       provider: 'custom',
       baseUrl: 'https://api.example.com/v1',
       apiKey: '',
-      icon: '🔌',
-      models: [{ id: 'custom-model', name: 'Custom Model' }],
+      icon: '\u2728',
+      models: [
+        {
+          id: 'custom-model',
+          name: text('Custom Model', '\u81ea\u5b9a\u4e49\u6a21\u578b'),
+        },
+      ],
     });
   };
 
@@ -84,10 +104,13 @@ export function LLMSettings() {
       <div className="mx-auto flex h-64 max-w-[1400px] flex-col items-center justify-center p-6 text-center md:p-10">
         <AlertCircle className="mb-4 h-12 w-12 text-zinc-400" />
         <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
-          No Instance Selected
+          {text('No Instance Selected', '\u672a\u9009\u4e2d\u5b9e\u4f8b')}
         </h2>
         <p className="text-zinc-500 dark:text-zinc-400">
-          Please select an instance from the sidebar to configure LLM settings.
+          {text(
+            'Please select an instance from the sidebar to configure LLM settings.',
+            '\u8bf7\u5148\u4ece\u4fa7\u8fb9\u680f\u9009\u62e9\u4e00\u4e2a\u5b9e\u4f8b\uff0c\u7136\u540e\u518d\u914d\u7f6e LLM \u8bbe\u7f6e\u3002',
+          )}
         </p>
       </div>
     );
@@ -105,20 +128,26 @@ export function LLMSettings() {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner backdrop-blur-md">
                 <Sparkles className="h-6 w-6 text-primary-400" />
               </div>
-              <h2 className="text-3xl font-black tracking-tight">LLM Configuration</h2>
+              <h2 className="text-3xl font-black tracking-tight">
+                {text('LLM Configuration', 'LLM \u914d\u7f6e')}
+              </h2>
             </div>
             <p className="max-w-xl text-lg text-zinc-400">
-              Fine-tune your AI experience. Manage model providers, API keys, and global
-              generation parameters for the ultimate control.
+              {text(
+                'Fine-tune your AI experience. Manage model providers, API keys, and global generation parameters for the ultimate control.',
+                '\u7ec6\u81f4\u8c03\u6574\u4f60\u7684 AI \u4f53\u9a8c\uff0c\u7edf\u4e00\u7ba1\u7406\u6a21\u578b\u63d0\u4f9b\u65b9\u3001API \u5bc6\u94a5\u4e0e\u5168\u5c40\u751f\u6210\u53c2\u6570\uff0c\u83b7\u5f97\u66f4\u5f3a\u63a7\u5236\u529b\u3002',
+              )}
             </p>
           </div>
-          <button
+          <Button
             onClick={handleAdd}
             disabled={isAdding || editingChannelId !== null}
-            className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-bold text-zinc-900 shadow-xl transition-all hover:scale-105 hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            variant="secondary"
+            className="h-auto shrink-0 rounded-xl bg-white px-6 py-3 font-bold text-zinc-900 shadow-xl transition-all hover:scale-105 hover:bg-zinc-100 active:scale-95 disabled:hover:scale-100"
           >
-            <Plus className="h-5 w-5" /> Add Channel
-          </button>
+            <Plus className="h-5 w-5" />
+            {text('Add Channel', '\u65b0\u589e\u6e20\u9053')}
+          </Button>
         </div>
       </div>
 
@@ -126,65 +155,80 @@ export function LLMSettings() {
         <div className="mb-6 flex items-center gap-2 px-2">
           <Star className="h-5 w-5 fill-primary-500 text-primary-500" />
           <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            Instance Defaults
+            {text('Instance Defaults', '\u5b9e\u4f8b\u9ed8\u8ba4\u503c')}
           </h3>
         </div>
 
         <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
-                Default Channel
-              </label>
-              <div className="relative">
-                <select
-                  value={activeChannelId}
-                  onChange={(event) => {
-                    const channelId = event.target.value;
+              <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                {text('Default Channel', '\u9ed8\u8ba4\u6e20\u9053')}
+              </Label>
+              <Select
+                value={selectedChannelId}
+                onValueChange={(channelId) => {
+                  if (!channelId) {
+                    return;
+                  }
+
+                  if (activeInstanceId) {
                     setActiveChannel(activeInstanceId, channelId);
-                    const channel = channels.find((item) => item.id === channelId);
-                    if (channel && channel.models.length > 0) {
-                      setActiveModel(
-                        activeInstanceId,
-                        channel.defaultModelId ?? channel.models[0].id,
-                      );
-                    }
-                  }}
-                  className="w-full cursor-pointer appearance-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 pr-10 text-sm font-bold text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-                >
+                  }
+
+                  const channel = channels.find((item) => item.id === channelId);
+                  if (activeInstanceId && channel && channel.models.length > 0) {
+                    setActiveModel(activeInstanceId, channel.defaultModelId ?? channel.models[0].id);
+                  }
+                }}
+              >
+                <SelectTrigger className="h-auto rounded-xl bg-zinc-50 px-4 py-3.5 font-bold dark:bg-zinc-950">
+                  <SelectValue placeholder={text('Select channel', '\u9009\u62e9\u6e20\u9053')} />
+                </SelectTrigger>
+                <SelectContent>
                   {channels.map((channel) => (
-                    <option key={channel.id} value={channel.id}>
+                    <SelectItem key={channel.id} value={channel.id}>
                       {channel.icon} {channel.name}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
-              </div>
+                </SelectContent>
+              </Select>
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                This channel will be selected by default in new chats.
+                {text(
+                  'This channel will be selected by default in new chats.',
+                  '\u65b0\u5efa\u804a\u5929\u65f6\u5c06\u9ed8\u8ba4\u9009\u62e9\u6b64\u6e20\u9053\u3002',
+                )}
               </p>
             </div>
 
             <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
-                Default Model
-              </label>
-              <div className="relative">
-                <select
-                  value={activeModelId}
-                  onChange={(event) => setActiveModel(activeInstanceId, event.target.value)}
-                  className="w-full cursor-pointer appearance-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 pr-10 text-sm font-bold text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-                >
+              <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                {text('Default Model', '\u9ed8\u8ba4\u6a21\u578b')}
+              </Label>
+              <Select
+                value={selectedModelId}
+                onValueChange={(value) => {
+                  if (activeInstanceId) {
+                    setActiveModel(activeInstanceId, value);
+                  }
+                }}
+              >
+                <SelectTrigger className="h-auto rounded-xl bg-zinc-50 px-4 py-3.5 font-bold dark:bg-zinc-950">
+                  <SelectValue placeholder={text('Select model', '\u9009\u62e9\u6a21\u578b')} />
+                </SelectTrigger>
+                <SelectContent>
                   {activeChannel?.models.map((model) => (
-                    <option key={model.id} value={model.id}>
+                    <SelectItem key={model.id} value={model.id}>
                       {model.name}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
-              </div>
+                </SelectContent>
+              </Select>
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                The default model to use for the selected channel.
+                {text(
+                  'The default model to use for the selected channel.',
+                  '\u5f53\u524d\u6e20\u9053\u9ed8\u8ba4\u4f7f\u7528\u7684\u6a21\u578b\u3002',
+                )}
               </p>
             </div>
           </div>
@@ -195,47 +239,46 @@ export function LLMSettings() {
         <div className="mb-6 flex items-center gap-2 px-2">
           <Settings2 className="h-5 w-5 text-primary-500" />
           <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            Instance Parameters
+            {text('Instance Parameters', '\u5b9e\u4f8b\u53c2\u6570')}
           </h3>
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="group rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                Temperature
-              </label>
+              <Label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                {text('Temperature', '\u6e29\u5ea6')}
+              </Label>
               <span className="rounded-lg bg-primary-50 px-2.5 py-1 font-mono text-xs font-bold text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
                 {config.temperature.toFixed(2)}
               </span>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="2"
-              step="0.1"
-              value={config.temperature}
-              onChange={(event) =>
+            <Slider
+              min={0}
+              max={2}
+              step={0.1}
+              value={[config.temperature]}
+              onValueChange={([value]) =>
                 updateConfig(activeInstanceId, {
-                  temperature: parseFloat(event.target.value),
+                  temperature: value ?? config.temperature,
                 })
               }
-              className="mb-3 w-full accent-primary-500"
+              className="mb-4"
             />
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              <span>Precise</span>
-              <span>Creative</span>
+              <span>{text('Precise', '\u7cbe\u786e')}</span>
+              <span>{text('Creative', '\u521b\u9020')}</span>
             </div>
           </div>
 
           <div className="group rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                Max Tokens
-              </label>
+              <Label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                {text('Max Tokens', '\u6700\u5927 Tokens')}
+              </Label>
               <Hash className="h-4 w-4 text-zinc-400" />
             </div>
-            <input
+            <Input
               type="number"
               value={config.maxTokens}
               onChange={(event) =>
@@ -243,38 +286,40 @@ export function LLMSettings() {
                   maxTokens: parseInt(event.target.value, 10),
                 })
               }
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 font-mono text-sm text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+              className="bg-zinc-50 font-mono dark:bg-zinc-950"
             />
             <p className="mt-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Maximum length of the generated response.
+              {text(
+                'Maximum length of the generated response.',
+                '\u751f\u6210\u54cd\u5e94\u7684\u6700\u5927\u957f\u5ea6\u3002',
+              )}
             </p>
           </div>
 
           <div className="group rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                Top P
-              </label>
+              <Label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                {text('Top P', 'Top P')}
+              </Label>
               <span className="rounded-lg bg-primary-50 px-2.5 py-1 font-mono text-xs font-bold text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
                 {config.topP.toFixed(2)}
               </span>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={config.topP}
-              onChange={(event) =>
+            <Slider
+              min={0}
+              max={1}
+              step={0.05}
+              value={[config.topP]}
+              onValueChange={([value]) =>
                 updateConfig(activeInstanceId, {
-                  topP: parseFloat(event.target.value),
+                  topP: value ?? config.topP,
                 })
               }
-              className="mb-3 w-full accent-primary-500"
+              className="mb-4"
             />
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              <span>Focused</span>
-              <span>Diverse</span>
+              <span>{text('Focused', '\u96c6\u4e2d')}</span>
+              <span>{text('Diverse', '\u591a\u6837')}</span>
             </div>
           </div>
         </div>
@@ -284,7 +329,7 @@ export function LLMSettings() {
         <div className="mb-6 flex items-center gap-2 px-2">
           <Globe className="h-5 w-5 text-primary-500" />
           <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            Model Channels
+            {text('Model Channels', '\u6a21\u578b\u6e20\u9053')}
           </h3>
         </div>
 
@@ -355,8 +400,11 @@ export function LLMSettings() {
                               onClick={() => updateChannel(channel.id, { defaultModelId: model.id })}
                               title={
                                 channel.defaultModelId === model.id
-                                  ? 'Default Model'
-                                  : 'Click to set as default'
+                                  ? text('Default model', '\u9ed8\u8ba4\u6a21\u578b')
+                                  : text(
+                                      'Click to set as default',
+                                      '\u70b9\u51fb\u8bbe\u4e3a\u9ed8\u8ba4',
+                                    )
                               }
                               className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors ${
                                 channel.defaultModelId === model.id
@@ -379,14 +427,14 @@ export function LLMSettings() {
                       <button
                         onClick={() => handleEdit(channel)}
                         className="rounded-xl p-2.5 text-zinc-400 transition-colors hover:bg-primary-50 hover:text-primary-500 dark:hover:bg-primary-500/10"
-                        title="Edit Channel"
+                        title={text('Edit channel', '\u7f16\u8f91\u6e20\u9053')}
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => removeChannel(channel.id)}
                         className="rounded-xl p-2.5 text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10"
-                        title="Delete Channel"
+                        title={text('Delete channel', '\u5220\u9664\u6e20\u9053')}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -415,6 +463,7 @@ function ChannelForm({
 }) {
   const [newModelId, setNewModelId] = useState('');
   const [newModelName, setNewModelName] = useState('');
+  const { text } = useLocalizedText();
 
   const handleAddModel = () => {
     if (!newModelId.trim() || !newModelName.trim()) {
@@ -451,93 +500,107 @@ function ChannelForm({
           <Settings2 className="h-5 w-5" />
         </div>
         <h4 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-          {form.id ? 'Edit Channel' : 'Configure New Channel'}
+          {form.id
+            ? text('Edit Channel', '\u7f16\u8f91\u6e20\u9053')
+            : text('Configure New Channel', '\u914d\u7f6e\u65b0\u6e20\u9053')}
         </h4>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="space-y-1.5">
-          <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            Channel Name
-          </label>
-          <input
+          <Label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+            {text('Channel Name', '\u6e20\u9053\u540d\u79f0')}
+          </Label>
+          <Input
             type="text"
             value={form.name ?? ''}
             onChange={(event) =>
               setForm((current) => ({ ...current, name: event.target.value }))
             }
-            placeholder="e.g., My Custom OpenAI"
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            placeholder={text(
+              'e.g., My Custom OpenAI',
+              '\u4f8b\u5982\uff1aMy Custom OpenAI',
+            )}
+            className="bg-zinc-50 text-sm font-medium dark:bg-zinc-950"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            Provider Type
-          </label>
-          <input
+          <Label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+            {text('Provider Type', '\u63d0\u4f9b\u65b9\u7c7b\u578b')}
+          </Label>
+          <Input
             type="text"
             value={form.provider ?? ''}
             onChange={(event) =>
               setForm((current) => ({ ...current, provider: event.target.value }))
             }
-            placeholder="e.g., openai, custom"
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            placeholder={text('e.g., openai, custom', '\u4f8b\u5982\uff1aopenai, custom')}
+            className="bg-zinc-50 text-sm font-medium dark:bg-zinc-950"
           />
         </div>
 
         <div className="space-y-1.5 md:col-span-2">
-          <label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            <Globe className="h-4 w-4 text-zinc-400" /> Base URL
-          </label>
-          <input
+          <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
+            <Globe className="h-4 w-4 text-zinc-400" />
+            {text('Base URL', '\u57fa\u7840 URL')}
+          </Label>
+          <Input
             type="text"
             value={form.baseUrl ?? ''}
             onChange={(event) =>
               setForm((current) => ({ ...current, baseUrl: event.target.value }))
             }
-            placeholder="https://api.openai.com/v1"
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 font-mono text-sm text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            placeholder={'https://api.openai.com/v1'}
+            className="bg-zinc-50 font-mono dark:bg-zinc-950"
           />
         </div>
 
         <div className="space-y-1.5 md:col-span-2">
-          <label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            <Key className="h-4 w-4 text-zinc-400" /> API Key
-          </label>
-          <input
+          <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
+            <Key className="h-4 w-4 text-zinc-400" />
+            {text('API Key', 'API \u5bc6\u94a5')}
+          </Label>
+          <Input
             type="password"
             value={form.apiKey ?? ''}
             onChange={(event) =>
               setForm((current) => ({ ...current, apiKey: event.target.value }))
             }
-            placeholder="sk-... (Leave empty to use environment variable)"
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 font-mono text-sm text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            placeholder={text(
+              'sk-... (Leave empty to use environment variable)',
+              'sk-... (\u7559\u7a7a\u5219\u4f7f\u7528\u73af\u5883\u53d8\u91cf)',
+            )}
+            className="bg-zinc-50 font-mono dark:bg-zinc-950"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            Icon (Emoji)
-          </label>
-          <input
+          <Label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+            {text('Icon (Emoji)', '\u56fe\u6807\uff08Emoji\uff09')}
+          </Label>
+          <Input
             type="text"
             value={form.icon ?? ''}
             onChange={(event) =>
               setForm((current) => ({ ...current, icon: event.target.value }))
             }
-            placeholder="🤖"
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            placeholder={text('e.g. icon', '\u4f8b\u5982\uff1a\u56fe\u6807')}
+            className="bg-zinc-50 dark:bg-zinc-950"
           />
         </div>
 
         <div className="space-y-4 md:col-span-2">
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
-              <Cpu className="h-4 w-4 text-zinc-400" /> Models Configuration
-            </label>
+            <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
+              <Cpu className="h-4 w-4 text-zinc-400" />
+              {text('Models Configuration', '\u6a21\u578b\u914d\u7f6e')}
+            </Label>
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Click the star to set as default
+              {text(
+                'Click the star to set as default',
+                '\u70b9\u51fb\u661f\u6807\u8bbe\u4e3a\u9ed8\u8ba4',
+              )}
             </span>
           </div>
 
@@ -560,7 +623,9 @@ function ChannelForm({
                             : 'text-zinc-300 hover:bg-yellow-50 hover:text-yellow-500 dark:text-zinc-700 dark:hover:bg-yellow-500/10'
                         }`}
                         title={
-                          form.defaultModelId === model.id ? 'Default Model' : 'Set as Default'
+                          form.defaultModelId === model.id
+                            ? text('Default model', '\u9ed8\u8ba4\u6a21\u578b')
+                            : text('Set as default', '\u8bbe\u4e3a\u9ed8\u8ba4')
                         }
                       >
                         <Star
@@ -581,7 +646,7 @@ function ChannelForm({
                     <button
                       onClick={() => handleRemoveModel(model.id)}
                       className="rounded-lg p-2 text-zinc-400 opacity-0 transition-colors group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10"
-                      title="Remove Model"
+                      title={text('Remove model', '\u79fb\u9664\u6a21\u578b')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -590,52 +655,64 @@ function ChannelForm({
               </div>
             ) : (
               <div className="py-6 text-center text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                No models configured. Add one below.
+                {text(
+                  'No models configured. Add one below.',
+                  '\u5c1a\u672a\u914d\u7f6e\u6a21\u578b\uff0c\u53ef\u5728\u4e0b\u65b9\u6dfb\u52a0\u3002',
+                )}
               </div>
             )}
 
             <div className="flex flex-col gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-800 sm:flex-row">
-              <input
+              <Input
                 type="text"
                 value={newModelId}
                 onChange={(event) => setNewModelId(event.target.value)}
-                placeholder="Model ID (e.g., gpt-4o)"
+                placeholder={text(
+                  'Model ID (e.g., gpt-4o)',
+                  '\u6a21\u578b ID\uff08\u4f8b\u5982\uff1agpt-4o\uff09',
+                )}
                 onKeyDown={(event) => event.key === 'Enter' && handleAddModel()}
-                className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 font-mono text-sm text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className="flex-1 bg-white font-mono dark:border-zinc-800 dark:bg-zinc-900"
               />
-              <input
+              <Input
                 type="text"
                 value={newModelName}
                 onChange={(event) => setNewModelName(event.target.value)}
-                placeholder="Display Name (e.g., GPT-4o)"
+                placeholder={text(
+                  'Display Name (e.g., GPT-4o)',
+                  '\u663e\u793a\u540d\u79f0\uff08\u4f8b\u5982\uff1aGPT-4o\uff09',
+                )}
                 onKeyDown={(event) => event.key === 'Enter' && handleAddModel()}
-                className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className="flex-1 bg-white text-sm font-medium dark:border-zinc-800 dark:bg-zinc-900"
               />
-              <button
+              <Button
                 onClick={handleAddModel}
                 disabled={!newModelId.trim() || !newModelName.trim()}
-                className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                className="h-auto shrink-0 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
-                <Plus className="h-4 w-4" /> Add
-              </button>
+                <Plus className="h-4 w-4" />
+                {text('Add', '\u6dfb\u52a0')}
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-end gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-        <button
+        <Button
           onClick={onCancel}
-          className="rounded-xl px-5 py-2.5 text-sm font-bold text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          variant="ghost"
+          className="rounded-xl px-5 py-2.5 text-sm font-bold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
         >
-          Cancel
-        </button>
-        <button
+          {text('Cancel', '\u53d6\u6d88')}
+        </Button>
+        <Button
           onClick={onSave}
-          className="flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary-500/20 transition-all hover:bg-primary-700 hover:shadow-xl hover:shadow-primary-500/30 active:scale-95"
+          className="h-auto rounded-xl px-6 py-2.5 text-sm font-bold shadow-lg shadow-primary-500/20 transition-all hover:shadow-xl hover:shadow-primary-500/30 active:scale-95"
         >
-          <Save className="h-4 w-4" /> Save Configuration
-        </button>
+          <Save className="h-4 w-4" />
+          {text('Save Configuration', '\u4fdd\u5b58\u914d\u7f6e')}
+        </Button>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import { type Device, type InstalledSkill, type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
 
 export interface CreateDeviceDTO {
@@ -65,53 +66,29 @@ class DeviceService implements IDeviceService {
   }
 
   async getDevices(): Promise<Device[]> {
-    const res = await fetch('/api/devices');
-    if (!res.ok) {
-      throw new Error('Failed to fetch devices');
-    }
-    return res.json();
+    return studioMockService.listDevices();
   }
 
   async registerDevice(name: string): Promise<Device> {
-    const res = await fetch('/api/devices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to register device');
-    }
-    return res.json();
+    return studioMockService.createDevice(name);
   }
 
   async deleteDevice(id: string): Promise<void> {
-    const res = await fetch(`/api/devices/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
+    const deleted = await studioMockService.deleteDevice(id);
+    if (!deleted) {
       throw new Error('Failed to delete device');
     }
-    await res.json();
   }
 
   async getDeviceSkills(deviceId: string): Promise<InstalledSkill[]> {
-    const res = await fetch(`/api/devices/${deviceId}/skills`);
-    if (!res.ok) {
-      throw new Error('Failed to fetch device skills');
-    }
-    return res.json();
+    return studioMockService.listDeviceInstalledSkills(deviceId);
   }
 
   async uninstallSkill(deviceId: string, skillId: string): Promise<void> {
-    const res = await fetch('/api/installations', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_id: deviceId, skill_id: skillId }),
-    });
-    if (!res.ok) {
+    const result = await studioMockService.uninstallSkill(deviceId, skillId);
+    if (!result.success) {
       throw new Error('Failed to uninstall skill');
     }
-    await res.json();
   }
 }
 

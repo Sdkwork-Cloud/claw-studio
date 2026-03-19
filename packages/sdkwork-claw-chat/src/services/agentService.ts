@@ -1,4 +1,5 @@
-import { Agent, ListParams, PaginatedResult, delay } from '@sdkwork/claw-types';
+import { studioMockService } from '@sdkwork/claw-infrastructure';
+import { Agent, ListParams, PaginatedResult } from '@sdkwork/claw-types';
 
 export interface CreateAgentDTO {
   name: string;
@@ -20,111 +21,63 @@ export interface IAgentService {
   getAgent(id: string): Promise<Agent>;
 }
 
+function paginateAgents(agents: Agent[], params: ListParams = {}): PaginatedResult<Agent> {
+  let filteredAgents = [...agents];
+
+  if (params.keyword) {
+    const lowerKeyword = params.keyword.toLowerCase();
+    filteredAgents = filteredAgents.filter(
+      (agent) =>
+        agent.name.toLowerCase().includes(lowerKeyword) ||
+        agent.description.toLowerCase().includes(lowerKeyword),
+    );
+  }
+
+  const page = params.page || 1;
+  const pageSize = params.pageSize || 10;
+  const total = filteredAgents.length;
+  const start = (page - 1) * pageSize;
+
+  return {
+    items: filteredAgents.slice(start, start + pageSize),
+    total,
+    page,
+    pageSize,
+    hasMore: start + pageSize < total,
+  };
+}
+
 class AgentService implements IAgentService {
-  private data: Agent[] = [
-    {
-      id: 'agent-1',
-      name: 'Code Master',
-      description: 'Expert in software development and architecture.',
-      avatar: '👨‍💻',
-      systemPrompt:
-        'You are an expert software developer. Provide clean, efficient, and well-documented code.',
-      creator: 'SDKWork',
-    },
-    {
-      id: 'agent-2',
-      name: 'Creative Writer',
-      description: 'Specializes in creative writing, storytelling, and content creation.',
-      avatar: '✍️',
-      systemPrompt:
-        'You are a creative writer. Write engaging, imaginative, and compelling content.',
-      creator: 'SDKWork',
-    },
-    {
-      id: 'agent-3',
-      name: 'Data Analyst',
-      description: 'Analyzes data, creates visualizations, and provides insights.',
-      avatar: '📊',
-      systemPrompt:
-        'You are a data analyst. Provide clear, accurate, and insightful analysis of data.',
-      creator: 'SDKWork',
-    },
-  ];
-
   async getList(params: ListParams = {}): Promise<PaginatedResult<Agent>> {
-    await delay();
-
-    let filtered = [...this.data];
-    if (params.keyword) {
-      const lowerKeyword = params.keyword.toLowerCase();
-      filtered = filtered.filter(
-        (agent) =>
-          agent.name.toLowerCase().includes(lowerKeyword) ||
-          agent.description.toLowerCase().includes(lowerKeyword),
-      );
-    }
-
-    const page = params.page || 1;
-    const pageSize = params.pageSize || 10;
-    const total = filtered.length;
-    const start = (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize);
-
-    return {
-      items,
-      total,
-      page,
-      pageSize,
-      hasMore: start + pageSize < total,
-    };
+    return paginateAgents(await this.getAgents(), params);
   }
 
   async getById(id: string): Promise<Agent | null> {
-    await delay();
-    return this.data.find((agent) => agent.id === id) || null;
-  }
-
-  async create(data: CreateAgentDTO): Promise<Agent> {
-    await delay();
-
-    const newAgent: Agent = {
-      id: `agent-${Date.now()}`,
-      ...data,
-    };
-
-    this.data.push(newAgent);
-    return newAgent;
-  }
-
-  async update(id: string, data: UpdateAgentDTO): Promise<Agent> {
-    await delay();
-
-    const index = this.data.findIndex((agent) => agent.id === id);
-    if (index === -1) {
-      throw new Error('Agent not found');
+    try {
+      return await this.getAgent(id);
+    } catch {
+      return null;
     }
-
-    this.data[index] = { ...this.data[index], ...data };
-    return this.data[index];
   }
 
-  async delete(id: string): Promise<boolean> {
-    await delay();
+  async create(_data: CreateAgentDTO): Promise<Agent> {
+    throw new Error('Method not implemented.');
+  }
 
-    const initialLength = this.data.length;
-    this.data = this.data.filter((agent) => agent.id !== id);
-    return this.data.length < initialLength;
+  async update(_id: string, _data: UpdateAgentDTO): Promise<Agent> {
+    throw new Error('Method not implemented.');
+  }
+
+  async delete(_id: string): Promise<boolean> {
+    throw new Error('Method not implemented.');
   }
 
   async getAgents(): Promise<Agent[]> {
-    await delay();
-    return [...this.data];
+    return studioMockService.listAgents();
   }
 
   async getAgent(id: string): Promise<Agent> {
-    await delay();
-
-    const agent = this.data.find((item) => item.id === id);
+    const agent = await studioMockService.getAgent(id);
     if (!agent) {
       throw new Error('Agent not found');
     }

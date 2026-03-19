@@ -21,12 +21,14 @@ import {
 import Markdown from 'react-markdown';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
 import { Modal } from '@sdkwork/claw-ui';
 import type { Review, Skill } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
 
 export function SkillDetail() {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -63,17 +65,26 @@ export function SkillDetail() {
   const isInstalled = mySkills.some((item) => item.id === id);
 
   const { addTask, updateTask } = useTaskStore();
+  const formatDateLabel = (value: string) =>
+    new Intl.DateTimeFormat(i18n.language).format(new Date(value));
+  const formatInstanceStatus = (status: Instance['status']) =>
+    status === 'online' ? t('market.status.online') : t('market.status.offline');
+  const formatCategory = (value: string) => {
+    const translationKey = `market.categoryLabels.${value}`;
+    const translatedValue = t(translationKey);
+    return translatedValue === translationKey ? value : translatedValue;
+  };
 
   const handleDownloadLocal = async () => {
     if (!skill) {
       return;
     }
 
-    toast.success(`Started downloading ${skill.name}`);
+    toast.success(t('market.download.started', { name: skill.name }));
 
     const taskId = addTask({
-      title: `Downloading ${skill.name}`,
-      subtitle: 'Fetching skill package...',
+      title: t('market.download.taskTitle', { name: skill.name }),
+      subtitle: t('market.download.skillSubtitle'),
       type: 'download',
     });
 
@@ -84,19 +95,19 @@ export function SkillDetail() {
       updateTask(taskId, {
         progress: 100,
         status: 'success',
-        subtitle: 'Download complete',
+        subtitle: t('market.download.complete'),
       });
-      toast.success(`${skill.name} downloaded successfully`);
+      toast.success(t('market.download.success', { name: skill.name }));
     } catch {
-      updateTask(taskId, { status: 'error', subtitle: 'Download failed' });
-      toast.error(`Failed to download ${skill.name}`);
+      updateTask(taskId, { status: 'error', subtitle: t('market.download.failed') });
+      toast.error(t('market.download.failure', { name: skill.name }));
     }
   };
 
   const installMutation = useMutation({
     mutationFn: async () => {
       if (!skill || selectedInstanceIds.length === 0) {
-        throw new Error('Invalid selection');
+        throw new Error(t('market.errors.invalidSelection'));
       }
 
       return Promise.all(
@@ -104,8 +115,8 @@ export function SkillDetail() {
       );
     },
     onSuccess: () => {
-      toast.success('Installation Started', {
-        description: `Installing ${skill?.name} to the selected instances.`,
+      toast.success(t('market.toast.installationStarted'), {
+        description: t('market.toast.installationStartedDescription', { name: skill?.name }),
       });
       queryClient.invalidateQueries({ queryKey: ['skill', id] });
       queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
@@ -114,7 +125,7 @@ export function SkillDetail() {
       }, 1500);
     },
     onError: (error: Error) => {
-      toast.error('Installation Failed', {
+      toast.error(t('market.toast.installationFailed'), {
         description: error.message,
       });
     },
@@ -123,17 +134,17 @@ export function SkillDetail() {
   const uninstallMutation = useMutation({
     mutationFn: async () => {
       if (!skill || !activeInstanceId) {
-        throw new Error('Invalid selection');
+        throw new Error(t('market.errors.invalidSelection'));
       }
 
       return mySkillService.uninstallSkill(activeInstanceId, skill.id);
     },
     onSuccess: () => {
-      toast.success('Skill Uninstalled');
+      toast.success(t('market.toast.skillUninstalled'));
       queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
     },
     onError: (error: Error) => {
-      toast.error('Uninstall Failed', {
+      toast.error(t('market.toast.uninstallFailed'), {
         description: error.message,
       });
     },
@@ -164,13 +175,13 @@ export function SkillDetail() {
     return (
       <div className="p-8 text-center">
         <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-          Skill not found
+          {t('market.skillDetail.notFoundTitle')}
         </h2>
         <button
           onClick={() => navigate('/market')}
           className="mt-4 text-primary-500 hover:underline"
         >
-          Return to Market
+          {t('market.skillDetail.returnToMarket')}
         </button>
       </div>
     );
@@ -185,7 +196,7 @@ export function SkillDetail() {
         className="mb-8 flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to ClawHub
+        {t('market.skillDetail.backToMarket')}
       </button>
 
       <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-start">
@@ -196,10 +207,10 @@ export function SkillDetail() {
           <div className="pt-2">
             <div className="mb-2 flex items-center gap-2">
               <span className="rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                {skill.category}
+                {formatCategory(skill.category)}
               </span>
               <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
-                <ShieldCheck className="h-3.5 w-3.5" /> Official
+                <ShieldCheck className="h-3.5 w-3.5" /> {t('common.official')}
               </span>
             </div>
             <h1 className="mb-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-4xl">
@@ -215,13 +226,15 @@ export function SkillDetail() {
                   {skill.rating.toFixed(1)}
                 </span>
                 <span className="font-normal text-zinc-400 dark:text-zinc-500">
-                  ({reviews.length} Ratings)
+                  {t('market.skillDetail.metrics.ratings', { count: reviews.length })}
                 </span>
               </div>
               <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
               <div className="flex items-center gap-1.5">
                 <Download className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                {skill.downloads.toLocaleString()} Installs
+                {t('market.skillDetail.metrics.installs', {
+                  count: skill.downloads,
+                })}
               </div>
             </div>
           </div>
@@ -231,7 +244,7 @@ export function SkillDetail() {
           {isInstalled ? (
             <button
               onClick={() => {
-                if (confirm('Are you sure you want to uninstall this skill?')) {
+                if (confirm(t('market.actions.confirmUninstallSkill'))) {
                   uninstallMutation.mutate();
                 }
               }}
@@ -243,7 +256,7 @@ export function SkillDetail() {
               ) : (
                 <AlertCircle className="h-5 w-5" />
               )}
-              Uninstall
+              {t('market.actions.uninstall')}
             </button>
           ) : (
             <button
@@ -251,7 +264,7 @@ export function SkillDetail() {
               className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary-500 px-8 py-3.5 text-base font-bold text-white shadow-lg shadow-primary-500/20 transition-all hover:bg-primary-600 active:scale-95 md:flex-none"
             >
               <Download className="h-5 w-5" />
-              Get Skill
+              {t('market.skillDetail.actions.getSkill')}
             </button>
           )}
           <button
@@ -259,11 +272,11 @@ export function SkillDetail() {
             className="flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white text-sm font-semibold text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 md:w-auto md:px-4 md:py-2"
           >
             <HardDrive className="h-4 w-4" />
-            <span className="hidden md:inline">Download to Local</span>
+            <span className="hidden md:inline">{t('market.skillDetail.actions.downloadToLocal')}</span>
           </button>
           <button className="flex h-12 w-12 items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white text-sm font-semibold text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 md:h-auto md:w-auto md:px-4 md:py-2">
             <Share className="h-4 w-4" />
-            <span className="hidden md:inline">Share</span>
+            <span className="hidden md:inline">{t('market.skillDetail.actions.share')}</span>
           </button>
         </div>
       </div>
@@ -274,7 +287,7 @@ export function SkillDetail() {
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/20 to-transparent" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex items-center gap-2 font-mono text-sm text-zinc-500">
-                <Info className="h-4 w-4" /> Media Preview Unavailable
+                <Info className="h-4 w-4" /> {t('market.skillDetail.mediaPreviewUnavailable')}
               </div>
             </div>
           </div>
@@ -289,7 +302,7 @@ export function SkillDetail() {
                     : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
                 }`}
               >
-                Overview
+                {t('market.skillDetail.tabs.overview')}
                 {activeTab === 'readme' && (
                   <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-zinc-900 dark:bg-zinc-100" />
                 )}
@@ -302,7 +315,7 @@ export function SkillDetail() {
                     : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
                 }`}
               >
-                Ratings & Reviews
+                {t('market.skillDetail.tabs.reviews')}
                 {activeTab === 'reviews' && (
                   <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-full bg-zinc-900 dark:bg-zinc-100" />
                 )}
@@ -322,8 +335,10 @@ export function SkillDetail() {
                 {reviews.length === 0 ? (
                   <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/50 py-16 text-center text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400">
                     <MessageSquare className="mx-auto mb-3 h-8 w-8 text-zinc-300 dark:text-zinc-700" />
-                    <p className="font-medium text-zinc-900 dark:text-zinc-100">No reviews yet</p>
-                    <p className="mt-1 text-sm">Be the first to review this skill.</p>
+                    <p className="font-medium text-zinc-900 dark:text-zinc-100">
+                      {t('market.skillDetail.noReviewsTitle')}
+                    </p>
+                    <p className="mt-1 text-sm">{t('market.skillDetail.noReviewsDescription')}</p>
                   </div>
                 ) : (
                   reviews.map((review) => (
@@ -341,7 +356,7 @@ export function SkillDetail() {
                               {review.user_name}
                             </p>
                             <p className="text-xs font-medium text-zinc-400">
-                              {new Date(review.created_at).toLocaleDateString()}
+                              {formatDateLabel(review.created_at)}
                             </p>
                           </div>
                         </div>
@@ -374,15 +389,14 @@ export function SkillDetail() {
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 font-bold text-zinc-900 dark:text-zinc-100">
                 <Server className="h-4 w-4 text-primary-500" />
-                Source Repository
+                {t('market.skillDetail.repository.title')}
               </h3>
               <span className="rounded-md bg-primary-50 px-2 py-1 text-xs font-medium text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
-                Configurable
+                {t('market.skillDetail.repository.badge')}
               </span>
             </div>
             <p className="mb-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-              Select the source repository to install this skill from. You can configure your
-              default repository in settings.
+              {t('market.skillDetail.repository.description')}
             </p>
             <div className="space-y-3">
               <label
@@ -403,10 +417,10 @@ export function SkillDetail() {
                   />
                   <div>
                     <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                      Official ClawHub
+                      {t('market.skillDetail.repository.options.official.title')}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Recommended • Fastest
+                      {t('market.skillDetail.repository.options.official.description')}
                     </p>
                   </div>
                 </div>
@@ -431,10 +445,10 @@ export function SkillDetail() {
                   />
                   <div>
                     <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                      Tencent Cloud Mirror
+                      {t('market.skillDetail.repository.options.tencent.title')}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Mainland China Optimized
+                      {t('market.skillDetail.repository.options.tencent.description')}
                     </p>
                   </div>
                 </div>
@@ -459,10 +473,10 @@ export function SkillDetail() {
                   />
                   <div>
                     <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                      Custom Repository
+                      {t('market.skillDetail.repository.options.custom.title')}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Configure in settings
+                      {t('market.skillDetail.repository.options.custom.description')}
                     </p>
                   </div>
                 </div>
@@ -472,37 +486,49 @@ export function SkillDetail() {
           </div>
 
           <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="mb-6 font-bold text-zinc-900 dark:text-zinc-100">Information</h3>
+            <h3 className="mb-6 font-bold text-zinc-900 dark:text-zinc-100">
+              {t('market.skillDetail.information.title')}
+            </h3>
 
             <div className="space-y-5">
               <div className="flex items-start justify-between">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">Provider</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('market.skillDetail.information.provider')}
+                </span>
                 <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {skill.author}
                 </span>
               </div>
               <div className="flex items-start justify-between">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">Version</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('market.skillDetail.information.version')}
+                </span>
                 <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {skill.version}
                 </span>
               </div>
               <div className="flex items-start justify-between">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">Size</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('market.skillDetail.information.size')}
+                </span>
                 <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {skill.size}
                 </span>
               </div>
               <div className="flex items-start justify-between">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">Category</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('market.skillDetail.information.category')}
+                </span>
                 <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {skill.category}
+                  {formatCategory(skill.category)}
                 </span>
               </div>
               <div className="flex items-start justify-between">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">Compatibility</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('market.skillDetail.information.compatibility')}
+                </span>
                 <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  Claw Studio v0.2.0+
+                  {t('market.skillDetail.information.compatibilityValue')}
                 </span>
               </div>
             </div>
@@ -513,7 +539,7 @@ export function SkillDetail() {
                 className="flex items-center justify-between text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
               >
                 <span className="flex items-center gap-2">
-                  <Globe className="h-4 w-4" /> Developer Website
+                  <Globe className="h-4 w-4" /> {t('market.skillDetail.links.developerWebsite')}
                 </span>
                 <ArrowLeft className="h-4 w-4 rotate-135" />
               </a>
@@ -522,7 +548,7 @@ export function SkillDetail() {
                 className="flex items-center justify-between text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
               >
                 <span className="flex items-center gap-2">
-                  <Github className="h-4 w-4" /> Source Code
+                  <Github className="h-4 w-4" /> {t('market.skillDetail.links.sourceCode')}
                 </span>
                 <ArrowLeft className="h-4 w-4 rotate-135" />
               </a>
@@ -531,7 +557,7 @@ export function SkillDetail() {
                 className="flex items-center justify-between text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
               >
                 <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Privacy Policy
+                  <FileText className="h-4 w-4" /> {t('market.skillDetail.links.privacyPolicy')}
                 </span>
                 <ArrowLeft className="h-4 w-4 rotate-135" />
               </a>
@@ -543,7 +569,7 @@ export function SkillDetail() {
       <Modal
         isOpen={isInstallModalOpen}
         onClose={() => setIsInstallModalOpen(false)}
-        title="Install Skill"
+        title={t('market.modals.installSkill.title')}
       >
         <div className="space-y-6">
           <div className="flex items-center gap-4 rounded-2xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -553,7 +579,7 @@ export function SkillDetail() {
             <div>
               <h4 className="font-bold text-zinc-900 dark:text-zinc-100">{skill.name}</h4>
               <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
-                v{skill.version}
+                {t('market.labels.version', { value: skill.version })}
               </p>
             </div>
           </div>
@@ -561,14 +587,16 @@ export function SkillDetail() {
           {instances.length === 0 ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-500">
               <AlertCircle className="mx-auto mb-2 h-6 w-6 opacity-80" />
-              <p className="text-sm font-bold">No instances available</p>
-              <p className="mt-1 text-xs opacity-80">Please create an instance first.</p>
+              <p className="text-sm font-bold">{t('market.modals.noInstances.title')}</p>
+              <p className="mt-1 text-xs opacity-80">
+                {t('market.modals.noInstances.description')}
+              </p>
             </div>
           ) : (
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  Select Target Instances
+                  {t('market.modals.selectTargetInstances')}
                 </label>
                 <div className="max-h-48 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
                   {instances.map((instance) => {
@@ -621,7 +649,7 @@ export function SkillDetail() {
                                 : 'text-zinc-500 dark:text-zinc-400'
                             }`}
                           >
-                            {instance.status === 'online' ? 'Online' : 'Offline'} • {instance.ip}
+                            {formatInstanceStatus(instance.status)} - {instance.ip}
                           </p>
                         </div>
                       </div>
@@ -637,10 +665,11 @@ export function SkillDetail() {
               >
                 {isInstalling ? (
                   <>
-                    <Loader2 className="h-5 w-5 animate-spin" /> Installing...
+                    <Loader2 className="h-5 w-5 animate-spin" />{' '}
+                    {t('market.modals.installSkill.installing')}
                   </>
                 ) : (
-                  'Confirm Installation'
+                  t('market.modals.installSkill.confirm')
                 )}
               </button>
             </div>

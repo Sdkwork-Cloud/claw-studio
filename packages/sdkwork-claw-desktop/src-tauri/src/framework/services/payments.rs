@@ -99,9 +99,9 @@ mod tests {
     fn unknown_payment_provider_resolves_to_planned_status() {
         let service = PaymentService::new();
         let info = service.kernel_info(&AppConfig {
-            payments: crate::framework::config::PaymentsConfig {
+            payments: crate::framework::config::PaymentConfig {
                 provider: "missing".to_string(),
-                ..crate::framework::config::PaymentsConfig::default()
+                ..crate::framework::config::PaymentConfig::default()
             },
             ..AppConfig::default()
         });

@@ -14,7 +14,18 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Modal } from '@sdkwork/claw-ui';
+import { formatDate } from '@sdkwork/claw-i18n';
+import {
+  Button,
+  Input,
+  Label,
+  Modal,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@sdkwork/claw-ui';
 import {
   accountService,
   type AccountSummary,
@@ -22,7 +33,7 @@ import {
 } from './services';
 
 export function Account() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState<'all' | 'income' | 'expense'>('all');
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -32,6 +43,18 @@ export function Account() {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('credit_card');
   const [isProcessing, setIsProcessing] = useState(false);
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat(i18n.language, {
+      style: 'currency',
+      currency: 'USD',
+    }).format(value);
+  const amountPlaceholder = new Intl.NumberFormat(i18n.language, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(0);
+  const monthlyChange = new Intl.NumberFormat(i18n.language, {
+    maximumFractionDigits: 1,
+  }).format(12.5);
 
   async function fetchData() {
     setIsLoading(true);
@@ -43,7 +66,7 @@ export function Account() {
       setSummary(summaryData);
       setTransactions(transactionData);
     } catch {
-      toast.error(t('account.fetchError', 'Failed to load account data'));
+      toast.error(t('account.fetchError'));
     } finally {
       setIsLoading(false);
     }
@@ -57,19 +80,19 @@ export function Account() {
     event.preventDefault();
 
     if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
-      toast.error(t('account.invalidAmount', 'Please enter a valid amount'));
+      toast.error(t('account.invalidAmount'));
       return;
     }
 
     setIsProcessing(true);
     try {
       await accountService.recharge(Number(amount), method);
-      toast.success(t('account.rechargeSuccess', 'Recharge successful'));
+      toast.success(t('account.rechargeSuccess'));
       setIsRechargeModalOpen(false);
       setAmount('');
       await fetchData();
     } catch {
-      toast.error(t('account.rechargeFailed', 'Recharge failed'));
+      toast.error(t('account.rechargeFailed'));
     } finally {
       setIsProcessing(false);
     }
@@ -79,18 +102,18 @@ export function Account() {
     event.preventDefault();
 
     if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
-      toast.error(t('account.invalidAmount', 'Please enter a valid amount'));
+      toast.error(t('account.invalidAmount'));
       return;
     }
     if (summary && Number(amount) > summary.balance) {
-      toast.error(t('account.insufficientBalance', 'Insufficient balance'));
+      toast.error(t('account.insufficientBalance'));
       return;
     }
 
     setIsProcessing(true);
     try {
       await accountService.withdraw(Number(amount), method);
-      toast.success(t('account.withdrawSuccess', 'Withdrawal request submitted'));
+      toast.success(t('account.withdrawSuccess'));
       setIsWithdrawModalOpen(false);
       setAmount('');
       await fetchData();
@@ -98,7 +121,7 @@ export function Account() {
       toast.error(
         error instanceof Error
           ? error.message
-          : t('account.withdrawFailed', 'Withdrawal failed'),
+          : t('account.withdrawFailed'),
       );
     } finally {
       setIsProcessing(false);
@@ -119,13 +142,10 @@ export function Account() {
         <div>
           <h1 className="flex items-center gap-3 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
             <Wallet className="h-8 w-8 text-primary-500" />
-            {t('account.title', 'Account & Wallet')}
+            {t('account.title')}
           </h1>
           <p className="mt-2 text-zinc-500 dark:text-zinc-400">
-            {t(
-              'account.subtitle',
-              'Manage your agent earnings, recharges, and withdrawals.',
-            )}
+            {t('account.subtitle')}
           </p>
         </div>
 
@@ -135,25 +155,25 @@ export function Account() {
             <div className="relative z-10">
               <div className="mb-4 flex items-center justify-between">
                 <span className="font-medium text-primary-100">
-                  {t('account.totalBalance', 'Total Balance')}
+                  {t('account.totalBalance')}
                 </span>
                 <DollarSign className="h-5 w-5 text-primary-200" />
               </div>
               <div className="mb-8 text-4xl font-black tracking-tight">
-                ${summary?.balance.toFixed(2) || '0.00'}
+                {formatCurrency(summary?.balance ?? 0)}
               </div>
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsRechargeModalOpen(true)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-2.5 font-bold text-primary-700 shadow-sm transition-colors hover:bg-primary-50"
                 >
-                  <Plus className="h-4 w-4" /> {t('account.recharge', 'Recharge')}
+                  <Plus className="h-4 w-4" /> {t('account.recharge')}
                 </button>
                 <button
                   onClick={() => setIsWithdrawModalOpen(true)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-primary-500/30 bg-primary-700 py-2.5 font-bold text-white transition-colors hover:bg-primary-900"
                 >
-                  <Download className="h-4 w-4" /> {t('account.withdraw', 'Withdraw')}
+                  <Download className="h-4 w-4" /> {t('account.withdraw')}
                 </button>
               </div>
             </div>
@@ -165,14 +185,14 @@ export function Account() {
                 <ArrowUpRight className="h-5 w-5" />
               </div>
               <span className="font-medium text-zinc-500 dark:text-zinc-400">
-                {t('account.monthlyIncome', 'Monthly Income')}
+                {t('account.monthlyIncome')}
               </span>
             </div>
             <div className="mt-2 text-3xl font-bold text-zinc-900 dark:text-white">
-              +${summary?.totalIncome.toFixed(2) || '0.00'}
+              +{formatCurrency(summary?.totalIncome ?? 0)}
             </div>
             <div className="mt-2 flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-              <TrendingUp className="h-4 w-4" /> +12.5% {t('account.vsLastMonth', 'vs last month')}
+              <TrendingUp className="h-4 w-4" /> +{monthlyChange}% {t('account.vsLastMonth')}
             </div>
           </div>
 
@@ -182,14 +202,14 @@ export function Account() {
                 <ArrowDownRight className="h-5 w-5" />
               </div>
               <span className="font-medium text-zinc-500 dark:text-zinc-400">
-                {t('account.monthlyExpense', 'Monthly Expense')}
+                {t('account.monthlyExpense')}
               </span>
             </div>
             <div className="mt-2 text-3xl font-bold text-zinc-900 dark:text-white">
-              -${summary?.totalExpense.toFixed(2) || '0.00'}
+              -{formatCurrency(summary?.totalExpense ?? 0)}
             </div>
             <div className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              {t('account.mostlyApiFees', 'Mostly API usage fees')}
+              {t('account.mostlyApiFees')}
             </div>
           </div>
         </div>
@@ -198,7 +218,7 @@ export function Account() {
           <div className="flex flex-col justify-between gap-4 border-b border-zinc-200 p-6 dark:border-zinc-800 sm:flex-row sm:items-center">
             <h2 className="flex items-center gap-2 text-xl font-bold text-zinc-900 dark:text-white">
               <History className="h-5 w-5 text-zinc-400" />
-              {t('account.transactionHistory', 'Transaction History')}
+              {t('account.transactionHistory')}
             </h2>
 
             <div className="flex rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
@@ -212,7 +232,7 @@ export function Account() {
                       : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                   }`}
                 >
-                  {t(`account.${tab}`, tab.charAt(0).toUpperCase() + tab.slice(1))}
+                  {t(`account.${tab}`)}
                 </button>
               ))}
             </div>
@@ -256,20 +276,19 @@ export function Account() {
                       </p>
                       <div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
                         <span>
-                          {new Date(transaction.date).toLocaleDateString()}{' '}
-                          {new Date(transaction.date).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
+                          {formatDate(transaction.date, i18n.language, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
                           })}
                         </span>
                         {transaction.status === 'completed' ? (
                           <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
                             <CheckCircle2 className="h-3 w-3" />{' '}
-                            {t('account.completed', 'Completed')}
+                            {t('account.completed')}
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-                            <Clock className="h-3 w-3" /> {t('account.pending', 'Pending')}
+                            <Clock className="h-3 w-3" /> {t('account.pending')}
                           </span>
                         )}
                       </div>
@@ -285,13 +304,13 @@ export function Account() {
                     {transaction.type === 'income' || transaction.type === 'recharge'
                       ? '+'
                       : '-'}
-                    ${transaction.amount.toFixed(2)}
+                    {formatCurrency(transaction.amount)}
                   </div>
                 </div>
               ))
             ) : (
               <div className="p-12 text-center text-zinc-500">
-                {t('account.noTransactions', 'No transactions found.')}
+                {t('account.noTransactions')}
               </div>
             )}
           </div>
@@ -301,56 +320,58 @@ export function Account() {
       <Modal
         isOpen={isRechargeModalOpen}
         onClose={() => setIsRechargeModalOpen(false)}
-        title={t('account.recharge', 'Recharge')}
+        title={t('account.recharge')}
       >
         <form onSubmit={handleRecharge} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {t('account.amount', 'Amount ($)')}
-            </label>
-            <input
+            <Label className="mb-1 block text-zinc-700 dark:text-zinc-300">
+              {t('account.amount')}
+            </Label>
+            <Input
               type="number"
               min="1"
               step="0.01"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
-              placeholder="0.00"
+              placeholder={amountPlaceholder}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {t('account.paymentMethod', 'Payment Method')}
-            </label>
-            <select
+            <Label className="mb-1 block text-zinc-700 dark:text-zinc-300">
+              {t('account.paymentMethod')}
+            </Label>
+            <Select
               value={method}
-              onChange={(event) => setMethod(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
+              onValueChange={setMethod}
             >
-              <option value="credit_card">{t('account.creditCard', 'Credit Card')}</option>
-              <option value="paypal">PayPal</option>
-              <option value="crypto">{t('account.crypto', 'Crypto (USDT/USDC)')}</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="credit_card">{t('account.creditCard')}</SelectItem>
+                <SelectItem value="paypal">{t('account.paypal')}</SelectItem>
+                <SelectItem value="crypto">{t('account.crypto')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setIsRechargeModalOpen(false)}
-              className="rounded-xl px-4 py-2 font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
-              {t('common.cancel', 'Cancel')}
-            </button>
-            <button
+              {t('common.cancel')}
+            </Button>
+            <Button
               type="submit"
               disabled={isProcessing}
-              className="flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-2 font-bold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
               {isProcessing ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               ) : null}
-              {t('account.confirmRecharge', 'Confirm Recharge')}
-            </button>
+              {t('account.confirmRecharge')}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -358,60 +379,62 @@ export function Account() {
       <Modal
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
-        title={t('account.withdraw', 'Withdraw')}
+        title={t('account.withdraw')}
       >
         <form onSubmit={handleWithdraw} className="space-y-4">
           <div className="flex items-center justify-between rounded-lg bg-primary-50 p-3 text-sm font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300">
-            <span>{t('account.availableBalance', 'Available Balance')}:</span>
-            <span className="font-bold">${summary?.balance.toFixed(2)}</span>
+            <span>{t('account.availableBalance')}:</span>
+            <span className="font-bold">{formatCurrency(summary?.balance ?? 0)}</span>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {t('account.amount', 'Amount ($)')}
-            </label>
-            <input
+            <Label className="mb-1 block text-zinc-700 dark:text-zinc-300">
+              {t('account.amount')}
+            </Label>
+            <Input
               type="number"
               min="1"
               max={summary?.balance}
               step="0.01"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
-              placeholder="0.00"
+              placeholder={amountPlaceholder}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {t('account.withdrawDestination', 'Withdraw to')}
-            </label>
-            <select
+            <Label className="mb-1 block text-zinc-700 dark:text-zinc-300">
+              {t('account.withdrawDestination')}
+            </Label>
+            <Select
               value={method}
-              onChange={(event) => setMethod(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
+              onValueChange={setMethod}
             >
-              <option value="bank_account">{t('account.bankAccount', 'Bank Account')}</option>
-              <option value="paypal">PayPal</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bank_account">{t('account.bankAccount')}</SelectItem>
+                <SelectItem value="paypal">{t('account.paypal')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setIsWithdrawModalOpen(false)}
-              className="rounded-xl px-4 py-2 font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
-              {t('common.cancel', 'Cancel')}
-            </button>
-            <button
+              {t('common.cancel')}
+            </Button>
+            <Button
               type="submit"
               disabled={isProcessing}
-              className="flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-2 font-bold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
               {isProcessing ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               ) : null}
-              {t('account.confirmWithdraw', 'Confirm Withdraw')}
-            </button>
+              {t('account.confirmWithdraw')}
+            </Button>
           </div>
         </form>
       </Modal>

@@ -55,6 +55,10 @@ export const platform: PlatformAPI = {
   saveFile: (data, filename, options) => platformBridge.platform.saveFile(data, filename, options),
   minimizeWindow: () => platformBridge.platform.minimizeWindow(),
   maximizeWindow: () => platformBridge.platform.maximizeWindow(),
+  restoreWindow: () => platformBridge.platform.restoreWindow(),
+  isWindowMaximized: () => platformBridge.platform.isWindowMaximized(),
+  subscribeWindowMaximized: (listener) =>
+    platformBridge.platform.subscribeWindowMaximized(listener),
   closeWindow: () => platformBridge.platform.closeWindow(),
   listDirectory: (path) => platformBridge.platform.listDirectory(path),
   pathExists: (path) => platformBridge.platform.pathExists(path),

@@ -30,7 +30,7 @@ pnpm install
 pnpm dev
 ```
 
-这会启动 `packages/sdkwork-claw-web/server.ts` 中的开发服务器，默认地址是 `http://localhost:3001`。
+这会启动 `@sdkwork/claw-web` 的 Vite 开发服务器，默认地址是 `http://localhost:3001`。
 
 ## 启动桌面应用
 

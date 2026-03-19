@@ -56,7 +56,9 @@ export function SoftwareProductCard({ product, onRequest }: SoftwareProductCardP
           </div>
 
           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-            <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-2">Features</h4>
+            <h4 className="mb-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              {t('products.software.features')}
+            </h4>
             <ul className="grid grid-cols-2 gap-2">
               {product.features.map((feature, idx) => (
                 <li key={idx} className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
@@ -73,46 +75,46 @@ export function SoftwareProductCard({ product, onRequest }: SoftwareProductCardP
                 onClick={handleGenerate}
                 className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
               >
-                <Play className="w-4 h-4" /> Generate Software
+                <Play className="w-4 h-4" /> {t('products.software.generate')}
               </button>
             )}
             
             {status === 'generating' && (
               <div className="w-full py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Generating...
+                <Loader2 className="w-4 h-4 animate-spin" /> {t('products.software.generating')}
               </div>
             )}
 
             {status === 'generated' && (
               <div className="flex gap-2">
                 <div className="flex-1 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> Generated
+                  <CheckCircle2 className="w-4 h-4" /> {t('products.software.generated')}
                 </div>
                 <button 
                   onClick={handleDeploy}
                   className="flex-1 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
                 >
-                  <Server className="w-4 h-4" /> Deploy Now
+                  <Server className="w-4 h-4" /> {t('products.software.deployNow')}
                 </button>
               </div>
             )}
 
             {status === 'deploying' && (
               <div className="w-full py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Deploying...
+                <Loader2 className="w-4 h-4 animate-spin" /> {t('products.software.deploying')}
               </div>
             )}
 
             {status === 'deployed' && (
               <div className="flex gap-2">
                 <div className="flex-1 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> Deployed
+                  <CheckCircle2 className="w-4 h-4" /> {t('products.software.deployed')}
                 </div>
                 <button 
                   onClick={() => window.open('https://example.com', '_blank')}
                   className="flex-1 py-2 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
                 >
-                  <ExternalLink className="w-4 h-4" /> Visit Site
+                  <ExternalLink className="w-4 h-4" /> {t('products.software.visitSite')}
                 </button>
               </div>
             )}

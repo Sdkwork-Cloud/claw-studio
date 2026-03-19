@@ -39,27 +39,25 @@ runTest('sdkwork-claw-settings is implemented locally with V5 settings tabs and 
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-settings/);
 
   const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
-  assert.match(settingsSource, /codebox/);
-  assert.match(settingsSource, /api-router/);
+  assert.doesNotMatch(settingsSource, /id: 'codebox'/);
+  assert.doesNotMatch(settingsSource, /id: 'api-router'/);
 
   const generalSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
   assert.match(generalSource, /hiddenSidebarItems/);
   assert.match(generalSource, /toggleSidebarItem/);
 });
 
-runTest('sdkwork-claw-settings keeps the V5 API-backed settings service contract', () => {
+runTest('sdkwork-claw-settings keeps the service-first settings service contract', () => {
   const settingsServiceSource = read('packages/sdkwork-claw-settings/src/services/settingsService.ts');
 
-  assert.match(settingsServiceSource, /fetch\('\/api\/settings\/profile'\)/);
-  assert.match(
-    settingsServiceSource,
-    /fetch\('\/api\/settings\/profile',\s*\{\s*method:\s*'PUT'/,
-  );
-  assert.match(settingsServiceSource, /fetch\('\/api\/settings\/preferences'\)/);
-  assert.match(
-    settingsServiceSource,
-    /fetch\('\/api\/settings\/preferences',\s*\{\s*method:\s*'PUT'/,
-  );
+  assert.match(settingsServiceSource, /import\s+\{\s*studioMockService\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
+  assert.match(settingsServiceSource, /getProfile\(\): Promise<UserProfile>/);
+  assert.match(settingsServiceSource, /studioMockService\.getProfile\(\)/);
+  assert.match(settingsServiceSource, /studioMockService\.updateProfile\(profile\)/);
+  assert.match(settingsServiceSource, /getPreferences\(\): Promise<UserPreferences>/);
+  assert.match(settingsServiceSource, /studioMockService\.getPreferences\(\)/);
+  assert.match(settingsServiceSource, /studioMockService\.updatePreferences\(prefs\)/);
+  assert.doesNotMatch(settingsServiceSource, /fetch\('/);
   assert.doesNotMatch(settingsServiceSource, /john\.doe@example\.com/);
   assert.doesNotMatch(settingsServiceSource, /currentPreferences/);
 });

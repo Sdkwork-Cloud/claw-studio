@@ -1,11 +1,6 @@
 import React from 'react';
-import {
-  Download,
-  GitFork,
-  Github,
-  ShieldCheck,
-  Star,
-} from 'lucide-react';
+import { Download, GitFork, Github, ShieldCheck, Star } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 export interface RepositoryCardProps {
@@ -22,6 +17,8 @@ export interface RepositoryCardProps {
   iconUrl?: string;
 }
 
+const HUGGING_FACE_MONOGRAM = 'HF';
+
 export function RepositoryCard({
   id,
   name,
@@ -36,6 +33,7 @@ export function RepositoryCard({
   iconUrl,
 }: RepositoryCardProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const handleCardClick = () => {
     navigate(`/${type}/${id}`);
@@ -65,7 +63,9 @@ export function RepositoryCard({
           ) : type === 'github' ? (
             <Github className="h-7 w-7 text-zinc-700 dark:text-zinc-300" />
           ) : (
-            <span className="text-2xl">🤗</span>
+            <span className="text-sm font-bold tracking-wide text-primary-600 dark:text-primary-400">
+              {HUGGING_FACE_MONOGRAM}
+            </span>
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -109,13 +109,16 @@ export function RepositoryCard({
       <div className="relative z-10 flex items-center justify-between border-t border-zinc-100 pt-4 dark:border-zinc-800">
         <div className="flex items-center gap-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">
           {stars !== undefined ? (
-            <div className="flex items-center gap-1.5" title="Stars">
+            <div className="flex items-center gap-1.5" title={t('repositoryCard.stats.stars')}>
               <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
               {stars > 1000 ? `${(stars / 1000).toFixed(1)}k` : stars}
             </div>
           ) : null}
           {downloads !== undefined ? (
-            <div className="flex items-center gap-1.5" title="Downloads">
+            <div
+              className="flex items-center gap-1.5"
+              title={t('repositoryCard.stats.downloads')}
+            >
               <Download className="h-4 w-4 text-primary-400" />
               {downloads > 1000000
                 ? `${(downloads / 1000000).toFixed(1)}M`
@@ -125,7 +128,7 @@ export function RepositoryCard({
             </div>
           ) : null}
           {forks !== undefined ? (
-            <div className="flex items-center gap-1.5" title="Forks">
+            <div className="flex items-center gap-1.5" title={t('repositoryCard.stats.forks')}>
               <GitFork className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
               {forks > 1000 ? `${(forks / 1000).toFixed(1)}k` : forks}
             </div>
@@ -137,7 +140,9 @@ export function RepositoryCard({
           className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary-600 hover:shadow-md active:scale-95 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-primary-500"
         >
           <Download className="h-3.5 w-3.5" />
-          {type === 'github' ? 'Clone' : 'Download'}
+          {type === 'github'
+            ? t('repositoryCard.actions.clone')
+            : t('repositoryCard.actions.download')}
         </button>
       </div>
     </div>

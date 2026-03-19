@@ -1,11 +1,11 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repo is a `pnpm` workspace rooted at `packages/sdkwork-claw-*`. `packages/sdkwork-claw-web` is the browser host (`server.ts`, `src/App.tsx`, `src/main.tsx`) and `packages/sdkwork-claw-desktop` is the Tauri desktop host. Both hosts should stay limited to routing, layout, providers, platform bootstrap, and runtime entry code. Shared layers live in `sdkwork-claw-types` for entities and shared types, `sdkwork-claw-infrastructure` for HTTP/config/platform adapters, `sdkwork-claw-core` for shared services, hooks, and stores, `sdkwork-claw-i18n` for locale bootstrap, and `sdkwork-claw-ui` for reusable UI. Feature packages such as `sdkwork-claw-chat`, `sdkwork-claw-market`, and `sdkwork-claw-settings` should keep `src/components`, `src/pages`, and `src/services` as their minimum boundaries when they own those concerns. Cross-package APIs must be consumed from the package root only. Do not import from package-internal subpaths after the package name. Respect dependency flow: `web/desktop -> shell -> feature -> (core + infrastructure + types + ui)`.
+This repo is a `pnpm` workspace rooted at `packages/sdkwork-claw-*`. `packages/sdkwork-claw-web` is the browser host (`vite.config.ts`, `src/App.tsx`, `src/main.tsx`) and `packages/sdkwork-claw-desktop` is the Tauri desktop host. Both hosts should stay limited to routing, layout, providers, platform bootstrap, and runtime entry code. Shared layers live in `sdkwork-claw-types` for entities and shared types, `sdkwork-claw-infrastructure` for HTTP/config/platform adapters, `sdkwork-claw-core` for shared services, hooks, and stores, `sdkwork-claw-i18n` for locale bootstrap, and `sdkwork-claw-ui` for reusable UI. Feature packages such as `sdkwork-claw-chat`, `sdkwork-claw-market`, and `sdkwork-claw-settings` should keep `src/components`, `src/pages`, and `src/services` as their minimum boundaries when they own those concerns. Cross-package APIs must be consumed from the package root only. Do not import from package-internal subpaths after the package name. Respect dependency flow: `web/desktop -> shell -> feature -> (core + infrastructure + types + ui)`.
 
 ## Build, Test, and Development Commands
 - `pnpm install`: install all workspace dependencies.
-- `pnpm dev`: start the browser host with `tsx server.ts` at `http://localhost:3001`.
+- `pnpm dev`: start the Vite browser host at `http://localhost:3001`.
 - `pnpm lint`: run the web TypeScript check plus `scripts/check-arch-boundaries.mjs`.
 - `pnpm build`: create the production bundle for `@sdkwork/claw-web`.
 - `pnpm preview`: serve the built app locally.

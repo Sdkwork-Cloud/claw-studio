@@ -8,9 +8,13 @@ Claw Studio ships a Tauri desktop runtime through `@sdkwork/claw-desktop`. It re
 
 - `packages/sdkwork-claw-desktop/src/main.tsx`
 - `packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx`
+- `packages/sdkwork-claw-desktop/src/desktop/catalog.ts`
+- `packages/sdkwork-claw-desktop/src/desktop/runtime.ts`
 - `packages/sdkwork-claw-desktop/src/desktop/providers/DesktopProviders.tsx`
 - `packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts`
 - `packages/sdkwork-claw-desktop/src-tauri/`
+
+The template-grade bridge surface is documented in [Desktop Template API](./desktop-template.md).
 
 ## Run Desktop Development
 
@@ -55,5 +59,6 @@ The root `.env.example` and `packages/sdkwork-claw-desktop/.env.example` documen
 - shell composition remains in `@sdkwork/claw-shell`
 - update and configuration logic flow through shared infrastructure and core layers
 - native execution and packaging live under `src-tauri`
+- the standard desktop bridge now exposes a template API with command catalog, event catalog, grouped domain facades, and a normalized bridge error model
 
 This split matters because the desktop runtime must stay aligned with the same UI and feature surface used by the web application.

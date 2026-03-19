@@ -1,79 +1,362 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  Bot,
+  Brain,
   Check,
   CheckCircle2,
+  Clock3,
   Copy,
+  FileCode2,
+  Files,
+  FolderTree,
+  Hash,
+  MemoryStick,
+  Package,
   Power,
   RefreshCw,
+  RotateCcw,
   Save,
   Server,
   Settings,
-  Shield,
-  Terminal,
+  Sparkles,
   Trash2,
+  Wrench,
+  type LucideIcon,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useInstanceStore } from '@sdkwork/claw-core';
-import { instanceService } from '../services';
-import { Instance, InstanceConfig } from '../types';
+import { Input } from '@sdkwork/claw-ui';
+import { InstanceFileExplorer } from '../components/InstanceFileExplorer';
+import { InstanceLLMConfigPanel } from '../components/InstanceLLMConfigPanel';
+import { instanceService, instanceWorkbenchService } from '../services';
+import type {
+  InstanceConfig,
+  InstanceLLMProviderUpdate,
+  InstanceWorkbenchSectionId,
+  InstanceWorkbenchSnapshot,
+} from '../types';
+
+interface WorkbenchSectionDefinition {
+  id: InstanceWorkbenchSectionId;
+  icon: LucideIcon;
+  labelKey: string;
+  descriptionKey: string;
+  sectionTitleKey: string;
+  sectionDescriptionKey: string;
+}
+
+const workbenchSections: WorkbenchSectionDefinition[] = [
+  {
+    id: 'channels',
+    icon: Hash,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.channels',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.channels',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.channels.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.channels.description',
+  },
+  {
+    id: 'cronTasks',
+    icon: Clock3,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.cronTasks',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.cronTasks',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.cronTasks.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.cronTasks.description',
+  },
+  {
+    id: 'llmProviders',
+    icon: Sparkles,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.llmProviders',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.llmProviders',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.llmProviders.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.llmProviders.description',
+  },
+  {
+    id: 'agents',
+    icon: Bot,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.agents',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.agents',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.agents.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.agents.description',
+  },
+  {
+    id: 'skills',
+    icon: Package,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.skills',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.skills',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.skills.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.skills.description',
+  },
+  {
+    id: 'files',
+    icon: Files,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.files',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.files',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.files.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.files.description',
+  },
+  {
+    id: 'memory',
+    icon: Brain,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.memory',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.memory',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.memory.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.memory.description',
+  },
+  {
+    id: 'tools',
+    icon: Wrench,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.tools',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.tools',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.tools.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.tools.description',
+  },
+];
+
+const MonacoEditor = React.lazy(() => import('@monaco-editor/react'));
+
+function getRuntimeStatusTone(status: string) {
+  if (status === 'healthy') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
+  }
+  if (status === 'attention') {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+  return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300';
+}
+
+function getStatusBadge(status: string) {
+  if (status === 'online' || status === 'connected' || status === 'active' || status === 'ready') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
+  }
+  if (
+    status === 'starting' ||
+    status === 'paused' ||
+    status === 'disconnected' ||
+    status === 'beta' ||
+    status === 'configurationRequired'
+  ) {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+  return 'border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+}
+
+function getDangerBadge(status: string) {
+  if (
+    status === 'error' ||
+    status === 'failed' ||
+    status === 'missing' ||
+    status === 'restricted' ||
+    status === 'degraded'
+  ) {
+    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300';
+  }
+  return getStatusBadge(status);
+}
+
+function SectionHeading({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mb-5">
+      <h2 className="text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+        {title}
+      </h2>
+      <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">{description}</p>
+    </div>
+  );
+}
+
+function WorkbenchRowList({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      data-slot="instance-workbench-row-list"
+      className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35"
+    >
+      {children}
+    </div>
+  );
+}
+
+function WorkbenchRow({
+  children,
+  isLast = false,
+}: {
+  children: React.ReactNode;
+  isLast?: boolean;
+}) {
+  return (
+    <div
+      className={`grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_auto] xl:items-center ${
+        isLast ? '' : 'border-b border-zinc-200/70 dark:border-zinc-800'
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function RowMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-[7rem]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-medium text-zinc-950 dark:text-zinc-50">{value}</div>
+    </div>
+  );
+}
 
 export function InstanceDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { activeInstanceId, setActiveInstanceId } = useInstanceStore();
-  const [activeTab, setActiveTab] = useState<'config' | 'logs'>('config');
+  const [activeSection, setActiveSection] = useState<InstanceWorkbenchSectionId>('llmProviders');
+  const [workbench, setWorkbench] = useState<InstanceWorkbenchSnapshot | null>(null);
+  const [config, setConfig] = useState<InstanceConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
-  const [instance, setInstance] = useState<Instance | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [token, setToken] = useState('');
-  const [logs, setLogs] = useState('');
-  const [config, setConfig] = useState<InstanceConfig>({
-    port: '18789',
-    sandbox: true,
-    autoUpdate: false,
-    logLevel: 'info',
-    corsOrigins: '*',
-  });
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  const [fileDrafts, setFileDrafts] = useState<Record<string, string>>({});
+  const [isSavingFile, setIsSavingFile] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [providerDrafts, setProviderDrafts] = useState<Record<string, InstanceLLMProviderUpdate>>({});
+  const [isSavingProviderConfig, setIsSavingProviderConfig] = useState(false);
+
+  const loadWorkbench = async (instanceId: string) => {
+    setIsLoading(true);
+    try {
+      const nextWorkbench = await instanceWorkbenchService.getInstanceWorkbench(instanceId);
+      setWorkbench(nextWorkbench);
+      setConfig(nextWorkbench?.config || null);
+    } catch (error) {
+      console.error('Failed to fetch instance workbench:', error);
+      setWorkbench(null);
+      setConfig(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchInstanceData = async () => {
-      setIsLoading(true);
-      try {
-        if (!id) {
-          return;
-        }
+    if (!id) {
+      setIsLoading(false);
+      setWorkbench(null);
+      setConfig(null);
+      return;
+    }
 
-        const [instanceData, configData, tokenData, logsData] = await Promise.all([
-          instanceService.getInstanceById(id),
-          instanceService.getInstanceConfig(id),
-          instanceService.getInstanceToken(id),
-          instanceService.getInstanceLogs(id),
-        ]);
-
-        if (instanceData) {
-          setInstance(instanceData);
-        }
-        if (configData) {
-          setConfig(configData);
-        }
-        if (tokenData) {
-          setToken(tokenData);
-        }
-        if (logsData) {
-          setLogs(logsData);
-        }
-      } catch (error) {
-        console.error('Failed to fetch instance data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void fetchInstanceData();
+    void loadWorkbench(id);
   }, [id]);
+
+  useEffect(() => {
+    const files = workbench?.files || [];
+
+    if (files.length === 0) {
+      setSelectedFileId(null);
+      setFileDrafts({});
+      return;
+    }
+
+    setSelectedFileId((current) =>
+      current && files.some((file) => file.id === current) ? current : files[0].id,
+    );
+    setFileDrafts(Object.fromEntries(files.map((file) => [file.id, file.content])));
+  }, [workbench]);
+
+  useEffect(() => {
+    const providers = workbench?.llmProviders || [];
+
+    if (providers.length === 0) {
+      setSelectedProviderId(null);
+      setProviderDrafts({});
+      return;
+    }
+
+    setSelectedProviderId((current) =>
+      current && providers.some((provider) => provider.id === current) ? current : providers[0].id,
+    );
+    setProviderDrafts(
+      Object.fromEntries(
+        providers.map((provider) => [
+          provider.id,
+          {
+            endpoint: provider.endpoint,
+            apiKeySource: provider.apiKeySource,
+            defaultModelId: provider.defaultModelId,
+            reasoningModelId: provider.reasoningModelId,
+            embeddingModelId: provider.embeddingModelId,
+            config: { ...provider.config },
+          },
+        ]),
+      ),
+    );
+  }, [workbench]);
+
+  const instance = workbench?.instance || null;
+  const token = workbench?.token || '';
+
+  const activeSectionMeta = useMemo(
+    () => workbenchSections.find((section) => section.id === activeSection),
+    [activeSection],
+  );
+
+  const selectedFile = useMemo(
+    () => workbench?.files.find((file) => file.id === selectedFileId) || null,
+    [selectedFileId, workbench],
+  );
+  const selectedProvider = useMemo(
+    () => workbench?.llmProviders.find((provider) => provider.id === selectedProviderId) || null,
+    [selectedProviderId, workbench],
+  );
+
+  const selectedFileDraft = selectedFile ? fileDrafts[selectedFile.id] ?? selectedFile.content : '';
+  const selectedProviderDraft = selectedProvider
+    ? providerDrafts[selectedProvider.id] || {
+        endpoint: selectedProvider.endpoint,
+        apiKeySource: selectedProvider.apiKeySource,
+        defaultModelId: selectedProvider.defaultModelId,
+        reasoningModelId: selectedProvider.reasoningModelId,
+        embeddingModelId: selectedProvider.embeddingModelId,
+        config: { ...selectedProvider.config },
+      }
+    : null;
+  const hasPendingFileChanges = Boolean(
+    selectedFile && !selectedFile.isReadonly && selectedFileDraft !== selectedFile.content,
+  );
+  const hasPendingProviderChanges = Boolean(
+    selectedProvider &&
+      selectedProviderDraft &&
+      JSON.stringify(selectedProviderDraft) !==
+        JSON.stringify({
+          endpoint: selectedProvider.endpoint,
+          apiKeySource: selectedProvider.apiKeySource,
+          defaultModelId: selectedProvider.defaultModelId,
+          reasoningModelId: selectedProvider.reasoningModelId,
+          embeddingModelId: selectedProvider.embeddingModelId,
+          config: selectedProvider.config,
+        }),
+  );
+  const editorTheme =
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+      ? 'vs-dark'
+      : 'vs';
+
+  const getSharedStatusLabel = (status: string) => t(`instances.shared.status.${status}`);
 
   const handleCopyToken = () => {
     navigator.clipboard.writeText(token);
@@ -82,18 +365,136 @@ export function InstanceDetail() {
   };
 
   const handleSave = async () => {
-    if (!id) {
+    if (!id || !config) {
       return;
     }
 
     setIsSaving(true);
     try {
       await instanceService.updateInstanceConfig(id, config);
-      toast.success('Configuration saved successfully');
+      toast.success(t('instances.detail.toasts.configurationSaved'));
+      await loadWorkbench(id);
     } catch {
-      toast.error('Failed to save configuration');
+      toast.error(t('instances.detail.toasts.failedToSaveConfiguration'));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleFileDraftChange = (value: string) => {
+    if (!selectedFile || selectedFile.isReadonly) {
+      return;
+    }
+
+    setFileDrafts((current) => ({
+      ...current,
+      [selectedFile.id]: value,
+    }));
+  };
+
+  const handleResetFileDraft = () => {
+    if (!selectedFile) {
+      return;
+    }
+
+    setFileDrafts((current) => ({
+      ...current,
+      [selectedFile.id]: selectedFile.content,
+    }));
+  };
+
+  const handleSaveFile = async () => {
+    if (!id || !selectedFile || selectedFile.isReadonly) {
+      return;
+    }
+
+    setIsSavingFile(true);
+    try {
+      await instanceService.updateInstanceFileContent(id, selectedFile.id, selectedFileDraft);
+      toast.success(t('instances.detail.instanceWorkbench.files.fileSaved'));
+      await loadWorkbench(id);
+    } catch (error: any) {
+      toast.error(error.message || t('instances.detail.instanceWorkbench.files.fileSaveFailed'));
+    } finally {
+      setIsSavingFile(false);
+    }
+  };
+
+  const handleProviderFieldChange = (
+    field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
+    value: string,
+  ) => {
+    if (!selectedProvider || !selectedProviderDraft) {
+      return;
+    }
+
+    const nextDraft: InstanceLLMProviderUpdate = {
+      ...selectedProviderDraft,
+      [field]: value,
+    } as InstanceLLMProviderUpdate;
+
+    if ((field === 'reasoningModelId' || field === 'embeddingModelId') && !value) {
+      nextDraft[field] = undefined;
+    }
+
+    setProviderDrafts((current) => ({
+      ...current,
+      [selectedProvider.id]: nextDraft,
+    }));
+  };
+
+  const handleProviderConfigChange = (
+    field: keyof InstanceLLMProviderUpdate['config'],
+    value: number | boolean,
+  ) => {
+    if (!selectedProvider || !selectedProviderDraft) {
+      return;
+    }
+
+    setProviderDrafts((current) => ({
+      ...current,
+      [selectedProvider.id]: {
+        ...selectedProviderDraft,
+        config: {
+          ...selectedProviderDraft.config,
+          [field]: value,
+        },
+      },
+    }));
+  };
+
+  const handleResetProviderDraft = () => {
+    if (!selectedProvider) {
+      return;
+    }
+
+    setProviderDrafts((current) => ({
+      ...current,
+      [selectedProvider.id]: {
+        endpoint: selectedProvider.endpoint,
+        apiKeySource: selectedProvider.apiKeySource,
+        defaultModelId: selectedProvider.defaultModelId,
+        reasoningModelId: selectedProvider.reasoningModelId,
+        embeddingModelId: selectedProvider.embeddingModelId,
+        config: { ...selectedProvider.config },
+      },
+    }));
+  };
+
+  const handleSaveProviderConfig = async () => {
+    if (!id || !selectedProvider || !selectedProviderDraft) {
+      return;
+    }
+
+    setIsSavingProviderConfig(true);
+    try {
+      await instanceService.updateInstanceLlmProviderConfig(id, selectedProvider.id, selectedProviderDraft);
+      toast.success(t('instances.detail.instanceWorkbench.llmProviders.saved'));
+      await loadWorkbench(id);
+    } catch (error: any) {
+      toast.error(error.message || t('instances.detail.instanceWorkbench.llmProviders.saveFailed'));
+    } finally {
+      setIsSavingProviderConfig(false);
     }
   };
 
@@ -104,10 +505,10 @@ export function InstanceDetail() {
 
     try {
       await instanceService.restartInstance(id);
-      toast.success('Instance restarted successfully');
-      setInstance((current) => (current ? { ...current, status: 'online' } : null));
+      toast.success(t('instances.detail.toasts.restarted'));
+      await loadWorkbench(id);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to restart instance');
+      toast.error(error.message || t('instances.detail.toasts.failedToRestart'));
     }
   };
 
@@ -118,10 +519,10 @@ export function InstanceDetail() {
 
     try {
       await instanceService.stopInstance(id);
-      toast.success('Instance stopped successfully');
-      setInstance((current) => (current ? { ...current, status: 'offline' } : null));
+      toast.success(t('instances.detail.toasts.stopped'));
+      await loadWorkbench(id);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to stop instance');
+      toast.error(error.message || t('instances.detail.toasts.failedToStop'));
     }
   };
 
@@ -132,10 +533,10 @@ export function InstanceDetail() {
 
     try {
       await instanceService.startInstance(id);
-      toast.success('Instance started successfully');
-      setInstance((current) => (current ? { ...current, status: 'online' } : null));
+      toast.success(t('instances.detail.toasts.started'));
+      await loadWorkbench(id);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to start instance');
+      toast.error(error.message || t('instances.detail.toasts.failedToStart'));
     }
   };
 
@@ -144,351 +545,1086 @@ export function InstanceDetail() {
       return;
     }
 
-    if (!window.confirm('Are you sure you want to uninstall this instance? This action cannot be undone.')) {
+    if (!window.confirm(t('instances.detail.confirmUninstall'))) {
       return;
     }
 
     try {
       await instanceService.deleteInstance(id);
-      toast.success('Instance uninstalled successfully');
+      toast.success(t('instances.detail.toasts.uninstalled'));
       if (activeInstanceId === id) {
         setActiveInstanceId(null);
       }
       navigate('/instances');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to uninstall instance');
+      toast.error(error.message || t('instances.detail.toasts.failedToUninstall'));
+    }
+  };
+
+  const renderChannelsSection = () => {
+    if (!workbench || workbench.channels.length === 0) {
+      return (
+        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+          {t('instances.detail.instanceWorkbench.empty.channels')}
+        </div>
+      );
+    }
+
+    return (
+      <WorkbenchRowList>
+        {workbench.channels.map((channel, index) => (
+          <WorkbenchRow key={channel.id} isLast={index === workbench.channels.length - 1}>
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {channel.name}
+                </h3>
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusBadge(
+                    channel.status,
+                  )}`}
+                >
+                  {t(`dashboard.status.${channel.status}`)}
+                </span>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {channel.description}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-5">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.configuredFields')}
+                value={`${channel.configuredFieldCount}/${channel.fieldCount}`}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.setupSteps')}
+                value={channel.setupSteps.length}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.deliveryState')}
+                value={
+                  channel.enabled
+                    ? t('instances.detail.instanceWorkbench.state.enabled')
+                    : t('instances.detail.instanceWorkbench.state.pending')
+                }
+              />
+            </div>
+            <div className="xl:max-w-sm">
+              <div className="rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
+                {channel.setupSteps[0] || t('instances.detail.instanceWorkbench.empty.channels')}
+              </div>
+            </div>
+          </WorkbenchRow>
+        ))}
+      </WorkbenchRowList>
+    );
+  };
+
+  const renderTasksSection = () => {
+    if (!workbench || workbench.tasks.length === 0) {
+      return (
+        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+          {t('instances.detail.instanceWorkbench.empty.cronTasks')}
+        </div>
+      );
+    }
+
+    return (
+      <WorkbenchRowList>
+        {workbench.tasks.map((task, index) => (
+          <WorkbenchRow key={task.id} isLast={index === workbench.tasks.length - 1}>
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {task.name}
+                </h3>
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                    task.status === 'failed' ? getDangerBadge(task.status) : getStatusBadge(task.status)
+                  }`}
+                >
+                  {t(`dashboard.status.${task.status}`)}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{task.schedule}</p>
+            </div>
+            <div className="flex flex-wrap gap-5">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.lastRun')}
+                value={task.lastRun || '--'}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.nextRun')}
+                value={task.nextRun || '--'}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.actionType')}
+                value={t(`instances.detail.instanceWorkbench.actionTypes.${task.actionType}`)}
+              />
+            </div>
+            <div className="text-right">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.sections.cronTasks.title')}
+              </div>
+              <div className="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                {task.status === 'active'
+                  ? t('instances.detail.instanceWorkbench.state.enabled')
+                  : t('instances.detail.instanceWorkbench.state.pending')}
+              </div>
+            </div>
+          </WorkbenchRow>
+        ))}
+      </WorkbenchRowList>
+    );
+  };
+
+  const renderAgentsSection = () => {
+    if (!workbench || workbench.agents.length === 0) {
+      return (
+        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+          {t('instances.detail.instanceWorkbench.empty.agents')}
+        </div>
+      );
+    }
+
+    return (
+      <WorkbenchRowList>
+        {workbench.agents.map(({ agent, focusAreas, automationFitScore }, index) => (
+          <WorkbenchRow key={agent.id} isLast={index === workbench.agents.length - 1}>
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-xl">
+                {agent.avatar}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {agent.name}
+                </h3>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  {agent.description}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {focusAreas.map((focusArea) => (
+                <span
+                  key={focusArea}
+                  className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
+                >
+                  {focusArea}
+                </span>
+              ))}
+            </div>
+            <div className="text-right">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.metrics.automationFitScore')}
+              </div>
+              <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {automationFitScore}%
+              </div>
+            </div>
+          </WorkbenchRow>
+        ))}
+      </WorkbenchRowList>
+    );
+  };
+
+  const renderSkillsSection = () => {
+    if (!workbench || workbench.skills.length === 0) {
+      return (
+        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+          {t('instances.detail.instanceWorkbench.empty.skills')}
+        </div>
+      );
+    }
+
+    return (
+      <WorkbenchRowList>
+        {workbench.skills.map((skill, index) => (
+          <WorkbenchRow key={skill.id} isLast={index === workbench.skills.length - 1}>
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {skill.name}
+                </h3>
+                <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                  {skill.category}
+                </span>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {skill.description}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-5">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.version')}
+                value={skill.version || '--'}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.downloads')}
+                value={skill.downloads.toLocaleString()}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.rating')}
+                value={skill.rating.toFixed(1)}
+              />
+            </div>
+            <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+              {skill.author}
+            </div>
+          </WorkbenchRow>
+        ))}
+      </WorkbenchRowList>
+    );
+  };
+
+  const renderLlmProvidersSection = () => {
+    if (!workbench || workbench.llmProviders.length === 0) {
+      return (
+        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+          {t('instances.detail.instanceWorkbench.empty.llmProviders')}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_24rem]">
+        <div data-slot="instance-llm-provider-list" className="space-y-3">
+          {workbench.llmProviders.map((provider) => {
+            const isActive = selectedProvider?.id === provider.id;
+            const defaultModel = provider.models.find((model) => model.id === provider.defaultModelId);
+            const reasoningModel = provider.models.find(
+              (model) => model.id === provider.reasoningModelId,
+            );
+
+            return (
+              <button
+                key={provider.id}
+                type="button"
+                onClick={() => setSelectedProviderId(provider.id)}
+                className={`w-full rounded-[1.5rem] border p-5 text-left transition-colors ${
+                  isActive
+                    ? 'border-zinc-950 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950'
+                    : 'border-zinc-200/70 bg-white/80 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60'
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold ${
+                        isActive
+                          ? 'bg-white/12 text-white dark:bg-zinc-950/10 dark:text-zinc-950'
+                          : 'bg-zinc-950 text-white dark:bg-white dark:text-zinc-950'
+                      }`}
+                    >
+                      {provider.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold tracking-tight">{provider.name}</h3>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                            provider.status === 'degraded'
+                              ? getDangerBadge('degraded')
+                              : getStatusBadge(provider.status)
+                          }`}
+                        >
+                          {t(
+                            `instances.detail.instanceWorkbench.llmProviders.status.${provider.status}`,
+                          )}
+                        </span>
+                      </div>
+                      <p
+                        className={`mt-2 text-sm leading-6 ${
+                          isActive ? 'text-white/75 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {provider.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`rounded-2xl px-3 py-2 text-xs font-medium ${
+                      isActive
+                        ? 'bg-white/10 text-white/80 dark:bg-zinc-950/10 dark:text-zinc-700'
+                        : 'bg-zinc-950/[0.04] text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400'
+                    }`}
+                  >
+                    {provider.lastCheckedAt}
+                  </div>
+                </div>
+
+                <div
+                  className={`mt-4 truncate rounded-2xl px-4 py-3 font-mono text-sm ${
+                    isActive
+                      ? 'bg-white/10 text-white/80 dark:bg-zinc-950/10 dark:text-zinc-700'
+                      : 'bg-zinc-950/[0.04] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300'
+                  }`}
+                >
+                  {provider.endpoint}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {provider.models.map((model) => (
+                    <span
+                      key={model.id}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        isActive
+                          ? 'bg-white/10 text-white/85 dark:bg-zinc-950/10 dark:text-zinc-700'
+                          : 'bg-zinc-950/[0.04] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300'
+                      }`}
+                    >
+                      {model.name} ·{' '}
+                      {t(`instances.detail.instanceWorkbench.llmProviders.modelRoles.${model.role}`)}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-5">
+                  {[
+                    {
+                      label: t('instances.detail.instanceWorkbench.llmProviders.defaultModel'),
+                      value: defaultModel?.name || '--',
+                    },
+                    {
+                      label: t('instances.detail.instanceWorkbench.llmProviders.reasoningModel'),
+                      value: reasoningModel?.name || '--',
+                    },
+                    {
+                      label: t('instances.detail.instanceWorkbench.llmProviders.temperature'),
+                      value: provider.config.temperature,
+                    },
+                    {
+                      label: t('instances.detail.instanceWorkbench.llmProviders.topP'),
+                      value: provider.config.topP,
+                    },
+                    {
+                      label: t('instances.detail.instanceWorkbench.llmProviders.streaming'),
+                      value: provider.config.streaming
+                        ? t('instances.detail.instanceWorkbench.files.on')
+                        : t('instances.detail.instanceWorkbench.files.off'),
+                    },
+                  ].map((metric) => (
+                    <div key={metric.label} className="min-w-[7rem]">
+                      <div
+                        className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                          isActive ? 'text-white/60 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {metric.label}
+                      </div>
+                      <div
+                        className={`mt-1 text-sm font-medium ${
+                          isActive ? 'text-white dark:text-zinc-950' : 'text-zinc-950 dark:text-zinc-50'
+                        }`}
+                      >
+                        {metric.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <InstanceLLMConfigPanel
+          provider={selectedProvider}
+          draft={selectedProviderDraft}
+          hasPendingChanges={hasPendingProviderChanges}
+          isSaving={isSavingProviderConfig}
+          onFieldChange={handleProviderFieldChange}
+          onConfigChange={handleProviderConfigChange}
+          onReset={handleResetProviderDraft}
+          onSave={handleSaveProviderConfig}
+        />
+      </div>
+    );
+  };
+
+  const renderFilesSection = () => {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="rounded-[1.6rem] bg-zinc-950/[0.03] p-5 dark:bg-white/[0.04]">
+            <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {t('instances.detail.instanceWorkbench.files.gatewayProfile')}
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.files.gatewayProfileDescription')}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {t('instances.detail.fields.gatewayPort')}: {config?.port}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {t('instances.detail.fields.corsOrigins')}: {config?.corsOrigins}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {t('instances.detail.fields.agentSandbox')}: {config?.sandbox
+                  ? t('instances.detail.instanceWorkbench.files.on')
+                  : t('instances.detail.instanceWorkbench.files.off')}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {t('instances.detail.fields.autoUpdate')}: {config?.autoUpdate
+                  ? t('instances.detail.instanceWorkbench.files.on')
+                  : t('instances.detail.instanceWorkbench.files.off')}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="rounded-[1.6rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.fields.apiToken')}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Input
+                  type="password"
+                  value={token || ''}
+                  readOnly
+                  className="min-w-0 flex-1 rounded-2xl bg-white px-4 py-3 font-mono dark:bg-zinc-950"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyToken}
+                  className="flex items-center gap-2 rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                >
+                  {copiedToken ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copiedToken ? t('common.copied') : t('common.copy')}
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-primary-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
+            >
+              {isSaving ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  {t('instances.detail.actions.saving')}
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  {t('instances.detail.actions.saveConfiguration')}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[1.75rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200/70 px-5 py-4 dark:border-zinc-800">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                <FolderTree className="h-4 w-4" />
+                {t('instances.detail.instanceWorkbench.files.runtimeArtifacts')}
+              </div>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.files.runtimeArtifactsDescription')}
+              </p>
+            </div>
+            {selectedFile ? (
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                  {selectedFile.language}
+                </span>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                    selectedFile.status === 'missing'
+                      ? getDangerBadge(selectedFile.status)
+                      : getStatusBadge(selectedFile.status)
+                  }`}
+                >
+                  {t(`instances.detail.instanceWorkbench.fileStatus.${selectedFile.status}`)}
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          {workbench && workbench.files.length > 0 ? (
+            <div className="grid min-h-[42rem] xl:grid-cols-[20rem_minmax(0,1fr)]">
+              <aside
+                data-slot="instance-files-explorer"
+                className="border-b border-zinc-200/70 bg-zinc-950/[0.02] p-3 dark:border-zinc-800 dark:bg-white/[0.02] xl:border-r xl:border-b-0"
+              >
+                <div className="flex items-center justify-between gap-3 px-2 pb-3 pt-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.files.explorer')}
+                  </div>
+                  <div className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
+                    {workbench.files.length}
+                  </div>
+                </div>
+                <InstanceFileExplorer
+                  files={workbench.files}
+                  selectedFileId={selectedFileId}
+                  onSelectFile={setSelectedFileId}
+                />
+              </aside>
+
+              <div data-slot="instance-files-editor" className="flex min-h-[42rem] flex-col">
+                {selectedFile ? (
+                  <>
+                    <div className="border-b border-zinc-200/70 px-5 py-4 dark:border-zinc-800">
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="truncate text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                              {selectedFile.name}
+                            </h3>
+                            <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                              {selectedFile.isReadonly
+                                ? t('instances.detail.instanceWorkbench.files.previewMode')
+                                : t('instances.detail.instanceWorkbench.files.editMode')}
+                            </span>
+                            {hasPendingFileChanges ? (
+                              <span className="rounded-full bg-amber-500/12 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+                                {t('instances.detail.instanceWorkbench.files.unsavedChanges')}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-2 truncate font-mono text-sm text-zinc-500 dark:text-zinc-400">
+                            {selectedFile.path}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={handleResetFileDraft}
+                            disabled={!hasPendingFileChanges}
+                            className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            {t('instances.detail.instanceWorkbench.files.revertDraft')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveFile}
+                            disabled={!hasPendingFileChanges || isSavingFile || selectedFile.isReadonly}
+                            className="flex items-center gap-2 rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
+                          >
+                            {isSavingFile ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                                {t('instances.detail.instanceWorkbench.files.savingFile')}
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4" />
+                                {t('instances.detail.instanceWorkbench.files.saveFile')}
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
+                          {selectedFile.size}
+                        </span>
+                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
+                          {selectedFile.updatedAt}
+                        </span>
+                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
+                          {t(`instances.detail.instanceWorkbench.fileCategories.${selectedFile.category}`)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="min-h-[34rem] flex-1">
+                      <Suspense
+                        fallback={
+                          <div className="flex h-full min-h-[34rem] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                            {t('common.loading')}
+                          </div>
+                        }
+                      >
+                        <MonacoEditor
+                          height="100%"
+                          language={selectedFile.language}
+                          theme={editorTheme}
+                          value={selectedFileDraft}
+                          onChange={(value) => handleFileDraftChange(value ?? '')}
+                          options={{
+                            automaticLayout: true,
+                            fontSize: 13,
+                            lineHeight: 20,
+                            minimap: { enabled: true },
+                            padding: { top: 16, bottom: 16 },
+                            readOnly: selectedFile.isReadonly,
+                            roundedSelection: true,
+                            scrollBeyondLastLine: false,
+                            smoothScrolling: true,
+                            wordWrap: 'on',
+                          }}
+                        />
+                      </Suspense>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex h-full min-h-[34rem] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.files.selectFile')}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 text-sm text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.empty.files')}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMemorySection = () => {
+    if (!workbench || workbench.memories.length === 0) {
+      return (
+        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+          {t('instances.detail.instanceWorkbench.empty.memory')}
+        </div>
+      );
+    }
+
+    return (
+      <WorkbenchRowList>
+        {workbench.memories.map((entry, index) => (
+          <WorkbenchRow key={entry.id} isLast={index === workbench.memories.length - 1}>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                  {t(`instances.detail.instanceWorkbench.memoryTypes.${entry.type}`)}
+                </span>
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                    entry.retention === 'expiring' ? getDangerBadge('restricted') : getStatusBadge('ready')
+                  }`}
+                >
+                  {t(`instances.detail.instanceWorkbench.retention.${entry.retention}`)}
+                </span>
+              </div>
+              <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {entry.title}
+              </h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {entry.summary}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-5">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.memorySource')}
+                value={t(`instances.detail.instanceWorkbench.memorySources.${entry.source}`)}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.memoryTokens')}
+                value={entry.tokens}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.updatedAt')}
+                value={entry.updatedAt}
+              />
+            </div>
+            <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+              {t(`instances.detail.instanceWorkbench.retention.${entry.retention}`)}
+            </div>
+          </WorkbenchRow>
+        ))}
+      </WorkbenchRowList>
+    );
+  };
+
+  const renderToolsSection = () => {
+    return (
+      <div className="space-y-6">
+        {workbench && workbench.tools.length > 0 ? (
+          <WorkbenchRowList>
+            {workbench.tools.map((tool, index) => (
+              <WorkbenchRow key={tool.id} isLast={index === workbench.tools.length - 1}>
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                      {tool.name}
+                    </h3>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                        tool.status === 'restricted' ? getDangerBadge(tool.status) : getStatusBadge(tool.status)
+                      }`}
+                    >
+                      {t(`instances.detail.instanceWorkbench.toolStatus.${tool.status}`)}
+                    </span>
+                  </div>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {tool.description}
+                  </p>
+                  <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm font-mono text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
+                    {tool.command}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.sections.tools.title')}
+                    value={t(`instances.detail.instanceWorkbench.toolCategories.${tool.category}`)}
+                  />
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.actionType')}
+                    value={t(`instances.detail.instanceWorkbench.toolAccess.${tool.access}`)}
+                  />
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.lastRun')}
+                    value={tool.lastUsedAt || '--'}
+                  />
+                </div>
+                <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+                  {tool.lastUsedAt || '--'}
+                </div>
+              </WorkbenchRow>
+            ))}
+          </WorkbenchRowList>
+        ) : (
+          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+            {t('instances.detail.instanceWorkbench.empty.tools')}
+          </div>
+        )}
+
+        <div className="rounded-[1.6rem] border border-rose-200 bg-rose-50/80 p-5 dark:border-rose-500/20 dark:bg-rose-500/8">
+          <h3 className="text-lg font-semibold tracking-tight text-rose-700 dark:text-rose-300">
+            {t('instances.detail.dangerZone')}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-rose-600 dark:text-rose-300">
+            {t('instances.detail.dangerDescription')}
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            {instance?.status === 'online' ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 dark:border-rose-500/20 dark:bg-zinc-950 dark:text-rose-300 dark:hover:bg-rose-500/10"
+              >
+                <Power className="h-4 w-4" />
+                {t('instances.detail.actions.stop')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStart}
+                className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 dark:border-emerald-500/20 dark:bg-zinc-950 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+              >
+                <Power className="h-4 w-4" />
+                {t('instances.detail.actions.start')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleRestart}
+              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {t('instances.detail.actions.restart')}
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              {t('instances.detail.actions.uninstallInstance')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSectionContent = () => {
+    switch (activeSection) {
+      case 'channels':
+        return renderChannelsSection();
+      case 'cronTasks':
+        return renderTasksSection();
+      case 'llmProviders':
+        return renderLlmProvidersSection();
+      case 'agents':
+        return renderAgentsSection();
+      case 'skills':
+        return renderSkillsSection();
+      case 'files':
+        return renderFilesSection();
+      case 'memory':
+        return renderMemorySection();
+      case 'tools':
+        return renderToolsSection();
+      default:
+        return null;
     }
   };
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex h-64 max-w-5xl items-center justify-center p-4 md:p-8">
+      <div className="mx-auto flex h-64 max-w-6xl items-center justify-center p-4 md:p-8">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
       </div>
     );
   }
 
-  if (!instance) {
+  if (!instance || !workbench || !config) {
     return (
-      <div className="mx-auto max-w-5xl p-4 text-center md:p-8">
+      <div className="mx-auto max-w-6xl p-4 text-center md:p-8">
         <h2 className="mb-4 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-          Instance Not Found
+          {t('instances.detail.notFoundTitle')}
         </h2>
         <button
           onClick={() => navigate('/instances')}
           className="text-primary-600 hover:underline dark:text-primary-400"
         >
-          Return to Instances
+          {t('instances.detail.returnToInstances')}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-4 md:p-8">
+    <div className="w-full p-4 md:p-6 xl:p-8 2xl:p-10">
       <button
         onClick={() => navigate('/instances')}
-        className="mb-8 flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="mb-6 flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Instances
+        {t('instances.detail.backToInstances')}
       </button>
 
-      <div className="mb-8 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
-              <Server className="h-8 w-8 text-primary-500 dark:text-primary-400" />
+      <div className="rounded-[2rem] bg-white/80 p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:bg-zinc-900/82 md:p-8">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 dark:text-primary-300">
+              <Server className="h-8 w-8" />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
                   {instance.name}
                 </h1>
-                {activeInstanceId === instance.id && (
-                  <div className="flex items-center gap-1 rounded-md border border-primary-500/20 bg-primary-500/10 px-2 py-1 text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+                {activeInstanceId === instance.id ? (
+                  <div className="flex items-center gap-1 rounded-full bg-primary-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary-600 dark:text-primary-300">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Active Instance
+                    {t('instances.detail.activeBadge')}
                   </div>
-                )}
-              </div>
-              <div className="mt-2 flex items-center gap-3">
+                ) : null}
                 <span
-                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
-                    instance.status === 'online'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400'
-                      : 'border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400'
-                  }`}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusBadge(
+                    instance.status,
+                  )}`}
                 >
-                  {instance.status === 'online' && <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />}
-                  {instance.status}
+                  {getSharedStatusLabel(instance.status)}
                 </span>
-                <span className="text-sm font-mono text-zinc-500 dark:text-zinc-400">{instance.ip}</span>
-                <span className="text-sm text-zinc-400 dark:text-zinc-500">Uptime: {instance.uptime}</span>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getRuntimeStatusTone(
+                    workbench.runtimeStatus,
+                  )}`}
+                >
+                  {t(`instances.detail.instanceWorkbench.runtimeStates.${workbench.runtimeStatus}`)}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                <span className="font-mono">{instance.ip}</span>
+                <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                <span>{t('instances.detail.uptime', { value: instance.uptime })}</span>
+                <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                <span>{instance.type}</span>
+                <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                <span>{instance.version}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {activeInstanceId !== instance.id && instance.status === 'online' && (
+          <div className="flex flex-wrap gap-3">
+            {activeInstanceId !== instance.id && instance.status === 'online' ? (
               <button
+                type="button"
                 onClick={() => setActiveInstanceId(instance.id)}
-                className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                className="flex items-center gap-2 rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Set as Active
+                {t('instances.detail.actions.setAsActive')}
               </button>
-            )}
+            ) : null}
+            <button
+              type="button"
+              onClick={handleRestart}
+              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {t('instances.detail.actions.restart')}
+            </button>
             {instance.status === 'online' ? (
-              <>
-                <button
-                  onClick={handleRestart}
-                  className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Restart
-                </button>
-                <button
-                  onClick={handleStop}
-                  className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
-                >
-                  <Power className="h-4 w-4" />
-                  Stop
-                </button>
-              </>
-            ) : (
               <button
-                onClick={handleStart}
-                className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
+                type="button"
+                onClick={handleStop}
+                className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
               >
                 <Power className="h-4 w-4" />
-                Start
+                {t('instances.detail.actions.stop')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStart}
+                className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+              >
+                <Power className="h-4 w-4" />
+                {t('instances.detail.actions.start')}
               </button>
             )}
           </div>
         </div>
-      </div>
 
-      <div className="mb-8 flex gap-4 border-b border-zinc-200 dark:border-zinc-800">
-        <button
-          onClick={() => setActiveTab('config')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
-            activeTab === 'config'
-              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
-          }`}
-        >
-          <Settings className="h-4 w-4" />
-          Configuration
-        </button>
-        <button
-          onClick={() => setActiveTab('logs')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
-            activeTab === 'logs'
-              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
-          }`}
-        >
-          <Terminal className="h-4 w-4" />
-          Daemon Logs
-        </button>
-      </div>
-
-      {activeTab === 'config' && (
-        <div className="animate-in slide-in-from-bottom-4 space-y-8 fade-in duration-500">
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
-            <h2 className="mb-6 flex items-center gap-2 text-lg font-bold text-zinc-900 dark:text-zinc-100">
-              <Server className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
-              Connection Settings
-            </h2>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Gateway Port
-                </label>
-                <input
-                  type="text"
-                  value={config.port}
-                  onChange={(event) => setConfig({ ...config, port: event.target.value })}
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-mono text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-                />
-                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  The port the Claw Studio daemon listens on.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  CORS Origins
-                </label>
-                <input
-                  type="text"
-                  value={config.corsOrigins}
-                  onChange={(event) => setConfig({ ...config, corsOrigins: event.target.value })}
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-mono text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-                />
-                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  Allowed origins for API requests (comma separated).
-                </p>
-              </div>
+        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.summary.healthScore')}
             </div>
-
-            <div className="mt-8">
-              <label className="mb-2 block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                API Token
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={token || ''}
-                  readOnly
-                  className="flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-mono text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-                />
-                <button
-                  onClick={handleCopyToken}
-                  className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                >
-                  {copiedToken ? (
-                    <Check className="h-4 w-4 text-emerald-400 dark:text-emerald-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                  {copiedToken ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                Use this token to authenticate external applications with this gateway.
-              </p>
+            <div className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {workbench.healthScore}%
             </div>
           </div>
-
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
-            <h2 className="mb-6 flex items-center gap-2 text-lg font-bold text-zinc-900 dark:text-zinc-100">
-              <Shield className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
-              Security & Behavior
-            </h2>
-
-            <div className="space-y-6">
-              <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700/50 dark:bg-zinc-800/50">
-                <div>
-                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Agent Sandbox</h3>
-                  <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    Isolate skill execution in a secure sandbox environment.
-                  </p>
-                </div>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    className="peer sr-only"
-                    checked={config.sandbox}
-                    onChange={(event) => setConfig({ ...config, sandbox: event.target.checked })}
-                  />
-                  <div className="h-6 w-11 rounded-full bg-zinc-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-zinc-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-zinc-700 dark:after:border-zinc-600" />
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700/50 dark:bg-zinc-800/50">
-                <div>
-                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Auto-Update</h3>
-                  <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    Automatically download and install daemon updates.
-                  </p>
-                </div>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    className="peer sr-only"
-                    checked={config.autoUpdate}
-                    onChange={(event) => setConfig({ ...config, autoUpdate: event.target.checked })}
-                  />
-                  <div className="h-6 w-11 rounded-full bg-zinc-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-zinc-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-zinc-700 dark:after:border-zinc-600" />
-                </label>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Log Level
-                </label>
-                <select
-                  value={config.logLevel}
-                  onChange={(event) => setConfig({ ...config, logLevel: event.target.value })}
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 md:w-1/2 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-                >
-                  <option value="debug">Debug</option>
-                  <option value="info">Info</option>
-                  <option value="warn">Warning</option>
-                  <option value="error">Error</option>
-                </select>
-              </div>
+          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.summary.connectedChannels')}
+            </div>
+            <div className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {workbench.connectedChannelCount}
             </div>
           </div>
-
-          <div className="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm dark:border-red-500/20 dark:bg-red-500/5 md:p-8">
-            <h2 className="mb-4 text-lg font-bold text-red-900 dark:text-red-400">Danger Zone</h2>
-            <p className="mb-6 text-sm text-red-700 dark:text-red-300">
-              Irreversible actions for this instance. Proceed with caution.
-            </p>
-
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <button className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-6 py-3 text-sm font-bold text-red-600 shadow-sm transition-colors hover:bg-red-50 dark:border-red-500/30 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-500/10">
-                <RefreshCw className="h-4 w-4" />
-                Factory Reset
-              </button>
-              <button
-                onClick={handleDelete}
-                className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-red-600/20 transition-colors hover:bg-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                Uninstall Instance
-              </button>
+          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.summary.activeTasks')}
+            </div>
+            <div className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {workbench.activeTaskCount}
             </div>
           </div>
+          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.summary.readyTools')}
+            </div>
+            <div className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {workbench.readyToolCount}
+            </div>
+          </div>
+          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.summary.agents')}
+            </div>
+            <div className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {workbench.agents.length}
+            </div>
+          </div>
+          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.summary.skills')}
+            </div>
+            <div className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {workbench.installedSkillCount}
+            </div>
+          </div>
+        </div>
 
-          <div className="flex justify-end pt-4">
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-2 rounded-xl bg-primary-500 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-primary-500/20 transition-colors hover:bg-primary-600 disabled:opacity-50"
+        <div className="mt-8 grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
+          <aside className="space-y-4">
+            <div
+              data-slot="instance-workbench-sidebar"
+              className="flex gap-2 overflow-x-auto xl:flex-col"
             >
-              {isSaving ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Save Configuration
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
+              {workbenchSections.map((section) => {
+                const Icon = section.icon;
+                const isActive = section.id === activeSection;
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => setActiveSection(section.id)}
+                    className={`min-w-[14rem] rounded-[1.4rem] px-4 py-4 text-left transition-colors xl:min-w-0 ${
+                      isActive
+                        ? 'bg-zinc-950 text-white dark:bg-white dark:text-zinc-950'
+                        : 'bg-zinc-950/[0.03] text-zinc-700 hover:bg-zinc-950/[0.06] dark:bg-white/[0.04] dark:text-zinc-200 dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`flex h-10 w-10 items-center justify-center rounded-2xl ${
+                            isActive
+                              ? 'bg-white/12 text-white dark:bg-zinc-950/10 dark:text-zinc-950'
+                              : 'bg-white/70 text-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-200'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold">{t(section.labelKey)}</div>
+                          <div
+                            className={`mt-1 text-xs leading-5 ${
+                              isActive
+                                ? 'text-white/75 dark:text-zinc-700'
+                                : 'text-zinc-500 dark:text-zinc-400'
+                            }`}
+                          >
+                            {t(section.descriptionKey)}
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          isActive
+                            ? 'bg-white/12 text-white dark:bg-zinc-950/10 dark:text-zinc-950'
+                            : 'bg-white/70 text-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-200'
+                        }`}
+                      >
+                        {workbench.sectionCounts[section.id]}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
 
-      {activeTab === 'logs' && (
-        <div className="animate-in slide-in-from-bottom-4 fade-in duration-500">
-          <div className="flex h-[600px] flex-col overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/50 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <Terminal className="h-5 w-5 text-zinc-400" />
-                <span className="text-sm font-semibold uppercase tracking-wider text-zinc-300">
-                  Live Daemon Logs
-                </span>
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+              <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+                <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  <Settings className="h-4 w-4" />
+                  {t('instances.detail.instanceWorkbench.summary.cpuLoad')}
+                </div>
+                <div className="mt-3 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                  {instance.cpu}%
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-                <span className="text-xs font-mono text-emerald-400">Connected</span>
+              <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+                <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  <MemoryStick className="h-4 w-4" />
+                  {t('instances.detail.instanceWorkbench.summary.memoryPressure')}
+                </div>
+                <div className="mt-3 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                  {instance.memory}%
+                </div>
+                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  {instance.totalMemory}
+                </div>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto whitespace-pre-wrap p-6 font-mono text-xs leading-relaxed text-zinc-300 md:text-sm">
-              {logs}
-              <span className="ml-1 inline-block h-4 w-2 animate-pulse align-middle bg-zinc-400" />
-            </div>
-          </div>
+          </aside>
+
+          <section className="rounded-[1.8rem] bg-zinc-950/[0.03] p-5 dark:bg-white/[0.04] md:p-6">
+            <SectionHeading
+              title={activeSectionMeta ? t(activeSectionMeta.sectionTitleKey) : ''}
+              description={activeSectionMeta ? t(activeSectionMeta.sectionDescriptionKey) : ''}
+            />
+            {renderSectionContent()}
+          </section>
         </div>
-      )}
+      </div>
     </div>
   );
 }

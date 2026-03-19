@@ -5,8 +5,23 @@ export type {
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
+  PlatformWindowStateUnsubscribe,
 } from './types.ts';
-export type { InstallScriptRequest, InstallerPlatformAPI } from './contracts/installer.ts';
+export type {
+  ApiRouterClientInstallRequest,
+  ApiRouterClientInstallResult,
+  ApiRouterInstalledEnvironment,
+  ApiRouterInstalledFile,
+  ApiRouterInstallerClientId,
+  ApiRouterInstallerCompatibility,
+  ApiRouterInstallerEnvScope,
+  ApiRouterInstallerInstallMode,
+  ApiRouterInstallerModel,
+  ApiRouterInstallerOpenClawOptions,
+  ApiRouterInstallerProvider,
+  InstallScriptRequest,
+  InstallerPlatformAPI,
+} from './contracts/installer.ts';
 export type {
   RuntimeAppInfo,
   RuntimeConfigInfo,

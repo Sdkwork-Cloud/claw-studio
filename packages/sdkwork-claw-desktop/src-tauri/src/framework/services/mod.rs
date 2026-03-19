@@ -3,6 +3,7 @@ use crate::framework::{
     storage::StorageInfo, Result,
 };
 
+pub mod api_router;
 pub mod browser;
 pub mod dialog;
 pub mod filesystem;
@@ -13,11 +14,13 @@ pub mod notifications;
 pub mod payments;
 pub mod permissions;
 pub mod process;
+pub mod retention;
 pub mod security;
 pub mod storage;
 pub mod system;
 
 use self::{
+    api_router::ApiRouterInstallerService,
     browser::BrowserService,
     dialog::DialogService,
     filesystem::FileSystemService,
@@ -28,6 +31,7 @@ use self::{
     payments::PaymentService,
     permissions::PermissionService,
     process::ProcessService,
+    retention::RetentionService,
     security::SecurityService,
     storage::StorageService,
     system::SystemService,
@@ -35,6 +39,7 @@ use self::{
 
 #[derive(Clone, Debug)]
 pub struct FrameworkServices {
+    pub api_router: ApiRouterInstallerService,
     pub system: SystemService,
     pub browser: BrowserService,
     pub dialog: DialogService,
@@ -46,6 +51,7 @@ pub struct FrameworkServices {
     pub permissions: PermissionService,
     pub process: ProcessService,
     pub jobs: JobService,
+    pub retention: RetentionService,
     pub storage: StorageService,
     pub kernel: KernelService,
 }
@@ -55,6 +61,7 @@ impl FrameworkServices {
         let policy = ExecutionPolicy::for_paths_with_security(paths, &config.security)?;
 
         Ok(Self {
+            api_router: ApiRouterInstallerService::new(),
             system: SystemService::new(),
             browser: BrowserService::with_security(&config.security),
             dialog: DialogService::new(),
@@ -66,6 +73,7 @@ impl FrameworkServices {
             permissions: PermissionService::new(),
             process: ProcessService::new(policy),
             jobs: JobService::with_max_concurrent_process_jobs(config.process.max_concurrent_jobs),
+            retention: RetentionService::new(),
             storage: StorageService::new(),
             kernel: KernelService::new(),
         })

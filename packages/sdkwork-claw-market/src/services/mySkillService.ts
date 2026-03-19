@@ -1,9 +1,5 @@
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import type { ListParams, PaginatedResult, Skill } from '@sdkwork/claw-types';
-import {
-  getFallbackInstalledSkills,
-  removeFallbackInstalledSkill,
-  snapshotFallbackInstallations,
-} from './fallbackData';
 
 export interface MySkillService {
   getList(instanceId: string, params?: ListParams): Promise<PaginatedResult<Skill>>;
@@ -37,30 +33,6 @@ function paginateSkills(skills: Skill[], params: ListParams = {}): PaginatedResu
   };
 }
 
-export function createMySkillService(
-  seedSkills: Record<string, Skill[]> = snapshotFallbackInstallations(),
-): MySkillService {
-  const skillsByInstance = Object.fromEntries(
-    Object.entries(seedSkills).map(([instanceId, skills]) => [instanceId, [...skills]]),
-  ) as Record<string, Skill[]>;
-
-  return {
-    async getList(instanceId, params = {}) {
-      return paginateSkills(skillsByInstance[instanceId] || [], params);
-    },
-
-    async getMySkills(instanceId) {
-      return [...(skillsByInstance[instanceId] || [])];
-    },
-
-    async uninstallSkill(instanceId, skillId) {
-      skillsByInstance[instanceId] = (skillsByInstance[instanceId] || []).filter(
-        (skill) => skill.id !== skillId,
-      );
-    },
-  };
-}
-
 export const mySkillService: MySkillService = {
   async getList(instanceId, params = {}) {
     const skills = await this.getMySkills(instanceId);
@@ -68,31 +40,13 @@ export const mySkillService: MySkillService = {
   },
 
   async getMySkills(instanceId) {
-    try {
-      const response = await fetch(`/api/devices/${instanceId}/skills`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch my skills');
-      }
-
-      return response.json() as Promise<Skill[]>;
-    } catch {
-      return getFallbackInstalledSkills(instanceId);
-    }
+    return studioMockService.listInstalledSkills(instanceId);
   },
 
   async uninstallSkill(instanceId, skillId) {
-    try {
-      const response = await fetch('/api/installations', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: instanceId, skill_id: skillId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to uninstall skill');
-      }
-    } catch {
-      removeFallbackInstalledSkill(instanceId, skillId);
+    const result = await studioMockService.uninstallSkill(instanceId, skillId);
+    if (!result.success) {
+      throw new Error('Failed to uninstall skill');
     }
   },
 };

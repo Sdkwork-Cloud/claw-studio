@@ -28,6 +28,12 @@ function runTest(name: string, fn: () => void) {
 
 runTest('sdkwork-claw-auth keeps the V5 auth entry surface locally', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-auth/package.json');
+  const locales = readJson<{
+    auth?: {
+      qrLogin?: string;
+      welcomeBack?: string;
+    };
+  }>('packages/sdkwork-claw-i18n/src/locales/en.json');
   const indexSource = read('packages/sdkwork-claw-auth/src/index.ts');
 
   assert.ok(exists('packages/sdkwork-claw-auth/src/pages/Auth.tsx'));
@@ -37,6 +43,9 @@ runTest('sdkwork-claw-auth keeps the V5 auth entry surface locally', () => {
   assert.match(indexSource, /\.\/pages\/Auth/);
 
   const authSource = read('packages/sdkwork-claw-auth/src/pages/AuthPage.tsx');
-  assert.match(authSource, /Scan to Login/);
-  assert.match(authSource, /Welcome back/);
+  assert.match(authSource, /useTranslation/);
+  assert.match(authSource, /t\('auth\.qrLogin'\)/);
+  assert.match(authSource, /t\('auth\.welcomeBack'\)/);
+  assert.equal(locales.auth?.qrLogin, 'Scan to Login');
+  assert.equal(locales.auth?.welcomeBack, 'Welcome back');
 });

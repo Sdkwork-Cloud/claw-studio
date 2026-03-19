@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { useInstanceStore } from '@sdkwork/claw-core';
 import { cn } from '@sdkwork/claw-ui';
@@ -8,6 +9,7 @@ export function ChatSidebar() {
   const { sessions, activeSessionId, createSession, setActiveSession, deleteSession } =
     useChatStore();
   const { activeInstanceId } = useInstanceStore();
+  const { t } = useTranslation();
 
   const handleNewChat = () => {
     if (activeInstanceId) {
@@ -26,9 +28,7 @@ export function ChatSidebar() {
     (session) =>
       now - session.updatedAt >= 86_400_000 && now - session.updatedAt < 7 * 86_400_000,
   );
-  const older = instanceSessions.filter(
-    (session) => now - session.updatedAt >= 7 * 86_400_000,
-  );
+  const older = instanceSessions.filter((session) => now - session.updatedAt >= 7 * 86_400_000);
 
   const renderSessionGroup = (title: string, groupSessions: typeof sessions) => {
     if (groupSessions.length === 0) {
@@ -70,7 +70,7 @@ export function ChatSidebar() {
                   event.stopPropagation();
                   deleteSession(session.id);
                 }}
-                title="Delete chat"
+                title={t('chat.sidebar.deleteChat')}
               >
                 <Trash2 className="h-3.5 w-3.5 text-zinc-400 transition-colors hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400" />
               </button>
@@ -89,24 +89,26 @@ export function ChatSidebar() {
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 font-medium text-zinc-900 shadow-sm transition-all hover:bg-zinc-50 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
         >
           <Plus className="h-4 w-4" />
-          <span className="text-[14px]">New Chat</span>
+          <span className="text-[14px]">{t('chat.sidebar.newChat')}</span>
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {renderSessionGroup('Today', today)}
-        {renderSessionGroup('Previous 7 Days', previous7Days)}
-        {renderSessionGroup('Older', older)}
+      <div className="scrollbar-hide flex-1 overflow-y-auto py-4">
+        {renderSessionGroup(t('chat.sidebar.today'), today)}
+        {renderSessionGroup(t('chat.sidebar.previous7Days'), previous7Days)}
+        {renderSessionGroup(t('chat.sidebar.older'), older)}
 
-        {instanceSessions.length === 0 && (
+        {instanceSessions.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <MessageSquare className="mx-auto mb-3 h-8 w-8 text-zinc-300 dark:text-zinc-700" />
-            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No chat history</p>
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              {t('chat.sidebar.noHistory')}
+            </p>
             <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-              Start a new conversation to see it here.
+              {t('chat.sidebar.noHistoryDescription')}
             </p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

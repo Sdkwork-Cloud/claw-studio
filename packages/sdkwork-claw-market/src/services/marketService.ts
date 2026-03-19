@@ -1,12 +1,5 @@
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import type { ListParams, PaginatedResult, Review, Skill, SkillPack } from '@sdkwork/claw-types';
-import {
-  addFallbackInstalledSkills,
-  getFallbackPack,
-  getFallbackPacks,
-  getFallbackReviews,
-  getFallbackSkill,
-  getFallbackSkills,
-} from './fallbackData';
 
 export interface InstallationResult {
   success: boolean;
@@ -45,29 +38,6 @@ function paginateItems<T>(items: T[], params: ListParams = {}): PaginatedResult<
     pageSize,
     hasMore: start + pageSize < total,
   };
-}
-
-async function getJson<T>(url: string, errorMessage: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(errorMessage);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-async function postJson<T>(url: string, payload: unknown, errorMessage: string): Promise<T> {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(errorMessage);
-  }
-
-  return response.json() as Promise<T>;
 }
 
 function simulateLocalDownload(
@@ -137,87 +107,39 @@ class MarketService implements IMarketService {
   }
 
   async getSkills(): Promise<Skill[]> {
-    try {
-      return await getJson<Skill[]>('/api/skills', 'Failed to fetch skills');
-    } catch {
-      return getFallbackSkills();
-    }
+    return studioMockService.listSkills();
   }
 
   async getSkill(id: string): Promise<Skill> {
-    try {
-      return await getJson<Skill>(`/api/skills/${id}`, 'Failed to fetch skill');
-    } catch {
-      const fallbackSkill = getFallbackSkill(id);
-      if (!fallbackSkill) {
-        throw new Error('Failed to fetch skill');
-      }
-
-      return fallbackSkill;
+    const skill = await studioMockService.getSkill(id);
+    if (!skill) {
+      throw new Error('Failed to fetch skill');
     }
+    return skill;
   }
 
   async getSkillReviews(id: string): Promise<Review[]> {
-    try {
-      return await getJson<Review[]>(`/api/skills/${id}/reviews`, 'Failed to fetch reviews');
-    } catch {
-      return getFallbackReviews(id);
-    }
+    return studioMockService.listSkillReviews(id);
   }
 
   async getPacks(): Promise<SkillPack[]> {
-    try {
-      return await getJson<SkillPack[]>('/api/packs', 'Failed to fetch packs');
-    } catch {
-      return getFallbackPacks();
-    }
+    return studioMockService.listPacks();
   }
 
   async getPack(id: string): Promise<SkillPack> {
-    try {
-      return await getJson<SkillPack>(`/api/packs/${id}`, 'Failed to fetch pack details');
-    } catch {
-      const fallbackPack = getFallbackPack(id);
-      if (!fallbackPack) {
-        throw new Error('Failed to fetch pack details');
-      }
-
-      return fallbackPack;
+    const pack = await studioMockService.getPack(id);
+    if (!pack) {
+      throw new Error('Failed to fetch pack details');
     }
+    return pack;
   }
 
   async installSkill(instanceId: string, skillId: string): Promise<InstallationResult> {
-    try {
-      return await postJson<InstallationResult>(
-        '/api/installations',
-        { device_id: instanceId, skill_id: skillId },
-        'Installation failed',
-      );
-    } catch {
-      addFallbackInstalledSkills(instanceId, [skillId]);
-      return { success: true, fallback: true };
-    }
+    return studioMockService.installSkill(instanceId, skillId);
   }
 
   async installPack(instanceId: string, packId: string): Promise<InstallationResult> {
-    try {
-      return await postJson<InstallationResult>(
-        '/api/installations/pack',
-        { device_id: instanceId, pack_id: packId },
-        'Pack installation failed',
-      );
-    } catch {
-      const fallbackPack = getFallbackPack(packId);
-      if (!fallbackPack) {
-        throw new Error('Pack installation failed');
-      }
-
-      addFallbackInstalledSkills(
-        instanceId,
-        fallbackPack.skills.map((skill) => skill.id),
-      );
-      return { success: true, fallback: true };
-    }
+    return studioMockService.installPack(instanceId, packId);
   }
 
   async installPackWithSkills(
@@ -225,20 +147,7 @@ class MarketService implements IMarketService {
     packId: string,
     skillIds: string[],
   ): Promise<InstallationResult> {
-    try {
-      return await postJson<InstallationResult>(
-        '/api/installations/pack',
-        {
-          pack_id: packId,
-          device_id: instanceId,
-          skill_ids: skillIds,
-        },
-        'Installation failed',
-      );
-    } catch {
-      addFallbackInstalledSkills(instanceId, skillIds);
-      return { success: true, fallback: true };
-    }
+    return studioMockService.installPack(instanceId, packId, skillIds);
   }
 
   async downloadSkillLocal(skill: Skill, onProgress: (progress: number) => void): Promise<void> {

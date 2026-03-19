@@ -26,7 +26,7 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-devices is implemented locally with the V5 device API service surface', () => {
+runTest('sdkwork-claw-devices is implemented locally with the service-first device service surface', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-devices/package.json');
   const indexSource = read('packages/sdkwork-claw-devices/src/index.ts');
   const serviceSource = read('packages/sdkwork-claw-devices/src/services/deviceService.ts');
@@ -38,17 +38,13 @@ runTest('sdkwork-claw-devices is implemented locally with the V5 device API serv
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-devices/);
 
-  assert.match(serviceSource, /fetch\('\/api\/devices'\)/);
-  assert.match(
-    serviceSource,
-    /fetch\('\/api\/devices',\s*\{\s*method:\s*'POST'/,
-  );
-  assert.match(serviceSource, /fetch\(`\/api\/devices\/\$\{id\}`,\s*\{\s*method:\s*'DELETE'/);
-  assert.match(serviceSource, /fetch\(`\/api\/devices\/\$\{deviceId\}\/skills`\)/);
-  assert.match(
-    serviceSource,
-    /fetch\('\/api\/installations',\s*\{\s*method:\s*'DELETE'/,
-  );
+  assert.match(serviceSource, /import\s+\{\s*studioMockService\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
+  assert.match(serviceSource, /studioMockService\.listDevices\(\)/);
+  assert.match(serviceSource, /studioMockService\.createDevice\(name\)/);
+  assert.match(serviceSource, /studioMockService\.deleteDevice\(id\)/);
+  assert.match(serviceSource, /studioMockService\.listDeviceInstalledSkills\(deviceId\)/);
+  assert.match(serviceSource, /studioMockService\.uninstallSkill\(deviceId, skillId\)/);
+  assert.doesNotMatch(serviceSource, /fetch\('/);
   assert.doesNotMatch(serviceSource, /const devicesData/);
   assert.doesNotMatch(serviceSource, /skillsByDevice/);
 });

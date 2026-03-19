@@ -5,6 +5,7 @@ export type {
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
+  PlatformWindowStateUnsubscribe,
 } from '@sdkwork/claw-infrastructure';
 export {
   WebPlatform,

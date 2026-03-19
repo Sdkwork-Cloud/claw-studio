@@ -6,6 +6,7 @@ pub mod error;
 pub mod events;
 pub mod filesystem;
 pub mod kernel;
+pub mod layout;
 pub mod logging;
 pub mod paths;
 pub mod policy;

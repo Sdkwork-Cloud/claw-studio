@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
   Check,
@@ -10,12 +13,11 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
 import { useInstanceStore } from '@sdkwork/claw-core';
+import { Input } from '@sdkwork/claw-ui';
 import { marketService } from '@sdkwork/claw-market';
 import { useLLMStore } from '@sdkwork/claw-settings';
-import { Agent, Skill } from '@sdkwork/claw-types';
+import { type Agent, type Skill } from '@sdkwork/claw-types';
 import { ChatInput } from '../components/ChatInput';
 import { ChatMessage } from '../components/ChatMessage';
 import { ChatSidebar } from '../components/ChatSidebar';
@@ -24,17 +26,18 @@ import { useChatStore } from '../store/useChatStore';
 
 const EMPTY_SKILLS: Skill[] = [];
 const EMPTY_AGENTS: Agent[] = [];
-const SUGGESTIONS = [
-  'Explain quantum computing in simple terms',
-  'Write a Python script to scrape a website',
-  'Help me debug this React component',
-  'Draft a professional email to my boss',
-];
 
 export function Chat() {
   const { activeInstanceId } = useInstanceStore();
   const { sessions, activeSessionId, createSession, addMessage, updateMessage } = useChatStore();
   const { channels, setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
+  const { t } = useTranslation();
+  const suggestions = [
+    t('chat.page.suggestions.quantum'),
+    t('chat.page.suggestions.python'),
+    t('chat.page.suggestions.react'),
+    t('chat.page.suggestions.email'),
+  ];
 
   const [isTyping, setIsTyping] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -185,7 +188,9 @@ export function Chat() {
           continue;
         }
 
-        const currentMessages = Array.isArray(currentSession.messages) ? currentSession.messages : [];
+        const currentMessages = Array.isArray(currentSession.messages)
+          ? currentSession.messages
+          : [];
         const lastMessage = currentMessages[currentMessages.length - 1];
         if (lastMessage?.role === 'assistant') {
           updateMessage(activeSessionId, lastMessage.id, fullContent);
@@ -202,14 +207,12 @@ export function Chat() {
         .sessions.find((session) => session.id === activeSessionId);
 
       if (currentSession) {
-        const currentMessages = Array.isArray(currentSession.messages) ? currentSession.messages : [];
+        const currentMessages = Array.isArray(currentSession.messages)
+          ? currentSession.messages
+          : [];
         const lastMessage = currentMessages[currentMessages.length - 1];
         if (lastMessage?.role === 'assistant') {
-          updateMessage(
-            activeSessionId,
-            lastMessage.id,
-            'Sorry, I encountered an error while processing your request. Please check your API key or internet connection.',
-          );
+          updateMessage(activeSessionId, lastMessage.id, t('chat.page.errorResponse'));
         }
       }
     } finally {
@@ -228,16 +231,16 @@ export function Chat() {
         <div className="flex flex-1 flex-col items-center justify-center p-6 text-center md:p-10">
           <AlertCircle className="mb-4 h-12 w-12 text-zinc-400" />
           <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            No Instance Selected
+            {t('chat.page.noInstanceTitle')}
           </h2>
           <p className="mb-6 text-zinc-500 dark:text-zinc-400">
-            Please select an instance from the sidebar to start chatting.
+            {t('chat.page.noInstanceDescription')}
           </p>
           <button
             onClick={() => navigate('/instances')}
             className="rounded-xl bg-primary-600 px-6 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
           >
-            Manage Instances
+            {t('chat.page.manageInstances')}
           </button>
         </div>
       );
@@ -257,12 +260,12 @@ export function Chat() {
                 className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
               >
                 <span>{activeChannel?.icon}</span>
-                <span>{activeModel?.name || 'Select Model'}</span>
+                <span>{activeModel?.name || t('chat.page.selectModel')}</span>
                 <ChevronDown className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
               </button>
 
               <AnimatePresence>
-                {showModelDropdown && (
+                {showModelDropdown ? (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
                     <motion.div
@@ -274,7 +277,7 @@ export function Chat() {
                     >
                       <div className="w-1/3 overflow-y-auto border-r border-zinc-100 bg-zinc-50/50 p-2 dark:border-zinc-800 dark:bg-zinc-900/50">
                         <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                          Channels
+                          {t('chat.page.channels')}
                         </div>
                         <div className="mt-1 space-y-1">
                           {channels.map((channel) => (
@@ -317,7 +320,7 @@ export function Chat() {
                       <div className="w-2/3 overflow-y-auto bg-white p-2 dark:bg-zinc-900">
                         <div className="flex items-center justify-between px-3 py-2">
                           <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                            Models
+                            {t('chat.page.models')}
                           </span>
                           <button
                             onClick={() => {
@@ -326,7 +329,8 @@ export function Chat() {
                             }}
                             className="flex items-center gap-1 text-xs text-primary-600 hover:underline dark:text-primary-400"
                           >
-                            <Settings2 className="h-3 w-3" /> Config
+                            <Settings2 className="h-3 w-3" />
+                            {t('chat.page.config')}
                           </button>
                         </div>
                         <div className="mt-1 space-y-1">
@@ -348,19 +352,19 @@ export function Chat() {
                               }`}
                             >
                               <span className="text-sm font-medium">{model.name}</span>
-                              {activeModelId === model.id && <Check className="h-4 w-4" />}
+                              {activeModelId === model.id ? <Check className="h-4 w-4" /> : null}
                             </button>
                           ))}
-                          {(!activeChannel?.models || activeChannel.models.length === 0) && (
+                          {!activeChannel?.models || activeChannel.models.length === 0 ? (
                             <div className="px-3 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                              No models configured for this channel.
+                              {t('chat.page.noModels')}
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </motion.div>
                   </>
-                )}
+                ) : null}
               </AnimatePresence>
             </div>
 
@@ -374,12 +378,12 @@ export function Chat() {
                 className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
               >
                 <UserCircle className="h-4 w-4 text-primary-500" />
-                <span>{activeAgent?.name || 'Select Agent'}</span>
+                <span>{activeAgent?.name || t('chat.page.selectAgent')}</span>
                 <ChevronDown className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
               </button>
 
               <AnimatePresence>
-                {showAgentDropdown && (
+                {showAgentDropdown ? (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowAgentDropdown(false)} />
                     <motion.div
@@ -390,17 +394,17 @@ export function Chat() {
                       className="absolute left-0 top-full z-50 mt-2 flex max-h-[360px] w-64 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
                     >
                       <div className="border-b border-zinc-100 bg-zinc-50/50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-500">
-                        Available Agents
+                        {t('chat.page.availableAgents')}
                       </div>
                       <div className="border-b border-zinc-100 p-2 dark:border-zinc-800">
                         <div className="relative">
                           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                          <input
+                          <Input
                             type="text"
-                            placeholder="Search agents..."
+                            placeholder={t('chat.page.searchAgentsPlaceholder')}
                             value={agentSearchQuery}
                             onChange={(event) => setAgentSearchQuery(event.target.value)}
-                            className="w-full rounded-lg bg-zinc-100 py-1.5 pl-9 pr-3 text-sm text-zinc-900 placeholder-zinc-500 focus:ring-2 focus:ring-primary-500 dark:bg-zinc-800 dark:text-zinc-100"
+                            className="rounded-lg border-0 bg-zinc-100 py-1.5 pl-9 pr-3 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-0 dark:bg-zinc-800"
                           />
                         </div>
                       </div>
@@ -416,8 +420,8 @@ export function Chat() {
                               : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'
                           }`}
                         >
-                          <span className="text-sm font-medium">None (Default)</span>
-                          {selectedAgentId === null && <Check className="h-4 w-4" />}
+                          <span className="text-sm font-medium">{t('chat.page.noneDefault')}</span>
+                          {selectedAgentId === null ? <Check className="h-4 w-4" /> : null}
                         </button>
 
                         {filteredAgents.map((agent) => (
@@ -439,13 +443,15 @@ export function Chat() {
                               </div>
                               <span className="truncate text-sm font-medium">{agent.name}</span>
                             </div>
-                            {selectedAgentId === agent.id && <Check className="h-4 w-4 shrink-0" />}
+                            {selectedAgentId === agent.id ? (
+                              <Check className="h-4 w-4 shrink-0" />
+                            ) : null}
                           </button>
                         ))}
                       </div>
                     </motion.div>
                   </>
-                )}
+                ) : null}
               </AnimatePresence>
             </div>
 
@@ -459,12 +465,12 @@ export function Chat() {
                 className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
               >
                 <Package className="h-4 w-4 text-primary-500" />
-                <span>{activeSkill?.name || 'Select Skill'}</span>
+                <span>{activeSkill?.name || t('chat.page.selectSkill')}</span>
                 <ChevronDown className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
               </button>
 
               <AnimatePresence>
-                {showSkillDropdown && (
+                {showSkillDropdown ? (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowSkillDropdown(false)} />
                     <motion.div
@@ -475,17 +481,17 @@ export function Chat() {
                       className="absolute left-0 top-full z-50 mt-2 flex max-h-[360px] w-64 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
                     >
                       <div className="border-b border-zinc-100 bg-zinc-50/50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-500">
-                        Available Skills
+                        {t('chat.page.availableSkills')}
                       </div>
                       <div className="border-b border-zinc-100 p-2 dark:border-zinc-800">
                         <div className="relative">
                           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                          <input
+                          <Input
                             type="text"
-                            placeholder="Search skills..."
+                            placeholder={t('chat.page.searchSkillsPlaceholder')}
                             value={skillSearchQuery}
                             onChange={(event) => setSkillSearchQuery(event.target.value)}
-                            className="w-full rounded-lg bg-zinc-100 py-1.5 pl-9 pr-3 text-sm text-zinc-900 placeholder-zinc-500 focus:ring-2 focus:ring-primary-500 dark:bg-zinc-800 dark:text-zinc-100"
+                            className="rounded-lg border-0 bg-zinc-100 py-1.5 pl-9 pr-3 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-0 dark:bg-zinc-800"
                           />
                         </div>
                       </div>
@@ -501,8 +507,10 @@ export function Chat() {
                               : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'
                           }`}
                         >
-                          <span className="text-sm font-medium">None (General Chat)</span>
-                          {selectedSkillId === null && <Check className="h-4 w-4" />}
+                          <span className="text-sm font-medium">
+                            {t('chat.page.noneGeneralChat')}
+                          </span>
+                          {selectedSkillId === null ? <Check className="h-4 w-4" /> : null}
                         </button>
 
                         {filteredSkills.map((skill) => (
@@ -524,13 +532,15 @@ export function Chat() {
                               </div>
                               <span className="truncate text-sm font-medium">{skill.name}</span>
                             </div>
-                            {selectedSkillId === skill.id && <Check className="h-4 w-4 shrink-0" />}
+                            {selectedSkillId === skill.id ? (
+                              <Check className="h-4 w-4 shrink-0" />
+                            ) : null}
                           </button>
                         ))}
                       </div>
                     </motion.div>
                   </>
-                )}
+                ) : null}
               </AnimatePresence>
             </div>
           </div>
@@ -549,16 +559,24 @@ export function Chat() {
                 <Sparkles className="h-10 w-10 text-primary-500" />
               </div>
               <h2 className="mb-3 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                How can I help you today?
+                {t('chat.page.emptyTitle')}
               </h2>
               <p className="mb-10 max-w-md text-center text-lg text-zinc-500 dark:text-zinc-400">
                 {activeSkill
-                  ? `I am equipped with the "${activeSkill.name}" skill. I can help you with tasks related to ${activeSkill.category.toLowerCase()} using ${activeModel?.name || 'the selected model'}.`
-                  : `I can write code, answer questions, draft emails, or help you brainstorm ideas using ${activeModel?.name || 'the selected model'}.`}
+                  ? t('chat.page.emptyWithSkill', {
+                      skill: activeSkill.name,
+                      category: activeSkill.category.toLowerCase(),
+                      model:
+                        activeModel?.name || t('chat.page.selectedModelFallback'),
+                    })
+                  : t('chat.page.emptyDefault', {
+                      model:
+                        activeModel?.name || t('chat.page.selectedModelFallback'),
+                    })}
               </p>
 
               <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
-                {SUGGESTIONS.map((suggestion) => (
+                {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => handleSend(suggestion)}

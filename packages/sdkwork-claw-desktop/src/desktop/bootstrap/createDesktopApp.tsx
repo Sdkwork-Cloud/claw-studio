@@ -1,17 +1,20 @@
-import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AppRoot } from '@sdkwork/claw-shell';
-import { DesktopProviders } from '../providers/DesktopProviders';
 import { configureDesktopPlatformBridge } from '../tauriBridge';
+import {
+  applyStartupAppearanceHints,
+  DesktopBootstrapApp,
+  resolveDesktopBootstrapContext,
+} from './DesktopBootstrapApp';
 
-export function createDesktopApp() {
+export async function createDesktopApp() {
+  const bootstrapContext = resolveDesktopBootstrapContext();
+  applyStartupAppearanceHints(bootstrapContext.initialAppearance);
   configureDesktopPlatformBridge();
 
   createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <DesktopProviders>
-        <AppRoot />
-      </DesktopProviders>
-    </StrictMode>,
+    <DesktopBootstrapApp
+      appName={bootstrapContext.appName}
+      initialAppearance={bootstrapContext.initialAppearance}
+    />,
   );
 }

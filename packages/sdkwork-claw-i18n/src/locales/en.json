@@ -1,5 +1,36 @@
 {
+  "common": {
+    "productName": "Claw Studio",
+    "back": "Back",
+    "goBack": "Go Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "search": "Search",
+    "get": "Get",
+    "install": "Install",
+    "loading": "Loading",
+    "none": "None",
+    "preview": "Preview",
+    "official": "Official",
+    "copy": "Copy",
+    "copied": "Copied",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "manageInstances": "Manage Instances",
+    "minimizeWindow": "Minimize window",
+    "maximizeWindow": "Maximize window",
+    "restoreWindow": "Restore window",
+    "closeWindow": "Close window",
+    "today": "Today",
+    "previous7Days": "Previous 7 Days",
+    "older": "Older",
+    "viewAll": "See All"
+  },
   "sidebar": {
+    "brand": "Claw Studio",
+    "dashboard": "Dashboard",
+    "hotBadge": "Hot",
     "clawMall": "Claw Mall",
     "instances": "Instances",
     "devices": "Devices",
@@ -17,7 +48,7 @@
     "ecosystem": "Ecosystem",
     "setup": "Setup",
     "codebox": "CodeBox",
-    "apiRouter": "Api Router",
+    "apiRouter": "API Router",
     "clawUpload": "Claw Upload",
     "systemResources": "System Resources",
     "cpu": "CPU",
@@ -29,7 +60,17 @@
     "selectInstance": "Select Instance",
     "documentation": "Documentation",
     "settings": "Settings",
-    "account": "Account"
+    "account": "Account",
+    "userMenu": {
+      "open": "Open account menu",
+      "close": "Close account menu",
+      "guest": "Not signed in",
+      "login": "Log in",
+      "loginHint": "Sign in to manage your account",
+      "signedIn": "Signed in",
+      "profileSettings": "Profile settings",
+      "logout": "Sign out"
+    }
   },
   "auth": {
     "qrLogin": "Scan to Login",
@@ -51,7 +92,1080 @@
     "continueWith": "Or continue with",
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",
-    "backToLogin": "Back to login"
+    "backToLogin": "Back to login",
+    "placeholders": {
+      "name": "John Doe",
+      "email": "you@example.com",
+      "password": "Enter your password"
+    },
+    "providers": {
+      "github": "GitHub",
+      "google": "Google"
+    }
+  },
+  "settings": {
+    "general": {
+      "title": "General",
+      "description": "Manage your basic application preferences.",
+      "appearance": "Appearance",
+      "themeMode": "Theme mode",
+      "themeColor": "Theme color",
+      "languageRegion": "Language & Region",
+      "language": "Language",
+      "languageDescription": "Select your preferred language.",
+      "sidebarNavigation": "Sidebar Navigation",
+      "sidebarDescription": "Choose which items to display in the sidebar.",
+      "startup": "Startup",
+      "launchOnStartup": "Launch on startup",
+      "launchOnStartupDescription": "Automatically start Claw Studio when you log in to your computer.",
+      "startMinimized": "Start minimized",
+      "startMinimizedDescription": "Open the application in the system tray instead of a window.",
+      "updatePreferenceFailed": "Failed to update preference",
+      "themeModes": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "themeColors": {
+        "tech-blue": "Tech Blue",
+        "lobster": "Lobster",
+        "green-tech": "Green Tech",
+        "zinc": "Zinc",
+        "violet": "Violet",
+        "rose": "Rose"
+      }
+    }
+  },
+  "commandPalette": {
+    "shortcut": "Ctrl K",
+    "categories": {
+      "navigation": "Navigation",
+      "actions": "Actions",
+      "instances": "Instances"
+    },
+    "searchPlaceholder": "Type a command or search...",
+    "noResults": "No results found.",
+    "footer": {
+      "navigationHint": "Use up and down arrows to navigate",
+      "selectHint": "Press Enter to select",
+      "title": "Claw Studio Command Palette"
+    },
+    "commands": {
+      "dashboard": {
+        "title": "Go to Dashboard",
+        "subtitle": "Open the operator control plane"
+      },
+      "apps": {
+        "title": "Go to App Store",
+        "subtitle": "Browse AI applications"
+      },
+      "github": {
+        "title": "Go to GitHub Repos",
+        "subtitle": "Install open-source projects"
+      },
+      "huggingface": {
+        "title": "Go to Hugging Face",
+        "subtitle": "Download AI models"
+      },
+      "upload": {
+        "title": "Go to Claw Upload",
+        "subtitle": "Publish your Claw to the ecosystem"
+      },
+      "instances": {
+        "title": "Go to Instances",
+        "subtitle": "Manage running containers"
+      },
+      "devices": {
+        "title": "Go to Devices",
+        "subtitle": "Hardware and GPU settings"
+      },
+      "chat": {
+        "title": "Go to AI Chat",
+        "subtitle": "Talk to your local models"
+      },
+      "codebox": {
+        "title": "Go to CodeBox",
+        "subtitle": "Open the staged CodeBox integration route"
+      },
+      "apiRouter": {
+        "title": "Go to API Router",
+        "subtitle": "Manage model channels and proxy providers"
+      },
+      "settings": {
+        "title": "Go to Settings",
+        "subtitle": "Preferences and configuration"
+      },
+      "terminal": {
+        "title": "Open Terminal",
+        "subtitle": "Launch local CLI"
+      }
+    },
+    "switchInstanceTitle": "Switch Instance: {{name}}",
+    "instanceSubtitle": "{{ip}} - {{status}}"
+  },
+  "taskManager": {
+    "activeTasks": "{{count, number}} active tasks",
+    "allCompleted": "All tasks completed",
+    "clearCompleted": "Clear completed",
+    "noRecentTasks": "No recent tasks",
+    "processing": "Processing...",
+    "finalizing": "Finalizing...",
+    "failedTryAgain": "Task failed. Please try again."
+  },
+  "routes": {
+    "codeboxComingSoon": "CodeBox integration coming soon.",
+    "apiRouterComingSoon": "API Router integration coming soon."
+  },
+  "apiRouterPage": {
+    "page": {
+      "eyebrow": "Routing Control Plane",
+      "title": "API Router",
+      "description": "Manage model vendors, proxy providers, and key lifecycle from one operational surface.",
+      "descriptionWithChannel": "Operate {{channel}} routes and monitor the active {{modelFamily}} provider pool from one control plane."
+    },
+    "pageTabs": {
+      "unifiedApiKey": "Unified API Key",
+      "routeConfig": "Route Config",
+      "modelMapping": "Model Mapping",
+      "usageRecords": "Usage Records"
+    },
+    "unifiedApiKey": {
+      "filters": {
+        "searchPlaceholder": "Search key name, note, or API key",
+        "allGroups": "All groups",
+        "modelMappingSearchPlaceholder": "Search mapping name, description, or mapped models"
+      },
+      "table": {
+        "name": "Name",
+        "apiKey": "API Key",
+        "source": "Source",
+        "group": "Group",
+        "usage": "Usage",
+        "expiresAt": "Expires",
+        "status": "Status",
+        "createdAt": "Created",
+        "actions": "Actions",
+        "emptyTitle": "No unified API keys match the current filters",
+        "emptyDescription": "Create a new global API key or relax the current search conditions."
+      },
+      "actions": {
+        "createKey": "New Key",
+        "refresh": "Refresh",
+        "copyKey": "Copy Key",
+        "copySnippet": "Copy Snippet",
+        "usageMethod": "Usage",
+        "associateModelMapping": "Associate Mapping",
+        "clearModelMapping": "Clear Mapping",
+        "enable": "Enable",
+        "disable": "Disable",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirmDelete": "Delete {{name}}?"
+      },
+      "sources": {
+        "system-generated": "System Generated",
+        "custom": "Custom"
+      },
+      "dialogs": {
+        "usageTitle": "Usage Method",
+        "createTitle": "New Unified API Key",
+        "editTitle": "Edit Unified API Key",
+        "associateModelMappingTitle": "Associate Model Mapping",
+        "exampleRequest": "Example Request",
+        "create": "Create Key",
+        "save": "Save Changes"
+      },
+      "detail": {
+        "openaiBaseUrl": "OpenAI Base URL",
+        "anthropicBaseUrl": "Anthropic Base URL",
+        "baseUrl": "Base URL",
+        "authHeader": "Authorization Header",
+        "gatewayHint": "One-click setup maps each client to the matching unified gateway protocol. OpenAI-compatible clients use /v1, while Claude Code uses /anthropic.",
+        "geminiGatewayHint": "Unified API Key now supports Gemini CLI through the routed Gemini gateway. When environment setup is enabled, the installer writes GEMINI_API_KEY, GOOGLE_GEMINI_BASE_URL, and the matching auth mechanism."
+      },
+      "fields": {
+        "name": "Name",
+        "nameHint": "Use a business-facing key name that operators and customer teams can recognize immediately.",
+        "apiKey": "API Key",
+        "apiKeyHint": "Paste the full API key only when you intentionally want to manage a custom external key.",
+        "group": "Group",
+        "groupHint": "Group unified keys by tenant, traffic tier, customer segment, or operating boundary.",
+        "keyMode": "Key Mode",
+        "generateKey": "System generated",
+        "generateKeyHint": "Recommended. The platform creates and manages a brand new outward-facing API key for this router.",
+        "customKey": "Manual input",
+        "customKeyHint": "Use a manually supplied API key when you need to preserve an existing external credential.",
+        "systemGeneratedTitle": "Managed unified key",
+        "systemGeneratedCreateHint": "A new key in the format `sk-ar-v1-...` will be generated automatically after creation.",
+        "systemGeneratedExistingHint": "This key is managed by the platform. Editing metadata keeps the existing generated credential unless you switch to manual input.",
+        "systemGeneratedPreview": "The system will create a fresh outward-facing API key for you after saving.",
+        "expiresAt": "Expires",
+        "expiresAtHint": "Track planned rotation or contract deadlines with a date picker.",
+        "notes": "Notes"
+      },
+      "placeholders": {
+        "name": "Global Production Key",
+        "apiKey": "sk-ar-v1-...",
+        "notes": "Describe the tenant, purpose, quota policy, or rotation context."
+      },
+      "toast": {
+        "copySuccess": "Unified API key copied",
+        "copyFailed": "Failed to copy unified API key",
+        "accessConfigCopied": "Usage snippet copied",
+        "accessConfigCopyFailed": "Failed to copy usage snippet",
+        "validationFailed": "Please complete the name and group. Custom mode also requires an API key value.",
+        "keyCreated": "Unified API key created",
+        "groupUpdated": "Key group updated",
+        "statusUpdated": "Key status updated",
+        "modelMappingUpdated": "Model mapping association updated",
+        "keyUpdated": "Unified API key updated",
+        "keyDeleted": "Unified API key deleted"
+      },
+      "values": {
+        "never": "Never",
+        "mappedTo": "Mapped to {{name}}",
+        "mappingUnavailable": "Unavailable mapping",
+        "associationHint": "Choose one model mapping for this key. Clearing the selection removes the current association.",
+        "noModelMappings": "No model mappings match the current search."
+      }
+    },
+    "modelMapping": {
+      "filters": {
+        "searchPlaceholder": "Search mapping name, description, channel, or model"
+      },
+      "table": {
+        "name": "Name",
+        "description": "Description",
+        "status": "Status",
+        "effectiveTime": "Effective Time",
+        "createdAt": "Created",
+        "actions": "Actions",
+        "emptyTitle": "No model mappings match the current filters",
+        "emptyDescription": "Create a mapping to route one source model into another target model."
+      },
+      "actions": {
+        "create": "New Model Mapping",
+        "refresh": "Refresh",
+        "viewDetail": "View Details",
+        "edit": "Edit",
+        "delete": "Delete",
+        "enable": "Enable",
+        "disable": "Disable",
+        "addRule": "Add Rule",
+        "selectSourceModel": "Select source model",
+        "selectTargetModel": "Select target model",
+        "confirmDelete": "Delete {{name}}?"
+      },
+      "dialogs": {
+        "createTitle": "New Model Mapping",
+        "editTitle": "Edit Model Mapping",
+        "detailTitle": "Model Mapping Details",
+        "modelSelectorTitle": "Select Model",
+        "create": "Create Mapping",
+        "save": "Save Changes"
+      },
+      "fields": {
+        "name": "Name",
+        "description": "Description",
+        "effectiveFrom": "Effective From",
+        "effectiveTo": "Effective To",
+        "rules": "Mapping Rules",
+        "rulesHint": "Each rule maps one source model to one target model. One source model can appear only once within a mapping.",
+        "sourceModel": "Source Model",
+        "targetModel": "Target Model"
+      },
+      "placeholders": {
+        "name": "Global Assistant Mapping",
+        "description": "Describe who should use this mapping and what routing intent it captures.",
+        "searchModel": "Search model name or model ID"
+      },
+      "toast": {
+        "validationFailed": "Complete the name, effective range, and at least one full source-to-target mapping rule. End date must be after the start date, and source models cannot repeat.",
+        "created": "Model mapping created",
+        "updated": "Model mapping updated",
+        "statusUpdated": "Model mapping status updated",
+        "deleted": "Model mapping deleted"
+      },
+      "values": {
+        "ruleCount": "{{count}} rules",
+        "ruleIndex": "Rule {{index}}",
+        "until": "until",
+        "noDescription": "No description provided.",
+        "modelCatalogEmpty": "No channel models are available yet. Create or update a proxy provider first.",
+        "modelSelectionEmpty": "No models are available for the selected channel."
+      }
+    },
+    "usageRecords": {
+      "summary": {
+        "totalRequests": "Total Requests",
+        "totalTokens": "Total Tokens",
+        "promptTokens": "Prompt",
+        "completionTokens": "Completion",
+        "cachedTokens": "Cached",
+        "totalSpend": "Total Spend",
+        "averageDuration": "Average Duration"
+      },
+      "filters": {
+        "apiKey": "API Key",
+        "allApiKeys": "All API Keys",
+        "timeRange": "Time Range",
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "invalidDateRange": "End date must be on or after the start date."
+      },
+      "timeRanges": {
+        "last24Hours": "Last 24 Hours",
+        "last7Days": "Last 7 Days",
+        "last30Days": "Last 30 Days",
+        "custom": "Custom Range"
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "reset": "Reset",
+        "exportCsv": "Export CSV"
+      },
+      "table": {
+        "apiKey": "API Key",
+        "model": "Model",
+        "reasoningEffort": "Reasoning",
+        "endpoint": "Endpoint",
+        "type": "Type",
+        "tokenDetail": "Token Detail",
+        "cost": "Cost",
+        "ttft": "First Token (TTFT)",
+        "duration": "Duration",
+        "time": "Time",
+        "userAgent": "User-Agent",
+        "streaming": "Streaming",
+        "standard": "Standard",
+        "emptyTitle": "No usage records matched the current filters",
+        "emptyDescription": "Try another API key or adjust the selected time range."
+      },
+      "pagination": {
+        "totalResults": "{{count}} results",
+        "showingRange": "Showing {{start}} to {{end}}",
+        "previous": "Previous",
+        "next": "Next",
+        "pageSize": "Rows per page"
+      },
+      "toast": {
+        "exported": "CSV exported",
+        "exportFailed": "Failed to export CSV"
+      },
+      "values": {
+        "milliseconds": "{{value}} ms"
+      }
+    },
+    "summary": {
+      "providers": "Providers",
+      "healthy": "Healthy",
+      "attention": "Attention",
+      "groups": "Groups"
+    },
+    "sidebar": {
+      "title": "Model Channels",
+      "heading": "Channel Directory",
+      "description": "Select a base model vendor to inspect its routed proxy provider inventory and operational posture.",
+      "providers": "{{count}} providers"
+    },
+    "filters": {
+      "searchPlaceholder": "Search provider name, model, or endpoint",
+      "allGroups": "All groups",
+      "allChannels": "All channels",
+      "channelPlaceholder": "Filter channel"
+    },
+    "table": {
+      "name": "Name",
+      "channel": "Channel",
+      "apiKey": "API KEY",
+      "group": "Group",
+      "usage": "Usage",
+      "expiresAt": "Expires",
+      "status": "Status",
+      "createdAt": "Created",
+      "actions": "Actions",
+      "emptyTitle": "No proxy providers matched this view",
+      "emptyDescription": "Try another channel or relax the current filters."
+    },
+    "actions": {
+      "createKey": "New Key",
+      "refresh": "Refresh",
+      "copyKey": "Copy Key",
+      "usageMethod": "Usage Method",
+      "addModel": "Add model",
+      "removeModel": "Remove",
+      "enable": "Enable",
+      "disable": "Disable",
+      "edit": "Edit",
+      "delete": "Delete",
+      "confirmDelete": "Delete {{name}}?"
+    },
+    "status": {
+      "active": "Active",
+      "warning": "Warning",
+      "disabled": "Disabled",
+      "expired": "Expired"
+    },
+    "dialogs": {
+      "usageTitle": "Usage Method",
+      "createTitle": "Create Key",
+      "editTitle": "Edit Provider",
+      "instanceSelectorTitle": "Choose OpenClaw instances",
+      "instanceSelectorDescription": "Select the OpenClaw instances that should receive {{provider}} as a managed API Router provider.",
+      "exampleRequest": "Example Request",
+      "create": "Create Key",
+      "save": "Save changes"
+    },
+    "quickSetup": {
+      "title": "One-click setup",
+      "description": "Choose between one-click local file setup and one-click environment variable setup for Codex, Claude Code, OpenCode, OpenClaw, and Gemini CLI, while keeping manual snippets available as a fallback.",
+      "primaryAction": "One-click setup",
+      "configureLocalFiles": "Configure local files",
+      "configureEnvironment": "Configure environment",
+      "selectInstances": "Choose instances",
+      "applyToInstances": "Apply to instances",
+      "processing": "Configuring...",
+      "available": "Ready to install",
+      "unavailable": "Not supported for this route",
+      "copyAll": "Copy setup",
+      "copySnippet": "Copy snippet",
+      "installMode": {
+        "title": "Install mode",
+        "options": {
+          "standard": "Standard config",
+          "env": "Environment only",
+          "both": "Config + environment"
+        }
+      },
+      "envScope": {
+        "title": "Environment scope",
+        "options": {
+          "user": "Current user",
+          "system": "System-wide"
+        }
+      },
+      "environmentPreview": {
+        "title": "Environment variables",
+        "description": "These variables are persisted only when you use the environment setup action."
+      },
+      "selectionCount": "{{count}} selected",
+      "selectionHint": "Select one or more instances to inject this API Router provider into OpenClaw.",
+      "selectAll": "Select all",
+      "clearSelection": "Clear",
+      "loadingInstances": "Loading instances...",
+      "emptyInstancesTitle": "No OpenClaw instances available",
+      "emptyInstancesDescription": "Create or connect an instance before applying one-click setup.",
+      "openclawSummary": "One-click setup writes this provider into the selected OpenClaw instances while keeping the manual command below as a fallback.",
+      "tabs": {
+        "default": "Default",
+        "codex": "Codex",
+        "claude-code": "Claude Code",
+        "opencode": "OpenCode",
+        "openclaw": "OpenClaw",
+        "gemini": "Gemini CLI"
+      },
+      "kinds": {
+        "env": "Environment",
+        "file": "Config file",
+        "command": "Command"
+      },
+      "instanceStatus": {
+        "online": "Online",
+        "offline": "Offline",
+        "starting": "Starting",
+        "error": "Error"
+      },
+      "clients": {
+        "codex": {
+          "title": "Codex",
+          "description": "Install ~/.codex/config.toml and ~/.codex/auth.json so Codex can use this route through the official API key flow."
+        },
+        "claude-code": {
+          "title": "Claude Code",
+          "description": "Install ~/.claude/settings.json with the Anthropic gateway token, base URL, and default model."
+        },
+        "opencode": {
+          "title": "OpenCode",
+          "description": "Install the global OpenCode config with the provider route, credentials, and default model selection."
+        },
+        "openclaw": {
+          "title": "OpenClaw",
+          "description": "Write managed provider manifests for the selected OpenClaw instances and keep the runtime view in sync."
+        },
+        "gemini": {
+          "title": "Gemini CLI",
+          "description": "Install ~/.gemini/settings.json and ~/.gemini/.env using Gemini API key authentication with the selected default model."
+        }
+      },
+      "reasons": {
+        "requiresOpenAIResponses": "Codex one-click setup currently requires an OpenAI channel with a Responses-compatible route.",
+        "requiresAnthropicCompatible": "Claude Code one-click setup requires an Anthropic-compatible route.",
+        "requiresOpenAIOrAnthropicCompatible": "This client currently supports OpenAI-compatible or Anthropic-compatible routes only.",
+        "requiresGeminiCompatible": "Gemini CLI one-click setup currently requires a Gemini-compatible Google route.",
+        "requiresGoogleIssuedGeminiKey": "Gemini CLI currently requires a direct Google-issued Gemini API key, so it cannot be installed from a unified API gateway key."
+      }
+    },
+    "detail": {
+      "baseUrl": "Base URL",
+      "authHeader": "Auth Header",
+      "models": "Models",
+      "notes": "Notes"
+    },
+    "fields": {
+      "name": "Name",
+      "nameHint": "Use an operationally recognizable provider name for your team.",
+      "apiKey": "API KEY",
+      "apiKeyHint": "Paste the upstream key exactly as issued by the proxy provider.",
+      "group": "Group",
+      "groupHint": "Use groups to separate traffic domains such as production, sandbox, or shared routing.",
+      "baseUrl": "Base URL",
+      "baseUrlHint": "Enter the provider endpoint root. This URL is reused for client one-click setup.",
+      "models": "Models",
+      "modelsHint": "Add one or more models. Each row needs a model ID and a display name.",
+      "modelId": "Model ID",
+      "modelDisplayName": "Display Name",
+      "expiresAt": "Expires At",
+      "expiresAtHint": "Use the date control to track key rotation or contract expiry.",
+      "notes": "Notes"
+    },
+    "placeholders": {
+      "providerName": "OpenAI Production Router",
+      "apiKey": "sk-router-live-...",
+      "baseUrl": "https://api.example.com/v1",
+      "modelId": "gpt-4.1-mini",
+      "modelDisplayName": "GPT-4.1 Mini",
+      "notes": "Add routing notes, quota policy, or rotation context."
+    },
+    "toast": {
+      "copySuccess": "API key copied",
+      "copyFailed": "Unable to copy API key",
+      "accessConfigCopied": "Access configuration copied",
+      "accessConfigCopyFailed": "Unable to copy access configuration",
+      "instanceLoadFailed": "Unable to load instances",
+      "clientSetupInstalled": "{{client}} configured. Wrote {{count}} file(s).",
+      "clientSetupInstalledWithEnv": "{{client}} configured. Wrote {{files}} file(s) and updated {{envs}} environment target(s).",
+      "clientSetupEnvUpdated": "{{client}} configured. Updated {{count}} environment target(s).",
+      "clientSetupComplete": "{{client}} configured.",
+      "clientSetupFailed": "Unable to configure {{client}}",
+      "openClawNoInstanceSelected": "Select at least one OpenClaw instance",
+      "openClawSetupApplied": "Applied to {{count}} instance(s)",
+      "openClawSetupFailed": "Unable to configure the selected OpenClaw instances",
+      "validationFailed": "Complete the name, API key, group, base URL, and every model row with both ID and display name.",
+      "providerCreated": "Provider created",
+      "groupUpdated": "Group updated",
+      "statusUpdated": "Provider status updated",
+      "providerUpdated": "Provider updated",
+      "providerDeleted": "Provider deleted"
+    },
+    "values": {
+      "never": "Never",
+      "modelIndex": "Model {{index}}",
+      "requestCountShort": "{{value}} req",
+      "tokenCountShort": "{{value}} tokens"
+    }
+  },
+  "dashboard": {
+    "page": {
+      "eyebrow": "Operations Analytics",
+      "title": "Workspace Operations Analytics",
+      "description": "Track token consumption, model mix, and control-plane readiness from one operational surface.",
+      "summary": "Current workspace posture: {{activeInstances}}/{{totalInstances}} instances online, {{activeAutomations}} automations active, {{connectedChannels}} delivery channels connected, health score {{healthScore}}%.",
+      "refresh": "Refresh",
+      "openInstances": "Open Instances",
+      "openChat": "Open AI Chat"
+    },
+    "filters": {
+      "granularity": "Granularity",
+      "day": "By day",
+      "hour": "By hour",
+      "range": "Time range",
+      "sevenDays": "Last 7 days",
+      "sevenDaysHint": "Best for spotting recent usage shifts",
+      "month": "Month",
+      "monthHint": "Review one full month of model and spend structure",
+      "custom": "Custom",
+      "customHint": "Inspect an exact start and end window",
+      "customStart": "Start date",
+      "customEnd": "End date",
+      "all": "All",
+      "success": "Success",
+      "failed": "Failed",
+      "configureRange": "Open range settings",
+      "rangeDialogTitle": "Set time range",
+      "rangeDialogDescription": "Keep the chart header compact and configure monthly or custom windows in a focused popup.",
+      "applyRange": "Apply range",
+      "invalidCustomRange": "End date must be on or after the start date"
+    },
+    "series": {
+      "totalTokens": "Total tokens",
+      "inputTokens": "Input tokens",
+      "outputTokens": "Output tokens",
+      "cacheCreation": "Cache creation",
+      "cacheRead": "Cache read"
+    },
+    "sections": {
+      "tokenIntelligence": "Token Intelligence",
+      "tokenIntelligenceDescription": "Analyze total tokens, input-output mix, cache behavior, and cost movement across the selected window.",
+      "modelDistribution": "Model Distribution",
+      "modelDistributionDescription": "Compare request, token, and spend distribution by model so cost mix is visible before it becomes waste.",
+      "revenueTrend": "Revenue Trend",
+      "revenueTrendDescription": "Track recent revenue movement across the active analytics window so growth pace and business momentum stay visible.",
+      "revenueDistribution": "Revenue Distribution",
+      "revenueDistributionDescription": "Break revenue down by product mix to see which offers contribute the most to current business performance.",
+      "activityWorkbench": "Recent Activity",
+      "activityWorkbenchDescription": "Move from summary to evidence with recent API calls, revenue records, product performance, and focused alerts.",
+      "usageByInstance": "Usage By Instance",
+      "usageByInstanceDescription": "See which instances are carrying the heaviest model traffic and spend share.",
+      "instances": "Instances",
+      "instancesDescription": "Review runtime readiness, resource pressure, and token share on every instance that carries operator traffic.",
+      "capabilities": "Capabilities",
+      "capabilitiesDescription": "See which agents are ready for orchestration work, what they focus on, and how well they fit automation.",
+      "automations": "Automations",
+      "automationsDescription": "Monitor active schedules, delivery modes, and upcoming execution windows from one list.",
+      "channels": "Channels",
+      "channelsDescription": "Confirm approvals, alerts, and summaries can leave the workspace through healthy delivery endpoints.",
+      "recommendations": "Recommendations",
+      "recommendationsDescription": "Target the next few improvements that most increase reliability, readiness, and operator throughput.",
+      "watchlist": "Watchlist",
+      "watchlistDescription": "Keep the biggest concentration, delivery, and automation risks visible without repeating the top-line story."
+    },
+    "actions": {
+      "viewInstances": "View instances",
+      "launchOperators": "Launch operators"
+    },
+    "metrics": {
+      "healthScore": {
+        "eyebrow": "Health",
+        "label": "Workspace health",
+        "description": "A blended indicator for workspace resilience, availability, and operator readiness."
+      },
+      "capabilityCoverage": {
+        "eyebrow": "Capabilities",
+        "label": "Capability coverage",
+        "description": "Shows how broadly your agents, skills, and delivery paths can support automation."
+      },
+      "instanceAvailability": {
+        "eyebrow": "Capacity",
+        "label": "Instance availability",
+        "description": "Online instances currently ready to absorb new operator workload."
+      },
+      "automationCadence": {
+        "eyebrow": "Automation",
+        "label": "Active automations",
+        "description": "Recurring routines currently contributing to the operating rhythm."
+      },
+      "revenue": {
+        "eyebrow": "Revenue",
+        "label": "Window revenue",
+        "description": "Total revenue captured across the selected analytics window."
+      },
+      "dailyRevenue": {
+        "eyebrow": "Daily pace",
+        "label": "Daily revenue",
+        "description": "Revenue normalized to a per-day pace so the window is easy to compare."
+      },
+      "businessConversion": {
+        "eyebrow": "Conversion",
+        "label": "Business conversion",
+        "description": "Track how call activity turns into orders, value, and monetized business output."
+      },
+      "tokenUsage": {
+        "eyebrow": "Tokens",
+        "label": "Token usage",
+        "description": "A compact view of token volume across the selected analytics window."
+      },
+      "estimatedSpend": {
+        "eyebrow": "Spend",
+        "label": "Actual spend",
+        "description": "Effective spend calculated from the current token and model mix."
+      }
+    },
+    "labels": {
+      "today": "Today",
+      "week": "Week",
+      "month": "Month",
+      "year": "Year",
+      "dailyRequests": "Daily requests",
+      "dailyTokens": "Daily tokens",
+      "dailySpend": "Daily spend",
+      "todayOrders": "Today orders",
+      "conversionRate": "Conversion rate",
+      "totalRevenue": "Total revenue",
+      "dailyRevenue": "Daily revenue",
+      "projectedMonthlyRevenue": "Projected monthly revenue",
+      "totalOrders": "Orders",
+      "averageOrderValue": "Avg order value",
+      "peakRevenue": "Peak revenue",
+      "totalTokens": "Total tokens",
+      "totalRequests": "Requests",
+      "estimatedRuns": "estimated runs",
+      "actualAmount": "Actual amount",
+      "standardAmount": "Standard amount",
+      "projectedMonthlyTokens": "Projected monthly tokens",
+      "projectedMonthlyActualAmount": "Projected monthly actual",
+      "projectedMonthlyStandardAmount": "Projected monthly standard",
+      "averageTokensPerRun": "Avg tokens / run",
+      "peakUsage": "Peak bucket",
+      "delta": "Delta",
+      "rangeSummary": "{{granularity}} | {{range}}",
+      "readiness": "Readiness",
+      "activeTasks": "Active tasks",
+      "connectedChannels": "Connected channels",
+      "shareOfTotal": "Share of total",
+      "coverageScore": "Coverage score",
+      "automationFit": "Automation fit",
+      "lastRun": "Last run",
+      "nextRun": "Next run",
+      "deliveryMode": "Delivery mode",
+      "operatorDeliveryEnabled": "Delivery enabled",
+      "operatorDeliveryPending": "Delivery pending"
+    },
+    "values": {
+      "requestCountShort": "{{value}} req",
+      "tokenCountShort": "{{value}} tok",
+      "milliseconds": "{{value}} ms"
+    },
+    "table": {
+      "time": "Time",
+      "providerName": "Provider",
+      "endpoint": "Endpoint",
+      "costAmount": "Cost",
+      "latency": "Latency",
+      "orderNo": "Order no.",
+      "channel": "Channel",
+      "trendDelta": "Trend delta",
+      "status": "Status",
+      "productName": "Product",
+      "orders": "Orders",
+      "revenue": "Revenue",
+      "dailyRevenue": "Daily revenue",
+      "modelName": "Model name",
+      "requestCount": "Requests",
+      "token": "Tokens",
+      "actualAmount": "Actual amount",
+      "standardAmount": "Standard amount"
+    },
+    "charts": {
+      "tokenUsageTrend": "Token usage trend",
+      "modelDistribution": "Model distribution",
+      "revenueTrend": "Revenue trend",
+      "revenueDistribution": "Revenue distribution",
+      "noTokenTrendData": "No token trend data",
+      "noRevenueTrendData": "No revenue trend data"
+    },
+    "products": {
+      "memberships": "Memberships",
+      "apiPackages": "API Packages",
+      "extensionMarket": "Extension Market",
+      "enterpriseServices": "Enterprise Services",
+      "digitalGoods": "Digital Goods"
+    },
+    "tabs": {
+      "recentApiCalls": "Recent API calls",
+      "recentRevenueRecords": "Recent revenue records",
+      "productPerformance": "Product performance",
+      "alerts": "Alerts"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "starting": "Starting",
+      "error": "Error",
+      "active": "Active",
+      "paused": "Paused",
+      "failed": "Failed",
+      "success": "Success",
+      "paid": "Paid",
+      "pending": "Pending",
+      "refunded": "Refunded",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "not_configured": "Not configured"
+    },
+    "actionTypes": {
+      "message": "Message",
+      "skill": "Skill"
+    },
+    "severity": {
+      "info": "Info",
+      "warning": "Watch",
+      "critical": "Critical"
+    },
+    "empty": {
+      "loadingFailed": "Dashboard unavailable",
+      "loadingDescription": "The analytics snapshot could not be loaded. Retry to recover the latest workspace view.",
+      "retry": "Retry",
+      "noAutomations": "No automations are configured yet.",
+      "noChannels": "No delivery channels are configured yet.",
+      "noRecommendations": "The workspace has no urgent recommendations right now."
+    },
+    "recommendations": {
+      "items": {
+        "stabilizeInstances": {
+          "title": "Stabilize degraded runtime capacity",
+          "description": "One or more instances are degraded. Recover capacity before expanding new operator load.",
+          "action": "Review instances"
+        },
+        "connectDelivery": {
+          "title": "Connect at least one delivery channel",
+          "description": "Operator alerts and approval flows are not reaching an external channel. Restore outbound delivery readiness.",
+          "action": "Open channels"
+        },
+        "expandCapabilities": {
+          "title": "Expand reusable capability coverage",
+          "description": "Install a broader skill baseline so each instance can support richer agent workflows and automation paths.",
+          "action": "Visit ClawHub"
+        },
+        "repairAutomations": {
+          "title": "Repair failed automation routines",
+          "description": "Failed jobs are pulling down reliability. Recover the broken task chain before scaling throughput.",
+          "action": "Inspect automations"
+        },
+        "scaleOperators": {
+          "title": "Workspace is ready to scale operator workflows",
+          "description": "The current health and capability baseline is strong enough to expand autonomous task orchestration.",
+          "action": "Open AI chat"
+        }
+      }
+    },
+    "watchlist": {
+      "tokenConcentrationTitle": "Token concentration risk",
+      "tokenConcentrationDescription": "{{instance}} carries the largest share of token traffic. Balance workload before capacity becomes uneven.",
+      "automationBacklogTitle": "Automation backlog is building",
+      "automationBacklogDescription": "Paused or failed jobs reduce operating rhythm immediately. Recover the most important recurring routines first.",
+      "deliveryCoverageTitle": "Delivery coverage still has gaps",
+      "deliveryCoverageDescription": "Approvals, alerts, and summaries depend on healthy outbound channels. Close the notification gap early.",
+      "expansionReadinessTitle": "Expansion readiness is not yet stable",
+      "expansionReadinessDescription": "Use capability coverage together with workspace health to judge when the next layer of automation is safe."
+    },
+    "footer": {
+      "health": "Health model",
+      "healthDescription": "Health blends runtime availability, automation reliability, and delivery readiness into one operating signal.",
+      "operators": "Operator model",
+      "operatorsDescription": "Capability cards keep agent focus, automation fit, and execution range visible for the team.",
+      "delivery": "Delivery model",
+      "deliveryDescription": "Channel readiness stays visible so approvals, alerts, and summaries can leave the workspace when needed."
+    }
+  },
+  "apps": {
+    "store": {
+      "title": "AI App Store",
+      "searchPlaceholder": "Search AI agents, models, tools...",
+      "featuredLabel": "Featured AI",
+      "featuredTitle": "Discover the Best",
+      "bannerAlt": "Featured banner",
+      "iconAlt": "App icon",
+      "editorsChoice": "Editor's Choice",
+      "getButton": "Get",
+      "topChartsTitle": "Top Charts",
+      "topChartsDescription": "The most popular apps right now",
+      "seeAll": "See All"
+    },
+    "detail": {
+      "notFoundTitle": "App not found",
+      "pageTitle": "App Details",
+      "installSuccess": "{{name}} installed successfully!",
+      "rating": "Rating",
+      "category": "Category",
+      "age": "Age",
+      "installToLocal": "Install to Local",
+      "downloading": "Downloading...",
+      "installing": "Installing...",
+      "openApp": "Open App",
+      "screenshotAlt": "Screenshot {{index}}",
+      "about": "About this app",
+      "whatsNew": "What's New",
+      "versionReleased": "Version {{version}} - {{date}}",
+      "whatsNewBullets": {
+        "one": "Performance improvements and bug fixes.",
+        "two": "Added support for the latest OpenClaw Core APIs.",
+        "three": "UI enhancements for better accessibility."
+      },
+      "information": "Information",
+      "size": "Size",
+      "compatibility": "Compatibility"
+    }
+  },
+  "chat": {
+    "page": {
+      "noInstanceTitle": "No Instance Selected",
+      "noInstanceDescription": "Please select an instance from the sidebar to start chatting.",
+      "manageInstances": "Manage Instances",
+      "selectModel": "Select Model",
+      "selectAgent": "Select Agent",
+      "selectSkill": "Select Skill",
+      "channels": "Channels",
+      "models": "Models",
+      "config": "Config",
+      "noModels": "No models configured for this channel.",
+      "availableAgents": "Available Agents",
+      "searchAgentsPlaceholder": "Search agents...",
+      "noneDefault": "None (Default)",
+      "availableSkills": "Available Skills",
+      "searchSkillsPlaceholder": "Search skills...",
+      "noneGeneralChat": "None (General Chat)",
+      "emptyTitle": "How can I help you today?",
+      "emptyWithSkill": "I am equipped with the \"{{skill}}\" skill. I can help you with tasks related to {{category}} using {{model}}.",
+      "emptyDefault": "I can write code, answer questions, draft emails, or help you brainstorm ideas using {{model}}.",
+      "selectedModelFallback": "the selected model",
+      "errorResponse": "Sorry, I encountered an error while processing your request. Please check your API key or internet connection.",
+      "suggestions": {
+        "quantum": "Explain quantum computing in simple terms",
+        "python": "Write a Python script to scrape a website",
+        "react": "Help me debug this React component",
+        "email": "Draft a professional email to my boss"
+      }
+    },
+    "input": {
+      "placeholder": "Ask Claw Studio...",
+      "attachFile": "Attach file",
+      "uploadImage": "Upload image",
+      "voiceInput": "Voice input",
+      "stopGenerating": "Stop generating",
+      "disclaimer": "AI models can make mistakes. Consider verifying important information."
+    },
+    "message": {
+      "copyMessage": "Copy message",
+      "copyCode": "Copy code",
+      "copied": "Copied!",
+      "assistant": "Assistant",
+      "regenerateResponse": "Regenerate response"
+    },
+    "sidebar": {
+      "newChat": "New Chat",
+      "today": "Today",
+      "previous7Days": "Previous 7 Days",
+      "older": "Older",
+      "deleteChat": "Delete chat",
+      "noHistory": "No chat history",
+      "noHistoryDescription": "Start a new conversation to see it here."
+    }
+  },
+  "community": {
+    "page": {
+      "title": "Community",
+      "subtitle": "Learn, share, and connect",
+      "searchPlaceholder": "Search articles, discussions...",
+      "newPost": "New Post",
+      "categories": {
+        "posts": "Posts",
+        "news": "News"
+      },
+      "loadingPosts": "Loading posts...",
+      "officialBadge": "Official",
+      "noPostsTitle": "No posts found",
+      "noPostsDescription": "Try adjusting your search or category filter.",
+      "latestClaw": "Latest Claw",
+      "onlineClaw": "Online Claw",
+      "hottestClaw": "Hottest Claw",
+      "viewRankings": "View Rankings",
+      "latestItems": {
+        "one": {
+          "name": "Auto-GPT Agent",
+          "author": "AI Labs",
+          "time": "2h ago"
+        },
+        "two": {
+          "name": "Vision Analyzer",
+          "author": "Tech Corp",
+          "time": "5h ago"
+        },
+        "three": {
+          "name": "Data Scraper Pro",
+          "author": "DevTeam",
+          "time": "1d ago"
+        }
+      },
+      "onlineItems": {
+        "one": "Trading Bot V2",
+        "two": "SEO Optimizer",
+        "three": "Image Generator"
+      },
+      "hottestItems": {
+        "one": "Code Assistant",
+        "two": "UI Builder",
+        "three": "DB Manager"
+      }
+    },
+    "categories": {
+      "announcements": "Announcements",
+      "discussions": "Discussions",
+      "help": "Help",
+      "showcase": "Showcase",
+      "tutorials": "Tutorials"
+    },
+    "newPost": {
+      "addCover": "Add cover",
+      "addTag": "Add tag...",
+      "addTags": "Add tags...",
+      "ai": {
+        "askAi": "Ask AI",
+        "askAiTitle": "Prompt AI to draft content",
+        "continue": "Continue",
+        "continueTitle": "Continue writing from the current cursor position",
+        "fix": "Fix",
+        "fixTitle": "Fix spelling and grammar",
+        "improve": "Improve",
+        "improveTitle": "Improve tone and clarity",
+        "longer": "Longer",
+        "longerTitle": "Expand the selected text",
+        "promptPlaceholder": "Describe what you want AI to write...",
+        "shorter": "Shorter",
+        "shorterTitle": "Make the selected text more concise",
+        "summarize": "Summarize",
+        "summarizeTitle": "Summarize the article so far"
+      },
+      "changeCover": "Change cover",
+      "coverAlt": "Post cover",
+      "draft": "Draft",
+      "editorActions": {
+        "addImage": "Add image",
+        "bulletList": "Bullet list",
+        "codeBlock": "Code block",
+        "headingTwo": "Heading",
+        "taskList": "Task list"
+      },
+      "editorPlaceholder": "Start writing your post...",
+      "prompts": {
+        "imageUrl": "Enter an image URL",
+        "linkUrl": "Enter a link URL"
+      },
+      "publish": "Publish",
+      "removeCover": "Remove cover",
+      "titlePlaceholder": "Write a memorable title",
+      "toasts": {
+        "aiActionCompleted": "AI update applied",
+        "aiActionFailed": "AI action failed",
+        "contentGenerated": "Content generated",
+        "enterContent": "Please enter some content",
+        "enterTitle": "Please enter a title",
+        "generateFailed": "Content generation failed",
+        "publishFailed": "Failed to publish post",
+        "publishSuccess": "Post published successfully"
+      }
+    },
+    "postDetail": {
+      "actions": {
+        "bookmark": "Bookmark",
+        "follow": "Follow",
+        "more": "More options",
+        "reply": "Reply",
+        "sendComment": "Send comment",
+        "share": "Share"
+      },
+      "backToCommunity": "Back to Community",
+      "commentPlaceholder": "Add to the discussion...",
+      "commentsTitle": "Comments ({{count, number}})",
+      "currentUserInitials": "ME",
+      "meta": {
+        "views": "{{count, number}} views"
+      },
+      "notFoundTitle": "Post not found",
+      "roles": {
+        "coreContributor": "Core Contributor",
+        "official": "Official"
+      }
+    }
   },
   "clawUpload": {
     "title": "Claw Upload",
@@ -80,6 +1194,7 @@
     "amount": "Amount ($)",
     "paymentMethod": "Payment Method",
     "creditCard": "Credit Card",
+    "paypal": "PayPal",
     "crypto": "Crypto (USDT/USDC)",
     "confirmRecharge": "Confirm Recharge",
     "availableBalance": "Available Balance",
@@ -116,7 +1231,8 @@
     "exploreProviders": "Explore Top Providers",
     "trendingProviders": "Trending Providers",
     "providers": "Providers",
-    "noProvidersFound": "No providers found"
+    "noProvidersFound": "No providers found",
+    "bannerAlt": "AI service marketplace banner"
   },
   "clawDetail": {
     "back": "Back to Marketplace",
@@ -167,7 +1283,17 @@
       "content": "Read / Subscribe",
       "ai": "Generate Now",
       "service": "Inquire",
-      "default": "View Details"
+      "default": "View Details",
+      "buyNow": "Buy Now",
+      "claim": "Claim Coupon",
+      "generateNow": "Generate Now",
+      "generateSoftware": "Generate Software",
+      "inquire": "Inquire",
+      "orderFood": "Order Now",
+      "placeBid": "Place Bid",
+      "readSubscribe": "Read / Subscribe",
+      "topUp": "Top Up",
+      "viewDetails": "View Details"
     },
     "labels": {
       "stock": "Stock",
@@ -187,11 +1313,25 @@
       "auction": "Auction",
       "recharge": "Recharge",
       "content": "Content",
+      "coupon": "Coupon",
+      "food": "Food",
       "ai_image": "AI Image",
       "ai_video": "AI Video",
       "ai_music": "AI Music",
-      "service": "Service"
-    }
+      "service": "Service",
+      "software": "Software"
+    },
+    "software": {
+      "deployNow": "Deploy Now",
+      "deployed": "Deployed",
+      "deploying": "Deploying...",
+      "features": "Features",
+      "generate": "Generate",
+      "generated": "Generated",
+      "generating": "Generating...",
+      "visitSite": "Visit Site"
+    },
+    "validUntil": "Valid until"
   },
   "categories": {
     "Data Processing": "Data Processing",
@@ -201,5 +1341,1510 @@
     "E-Commerce": "E-Commerce",
     "Utility": "Utility",
     "Auction": "Auction"
+  },
+  "channels": {
+    "page": {
+      "title": "Channels",
+      "subtitle": "Connect your OpenClaw agents to external messaging platforms and APIs.",
+      "status": {
+        "active": "Active",
+        "notConfigured": "Not Configured"
+      },
+      "actions": {
+        "connect": "Connect",
+        "configure": "Configure",
+        "enableChannel": "Enable {{name}}",
+        "saveAndEnable": "Save & Enable Channel",
+        "deleteConfiguration": "Delete Configuration",
+        "saving": "Saving..."
+      },
+      "panel": {
+        "configuration": "Channel Configuration",
+        "setupGuide": "Setup Guide",
+        "readFullDocumentation": "Read full documentation",
+        "credentials": "Credentials"
+      }
+    }
+  },
+  "installModal": {
+    "sources": {
+      "github": "GitHub",
+      "huggingFace": "Hugging Face"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline"
+    },
+    "fields": {
+      "targetInstances": "Target Instances",
+      "localEnvironmentDefault": "Local Environment (Default)",
+      "dockerContainerDefault": "Docker Container (claw-env-1)",
+      "installPath": "Install Path",
+      "branchOrTag": "Branch / Tag",
+      "revision": "Revision"
+    },
+    "progress": {
+      "installingRepo": "Installing {{repoName}}...",
+      "processing": "Processing..."
+    },
+    "logs": {
+      "startingInstallation": "Starting installation for {{repoName}}...",
+      "connectingTo": "Connecting to {{source}}...",
+      "downloadingMetadata": "Downloading repository metadata...",
+      "fetchingFiles": "Fetching files and dependencies...",
+      "configuringEnvironment": "Configuring local environment...",
+      "installationCompleted": "Installation completed successfully."
+    },
+    "success": {
+      "title": "Installation Complete",
+      "description": "{{repoName}} has been successfully installed and is ready to use."
+    },
+    "error": {
+      "title": "Installation Failed",
+      "description": "An error occurred while installing {{repoName}}. Please check the logs and try again."
+    },
+    "actions": {
+      "startInstall": "Start Install",
+      "close": "Close"
+    }
+  },
+  "tasks": {
+    "page": {
+      "title": "Scheduled Tasks",
+      "subtitle": "Design, schedule, and operate recurring AI workflows from a clearer task studio.",
+      "stats": {
+        "total": "Total Tasks",
+        "active": "Active",
+        "paused": "Paused",
+        "failed": "Failed"
+      },
+      "empty": {
+        "title": "No scheduled tasks yet",
+        "description": "Create your first task to automate recurring analysis, summaries, and delivery workflows.",
+        "noInstanceTitle": "Select an active instance first",
+        "noInstanceDescription": "Choose an active instance before creating or managing scheduled tasks."
+      },
+      "status": {
+        "active": "Active",
+        "paused": "Paused",
+        "failed": "Failed"
+      },
+      "scheduleModes": {
+        "interval": "Every interval",
+        "datetime": "Specific time",
+        "cron": "Cron expression"
+      },
+      "scheduleModeHelp": {
+        "interval": "Run every selected number of minutes, hours, or days.",
+        "datetime": "Run on one specific date and time.",
+        "cron": "Use a raw 5-field cron expression for full control."
+      },
+      "scheduleSummary": {
+        "interval": "Every {{value}} {{unit}}",
+        "datetime": "{{date}} at {{time}}",
+        "cron": "Custom cron expression"
+      },
+      "intervalUnits": {
+        "minute": "minute",
+        "minutes": "minutes",
+        "hour": "hour",
+        "hours": "hours",
+        "day": "day",
+        "days": "days"
+      },
+      "sections": {
+        "basicInfo": "Basic Info",
+        "execution": "Execution"
+      },
+      "cards": {
+        "prompt": "Prompt",
+        "schedule": "Schedule",
+        "latestExecution": "Latest execution",
+        "nextRun": "Next run",
+        "lastRun": "Last run",
+        "delivery": "Delivery",
+        "noDescription": "No description provided.",
+        "noExecutionYet": "This task has no execution history yet."
+      },
+      "fields": {
+        "taskName": "Task name",
+        "taskNamePlaceholder": "e.g. Morning operator briefing",
+        "description": "Description",
+        "descriptionPlaceholder": "Optional note for operators",
+        "enabled": "Enable immediately",
+        "enabledHelp": "Disabled tasks are created paused so you can review them safely.",
+        "prompt": "Prompt",
+        "promptPlaceholder": "Describe what should happen every time this task runs...",
+        "promptHelp": "Keep the prompt outcome-focused so repeated runs stay reliable.",
+        "intervalValue": "Interval",
+        "intervalUnit": "Unit",
+        "scheduledDate": "Date",
+        "scheduledTime": "Time",
+        "executionContent": "Execution content",
+        "cronExpression": "Cron expression",
+        "cronExpressionPlaceholder": "0 9 * * *",
+        "cronExpressionHelp": "Use standard 5-field cron syntax.",
+        "generatedSchedule": "Generated schedule",
+        "schedulePreviewPending": "Complete the schedule inputs to generate a preview.",
+        "cronPreview": "Cron preview",
+        "cronPreviewPending": "A cron preview will appear here when available.",
+        "deliveryChannel": "Delivery channel",
+        "deliveryChannelPlaceholder": "Select a connected channel",
+        "deliveryChannelHelp": "Pick where summaries or outcomes should be delivered.",
+        "noConnectedChannels": "No connected delivery channels are available yet.",
+        "recipient": "Recipient",
+        "recipientPlaceholder": "e.g. ops-room",
+        "recipientHelp": "Optional routing target such as a room, group, or contact.",
+        "timeoutSeconds": "Timeout (seconds)",
+        "timeoutSecondsPlaceholder": "Optional",
+        "timeoutSecondsHelp": "Stop overly long runs before they block later schedules."
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "newTask": "New task",
+        "edit": "Edit",
+        "clone": "Clone",
+        "cloneName": "{{name}} Copy",
+        "enable": "Enable",
+        "disable": "Disable",
+        "runNow": "Run now",
+        "history": "History",
+        "delete": "Delete"
+      },
+      "modal": {
+        "createTitle": "Create task",
+        "createSubtitle": "Capture the task intent first, then define how it should run and deliver.",
+        "editTitle": "Edit task",
+        "editSubtitle": "Update schedule, prompt, and execution behavior without losing context.",
+        "createTask": "Create task",
+        "saveTask": "Save changes",
+        "creating": "Creating...",
+        "saving": "Saving..."
+      },
+      "workspace": {
+        "navigationTitle": "Sections",
+        "navigationHint": "Switch between focused sections instead of scrolling through one long form.",
+        "sectionDescriptions": {
+          "basicInfo": "Name, schedule, and prompt",
+          "execution": "Runtime and delivery behavior"
+        },
+        "sectionStatus": {
+          "pending": "Pending",
+          "attention": "Needs setup",
+          "complete": "Ready"
+        },
+        "overviewTitle": "Task basics",
+        "overviewDescription": "Give the task a clear name, context, and default state.",
+        "promptTitle": "Prompt",
+        "promptDescription": "Define the core job the task should complete each time it runs.",
+        "scheduleTitle": "Scheduling",
+        "scheduleDescription": "Choose the timing model that best matches this workflow.",
+        "runtimeTitle": "Runtime behavior",
+        "runtimeDescription": "Decide how the task session wakes up and what it executes.",
+        "deliveryTitle": "Delivery",
+        "deliveryDescription": "Control whether outcomes are published and where they should go.",
+        "commonConfigTitle": "Common settings",
+        "commonConfigDescription": "Keep the most-used setup controls up front for faster creation.",
+        "advancedTitle": "Advanced",
+        "advancedDescription": "Open expert controls only when you need deeper scheduling precision.",
+        "cronManagedInAdvanced": "Cron mode keeps the raw expression in Advanced so the main flow stays cleaner.",
+        "executionAdvancedTitle": "Advanced safeguards",
+        "executionAdvancedDescription": "Tune guardrails and limits for longer-running task executions.",
+        "executionSafeguardsTitle": "Why use a timeout?",
+        "executionSafeguardsDescription": "Timeouts help prevent a stuck execution from delaying the next scheduled run or keeping a shared runtime busy."
+      },
+      "sessionModes": {
+        "isolated": {
+          "title": "Isolated session",
+          "description": "Start a fresh execution context for safer, repeatable runs."
+        },
+        "main": {
+          "title": "Main session",
+          "description": "Reuse the primary session when you want continuity with existing context."
+        }
+      },
+      "wakeUpModes": {
+        "immediate": {
+          "title": "Wake immediately",
+          "description": "Start the execution as soon as the schedule triggers."
+        },
+        "nextCycle": {
+          "title": "Next cycle",
+          "description": "Queue the task for the next runtime cycle instead of interrupting immediately."
+        }
+      },
+      "executionContents": {
+        "runAssistantTask": {
+          "title": "Run assistant task",
+          "description": "Launch a task-style assistant run using the prompt as the work order."
+        },
+        "sendPromptMessage": {
+          "title": "Send prompt message",
+          "description": "Send the prompt as a direct message-style execution."
+        }
+      },
+      "deliveryModes": {
+        "publishSummary": {
+          "title": "Publish summary",
+          "description": "Deliver the outcome to a downstream channel after execution completes."
+        },
+        "none": {
+          "title": "No delivery",
+          "description": "Run the task without publishing a summary externally."
+        }
+      },
+      "history": {
+        "title": "Execution history",
+        "subtitle": "Recent runs for {{name}}",
+        "description": "Inspect recent executions, outcomes, and delivery details.",
+        "loading": "Loading history...",
+        "emptyTitle": "No execution history yet",
+        "emptyDescription": "This task has not produced any recorded runs yet.",
+        "startedAt": "Started at",
+        "finishedAt": "Finished at",
+        "details": "Details",
+        "status": {
+          "success": "Success",
+          "failed": "Failed",
+          "running": "Running"
+        },
+        "triggers": {
+          "schedule": "Scheduled",
+          "manual": "Manual",
+          "clone": "Clone"
+        }
+      },
+      "validation": {
+        "title": "Task is not ready yet",
+        "description": "Complete the required setup before saving this task.",
+        "neutral": "Fill in the task details and execution settings to enable save.",
+        "ready": "This task is ready to save.",
+        "activeInstanceRequired": "Select an active instance before creating or editing tasks.",
+        "nameRequired": "Task name is required.",
+        "promptRequired": "Prompt is required.",
+        "intervalValueRequired": "Interval is required.",
+        "intervalValueInvalid": "Enter a valid positive interval.",
+        "scheduledDateRequired": "Date is required.",
+        "scheduledTimeRequired": "Time is required.",
+        "cronExpressionRequired": "Cron expression is required.",
+        "cronExpressionInvalid": "Enter a valid 5-field cron expression.",
+        "timeoutSecondsInvalid": "Enter a valid positive timeout in seconds."
+      },
+      "toasts": {
+        "failedToLoad": "Failed to load tasks",
+        "failedToLoadChannels": "Failed to load delivery channels",
+        "failedToLoadHistory": "Failed to load execution history",
+        "created": "Task created successfully",
+        "failedToCreate": "Failed to create task",
+        "updated": "Task updated successfully",
+        "failedToUpdate": "Failed to update task",
+        "enabled": "Task enabled",
+        "disabled": "Task disabled",
+        "failedToUpdateStatus": "Failed to update task status",
+        "cloned": "Task cloned successfully",
+        "failedToClone": "Failed to clone task",
+        "ranNow": "Task started successfully",
+        "failedToRunNow": "Failed to run task now",
+        "deleted": "Task deleted",
+        "failedToDelete": "Failed to delete task",
+        "noActiveInstance": "Select an active instance before creating tasks."
+      },
+      "confirmDelete": "Delete \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "instances": {
+    "shared": {
+      "status": {
+        "online": "Online",
+        "offline": "Offline",
+        "starting": "Starting",
+        "error": "Error"
+      }
+    },
+    "list": {
+      "title": "Instances",
+      "subtitle": "Manage, monitor, and configure your Claw Studio compute nodes.",
+      "activeBadge": "Active",
+      "confirmUninstall": "Are you sure you want to uninstall this instance?",
+      "actionNames": {
+        "start": "start",
+        "stop": "stop",
+        "restart": "restart",
+        "delete": "uninstall"
+      },
+      "actions": {
+        "deployInstance": "Deploy Instance",
+        "setActive": "Set Active",
+        "setAsActive": "Set as Active",
+        "openTerminal": "Open Terminal",
+        "viewLogs": "View Logs",
+        "restart": "Restart",
+        "stopInstance": "Stop Instance",
+        "startInstance": "Start Instance",
+        "uninstall": "Uninstall",
+        "details": "Details"
+      },
+      "metrics": {
+        "cpu": "CPU",
+        "memory": "Memory",
+        "totalMemory": "Total: {{value}}",
+        "estimatedCost": "Est. Cost",
+        "monthlyCost": "{{value}}/mo",
+        "hourlyRate": "Based on {{value}}/hr rate",
+        "apiTokens": "API Tokens",
+        "billingCycle": "This billing cycle",
+        "uptime": "Uptime: {{value}}"
+      },
+      "toasts": {
+        "started": "Instance started",
+        "stopped": "Instance stopped",
+        "restarted": "Instance restarted",
+        "uninstalled": "Instance uninstalled",
+        "actionFailed": "Failed to {{action}} instance"
+      }
+    },
+    "detail": {
+      "notFoundTitle": "Instance Not Found",
+      "returnToInstances": "Return to Instances",
+      "backToInstances": "Back to Instances",
+      "activeBadge": "Active Instance",
+      "uptime": "Uptime: {{value}}",
+      "tabs": {
+        "configuration": "Configuration",
+        "daemonLogs": "Daemon Logs"
+      },
+      "connectionSettings": "Connection Settings",
+      "securityBehavior": "Security & Behavior",
+      "dangerZone": "Danger Zone",
+      "dangerDescription": "Irreversible actions for this instance. Proceed with caution.",
+      "liveDaemonLogs": "Live Daemon Logs",
+      "connected": "Connected",
+      "fields": {
+        "gatewayPort": "Gateway Port",
+        "gatewayPortDescription": "The port the Claw Studio daemon listens on.",
+        "corsOrigins": "CORS Origins",
+        "corsOriginsDescription": "Allowed origins for API requests (comma separated).",
+        "apiToken": "API Token",
+        "apiTokenDescription": "Use this token to authenticate external applications with this gateway.",
+        "agentSandbox": "Agent Sandbox",
+        "agentSandboxDescription": "Isolate skill execution in a secure sandbox environment.",
+        "autoUpdate": "Auto-Update",
+        "autoUpdateDescription": "Automatically download and install daemon updates.",
+        "logLevel": "Log Level"
+      },
+      "logLevels": {
+        "debug": "Debug",
+        "info": "Info",
+        "warn": "Warning",
+        "error": "Error"
+      },
+      "actions": {
+        "setAsActive": "Set as Active",
+        "restart": "Restart",
+        "stop": "Stop",
+        "start": "Start",
+        "factoryReset": "Factory Reset",
+        "uninstallInstance": "Uninstall Instance",
+        "saveConfiguration": "Save Configuration",
+        "saving": "Saving..."
+      },
+      "toasts": {
+        "configurationSaved": "Configuration saved successfully",
+        "failedToSaveConfiguration": "Failed to save configuration",
+        "restarted": "Instance restarted successfully",
+        "failedToRestart": "Failed to restart instance",
+        "stopped": "Instance stopped successfully",
+        "failedToStop": "Failed to stop instance",
+        "started": "Instance started successfully",
+        "failedToStart": "Failed to start instance",
+        "uninstalled": "Instance uninstalled successfully",
+        "failedToUninstall": "Failed to uninstall instance"
+      },
+      "confirmUninstall": "Are you sure you want to uninstall this instance? This action cannot be undone.",
+      "instanceWorkbench": {
+        "sidebar": {
+          "title": "Instance Workbench",
+          "description": "Switch between the runtime capabilities available on this OpenClaw instance.",
+          "channels": "Channels",
+          "cronTasks": "Cron Tasks",
+          "llmProviders": "LLM Providers",
+          "agents": "Agents",
+          "skills": "Skills",
+          "files": "Files",
+          "memory": "Memory",
+          "tools": "Tools",
+          "itemDescriptions": {
+            "channels": "Delivery routes and operator notifications",
+            "cronTasks": "Scheduled routines and automation cadence",
+            "llmProviders": "Provider routing, models, and inference controls",
+            "agents": "Operators available on this runtime",
+            "skills": "Installed runtime capabilities",
+            "files": "Config, prompts, logs, and artifacts",
+            "memory": "Pinned context and retained knowledge",
+            "tools": "Callable runtime tools and controls"
+          }
+        },
+        "sections": {
+          "channels": {
+            "title": "Channels",
+            "description": "Inspect delivery readiness, configuration depth, and connection state for this instance."
+          },
+          "cronTasks": {
+            "title": "Cron Tasks",
+            "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime."
+          },
+          "llmProviders": {
+            "title": "LLM Providers",
+            "description": "Inspect active providers, model routing, and the generation parameters shaping this instance."
+          },
+          "agents": {
+            "title": "Agents",
+            "description": "Review the operator catalog and the focus areas available inside this instance."
+          },
+          "skills": {
+            "title": "Skills",
+            "description": "See which reusable skills are installed and ready to amplify local workflows."
+          },
+          "files": {
+            "title": "Files",
+            "description": "Manage gateway profile details and inspect the runtime files that support this instance."
+          },
+          "memory": {
+            "title": "Memory",
+            "description": "Audit retained runbooks, facts, and rolling context used by the runtime."
+          },
+          "tools": {
+            "title": "Tools",
+            "description": "Inspect callable tools, execution privileges, and high-impact runtime controls."
+          }
+        },
+        "summary": {
+          "healthScore": "Health Score",
+          "connectedChannels": "Connected Channels",
+          "activeTasks": "Active Tasks",
+          "readyTools": "Ready Tools",
+          "agents": "Agents",
+          "skills": "Skills",
+          "cpuLoad": "CPU Load",
+          "memoryPressure": "Memory Pressure"
+        },
+        "runtimeStates": {
+          "healthy": "Healthy",
+          "attention": "Attention",
+          "degraded": "Degraded"
+        },
+        "metrics": {
+          "configuredFields": "Configured Fields",
+          "deliveryState": "Delivery State",
+          "setupSteps": "Setup Steps",
+          "lastRun": "Last Run",
+          "nextRun": "Next Run",
+          "actionType": "Action Type",
+          "automationFitScore": "Automation Fit",
+          "version": "Version",
+          "downloads": "Downloads",
+          "rating": "Rating",
+          "memorySource": "Source",
+          "memoryTokens": "Tokens",
+          "updatedAt": "Updated"
+        },
+        "state": {
+          "enabled": "Enabled",
+          "pending": "Pending"
+        },
+        "actionTypes": {
+          "message": "Message",
+          "skill": "Skill"
+        },
+        "files": {
+          "gatewayProfile": "Gateway Profile",
+          "gatewayProfileDescription": "Tune the gateway contract that powers this instance's runtime behavior and security posture.",
+          "runtimeArtifacts": "Runtime Artifacts",
+          "runtimeArtifactsDescription": "Configuration, prompts, logs, datasets, and generated artifacts bound to this instance.",
+          "liveDaemonLogs": "Live Daemon Logs",
+          "explorer": "File Explorer",
+          "editMode": "Editable",
+          "previewMode": "Preview",
+          "unsavedChanges": "Unsaved",
+          "revertDraft": "Revert Draft",
+          "saveFile": "Save File",
+          "savingFile": "Saving...",
+          "selectFile": "Select a file from the explorer to preview or edit it.",
+          "fileSaved": "File saved",
+          "fileSaveFailed": "Failed to save file",
+          "on": "On",
+          "off": "Off"
+        },
+        "llmProviders": {
+          "endpoint": "Endpoint",
+          "apiKeySource": "Credential Source",
+          "defaultModel": "Default Model",
+          "reasoningModel": "Reasoning Model",
+          "embeddingModel": "Embedding Model",
+          "parameters": "Inference Parameters",
+          "temperature": "Temperature",
+          "topP": "Top P",
+          "maxTokens": "Max Tokens",
+          "timeoutMs": "Timeout (ms)",
+          "streaming": "Streaming",
+          "streamingDescription": "Enable token streaming for runtime responses and live previews.",
+          "saveConfig": "Save Provider",
+          "saving": "Saving...",
+          "revertConfig": "Revert Config",
+          "saved": "LLM provider saved",
+          "saveFailed": "Failed to save LLM provider",
+          "selectProvider": "Select an LLM provider to inspect or edit its runtime configuration.",
+          "status": {
+            "ready": "Ready",
+            "degraded": "Degraded",
+            "configurationRequired": "Config Required"
+          },
+          "modelRoles": {
+            "primary": "Primary",
+            "reasoning": "Reasoning",
+            "embedding": "Embedding",
+            "fallback": "Fallback"
+          }
+        },
+        "empty": {
+          "channels": "No channels are attached to this instance yet.",
+          "cronTasks": "No cron tasks are scheduled on this instance yet.",
+          "llmProviders": "No LLM providers are configured for this instance yet.",
+          "agents": "No agents are available for this instance.",
+          "skills": "No skills are installed on this instance yet.",
+          "files": "No runtime files are available for this instance.",
+          "memory": "No retained memory entries are available for this instance.",
+          "tools": "No callable tools are currently exposed by this instance."
+        },
+        "fileStatus": {
+          "synced": "Synced",
+          "modified": "Modified",
+          "generated": "Generated",
+          "missing": "Missing"
+        },
+        "fileCategories": {
+          "config": "Config",
+          "log": "Log",
+          "prompt": "Prompt",
+          "dataset": "Dataset",
+          "memory": "Memory",
+          "artifact": "Artifact"
+        },
+        "memoryTypes": {
+          "runbook": "Runbook",
+          "conversation": "Conversation",
+          "fact": "Fact",
+          "artifact": "Artifact"
+        },
+        "memorySources": {
+          "operator": "Operator",
+          "agent": "Agent",
+          "system": "System",
+          "task": "Task"
+        },
+        "retention": {
+          "pinned": "Pinned",
+          "rolling": "Rolling",
+          "expiring": "Expiring"
+        },
+        "toolStatus": {
+          "ready": "Ready",
+          "beta": "Beta",
+          "restricted": "Restricted"
+        },
+        "toolCategories": {
+          "filesystem": "Filesystem",
+          "automation": "Automation",
+          "observability": "Observability",
+          "integration": "Integration",
+          "reasoning": "Reasoning"
+        },
+        "toolAccess": {
+          "read": "Read",
+          "write": "Write",
+          "execute": "Execute"
+        }
+      }
+    }
+  },
+  "extensions": {
+    "page": {
+      "title": "Extensions",
+      "tabs": {
+        "discover": "Discover",
+        "installed": "Installed"
+      },
+      "searchPlaceholder": "Search extensions...",
+      "featured": {
+        "badge": "Featured",
+        "title": "Supercharge Your Workflow",
+        "description": "Discover powerful extensions to customize your Claw environment. Add new tools, integrations, and capabilities with just one click.",
+        "browse": "Browse Top Extensions"
+      },
+      "empty": {
+        "title": "No extensions found",
+        "description": "Try adjusting your search terms or filters."
+      },
+      "status": {
+        "online": "Online",
+        "offline": "Offline"
+      },
+      "actions": {
+        "uninstall": "Uninstall"
+      },
+      "modal": {
+        "title": "Install Extension",
+        "byAuthor": "by {{author}}",
+        "noInstancesTitle": "No instances available",
+        "noInstancesDescription": "Please create an instance first.",
+        "selectTargetInstances": "Select Target Instances",
+        "installing": "Installing...",
+        "installToInstance": "Install to Instance"
+      },
+      "toasts": {
+        "installSuccess": "Extension installed successfully",
+        "installFailed": "Failed to install extension",
+        "uninstallSuccess": "Extension uninstalled successfully",
+        "uninstallFailed": "Failed to uninstall extension"
+      },
+      "confirmUninstall": "Are you sure you want to uninstall this extension?"
+    }
+  },
+  "repositoryCard": {
+    "stats": {
+      "stars": "Stars",
+      "downloads": "Downloads",
+      "forks": "Forks"
+    },
+    "actions": {
+      "clone": "Clone",
+      "download": "Download"
+    }
+  },
+  "devices": {
+    "page": {
+      "actions": {
+        "registerDevice": "Register device",
+        "remove": "Remove"
+      },
+      "banner": {
+        "description": "Connect hardware so you can monitor it through Claw Studio.",
+        "title": "Register a device"
+      },
+      "confirmUninstallSkill": "Uninstall this skill?",
+      "confirmUnregister": "Unregister this device?",
+      "empty": {
+        "description": "Register a device to start monitoring it.",
+        "title": "No devices found"
+      },
+      "installedSkills": "Installed skills",
+      "modal": {
+        "deviceName": "Device name",
+        "deviceNameDescription": "Give your device a descriptive name so you can find it later.",
+        "deviceNamePlaceholder": "My Device",
+        "title": "Register new device"
+      },
+      "moreActions": "More actions",
+      "noSkillsInstalled": "No skills installed",
+      "powerLabel": "Power",
+      "selectDeviceHint": "Select a device to view its details.",
+      "skillVersion": "v{{version}}",
+      "specs": {
+        "latency": "Latency",
+        "ram": "RAM",
+        "soc": "SoC",
+        "storage": "Storage"
+      },
+      "subtitle": "Monitor your registered hardware",
+      "title": "Devices"
+    }
+  },
+  "docs": {
+    "architecture": {
+      "description": "OpenClaw is organized around a thin control plane, portable runtimes, and reusable skill packages.",
+      "diagramPlaceholder": "Architecture diagram placeholder",
+      "overview": "The studio UI talks to shared services, the gateway executes installs and task orchestration, and connected devices run workloads where they are most effective.",
+      "security": {
+        "description": "Credentials stay scoped to the environments that need them, while installs and automation flow through explicit gateway or device targets.",
+        "title": "Security model"
+      },
+      "title": "Architecture"
+    },
+    "cli": {
+      "description": "Use the OpenClaw CLI to inspect runtimes, install skills, and automate repetitive operations.",
+      "examples": {
+        "install": {
+          "downloading": "Downloading weather-pro...",
+          "installingDependencies": "Installing dependencies...",
+          "success": "Success: skill installed"
+        },
+        "status": {
+          "connectedDevices": "Connected devices: 12",
+          "gateway": "Gateway: online",
+          "uptime": "Uptime: 3 days 04h"
+        }
+      },
+      "install": {
+        "description": "Installs a skill by id from the active repository."
+      },
+      "status": {
+        "description": "Shows the status of your gateway and connected devices."
+      },
+      "title": "CLI Commands"
+    },
+    "intro": {
+      "badge": "Introduction",
+      "components": {
+        "devices": {
+          "description": "Devices connect edge hardware and remote workers so they can run skills close to the data they need.",
+          "label": "Devices"
+        },
+        "gateway": {
+          "description": "The gateway handles runtime access, installs, and automation on the machines that host your agents.",
+          "label": "Gateway"
+        },
+        "manager": {
+          "description": "The manager coordinates skills, instances, and policy from a single control surface.",
+          "label": "Studio manager"
+        }
+      },
+      "description": "OpenClaw is a local-first platform for deploying, managing, and extending AI agents across desktop, servers, and edge devices.",
+      "features": {
+        "title": "Key features"
+      },
+      "howItWorks": {
+        "description": "OpenClaw separates orchestration, runtime access, and device execution so you can keep control of your workloads while scaling them across environments.",
+        "title": "How it works"
+      },
+      "title": "Meet OpenClaw"
+    },
+    "nav": {
+      "apiReference": "API Reference",
+      "coreConcepts": "Core Concepts",
+      "gettingStarted": "Getting Started",
+      "items": {
+        "architecture": "Architecture",
+        "cliCommands": "CLI Commands",
+        "installation": "Installation",
+        "introduction": "Introduction",
+        "quickStart": "Quick Start",
+        "skillsAndPacks": "Skills & Packs"
+      }
+    },
+    "page": {
+      "title": "Documentation"
+    },
+    "quickstart": {
+      "badge": "Quick Start",
+      "description": "Follow these three steps to install the gateway, register a device, and deploy a skill in minutes.",
+      "steps": {
+        "installGateway": {
+          "description": "Run the installer on a supported machine so OpenClaw can manage local and remote workloads.",
+          "title": "1. Install the gateway"
+        },
+        "installSkill": {
+          "description": "Choose a skill or pack from the marketplace and install it to your gateway or connected device.",
+          "title": "3. Install a skill"
+        },
+        "registerDevice": {
+          "description": "Open Claw Studio, add a device, and confirm it reports online before assigning work.",
+          "title": "2. Register a device"
+        }
+      },
+      "title": "Launch your first workflow"
+    },
+    "sidebar": {
+      "onThisPage": "On this page",
+      "sections": {
+        "architectureDiagram": "Architecture diagram",
+        "cloudDeploy": "Cloud deployment",
+        "dockerGateway": "Docker gateway",
+        "fromSource": "Build from source",
+        "howItWorks": "How it works",
+        "installCommand": "Install command",
+        "installGateway": "Install gateway",
+        "installSkill": "Install a skill",
+        "installerScript": "Installer script",
+        "keyFeatures": "Key features",
+        "overview": "Overview",
+        "packageManagers": "Package managers",
+        "registerDevice": "Register device",
+        "securityModel": "Security model",
+        "skillPacks": "Skill packs",
+        "statusCommand": "Status command",
+        "whatIsSkill": "What is a skill?"
+      }
+    },
+    "skills": {
+      "description": "Skills are reusable capability bundles, and packs combine multiple skills into opinionated workflows.",
+      "packs": {
+        "description": "A skill pack groups complementary skills so teams can deploy a whole toolkit with one action.",
+        "title": "What is a skill pack?"
+      },
+      "title": "Skills & Packs",
+      "whatIsSkill": {
+        "description": "A skill packages prompts, tools, permissions, and metadata so the runtime can install and execute it consistently.",
+        "title": "What is a skill?"
+      }
+    },
+    "install": {
+      "description": "Choose the installation path that fits your environment, from one-line scripts to source builds.",
+      "platforms": {
+        "macosLinuxWsl": "macOS / Linux / WSL",
+        "windowsPowerShell": "Windows PowerShell"
+      },
+      "sections": {
+        "cloud": {
+          "description": "Provision a cloud VM when you want a gateway that stays online for your whole team.",
+          "runInstallerTitle": "2. Run the installer",
+          "sshTitle": "1. Connect over SSH",
+          "title": "Cloud deployment",
+          "warning": "Use a fresh Linux host and lock down SSH before exposing the dashboard."
+        },
+        "docker": {
+          "description": "Run OpenClaw inside Docker for a reproducible gateway on servers, NAS devices, or homelabs.",
+          "downloadTitle": "1. Download the setup script",
+          "runTitle": "2. Run the Docker setup",
+          "title": "Docker gateway"
+        },
+        "npm": {
+          "description": "Install the CLI globally when you already have a modern Node.js toolchain.",
+          "title": "npm / pnpm",
+          "usingNpm": "Install with npm",
+          "usingPnpm": "Install with pnpm"
+        },
+        "script": {
+          "description": "The fastest path for local development and single-machine setups.",
+          "title": "Installer script"
+        },
+        "source": {
+          "cloneAndBuildTitle": "1. Clone and build",
+          "description": "Clone the repository when you need to contribute, debug internals, or build custom distributions.",
+          "linkAndRunTitle": "2. Link the CLI and run onboarding",
+          "title": "Build from source"
+        }
+      },
+      "title": "Installation"
+    }
+  },
+  "github": {
+    "detail": {
+      "activity": {
+        "pushedToMain": "pushed new commits to main.",
+        "twoHoursAgo": "2 hours ago"
+      },
+      "back": "Back to GitHub",
+      "downloadToLocal": "Download to local",
+      "files": {
+        "dir": "[DIR]",
+        "file": "[FILE]"
+      },
+      "notFoundBack": "Return to repositories",
+      "notFoundTitle": "Repository not found",
+      "readme": {
+        "aboutTitle": "About {{name}}",
+        "installation": "Installation",
+        "usage": "Usage",
+        "usageDescription": "Clone the repository, install dependencies, and follow the project README to get started."
+      },
+      "stats": {
+        "forks": "Forks",
+        "stars": "Stars",
+        "title": "Repository stats"
+      },
+      "tabs": {
+        "activity": "Activity",
+        "files": "Files",
+        "readme": "README"
+      },
+      "task": {
+        "downloadComplete": "Repository download complete",
+        "downloadFailed": "Repository download failed",
+        "downloadSubtitle": "Downloading repository contents",
+        "downloadTitle": "Download {{name}}"
+      },
+      "toast": {
+        "downloadFailed": "Failed to download {{name}}",
+        "downloadStarted": "Downloading {{name}}",
+        "downloadSuccess": "{{name}} downloaded"
+      },
+      "verifiedPopular": "Popular verified repository"
+    },
+    "repos": {
+      "emptyDescription": "Try a different search term or sync more sources.",
+      "emptyTitle": "No repositories found",
+      "filter": "Filter repositories",
+      "searchPlaceholder": "Search repositories, authors, or tags...",
+      "sort": "Sort repositories",
+      "subtitle": "{{count, number}} repositories ready to install",
+      "task": {
+        "installComplete": "Repository installed",
+        "installFailed": "Repository install failed",
+        "installSubtitle": "Installing from GitHub",
+        "installTitle": "Install {{name}}"
+      },
+      "title": "GitHub Repositories",
+      "toast": {
+        "installFailed": "Failed to install {{name}}",
+        "installStarted": "Installing {{name}}",
+        "installSuccess": "{{name}} installed"
+      }
+    }
+  },
+  "huggingface": {
+    "detail": {
+      "back": "Back to Hugging Face",
+      "community": {
+        "issueOpened": "opened a discussion about deployment tips.",
+        "oneDayAgo": "1 day ago",
+        "userInitial": "HF",
+        "userName": "Model Maintainer"
+      },
+      "downloadToLocal": "Download to local",
+      "files": {
+        "file": "[FILE]"
+      },
+      "highlyDownloaded": "Highly downloaded model",
+      "modelCard": {
+        "descriptionTitle": "Model description",
+        "howToUse": "How to use",
+        "intendedUseDescription": "Use this model as a starting point for experimentation, evaluation, and downstream fine-tuning in your own environment.",
+        "intendedUseTitle": "Intended use"
+      },
+      "notFoundBack": "Return to models",
+      "notFoundTitle": "Model not found",
+      "stats": {
+        "downloads": "Downloads",
+        "estimatedSize": "Estimated from model files",
+        "size": "Size",
+        "title": "Model stats"
+      },
+      "tabs": {
+        "community": "Community",
+        "files": "Files",
+        "modelCard": "Model card"
+      },
+      "task": {
+        "downloadComplete": "Model download complete",
+        "downloadFailed": "Model download failed",
+        "downloadSubtitle": "Downloading model artifacts",
+        "downloadTitle": "Download {{name}}"
+      },
+      "toast": {
+        "downloadFailed": "Failed to download {{name}}",
+        "downloadStarted": "Downloading {{name}}",
+        "downloadSuccess": "{{name}} downloaded"
+      }
+    },
+    "models": {
+      "emptyDescription": "Try a different keyword or broaden your search.",
+      "emptyTitle": "No models found",
+      "filter": "Filter models",
+      "searchPlaceholder": "Search models, authors, or tags...",
+      "sort": "Sort models",
+      "subtitle": "{{count, number}} models ready to explore",
+      "task": {
+        "downloadComplete": "Model download complete",
+        "downloadFailed": "Model download failed",
+        "downloadSubtitle": "Downloading model artifacts",
+        "downloadTitle": "Download {{name}}"
+      },
+      "title": "Hugging Face Models",
+      "toast": {
+        "downloadFailed": "Failed to download {{name}}",
+        "downloadStarted": "Downloading {{name}}",
+        "downloadSuccess": "{{name}} downloaded"
+      }
+    }
+  },
+  "install": {
+    "page": {
+      "hero": {
+        "subtitle": "Choose the setup path that matches your operating system, runtime, and team workflow.",
+        "title": "Install OpenClaw your way"
+      },
+      "methods": {
+        "script": {
+          "title": "Installer script",
+          "description": "The fastest way to bootstrap OpenClaw on a local machine."
+        },
+        "docker": {
+          "title": "Docker gateway",
+          "description": "Run a reproducible gateway on servers, NAS devices, or homelabs."
+        },
+        "npm": {
+          "title": "npm / pnpm",
+          "description": "Install the CLI globally when you already manage Node.js on the host."
+        },
+        "cloud": {
+          "title": "Cloud deployment",
+          "description": "Prepare a remote Linux gateway for team-wide access."
+        },
+        "source": {
+          "title": "Build from source",
+          "description": "Clone, build, and run OpenClaw from the repository."
+        }
+      },
+      "os": {
+        "macos": "macOS",
+        "linux": "Linux",
+        "windowsPowerShell": "Windows PowerShell",
+        "windowsWsl": "Windows + WSL",
+        "crossPlatformNode": "Cross-platform Node.js",
+        "crossPlatformGit": "Cross-platform Git"
+      },
+      "tags": {
+        "macos": "macOS",
+        "linux": "Linux",
+        "wsl2": "WSL2",
+        "windows": "Windows",
+        "docker": "Docker",
+        "nas": "NAS",
+        "homeServer": "Home Server",
+        "nodejs": "Node.js",
+        "npm": "npm",
+        "pnpm": "pnpm",
+        "vps": "VPS",
+        "cloud": "Cloud",
+        "ubuntu": "Ubuntu",
+        "git": "Git",
+        "development": "Development"
+      },
+      "method": {
+        "actions": {
+          "install": "Install now",
+          "viewDocumentation": "View documentation"
+        },
+        "badge": {
+          "recommended": "Recommended"
+        },
+        "labels": {
+          "unavailable": "Manual steps required"
+        }
+      },
+      "modal": {
+        "actions": {
+          "close": "Close",
+          "done": "Done",
+          "startDeployment": "Start deployment"
+        },
+        "info": "The selected command will run locally through the desktop runtime. Confirm the target OS before continuing.",
+        "output": {
+          "errorPrefix": "Error",
+          "executingViaTauri": "Executing via desktop runtime...",
+          "preparing": "Preparing installation for {{os}}..."
+        },
+        "selectTargetOs": "Select target OS",
+        "status": {
+          "error": "Installation failed",
+          "running": "Installation in progress",
+          "success": "Installation complete"
+        },
+        "subtitle": "OpenClaw will execute the installer command on your machine.",
+        "terminalOutput": "Terminal output",
+        "title": "Install via {{method}}"
+      },
+      "systemRequirements": {
+        "description": "A modern CPU, stable network access, and enough disk space for models or skills are recommended for the smoothest setup.",
+        "title": "System requirements"
+      }
+    },
+    "mobileGuide": {
+      "headerAction": "Mobile App",
+      "badges": {
+        "recommended": "Recommended"
+      },
+      "status": {
+        "available": "Available",
+        "preview": "Preview"
+      },
+      "actions": {
+        "openGuide": "Open guide",
+        "copyLink": "Copy link",
+        "copied": "Copied"
+      },
+      "dialog": {
+        "eyebrow": "Continue on mobile",
+        "title": "Take Claw Studio to your phone",
+        "description": "Scan the recommended QR code or open the direct download page that matches your phone so you can continue using Claw Studio away from the desktop.",
+        "primaryTitle": "Recommended mobile path",
+        "hint": "Android is the default handoff path and now opens directly to your requested sdkwork download page. You can also switch to iOS or HarmonyOS with the direct links below.",
+        "qrTitle": "Scan to continue",
+        "qrDescription": "Use your phone camera to open the {{channel}} download page instantly.",
+        "copyAll": "Copy Android download link",
+        "openDocs": "Open Android download page",
+        "close": "Close"
+      },
+      "section": {
+        "eyebrow": "Mobile continuation",
+        "title": "Set up the mobile path before you leave the desktop",
+        "description": "Keep Android, iOS, and HarmonyOS download routes ready so you can scan, install, and continue using Claw Studio from your phone.",
+        "openDocs": "Open Android download page"
+      },
+      "channels": {
+        "android": {
+          "title": "Android",
+          "description": "Open the Android download page directly and continue with the recommended mobile install path.",
+          "note": "Recommended default path and the same link used by the QR code."
+        },
+        "ios": {
+          "title": "iPhone / iOS",
+          "description": "Open the iOS download page directly when you want to continue on Apple devices.",
+          "note": "Use this path for iPhone and iPad installs."
+        },
+        "harmony": {
+          "title": "HarmonyOS / 鸿蒙",
+          "description": "Open the HarmonyOS download page directly for Huawei and other Harmony devices.",
+          "note": "Use this path for Harmony-based mobile environments."
+        }
+      }
+    },
+    "detail": {
+      "codeBlock": {
+        "errorPrefix": "Error",
+        "executingViaTauri": "Executing via desktop runtime...",
+        "run": "Run",
+        "running": "Running...",
+        "terminalOutput": "Terminal output"
+      },
+      "guides": {
+        "script": {
+          "description": "Use the one-line installer when you want the fastest way to get OpenClaw running on a supported machine.",
+          "steps": {
+            "onboarding": {
+              "description": "Follow the prompts to create or connect a workspace, then verify the dashboard opens correctly.",
+              "title": "Complete onboarding"
+            },
+            "openTerminal": {
+              "description": "Use Terminal, iTerm, Windows Terminal, or PowerShell with permission to run network installers.",
+              "title": "Open a terminal"
+            },
+            "runCommand": {
+              "description": "Choose the command for your platform and let the installer bootstrap the gateway and CLI.",
+              "title": "Run the install command"
+            },
+            "skipOnboarding": {
+              "description": "Use the no-onboard flag when you want to defer dashboard setup until later.",
+              "title": "Skip onboarding"
+            }
+          },
+          "title": "Installer script"
+        },
+        "docker": {
+          "description": "Deploy the gateway in Docker for a portable, server-friendly installation.",
+          "steps": {
+            "accessUi": {
+              "description": "Open the dashboard in a browser and finish the initial connection flow.",
+              "items": {
+                "needUrlAgain": "If you need the URL and token again, run the following command.",
+                "openBrowser": "Open the dashboard at",
+                "pasteToken": "Paste the one-time token shown in the terminal to link your browser session."
+              },
+              "title": "Access the web UI"
+            },
+            "download": {
+              "description": "Fetch the helper script that prepares the Docker-based gateway deployment.",
+              "title": "Download the setup script"
+            },
+            "enableSandbox": {
+              "description": "Set the sandbox flag when you want an additional runtime isolation layer.",
+              "title": "Enable sandbox mode"
+            },
+            "run": {
+              "description": "Start the gateway stack and let the script configure the required services.",
+              "title": "Run the Docker setup"
+            }
+          },
+          "title": "Docker gateway"
+        },
+        "npm": {
+          "description": "Install the CLI globally when you already manage Node.js on the host.",
+          "steps": {
+            "installGlobally": {
+              "description": "Use npm or pnpm to install the latest CLI release.",
+              "pnpmNote": "Run pnpm approve-builds -g if your environment blocks postinstall scripts.",
+              "title": "Install OpenClaw globally",
+              "usingNpm": "Using npm",
+              "usingPnpm": "Using pnpm"
+            },
+            "runOnboarding": {
+              "description": "Launch onboarding to configure the gateway and local dashboard.",
+              "title": "Run onboarding"
+            },
+            "troubleshooting": {
+              "description": "If Sharp or other native modules fail to install, retry with the compatibility flag.",
+              "title": "Troubleshoot native dependencies"
+            },
+            "verifyNode": {
+              "description": "Confirm Node.js is available before installing the OpenClaw CLI.",
+              "title": "Verify Node.js"
+            }
+          },
+          "title": "npm / pnpm"
+        },
+        "cloud": {
+          "description": "Provision a Linux VM when you need a continuously available gateway for remote access.",
+          "steps": {
+            "firewall": {
+              "description": "Allow inbound traffic for the dashboard port only if you intend to expose it.",
+              "title": "Open the dashboard port"
+            },
+            "provisionOs": {
+              "description": "Start from a clean Ubuntu or Debian host with sudo access and updated packages.",
+              "title": "Provision a supported OS",
+              "warning": "Prefer a fresh VM image so system packages and ports are easy to reason about."
+            },
+            "runInstaller": {
+              "description": "Execute the OpenClaw install script on the server to bootstrap the gateway.",
+              "title": "Run the installer"
+            },
+            "ssh": {
+              "description": "SSH into the target server with an administrative account before running the installer.",
+              "title": "Connect over SSH"
+            }
+          },
+          "title": "Cloud deployment"
+        },
+        "source": {
+          "description": "Use the source workflow when you need to contribute, debug internals, or test local changes.",
+          "steps": {
+            "clone": {
+              "description": "Fetch the source tree and switch into the project directory.",
+              "title": "Clone the repository"
+            },
+            "installAndBuild": {
+              "description": "Install workspace packages and compile the UI plus runtime artifacts.",
+              "title": "Install dependencies and build"
+            },
+            "linkCli": {
+              "description": "Link the built CLI so local shell commands use your development checkout.",
+              "title": "Link the CLI globally"
+            },
+            "runOnboarding": {
+              "description": "Start onboarding to validate the source build and configure the local gateway.",
+              "title": "Run onboarding"
+            }
+          },
+          "title": "Build from source"
+        }
+      },
+      "back": "Back to install methods",
+      "help": {
+        "description": {
+          "after": "for live support.",
+          "before": "If something goes wrong, start with the",
+          "discordCommunity": "Discord community",
+          "middle": "or join the",
+          "troubleshootingGuide": "Troubleshooting Guide"
+        },
+        "title": "Need help?"
+      },
+      "notFound": {
+        "back": "Back to install",
+        "title": "Installation method not found"
+      },
+      "platforms": {
+        "macosLinuxWsl": "macOS / Linux / WSL",
+        "windowsPowerShell": "Windows PowerShell"
+      },
+      "stepByStepGuide": "Step-by-step guide"
+    }
+  },
+  "market": {
+    "actions": {
+      "confirmUninstallSkill": "Uninstall this skill?",
+      "uninstall": "Uninstall"
+    },
+    "categories": {
+      "aiModels": "AI Models",
+      "all": "All",
+      "development": "Development",
+      "productivity": "Productivity",
+      "system": "System",
+      "utilities": "Utilities"
+    },
+    "categoryLabels": {
+      "AI Models": "AI Models",
+      "All": "All",
+      "Development": "Development",
+      "Productivity": "Productivity",
+      "System": "System",
+      "Utilities": "Utilities"
+    },
+    "download": {
+      "complete": "Download complete",
+      "failed": "Download failed",
+      "failure": "Failed to download {{name}}",
+      "packSubtitle": "Downloading skill pack files",
+      "skillSubtitle": "Downloading skill files",
+      "started": "Starting download for {{name}}",
+      "success": "{{name}} downloaded successfully",
+      "taskTitle": "Download {{name}}"
+    },
+    "empty": {
+      "installedDescription": "Install a skill from the marketplace to see it here.",
+      "installedTitle": "No installed skills",
+      "packagesDescription": "No skill packs match your filters right now.",
+      "packagesTitle": "No skill packs found",
+      "skillsDescription": "No skills match your filters right now.",
+      "skillsTitle": "No skills found"
+    },
+    "errors": {
+      "invalidSelection": "Select a target instance and at least one skill before continuing.",
+      "noActiveInstance": "Choose an active instance before uninstalling skills.",
+      "noInstanceSelected": "Select at least one instance before installing."
+    },
+    "featured": {
+      "bundleLabel": "Featured bundle",
+      "defaultPackDescription": "A curated starter pack for setting up a capable OpenClaw workspace in minutes.",
+      "defaultPackName": "Starter Team Pack",
+      "editorChoice": "Editor choice",
+      "freeInstallSummary": "{{downloads}} installs and growing",
+      "getBundle": "Get bundle",
+      "packAlt": "Featured skill pack cover",
+      "setupLabel": "Quick setup"
+    },
+    "labels": {
+      "installCount": "{{count, number}} installs",
+      "installed": "Installed",
+      "sdkworkOfficial": "SDKWork Official",
+      "version": "Version {{value}}"
+    },
+    "modals": {
+      "installPack": {
+        "confirm": "Install pack",
+        "includedSkills": "Included skills",
+        "installing": "Installing...",
+        "subtitle": "Install every included skill on the selected instances.",
+        "title": "Install skill pack"
+      },
+      "installSkill": {
+        "confirm": "Install skill",
+        "installing": "Installing...",
+        "title": "Install skill"
+      },
+      "noInstances": {
+        "description": "Create or connect an instance before installing from the marketplace.",
+        "title": "No instances available"
+      },
+      "selectTargetInstances": "Select target instances"
+    },
+    "page": {
+      "title": "Marketplace"
+    },
+    "search": {
+      "placeholders": {
+        "packages": "Search skill packs, authors, or categories...",
+        "skills": "Search skills, authors, or categories..."
+      }
+    },
+    "sections": {
+      "myInstalledSkills": "My installed skills",
+      "sdkworkOfficialSkills": "SDKWork official skills",
+      "topFreeSkills": "Top free skills",
+      "trendingBundles": "Trending bundles"
+    },
+    "status": {
+      "offline": "Offline",
+      "online": "Online"
+    },
+    "tabs": {
+      "mySkills": "My Skills",
+      "packages": "Packs",
+      "sdkwork": "SDKWork",
+      "skills": "Skills"
+    },
+    "toast": {
+      "installationFailed": "Installation failed",
+      "installationStarted": "Installation queued",
+      "installationStartedDescription": "{{name}} is being installed on the selected instances.",
+      "packInstallationCountDescription": "Installing {{count, number}} skills from this pack.",
+      "packInstallationStarted": "Pack installation queued",
+      "packInstallationStartedDescription": "{{name}} is being installed on the selected instances.",
+      "skillUninstalled": "Skill uninstalled",
+      "uninstallFailed": "Failed to uninstall skill"
+    },
+    "skillDetail": {
+      "actions": {
+        "downloadToLocal": "Download to local",
+        "getSkill": "Get skill",
+        "share": "Share"
+      },
+      "backToMarket": "Back to marketplace",
+      "information": {
+        "category": "Category",
+        "compatibility": "Compatibility",
+        "compatibilityValue": "OpenClaw gateway 1.0+",
+        "provider": "Provider",
+        "size": "Size",
+        "title": "Skill information",
+        "version": "Version"
+      },
+      "links": {
+        "developerWebsite": "Developer website",
+        "privacyPolicy": "Privacy policy",
+        "sourceCode": "Source code"
+      },
+      "mediaPreviewUnavailable": "Preview unavailable",
+      "metrics": {
+        "installs": "{{count, number}} installs",
+        "ratings": "{{count, number}} reviews"
+      },
+      "noReviewsDescription": "Be the first to leave a review for this skill.",
+      "noReviewsTitle": "No reviews yet",
+      "notFoundTitle": "Skill not found",
+      "repository": {
+        "badge": "Recommended",
+        "description": "Choose which repository to use when installing or updating this skill.",
+        "options": {
+          "custom": {
+            "description": "Point to a self-hosted or private repository URL.",
+            "title": "Custom repository"
+          },
+          "official": {
+            "description": "Use the official SDKWork repository recommended for most teams.",
+            "title": "Official repository"
+          },
+          "tencent": {
+            "description": "Use the Tencent mirror when you need faster regional access.",
+            "title": "Tencent mirror"
+          }
+        },
+        "title": "Repository source"
+      },
+      "returnToMarket": "Return to marketplace",
+      "tabs": {
+        "overview": "Overview",
+        "reviews": "Reviews"
+      }
+    },
+    "skillPackDetail": {
+      "aboutTitle": "About this pack",
+      "actions": {
+        "deselectAll": "Deselect all",
+        "installPack": "Install pack",
+        "selectAll": "Select all",
+        "viewSkill": "View skill"
+      },
+      "backToMarket": "Back to marketplace",
+      "badge": "Skill Pack",
+      "information": {
+        "category": "Category",
+        "compatibility": "Compatibility",
+        "compatibilityValue": "OpenClaw gateway 1.0+",
+        "provider": "Provider",
+        "title": "Pack information",
+        "totalSkills": "Total skills"
+      },
+      "installationTitle": "Installation",
+      "metrics": {
+        "installs": "{{count, number}} installs"
+      },
+      "notFoundTitle": "Skill pack not found",
+      "returnToMarket": "Return to marketplace",
+      "selectSkillsTitle": "Select skills",
+      "selectedSkills": "Selected skills",
+      "targetInstance": "Target instance"
+    }
   }
 }

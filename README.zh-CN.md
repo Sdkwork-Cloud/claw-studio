@@ -23,7 +23,7 @@ shell -> (core + i18n + ui + feature)
 
 核心包职责：
 
-- `@sdkwork/claw-web`：可运行的 Web 应用与开发服务器
+- `@sdkwork/claw-web`：可运行的 Web 应用与 Vite 宿主
 - `@sdkwork/claw-desktop`：Tauri 桌面入口与原生桥接
 - `@sdkwork/claw-shell`：路由、布局、Provider、侧边栏、命令面板
 - `@sdkwork/claw-core`：共享 store 与跨业务编排
@@ -40,7 +40,7 @@ pnpm install
 pnpm dev
 ```
 
-默认 Web 开发服务器由 `packages/sdkwork-claw-web/server.ts` 启动，地址为 `http://localhost:3001`。
+默认 Web 开发服务器通过 Vite 启动 `@sdkwork/claw-web`，地址为 `http://localhost:3001`。
 
 桌面开发与打包命令：
 

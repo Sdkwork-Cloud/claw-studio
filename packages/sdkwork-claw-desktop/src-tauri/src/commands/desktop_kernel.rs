@@ -39,6 +39,10 @@ mod tests {
     };
     use std::sync::Arc;
 
+    fn normalize_path_suffix(path: &str) -> String {
+        path.replace('\\', "/")
+    }
+
     #[test]
     fn desktop_kernel_info_exposes_extended_runtime_directories() {
         let root = tempfile::tempdir().expect("temp dir");
@@ -53,13 +57,27 @@ mod tests {
 
         let info = desktop_kernel_info_from_state(&state).expect("kernel info");
 
-        assert!(info.directories.storage_dir.ends_with("data/storage"));
-        assert!(info.directories.plugins_dir.ends_with("data/plugins"));
+        assert!(normalize_path_suffix(&info.directories.install_root).ends_with("install"));
+        assert!(normalize_path_suffix(&info.directories.modules_dir).ends_with("install/modules"));
+        assert!(normalize_path_suffix(&info.directories.runtimes_dir).ends_with("install/runtimes"));
+        assert!(normalize_path_suffix(&info.directories.machine_root).ends_with("machine"));
+        assert!(normalize_path_suffix(&info.directories.machine_state_dir).ends_with("machine/state"));
+        assert!(normalize_path_suffix(&info.directories.machine_store_dir).ends_with("machine/store"));
+        assert!(normalize_path_suffix(&info.directories.machine_staging_dir)
+            .ends_with("machine/staging"));
+        assert!(normalize_path_suffix(&info.directories.user_root).ends_with("user-home"));
+        assert!(normalize_path_suffix(&info.directories.studio_dir).ends_with("user-home/studio"));
+        assert!(normalize_path_suffix(&info.directories.storage_dir)
+            .ends_with("user-home/user/storage"));
+        assert!(normalize_path_suffix(&info.directories.plugins_dir)
+            .ends_with("install/extensions/plugins"));
         assert!(info
             .directories
             .integrations_dir
-            .ends_with("data/integrations"));
-        assert!(info.directories.backups_dir.ends_with("data/backups"));
+            .replace('\\', "/")
+            .ends_with("user-home/user/integrations"));
+        assert!(normalize_path_suffix(&info.directories.backups_dir)
+            .ends_with("user-home/studio/backups"));
         assert!(info.filesystem.supports_binary_io);
         assert!(info
             .process

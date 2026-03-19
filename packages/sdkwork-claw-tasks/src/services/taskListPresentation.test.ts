@@ -1,0 +1,97 @@
+import assert from 'node:assert/strict';
+import type { Task, TaskExecutionHistoryEntry } from './taskService.ts';
+import { buildTaskCardState } from './taskListPresentation.ts';
+
+function runTest(name: string, fn: () => void) {
+  try {
+    fn();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}
+
+function createTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: 'task-1',
+    name: 'Daily Summary',
+    description: 'Collect the daily operator summary.',
+    prompt: 'Summarize the last 24 hours for the ops team.',
+    schedule: '@every 1d',
+    scheduleMode: 'interval',
+    scheduleConfig: {
+      intervalValue: 1,
+      intervalUnit: 'day',
+    },
+    cronExpression: '0 0 * * *',
+    actionType: 'skill',
+    status: 'active',
+    sessionMode: 'isolated',
+    wakeUpMode: 'immediate',
+    executionContent: 'runAssistantTask',
+    timeoutSeconds: 90,
+    deliveryMode: 'publishSummary',
+    deliveryChannel: 'qq',
+    recipient: 'ops-room',
+    lastRun: '2 hours ago',
+    nextRun: 'in 22 hours',
+    ...overrides,
+  };
+}
+
+function createExecution(
+  overrides: Partial<TaskExecutionHistoryEntry> = {},
+): TaskExecutionHistoryEntry {
+  return {
+    id: 'run-1',
+    taskId: 'task-1',
+    status: 'success',
+    trigger: 'schedule',
+    startedAt: 'Today 08:00',
+    finishedAt: 'Today 08:01',
+    summary: 'Everything completed successfully.',
+    details: 'Delivery succeeded.',
+    ...overrides,
+  };
+}
+
+runTest('active tasks with successful executions get a healthy card state', () => {
+  const state = buildTaskCardState(createTask(), [createExecution()]);
+
+  assert.equal(state.tone, 'healthy');
+  assert.equal(state.latestExecution?.status, 'success');
+  assert.equal(state.canRunNow, true);
+});
+
+runTest('paused tasks keep a paused card state even if they have no latest execution', () => {
+  const state = buildTaskCardState(
+    createTask({
+      status: 'paused',
+      nextRun: '-',
+    }),
+    [],
+  );
+
+  assert.equal(state.tone, 'paused');
+  assert.equal(state.latestExecution, null);
+  assert.equal(state.nextRunLabel, '-');
+});
+
+runTest('failed tasks surface execution failure as the dominant visual state', () => {
+  const state = buildTaskCardState(
+    createTask({
+      status: 'failed',
+    }),
+    [
+      createExecution({
+        status: 'failed',
+        summary: 'Delivery failed because the channel is offline.',
+      }),
+    ],
+  );
+
+  assert.equal(state.tone, 'danger');
+  assert.equal(state.latestExecution?.status, 'failed');
+  assert.equal(state.promptExcerpt.endsWith('...'), false);
+});

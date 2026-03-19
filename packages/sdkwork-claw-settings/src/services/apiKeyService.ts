@@ -4,8 +4,9 @@ export interface ApiKey {
   id: string;
   name: string;
   token: string;
-  created: string;
-  lastUsed: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  monthlyUsageUsd: number;
 }
 
 export interface CreateApiKeyDTO {
@@ -28,10 +29,13 @@ export interface IApiKeyService {
   update(id: string, data: UpdateApiKeyDTO): Promise<ApiKey>;
   delete(id: string): Promise<boolean>;
 
-  // Legacy methods
   getApiKeys(): Promise<ApiKey[]>;
   createApiKey(name: string): Promise<CreateApiKeyResponse>;
   revokeApiKey(id: string): Promise<void>;
+}
+
+function maskToken(prefix: string, fullToken: string) {
+  return `${prefix}${'*'.repeat(16)}${fullToken.slice(-4)}`;
 }
 
 class ApiKeyService implements IApiKeyService {
@@ -39,16 +43,18 @@ class ApiKeyService implements IApiKeyService {
     {
       id: '1',
       name: 'Production Gateway',
-      token: 'oc_live_••••••••••••••••a1b2',
-      created: 'Oct 24, 2023',
-      lastUsed: '2 mins ago',
+      token: 'oc_live_****************a1b2',
+      createdAt: '2023-10-24T08:00:00.000Z',
+      lastUsedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+      monthlyUsageUsd: 24.5,
     },
     {
       id: '2',
       name: 'Development Testing',
-      token: 'oc_test_••••••••••••••••x9y8',
-      created: 'Nov 12, 2023',
-      lastUsed: 'Never',
+      token: 'oc_test_****************z9y8',
+      createdAt: '2023-11-12T08:00:00.000Z',
+      lastUsedAt: null,
+      monthlyUsageUsd: 0,
     },
   ];
 
@@ -92,9 +98,10 @@ class ApiKeyService implements IApiKeyService {
     const newKey: ApiKey = {
       id: Date.now().toString(),
       name: data.name,
-      token: `${prefix}••••••••••••••••${fullToken.slice(-4)}`,
-      created: 'Just now',
-      lastUsed: 'Never',
+      token: maskToken(prefix, fullToken),
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+      monthlyUsageUsd: 0,
     };
 
     this.data.push(newKey);
@@ -105,7 +112,7 @@ class ApiKeyService implements IApiKeyService {
     await delay();
     const index = this.data.findIndex((key) => key.id === id);
     if (index === -1) {
-      throw new Error('API Key not found');
+      throw new Error('API key not found');
     }
 
     this.data[index] = { ...this.data[index], ...data };

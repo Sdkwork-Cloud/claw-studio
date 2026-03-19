@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Bell,
-  Code,
   Database,
   Key,
   Monitor,
   Receipt,
-  Router as RouterIcon,
   Search,
   Shield,
   Sparkles,
@@ -14,8 +12,10 @@ import {
   Wallet,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useLocation } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Account } from '@sdkwork/claw-account';
+import { useLocalizedText } from '@sdkwork/claw-i18n';
+import { Input } from '@sdkwork/claw-ui';
 import { AccountSettings } from './AccountSettings';
 import { ApiKeysSettings } from './ApiKeysSettings';
 import { BillingSettings } from './BillingSettings';
@@ -25,32 +25,27 @@ import { LLMSettings } from './LLMSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { SecuritySettings } from './SecuritySettings';
 
-const SETTINGS_TABS = [
-  { id: 'general', label: 'General', icon: Monitor },
-  { id: 'llm', label: 'LLM Configuration', icon: Sparkles },
-  { id: 'billing', label: 'Billing & Usage', icon: Receipt },
-  { id: 'wallet', label: 'Account', icon: Wallet },
-  { id: 'account', label: 'Profile Settings', icon: User },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'security', label: 'Security', icon: Shield },
-  { id: 'api', label: 'API Keys', icon: Key },
-  { id: 'data', label: 'Data & Privacy', icon: Database },
-  { id: 'codebox', label: 'CodeBox', icon: Code },
-  { id: 'api-router', label: 'Api Router', icon: RouterIcon },
-];
-
 export function Settings() {
-  const location = useLocation();
-  const [activeTab, setActiveTab] = useState('general');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  const { text } = useLocalizedText();
 
-  useEffect(() => {
-    if (location.pathname === '/settings/llm') {
-      setActiveTab('llm');
-    }
-  }, [location]);
+  const settingsTabs = [
+    { id: 'general', label: text('General', '\u901a\u7528'), icon: Monitor },
+    { id: 'llm', label: text('LLM Configuration', 'LLM \u914d\u7f6e'), icon: Sparkles },
+    { id: 'billing', label: text('Billing & Usage', '\u8d26\u5355\u4e0e\u7528\u91cf'), icon: Receipt },
+    { id: 'wallet', label: text('Account', '\u8d26\u6237'), icon: Wallet },
+    { id: 'account', label: text('Profile Settings', '\u4e2a\u4eba\u8d44\u6599\u8bbe\u7f6e'), icon: User },
+    { id: 'notifications', label: text('Notifications', '\u901a\u77e5'), icon: Bell },
+    { id: 'security', label: text('Security', '\u5b89\u5168'), icon: Shield },
+    { id: 'api', label: text('API Keys', 'API \u5bc6\u94a5'), icon: Key },
+    { id: 'data', label: text('Data & Privacy', '\u6570\u636e\u4e0e\u9690\u79c1'), icon: Database },
+  ];
 
-  const filteredTabs = SETTINGS_TABS.filter((tab) =>
+  const requestedTab = searchParams.get('tab');
+  const activeTab = settingsTabs.some((tab) => tab.id === requestedTab) ? requestedTab || 'general' : 'general';
+
+  const filteredTabs = settingsTabs.filter((tab) =>
     tab.label.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
@@ -59,16 +54,16 @@ export function Settings() {
       <div className="flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50/80 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="p-6 pb-4">
           <h1 className="mb-6 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Settings
+            {text('Settings', '\u8bbe\u7f6e')}
           </h1>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
-            <input
+            <Input
               type="text"
-              placeholder="Search settings..."
+              placeholder={text('Search settings...', '\u641c\u7d22\u8bbe\u7f6e...')}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-9 pr-4 text-[13px] text-zinc-900 shadow-sm transition-all placeholder:text-zinc-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-600 dark:focus:border-primary-500"
+              className="py-2.5 pl-9 pr-4 text-[13px]"
             />
           </div>
         </div>
@@ -80,7 +75,15 @@ export function Settings() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    const nextSearchParams = new URLSearchParams(searchParams);
+                    if (tab.id === 'general') {
+                      nextSearchParams.delete('tab');
+                    } else {
+                      nextSearchParams.set('tab', tab.id);
+                    }
+                    setSearchParams(nextSearchParams, { replace: true });
+                  }}
                   className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-[14px] font-medium transition-all duration-200 ${
                     isActive
                       ? 'border-zinc-200/50 bg-white text-primary-600 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-800 dark:text-primary-400'
@@ -100,7 +103,7 @@ export function Settings() {
             })
           ) : (
             <div className="px-3 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              No settings found.
+              {text('No settings found.', '\u672a\u627e\u5230\u5339\u914d\u7684\u8bbe\u7f6e\u9879\u3002')}
             </div>
           )}
         </nav>
@@ -124,43 +127,9 @@ export function Settings() {
             {activeTab === 'security' && <SecuritySettings />}
             {activeTab === 'api' && <ApiKeysSettings />}
             {activeTab === 'data' && <DataPrivacySettings />}
-            {activeTab === 'codebox' && (
-              <PlaceholderPanel
-                icon={Code}
-                title="CodeBox Integration"
-                description="This is a placeholder for the third-party CodeBox component integration. The implementation will be provided by an external library."
-              />
-            )}
-            {activeTab === 'api-router' && (
-              <PlaceholderPanel
-                icon={RouterIcon}
-                title="Api Router Integration"
-                description="This is a placeholder for the third-party Api Router component integration. The implementation will be provided by an external library."
-              />
-            )}
           </motion.div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function PlaceholderPanel({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
-        <Icon className="h-8 w-8" />
-      </div>
-      <h2 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{title}</h2>
-      <p className="mx-auto max-w-md text-zinc-500 dark:text-zinc-400">{description}</p>
     </div>
   );
 }

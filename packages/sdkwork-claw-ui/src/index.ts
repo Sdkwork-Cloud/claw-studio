@@ -1,3 +1,4 @@
-export * from './components/Modal';
-export * from './components/RepositoryCard';
+export * from './components';
+export * from './components/OverlaySurface';
+export * from './components/overlayLayout';
 export * from './lib/utils';

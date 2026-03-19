@@ -1,5 +1,6 @@
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import { ListParams, PaginatedResult } from '@sdkwork/claw-types';
-import { Instance, InstanceConfig } from '../types';
+import { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types';
 
 export interface CreateInstanceDTO {
   name: string;
@@ -27,21 +28,13 @@ export interface IInstanceService {
   getInstanceToken(id: string): Promise<string | undefined>;
   deleteInstance(id: string): Promise<void>;
   getInstanceLogs(id: string): Promise<string>;
+  updateInstanceFileContent(id: string, fileId: string, content: string): Promise<void>;
+  updateInstanceLlmProviderConfig(
+    id: string,
+    providerId: string,
+    update: InstanceLLMProviderUpdate,
+  ): Promise<void>;
 }
-
-const BUILT_IN_INSTANCE: Instance = {
-  id: 'builtin-instance',
-  name: 'Built-in Instance',
-  type: 'local',
-  iconType: 'box',
-  status: 'online',
-  version: '1.0.0',
-  uptime: '99.9%',
-  ip: 'localhost',
-  cpu: 5,
-  memory: 128,
-  totalMemory: '1024MB',
-};
 
 class InstanceService implements IInstanceService {
   async getList(params: ListParams = {}): Promise<PaginatedResult<Instance>> {
@@ -91,132 +84,76 @@ class InstanceService implements IInstanceService {
   }
 
   async getInstances(): Promise<Instance[]> {
-    try {
-      const response = await fetch('/api/instances');
-      if (!response.ok) {
-        throw new Error('Failed to fetch instances');
-      }
-
-      const data = await response.json();
-      if (data.length === 0) {
-        return [BUILT_IN_INSTANCE];
-      }
-
-      return data;
-    } catch (error) {
-      console.warn('Using built-in instance due to fetch error:', error);
-      return [BUILT_IN_INSTANCE];
-    }
+    return studioMockService.listInstances();
   }
 
   async getInstanceById(id: string): Promise<Instance | undefined> {
-    if (id === BUILT_IN_INSTANCE.id) {
-      return BUILT_IN_INSTANCE;
-    }
-
-    try {
-      const response = await fetch(`/api/instances/${id}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          return undefined;
-        }
-
-        throw new Error('Failed to fetch instance');
-      }
-
-      return response.json();
-    } catch {
-      return undefined;
-    }
+    return studioMockService.getInstance(id);
   }
 
   async startInstance(id: string): Promise<void> {
-    const response = await fetch(`/api/instances/${id}/start`, { method: 'POST' });
-    if (!response.ok) {
+    const updated = await studioMockService.setInstanceStatus(id, 'online');
+    if (!updated) {
       throw new Error('Failed to start instance');
     }
   }
 
   async stopInstance(id: string): Promise<void> {
-    const response = await fetch(`/api/instances/${id}/stop`, { method: 'POST' });
-    if (!response.ok) {
+    const updated = await studioMockService.setInstanceStatus(id, 'offline');
+    if (!updated) {
       throw new Error('Failed to stop instance');
     }
   }
 
   async restartInstance(id: string): Promise<void> {
-    const response = await fetch(`/api/instances/${id}/restart`, { method: 'POST' });
-    if (!response.ok) {
+    const updated = await studioMockService.setInstanceStatus(id, 'online');
+    if (!updated) {
       throw new Error('Failed to restart instance');
     }
   }
 
   async getInstanceConfig(id: string): Promise<InstanceConfig | undefined> {
-    const response = await fetch(`/api/instances/${id}/config`);
-    if (!response.ok) {
-      if (response.status === 404) {
-        return undefined;
-      }
-
-      throw new Error('Failed to fetch instance config');
-    }
-
-    return response.json();
+    return studioMockService.getInstanceConfig(id);
   }
 
   async updateInstanceConfig(id: string, config: InstanceConfig): Promise<void> {
-    const response = await fetch(`/api/instances/${id}/config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    });
-
-    if (!response.ok) {
+    const updated = await studioMockService.updateInstanceConfig(id, config);
+    if (!updated) {
       throw new Error('Failed to update instance config');
     }
   }
 
   async getInstanceToken(id: string): Promise<string | undefined> {
-    const response = await fetch(`/api/instances/${id}/token`);
-    if (!response.ok) {
-      if (response.status === 404) {
-        return undefined;
-      }
-
-      throw new Error('Failed to fetch instance token');
-    }
-
-    const data = await response.json();
-    return data.token;
+    return studioMockService.getInstanceToken(id);
   }
 
   async deleteInstance(id: string): Promise<void> {
-    if (id === BUILT_IN_INSTANCE.id) {
-      throw new Error('Cannot delete built-in instance');
-    }
-
-    const response = await fetch(`/api/instances/${id}`, { method: 'DELETE' });
-    if (!response.ok) {
+    const deleted = await studioMockService.deleteInstance(id);
+    if (!deleted) {
       throw new Error('Failed to delete instance');
     }
   }
 
-  async getInstanceLogs(_id: string): Promise<string> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(`[2023-10-27 14:32:01] INFO Starting OpenClaw Daemon v0.2.1...
-[2023-10-27 14:32:01] INFO Loading configuration from ~/.openclaw/config.json
-[2023-10-27 14:32:02] INFO Initializing Sandbox environment...
-[2023-10-27 14:32:03] SUCCESS Sandbox initialized successfully.
-[2023-10-27 14:32:03] INFO Starting HTTP server on port 18789...
-[2023-10-27 14:32:03] SUCCESS Server listening on http://127.0.0.1:18789
-[2023-10-27 14:35:12] INFO Incoming connection from 127.0.0.1
-[2023-10-27 14:35:12] INFO Authenticated client successfully.
-[2023-10-27 14:40:05] WARN Skill 'weather-fetcher' took longer than 500ms to respond.
-[2023-10-27 15:01:22] INFO Syncing device state...
-[2023-10-27 15:01:23] SUCCESS State synced.`);
-      }, 500);
-    });
+  async getInstanceLogs(id: string): Promise<string> {
+    return studioMockService.getInstanceLogs(id);
+  }
+
+  async updateInstanceFileContent(id: string, fileId: string, content: string): Promise<void> {
+    const updated = await studioMockService.updateInstanceFileContent(id, fileId, content);
+    if (!updated) {
+      throw new Error('Failed to update instance file');
+    }
+  }
+
+  async updateInstanceLlmProviderConfig(
+    id: string,
+    providerId: string,
+    update: InstanceLLMProviderUpdate,
+  ): Promise<void> {
+    const updated = await studioMockService.updateInstanceLlmProviderConfig(id, providerId, update);
+    if (!updated) {
+      throw new Error('Failed to update LLM provider config');
+    }
   }
 }
 

@@ -15,10 +15,10 @@ export function ClawUpload() {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-white flex items-center gap-3">
               <Globe className="w-8 h-8 text-primary-500" />
-              {t('clawUpload.title', 'Claw Upload')}
+              {t('clawUpload.title')}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 mt-2">
-              {t('clawUpload.subtitle', 'Publish your Claw to the ecosystem')}
+              {t('clawUpload.subtitle')}
             </p>
           </div>
         </div>
@@ -33,14 +33,14 @@ export function ClawUpload() {
             <FileUp className="w-10 h-10 text-primary-500" />
           </div>
           <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-4">
-            {t('clawUpload.comingSoon', 'Claw Publishing Coming Soon')}
+            {t('clawUpload.comingSoon')}
           </h2>
           <p className="text-zinc-500 dark:text-zinc-400 max-w-md mx-auto mb-8">
-            {t('clawUpload.description', 'Soon you will be able to package and publish your custom Claws to the global ecosystem for others to discover and use.')}
+            {t('clawUpload.description')}
           </p>
           <button className="bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-xl font-medium transition-colors inline-flex items-center gap-2">
             <Upload className="w-5 h-5" />
-            {t('clawUpload.prepare', 'Prepare Your Claw')}
+            {t('clawUpload.prepare')}
           </button>
         </motion.div>
 

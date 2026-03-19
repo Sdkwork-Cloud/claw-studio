@@ -17,13 +17,15 @@ This repository focuses on the Claw Studio product. It also contains `packages/c
 ## Architecture Snapshot
 
 ```text
-web/desktop -> shell -> feature -> (core + infrastructure + types + ui)
+web/desktop -> shell -> feature -> (commons + core + infrastructure + i18n + types + ui)
 shell -> (core + i18n + ui + feature)
+core -> (infrastructure + i18n + types)
+infrastructure -> (i18n + types)
 ```
 
 Key package roles:
 
-- `@sdkwork/claw-web`: runnable web app and development server
+- `@sdkwork/claw-web`: runnable web app and Vite host
 - `@sdkwork/claw-desktop`: Tauri desktop entry and native bridge
 - `@sdkwork/claw-shell`: routes, layouts, providers, sidebar, command palette
 - `@sdkwork/claw-core`: shared stores and cross-feature orchestration
@@ -40,7 +42,7 @@ pnpm install
 pnpm dev
 ```
 
-The default web development server runs from `packages/sdkwork-claw-web/server.ts` on `http://localhost:3001`.
+The default web development server runs through Vite for `@sdkwork/claw-web` on `http://localhost:3001`.
 
 For desktop development and packaging:
 
@@ -87,6 +89,7 @@ Desktop-specific examples are also available in [`packages/sdkwork-claw-desktop/
 - [Architecture](./docs/core/architecture.md)
 - [Package Layout](./docs/core/packages.md)
 - [Desktop Runtime](./docs/core/desktop.md)
+- [Desktop Template API](./docs/core/desktop-template.md)
 - [Commands Reference](./docs/reference/commands.md)
 - [Contribution Guide](./docs/contributing/index.md)
 

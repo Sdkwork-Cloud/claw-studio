@@ -2,21 +2,50 @@ import React, { useEffect, useState } from 'react';
 import { Check, Globe, Laptop, Moon, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { type Language, type ThemeColor, useAppStore } from '@sdkwork/claw-core';
+import { LANGUAGE_LABELS, supportedLanguages } from '@sdkwork/claw-i18n';
 import {
-  type Language,
-  type ThemeColor,
-  useAppStore,
-} from '@sdkwork/claw-core';
+  Checkbox,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@sdkwork/claw-ui';
 import { Section, ToggleRow } from './Shared';
 import { settingsService, type UserPreferences } from './services';
 
-const THEME_COLORS: { id: ThemeColor; label: string; colorClass: string }[] = [
-  { id: 'tech-blue', label: 'Tech Blue', colorClass: 'bg-blue-500' },
-  { id: 'lobster', label: 'Lobster', colorClass: 'bg-red-500' },
-  { id: 'green-tech', label: 'Green Tech', colorClass: 'bg-emerald-500' },
-  { id: 'zinc', label: 'Zinc', colorClass: 'bg-zinc-500' },
-  { id: 'violet', label: 'Violet', colorClass: 'bg-violet-500' },
-  { id: 'rose', label: 'Rose', colorClass: 'bg-rose-500' },
+const THEME_COLORS: { id: ThemeColor; labelKey: string; colorClass: string }[] = [
+  {
+    id: 'tech-blue',
+    labelKey: 'settings.general.themeColors.tech-blue',
+    colorClass: 'bg-blue-500',
+  },
+  {
+    id: 'lobster',
+    labelKey: 'settings.general.themeColors.lobster',
+    colorClass: 'bg-red-500',
+  },
+  {
+    id: 'green-tech',
+    labelKey: 'settings.general.themeColors.green-tech',
+    colorClass: 'bg-emerald-500',
+  },
+  {
+    id: 'zinc',
+    labelKey: 'settings.general.themeColors.zinc',
+    colorClass: 'bg-zinc-500',
+  },
+  {
+    id: 'violet',
+    labelKey: 'settings.general.themeColors.violet',
+    colorClass: 'bg-violet-500',
+  },
+  {
+    id: 'rose',
+    labelKey: 'settings.general.themeColors.rose',
+    colorClass: 'bg-rose-500',
+  },
 ];
 
 export function GeneralSettings() {
@@ -44,48 +73,69 @@ export function GeneralSettings() {
 
     const nextPrefs = { ...prefs, [key]: !prefs[key] };
     setPrefs(nextPrefs);
+
     try {
       await settingsService.updatePreferences({ general: nextPrefs });
     } catch (error) {
       setPrefs(prefs);
-      toast.error('Failed to update preference');
+      toast.error(t('settings.general.updatePreferenceFailed'));
     }
   };
+
+  const sidebarItems = [
+    { id: 'dashboard', label: t('sidebar.dashboard') },
+    { id: 'chat', label: t('sidebar.aiChat') },
+    { id: 'channels', label: t('sidebar.channels') },
+    { id: 'tasks', label: t('sidebar.cronTasks') },
+    { id: 'apps', label: t('sidebar.appStore') },
+    { id: 'market', label: t('sidebar.market') },
+    { id: 'extensions', label: t('sidebar.extensions') },
+    { id: 'claw-upload', label: t('sidebar.clawUpload') },
+    { id: 'community', label: t('sidebar.community') },
+    { id: 'github', label: t('sidebar.githubRepos') },
+    { id: 'huggingface', label: t('sidebar.huggingFace') },
+    { id: 'claw-center', label: t('sidebar.clawMall') },
+    { id: 'install', label: t('sidebar.install') },
+    { id: 'instances', label: t('sidebar.instances') },
+    { id: 'devices', label: t('sidebar.devices') },
+    { id: 'codebox', label: t('sidebar.codebox') },
+    { id: 'api-router', label: t('sidebar.apiRouter') },
+  ];
 
   return (
     <div className="space-y-8">
       <div>
         <h2 className="mb-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          General
+          {t('settings.general.title')}
         </h2>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Manage your basic application preferences.
+          {t('settings.general.description')}
         </p>
       </div>
 
       <div className="space-y-6">
-        <Section title="Appearance">
+        <Section title={t('settings.general.appearance')}>
           <div className="space-y-6">
             <div>
               <div className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                Theme Mode
+                {t('settings.general.themeMode')}
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <ThemeOption
                   icon={Sun}
-                  label="Light"
+                  label={t('settings.general.themeModes.light')}
                   active={themeMode === 'light'}
                   onClick={() => setThemeMode('light')}
                 />
                 <ThemeOption
                   icon={Moon}
-                  label="Dark"
+                  label={t('settings.general.themeModes.dark')}
                   active={themeMode === 'dark'}
                   onClick={() => setThemeMode('dark')}
                 />
                 <ThemeOption
                   icon={Laptop}
-                  label="System"
+                  label={t('settings.general.themeModes.system')}
                   active={themeMode === 'system'}
                   onClick={() => setThemeMode('system')}
                 />
@@ -94,7 +144,7 @@ export function GeneralSettings() {
 
             <div>
               <div className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                Theme Color
+                {t('settings.general.themeColor')}
               </div>
               <div className="flex flex-wrap gap-4">
                 {THEME_COLORS.map((color) => (
@@ -121,7 +171,7 @@ export function GeneralSettings() {
                           : 'text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-300'
                       }`}
                     >
-                      {color.label}
+                      {t(color.labelKey)}
                     </span>
                   </button>
                 ))}
@@ -130,7 +180,7 @@ export function GeneralSettings() {
           </div>
         </Section>
 
-        <Section title="Language & Region">
+        <Section title={t('settings.general.languageRegion')}>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -139,59 +189,46 @@ export function GeneralSettings() {
                 </div>
                 <div>
                   <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    Language
+                    {t('settings.general.language')}
                   </div>
                   <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                    Select your preferred language
+                    {t('settings.general.languageDescription')}
                   </div>
                 </div>
               </div>
-              <select
+              <Select
                 value={language}
-                onChange={(event) => setLanguage(event.target.value as Language)}
-                className="block cursor-pointer rounded-lg border border-zinc-200 bg-white p-2.5 text-sm text-zinc-900 shadow-sm outline-none focus:border-primary-500 focus:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                onValueChange={(value) => setLanguage(value as Language)}
               >
-                <option value="en">English (US)</option>
-                <option value="zh">中文 (简体)</option>
-                <option value="ja">日本語</option>
-              </select>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {supportedLanguages.map((supportedLanguage) => (
+                    <SelectItem key={supportedLanguage} value={supportedLanguage}>
+                      {LANGUAGE_LABELS[supportedLanguage]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </Section>
 
-        <Section title="Sidebar Navigation">
+        <Section title={t('settings.general.sidebarNavigation')}>
           <div className="space-y-4">
             <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
-              Choose which items to display in the sidebar.
+              {t('settings.general.sidebarDescription')}
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {[
-                { id: 'chat', label: t('sidebar.aiChat', 'AI Chat') },
-                { id: 'channels', label: t('sidebar.channels', 'Channels') },
-                { id: 'tasks', label: t('sidebar.cronTasks', 'Cron Tasks') },
-                { id: 'apps', label: t('sidebar.appStore', 'App Store') },
-                { id: 'market', label: t('sidebar.market', 'ClawHub') },
-                { id: 'extensions', label: t('sidebar.extensions', 'Extensions') },
-                { id: 'claw-upload', label: t('sidebar.clawUpload', 'Claw Upload') },
-                { id: 'community', label: t('sidebar.community', 'Community') },
-                { id: 'github', label: t('sidebar.githubRepos', 'GitHub Repos') },
-                { id: 'huggingface', label: t('sidebar.huggingFace', 'Hugging Face') },
-                { id: 'claw-center', label: t('sidebar.clawMall', 'Claw Mall') },
-                { id: 'install', label: t('sidebar.install', 'Install Claw Studio') },
-                { id: 'instances', label: t('sidebar.instances', 'Instances') },
-                { id: 'devices', label: t('sidebar.devices', 'Devices') },
-                { id: 'codebox', label: t('sidebar.codebox', 'CodeBox') },
-                { id: 'api-router', label: t('sidebar.apiRouter', 'Api Router') },
-              ].map((item) => (
+              {sidebarItems.map((item) => (
                 <label
                   key={item.id}
                   className="flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 p-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={!hiddenSidebarItems.includes(item.id)}
-                    onChange={() => toggleSidebarItem(item.id)}
-                    className="h-4 w-4 rounded border-zinc-300 text-primary-600 focus:ring-primary-500 dark:border-zinc-700 dark:bg-zinc-900 dark:checked:bg-primary-500"
+                    onCheckedChange={() => toggleSidebarItem(item.id)}
                   />
                   <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     {item.label}
@@ -202,19 +239,19 @@ export function GeneralSettings() {
           </div>
         </Section>
 
-        <Section title="Startup">
+        <Section title={t('settings.general.startup')}>
           <div className="space-y-4">
             {prefs ? (
               <>
                 <ToggleRow
-                  title="Launch on startup"
-                  description="Automatically start Claw Studio when you log in to your computer."
+                  title={t('settings.general.launchOnStartup')}
+                  description={t('settings.general.launchOnStartupDescription')}
                   enabled={prefs.launchOnStartup}
                   onToggle={() => handleToggle('launchOnStartup')}
                 />
                 <ToggleRow
-                  title="Start minimized"
-                  description="Open the application in the system tray instead of a window."
+                  title={t('settings.general.startMinimized')}
+                  description={t('settings.general.startMinimizedDescription')}
                   enabled={prefs.startMinimized}
                   onToggle={() => handleToggle('startMinimized')}
                 />

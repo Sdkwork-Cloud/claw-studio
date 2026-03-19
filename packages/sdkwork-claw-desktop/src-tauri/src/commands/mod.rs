@@ -8,6 +8,7 @@ pub mod get_app_paths;
 pub mod get_device_id;
 pub mod get_path_info;
 pub mod get_system_info;
+pub mod install_api_router_client_setup;
 pub mod job_commands;
 pub mod list_directory;
 pub mod move_path;

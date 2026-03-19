@@ -15,18 +15,18 @@ export const ProductCardWrapper = ({ children, customContent, product, onRequest
 
   const getButtonText = (type: string) => {
     switch (type) {
-      case 'physical': return t('products.buttons.buyNow', 'Buy Now');
-      case 'auction': return t('products.buttons.placeBid', 'Place Bid');
-      case 'recharge': return t('products.buttons.topUp', 'Top Up');
-      case 'content': return t('products.buttons.readSubscribe', 'Read / Subscribe');
+      case 'physical': return t('products.buttons.buyNow');
+      case 'auction': return t('products.buttons.placeBid');
+      case 'recharge': return t('products.buttons.topUp');
+      case 'content': return t('products.buttons.readSubscribe');
       case 'ai_image':
       case 'ai_video':
-      case 'ai_music': return t('products.buttons.generateNow', 'Generate Now');
-      case 'service': return t('products.buttons.inquire', 'Inquire');
-      case 'coupon': return t('products.buttons.claim', 'Claim Coupon');
-      case 'food': return t('products.buttons.orderFood', 'Order Now');
-      case 'software': return t('products.buttons.generateSoftware', 'Generate Software');
-      default: return t('products.buttons.viewDetails', 'View Details');
+      case 'ai_music': return t('products.buttons.generateNow');
+      case 'service': return t('products.buttons.inquire');
+      case 'coupon': return t('products.buttons.claim');
+      case 'food': return t('products.buttons.orderFood');
+      case 'software': return t('products.buttons.generateSoftware');
+      default: return t('products.buttons.viewDetails');
     }
   };
 
@@ -53,7 +53,7 @@ export const ProductCardWrapper = ({ children, customContent, product, onRequest
         <div className="sm:w-48 h-48 sm:h-auto shrink-0 relative overflow-hidden">
           <img src={product.coverImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
           <div className={`absolute top-3 left-3 px-2.5 py-1 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wider rounded-md shadow-sm ${getBadgeColor(product.type)}`}>
-            {t(`products.labels.${product.type}`, product.type.replace('_', ' '))}
+            {t(`products.labels.${product.type}`)}
           </div>
         </div>
       )}

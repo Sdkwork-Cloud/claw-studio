@@ -5,7 +5,9 @@
   "type": "module",
   "dependencies": {
     "@sdkwork/claw-chat": "workspace:*",
+    "@sdkwork/claw-i18n": "workspace:*",
     "@sdkwork/claw-types": "workspace:*",
+    "@sdkwork/claw-ui": "workspace:*",
     "lucide-react": "^0.546.0",
     "motion": "^12.35.0",
     "react": "^19.0.0",

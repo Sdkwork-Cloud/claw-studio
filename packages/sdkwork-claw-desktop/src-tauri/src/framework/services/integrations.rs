@@ -125,9 +125,9 @@ mod tests {
             .kernel_info(
                 &paths,
                 &AppConfig {
-                    integrations: crate::framework::config::IntegrationsConfig {
+                    integrations: crate::framework::config::IntegrationConfig {
                         plugins_enabled: false,
-                        ..crate::framework::config::IntegrationsConfig::default()
+                        ..crate::framework::config::IntegrationConfig::default()
                     },
                     ..AppConfig::default()
                 },

@@ -20,6 +20,8 @@ function parsePort(url) {
 
 const desktopPackage = readJson('packages/sdkwork-claw-desktop/package.json');
 const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
+const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
+const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420';
 
 const tauriDevScript = desktopPackage.scripts?.['dev:tauri'];
 if (typeof tauriDevScript !== 'string' || tauriDevScript.trim().length === 0) {
@@ -47,4 +49,32 @@ if (!tauriDevScript.includes('--host 127.0.0.1')) {
   fail('Desktop "dev:tauri" must bind Vite to host 127.0.0.1.');
 }
 
-console.log('ok - desktop Tauri dev command contract stays aligned with devUrl');
+const tauriCliDevScript = desktopPackage.scripts?.['tauri:dev'];
+if (typeof tauriCliDevScript !== 'string' || tauriCliDevScript.trim().length === 0) {
+  fail('Desktop package must define a "tauri:dev" script.');
+}
+
+if (!tauriCliDevScript.startsWith(`${staleTargetGuardCommand} && `)) {
+  fail(
+    `Desktop "tauri:dev" must guard against stale Tauri target artifacts via "${staleTargetGuardCommand}" before invoking the Tauri CLI.`,
+  );
+}
+
+if (!tauriCliDevScript.includes(`&& ${devPortGuardCommand} &&`)) {
+  fail(
+    `Desktop "tauri:dev" must verify that the fixed Tauri dev port is free via "${devPortGuardCommand}" before invoking the Tauri CLI.`,
+  );
+}
+
+const tauriCliBuildScript = desktopPackage.scripts?.['tauri:build'];
+if (typeof tauriCliBuildScript !== 'string' || tauriCliBuildScript.trim().length === 0) {
+  fail('Desktop package must define a "tauri:build" script.');
+}
+
+if (!tauriCliBuildScript.startsWith(`${staleTargetGuardCommand} && `)) {
+  fail(
+    `Desktop "tauri:build" must guard against stale Tauri target artifacts via "${staleTargetGuardCommand}" before invoking the Tauri CLI.`,
+  );
+}
+
+console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');

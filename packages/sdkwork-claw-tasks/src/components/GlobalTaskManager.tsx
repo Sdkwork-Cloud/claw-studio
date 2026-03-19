@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
@@ -13,27 +14,29 @@ import { type Task, useTaskStore } from '@sdkwork/claw-core';
 
 function TaskIcon({ type, status }: { type: Task['type']; status: Task['status'] }) {
   if (status === 'success') {
-    return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
+    return <CheckCircle2 className="h-5 w-5 text-emerald-500" />;
   }
+
   if (status === 'error') {
-    return <AlertCircle className="w-5 h-5 text-red-500" />;
+    return <AlertCircle className="h-5 w-5 text-red-500" />;
   }
 
   switch (type) {
     case 'download':
-      return <HardDriveDownload className="w-5 h-5 text-primary-500" />;
+      return <HardDriveDownload className="h-5 w-5 text-primary-500" />;
     case 'install':
-      return <Package className="w-5 h-5 text-amber-500" />;
+      return <Package className="h-5 w-5 text-amber-500" />;
     case 'build':
-      return <Terminal className="w-5 h-5 text-purple-500" />;
+      return <Terminal className="h-5 w-5 text-purple-500" />;
     default:
-      return <Loader2 className="w-5 h-5 text-zinc-500 animate-spin" />;
+      return <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />;
   }
 }
 
 export function GlobalTaskManager() {
   const { tasks, isPanelOpen, setPanelOpen, removeTask, clearCompleted } = useTaskStore();
   const activeTasksCount = tasks.filter((task) => task.status === 'running').length;
+  const { t } = useTranslation();
 
   if (!isPanelOpen && tasks.length === 0) {
     return null;
@@ -53,12 +56,18 @@ export function GlobalTaskManager() {
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Loader2
-                  className={`w-4 h-4 text-zinc-900 ${activeTasksCount > 0 ? 'animate-spin' : 'hidden'}`}
+                  className={`h-4 w-4 text-zinc-900 ${
+                    activeTasksCount > 0 ? 'animate-spin' : 'hidden'
+                  }`}
                 />
-                {activeTasksCount === 0 ? <CheckCircle2 className="w-4 h-4 text-zinc-900" /> : null}
+                {activeTasksCount === 0 ? (
+                  <CheckCircle2 className="h-4 w-4 text-zinc-900" />
+                ) : null}
               </div>
               <span className="text-sm font-bold text-zinc-900">
-                {activeTasksCount > 0 ? `${activeTasksCount} Active Tasks` : 'All Tasks Completed'}
+                {activeTasksCount > 0
+                  ? t('taskManager.activeTasks', { count: activeTasksCount })
+                  : t('taskManager.allCompleted')}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -66,23 +75,25 @@ export function GlobalTaskManager() {
                 <button
                   onClick={clearCompleted}
                   className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-700"
-                  title="Clear completed"
+                  title={t('taskManager.clearCompleted')}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="h-4 w-4" />
                 </button>
               ) : null}
               <button
                 onClick={() => setPanelOpen(false)}
                 className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-700"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
 
           <div className="scrollbar-hide space-y-1 overflow-y-auto bg-zinc-50/30 p-2">
             {tasks.length === 0 ? (
-              <div className="py-8 text-center text-sm text-zinc-500">No recent tasks</div>
+              <div className="py-8 text-center text-sm text-zinc-500">
+                {t('taskManager.noRecentTasks')}
+              </div>
             ) : (
               tasks.map((task) => (
                 <motion.div
@@ -99,12 +110,14 @@ export function GlobalTaskManager() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center justify-between gap-2">
-                        <h4 className="truncate text-sm font-semibold text-zinc-900">{task.title}</h4>
+                        <h4 className="truncate text-sm font-semibold text-zinc-900">
+                          {task.title}
+                        </h4>
                         <button
                           onClick={() => removeTask(task.id)}
                           className="rounded p-1 text-zinc-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                       {task.subtitle ? (
@@ -114,7 +127,11 @@ export function GlobalTaskManager() {
                       {task.status === 'running' ? (
                         <div className="mt-2">
                           <div className="mb-1 flex justify-between text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                            <span>{task.progress < 100 ? 'Processing...' : 'Finalizing...'}</span>
+                            <span>
+                              {task.progress < 100
+                                ? t('taskManager.processing')
+                                : t('taskManager.finalizing')}
+                            </span>
                             <span>{Math.round(task.progress)}%</span>
                           </div>
                           <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
@@ -128,7 +145,9 @@ export function GlobalTaskManager() {
                         </div>
                       ) : null}
                       {task.status === 'error' ? (
-                        <p className="mt-1 text-xs font-medium text-red-500">Task failed. Please try again.</p>
+                        <p className="mt-1 text-xs font-medium text-red-500">
+                          {t('taskManager.failedTryAgain')}
+                        </p>
                       ) : null}
                     </div>
                   </div>

@@ -24,7 +24,7 @@ export function CouponProductCard({ product, onRequest }: Props) {
       </div>
       <div className="flex items-center gap-1.5 col-span-2">
         <Calendar className="w-3.5 h-3.5 text-zinc-400" />
-        <span>{t('products.validUntil', 'Valid Until')}: {product.validUntil}</span>
+        <span>{t('products.validUntil')}: {product.validUntil}</span>
       </div>
     </ProductCardWrapper>
   );

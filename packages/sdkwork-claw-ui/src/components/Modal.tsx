@@ -1,7 +1,14 @@
 import { X } from 'lucide-react';
-import { type ReactNode, useEffect } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../lib/utils';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from './Dialog';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -18,59 +25,40 @@ export function Modal({
   children,
   className,
 }: ModalProps) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  const { t } = useTranslation();
 
   return (
-    <AnimatePresence>
-      {isOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{
-              type: 'spring',
-              stiffness: 400,
-              damping: 30,
-              mass: 0.8,
-            }}
-            className={cn(
-              'relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-zinc-200/50 bg-white shadow-xl dark:border-zinc-800/50 dark:bg-zinc-900',
-              className,
-            )}
-          >
-            <div className="flex items-center justify-between border-b border-zinc-100 p-6 dark:border-zinc-800">
-              <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-                {title}
-              </h2>
-              <button
-                onClick={onClose}
-                className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="overflow-y-auto p-6">{children}</div>
-          </motion.div>
-        </div>
-      ) : null}
-    </AnimatePresence>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          'max-w-md border-zinc-200/70 p-0 dark:border-zinc-800/70',
+          className,
+        )}
+      >
+        <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-zinc-100 px-6 py-5 dark:border-zinc-800">
+          <DialogTitle className="text-xl font-semibold tracking-tight">
+            {title}
+          </DialogTitle>
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-zinc-800 dark:hover:text-zinc-300 dark:focus:ring-offset-zinc-950"
+            >
+              <X className="h-5 w-5" />
+              <span className="sr-only">{t('common.close')}</span>
+            </button>
+          </DialogClose>
+        </DialogHeader>
+        <div className="overflow-y-auto p-6">{children}</div>
+      </DialogContent>
+    </Dialog>
   );
 }

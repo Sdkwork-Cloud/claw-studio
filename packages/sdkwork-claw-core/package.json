@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@google/genai": "^1.30.0",
+    "@sdkwork/claw-i18n": "workspace:*",
     "@sdkwork/claw-infrastructure": "workspace:*",
     "fuse.js": "^7.1.0",
     "lucide-react": "^0.546.0",

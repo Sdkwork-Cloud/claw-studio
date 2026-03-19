@@ -5,8 +5,10 @@
 Claw Studio follows a strict dependency flow:
 
 ```text
-web/desktop -> shell -> feature -> (core + infrastructure + types + ui)
+web/desktop -> shell -> feature -> (commons + core + infrastructure + i18n + types + ui)
 shell -> (core + i18n + ui + feature)
+core -> (infrastructure + i18n + types)
+infrastructure -> (i18n + types)
 ```
 
 This rule keeps application entry packages small, makes feature packages portable, and prevents hidden dependencies between unrelated business areas.
@@ -18,6 +20,7 @@ This rule keeps application entry packages small, makes feature packages portabl
 - bootstrap the runtime
 - mount the shared shell
 - provide platform-specific integration only
+- never own mock business databases, fake API servers, or feature-local transport logic
 
 They should not own core stores, feature services, or page logic.
 
@@ -41,7 +44,9 @@ The shell assembles feature exports. It should not turn into a monolith with fea
 ### Types And Infrastructure
 
 - `types`: pure shared models and types
-- `infrastructure`: environment access, HTTP clients, i18n bootstrap, platform adapters, update helpers
+- `infrastructure`: environment access, HTTP clients, platform adapters, update helpers
+- `i18n`: locale detection, formatting, and translation bootstrap that can be used by shell, core, infrastructure, commons, and feature UI
+- temporary mock adapters that unblock feature development belong in service or infrastructure layers, not in the web host
 
 ### Feature Packages
 
@@ -52,6 +57,8 @@ Feature packages own their own `components`, `pages`, and `services` directories
 - `@sdkwork/claw-settings`
 - `@sdkwork/claw-account`
 - `@sdkwork/claw-extensions`
+
+Feature packages may depend on `@sdkwork/claw-i18n` for locale-aware formatting and language metadata, but they should not initialize a second i18n runtime.
 
 ## Root-Only Imports
 

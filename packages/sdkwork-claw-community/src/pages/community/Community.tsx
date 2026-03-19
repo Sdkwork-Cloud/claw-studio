@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   BookOpen,
   ChevronRight,
@@ -12,16 +14,47 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { motion } from 'motion/react';
-import { communityService, type CommunityPost } from '../../services';
-
-const CATEGORIES = [
-  { id: 'posts', name: 'Posts', icon: MessageSquare },
-  { id: 'news', name: 'News', icon: BookOpen },
-];
+import { Input } from '@sdkwork/claw-ui';
+import { type CommunityPost, communityService } from '../../services';
 
 export function Community() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const categories = [
+    { id: 'posts', name: t('community.page.categories.posts'), icon: MessageSquare },
+    { id: 'news', name: t('community.page.categories.news'), icon: BookOpen },
+  ];
+  const latestItems = [
+    {
+      id: 'claw-1',
+      name: t('community.page.latestItems.one.name'),
+      author: t('community.page.latestItems.one.author'),
+      time: t('community.page.latestItems.one.time'),
+    },
+    {
+      id: 'claw-2',
+      name: t('community.page.latestItems.two.name'),
+      author: t('community.page.latestItems.two.author'),
+      time: t('community.page.latestItems.two.time'),
+    },
+    {
+      id: 'claw-3',
+      name: t('community.page.latestItems.three.name'),
+      author: t('community.page.latestItems.three.author'),
+      time: t('community.page.latestItems.three.time'),
+    },
+  ];
+  const onlineItems = [
+    { id: 'claw-4', name: t('community.page.onlineItems.one'), users: 1240 },
+    { id: 'claw-5', name: t('community.page.onlineItems.two'), users: 856 },
+    { id: 'claw-6', name: t('community.page.onlineItems.three'), users: 632 },
+  ];
+  const hottestItems = [
+    { id: 'claw-7', name: t('community.page.hottestItems.one'), downloads: '125k' },
+    { id: 'claw-8', name: t('community.page.hottestItems.two'), downloads: '98k' },
+    { id: 'claw-9', name: t('community.page.hottestItems.three'), downloads: '85k' },
+  ];
+
   const [activeCategory, setActiveCategory] = useState('posts');
   const [searchQuery, setSearchQuery] = useState('');
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -57,10 +90,10 @@ export function Community() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                Community
+                {t('community.page.title')}
               </h1>
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Learn, share, and connect
+                {t('community.page.subtitle')}
               </p>
             </div>
           </div>
@@ -68,12 +101,12 @@ export function Community() {
           <div className="flex w-full items-center gap-4 md:w-auto">
             <div className="group relative w-full md:w-80">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-primary-500 dark:text-zinc-500" />
-              <input
+              <Input
                 type="text"
-                placeholder="Search articles, discussions..."
+                placeholder={t('community.page.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-100/80 py-2 pl-10 pr-4 text-sm font-medium text-zinc-900 outline-none transition-all placeholder:text-zinc-500 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100 dark:placeholder:text-zinc-400 dark:focus:bg-zinc-900"
+                className="rounded-xl bg-zinc-100/80 py-2 pl-10 pr-4 font-medium focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-primary-500/20 focus-visible:ring-offset-0 dark:border-zinc-700 dark:bg-zinc-800/80 dark:focus-visible:bg-zinc-900 dark:focus-visible:ring-offset-0"
               />
             </div>
             <button
@@ -81,7 +114,7 @@ export function Community() {
               className="hidden shrink-0 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary-500/20 transition-colors hover:bg-primary-700 md:flex"
             >
               <Plus className="h-4 w-4" />
-              New Post
+              {t('community.page.newPost')}
             </button>
           </div>
         </div>
@@ -90,7 +123,7 @@ export function Community() {
       <div className="mx-auto flex max-w-7xl flex-col gap-8 p-6 md:p-8 lg:flex-row">
         <div className="flex-1 space-y-8">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {CATEGORIES.map((category) => {
+            {categories.map((category) => {
               const Icon = category.icon;
               const isActive = activeCategory === category.id;
 
@@ -117,7 +150,9 @@ export function Community() {
             {loading ? (
               <div className="py-12 text-center">
                 <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
-                <p className="font-medium text-zinc-500 dark:text-zinc-400">Loading posts...</p>
+                <p className="font-medium text-zinc-500 dark:text-zinc-400">
+                  {t('community.page.loadingPosts')}
+                </p>
               </div>
             ) : posts.length > 0 ? (
               posts.map((post, index) => (
@@ -156,7 +191,7 @@ export function Community() {
                           </span>
                           {post.author.role === 'Official' ? (
                             <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
-                              Official
+                              {t('community.page.officialBadge')}
                             </span>
                           ) : null}
                         </div>
@@ -187,13 +222,16 @@ export function Community() {
 
                       <div className="flex items-center gap-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         <span className="flex items-center gap-1.5 transition-colors hover:text-primary-500">
-                          <Heart className="h-4 w-4" /> {post.stats.likes}
+                          <Heart className="h-4 w-4" />
+                          {post.stats.likes}
                         </span>
                         <span className="flex items-center gap-1.5 transition-colors hover:text-primary-500">
-                          <MessageSquare className="h-4 w-4" /> {post.stats.comments}
+                          <MessageSquare className="h-4 w-4" />
+                          {post.stats.comments}
                         </span>
                         <span className="flex items-center gap-1.5">
-                          <Eye className="h-4 w-4" /> {post.stats.views}
+                          <Eye className="h-4 w-4" />
+                          {post.stats.views}
                         </span>
                       </div>
                     </div>
@@ -204,10 +242,10 @@ export function Community() {
               <div className="flex flex-col items-center justify-center rounded-3xl border border-zinc-200 bg-white py-24 text-center dark:border-zinc-800 dark:bg-zinc-900">
                 <BookOpen className="mb-4 h-12 w-12 text-zinc-300 dark:text-zinc-700" />
                 <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                  No posts found
+                  {t('community.page.noPostsTitle')}
                 </h3>
                 <p className="text-zinc-500 dark:text-zinc-400">
-                  Try adjusting your search or category filter.
+                  {t('community.page.noPostsDescription')}
                 </p>
               </div>
             )}
@@ -220,21 +258,18 @@ export function Community() {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-primary-500/20 transition-colors hover:bg-primary-700 md:hidden"
           >
             <Plus className="h-4 w-4" />
-            New Post
+            {t('community.page.newPost')}
           </button>
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
-              <Clock className="h-4 w-4 text-primary-500" /> Latest Claw
+              <Clock className="h-4 w-4 text-primary-500" />
+              {t('community.page.latestClaw')}
             </h3>
             <div className="space-y-4">
-              {[
-                { id: 'claw-1', name: 'Auto-GPT Agent', author: 'AI Labs', time: '2h ago' },
-                { id: 'claw-2', name: 'Vision Analyzer', author: 'Tech Corp', time: '5h ago' },
-                { id: 'claw-3', name: 'Data Scraper Pro', author: 'DevTeam', time: '1d ago' },
-              ].map((claw, index) => (
+              {latestItems.map((claw) => (
                 <div
-                  key={`${claw.id}-${index}`}
+                  key={claw.id}
                   onClick={() => navigate(`/market/${claw.id}`)}
                   className="group -mx-2 flex cursor-pointer items-center justify-between rounded-xl p-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 >
@@ -256,16 +291,13 @@ export function Community() {
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
-              <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Online Claw
+              <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              {t('community.page.onlineClaw')}
             </h3>
             <div className="space-y-4">
-              {[
-                { id: 'claw-4', name: 'Trading Bot V2', users: 1240 },
-                { id: 'claw-5', name: 'SEO Optimizer', users: 856 },
-                { id: 'claw-6', name: 'Image Generator', users: 632 },
-              ].map((claw, index) => (
+              {onlineItems.map((claw) => (
                 <div
-                  key={`${claw.id}-${index}`}
+                  key={claw.id}
                   onClick={() => navigate(`/market/${claw.id}`)}
                   className="group -mx-2 flex cursor-pointer items-center justify-between rounded-xl p-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 >
@@ -275,7 +307,8 @@ export function Community() {
                     </h4>
                   </div>
                   <div className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
-                    <Users className="h-3 w-3" /> {claw.users}
+                    <Users className="h-3 w-3" />
+                    {claw.users}
                   </div>
                 </div>
               ))}
@@ -284,16 +317,13 @@ export function Community() {
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
-              <TrendingUp className="h-4 w-4 text-rose-500" /> Hottest Claw
+              <TrendingUp className="h-4 w-4 text-rose-500" />
+              {t('community.page.hottestClaw')}
             </h3>
             <div className="space-y-4">
-              {[
-                { id: 'claw-7', name: 'Code Assistant', downloads: '125k' },
-                { id: 'claw-8', name: 'UI Builder', downloads: '98k' },
-                { id: 'claw-9', name: 'DB Manager', downloads: '85k' },
-              ].map((claw, index) => (
+              {hottestItems.map((claw, index) => (
                 <div
-                  key={`${claw.id}-${index}`}
+                  key={claw.id}
                   onClick={() => navigate(`/market/${claw.id}`)}
                   className="group -mx-2 flex cursor-pointer items-center justify-between rounded-xl p-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 >
@@ -322,7 +352,8 @@ export function Community() {
               ))}
             </div>
             <button className="mt-4 flex w-full items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-500/10">
-              View Rankings <ChevronRight className="h-3 w-3" />
+              {t('community.page.viewRankings')}
+              <ChevronRight className="h-3 w-3" />
             </button>
           </div>
         </div>

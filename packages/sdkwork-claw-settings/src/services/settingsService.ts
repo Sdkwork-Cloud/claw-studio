@@ -1,3 +1,5 @@
+import { studioMockService } from '@sdkwork/claw-infrastructure';
+
 export interface UserProfile {
   firstName: string;
   lastName: string;
@@ -38,23 +40,11 @@ export interface ISettingsService {
 
 class SettingsService implements ISettingsService {
   async getProfile(): Promise<UserProfile> {
-    const res = await fetch('/api/settings/profile');
-    if (!res.ok) {
-      throw new Error('Failed to fetch profile');
-    }
-    return res.json();
+    return studioMockService.getProfile();
   }
 
   async updateProfile(profile: UserProfile): Promise<UserProfile> {
-    const res = await fetch('/api/settings/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to update profile');
-    }
-    return profile;
+    return studioMockService.updateProfile(profile);
   }
 
   async updatePassword(_current: string, _newPass: string): Promise<void> {
@@ -66,23 +56,11 @@ class SettingsService implements ISettingsService {
   }
 
   async getPreferences(): Promise<UserPreferences> {
-    const res = await fetch('/api/settings/preferences');
-    if (!res.ok) {
-      throw new Error('Failed to fetch preferences');
-    }
-    return res.json();
+    return studioMockService.getPreferences();
   }
 
   async updatePreferences(prefs: Partial<UserPreferences>): Promise<UserPreferences> {
-    const res = await fetch('/api/settings/preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(prefs),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to update preferences');
-    }
-    return res.json();
+    return studioMockService.updatePreferences(prefs);
   }
 }
 

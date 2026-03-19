@@ -69,6 +69,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/package.json', 'desktop package'],
   ['packages/sdkwork-claw-desktop/.env.example', 'desktop env example'],
   ['packages/sdkwork-claw-desktop/src/main.tsx', 'desktop entry'],
+  ['packages/sdkwork-claw-desktop/src/desktop/catalog.ts', 'desktop command and event catalog module'],
+  ['packages/sdkwork-claw-desktop/src/desktop/runtime.ts', 'desktop runtime bridge module'],
   ['packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts', 'desktop bridge'],
   ['packages/sdkwork-claw-infrastructure/src/config/env.ts', 'desktop env config module'],
   ['packages/sdkwork-claw-infrastructure/src/updates/contracts.ts', 'desktop update contracts module'],
@@ -147,6 +149,36 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
 assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'export const DESKTOP_COMMANDS',
+  'desktop command catalog export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'installApiRouterClientSetup',
+  'desktop api router installer command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'export const DESKTOP_EVENTS',
+  'desktop event catalog export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/runtime.ts',
+  'export class DesktopBridgeError',
+  'desktop bridge error export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/runtime.ts',
+  'export async function invokeDesktopCommand',
+  'desktop invoke wrapper export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/runtime.ts',
+  'export async function listenDesktopEvent',
+  'desktop event listener wrapper export',
+);
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'export async function getAppInfo',
@@ -229,27 +261,132 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  "invoke<void>('open_external'",
+  'DESKTOP_COMMANDS',
+  'desktop command catalog usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'DESKTOP_EVENTS',
+  'desktop event catalog usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'invokeDesktopCommand',
+  'desktop invoke wrapper usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'listenDesktopEvent',
+  'desktop event wrapper usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export const desktopTemplateApi',
+  'desktop template API facade export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'catalog:',
+  'desktop template API catalog grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'meta:',
+  'desktop template API meta grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'app:',
+  'desktop template API app grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'kernel:',
+  'desktop template API kernel grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'storage:',
+  'desktop template API storage grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'filesystem:',
+  'desktop template API filesystem grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'jobs:',
+  'desktop template API job grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'shell:',
+  'desktop template API shell grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'installer:',
+  'desktop template API installer grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'runtime:',
+  'desktop template API runtime grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
+  'DESKTOP_COMMANDS',
+  'desktop package command catalog export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
+  'DESKTOP_EVENTS',
+  'desktop package event catalog export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
+  'desktopTemplateApi',
+  'desktop package template API export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
+  'DesktopBridgeError',
+  'desktop package bridge error export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'DESKTOP_COMMANDS.openExternal',
   'desktop open external invoke wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  "invoke<string[]>('select_files'",
+  'DESKTOP_COMMANDS.selectFiles',
   'desktop select files invoke wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  "invoke('save_blob_file'",
+  'DESKTOP_COMMANDS.saveBlobFile',
   'desktop save blob file invoke wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  "invoke<string>('execute_install_script'",
+  'DESKTOP_COMMANDS.executeInstallScript',
   'desktop install script invoke wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
-  'listen<',
+  'DESKTOP_COMMANDS.installApiRouterClientSetup',
+  'desktop api router installer invoke wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function installApiRouterClientSetup',
+  'desktop api router installer bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'listenDesktopEvent',
   'desktop event listener wiring',
 );
 assertIncludes(
@@ -286,6 +423,11 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
   'commands::execute_install_script::execute_install_script',
   'desktop install script command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::install_api_router_client_setup::install_api_router_client_setup',
+  'desktop api router installer command registration',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs',

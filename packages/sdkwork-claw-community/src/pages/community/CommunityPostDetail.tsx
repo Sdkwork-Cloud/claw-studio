@@ -1,15 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, Heart, Share2, Bookmark, MoreHorizontal, Clock, Eye, Send } from 'lucide-react';
-import { motion } from 'motion/react';
-import { communityService, CommunityPost, CommunityComment } from '../../services';
-
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  Bookmark,
+  Clock,
+  Eye,
+  Heart,
+  MessageSquare,
+  MoreHorizontal,
+  Send,
+  Share2,
+} from 'lucide-react';
 import Markdown from 'react-markdown';
+import { motion } from 'motion/react';
 import rehypeRaw from 'rehype-raw';
+import { useTranslation } from 'react-i18next';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useNavigate, useParams } from 'react-router-dom';
+import { formatDate, formatNumber } from '@sdkwork/claw-i18n';
+import { Textarea } from '@sdkwork/claw-ui';
+import type { CommunityComment, CommunityPost } from '../../services';
+import { communityService } from '../../services';
+
+const COMMUNITY_CATEGORY_LABEL_KEYS: Record<string, string> = {
+  announcements: 'community.categories.announcements',
+  discussions: 'community.categories.discussions',
+  help: 'community.categories.help',
+  showcase: 'community.categories.showcase',
+  tutorials: 'community.categories.tutorials',
+};
 
 export function CommunityPostDetail() {
+  const { t, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLiked, setIsLiked] = useState(false);
@@ -21,12 +43,15 @@ export function CommunityPostDetail() {
 
   useEffect(() => {
     const fetchPostData = async () => {
-      if (!id) return;
+      if (!id) {
+        return;
+      }
+
       setLoading(true);
       try {
         const [postData, commentsData] = await Promise.all([
           communityService.getPost(id),
-          communityService.getComments(id)
+          communityService.getComments(id),
         ]);
         setPost(postData);
         setComments(commentsData);
@@ -40,23 +65,57 @@ export function CommunityPostDetail() {
     fetchPostData();
   }, [id]);
 
+  const roleLabels = useMemo(
+    () => ({
+      Official: t('community.postDetail.roles.official'),
+      'Core Contributor': t('community.postDetail.roles.coreContributor'),
+    }),
+    [t],
+  );
+  const formattedPostDate = useMemo(
+    () =>
+      post
+        ? formatDate(post.createdAt, i18n.language, {
+            dateStyle: 'medium',
+          })
+        : '',
+    [i18n.language, post],
+  );
+  const translatedCategory = useMemo(() => {
+    if (!post) {
+      return '';
+    }
+
+    const translationKey = COMMUNITY_CATEGORY_LABEL_KEYS[post.category];
+    return translationKey ? t(translationKey) : post.category;
+  }, [post, t]);
+
   const handleLike = async () => {
-    if (!post) return;
-    setIsLiked(!isLiked);
+    if (!post) {
+      return;
+    }
+
+    setIsLiked((previous) => !previous);
     await communityService.likePost(post.id);
   };
 
   const handleBookmark = async () => {
-    if (!post) return;
-    setIsBookmarked(!isBookmarked);
+    if (!post) {
+      return;
+    }
+
+    setIsBookmarked((previous) => !previous);
     await communityService.bookmarkPost(post.id);
   };
 
   const handleAddComment = async () => {
-    if (!post || !commentText.trim()) return;
+    if (!post || !commentText.trim()) {
+      return;
+    }
+
     try {
       const newComment = await communityService.addComment(post.id, commentText);
-      setComments([...comments, newComment]);
+      setComments((previous) => [...previous, newComment]);
       setCommentText('');
     } catch (error) {
       console.error('Failed to add comment:', error);
@@ -65,102 +124,133 @@ export function CommunityPostDetail() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex h-full items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
       </div>
     );
   }
 
   if (!post) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Post not found</h2>
-        <button onClick={() => navigate(-1)} className="px-4 py-2 bg-primary-600 text-white rounded-xl font-bold">Go Back</button>
+      <div className="flex h-full flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <h2 className="mb-4 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+          {t('community.postDetail.notFoundTitle')}
+        </h2>
+        <button
+          onClick={() => navigate(-1)}
+          className="rounded-xl bg-primary-600 px-4 py-2 font-bold text-white"
+        >
+          {t('common.goBack')}
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="h-full bg-zinc-50 dark:bg-zinc-950 overflow-y-auto">
-      {/* Header */}
-      <div className="sticky top-0 z-20 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-center justify-between">
-        <button 
+    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950">
+      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-zinc-200 bg-white/80 px-6 py-4 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/80">
+        <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-medium text-sm"
+          className="flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Community
+          <ArrowLeft className="h-4 w-4" />
+          {t('community.postDetail.backToCommunity')}
         </button>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setIsBookmarked(!isBookmarked)}
-            className={`p-2 rounded-full transition-colors ${isBookmarked ? 'text-primary-500 bg-primary-50 dark:bg-primary-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+          <button
+            onClick={handleBookmark}
+            aria-label={t('community.postDetail.actions.bookmark')}
+            className={`rounded-full p-2 transition-colors ${
+              isBookmarked
+                ? 'bg-primary-50 text-primary-500 dark:bg-primary-500/10'
+                : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
           >
-            <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
+            <Bookmark className={`h-5 w-5 ${isBookmarked ? 'fill-current' : ''}`} />
           </button>
-          <button className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
-            <Share2 className="w-5 h-5" />
+          <button
+            aria-label={t('community.postDetail.actions.share')}
+            className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <Share2 className="h-5 w-5" />
           </button>
-          <button className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
-            <MoreHorizontal className="w-5 h-5" />
+          <button
+            aria-label={t('community.postDetail.actions.more')}
+            className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <MoreHorizontal className="h-5 w-5" />
           </button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto pb-24">
-        {/* Cover Image */}
+      <div className="mx-auto max-w-4xl pb-24">
         {post.coverImage && (
-          <div className="w-full h-64 md:h-96 relative">
-            <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-50 dark:from-zinc-950 to-transparent" />
+          <div className="relative h-64 w-full md:h-96">
+            <img
+              src={post.coverImage}
+              alt={post.title}
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-50 to-transparent dark:from-zinc-950" />
           </div>
         )}
 
-        <div className="px-6 md:px-12 -mt-20 relative z-10">
-          {/* Article Header */}
+        <div className="relative z-10 -mt-20 px-6 md:px-12">
           <div className="mb-10">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="px-3 py-1 bg-primary-500 text-white text-xs font-bold uppercase tracking-wider rounded-full shadow-sm">
-                {post.category}
+            <div className="mb-6 flex items-center gap-3">
+              <span className="rounded-full bg-primary-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm">
+                {translatedCategory}
               </span>
               <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                <Clock className="w-4 h-4" /> {post.createdAt}
+                <Clock className="h-4 w-4" />
+                {formattedPostDate}
               </span>
               <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                <Eye className="w-4 h-4" /> {post.stats.views.toLocaleString()} views
+                <Eye className="h-4 w-4" />
+                {t('community.postDetail.meta.views', {
+                  count: post.stats.views,
+                })}
               </span>
             </div>
-            
-            <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-zinc-100 leading-tight mb-8 tracking-tight">
+
+            <h1 className="mb-8 text-4xl font-black leading-tight tracking-tight text-zinc-900 dark:text-zinc-100 md:text-5xl">
               {post.title}
             </h1>
 
-            <div className="flex items-center justify-between py-6 border-y border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center justify-between border-y border-zinc-200 py-6 dark:border-zinc-800">
               <div className="flex items-center gap-4">
-                <img src={post.author.avatar} alt={post.author.name} className="w-12 h-12 rounded-full border-2 border-white dark:border-zinc-800 shadow-sm" referrerPolicy="no-referrer" />
+                <img
+                  src={post.author.avatar}
+                  alt={post.author.name}
+                  className="h-12 w-12 rounded-full border-2 border-white shadow-sm dark:border-zinc-800"
+                  referrerPolicy="no-referrer"
+                />
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{post.author.name}</h3>
-                    {post.author.role === 'Official' || post.author.role === 'Core Contributor' ? (
-                      <span className="px-1.5 py-0.5 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase rounded">
-                        {post.author.role}
+                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">
+                      {post.author.name}
+                    </h3>
+                    {post.author.role in roleLabels ? (
+                      <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
+                        {roleLabels[post.author.role as keyof typeof roleLabels]}
                       </span>
                     ) : null}
                   </div>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">{post.author.bio}</p>
                 </div>
               </div>
-              <button className="px-5 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-full text-sm font-bold hover:bg-zinc-800 dark:hover:bg-white transition-colors shadow-sm">
-                Follow
+              <button className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white">
+                {t('community.postDetail.actions.follow')}
               </button>
             </div>
           </div>
 
-          {/* Article Content */}
-          <div className="prose prose-zinc dark:prose-invert prose-lg max-w-none mb-12 prose-headings:font-bold prose-a:text-primary-500 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800 prose-img:rounded-2xl">
+          <div className="prose prose-zinc prose-lg mb-12 max-w-none prose-a:text-primary-500 prose-headings:font-bold prose-img:rounded-2xl prose-pre:border prose-pre:border-zinc-800 prose-pre:bg-zinc-900 dark:prose-invert">
             <Markdown
               rehypePlugins={[rehypeRaw]}
               components={{
-                code({ node, inline, className, children, ...props }: any) {
+                code({ inline, className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
                   return !inline && match ? (
                     <SyntaxHighlighter
@@ -183,81 +273,96 @@ export function CommunityPostDetail() {
             </Markdown>
           </div>
 
-          {/* Tags & Actions */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 py-8 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="flex flex-col items-center justify-between gap-6 border-t border-zinc-200 py-8 dark:border-zinc-800 sm:flex-row">
             <div className="flex flex-wrap items-center gap-2">
-              {post.tags.map(tag => (
-                <span key={tag} className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-sm font-medium rounded-lg">
+              {post.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                >
                   #{tag}
                 </span>
               ))}
             </div>
-            
+
             <div className="flex items-center gap-4">
-              <button 
+              <button
                 onClick={handleLike}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-colors ${
-                  isLiked 
-                    ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-500' 
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                className={`flex items-center gap-2 rounded-full px-4 py-2 font-bold transition-colors ${
+                  isLiked
+                    ? 'bg-rose-50 text-rose-500 dark:bg-rose-500/10'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
                 }`}
               >
-                <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-                {post.stats.likes + (isLiked ? 1 : 0)}
+                <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+                {formatNumber(post.stats.likes + (isLiked ? 1 : 0), i18n.language)}
               </button>
             </div>
           </div>
 
-          {/* Comments Section */}
           <div className="mt-12">
-            <h3 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-8 flex items-center gap-2">
-              <MessageSquare className="w-6 h-6" />
-              Comments ({comments.length})
+            <h3 className="mb-8 flex items-center gap-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              <MessageSquare className="h-6 w-6" />
+              {t('community.postDetail.commentsTitle', {
+                count: comments.length,
+              })}
             </h3>
 
-            {/* Comment Input */}
-            <div className="flex gap-4 mb-10">
-              <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold shrink-0">
-                ME
+            <div className="mb-10 flex gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 font-bold text-white">
+                {t('community.postDetail.currentUserInitials')}
               </div>
-              <div className="flex-1 relative">
-                <textarea
+              <div className="relative flex-1">
+                <Textarea
                   value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Add to the discussion..."
-                  className="w-full bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 resize-none min-h-[100px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500"
+                  onChange={(event) => setCommentText(event.target.value)}
+                  placeholder={t('community.postDetail.commentPlaceholder')}
+                  className="min-h-[100px] resize-none rounded-2xl bg-zinc-100 p-4 pr-12 focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-0 dark:border-zinc-700 dark:bg-zinc-800/50 dark:focus-visible:ring-offset-0"
                 />
-                <button 
+                <button
                   onClick={handleAddComment}
                   disabled={!commentText.trim()}
-                  className="absolute bottom-3 right-3 p-2 bg-primary-500 text-white rounded-xl hover:bg-primary-600 disabled:opacity-50 disabled:hover:bg-primary-500 transition-colors"
+                  aria-label={t('community.postDetail.actions.sendComment')}
+                  className="absolute bottom-3 right-3 rounded-xl bg-primary-500 p-2 text-white transition-colors hover:bg-primary-600 disabled:opacity-50 disabled:hover:bg-primary-500"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            {/* Comments List */}
             <div className="space-y-8">
-              {comments.map(comment => (
+              {comments.map((comment) => (
                 <div key={comment.id} className="flex gap-4">
-                  <img src={comment.author.avatar} alt={comment.author.name} className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-800" referrerPolicy="no-referrer" />
+                  <img
+                    src={comment.author.avatar}
+                    alt={comment.author.name}
+                    className="h-10 w-10 rounded-full border border-zinc-200 dark:border-zinc-800"
+                    referrerPolicy="no-referrer"
+                  />
                   <div className="flex-1">
-                    <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">{comment.author.name}</span>
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400">{comment.createdAt}</span>
+                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                          {comment.author.name}
+                        </span>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {formatDate(comment.createdAt, i18n.language, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })}
+                        </span>
                       </div>
-                      <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                      <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
                         {comment.content}
                       </p>
                     </div>
-                    <div className="flex items-center gap-4 mt-2 ml-2">
-                      <button className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-primary-500 transition-colors">
-                        <Heart className="w-3.5 h-3.5" /> {comment.likes}
+                    <div className="ml-2 mt-2 flex items-center gap-4">
+                      <button className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-primary-500">
+                        <Heart className="h-3.5 w-3.5" />
+                        {formatNumber(comment.likes, i18n.language)}
                       </button>
-                      <button className="text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
-                        Reply
+                      <button className="text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100">
+                        {t('community.postDetail.actions.reply')}
                       </button>
                     </div>
                   </div>

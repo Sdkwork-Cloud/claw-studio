@@ -18,11 +18,13 @@ import {
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
 import type { Skill, SkillPack } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
 
 export function SkillPackDetail() {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -48,17 +50,24 @@ export function SkillPackDetail() {
   });
 
   const { addTask, updateTask } = useTaskStore();
+  const formatInstanceStatus = (status: Instance['status']) =>
+    status === 'online' ? t('market.status.online') : t('market.status.offline');
+  const formatCategory = (value: string) => {
+    const translationKey = `market.categoryLabels.${value}`;
+    const translatedValue = t(translationKey);
+    return translatedValue === translationKey ? value : translatedValue;
+  };
 
   const handleDownloadLocal = async () => {
     if (!pack) {
       return;
     }
 
-    toast.success(`Started downloading ${pack.name}`);
+    toast.success(t('market.download.started', { name: pack.name }));
 
     const taskId = addTask({
-      title: `Downloading ${pack.name}`,
-      subtitle: 'Fetching skill pack...',
+      title: t('market.download.taskTitle', { name: pack.name }),
+      subtitle: t('market.download.packSubtitle'),
       type: 'download',
     });
 
@@ -69,32 +78,34 @@ export function SkillPackDetail() {
       updateTask(taskId, {
         progress: 100,
         status: 'success',
-        subtitle: 'Download complete',
+        subtitle: t('market.download.complete'),
       });
-      toast.success(`${pack.name} downloaded successfully`);
+      toast.success(t('market.download.success', { name: pack.name }));
     } catch {
-      updateTask(taskId, { status: 'error', subtitle: 'Download failed' });
-      toast.error(`Failed to download ${pack.name}`);
+      updateTask(taskId, { status: 'error', subtitle: t('market.download.failed') });
+      toast.error(t('market.download.failure', { name: pack.name }));
     }
   };
 
   const installMutation = useMutation({
     mutationFn: async () => {
       if (!selectedInstance || selectedSkills.size === 0) {
-        throw new Error('Invalid selection');
+        throw new Error(t('market.errors.invalidSelection'));
       }
 
       return marketService.installPackWithSkills(selectedInstance, id!, Array.from(selectedSkills));
     },
     onSuccess: () => {
-      toast.success('Installation Started', {
-        description: `Installing ${selectedSkills.size} skills to the selected instance.`,
+      toast.success(t('market.toast.installationStarted'), {
+        description: t('market.toast.packInstallationCountDescription', {
+          count: selectedSkills.size,
+        }),
       });
       queryClient.invalidateQueries({ queryKey: ['mySkills', activeInstanceId] });
       setTimeout(() => navigate('/instances'), 1500);
     },
     onError: (error: Error) => {
-      toast.error('Installation Failed', {
+      toast.error(t('market.toast.installationFailed'), {
         description: error.message,
       });
     },
@@ -162,13 +173,13 @@ export function SkillPackDetail() {
     return (
       <div className="p-8 text-center">
         <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-          Pack not found
+          {t('market.skillPackDetail.notFoundTitle')}
         </h2>
         <button
           onClick={() => navigate('/market')}
           className="mt-4 text-primary-500 hover:underline"
         >
-          Return to Market
+          {t('market.skillPackDetail.returnToMarket')}
         </button>
       </div>
     );
@@ -187,7 +198,7 @@ export function SkillPackDetail() {
           className="mb-8 flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to ClawHub
+          {t('market.skillPackDetail.backToMarket')}
         </button>
 
         <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-start">
@@ -198,10 +209,10 @@ export function SkillPackDetail() {
             <div className="pt-2">
               <div className="mb-2 flex items-center gap-2">
                 <span className="rounded-md bg-primary-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-primary-700 dark:bg-primary-500/20 dark:text-primary-300">
-                  Skill Pack
+                  {t('market.skillPackDetail.badge')}
                 </span>
                 <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Official
+                  <ShieldCheck className="h-3.5 w-3.5" /> {t('common.official')}
                 </span>
               </div>
               <h1 className="mb-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 md:text-4xl">
@@ -220,7 +231,9 @@ export function SkillPackDetail() {
                 <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
                 <div className="flex items-center gap-1.5">
                   <Download className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                  {pack.downloads.toLocaleString()} Installs
+                  {t('market.skillPackDetail.metrics.installs', {
+                    count: pack.downloads,
+                  })}
                 </div>
               </div>
             </div>
@@ -231,7 +244,7 @@ export function SkillPackDetail() {
           <div className="space-y-8 lg:col-span-2">
             <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
               <h2 className="mb-4 text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                About this Pack
+                {t('market.skillPackDetail.aboutTitle')}
               </h2>
               <p className="leading-relaxed text-zinc-600 dark:text-zinc-400">
                 {pack.description}
@@ -242,13 +255,15 @@ export function SkillPackDetail() {
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
                   <LayoutGrid className="h-5 w-5 text-primary-600 dark:text-primary-400" />
-                  Select Skills to Install
+                  {t('market.skillPackDetail.selectSkillsTitle')}
                 </h2>
                 <button
                   onClick={toggleAll}
                   className="text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                 >
-                  {selectedSkills.size === uninstalledSkillCount ? 'Deselect All' : 'Select All'}
+                  {selectedSkills.size === uninstalledSkillCount
+                    ? t('market.skillPackDetail.actions.deselectAll')
+                    : t('market.skillPackDetail.actions.selectAll')}
                 </button>
               </div>
 
@@ -304,12 +319,12 @@ export function SkillPackDetail() {
                           </h3>
                           {isInstalled && (
                             <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
-                              Installed
+                              {t('market.labels.installed')}
                             </span>
                           )}
                         </div>
                         <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {skill.category}
+                          {formatCategory(skill.category)}
                         </p>
                       </div>
                       <button
@@ -319,7 +334,7 @@ export function SkillPackDetail() {
                         }}
                         className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-bold text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
                       >
-                        View
+                        {t('market.skillPackDetail.actions.viewSkill')}
                       </button>
                     </div>
                   );
@@ -330,12 +345,14 @@ export function SkillPackDetail() {
 
           <div className="space-y-8 lg:col-span-1">
             <div className="sticky top-24 rounded-3xl border border-zinc-800 bg-zinc-900 p-6 text-white shadow-xl dark:bg-zinc-950">
-              <h3 className="mb-6 font-bold text-white">Installation</h3>
+              <h3 className="mb-6 font-bold text-white">
+                {t('market.skillPackDetail.installationTitle')}
+              </h3>
 
               <div className="space-y-6">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-zinc-400">
-                    Target Instance
+                    {t('market.skillPackDetail.targetInstance')}
                   </label>
                   <div className="space-y-2">
                     {instances.map((instance) => (
@@ -378,7 +395,7 @@ export function SkillPackDetail() {
                                 : 'text-zinc-500'
                             }`}
                           >
-                            {instance.status === 'online' ? 'Online' : 'Offline'} • {instance.ip}
+                            {formatInstanceStatus(instance.status)} - {instance.ip}
                           </p>
                         </div>
                       </div>
@@ -386,7 +403,7 @@ export function SkillPackDetail() {
                     {instances.length === 0 && (
                       <div className="flex flex-col items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 text-center text-sm text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900">
                         <AlertCircle className="h-6 w-6 text-amber-500" />
-                        No instances available.
+                        {t('market.modals.noInstances.title')}
                       </div>
                     )}
                   </div>
@@ -395,7 +412,9 @@ export function SkillPackDetail() {
                 <div className="border-t border-zinc-800 pt-4 dark:border-zinc-800/50">
                   <div className="mb-6 flex items-end justify-between">
                     <div>
-                      <p className="mb-1 text-sm text-zinc-400">Selected Skills</p>
+                      <p className="mb-1 text-sm text-zinc-400">
+                        {t('market.skillPackDetail.selectedSkills')}
+                      </p>
                       <p className="text-3xl font-bold">
                         {selectedSkills.size}{' '}
                         <span className="text-lg font-normal text-zinc-500">
@@ -416,11 +435,12 @@ export function SkillPackDetail() {
                   >
                     {isInstalling ? (
                       <>
-                        <Loader2 className="h-5 w-5 animate-spin" /> Installing...
+                        <Loader2 className="h-5 w-5 animate-spin" />{' '}
+                        {t('market.modals.installPack.installing')}
                       </>
                     ) : (
                       <>
-                        <Download className="h-5 w-5" /> Install Pack
+                        <Download className="h-5 w-5" /> {t('market.skillPackDetail.actions.installPack')}
                       </>
                     )}
                   </button>
@@ -428,7 +448,7 @@ export function SkillPackDetail() {
                     onClick={handleDownloadLocal}
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 py-3.5 font-bold text-zinc-300 transition-all hover:bg-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                   >
-                    <HardDrive className="h-5 w-5" /> Download to Local
+                    <HardDrive className="h-5 w-5" /> {t('market.skillDetail.actions.downloadToLocal')}
                   </button>
                 </div>
               </div>
@@ -436,34 +456,40 @@ export function SkillPackDetail() {
 
             <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
               <h3 className="mb-6 font-bold text-zinc-900 dark:text-zinc-100">
-                Pack Information
+                {t('market.skillPackDetail.information.title')}
               </h3>
 
               <div className="space-y-5">
                 <div className="flex items-start justify-between">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Provider</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                    {t('market.skillPackDetail.information.provider')}
+                  </span>
                   <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
                     {pack.author}
                   </span>
                 </div>
                 <div className="flex items-start justify-between">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Category</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                    {t('market.skillPackDetail.information.category')}
+                  </span>
                   <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {pack.category}
+                    {formatCategory(pack.category)}
                   </span>
                 </div>
                 <div className="flex items-start justify-between">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Total Skills</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                    {t('market.skillPackDetail.information.totalSkills')}
+                  </span>
                   <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
                     {pack.skills.length}
                   </span>
                 </div>
                 <div className="flex items-start justify-between">
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                    Compatibility
+                    {t('market.skillPackDetail.information.compatibility')}
                   </span>
                   <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    Claw Studio v0.2.0+
+                    {t('market.skillPackDetail.information.compatibilityValue')}
                   </span>
                 </div>
               </div>

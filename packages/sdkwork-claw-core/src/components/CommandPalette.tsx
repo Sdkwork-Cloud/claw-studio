@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ElementType } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -14,6 +15,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import Fuse from 'fuse.js';
+import { instanceDirectoryService } from '../services';
 import { useInstanceStore } from '../stores/useInstanceStore';
 
 interface InstanceSummary {
@@ -32,20 +34,6 @@ interface CommandItem {
   category: string;
 }
 
-async function loadInstances(): Promise<InstanceSummary[]> {
-  try {
-    const response = await fetch('/api/instances');
-    if (!response.ok) {
-      throw new Error('Failed to fetch instances');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to load instances for command palette:', error);
-    return [];
-  }
-}
-
 export function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -54,6 +42,7 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { setActiveInstanceId } = useInstanceStore();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -78,7 +67,7 @@ export function CommandPalette() {
     setSearch('');
     setSelectedIndex(0);
     const timeoutId = window.setTimeout(() => inputRef.current?.focus(), 100);
-    void loadInstances().then(setInstances);
+    void instanceDirectoryService.listInstances().then(setInstances);
 
     return () => window.clearTimeout(timeoutId);
   }, [isOpen]);
@@ -87,81 +76,84 @@ export function CommandPalette() {
     const baseCommands: CommandItem[] = [
       {
         id: 'nav-apps',
-        title: 'Go to App Store',
-        subtitle: 'Browse AI applications',
+        title: t('commandPalette.commands.apps.title'),
+        subtitle: t('commandPalette.commands.apps.subtitle'),
         icon: LayoutGrid,
-        category: 'Navigation',
+        category: t('commandPalette.categories.navigation'),
         action: () => navigate('/apps'),
       },
       {
         id: 'nav-github',
-        title: 'Go to GitHub Repos',
-        subtitle: 'Install open-source projects',
+        title: t('commandPalette.commands.github.title'),
+        subtitle: t('commandPalette.commands.github.subtitle'),
         icon: Github,
-        category: 'Navigation',
+        category: t('commandPalette.categories.navigation'),
         action: () => navigate('/github'),
       },
       {
         id: 'nav-hf',
-        title: 'Go to Hugging Face',
-        subtitle: 'Download AI models',
+        title: t('commandPalette.commands.huggingface.title'),
+        subtitle: t('commandPalette.commands.huggingface.subtitle'),
         icon: Box,
-        category: 'Navigation',
+        category: t('commandPalette.categories.navigation'),
         action: () => navigate('/huggingface'),
       },
       {
         id: 'nav-instances',
-        title: 'Go to Instances',
-        subtitle: 'Manage running containers',
+        title: t('commandPalette.commands.instances.title'),
+        subtitle: t('commandPalette.commands.instances.subtitle'),
         icon: Server,
-        category: 'Navigation',
+        category: t('commandPalette.categories.navigation'),
         action: () => navigate('/instances'),
       },
       {
         id: 'nav-devices',
-        title: 'Go to Devices',
-        subtitle: 'Hardware and GPU settings',
+        title: t('commandPalette.commands.devices.title'),
+        subtitle: t('commandPalette.commands.devices.subtitle'),
         icon: Cpu,
-        category: 'Navigation',
+        category: t('commandPalette.categories.navigation'),
         action: () => navigate('/devices'),
       },
       {
         id: 'nav-chat',
-        title: 'Go to AI Chat',
-        subtitle: 'Talk to your local models',
+        title: t('commandPalette.commands.chat.title'),
+        subtitle: t('commandPalette.commands.chat.subtitle'),
         icon: MessageCircle,
-        category: 'Navigation',
+        category: t('commandPalette.categories.navigation'),
         action: () => navigate('/chat'),
       },
       {
         id: 'nav-settings',
-        title: 'Go to Settings',
-        subtitle: 'Preferences and configuration',
+        title: t('commandPalette.commands.settings.title'),
+        subtitle: t('commandPalette.commands.settings.subtitle'),
         icon: Settings,
-        category: 'Navigation',
+        category: t('commandPalette.categories.navigation'),
         action: () => navigate('/settings'),
       },
       {
         id: 'action-terminal',
-        title: 'Open Terminal',
-        subtitle: 'Launch local CLI',
+        title: t('commandPalette.commands.terminal.title'),
+        subtitle: t('commandPalette.commands.terminal.subtitle'),
         icon: Terminal,
-        category: 'Actions',
+        category: t('commandPalette.categories.actions'),
         action: () => console.log('Terminal opened'),
       },
     ];
 
     const instanceCommands: CommandItem[] = instances.map((instance) => ({
       id: `switch-instance-${instance.id}`,
-      title: `Switch Instance: ${instance.name}`,
-      subtitle: `${instance.ip} • ${instance.status}`,
+      title: t('commandPalette.switchInstanceTitle', { name: instance.name }),
+      subtitle: t('commandPalette.instanceSubtitle', {
+        ip: instance.ip,
+        status: instance.status,
+      }),
       icon: Server,
-      category: 'Instances',
+      category: t('commandPalette.categories.instances'),
       action: () => setActiveInstanceId(instance.id),
     }));
 
     return [...baseCommands, ...instanceCommands];
-  }, [instances, navigate, setActiveInstanceId]);
+  }, [instances, navigate, setActiveInstanceId, t]);
 
   const fuse = useMemo(
     () =>
@@ -192,7 +184,9 @@ export function CommandPalette() {
         setSelectedIndex((index) => (index + 1) % filteredCommands.length);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setSelectedIndex((index) => (index - 1 + filteredCommands.length) % filteredCommands.length);
+        setSelectedIndex(
+          (index) => (index - 1 + filteredCommands.length) % filteredCommands.length,
+        );
       } else if (event.key === 'Enter') {
         event.preventDefault();
         filteredCommands[selectedIndex]?.action();
@@ -238,7 +232,7 @@ export function CommandPalette() {
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Type a command or search..."
+              placeholder={t('commandPalette.searchPlaceholder')}
               className="flex-1 border-none bg-transparent text-lg text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
             <div className="ml-3 flex items-center gap-1">
@@ -252,7 +246,7 @@ export function CommandPalette() {
             {filteredCommands.length === 0 ? (
               <div className="py-12 text-center text-zinc-500 dark:text-zinc-400">
                 <Command className="mx-auto mb-3 h-8 w-8 opacity-20" />
-                <p>No results found.</p>
+                <p>{t('commandPalette.noResults')}</p>
               </div>
             ) : (
               <div className="space-y-1">
@@ -319,15 +313,17 @@ export function CommandPalette() {
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
                 <kbd className="rounded bg-zinc-200/50 px-1.5 py-0.5 dark:bg-zinc-800/50">↑</kbd>
-                <kbd className="rounded bg-zinc-200/50 px-1.5 py-0.5 dark:bg-zinc-800/50">↓</kbd> to
-                navigate
+                <kbd className="rounded bg-zinc-200/50 px-1.5 py-0.5 dark:bg-zinc-800/50">↓</kbd>
+                {t('commandPalette.footer.navigationHint')}
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="rounded bg-zinc-200/50 px-1.5 py-0.5 dark:bg-zinc-800/50">↵</kbd> to
-                select
+                <kbd className="rounded bg-zinc-200/50 px-1.5 py-0.5 dark:bg-zinc-800/50">
+                  Enter
+                </kbd>
+                {t('commandPalette.footer.selectHint')}
               </span>
             </div>
-            <div className="font-medium">Claw Studio Command Palette</div>
+            <div className="font-medium">{t('commandPalette.footer.title')}</div>
           </div>
         </motion.div>
       </div>

@@ -28,6 +28,15 @@ function runTest(name: string, fn: () => void) {
 
 const packageContracts = [
   {
+    pkg: 'apirouter',
+    files: [
+      'packages/sdkwork-claw-apirouter/src/ApiRouter.tsx',
+      'packages/sdkwork-claw-apirouter/src/pages/ApiRouter.tsx',
+      'packages/sdkwork-claw-apirouter/src/services/apiRouterService.ts',
+    ],
+    requiredExports: ["export * from './ApiRouter';"],
+  },
+  {
     pkg: 'apps',
     files: [
       'packages/sdkwork-claw-apps/src/AppStore.tsx',

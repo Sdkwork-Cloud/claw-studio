@@ -8,8 +8,8 @@ export const PhysicalProductCard = ({ product, onRequest }: { product: PhysicalP
   const { t } = useTranslation();
   return (
     <ProductCardWrapper product={product} onRequest={onRequest}>
-      <div className="flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> {t('products.labels.stock', 'Stock')}: <span className="font-medium text-zinc-900 dark:text-zinc-100">{product.stock}</span></div>
-      <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {t('products.labels.shipping', 'Shipping')}: <span className="font-medium text-zinc-900 dark:text-zinc-100">{product.shippingCost}</span></div>
+      <div className="flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> {t('products.labels.stock')}: <span className="font-medium text-zinc-900 dark:text-zinc-100">{product.stock}</span></div>
+      <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {t('products.labels.shipping')}: <span className="font-medium text-zinc-900 dark:text-zinc-100">{product.shippingCost}</span></div>
     </ProductCardWrapper>
   );
 };

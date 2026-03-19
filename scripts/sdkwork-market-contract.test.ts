@@ -61,9 +61,10 @@ runTest('sdkwork-claw-market preserves V5 market tab surface and multi-instance 
 runTest('sdkwork-claw-market preserves V5 skill detail repository selector and multi-instance installs', () => {
   const detailSource = read('packages/sdkwork-claw-market/src/pages/SkillDetail.tsx');
 
+  assert.match(detailSource, /useTranslation/);
   assert.match(detailSource, /selectedRepo/);
-  assert.match(detailSource, /Official ClawHub/);
-  assert.match(detailSource, /Tencent Cloud Mirror/);
+  assert.match(detailSource, /t\('market\.skillDetail\.repository\.options\.official\.title'\)/);
+  assert.match(detailSource, /t\('market\.skillDetail\.repository\.options\.tencent\.title'\)/);
   assert.match(detailSource, /selectedInstanceIds/);
   assert.match(detailSource, /selectedInstanceIds\.map/);
 });

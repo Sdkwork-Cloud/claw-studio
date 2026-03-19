@@ -43,18 +43,20 @@ runTest('sdkwork-claw-github keeps the V5 github package surface locally', () =>
 runTest('sdkwork-claw-github preserves the V5 repository discovery shell', () => {
   const pageSource = read('packages/sdkwork-claw-github/src/pages/github/GitHubRepos.tsx');
 
+  assert.match(pageSource, /useTranslation/);
   assert.match(pageSource, /RepositoryCard/);
   assert.match(pageSource, /useVirtualizer/);
   assert.match(pageSource, /useTaskStore/);
-  assert.match(pageSource, /GitHub Repositories/);
-  assert.match(pageSource, /Install popular open-source projects locally/);
+  assert.match(pageSource, /t\('github\.repos\.title'\)/);
+  assert.match(pageSource, /t\('github\.repos\.subtitle'/);
 });
 
 runTest('sdkwork-claw-github preserves the V5 repository detail tabs and download flow', () => {
   const detailSource = read('packages/sdkwork-claw-github/src/pages/github/GitHubRepoDetail.tsx');
 
+  assert.match(detailSource, /useTranslation/);
   assert.match(detailSource, /'readme' \| 'files' \| 'activity'/);
   assert.match(detailSource, /downloadRepo/);
-  assert.match(detailSource, /Download to Local/);
-  assert.match(detailSource, /Repository Stats/);
+  assert.match(detailSource, /t\('github\.detail\.downloadToLocal'\)/);
+  assert.match(detailSource, /t\('github\.detail\.stats\.title'\)/);
 });

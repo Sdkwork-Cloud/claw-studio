@@ -1,4 +1,5 @@
 import React, { memo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bot, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -26,6 +27,7 @@ const CodeBlock = memo(
     props: Record<string, unknown>;
   }) => {
     const [copied, setCopied] = useState(false);
+    const { t } = useTranslation();
 
     const handleCopy = () => {
       navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
@@ -34,7 +36,7 @@ const CodeBlock = memo(
     };
 
     return (
-      <div className="relative mt-4 mb-6 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-[#1E1E1E]">
+      <div className="relative mb-6 mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-[#1E1E1E]">
         <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-100 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/50">
           <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">{match[1]}</span>
           <button
@@ -47,7 +49,7 @@ const CodeBlock = memo(
               <Copy className="h-3.5 w-3.5" />
             )}
             <span className={copied ? 'text-emerald-500' : ''}>
-              {copied ? 'Copied!' : 'Copy code'}
+              {copied ? t('chat.message.copied') : t('chat.message.copyCode')}
             </span>
           </button>
         </div>
@@ -84,6 +86,12 @@ export const ChatMessage = memo(function ChatMessage({
   isTyping,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
+  const { t, i18n } = useTranslation();
+  const formatTimeLabel = (value: number) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value));
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
@@ -108,13 +116,13 @@ export const ChatMessage = memo(function ChatMessage({
             : 'bg-transparent text-zinc-900 dark:text-zinc-100',
         )}
       >
-        {!isUser && (
+        {!isUser ? (
           <div className="mt-1 flex-shrink-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-purple-600 shadow-sm ring-2 ring-primary-50 sm:h-10 sm:w-10 dark:ring-primary-900/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-purple-600 shadow-sm ring-2 ring-primary-50 dark:ring-primary-900/20 sm:h-10 sm:w-10">
               <Bot className="h-4 w-4 text-white sm:h-5 sm:w-5" />
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="min-w-0 flex-1">
           {isUser ? (
@@ -123,7 +131,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <button
                   onClick={handleCopy}
                   className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
-                  title="Copy message"
+                  title={t('chat.message.copyMessage')}
                 >
                   {copied ? (
                     <Check className="h-3.5 w-3.5 text-emerald-500 sm:h-4 sm:w-4" />
@@ -132,18 +140,18 @@ export const ChatMessage = memo(function ChatMessage({
                   )}
                 </button>
               </div>
-              <span className="text-[11px] font-medium tracking-wide text-zinc-400 sm:text-xs dark:text-zinc-500">
-                {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <span className="text-[11px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500 sm:text-xs">
+                {formatTimeLabel(timestamp)}
               </span>
             </div>
           ) : (
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2 sm:gap-3">
                 <span className="text-[14px] font-semibold tracking-tight sm:text-[15px]">
-                  {model || 'Assistant'}
+                  {model || t('chat.message.assistant')}
                 </span>
-                <span className="text-[11px] font-medium tracking-wide text-zinc-400 sm:text-xs dark:text-zinc-500">
-                  {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <span className="text-[11px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500 sm:text-xs">
+                  {formatTimeLabel(timestamp)}
                 </span>
               </div>
 
@@ -151,7 +159,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <button
                   onClick={handleCopy}
                   className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
-                  title="Copy message"
+                  title={t('chat.message.copyMessage')}
                 >
                   {copied ? (
                     <Check className="h-3.5 w-3.5 text-emerald-500 sm:h-4 sm:w-4" />
@@ -165,15 +173,15 @@ export const ChatMessage = memo(function ChatMessage({
                 <button className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100">
                   <ThumbsDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
-                {onRegenerate && (
+                {onRegenerate ? (
                   <button
                     onClick={onRegenerate}
                     className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
-                    title="Regenerate response"
+                    title={t('chat.message.regenerateResponse')}
                   >
                     <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           )}
@@ -185,7 +193,7 @@ export const ChatMessage = memo(function ChatMessage({
               'prose-code:before:content-none prose-code:after:content-none prose-p:leading-relaxed prose-pre:bg-transparent prose-pre:p-0',
               isTyping &&
                 content !== '' &&
-                "[&>*:last-child]:after:ml-1 [&>*:last-child]:after:animate-pulse [&>*:last-child]:after:content-['▋'] [&>*:last-child]:after:text-primary-500",
+                "[&>*:last-child]:after:ml-1 [&>*:last-child]:after:animate-pulse [&>*:last-child]:after:content-['|'] [&>*:last-child]:after:text-primary-500",
             )}
           >
             {content === '' && isTyping ? (
@@ -219,7 +227,7 @@ export const ChatMessage = memo(function ChatMessage({
                       <code
                         {...props}
                         className={cn(
-                          'rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-[13px] font-mono text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
+                          'rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[13px] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
                           className,
                         )}
                       >

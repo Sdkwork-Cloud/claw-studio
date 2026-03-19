@@ -6,6 +6,7 @@ import { clawService } from '../services';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
+import { Input, OverlaySurface } from '@sdkwork/claw-ui';
 import { PhysicalProductCard } from '../components/products/PhysicalProductCard';
 import { AuctionProductCard } from '../components/products/AuctionProductCard';
 import { RechargeProductCard } from '../components/products/RechargeProductCard';
@@ -29,7 +30,17 @@ export function ClawDetail() {
   const [claw, setClaw] = useState<ClawDetailType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'products' | 'about' | 'reviews'>('products');
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const formatTimeLabel = (value: Date | number | string) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value));
+  const formatDateLabel = (value: Date | number | string) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+    }).format(new Date(value));
+  const formatCount = (value: number) => new Intl.NumberFormat(i18n.language).format(value);
 
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -54,8 +65,8 @@ export function ClawDetail() {
           const data = await clawService.getClawDetail(id);
           if (data) {
             setClaw(data);
-            const initialMsgs = await clawChatService.getInitialMessages(id, t('clawDetail.chat.welcome', 'Hello! Welcome to our storefront. How can we help you today?'));
-            setMessages(initialMsgs);
+            const initialMsgs = await clawChatService.getInitialMessages(id, t('clawDetail.chat.welcome'));
+            setMessages(initialMsgs.map((message) => ({ ...message, time: formatTimeLabel(new Date()) })));
           }
         }
       } catch (error) {
@@ -65,7 +76,7 @@ export function ClawDetail() {
       }
     };
     fetchClaw();
-  }, [id, t]);
+  }, [formatTimeLabel, id, t]);
 
   const sendMessage = async () => {
     if (!inputValue.trim() || !id) return;
@@ -74,7 +85,7 @@ export function ClawDetail() {
       id: Date.now().toString(),
       sender: 'user',
       text: userMsgText,
-      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      time: formatTimeLabel(new Date())
     };
     setMessages(prev => [...prev, newMsg]);
     setInputValue('');
@@ -83,7 +94,8 @@ export function ClawDetail() {
     try {
       const responseMsg = await clawChatService.sendMessage(id, userMsgText);
       // Override text with translation if needed, or let service handle it
-      responseMsg.text = t('clawDetail.chat.autoReply', 'Thanks for reaching out! Let me check our availability and get right back to you. Do you have any specific requirements?');
+      responseMsg.text = t('clawDetail.chat.autoReply');
+      responseMsg.time = formatTimeLabel(new Date());
       setMessages(prev => [...prev, responseMsg]);
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -99,19 +111,20 @@ export function ClawDetail() {
   const handleRequestService = async (serviceName: string) => {
     setIsChatOpen(true);
     if (!id) return;
-    const userMsgText = `${t('clawDetail.chat.inquirePrefix', "Hi, I'm interested in")} "${serviceName}".`;
+    const userMsgText = `${t('clawDetail.chat.inquirePrefix')} "${serviceName}".`;
     const newMsg: ChatMessageData = {
       id: Date.now().toString(),
       sender: 'user',
       text: userMsgText,
-      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      time: formatTimeLabel(new Date())
     };
     setMessages(prev => [...prev, newMsg]);
     
     setIsTyping(true);
     try {
       const responseMsg = await clawChatService.sendMessage(id, userMsgText);
-      responseMsg.text = t('clawDetail.chat.autoReply', 'Thanks for reaching out! Let me check our availability and get right back to you. Do you have any specific requirements?');
+      responseMsg.text = t('clawDetail.chat.autoReply');
+      responseMsg.time = formatTimeLabel(new Date());
       setMessages(prev => [...prev, responseMsg]);
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -131,9 +144,9 @@ export function ClawDetail() {
   if (!claw) {
     return (
       <div className="p-8 md:p-12 max-w-7xl mx-auto text-center">
-        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">{t('clawDetail.notFound.title', 'Provider Not Found')}</h2>
+        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">{t('clawDetail.notFound.title')}</h2>
         <button onClick={() => navigate('/claw-center')} className="text-primary-600 dark:text-primary-400 hover:underline">
-          {t('clawDetail.notFound.back', 'Return to Marketplace')}
+          {t('clawDetail.notFound.back')}
         </button>
       </div>
     );
@@ -149,7 +162,7 @@ export function ClawDetail() {
             className="flex items-center gap-2 text-zinc-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors mb-8 font-medium text-sm w-fit"
           >
             <ArrowLeft className="w-4 h-4" />
-            {t('clawDetail.back', 'Back to Marketplace')}
+            {t('clawDetail.back')}
           </button>
 
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
@@ -161,7 +174,7 @@ export function ClawDetail() {
                   {claw.verified && (
                     <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-500/20">
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      {t('clawDetail.verified', 'Verified')}
+                      {t('clawDetail.verified')}
                     </span>
                   )}
                 </div>
@@ -169,9 +182,9 @@ export function ClawDetail() {
                 
                 <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">
                   <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {claw.location}</span>
-                  <span className="flex items-center gap-1.5"><Star className="w-4 h-4 text-amber-400 fill-amber-400" /> {claw.rating} {t('clawDetail.rating', 'Rating')}</span>
-                  <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> {claw.completedOrders.toLocaleString()}+ {t('clawDetail.orders', 'Orders')}</span>
-                  <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4" /> {claw.responseRate} {t('clawDetail.responseRate', 'Response Rate')}</span>
+                  <span className="flex items-center gap-1.5"><Star className="w-4 h-4 text-amber-400 fill-amber-400" /> {claw.rating} {t('clawDetail.rating')}</span>
+                  <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> {formatCount(claw.completedOrders)}+ {t('clawDetail.orders')}</span>
+                  <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4" /> {claw.responseRate} {t('clawDetail.responseRate')}</span>
                 </div>
               </div>
             </div>
@@ -182,14 +195,14 @@ export function ClawDetail() {
                 className="w-full bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-sm shadow-primary-500/20 flex items-center justify-center gap-2"
               >
                 <MessageSquare className="w-4 h-4" />
-                {t('clawDetail.chatNow', 'Chat Now')}
+                {t('clawDetail.chatNow')}
               </button>
               <button 
                 onClick={() => window.open(claw.website, '_blank')}
                 className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 px-6 py-3 rounded-xl font-bold hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-sm flex items-center justify-center gap-2"
               >
                 <Globe className="w-4 h-4" />
-                {t('clawDetail.visitWebsite', 'Visit Website')}
+                {t('clawDetail.visitWebsite')}
               </button>
             </div>
           </div>
@@ -206,21 +219,21 @@ export function ClawDetail() {
               onClick={() => setActiveTab('products')}
               className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'products' ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
             >
-              <span className="flex items-center gap-2"><Package className="w-4 h-4" /> {t('clawDetail.tabs.products', 'Products & Services')}</span>
+              <span className="flex items-center gap-2"><Package className="w-4 h-4" /> {t('clawDetail.tabs.products')}</span>
               {activeTab === 'products' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 dark:bg-primary-400" />}
             </button>
             <button 
               onClick={() => setActiveTab('about')}
               className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'about' ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
             >
-              <span className="flex items-center gap-2"><Info className="w-4 h-4" /> {t('clawDetail.tabs.about', 'About Company')}</span>
+              <span className="flex items-center gap-2"><Info className="w-4 h-4" /> {t('clawDetail.tabs.about')}</span>
               {activeTab === 'about' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 dark:bg-primary-400" />}
             </button>
             <button 
               onClick={() => setActiveTab('reviews')}
               className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'reviews' ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
             >
-              <span className="flex items-center gap-2"><Star className="w-4 h-4" /> {t('clawDetail.tabs.reviews', 'Reviews')} ({claw.reviews.length})</span>
+              <span className="flex items-center gap-2"><Star className="w-4 h-4" /> {t('clawDetail.tabs.reviews')} ({claw.reviews.length})</span>
               {activeTab === 'reviews' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 dark:bg-primary-400" />}
             </button>
           </div>
@@ -254,7 +267,7 @@ export function ClawDetail() {
                   <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 shadow-sm">
                     <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
                       <Building2 className="w-5 h-5 text-primary-500" />
-                      {t('clawDetail.about.title', 'Company Overview')}
+                      {t('clawDetail.about.title')}
                     </h2>
                     <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed mb-6 whitespace-pre-line">
                       {claw.about}
@@ -279,7 +292,7 @@ export function ClawDetail() {
                           <img src={review.avatar} alt={review.user} className="w-10 h-10 rounded-full object-cover" />
                           <div>
                             <div className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{review.user}</div>
-                            <div className="text-xs text-zinc-500">{new Date(review.date).toLocaleDateString()}</div>
+                            <div className="text-xs text-zinc-500">{formatDateLabel(review.date)}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
@@ -291,7 +304,7 @@ export function ClawDetail() {
                       <p className="text-zinc-600 dark:text-zinc-400 text-sm">{review.content}</p>
                     </div>
                   )) : (
-                    <div className="text-center py-12 text-zinc-500">{t('clawDetail.reviews.empty', 'No reviews yet.')}</div>
+                    <div className="text-center py-12 text-zinc-500">{t('clawDetail.reviews.empty')}</div>
                   )}
                 </motion.div>
               )}
@@ -302,22 +315,22 @@ export function ClawDetail() {
         {/* Sidebar */}
         <div className="space-y-6">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
-            <h3 className="font-bold text-zinc-900 dark:text-zinc-100 mb-4">{t('clawDetail.details.title', 'Provider Details')}</h3>
+            <h3 className="font-bold text-zinc-900 dark:text-zinc-100 mb-4">{t('clawDetail.details.title')}</h3>
             <dl className="space-y-4 text-sm">
               <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-4">
-                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><Calendar className="w-4 h-4" /> {t('clawDetail.details.established', 'Established')}</dt>
+                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><Calendar className="w-4 h-4" /> {t('clawDetail.details.established')}</dt>
                 <dd className="font-medium text-zinc-900 dark:text-zinc-100">{claw.established}</dd>
               </div>
               <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-4">
-                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><MapPin className="w-4 h-4" /> {t('clawDetail.details.location', 'Location')}</dt>
+                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><MapPin className="w-4 h-4" /> {t('clawDetail.details.location')}</dt>
                 <dd className="font-medium text-zinc-900 dark:text-zinc-100 text-right">{claw.location}</dd>
               </div>
               <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-4">
-                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><MessageSquare className="w-4 h-4" /> {t('clawDetail.responseRate', 'Response Rate')}</dt>
+                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><MessageSquare className="w-4 h-4" /> {t('clawDetail.responseRate')}</dt>
                 <dd className="font-medium text-zinc-900 dark:text-zinc-100">{claw.responseRate}</dd>
               </div>
               <div className="flex justify-between items-center">
-                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><Mail className="w-4 h-4" /> {t('clawDetail.details.email', 'Email')}</dt>
+                <dt className="text-zinc-500 dark:text-zinc-400 flex items-center gap-2"><Mail className="w-4 h-4" /> {t('clawDetail.details.email')}</dt>
                 <dd className="font-medium text-primary-600 dark:text-primary-400 truncate max-w-[150px]">{claw.contactEmail}</dd>
               </div>
             </dl>
@@ -326,103 +339,87 @@ export function ClawDetail() {
           <div className="bg-primary-50 dark:bg-primary-500/5 border border-primary-100 dark:border-primary-500/10 rounded-2xl p-6">
             <h3 className="font-bold text-primary-900 dark:text-primary-100 mb-2 flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary-500" />
-              {t('clawDetail.secure.title', 'Secure Transaction')}
+              {t('clawDetail.secure.title')}
             </h3>
             <p className="text-sm text-primary-700 dark:text-primary-300/80 leading-relaxed">
-              {t('clawDetail.secure.desc', 'All transactions and service agreements made through Claw Mall are protected by our platform guarantee. Payments are held in escrow until service delivery is confirmed.')}
+              {t('clawDetail.secure.desc')}
             </p>
           </div>
         </div>
       </div>
 
       {/* Chat Drawer */}
-      <AnimatePresence>
-        {isChatOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsChatOpen(false)}
-              className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-40"
-            />
-            <motion.div
-              initial={{ x: '100%', opacity: 0.5 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '100%', opacity: 0.5 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white dark:bg-zinc-900 shadow-2xl border-l border-zinc-200 dark:border-zinc-800 z-50 flex flex-col"
-            >
-              {/* Chat Header */}
-              <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50">
-                 <div className="flex items-center gap-3">
-                   <div className="relative">
-                     <img src={claw.logo} alt={claw.name} className="w-10 h-10 rounded-full object-cover border border-zinc-200 dark:border-zinc-700" />
-                     <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>
+      <OverlaySurface
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        variant="drawer"
+        className="max-w-[400px] bg-white dark:bg-zinc-900"
+        backdropClassName="bg-black/20 dark:bg-black/40"
+      >
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50">
+               <div className="flex items-center gap-3">
+                 <div className="relative">
+                   <img src={claw.logo} alt={claw.name} className="w-10 h-10 rounded-full object-cover border border-zinc-200 dark:border-zinc-700" />
+                   <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>
+                 </div>
+                 <div>
+                   <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{claw.name}</h3>
+                   <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('clawDetail.chat.repliesIn')}</p>
+                 </div>
+               </div>
+               <button onClick={() => setIsChatOpen(false)} className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-zinc-50/50 dark:bg-zinc-950/50">
+               {messages.map(msg => (
+                 <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                   <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm ${
+                     msg.sender === 'user' 
+                       ? 'bg-primary-600 text-white rounded-tr-sm' 
+                       : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-tl-sm shadow-sm'
+                   }`}>
+                     {msg.text}
                    </div>
-                   <div>
-                     <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{claw.name}</h3>
-                     <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('clawDetail.chat.repliesIn', 'Typically replies in minutes')}</p>
+                   <span className="text-[10px] text-zinc-400 mt-1">{msg.time}</span>
+                 </div>
+               ))}
+               {isTyping && (
+                 <div className="flex items-start">
+                   <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-4 py-3 rounded-2xl rounded-tl-sm flex items-center gap-1 shadow-sm">
+                     <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                     <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                     <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                    </div>
                  </div>
-                 <button onClick={() => setIsChatOpen(false)} className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
-                   <X className="w-5 h-5" />
+               )}
+               <div ref={messagesEndRef} />
+            </div>
+
+            <div className="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
+               <div className="flex items-center gap-2">
+                 <button className="p-2 text-zinc-400 hover:text-primary-600 transition-colors">
+                   <Paperclip className="w-5 h-5" />
                  </button>
-              </div>
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-zinc-50/50 dark:bg-zinc-950/50">
-                 {messages.map(msg => (
-                   <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                     <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm ${
-                       msg.sender === 'user' 
-                         ? 'bg-primary-600 text-white rounded-tr-sm' 
-                         : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-tl-sm shadow-sm'
-                     }`}>
-                       {msg.text}
-                     </div>
-                     <span className="text-[10px] text-zinc-400 mt-1">{msg.time}</span>
-                   </div>
-                 ))}
-                 {isTyping && (
-                   <div className="flex items-start">
-                     <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-4 py-3 rounded-2xl rounded-tl-sm flex items-center gap-1 shadow-sm">
-                       <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                       <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                       <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                     </div>
-                   </div>
-                 )}
-                 <div ref={messagesEndRef} />
-              </div>
-
-              {/* Chat Input */}
-              <div className="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-                 <div className="flex items-center gap-2">
-                   <button className="p-2 text-zinc-400 hover:text-primary-600 transition-colors">
-                     <Paperclip className="w-5 h-5" />
-                   </button>
-                   <input 
-                     type="text" 
-                     value={inputValue}
-                     onChange={e => setInputValue(e.target.value)}
-                     onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                     placeholder={t('clawDetail.chat.placeholder', 'Type your inquiry...')}
-                     className="flex-1 bg-zinc-100 dark:bg-zinc-800 border-none rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500/50 outline-none dark:text-zinc-100"
-                   />
-                   <button 
-                     onClick={sendMessage}
-                     disabled={!inputValue.trim()}
-                     className="p-2.5 bg-primary-600 text-white rounded-full hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                   >
-                     <Send className="w-4 h-4" />
-                   </button>
-                 </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                 <Input
+                   type="text" 
+                   value={inputValue}
+                   onChange={e => setInputValue(e.target.value)}
+                   onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                   placeholder={t('clawDetail.chat.placeholder')}
+                   className="flex-1 rounded-full border-none bg-zinc-100 px-4 py-2.5 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-0 dark:bg-zinc-800"
+                 />
+                 <button 
+                   onClick={sendMessage}
+                   disabled={!inputValue.trim()}
+                   className="p-2.5 bg-primary-600 text-white rounded-full hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                 >
+                   <Send className="w-4 h-4" />
+                 </button>
+               </div>
+            </div>
+      </OverlaySurface>
     </div>
   );
 }

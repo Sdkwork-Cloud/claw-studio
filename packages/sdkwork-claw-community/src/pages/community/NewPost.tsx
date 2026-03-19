@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu, FloatingMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -15,15 +16,25 @@ import {
   Sparkles, CheckSquare, Highlighter, Strikethrough, X, Send, ImagePlus,
   Upload
 } from 'lucide-react';
+import {
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@sdkwork/claw-ui';
 import { communityService, llmService } from '../../services';
 import { toast } from 'sonner';
 
-const CATEGORIES = ['Tutorials', 'Discussions', 'Showcase', 'Help', 'News'];
+const CATEGORY_IDS = ['tutorials', 'discussions', 'showcase', 'help', 'announcements'] as const;
+type CategoryId = (typeof CATEGORY_IDS)[number];
 
 export function NewPost() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Discussions');
+  const [category, setCategory] = useState<CategoryId>('discussions');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [coverImage, setCoverImage] = useState('');
@@ -35,12 +46,16 @@ export function NewPost() {
   const [isGenerating, setIsGenerating] = useState(false);
   const aiInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const categoryOptions = CATEGORY_IDS.map((item) => ({
+    value: item,
+    label: t(`community.categories.${item}`),
+  }));
 
   const editor = useEditor({
     extensions: [
       StarterKit,
       Placeholder.configure({
-        placeholder: "Press '/' for commands or start typing...",
+        placeholder: t('community.newPost.editorPlaceholder'),
       }),
       Image.configure({
         HTMLAttributes: {
@@ -92,7 +107,7 @@ export function NewPost() {
   };
 
   const addImage = () => {
-    const url = window.prompt('Enter image URL');
+    const url = window.prompt(t('community.newPost.prompts.imageUrl'));
     if (url && editor) {
       editor.chain().focus().setImage({ src: url }).run();
     }
@@ -111,7 +126,7 @@ export function NewPost() {
 
   const setLink = () => {
     const previousUrl = editor?.getAttributes('link').href;
-    const url = window.prompt('URL', previousUrl);
+    const url = window.prompt(t('community.newPost.prompts.linkUrl'), previousUrl);
     if (url === null) return;
     if (url === '') {
       editor?.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -147,11 +162,11 @@ export function NewPost() {
         editor.chain().focus().insertContent(htmlContent).run();
         setShowAIPrompt(false);
         setAiPrompt('');
-        toast.success('Content generated successfully');
+        toast.success(t('community.newPost.toasts.contentGenerated'));
       }
     } catch (error: any) {
       console.error('AI Generation failed:', error);
-      toast.error(error.message || 'Failed to generate content');
+      toast.error(error.message || t('community.newPost.toasts.generateFailed'));
     } finally {
       setIsGenerating(false);
     }
@@ -208,11 +223,11 @@ export function NewPost() {
         } else {
           editor.chain().focus().insertContent(htmlContent).run();
         }
-        toast.success('AI action completed');
+        toast.success(t('community.newPost.toasts.aiActionCompleted'));
       }
     } catch (error: any) {
       console.error('AI Action failed:', error);
-      toast.error(error.message || 'Failed to perform AI action');
+      toast.error(error.message || t('community.newPost.toasts.aiActionFailed'));
     } finally {
       setIsGenerating(false);
     }
@@ -220,11 +235,11 @@ export function NewPost() {
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      toast.error('Please enter a title');
+      toast.error(t('community.newPost.toasts.enterTitle'));
       return;
     }
     if (!editor?.getHTML() || editor.getText().trim() === '') {
-      toast.error('Please enter some content');
+      toast.error(t('community.newPost.toasts.enterContent'));
       return;
     }
 
@@ -237,11 +252,11 @@ export function NewPost() {
         tags,
         coverImage: coverImage || undefined,
       });
-      toast.success('Post published successfully!');
+      toast.success(t('community.newPost.toasts.publishSuccess'));
       navigate(`/community/${newPost.id}`);
     } catch (error) {
       console.error('Failed to create post:', error);
-      toast.error('Failed to publish post');
+      toast.error(t('community.newPost.toasts.publishFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -263,29 +278,41 @@ export function NewPost() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 font-medium">
-            <span>Community</span>
+            <span>{t('community.page.title')}</span>
             <span>/</span>
-            <span className="text-zinc-900 dark:text-zinc-100">Draft</span>
+            <span className="text-zinc-900 dark:text-zinc-100">
+              {t('community.newPost.draft')}
+            </span>
           </div>
         </div>
         
         <div className="flex items-center gap-3">
-          <select
+          <Select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary-500/50 text-zinc-900 dark:text-zinc-100 cursor-pointer"
+            onValueChange={(value) => setCategory(value as CategoryId)}
           >
-            {CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+            <SelectTrigger className="h-auto min-w-[11rem] border-none bg-zinc-100 px-3 py-1.5 text-sm font-medium shadow-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-0 dark:bg-zinc-800">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categoryOptions.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
             className="flex items-center gap-2 px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
           >
-            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Publish'}
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              t('community.newPost.publish')
+            )}
           </button>
         </div>
       </div>
@@ -296,19 +323,24 @@ export function NewPost() {
         {/* Cover Image Area */}
         {coverImage ? (
           <div className="relative w-full h-64 sm:h-80 mb-12 rounded-3xl overflow-hidden group">
-            <img src={coverImage} alt="Cover" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <img
+              src={coverImage}
+              alt={t('community.newPost.coverAlt')}
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white rounded-xl font-medium transition-colors flex items-center gap-2"
               >
-                <Upload className="w-4 h-4" /> Change Cover
+                <Upload className="w-4 h-4" /> {t('community.newPost.changeCover')}
               </button>
               <button 
                 onClick={() => setCoverImage('')}
                 className="px-4 py-2 bg-rose-500/80 hover:bg-rose-500 backdrop-blur-md text-white rounded-xl font-medium transition-colors"
               >
-                Remove
+                {t('community.newPost.removeCover')}
               </button>
             </div>
           </div>
@@ -318,7 +350,7 @@ export function NewPost() {
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors px-3 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              <ImagePlus className="w-4 h-4" /> Add Cover
+              <ImagePlus className="w-4 h-4" /> {t('community.newPost.addCover')}
             </button>
           </div>
         )}
@@ -331,12 +363,12 @@ export function NewPost() {
         />
 
         {/* Title Input */}
-        <input
+        <Input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Article Title"
-          className="w-full text-4xl sm:text-5xl font-black text-zinc-900 dark:text-zinc-100 bg-transparent border-none outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700 mb-6 resize-none"
+          placeholder={t('community.newPost.titlePlaceholder')}
+          className="mb-6 h-auto border-0 bg-transparent px-0 py-0 text-4xl font-black shadow-none placeholder:text-zinc-300 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent dark:placeholder:text-zinc-700 sm:text-5xl"
         />
 
         {/* Tags Input */}
@@ -350,13 +382,17 @@ export function NewPost() {
             </span>
           ))}
           {tags.length < 5 && (
-            <input
+            <Input
               type="text"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={handleAddTag}
-              placeholder={tags.length === 0 ? "Add tags..." : "+ Add tag"}
-              className="bg-transparent border-none outline-none text-sm text-zinc-500 dark:text-zinc-400 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 w-32"
+              placeholder={
+                tags.length === 0
+                  ? t('community.newPost.addTags')
+                  : t('community.newPost.addTag')
+              }
+              className="h-auto w-32 border-0 bg-transparent px-0 py-0 text-sm text-zinc-500 shadow-none placeholder:text-zinc-400 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent dark:text-zinc-400 dark:placeholder:text-zinc-600"
             />
           )}
         </div>
@@ -402,30 +438,30 @@ export function NewPost() {
                 <button
                   onClick={() => handleAIAction('improve')}
                   className="p-1.5 rounded-lg transition-colors text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 flex items-center gap-1 text-xs font-medium"
-                  title="Improve writing"
+                  title={t('community.newPost.ai.improveTitle')}
                 >
-                  <Sparkles className="w-3.5 h-3.5" /> Improve
+                  <Sparkles className="w-3.5 h-3.5" /> {t('community.newPost.ai.improve')}
                 </button>
                 <button
                   onClick={() => handleAIAction('fix')}
                   className="px-2 py-1.5 rounded-lg transition-colors text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-medium"
-                  title="Fix spelling & grammar"
+                  title={t('community.newPost.ai.fixTitle')}
                 >
-                  Fix
+                  {t('community.newPost.ai.fix')}
                 </button>
                 <button
                   onClick={() => handleAIAction('shorter')}
                   className="px-2 py-1.5 rounded-lg transition-colors text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-medium"
-                  title="Make shorter"
+                  title={t('community.newPost.ai.shorterTitle')}
                 >
-                  Shorter
+                  {t('community.newPost.ai.shorter')}
                 </button>
                 <button
                   onClick={() => handleAIAction('longer')}
                   className="px-2 py-1.5 rounded-lg transition-colors text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-medium"
-                  title="Make longer"
+                  title={t('community.newPost.ai.longerTitle')}
                 >
-                  Longer
+                  {t('community.newPost.ai.longer')}
                 </button>
               </div>
             </BubbleMenu>
@@ -438,24 +474,24 @@ export function NewPost() {
                 <button
                   onClick={() => setShowAIPrompt(true)}
                   className="p-1.5 rounded-lg text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors flex items-center gap-1 text-sm font-medium"
-                  title="Ask AI to write"
+                  title={t('community.newPost.ai.askAiTitle')}
                 >
-                  <Sparkles className="w-4 h-4" /> Ask AI
+                  <Sparkles className="w-4 h-4" /> {t('community.newPost.ai.askAi')}
                 </button>
                 <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
                 <button
                   onClick={() => handleAIAction('continue')}
                   className="px-2 py-1.5 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium"
-                  title="Continue writing"
+                  title={t('community.newPost.ai.continueTitle')}
                 >
-                  Continue
+                  {t('community.newPost.ai.continue')}
                 </button>
                 <button
                   onClick={() => handleAIAction('summarize')}
                   className="px-2 py-1.5 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium"
-                  title="Summarize article"
+                  title={t('community.newPost.ai.summarizeTitle')}
                 >
-                  Summarize
+                  {t('community.newPost.ai.summarize')}
                 </button>
               </div>
               
@@ -463,35 +499,35 @@ export function NewPost() {
                 <button
                   onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
                   className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="Heading 2"
+                  title={t('community.newPost.editorActions.headingTwo')}
                 >
                   <Heading2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => editor.chain().focus().toggleBulletList().run()}
                   className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="Bullet List"
+                  title={t('community.newPost.editorActions.bulletList')}
                 >
                   <List className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => editor.chain().focus().toggleTaskList().run()}
                   className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="Task List"
+                  title={t('community.newPost.editorActions.taskList')}
                 >
                   <CheckSquare className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => editor.chain().focus().toggleCodeBlock().run()}
                   className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="Code Block"
+                  title={t('community.newPost.editorActions.codeBlock')}
                 >
                   <Code className="w-4 h-4" />
                 </button>
                 <button
                   onClick={addImage}
                   className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="Add Image"
+                  title={t('community.newPost.editorActions.addImage')}
                 >
                   <ImageIcon className="w-4 h-4" />
                 </button>
@@ -505,7 +541,7 @@ export function NewPost() {
               <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-500/20 flex items-center justify-center text-primary-600 dark:text-primary-400 shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
-              <input
+              <Input
                 ref={aiInputRef}
                 type="text"
                 value={aiPrompt}
@@ -514,8 +550,8 @@ export function NewPost() {
                   if (e.key === 'Enter') handleGenerateAI();
                   if (e.key === 'Escape') setShowAIPrompt(false);
                 }}
-                placeholder="Tell AI what to write..."
-                className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                placeholder={t('community.newPost.ai.promptPlaceholder')}
+                className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-sm font-medium shadow-none placeholder:text-zinc-400 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent"
                 disabled={isGenerating}
               />
               <button

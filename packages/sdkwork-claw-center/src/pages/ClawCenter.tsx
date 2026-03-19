@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Network, Building2, MapPin, Star, ShieldCheck, ChevronRight, Briefcase, Filter, ArrowRight, Menu, MessageCircle, TrendingUp, Zap, ChevronDown } from 'lucide-react';
+import {
+  ArrowRight,
+  Briefcase,
+  Building2,
+  ChevronDown,
+  ChevronRight,
+  Filter,
+  MapPin,
+  Menu,
+  MessageCircle,
+  Network,
+  Search,
+  ShieldCheck,
+  Star,
+  TrendingUp,
+  Zap,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Input } from '@sdkwork/claw-ui';
 import { ClawInstance, ClawCategory } from '../types';
 import { clawService } from '../services';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +29,13 @@ export function ClawCenter() {
   const [categories, setCategories] = useState<ClawCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const formatCategoryLabel = (categoryId: string, fallback?: string) => {
+    const translationKey = `categories.${categoryId}`;
+    const translatedValue = t(translationKey);
+    return translatedValue === translationKey ? (fallback ?? categoryId) : translatedValue;
+  };
+  const formatOrderCount = (value: number) => new Intl.NumberFormat(i18n.language).format(value);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,17 +87,17 @@ export function ClawCenter() {
           <div className="flex-1 max-w-3xl flex items-center">
             <div className="flex w-full border-2 border-primary-600 rounded-full overflow-hidden bg-white dark:bg-zinc-950 shadow-sm focus-within:ring-4 focus-within:ring-primary-500/20 transition-all">
               <div className="pl-4 pr-2 py-3 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800">
-                <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400 flex items-center gap-1">{t('clawCenter.services', 'Services')} <ChevronDown className="w-4 h-4"/></span>
+                <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400 flex items-center gap-1">{t('clawCenter.services')} <ChevronDown className="w-4 h-4"/></span>
               </div>
-              <input 
+              <Input
                 type="text" 
                 placeholder={t('clawCenter.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 px-4 py-3 bg-transparent text-sm focus:outline-none dark:text-zinc-100"
+                className="h-auto flex-1 rounded-none border-0 bg-transparent px-4 py-3 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent"
               />
               <button className="bg-primary-600 hover:bg-primary-700 text-white px-8 py-3 font-bold transition-colors flex items-center gap-2">
-                <Search className="w-4 h-4" /> {t('clawCenter.search', 'Search')}
+                <Search className="w-4 h-4" /> {t('clawCenter.search')}
               </button>
             </div>
           </div>
@@ -82,11 +105,11 @@ export function ClawCenter() {
           <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-zinc-600 dark:text-zinc-400 shrink-0">
             <button className="hover:text-primary-600 dark:hover:text-primary-400 flex flex-col items-center gap-1 transition-colors">
               <MessageCircle className="w-5 h-5" />
-              {t('clawCenter.messages', 'Messages')}
+              {t('clawCenter.messages')}
             </button>
             <button className="hover:text-primary-600 dark:hover:text-primary-400 flex flex-col items-center gap-1 transition-colors">
               <Briefcase className="w-5 h-5" />
-              {t('clawCenter.myOrders', 'My Orders')}
+              {t('clawCenter.myOrders')}
             </button>
           </div>
         </div>
@@ -116,7 +139,7 @@ export function ClawCenter() {
                   className={`px-4 py-3 cursor-pointer flex items-center justify-between group transition-colors ${activeCategory === c.id ? 'bg-primary-50 dark:bg-primary-500/10 border-l-4 border-primary-600' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50 border-l-4 border-transparent'}`}
                 >
                   <div className={`flex items-center gap-3 text-sm font-bold ${activeCategory === c.id ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-700 dark:text-zinc-300 group-hover:text-primary-600 dark:group-hover:text-primary-400'}`}>
-                    <c.icon className="w-4 h-4" /> {t(`categories.${c.id}`, c.name)}
+                    <c.icon className="w-4 h-4" /> {formatCategoryLabel(c.id, c.name)}
                   </div>
                   <ChevronRight className={`w-4 h-4 transition-opacity ${activeCategory === c.id ? 'text-primary-600 opacity-100' : 'text-zinc-400 opacity-0 group-hover:opacity-100'}`} />
                 </div>
@@ -127,20 +150,20 @@ export function ClawCenter() {
           {/* Right Hero Banner */}
           <div className="flex-1 bg-zinc-900 rounded-2xl relative overflow-hidden flex flex-col justify-center min-h-[420px] h-auto shadow-lg group cursor-pointer">
             <div className="absolute inset-0 bg-gradient-to-r from-primary-900/90 to-rose-900/40 z-10"></div>
-            <img src="https://picsum.photos/seed/ai-banner/1200/600" alt="Banner" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+            <img src="https://picsum.photos/seed/ai-banner/1200/600" alt={t('clawCenter.bannerAlt')} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
             
             <div className="relative z-20 p-10 md:p-16 max-w-2xl">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider mb-6 border border-white/20">
-                <Zap className="w-3.5 h-3.5 text-amber-300" /> {t('clawCenter.supercharge', 'Supercharge Your Business')}
+                <Zap className="w-3.5 h-3.5 text-amber-300" /> {t('clawCenter.supercharge')}
               </span>
               <h2 className="text-4xl md:text-5xl font-black text-white mb-4 leading-tight">
-                {t('clawCenter.futureOfB2B', 'The Future of B2B')} <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-300 to-rose-300">{t('clawCenter.aiAgentSourcing', 'AI Agent Sourcing')}</span>
+                {t('clawCenter.futureOfB2B')} <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-300 to-rose-300">{t('clawCenter.aiAgentSourcing')}</span>
               </h2>
               <p className="text-primary-100 text-lg mb-8 max-w-lg">
                 {t('clawCenter.subtitle')}
               </p>
               <button className="bg-white text-primary-900 px-8 py-3.5 rounded-full font-bold hover:bg-primary-50 transition-colors shadow-xl flex items-center gap-2">
-                {t('clawCenter.exploreProviders', 'Explore Top Providers')} <ArrowRight className="w-4 h-4" />
+                {t('clawCenter.exploreProviders')} <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -150,7 +173,12 @@ export function ClawCenter() {
         <div className="flex items-center gap-2 mb-6">
           <TrendingUp className="w-6 h-6 text-primary-600 dark:text-primary-400" />
           <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            {activeCategory === 'All' ? t('clawCenter.trendingProviders', 'Trending Providers') : `${t(`categories.${activeCategory}`, categories.find(c => c.id === activeCategory)?.name)} ${t('clawCenter.providers', 'Providers')}`}
+            {activeCategory === 'All'
+              ? t('clawCenter.trendingProviders')
+              : `${formatCategoryLabel(
+                  activeCategory,
+                  categories.find((category) => category.id === activeCategory)?.name,
+                )} ${t('clawCenter.providers')}`}
           </h2>
         </div>
 
@@ -167,14 +195,14 @@ export function ClawCenter() {
                 {claw.verified && (
                   <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-500/20">
                     <ShieldCheck className="w-3 h-3" />
-                    {t('clawCenter.verifiedOnly', 'Verified')}
+                    {t('clawCenter.verifiedOnly')}
                   </span>
                 )}
               </div>
               
               <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors truncate">{claw.name}</h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5" /> {t(`categories.${claw.category}`, claw.category)}
+                <Briefcase className="w-3.5 h-3.5" /> {formatCategoryLabel(claw.category, claw.category)}
               </p>
               
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4 line-clamp-2 flex-1">
@@ -201,7 +229,7 @@ export function ClawCenter() {
                     {claw.rating}
                   </div>
                   <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
-                    {claw.completedOrders.toLocaleString()}+ {t('clawCenter.orders')}
+                    {formatOrderCount(claw.completedOrders)}+ {t('clawCenter.orders')}
                   </div>
                 </div>
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 group-hover:bg-primary-600 group-hover:text-white transition-colors">
@@ -215,7 +243,7 @@ export function ClawCenter() {
         {filteredClaws.length === 0 && (
           <div className="py-24 flex flex-col items-center justify-center text-center bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 mt-4">
             <Building2 className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mb-4" />
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">{t('clawCenter.noProvidersFound', 'No providers found')}</h3>
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">{t('clawCenter.noProvidersFound')}</h3>
             <p className="text-zinc-500 dark:text-zinc-400 max-w-md">{t('clawCenter.noResults')}</p>
           </div>
         )}

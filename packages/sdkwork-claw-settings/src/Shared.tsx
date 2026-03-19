@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Switch } from '@sdkwork/claw-ui';
 
 export function Section({
   title,
@@ -47,18 +48,7 @@ export function ToggleRow({
         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</div>
         <div className="text-sm text-zinc-500 dark:text-zinc-400">{description}</div>
       </div>
-      <button
-        onClick={handleToggle}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900 ${
-          localEnabled ? 'bg-primary-500' : 'bg-zinc-200 dark:bg-zinc-700'
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            localEnabled ? 'translate-x-6' : 'translate-x-1'
-          }`}
-        />
-      </button>
+      <Switch checked={localEnabled} onCheckedChange={handleToggle} />
     </div>
   );
 }

@@ -12,10 +12,14 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Claw Studio",
         "width": 1440,
         "height": 900,
-        "resizable": true
+        "visible": false,
+        "fullscreen": false,
+        "resizable": true,
+        "decorations": false
       }
     ]
   },
