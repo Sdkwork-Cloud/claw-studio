@@ -1,1 +1,2 @@
-export * from './appStoreService';
+export * from './appInstallCatalog.ts';
+export * from './appStoreService.ts';

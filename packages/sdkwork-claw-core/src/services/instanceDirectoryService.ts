@@ -1,4 +1,4 @@
-import { studioMockService } from '@sdkwork/claw-infrastructure';
+import { studio } from '@sdkwork/claw-infrastructure';
 
 export interface InstanceDirectoryItem {
   id: string;
@@ -10,14 +10,19 @@ export interface InstanceDirectoryItem {
 
 class InstanceDirectoryService {
   async listInstances(): Promise<InstanceDirectoryItem[]> {
-    const instances = await studioMockService.listInstances();
-    return instances.map(({ id, name, ip, status, iconType }) => ({
-      id,
-      name,
-      ip,
-      status,
-      iconType,
-    }));
+    const instances = await studio.listInstances();
+    return instances.map(({ id, name, host, status, iconType }) => {
+      const normalizedStatus: InstanceDirectoryItem['status'] =
+        status === 'syncing' ? 'starting' : status;
+
+      return {
+        id,
+        name,
+        ip: host,
+        status: normalizedStatus,
+        iconType,
+      };
+    });
   }
 }
 

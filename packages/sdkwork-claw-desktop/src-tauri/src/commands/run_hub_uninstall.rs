@@ -1,20 +1,23 @@
 use crate::{
+    commands::hub_install_progress::{
+        emit_hub_install_progress, HubInstallProgressOperationKind,
+    },
     framework::{FrameworkError, Result as FrameworkResult},
     state::AppState,
 };
 use hub_installer_rs::{
     engine::UninstallTargetStatus,
+    types::{
+        ContainerRuntimePreference, EffectiveRuntimePlatform, InstallControlLevel, InstallScope,
+    },
     ApplyManifestOptions, BackupTarget, InstallEngine, ProgressEvent, RegistryUninstallOptions,
     RegistryUninstallResult, UninstallManifestOptions,
-    types::{ContainerRuntimePreference, EffectiveRuntimePlatform, InstallControlLevel, InstallScope},
 };
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
-use tauri::{AppHandle, Emitter, Manager, Runtime, path::BaseDirectory};
-
-const HUB_INSTALLER_PROGRESS_EVENT: &str = "hub-installer:progress";
+use tauri::{path::BaseDirectory, AppHandle, Manager, Runtime};
 const BUNDLED_REGISTRY_RELATIVE_PATH: &str = "hub-installer/registry/software-registry.yaml";
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -23,6 +26,8 @@ pub struct RunHubUninstallRequest {
     pub software_name: String,
     #[serde(default)]
     pub registry_source: Option<String>,
+    #[serde(default)]
+    pub request_id: Option<String>,
     #[serde(default)]
     pub install_scope: Option<String>,
     #[serde(default)]
@@ -116,19 +121,28 @@ pub fn run_hub_uninstall_at<R: Runtime>(
     request: RunHubUninstallRequest,
 ) -> FrameworkResult<HubUninstallResult> {
     let software_name = validate_software_name(&request.software_name)?.to_owned();
+    let progress_software_name = software_name.clone();
+    let request_id = request.request_id.clone();
     let registry_source = resolve_registry_source(
         request.registry_source.as_deref(),
         resolve_bundled_registry_path(app),
         vendor_registry_source(),
     )?;
-    let options = build_registry_uninstall_options(state, &software_name, request, &registry_source)?;
+    let options =
+        build_registry_uninstall_options(state, &software_name, request, &registry_source)?;
     let event_app = app.clone();
 
     let result = InstallEngine::uninstall_from_registry_with_observer(
         &software_name,
         options,
         &move |event: &ProgressEvent| {
-            let _ = event_app.emit(HUB_INSTALLER_PROGRESS_EVENT, event.clone());
+            emit_hub_install_progress(
+                &event_app,
+                request_id.as_deref(),
+                &progress_software_name,
+                HubInstallProgressOperationKind::Uninstall,
+                event,
+            );
         },
     )
     .map_err(|error| FrameworkError::Internal(error.to_string()))?;
@@ -156,7 +170,11 @@ fn build_registry_uninstall_options(
         .to_string();
 
     let backup_targets = if request.backup_before_uninstall {
-        vec![BackupTarget::Data, BackupTarget::Install, BackupTarget::Work]
+        vec![
+            BackupTarget::Data,
+            BackupTarget::Install,
+            BackupTarget::Work,
+        ]
     } else {
         Vec::new()
     };
@@ -213,7 +231,10 @@ fn resolve_registry_source(
     bundled_registry: Option<PathBuf>,
     vendor_registry: PathBuf,
 ) -> FrameworkResult<PathBuf> {
-    if let Some(source) = override_source.map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(source) = override_source
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         return Ok(PathBuf::from(source));
     }
 
@@ -263,7 +284,9 @@ fn parse_effective_runtime_platform(
         Some(value) if value.eq_ignore_ascii_case("windows") => {
             Ok(Some(EffectiveRuntimePlatform::Windows))
         }
-        Some(value) if value.eq_ignore_ascii_case("macos") => Ok(Some(EffectiveRuntimePlatform::Macos)),
+        Some(value) if value.eq_ignore_ascii_case("macos") => {
+            Ok(Some(EffectiveRuntimePlatform::Macos))
+        }
         Some(value) if value.eq_ignore_ascii_case("ubuntu") => {
             Ok(Some(EffectiveRuntimePlatform::Ubuntu))
         }
@@ -397,10 +420,7 @@ mod tests {
         )
         .expect("registry source");
 
-        assert_eq!(
-            resolved,
-            PathBuf::from("D:/custom/software-registry.yaml"),
-        );
+        assert_eq!(resolved, PathBuf::from("D:/custom/software-registry.yaml"),);
     }
 
     #[test]

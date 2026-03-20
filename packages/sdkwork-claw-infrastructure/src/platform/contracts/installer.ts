@@ -8,12 +8,23 @@ export type HubInstallPlatform =
   | 'android'
   | 'ios'
   | 'wsl';
+export type HubInstallRecordStatus = 'installed' | 'uninstalled';
 export type HubInstallControlLevel = 'managed' | 'partial' | 'opaque';
 export type HubInstallContainerRuntimePreference = 'auto' | 'host' | 'wsl';
 export type HubInstallProgressStream = 'stdout' | 'stderr';
+export type HubInstallProgressOperationKind =
+  | 'install'
+  | 'dependencyInstall'
+  | 'uninstall';
+export type HubInstallCatalogHostPlatform = Extract<
+  HubInstallPlatform,
+  'windows' | 'macos' | 'ubuntu'
+>;
+export type HubInstallCatalogRuntimePlatform = 'host' | 'wsl';
 
 export interface HubInstallRequest {
   softwareName: string;
+  requestId?: string;
   registrySource?: string;
   installScope?: HubInstallScope;
   effectiveRuntimePlatform?: HubInstallPlatform;
@@ -31,6 +42,39 @@ export interface HubInstallRequest {
   binDir?: string;
   dataRoot?: string;
   variables?: Record<string, string>;
+}
+
+export interface HubInstallCatalogQuery {
+  hostPlatform?: HubInstallCatalogHostPlatform;
+}
+
+export interface HubInstallCatalogVariant {
+  id: string;
+  label: string;
+  summary: string;
+  softwareName: string;
+  hostPlatforms: HubInstallCatalogHostPlatform[];
+  runtimePlatform: HubInstallCatalogRuntimePlatform;
+  manifestName?: string | null;
+  manifestDescription?: string | null;
+  manifestHomepage?: string | null;
+  installationMethod?: HubInstallAssessmentInstallationMethod | null;
+  request: HubInstallRequest;
+}
+
+export interface HubInstallCatalogEntry {
+  appId: string;
+  title: string;
+  developer: string;
+  category: string;
+  summary: string;
+  description?: string | null;
+  homepage?: string | null;
+  tags: string[];
+  defaultVariantId: string;
+  defaultSoftwareName: string;
+  supportedHostPlatforms: HubInstallCatalogHostPlatform[];
+  variants: HubInstallCatalogVariant[];
 }
 
 export interface HubInstallStageReport {
@@ -69,6 +113,47 @@ export interface HubInstallResult {
   artifactReports: HubInstallArtifactReport[];
 }
 
+export interface HubInstallDependencyRequest extends HubInstallRequest {
+  dependencyIds?: string[];
+  continueOnError?: boolean;
+}
+
+export interface HubInstallDependencyReport {
+  dependencyId: string;
+  description?: string | null;
+  target: string;
+  required: boolean;
+  statusBefore: HubInstallAssessmentDependencyStatus;
+  statusAfter: HubInstallAssessmentDependencyStatus;
+  attemptedAutoRemediation: boolean;
+  success: boolean;
+  skipped: boolean;
+  durationMs: number;
+  stepCount: number;
+  error?: string | null;
+}
+
+export interface HubInstallDependencyResult {
+  manifestName: string;
+  manifestSource: string;
+  manifestSourceInput: string;
+  manifestSourceKind: string;
+  registryName: string;
+  registrySource: string;
+  softwareName: string;
+  success: boolean;
+  durationMs: number;
+  platform: HubInstallPlatform;
+  effectiveRuntimePlatform: HubInstallPlatform;
+  resolvedInstallScope: HubInstallScope;
+  resolvedInstallRoot: string;
+  resolvedWorkRoot: string;
+  resolvedBinDir: string;
+  resolvedDataRoot: string;
+  installControlLevel: HubInstallControlLevel;
+  dependencyReports: HubInstallDependencyReport[];
+}
+
 export type HubInstallAssessmentSeverity = 'error' | 'warning' | 'info';
 export type HubInstallAssessmentDependencyStatus =
   | 'available'
@@ -78,6 +163,24 @@ export type HubInstallAssessmentDependencyStatus =
 export type HubInstallAssessmentCheckType = 'command' | 'file' | 'env' | 'platform';
 export type HubInstallAssessmentShellKind = 'bash' | 'powershell' | 'cmd';
 export type HubInstallResolvedContainerRuntime = 'host' | 'wsl';
+export type HubInstallAssessmentMethodType =
+  | 'binary'
+  | 'command'
+  | 'container'
+  | 'git'
+  | 'package'
+  | 'script'
+  | 'source'
+  | 'wsl'
+  | string;
+export type HubInstallAssessmentDataItemKind =
+  | 'database'
+  | 'directory'
+  | 'file'
+  | 'log'
+  | string;
+export type HubInstallAssessmentDataUninstallPolicy = 'manual' | 'preserve' | 'remove' | string;
+export type HubInstallAssessmentMigrationMode = 'command' | 'manual' | string;
 
 export interface HubInstallAssessmentCommand {
   description: string;
@@ -97,6 +200,63 @@ export interface HubInstallAssessmentDependency {
   status: HubInstallAssessmentDependencyStatus;
   supportsAutoRemediation: boolean;
   remediationCommands: HubInstallAssessmentCommand[];
+}
+
+export interface HubInstallAssessmentInstallationMethod {
+  id: string;
+  label: string;
+  type: HubInstallAssessmentMethodType;
+  summary: string;
+  supported?: boolean | null;
+  documentationUrl?: string | null;
+  notes: string[];
+}
+
+export interface HubInstallAssessmentInstallationDirectory {
+  id?: string | null;
+  path: string;
+  customizable?: boolean | null;
+  purpose?: string | null;
+}
+
+export interface HubInstallAssessmentInstallationDirectories {
+  installRoot?: HubInstallAssessmentInstallationDirectory | null;
+  workRoot?: HubInstallAssessmentInstallationDirectory | null;
+  binDir?: HubInstallAssessmentInstallationDirectory | null;
+  dataRoot?: HubInstallAssessmentInstallationDirectory | null;
+  additional: HubInstallAssessmentInstallationDirectory[];
+}
+
+export interface HubInstallAssessmentInstallation {
+  method: HubInstallAssessmentInstallationMethod;
+  alternatives: HubInstallAssessmentInstallationMethod[];
+  directories?: HubInstallAssessmentInstallationDirectories | null;
+}
+
+export interface HubInstallAssessmentDataItem {
+  id: string;
+  title: string;
+  kind: HubInstallAssessmentDataItemKind;
+  path?: string | null;
+  description?: string | null;
+  includes: string[];
+  sensitive?: boolean | null;
+  backupByDefault?: boolean | null;
+  uninstallByDefault: HubInstallAssessmentDataUninstallPolicy;
+}
+
+export interface HubInstallAssessmentMigrationStrategy {
+  id: string;
+  source: string;
+  title: string;
+  mode: HubInstallAssessmentMigrationMode;
+  summary: string;
+  supported?: boolean | null;
+  documentationUrl?: string | null;
+  previewCommands: HubInstallAssessmentCommand[];
+  applyCommands: HubInstallAssessmentCommand[];
+  dataItemIds: string[];
+  warnings: string[];
 }
 
 export interface HubInstallAssessmentIssue {
@@ -139,9 +299,13 @@ export interface HubInstallAssessmentResult {
   resolvedBinDir: string;
   resolvedDataRoot: string;
   installControlLevel: HubInstallControlLevel;
+  installStatus?: HubInstallRecordStatus | null;
   dependencies: HubInstallAssessmentDependency[];
   issues: HubInstallAssessmentIssue[];
   recommendations: string[];
+  installation?: HubInstallAssessmentInstallation | null;
+  dataItems: HubInstallAssessmentDataItem[];
+  migrationStrategies: HubInstallAssessmentMigrationStrategy[];
   runtime: HubInstallAssessmentRuntime;
 }
 
@@ -179,7 +343,11 @@ export interface HubUninstallResult {
   targetReports: HubUninstallTargetReport[];
 }
 
-export type HubInstallProgressEvent =
+export type HubInstallProgressEvent = {
+  requestId?: string | null;
+  softwareName: string;
+  operationKind: HubInstallProgressOperationKind;
+} & (
   | {
       type: 'stageStarted';
       stage: string;
@@ -202,6 +370,20 @@ export type HubInstallProgressEvent =
       artifactId: string;
       artifactType: string;
       success: boolean;
+    }
+  | {
+      type: 'dependencyStarted';
+      dependencyId: string;
+      target: string;
+      description?: string | null;
+    }
+  | {
+      type: 'dependencyCompleted';
+      dependencyId: string;
+      target: string;
+      success: boolean;
+      skipped: boolean;
+      statusAfter: HubInstallAssessmentDependencyStatus;
     }
   | {
       type: 'stepStarted';
@@ -227,7 +409,8 @@ export type HubInstallProgressEvent =
       skipped: boolean;
       durationMs: number;
       exitCode?: number | null;
-    };
+    }
+);
 
 export type ApiRouterInstallerClientId =
   | 'codex'
@@ -288,7 +471,11 @@ export interface ApiRouterClientInstallResult {
 }
 
 export interface InstallerPlatformAPI {
+  listHubInstallCatalog(
+    query?: HubInstallCatalogQuery,
+  ): Promise<HubInstallCatalogEntry[]>;
   inspectHubInstall(request: HubInstallRequest): Promise<HubInstallAssessmentResult>;
+  runHubDependencyInstall(request: HubInstallDependencyRequest): Promise<HubInstallDependencyResult>;
   runHubInstall(request: HubInstallRequest): Promise<HubInstallResult>;
   runHubUninstall(request: HubUninstallRequest): Promise<HubUninstallResult>;
   subscribeHubInstallProgress(

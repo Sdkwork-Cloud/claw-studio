@@ -1,7 +1,7 @@
 import { delay } from '@sdkwork/claw-types';
 import { localizedText, resolveLocalizedText } from '@sdkwork/claw-i18n';
 import { getI18n } from 'react-i18next';
-import { ChatMessageData } from '../types';
+import { ChatMessageData } from '../types/index.ts';
 
 export interface IClawChatService {
   sendMessage(providerId: string, message: string): Promise<ChatMessageData>;

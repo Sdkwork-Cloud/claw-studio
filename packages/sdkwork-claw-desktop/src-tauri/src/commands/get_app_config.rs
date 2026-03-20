@@ -1,7 +1,4 @@
-use crate::{
-    framework::config::PublicAppConfig,
-    state::AppState,
-};
+use crate::{framework::config::PublicAppConfig, state::AppState};
 
 pub fn app_config_from_state(state: &AppState) -> PublicAppConfig {
     state.config_snapshot().public_projection()

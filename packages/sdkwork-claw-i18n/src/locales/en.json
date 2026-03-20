@@ -1027,7 +1027,11 @@
       "uploadImage": "Upload image",
       "voiceInput": "Voice input",
       "stopGenerating": "Stop generating",
-      "disclaimer": "AI models can make mistakes. Consider verifying important information."
+      "disclaimer": "AI models can make mistakes. Consider verifying important information.",
+      "modelLabel": "Model",
+      "readyWith": "Ready with {{model}}",
+      "respondingWith": "Responding with {{model}}",
+      "nextReplyUses": "Current reply stays on {{currentModel}}. Next message will use {{nextModel}}."
     },
     "message": {
       "copyMessage": "Copy message",
@@ -2041,6 +2045,7 @@
         "sidebar": {
           "title": "Instance Workbench",
           "description": "Switch between the runtime capabilities available on this OpenClaw instance.",
+          "overview": "Overview",
           "channels": "Channels",
           "cronTasks": "Cron Tasks",
           "llmProviders": "LLM Providers",
@@ -2050,6 +2055,7 @@
           "memory": "Memory",
           "tools": "Tools",
           "itemDescriptions": {
+            "overview": "Runtime identity, connectivity, storage, and diagnostics",
             "channels": "Delivery routes and operator notifications",
             "cronTasks": "Scheduled routines and automation cadence",
             "llmProviders": "Provider routing, models, and inference controls",
@@ -2061,14 +2067,20 @@
           }
         },
         "sections": {
+          "overview": {
+            "title": "Overview",
+            "description": "Inspect the runtime contract, connectivity, storage binding, and capability posture for this instance."
+          },
           "channels": {
             "title": "Channels",
             "description": "Inspect delivery readiness, configuration depth, and connection state for this instance."
           },
-          "cronTasks": {
-            "title": "Cron Tasks",
-            "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime."
-          },
+        "cronTasks": {
+          "title": "Cron Tasks",
+          "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime.",
+          "editorNotice": "OpenClaw runtime actions are live here, but task creation and editing still route through the legacy task editor. Use clone, run, pause, resume, delete, and history from this panel for now.",
+          "readonlyNotice": "OpenClaw cron jobs are currently exposed as a read-only runtime snapshot. Create, edit, run, pause, and delete actions will be enabled after native runtime commands are wired."
+        },
           "llmProviders": {
             "title": "LLM Providers",
             "description": "Inspect active providers, model routing, and the generation parameters shaping this instance."
@@ -2107,7 +2119,34 @@
         "runtimeStates": {
           "healthy": "Healthy",
           "attention": "Attention",
-          "degraded": "Degraded"
+          "degraded": "Degraded",
+          "offline": "Offline"
+        },
+        "overview": {
+          "identity": "Runtime Identity",
+          "lifecycle": "Lifecycle Owner",
+          "host": "Host",
+          "version": "Version",
+          "storage": "Storage Binding",
+          "profile": "Profile",
+          "namespace": "Namespace",
+          "database": "Database",
+          "observability": "Observability",
+          "healthChecks": "Health Checks",
+          "logLines": "Log Lines",
+          "connectivity": "Connectivity",
+          "connectivityDescription": "Known transport surfaces and auth posture for this instance.",
+          "noConnectivity": "No connectivity metadata is available for this instance yet.",
+          "capabilities": "Capability Matrix",
+          "capabilitiesDescription": "See which runtime capabilities are ready, degraded, or still require integration work.",
+          "dataAccess": "Data Access",
+          "dataAccessDescription": "Understand how Claw Studio links to each runtime surface and whether that route is authoritative.",
+          "noDataAccess": "No data access routes are available for this instance yet.",
+          "artifacts": "Artifacts",
+          "artifactsDescription": "Inspect the concrete files, directories, endpoints, and storage bindings associated with this instance.",
+          "noArtifacts": "No concrete artifacts are available for this instance yet.",
+          "runtimeNotes": "Runtime Notes",
+          "logPreview": "Log Preview"
         },
         "metrics": {
           "configuredFields": "Configured Fields",
@@ -2147,6 +2186,7 @@
           "saveFile": "Save File",
           "savingFile": "Saving...",
           "selectFile": "Select a file from the explorer to preview or edit it.",
+          "readonlyNotice": "This artifact is currently exposed in preview mode to avoid drifting from the bundled OpenClaw runtime state.",
           "fileSaved": "File saved",
           "fileSaveFailed": "Failed to save file",
           "on": "On",
@@ -2168,6 +2208,7 @@
           "saveConfig": "Save Provider",
           "saving": "Saving...",
           "revertConfig": "Revert Config",
+          "readonlyNotice": "This provider configuration is currently exposed as a read-only OpenClaw snapshot. Editing will be enabled after native provider write support is wired.",
           "saved": "LLM provider saved",
           "saveFailed": "Failed to save LLM provider",
           "selectProvider": "Select an LLM provider to inspect or edit its runtime configuration.",
@@ -2647,6 +2688,9 @@
           "lifecycleMode": "Lifecycle mode",
           "availableActions": "Available now",
           "availableForProduct": "Available for this product",
+          "recommendedPath": "Recommended path",
+          "readyPaths": "Ready paths",
+          "needsAttention": "Needs attention",
           "installPaths": "install paths",
           "uninstallPaths": "uninstall paths",
           "migrationSources": "import sources"
@@ -2662,10 +2706,10 @@
           "description": "Choose an install path, review readiness, and start setup without leaving the desktop app."
         },
         "uninstall": {
-          "description": "Review the detected runtime and remove the current OpenClaw installation with the matching uninstall path."
+          "description": "Review the detected {{product}} runtime and remove the current installation with the matching uninstall path."
         },
         "migrate": {
-          "description": "Choose sources to import, review detected folders, and migrate OpenClaw content into Claw Studio."
+          "description": "Choose sources to import, review detected folders, and migrate {{product}} content into Claw Studio."
         }
       },
       "runtime": {
@@ -2686,6 +2730,7 @@
         "modalTitle": "Review prerequisites before installation",
         "status": {
           "inspecting": "Inspecting environment",
+          "installed": "Already installed",
           "ready": "Ready to install",
           "needsSetup": "Needs setup",
           "blocked": "Blocked",
@@ -2700,6 +2745,9 @@
         "sections": {
           "issues": "Issues",
           "dependencies": "Dependencies",
+          "installation": "Installation method",
+          "dataLayout": "Data layout",
+          "migration": "Migration strategy",
           "recommendations": "Recommendations"
         },
         "labels": {
@@ -2726,21 +2774,128 @@
           "autoRun": "Automatic fix",
           "manualFix": "Manual fix"
         },
+        "methodType": {
+          "binary": "Binary",
+          "command": "Command",
+          "container": "Container",
+          "git": "Git",
+          "package": "Package",
+          "script": "Script",
+          "source": "Source build",
+          "wsl": "WSL"
+        },
+        "dataKind": {
+          "database": "Database",
+          "directory": "Directory",
+          "file": "File",
+          "log": "Logs"
+        },
+        "uninstallPolicy": {
+          "manual": "Manual cleanup",
+          "preserve": "Keep on uninstall",
+          "remove": "Remove on uninstall"
+        },
+        "installation": {
+          "description": "See how this profile installs the product, which directories it manages, and which alternatives remain documented only.",
+          "primaryMethod": "Primary method",
+          "alternatives": "Documented alternatives",
+          "noAlternatives": "No additional documented install paths were provided for this profile.",
+          "directories": "Managed directories",
+          "noDirectories": "This profile does not declare managed directory metadata.",
+          "customizable": "Customizable",
+          "fixed": "Fixed",
+          "supported": "Automated here",
+          "documentedOnly": "Documented only",
+          "declared": "Declared",
+          "documentation": "Open docs",
+          "notes": "Notes",
+          "notAvailable": "This profile does not expose structured installation metadata.",
+          "directoryKinds": {
+            "installRoot": "Install root",
+            "workRoot": "Work root",
+            "binDir": "Binary directory",
+            "dataRoot": "Data root",
+            "additional": "Additional path"
+          }
+        },
+        "dataLayout": {
+          "description": "Review what data this product creates, what should be backed up, and what remains after uninstall.",
+          "includes": "Includes",
+          "backupByDefault": "Back up by default",
+          "sensitive": "Sensitive",
+          "empty": "This profile does not declare structured data layout metadata."
+        },
+        "migration": {
+          "description": "Review what can be migrated, which commands are available, and what still requires manual review.",
+          "fromSource": "From {{source}}",
+          "supported": "Supported",
+          "reviewRequired": "Manual review",
+          "warnings": "Warnings",
+          "affectedData": "Affected data",
+          "previewCommands": "Preview commands",
+          "applyCommands": "Apply commands",
+          "empty": "This profile does not declare migration strategies.",
+          "mode": {
+            "command": "Command-assisted",
+            "manual": "Manual"
+          }
+        },
         "emptyRecommendations": "No additional recommendations.",
         "blockedDescription": "Resolve the blocking issues above before starting installation."
       },
       "products": {
         "openclaw": {
           "name": "OpenClaw",
-          "description": "The full OpenClaw gateway and workspace stack."
+          "description": "Personal AI assistant with onboarding, channels, skills, and dashboard."
         },
         "zeroclaw": {
           "name": "ZeroClaw",
-          "description": "A lighter-weight Claw toolchain for faster utility installs."
+          "description": "Ultra-light Rust-native runtime for edge and low-resource deployments."
         },
         "ironclaw": {
           "name": "IronClaw",
-          "description": "A heavier-duty Claw toolchain for source-first workflows."
+          "description": "Security-first Rust-native assistant with database-backed memory and routines."
+        }
+      },
+      "productProfiles": {
+        "openclaw": {
+          "bestFor": "Multi-channel personal assistant",
+          "runtime": "Node.js gateway + onboarding",
+          "recommendedPath": "Windows: WSL. macOS/Linux: npm.",
+          "recommendedReason": "OpenClaw docs recommend onboarding-first setup, and Windows hosts are usually most stable through WSL2.",
+          "firstRunTitle": "Run onboarding next",
+          "firstRun": "Finish provider setup, choose channels, and add starter skills before your first live workflow.",
+          "prerequisites": {
+            "one": "Node 24 is recommended. Node 22.16+ is still supported.",
+            "two": "Windows should prefer WSL2 for the cleanest day-to-day runtime.",
+            "three": "Docker is optional for isolated gateways, not the default install path."
+          }
+        },
+        "zeroclaw": {
+          "bestFor": "Edge and low-resource agents",
+          "runtime": "Rust-native runtime",
+          "recommendedPath": "Clone the repo and install with Cargo.",
+          "recommendedReason": "The install manifests and vendor docs both use the Rust source profile; the old pnpm alias is only a compatibility shim.",
+          "firstRunTitle": "Verify the binary",
+          "firstRun": "Confirm `zeroclaw --version` works, then continue with your own provider, channel, and hardware tuning.",
+          "prerequisites": {
+            "one": "Install Git plus the Rust toolchain with Cargo.",
+            "two": "Windows builds should have Visual Studio Build Tools or an equivalent C++ toolchain.",
+            "three": "ZeroClaw is optimized for tiny memory budgets and low-cost hardware."
+          }
+        },
+        "ironclaw": {
+          "bestFor": "Security-first personal assistant",
+          "runtime": "Rust-native runtime",
+          "recommendedPath": "Clone the repo, build with Cargo, then run onboarding.",
+          "recommendedReason": "IronClaw is source-first today and its README explicitly requires PostgreSQL + pgvector plus NEAR AI authentication.",
+          "firstRunTitle": "Prepare the database",
+          "firstRun": "Create the database, enable pgvector, then run `ironclaw onboard` to finish auth and secret setup.",
+          "prerequisites": {
+            "one": "Install Git, Rust, and Cargo before building.",
+            "two": "Prepare PostgreSQL + pgvector for memory and search features.",
+            "three": "Keep NEAR AI credentials ready for the setup wizard."
+          }
         }
       },
       "methods": {
@@ -2764,12 +2919,21 @@
           "title": "Source install",
           "description": "Clone, build, and run the selected product from source."
         },
+        "zeroclawSource": {
+          "title": "Rust source install",
+          "description": "Build ZeroClaw from source with Git + Cargo for the official Rust-native workflow."
+        },
+        "ironclawSource": {
+          "title": "Secure source install",
+          "description": "Build IronClaw from source with Rust, then prepare PostgreSQL + pgvector and onboarding."
+        },
         "cloud": {
           "title": "Cloud install",
           "description": "Provision the selected product in the cloud. This mode is in development."
         }
       },
       "tags": {
+        "cargo": "Cargo",
         "cloud": "Cloud",
         "docker": "Docker",
         "git": "Git",
@@ -2779,6 +2943,9 @@
         "nodejs": "Node.js",
         "npm": "npm",
         "pnpm": "pnpm",
+        "postgresql": "PostgreSQL",
+        "rust": "Rust",
+        "security": "Security",
         "source": "Source",
         "windows": "Windows",
         "wsl": "WSL"
@@ -2786,6 +2953,7 @@
       "method": {
         "actions": {
           "install": "Install now",
+          "guidedInstall": "Start guided install",
           "uninstall": "Uninstall now",
           "comingSoon": "In development"
         }
@@ -2794,22 +2962,71 @@
         "sectionTitle": "Choose a product",
         "sectionHeading": "Ready to install on this device",
         "sectionDescription": "Pick a product, compare the paths that fit this machine, and start with the option that gets you running fastest.",
-        "supportTitle": "Quick system note",
-        "supportDescription": "Keep a modern CPU, stable network access, and enough free disk space available for {{product}} before you begin.",
+        "briefingTitle": "Install briefing",
+        "briefingLabels": {
+          "recommendedPath": "Recommended path",
+          "bestFor": "Best for",
+          "runtime": "Primary runtime",
+          "firstRun": "First run",
+          "prerequisites": "Key checks"
+        },
+        "autoRefresh": "Readiness rechecks automatically every {{seconds}} seconds.",
+        "recommendedMethod": "Recommended",
         "selectedProduct": "Selected",
-        "readyHint": "Ready to install"
+        "readyHint": "Ready to install",
+        "states": {
+          "comingSoon": "Coming soon"
+        },
+        "sections": {
+          "recommended": "Recommended for this device"
+        },
+        "labels": {
+          "installRoot": "Install root",
+          "dataRoot": "Data root",
+          "nextStep": "Next step",
+          "readyPaths": "Ready paths",
+          "needsAttention": "Needs attention"
+        },
+        "autoDetection": {
+          "title": "Automatic detection",
+          "heading": "We checked this machine for the fastest safe install path",
+          "description": "The recommendation below combines operating system, architecture, runtime readiness, and dependency checks so you can start with the most suitable path.",
+          "featuredBadge": "Best match",
+          "signals": {
+            "host": "Host OS",
+            "arch": "Architecture",
+            "runtime": "Runtime target",
+            "wsl": "WSL",
+            "docker": "Docker",
+            "node": "Node.js"
+          },
+          "values": {
+            "available": "Available",
+            "unavailable": "Unavailable",
+            "unknown": "Unknown"
+          }
+        },
+        "recommendationReasons": {
+          "platformPreferred": "{{method}} is the best fit for the platform and runtime we detected on this device.",
+          "bestReadyFallback": "{{method}} is the fastest install path that is ready to run on this machine right now.",
+          "requiresSetup": "{{method}} still looks like the best long-term fit, but this machine needs prerequisite fixes first.",
+          "installed": "{{method}} already appears to be installed on this machine, so you can continue with setup and verification.",
+          "singlePath": "This product currently exposes one supported install path, so we are using it as the default recommendation."
+        }
       },
       "systemRequirements": {
         "title": "System requirements",
         "description": "A modern CPU, stable network access, and enough disk space for {{product}} artifacts are recommended for the smoothest setup."
       },
       "uninstall": {
-        "title": "Uninstall OpenClaw",
-        "description": "Pick the uninstall mode that matches the current OpenClaw installation and remove the existing runtime cleanly.",
-        "detectedTitle": "Detected OpenClaw runtime",
+        "title": "Uninstall {{product}}",
+        "description": "Pick the uninstall mode that matches the current {{product}} installation and remove the existing runtime cleanly.",
+        "detectedTitle": "Detected {{product}} runtime",
         "reviewTitle": "Review first",
         "reviewHeading": "Confirm the runtime before you remove it",
         "reviewDescription": "Review the current {{product}} runtime before removing it.",
+        "noInstallDetected": "No installation detected",
+        "noInstallDetectedDescription": "No existing {{product}} installation was found on this system. Switch to the Install tab to set one up.",
         "detected": {
           "installMode": "Detected install mode",
           "installRoot": "Install root",
@@ -2831,12 +3048,18 @@
           },
           "source": {
             "description": "Remove the source-linked OpenClaw runtime and local build output."
+          },
+          "zeroclawSource": {
+            "description": "Remove the Cargo-installed ZeroClaw binary and local source checkout while keeping workspace data available for migration."
+          },
+          "ironclawSource": {
+            "description": "Remove the Cargo-installed IronClaw binary and source checkout. PostgreSQL-backed data stays in your database until you export or drop it separately."
           }
         }
       },
       "migrate": {
-        "title": "Migrate OpenClaw",
-        "description": "Import settings, workspace data, and related files into Claw Studio.",
+        "title": "Migrate {{product}}",
+        "description": "Import settings, workspace data, and related files from {{product}} into Claw Studio.",
         "productDescription": "Import settings, workspace data, and related files from {{product}} into Claw Studio.",
         "workspaceTitle": "Choose sources to import",
         "customSourceLabel": "Manual source folder",
@@ -2846,6 +3069,7 @@
         "actions": {
           "rescan": "Scan again",
           "selectSource": "Choose folder",
+          "clearSource": "Clear folder",
           "start": "Start migration"
         },
         "status": {
@@ -2881,6 +3105,12 @@
             "description": "Import a custom folder when the automatic scan misses the original location."
           }
         },
+        "notes": {
+          "ironclaw": {
+            "title": "Database export still required",
+            "description": "IronClaw stores its primary memory, routines, and chat data in PostgreSQL. PostgreSQL-backed data is not copied automatically by this file importer, so export the database separately before uninstalling the old runtime."
+          }
+        },
         "output": {
           "title": "Migration output",
           "placeholder": "Migration output will appear here.",
@@ -2895,11 +3125,11 @@
       "modal": {
         "title": {
           "install": "Install {{product}} via {{method}}",
-          "uninstall": "Uninstall OpenClaw via {{method}}"
+          "uninstall": "Uninstall {{product}} via {{method}}"
         },
         "subtitle": {
           "install": "Install the selected product directly inside the desktop app.",
-          "uninstall": "Remove the selected OpenClaw runtime directly inside the desktop app."
+          "uninstall": "Remove the selected {{product}} runtime directly inside the desktop app."
         },
         "summaryLabel": "Operation summary",
         "operationLabel": "Mode",
@@ -2911,7 +3141,7 @@
         },
         "output": {
           "preparingInstall": "Preparing {{product}} via {{method}}...",
-          "preparingUninstall": "Preparing to uninstall via {{method}}...",
+          "preparingUninstall": "Preparing to uninstall {{product}} via {{method}}...",
           "starting": "Starting operation...",
           "errorPrefix": "Error",
           "completedInstall": "Installation completed successfully.",
@@ -2923,6 +3153,13 @@
           "downloadFailed": "A required download did not complete.",
           "stepSkipped": "A setup step was skipped.",
           "stepFailed": "A setup step did not complete."
+        },
+        "progressSummary": {
+          "currentStage": "Current stage",
+          "currentStep": "Current step",
+          "stages": "Stage progress",
+          "artifacts": "Artifact progress",
+          "lastCommand": "Last command"
         },
         "status": {
           "install": {
@@ -2946,6 +3183,111 @@
           "done": "Done",
           "startInstall": "Start installation",
           "startUninstall": "Start uninstall"
+        }
+      },
+      "guided": {
+        "title": "Guided install",
+        "heading": "Set up {{product}} step by step",
+        "subtitle": "Install, configure, and initialize {{product}} with the {{method}} path.",
+        "steps": {
+          "dependencies": {
+            "title": "Dependencies",
+            "description": "Review tools, blockers, and recommended fixes before installation."
+          },
+          "install": {
+            "title": "Install OpenClaw",
+            "description": "Run the selected installer and follow the live execution log."
+          },
+          "configure": {
+            "title": "Configure OpenClaw",
+            "description": "Choose the instance, model setup, and channels that OpenClaw should use."
+          },
+          "initialize": {
+            "title": "Initialize OpenClaw",
+            "description": "Install the default starter pack and any extra skills or packages you need."
+          },
+          "verify": {
+            "title": "Verify installation",
+            "description": "Confirm the install, provider, channels, and skills are ready."
+          }
+        },
+        "actions": {
+          "continue": "Continue",
+          "continueToConfig": "Continue to configuration",
+          "continueToInitialize": "Continue to initialization",
+          "continueToVerify": "Continue to verification",
+          "install": "Install OpenClaw",
+          "applyConfig": "Save configuration",
+          "initialize": "Initialize OpenClaw",
+          "verify": "Verify installation"
+        },
+        "dependencies": {
+          "ready": "Everything needed for installation is ready.",
+          "noIssues": "No blocking issues were detected.",
+          "autoRefresh": "Environment checks keep re-running until you continue.",
+          "lastChecked": "Last checked at {{time}}."
+        },
+        "install": {
+          "description": "Install OpenClaw with the selected method and keep the live log visible until it finishes.",
+          "logPlaceholder": "Installation output will appear here.",
+          "existingInstall": "An existing installation was detected. You can continue with configuration or verification."
+        },
+        "config": {
+          "loading": "Loading configuration workspace...",
+          "instance": "Target instance",
+          "provider": "Model provider",
+          "defaultModel": "Default model",
+          "reasoningModel": "Reasoning model",
+          "embeddingModel": "Embedding model",
+          "channels": "Channels",
+          "channelsDescription": "Keep the currently connected channels or enable more channels for notifications and workflow delivery.",
+          "validation": {
+            "provider": "Select an instance, provider, and default model before saving configuration.",
+            "loading": "Configuration data is still loading.",
+            "channel": "Complete {{field}} for {{channel}} before saving."
+          }
+        },
+        "initialize": {
+          "defaultPack": "Default starter pack",
+          "defaultPackDescription": "The wizard preselects a recommended pack so OpenClaw is useful immediately after setup.",
+          "recommended": "Recommended",
+          "additionalSkills": "Additional skills",
+          "includedByPack": "Included by pack",
+          "summary": "Initialization summary",
+          "summaryValue": "{{packs}} packs and {{skills}} skills selected.",
+          "validation": {
+            "instance": "Select a target instance before initialization."
+          }
+        },
+        "verify": {
+          "running": "Verifying installation...",
+          "ready": "Ready to use",
+          "followUp": "Installed with follow-up needed",
+          "description": "OpenClaw has been installed. Review the readiness items below before closing the wizard.",
+          "retryStatus": "Automatic verification pass {{attempt}} of {{max}}.",
+          "lastChecked": "Last checked at {{time}}.",
+          "items": {
+            "install": "Install execution",
+            "provider": "Model provider",
+            "channels": "Channels",
+            "skills": "Skills and packs"
+          },
+          "status": {
+            "success": "Ready",
+            "warning": "Needs follow-up",
+            "blocked": "Blocked"
+          }
+        },
+        "providerStatus": {
+          "active": "Active",
+          "warning": "Warning",
+          "expired": "Expired",
+          "disabled": "Disabled"
+        },
+        "channelStatus": {
+          "connected": "Connected",
+          "disconnected": "Disconnected",
+          "not_configured": "Needs setup"
         }
       }
     },
@@ -3439,6 +3781,20 @@
       "concurrency": "Concurrency",
       "includedModels": "Included models",
       "startPlan": "Start {{planName}}"
+    },
+    "freeMembership": {
+      "badge": "Free",
+      "title": "Free Membership",
+      "tagline": "See the package structure first and upgrade only when you are ready to buy.",
+      "audienceLabel": "Best for",
+      "audience": "First-time visitors and light evaluation users",
+      "note": "No purchase needed. Basic member rights are available after sign-in.",
+      "benefits": {
+        "previewVendorPlans": "Preview {{vendor}} package differences",
+        "savePreferences": "Save your preferred vendor and billing cycle",
+        "memberUpdates": "Receive package updates and member notices",
+        "upgradeAnytime": "Upgrade to a paid package at any time"
+      }
     },
     "metrics": {
       "curatedRoutes": {

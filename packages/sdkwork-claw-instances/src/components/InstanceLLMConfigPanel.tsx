@@ -19,6 +19,8 @@ interface InstanceLLMConfigPanelProps {
   draft: InstanceLLMProviderUpdate | null;
   hasPendingChanges: boolean;
   isSaving: boolean;
+  isReadonly: boolean;
+  readonlyMessage?: string;
   onFieldChange: (
     field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
     value: string,
@@ -36,6 +38,8 @@ export function InstanceLLMConfigPanel({
   draft,
   hasPendingChanges,
   isSaving,
+  isReadonly,
+  readonlyMessage,
   onFieldChange,
   onConfigChange,
   onReset,
@@ -92,6 +96,12 @@ export function InstanceLLMConfigPanel({
         ))}
       </div>
 
+      {isReadonly && readonlyMessage ? (
+        <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+          {readonlyMessage}
+        </div>
+      ) : null}
+
       <div className="mt-6 space-y-4">
         <label className="block">
           <Label className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
@@ -100,6 +110,7 @@ export function InstanceLLMConfigPanel({
           <Input
             type="text"
             value={draft.endpoint}
+            disabled={isReadonly}
             onChange={(event) => onFieldChange('endpoint', event.target.value)}
             className="rounded-2xl bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-950"
           />
@@ -112,6 +123,7 @@ export function InstanceLLMConfigPanel({
           <Input
             type="text"
             value={draft.apiKeySource}
+            disabled={isReadonly}
             onChange={(event) => onFieldChange('apiKeySource', event.target.value)}
             className="rounded-2xl bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-950"
           />
@@ -124,6 +136,7 @@ export function InstanceLLMConfigPanel({
             </Label>
             <Select
               value={draft.defaultModelId}
+              disabled={isReadonly}
               onValueChange={(value) => onFieldChange('defaultModelId', value)}
             >
               <SelectTrigger className="h-auto rounded-2xl bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-950">
@@ -145,6 +158,7 @@ export function InstanceLLMConfigPanel({
             </Label>
             <Select
               value={draft.reasoningModelId || noneValue}
+              disabled={isReadonly}
               onValueChange={(value) =>
                 onFieldChange('reasoningModelId', value === noneValue ? '' : value)
               }
@@ -169,6 +183,7 @@ export function InstanceLLMConfigPanel({
             </Label>
             <Select
               value={draft.embeddingModelId || noneValue}
+              disabled={isReadonly}
               onValueChange={(value) =>
                 onFieldChange('embeddingModelId', value === noneValue ? '' : value)
               }
@@ -205,6 +220,7 @@ export function InstanceLLMConfigPanel({
                 max="2"
                 step="0.1"
                 value={config.temperature}
+                disabled={isReadonly}
                 onChange={(event) => onConfigChange('temperature', Number(event.target.value))}
                 className="rounded-2xl bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-950"
               />
@@ -220,6 +236,7 @@ export function InstanceLLMConfigPanel({
                 max="1"
                 step="0.01"
                 value={config.topP}
+                disabled={isReadonly}
                 onChange={(event) => onConfigChange('topP', Number(event.target.value))}
                 className="rounded-2xl bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-950"
               />
@@ -234,6 +251,7 @@ export function InstanceLLMConfigPanel({
                 min="1"
                 step="1"
                 value={config.maxTokens}
+                disabled={isReadonly}
                 onChange={(event) => onConfigChange('maxTokens', Number(event.target.value))}
                 className="rounded-2xl bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-950"
               />
@@ -248,6 +266,7 @@ export function InstanceLLMConfigPanel({
                 min="1000"
                 step="1000"
                 value={config.timeoutMs}
+                disabled={isReadonly}
                 onChange={(event) => onConfigChange('timeoutMs', Number(event.target.value))}
                 className="rounded-2xl bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-950"
               />
@@ -265,6 +284,7 @@ export function InstanceLLMConfigPanel({
             </div>
             <Switch
               checked={config.streaming}
+              disabled={isReadonly}
               onCheckedChange={(checked) => onConfigChange('streaming', checked)}
             />
           </label>
@@ -274,7 +294,7 @@ export function InstanceLLMConfigPanel({
       <div className="mt-6 flex flex-wrap gap-2">
         <Button
           onClick={onReset}
-          disabled={!hasPendingChanges}
+          disabled={isReadonly || !hasPendingChanges}
           variant="outline"
           className="rounded-2xl px-4 py-3"
         >
@@ -283,7 +303,7 @@ export function InstanceLLMConfigPanel({
         </Button>
         <Button
           onClick={onSave}
-          disabled={!hasPendingChanges || isSaving}
+          disabled={isReadonly || !hasPendingChanges || isSaving}
           className="rounded-2xl px-4 py-3"
         >
           {isSaving ? (

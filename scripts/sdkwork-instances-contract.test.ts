@@ -16,6 +16,16 @@ function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
 }
 
+function extractBetween(source: string, startMarker: string, endMarker: string) {
+  const startIndex = source.indexOf(startMarker);
+  assert.notEqual(startIndex, -1, `Expected to find start marker: ${startMarker}`);
+
+  const endIndex = source.indexOf(endMarker, startIndex + startMarker.length);
+  assert.notEqual(endIndex, -1, `Expected to find end marker: ${endMarker}`);
+
+  return source.slice(startIndex, endIndex);
+}
+
 function runTest(name: string, fn: () => void) {
   try {
     fn();
@@ -50,16 +60,17 @@ runTest('sdkwork-claw-instances is implemented locally instead of re-exporting c
   assert.match(indexSource, /useInstanceStore/);
 });
 
-runTest('sdkwork-claw-instances keeps the V5 instance detail token display behavior', () => {
+runTest('sdkwork-claw-instances removes the legacy token chrome from instance detail', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
 
-  assert.match(detailSource, /value=\{token \|\| ''\}/);
+  assert.doesNotMatch(detailSource, /instances\.detail\.fields\.apiToken/);
   assert.doesNotMatch(detailSource, /sk-local-123456789/);
 });
 
 runTest('sdkwork-claw-instances upgrades the detail page into a sidebar workbench for OpenClaw runtime capabilities', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
 
+  assert.match(detailSource, /instanceWorkbench\.sidebar\.overview/);
   assert.match(detailSource, /instanceWorkbench\.sidebar\.channels/);
   assert.match(detailSource, /instanceWorkbench\.sidebar\.cronTasks/);
   assert.match(detailSource, /instanceWorkbench\.sidebar\.llmProviders/);
@@ -68,6 +79,7 @@ runTest('sdkwork-claw-instances upgrades the detail page into a sidebar workbenc
   assert.match(detailSource, /instanceWorkbench\.sidebar\.files/);
   assert.match(detailSource, /instanceWorkbench\.sidebar\.memory/);
   assert.match(detailSource, /instanceWorkbench\.sidebar\.tools/);
+  assert.match(detailSource, /instanceWorkbench\.sections\.overview/);
   assert.match(detailSource, /instanceWorkbench\.sections\.channels/);
   assert.match(detailSource, /instanceWorkbench\.sections\.cronTasks/);
   assert.match(detailSource, /instanceWorkbench\.sections\.llmProviders/);
@@ -128,6 +140,30 @@ runTest('sdkwork-claw-instances turns files into an IDE-style explorer and edito
   assert.doesNotMatch(detailSource, /instanceWorkbench\.sidebar\.description/);
 });
 
+runTest('sdkwork-claw-instances keeps instance-level destructive actions in the header and out of files/tools sections', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const filesSectionSource = extractBetween(
+    detailSource,
+    'const renderFilesSection = () => {',
+    'const renderMemorySection = () => {',
+  );
+  const toolsSectionSource = extractBetween(
+    detailSource,
+    'const renderToolsSection = () => {',
+    'const renderSectionContent = () => {',
+  );
+
+  assert.match(
+    detailSource,
+    /<div className="flex flex-wrap gap-3">[\s\S]*instances\.detail\.actions\.uninstallInstance/,
+  );
+  assert.doesNotMatch(filesSectionSource, /instances\.detail\.fields\.apiToken/);
+  assert.doesNotMatch(filesSectionSource, /instances\.detail\.actions\.saveConfiguration/);
+  assert.doesNotMatch(toolsSectionSource, /instances\.detail\.dangerZone/);
+  assert.doesNotMatch(toolsSectionSource, /instances\.detail\.dangerDescription/);
+  assert.doesNotMatch(toolsSectionSource, /instances\.detail\.actions\.uninstallInstance/);
+});
+
 runTest('sdkwork-claw-instances adds an instance-native LLM provider workspace with editable config chrome', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
   const panelSource = read('packages/sdkwork-claw-instances/src/components/InstanceLLMConfigPanel.tsx');
@@ -142,6 +178,7 @@ runTest('sdkwork-claw-instances adds an instance-native LLM provider workspace w
 runTest('sdkwork-claw-instances aggregates instance-native runtime surfaces through a dedicated workbench service', () => {
   const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
 
+  assert.match(serviceSource, /getInstanceDetail/);
   assert.match(serviceSource, /getInstance/);
   assert.match(serviceSource, /getInstanceConfig/);
   assert.match(serviceSource, /getInstanceToken/);
@@ -154,4 +191,58 @@ runTest('sdkwork-claw-instances aggregates instance-native runtime surfaces thro
   assert.match(serviceSource, /listInstanceLlmProviders/);
   assert.match(serviceSource, /listInstanceMemories/);
   assert.match(serviceSource, /listInstanceTools/);
+});
+
+runTest('sdkwork-claw-instances renders a backend-authored runtime overview section', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+
+  assert.match(detailSource, /data-slot="instance-detail-overview"/);
+  assert.match(detailSource, /data-slot="instance-detail-capability-matrix"/);
+  assert.match(detailSource, /data-slot="instance-detail-connectivity"/);
+});
+
+runTest('sdkwork-claw-instances renders backend-authored data access and artifact overview surfaces', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
+
+  assert.match(detailSource, /data-slot="instance-detail-data-access"/);
+  assert.match(detailSource, /data-slot="instance-detail-artifacts"/);
+  assert.match(detailSource, /detail\.dataAccess/);
+  assert.match(detailSource, /detail\.artifacts/);
+  assert.match(serviceSource, /dataAccess/);
+  assert.match(serviceSource, /artifacts/);
+});
+
+runTest('sdkwork-claw-instances prefers backend-authored openclaw workbench sections when available', () => {
+  const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
+
+  assert.match(serviceSource, /detail\.workbench/);
+  assert.match(serviceSource, /detail\.instance\.runtimeKind === 'openclaw'/);
+  assert.match(serviceSource, /detail\.workbench\.[a-zA-Z]+/);
+});
+
+runTest('sdkwork-claw-instances routes openclaw cron actions through the studio bridge while keeping the task editor honest', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
+  const studioContract = read('packages/sdkwork-claw-infrastructure/src/platform/contracts/studio.ts');
+  const panelSource = read('packages/sdkwork-claw-instances/src/components/InstanceLLMConfigPanel.tsx');
+
+  assert.match(studioContract, /cloneInstanceTask/);
+  assert.match(studioContract, /runInstanceTaskNow/);
+  assert.match(studioContract, /listInstanceTaskExecutions/);
+  assert.match(studioContract, /updateInstanceTaskStatus/);
+  assert.match(studioContract, /deleteInstanceTask/);
+  assert.match(serviceSource, /studio\.cloneInstanceTask/);
+  assert.match(serviceSource, /studio\.runInstanceTaskNow/);
+  assert.match(serviceSource, /studio\.listInstanceTaskExecutions/);
+  assert.match(serviceSource, /studio\.updateInstanceTaskStatus/);
+  assert.match(serviceSource, /studio\.deleteInstanceTask/);
+  assert.doesNotMatch(serviceSource, /OpenClaw managed cron task mutations are not wired yet/);
+  assert.match(detailSource, /detail\?\.instance\.runtimeKind === 'openclaw'/);
+  assert.match(detailSource, /data-slot="instance-openclaw-cron-editor-notice"/);
+  assert.match(detailSource, /instanceWorkbench\.cronTasks\.editorNotice/);
+  assert.match(detailSource, /isOpenClawTaskEditorPending/);
+  assert.match(panelSource, /isReadonly: boolean;/);
+  assert.match(panelSource, /readonlyMessage\?: string;/);
+  assert.match(panelSource, /disabled=\{isReadonly\}/);
 });

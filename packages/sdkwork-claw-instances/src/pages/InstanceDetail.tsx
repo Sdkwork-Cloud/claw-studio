@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Bot,
   Brain,
-  Check,
   CheckCircle2,
   Clock3,
   Copy,
@@ -46,7 +45,6 @@ import {
   getTaskPreview,
   getTaskStatusBadgeTone,
   getTaskToggleStatusTarget,
-  Input,
   TaskCatalog,
   TaskExecutionHistoryDrawer,
   type TaskCatalogItem,
@@ -72,6 +70,14 @@ interface WorkbenchSectionDefinition {
 }
 
 const workbenchSections: WorkbenchSectionDefinition[] = [
+  {
+    id: 'overview',
+    icon: Server,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.overview',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.overview',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.overview.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.overview.description',
+  },
   {
     id: 'channels',
     icon: Hash,
@@ -146,6 +152,9 @@ function getRuntimeStatusTone(status: string) {
   }
   if (status === 'attention') {
     return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+  if (status === 'offline') {
+    return 'border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
   }
   return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300';
 }
@@ -285,17 +294,101 @@ function removePendingId(ids: string[], id: string) {
   return ids.filter((item) => item !== id);
 }
 
+function formatWorkbenchLabel(value: string) {
+  const known: Record<string, string> = {
+    openclaw: 'OpenClaw',
+    zeroclaw: 'ZeroClaw',
+    ironclaw: 'IronClaw',
+    appManaged: 'App Managed',
+    externalProcess: 'External Process',
+    remoteService: 'Remote Service',
+    configurationRequired: 'Configuration Required',
+    openaiChatCompletions: 'OpenAI Chat Completions',
+    localManaged: 'Local Managed',
+    localExternal: 'Local External',
+    customHttp: 'Custom HTTP',
+    customWs: 'Custom WebSocket',
+    managedFile: 'Managed File',
+    managedDirectory: 'Managed Directory',
+    storageBinding: 'Storage Binding',
+    remoteEndpoint: 'Remote Endpoint',
+    metadataOnly: 'Metadata Only',
+    available: 'Available',
+    configured: 'Configured',
+    missing: 'Missing',
+    planned: 'Planned',
+    writable: 'Writable',
+    readonly: 'Read Only',
+    authoritative: 'Authoritative',
+    derived: 'Derived',
+    runtime: 'Runtime',
+    config: 'Config',
+    storage: 'Storage',
+    integration: 'Integration',
+    endpoint: 'Endpoint',
+    dashboard: 'Dashboard',
+    configFile: 'Config File',
+    logFile: 'Log File',
+    workspaceDirectory: 'Workspace Directory',
+    runtimeDirectory: 'Runtime Directory',
+    connectivity: 'Connectivity',
+  };
+
+  if (known[value]) {
+    return known[value];
+  }
+
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getCapabilityTone(status: string) {
+  if (status === 'ready') {
+    return getStatusBadge(status);
+  }
+  if (status === 'degraded') {
+    return getDangerBadge(status);
+  }
+  if (status === 'configurationRequired' || status === 'planned') {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+  return 'border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+}
+
+function SectionAvailabilityNotice({
+  status,
+  detail,
+}: {
+  status: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+      <div className="flex flex-wrap items-center gap-3">
+        <span
+          className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getCapabilityTone(
+            status,
+          )}`}
+        >
+          {formatWorkbenchLabel(status)}
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">{detail}</p>
+    </div>
+  );
+}
+
 export function InstanceDetail() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { activeInstanceId, setActiveInstanceId } = useInstanceStore();
-  const [activeSection, setActiveSection] = useState<InstanceWorkbenchSectionId>('llmProviders');
+  const [activeSection, setActiveSection] = useState<InstanceWorkbenchSectionId>('overview');
   const [workbench, setWorkbench] = useState<InstanceWorkbenchSnapshot | null>(null);
   const [config, setConfig] = useState<InstanceConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [copiedToken, setCopiedToken] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [fileDrafts, setFileDrafts] = useState<Record<string, string>>({});
   const [isSavingFile, setIsSavingFile] = useState(false);
@@ -408,7 +501,9 @@ export function InstanceDetail() {
   }, [id]);
 
   const instance = workbench?.instance || null;
-  const token = workbench?.token || '';
+  const detail = workbench?.detail || null;
+  const isOpenClawWorkbench = detail?.instance.runtimeKind === 'openclaw' && Boolean(detail?.workbench);
+  const isOpenClawTaskEditorPending = isOpenClawWorkbench;
   const historyTask = historyTaskId ? workbench?.tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? taskExecutionsById[historyTaskId] || [] : [];
 
@@ -460,29 +555,6 @@ export function InstanceDetail() {
 
   const getSharedStatusLabel = (status: string) => t(`instances.shared.status.${status}`);
 
-  const handleCopyToken = () => {
-    navigator.clipboard.writeText(token);
-    setCopiedToken(true);
-    setTimeout(() => setCopiedToken(false), 2000);
-  };
-
-  const handleSave = async () => {
-    if (!id || !config) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await instanceService.updateInstanceConfig(id, config);
-      toast.success(t('instances.detail.toasts.configurationSaved'));
-      await loadWorkbench(id);
-    } catch {
-      toast.error(t('instances.detail.toasts.failedToSaveConfiguration'));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleFileDraftChange = (value: string) => {
     if (!selectedFile || selectedFile.isReadonly) {
       return;
@@ -526,7 +598,7 @@ export function InstanceDetail() {
     field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
     value: string,
   ) => {
-    if (!selectedProvider || !selectedProviderDraft) {
+    if (isOpenClawWorkbench || !selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -549,7 +621,7 @@ export function InstanceDetail() {
     field: keyof InstanceLLMProviderUpdate['config'],
     value: number | boolean,
   ) => {
-    if (!selectedProvider || !selectedProviderDraft) {
+    if (isOpenClawWorkbench || !selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -566,7 +638,7 @@ export function InstanceDetail() {
   };
 
   const handleResetProviderDraft = () => {
-    if (!selectedProvider) {
+    if (isOpenClawWorkbench || !selectedProvider) {
       return;
     }
 
@@ -584,7 +656,7 @@ export function InstanceDetail() {
   };
 
   const handleSaveProviderConfig = async () => {
-    if (!id || !selectedProvider || !selectedProviderDraft) {
+    if (isOpenClawWorkbench || !id || !selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -694,8 +766,8 @@ export function InstanceDetail() {
       );
       toast.success(t('tasks.page.toasts.cloned'));
       await refreshTasksSection();
-    } catch {
-      toast.error(t('tasks.page.toasts.failedToClone'));
+    } catch (error: any) {
+      toast.error(error?.message || t('tasks.page.toasts.failedToClone'));
     } finally {
       setCloningTaskIds((current) => removePendingId(current, taskId));
     }
@@ -707,8 +779,8 @@ export function InstanceDetail() {
       await instanceWorkbenchService.runTaskNow(taskId);
       toast.success(t('tasks.page.toasts.ranNow'));
       await refreshTasksSection();
-    } catch {
-      toast.error(t('tasks.page.toasts.failedToRunNow'));
+    } catch (error: any) {
+      toast.error(error?.message || t('tasks.page.toasts.failedToRunNow'));
     } finally {
       setRunningTaskIds((current) => removePendingId(current, taskId));
     }
@@ -725,8 +797,8 @@ export function InstanceDetail() {
       await instanceWorkbenchService.updateTaskStatus(taskId, nextStatus);
       toast.success(t(nextStatus === 'active' ? 'tasks.page.toasts.enabled' : 'tasks.page.toasts.disabled'));
       await refreshTasksSection();
-    } catch {
-      toast.error(t('tasks.page.toasts.failedToUpdateStatus'));
+    } catch (error: any) {
+      toast.error(error?.message || t('tasks.page.toasts.failedToUpdateStatus'));
     } finally {
       setStatusTaskIds((current) => removePendingId(current, taskId));
     }
@@ -742,8 +814,8 @@ export function InstanceDetail() {
       await instanceWorkbenchService.deleteTask(taskId);
       toast.success(t('tasks.page.toasts.deleted'));
       await refreshTasksSection();
-    } catch {
-      toast.error(t('tasks.page.toasts.failedToDelete'));
+    } catch (error: any) {
+      toast.error(error?.message || t('tasks.page.toasts.failedToDelete'));
     } finally {
       setDeletingTaskIds((current) => removePendingId(current, taskId));
     }
@@ -770,13 +842,433 @@ export function InstanceDetail() {
     }
   };
 
+  const renderSectionAvailability = (sectionId: InstanceWorkbenchSectionId, fallbackKey: string) => {
+    const availability = workbench?.sectionAvailability[sectionId];
+
+    if (availability && availability.status !== 'ready') {
+      return <SectionAvailabilityNotice status={availability.status} detail={availability.detail} />;
+    }
+
+    return (
+      <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
+        {t(fallbackKey)}
+      </div>
+    );
+  };
+
+  const renderOverviewSection = () => {
+    if (!workbench || !detail) {
+      return null;
+    }
+
+    return (
+      <div data-slot="instance-detail-overview" className="space-y-6">
+        <div className="grid gap-4 xl:grid-cols-3">
+          <div className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.overview.identity')}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[detail.instance.runtimeKind, detail.instance.deploymentMode, detail.instance.transportKind].map(
+                (value) => (
+                  <span
+                    key={value}
+                    className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
+                  >
+                    {formatWorkbenchLabel(value)}
+                  </span>
+                ),
+              )}
+            </div>
+            <div className="mt-5 space-y-3">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.lifecycle')}
+                value={formatWorkbenchLabel(detail.lifecycle.owner)}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.host')}
+                value={detail.instance.host}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.version')}
+                value={detail.instance.version}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.overview.storage')}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span
+                className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getCapabilityTone(
+                  detail.storage.status,
+                )}`}
+              >
+                {formatWorkbenchLabel(detail.storage.status)}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {formatWorkbenchLabel(detail.storage.provider)}
+              </span>
+            </div>
+            <div className="mt-5 space-y-3">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.profile')}
+                value={detail.storage.profileId || '--'}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.namespace')}
+                value={detail.storage.namespace}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.database')}
+                value={detail.storage.database || '--'}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.overview.observability')}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span
+                className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getRuntimeStatusTone(
+                  detail.health.status,
+                )}`}
+              >
+                {t(`instances.detail.instanceWorkbench.runtimeStates.${detail.health.status}`)}
+              </span>
+              <span
+                className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getCapabilityTone(
+                  detail.observability.status,
+                )}`}
+              >
+                {formatWorkbenchLabel(detail.observability.status)}
+              </span>
+            </div>
+            <div className="mt-5 space-y-3">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.healthChecks')}
+                value={detail.health.checks.length}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.overview.logLines')}
+                value={detail.observability.logPreview.length}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.updatedAt')}
+                value={detail.observability.lastSeenAt ? new Date(detail.observability.lastSeenAt).toLocaleString() : '--'}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div
+          data-slot="instance-detail-connectivity"
+          className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {t('instances.detail.instanceWorkbench.overview.connectivity')}
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.overview.connectivityDescription')}
+              </p>
+            </div>
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {detail.connectivity.endpoints.length}
+            </span>
+          </div>
+
+          {detail.connectivity.endpoints.length > 0 ? (
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              {detail.connectivity.endpoints.map((endpoint) => (
+                <div
+                  key={endpoint.id}
+                  className="rounded-[1.3rem] border border-zinc-200/70 bg-zinc-950/[0.02] p-4 dark:border-zinc-800 dark:bg-white/[0.03]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {endpoint.label}
+                    </h4>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getCapabilityTone(
+                        endpoint.status,
+                      )}`}
+                    >
+                      {formatWorkbenchLabel(endpoint.status)}
+                    </span>
+                  </div>
+                  <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 font-mono text-sm text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                    {endpoint.url || '--'}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[endpoint.kind, endpoint.exposure, endpoint.auth].map((value) => (
+                      <span
+                        key={`${endpoint.id}-${value}`}
+                        className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
+                      >
+                        {formatWorkbenchLabel(value)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 text-sm text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.overview.noConnectivity')}
+            </div>
+          )}
+        </div>
+
+        <div
+          data-slot="instance-detail-capability-matrix"
+          className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {t('instances.detail.instanceWorkbench.overview.capabilities')}
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.overview.capabilitiesDescription')}
+              </p>
+            </div>
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {detail.capabilities.length}
+            </span>
+          </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {detail.capabilities.map((capability) => (
+              <div
+                key={capability.id}
+                className="rounded-[1.3rem] border border-zinc-200/70 bg-zinc-950/[0.02] p-4 dark:border-zinc-800 dark:bg-white/[0.03]"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                    {formatWorkbenchLabel(capability.id)}
+                  </h4>
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getCapabilityTone(
+                      capability.status,
+                    )}`}
+                  >
+                    {formatWorkbenchLabel(capability.status)}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  {capability.detail}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          data-slot="instance-detail-data-access"
+          className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {t('instances.detail.instanceWorkbench.overview.dataAccess')}
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.overview.dataAccessDescription')}
+              </p>
+            </div>
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {detail.dataAccess.routes.length}
+            </span>
+          </div>
+
+          {detail.dataAccess.routes.length > 0 ? (
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              {detail.dataAccess.routes.map((route) => (
+                <div
+                  key={route.id}
+                  className="rounded-[1.3rem] border border-zinc-200/70 bg-zinc-950/[0.02] p-4 dark:border-zinc-800 dark:bg-white/[0.03]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {route.label}
+                    </h4>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getCapabilityTone(
+                        route.status,
+                      )}`}
+                    >
+                      {formatWorkbenchLabel(route.status)}
+                    </span>
+                  </div>
+                  <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 font-mono text-sm text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                    {route.target || '--'}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[route.scope, route.mode, route.source].map((value) => (
+                      <span
+                        key={`${route.id}-${value}`}
+                        className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
+                      >
+                        {formatWorkbenchLabel(value)}
+                      </span>
+                    ))}
+                    <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                      {formatWorkbenchLabel(route.authoritative ? 'authoritative' : 'derived')}
+                    </span>
+                    <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                      {formatWorkbenchLabel(route.readonly ? 'readonly' : 'writable')}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {route.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 text-sm text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.overview.noDataAccess')}
+            </div>
+          )}
+        </div>
+
+        <div
+          data-slot="instance-detail-artifacts"
+          className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {t('instances.detail.instanceWorkbench.overview.artifacts')}
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.overview.artifactsDescription')}
+              </p>
+            </div>
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {detail.artifacts.length}
+            </span>
+          </div>
+
+          {detail.artifacts.length > 0 ? (
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              {detail.artifacts.map((artifact) => (
+                <div
+                  key={artifact.id}
+                  className="rounded-[1.3rem] border border-zinc-200/70 bg-zinc-950/[0.02] p-4 dark:border-zinc-800 dark:bg-white/[0.03]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {artifact.label}
+                    </h4>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getCapabilityTone(
+                        artifact.status,
+                      )}`}
+                    >
+                      {formatWorkbenchLabel(artifact.status)}
+                    </span>
+                  </div>
+                  <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 font-mono text-sm text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                    {artifact.location || '--'}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[artifact.kind, artifact.source].map((value) => (
+                      <span
+                        key={`${artifact.id}-${value}`}
+                        className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
+                      >
+                        {formatWorkbenchLabel(value)}
+                      </span>
+                    ))}
+                    <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                      {formatWorkbenchLabel(artifact.readonly ? 'readonly' : 'writable')}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {artifact.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 text-sm text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.overview.noArtifacts')}
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+          <WorkbenchRowList>
+            {detail.health.checks.map((check, index) => (
+              <WorkbenchRow key={check.id} isLast={index === detail.health.checks.length - 1}>
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                      {check.label}
+                    </h3>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getRuntimeStatusTone(
+                        check.status,
+                      )}`}
+                    >
+                      {t(`instances.detail.instanceWorkbench.runtimeStates.${check.status}`)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {check.detail}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.summary.healthScore')}
+                    value={`${detail.health.score}%`}
+                  />
+                </div>
+                <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+                  {detail.health.evaluatedAt ? new Date(detail.health.evaluatedAt).toLocaleString() : '--'}
+                </div>
+              </WorkbenchRow>
+            ))}
+          </WorkbenchRowList>
+
+          <div className="space-y-4">
+            <div className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {t('instances.detail.instanceWorkbench.overview.runtimeNotes')}
+              </h3>
+              <div className="mt-4 space-y-4">
+                {detail.officialRuntimeNotes.map((note) => (
+                  <div key={note.title} className="rounded-2xl bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{note.title}</div>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">{note.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {t('instances.detail.instanceWorkbench.overview.logPreview')}
+              </h3>
+              <div className="mt-4 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 font-mono text-xs leading-6 text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300 whitespace-pre-wrap">
+                {detail.observability.logPreview.length > 0 ? detail.observability.logPreview.join('\n') : '--'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderChannelsSection = () => {
     if (!workbench || workbench.channels.length === 0) {
-      return (
-        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
-          {t('instances.detail.instanceWorkbench.empty.channels')}
-        </div>
-      );
+      return renderSectionAvailability('channels', 'instances.detail.instanceWorkbench.empty.channels');
     }
 
     return (
@@ -907,7 +1399,7 @@ export function InstanceDetail() {
               variant="outline"
               size="sm"
               onClick={() => openTaskWorkspace({ taskMode: 'edit', taskId: task.id })}
-              disabled={isBusy}
+              disabled={isBusy || isOpenClawTaskEditorPending}
             >
               <Edit2 className="h-4 w-4" />
               {t('tasks.page.actions.edit')}
@@ -985,6 +1477,14 @@ export function InstanceDetail() {
 
     return (
       <div className="space-y-4">
+        {isOpenClawTaskEditorPending ? (
+          <div
+            data-slot="instance-openclaw-cron-editor-notice"
+            className="rounded-[1.5rem] border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+          >
+            {t('instances.detail.instanceWorkbench.cronTasks.editorNotice')}
+          </div>
+        ) : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             {t('tasks.page.title')}
@@ -1006,6 +1506,7 @@ export function InstanceDetail() {
             <Button
               size="sm"
               onClick={() => openTaskWorkspace({ taskMode: 'create' })}
+              disabled={isOpenClawTaskEditorPending}
             >
               <Plus className="h-4 w-4" />
               {t('tasks.page.actions.newTask')}
@@ -1028,6 +1529,7 @@ export function InstanceDetail() {
               <Button
                 className="mt-6"
                 onClick={() => openTaskWorkspace({ taskMode: 'create' })}
+                disabled={isOpenClawTaskEditorPending}
               >
                 <Plus className="h-4 w-4" />
                 {t('tasks.page.actions.newTask')}
@@ -1041,11 +1543,7 @@ export function InstanceDetail() {
 
   const renderAgentsSection = () => {
     if (!workbench || workbench.agents.length === 0) {
-      return (
-        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
-          {t('instances.detail.instanceWorkbench.empty.agents')}
-        </div>
-      );
+      return renderSectionAvailability('agents', 'instances.detail.instanceWorkbench.empty.agents');
     }
 
     return (
@@ -1091,11 +1589,7 @@ export function InstanceDetail() {
 
   const renderSkillsSection = () => {
     if (!workbench || workbench.skills.length === 0) {
-      return (
-        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
-          {t('instances.detail.instanceWorkbench.empty.skills')}
-        </div>
-      );
+      return renderSectionAvailability('skills', 'instances.detail.instanceWorkbench.empty.skills');
     }
 
     return (
@@ -1140,11 +1634,7 @@ export function InstanceDetail() {
 
   const renderLlmProvidersSection = () => {
     if (!workbench || workbench.llmProviders.length === 0) {
-      return (
-        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
-          {t('instances.detail.instanceWorkbench.empty.llmProviders')}
-        </div>
-      );
+      return renderSectionAvailability('llmProviders', 'instances.detail.instanceWorkbench.empty.llmProviders');
     }
 
     return (
@@ -1294,6 +1784,8 @@ export function InstanceDetail() {
           draft={selectedProviderDraft}
           hasPendingChanges={hasPendingProviderChanges}
           isSaving={isSavingProviderConfig}
+          isReadonly={isOpenClawWorkbench}
+          readonlyMessage={t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice')}
           onFieldChange={handleProviderFieldChange}
           onConfigChange={handleProviderConfigChange}
           onReset={handleResetProviderDraft}
@@ -1306,74 +1798,30 @@ export function InstanceDetail() {
   const renderFilesSection = () => {
     return (
       <div className="space-y-6">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="rounded-[1.6rem] bg-zinc-950/[0.03] p-5 dark:bg-white/[0.04]">
-            <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-              {t('instances.detail.instanceWorkbench.files.gatewayProfile')}
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              {t('instances.detail.instanceWorkbench.files.gatewayProfileDescription')}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                {t('instances.detail.fields.gatewayPort')}: {config?.port}
-              </span>
-              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                {t('instances.detail.fields.corsOrigins')}: {config?.corsOrigins}
-              </span>
-              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                {t('instances.detail.fields.agentSandbox')}: {config?.sandbox
-                  ? t('instances.detail.instanceWorkbench.files.on')
-                  : t('instances.detail.instanceWorkbench.files.off')}
-              </span>
-              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                {t('instances.detail.fields.autoUpdate')}: {config?.autoUpdate
-                  ? t('instances.detail.instanceWorkbench.files.on')
-                  : t('instances.detail.instanceWorkbench.files.off')}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="rounded-[1.6rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                {t('instances.detail.fields.apiToken')}
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Input
-                  type="password"
-                  value={token || ''}
-                  readOnly
-                  className="min-w-0 flex-1 rounded-2xl bg-white px-4 py-3 font-mono dark:bg-zinc-950"
-                />
-                <button
-                  type="button"
-                  onClick={handleCopyToken}
-                  className="flex items-center gap-2 rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                >
-                  {copiedToken ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copiedToken ? t('common.copied') : t('common.copy')}
-                </button>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-primary-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
-            >
-              {isSaving ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  {t('instances.detail.actions.saving')}
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  {t('instances.detail.actions.saveConfiguration')}
-                </>
-              )}
-            </button>
+        <div className="rounded-[1.6rem] bg-zinc-950/[0.03] p-5 dark:bg-white/[0.04]">
+          <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+            {t('instances.detail.instanceWorkbench.files.gatewayProfile')}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            {t('instances.detail.instanceWorkbench.files.gatewayProfileDescription')}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {t('instances.detail.fields.gatewayPort')}: {config?.port}
+            </span>
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {t('instances.detail.fields.corsOrigins')}: {config?.corsOrigins}
+            </span>
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {t('instances.detail.fields.agentSandbox')}: {config?.sandbox
+                ? t('instances.detail.instanceWorkbench.files.on')
+                : t('instances.detail.instanceWorkbench.files.off')}
+            </span>
+            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+              {t('instances.detail.fields.autoUpdate')}: {config?.autoUpdate
+                ? t('instances.detail.instanceWorkbench.files.on')
+                : t('instances.detail.instanceWorkbench.files.off')}
+            </span>
           </div>
         </div>
 
@@ -1452,35 +1900,41 @@ export function InstanceDetail() {
                             {selectedFile.path}
                           </p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={handleResetFileDraft}
-                            disabled={!hasPendingFileChanges}
-                            className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                            {t('instances.detail.instanceWorkbench.files.revertDraft')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSaveFile}
-                            disabled={!hasPendingFileChanges || isSavingFile || selectedFile.isReadonly}
-                            className="flex items-center gap-2 rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
-                          >
-                            {isSavingFile ? (
-                              <>
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                                {t('instances.detail.instanceWorkbench.files.savingFile')}
-                              </>
-                            ) : (
-                              <>
-                                <Save className="h-4 w-4" />
-                                {t('instances.detail.instanceWorkbench.files.saveFile')}
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        {selectedFile.isReadonly ? (
+                          <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+                            {t('instances.detail.instanceWorkbench.files.readonlyNotice')}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={handleResetFileDraft}
+                              disabled={!hasPendingFileChanges}
+                              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              {t('instances.detail.instanceWorkbench.files.revertDraft')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSaveFile}
+                              disabled={!hasPendingFileChanges || isSavingFile}
+                              className="flex items-center gap-2 rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
+                            >
+                              {isSavingFile ? (
+                                <>
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                  {t('instances.detail.instanceWorkbench.files.savingFile')}
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="h-4 w-4" />
+                                  {t('instances.detail.instanceWorkbench.files.saveFile')}
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
@@ -1533,8 +1987,8 @@ export function InstanceDetail() {
               </div>
             </div>
           ) : (
-            <div className="p-5 text-sm text-zinc-500 dark:text-zinc-400">
-              {t('instances.detail.instanceWorkbench.empty.files')}
+            <div className="p-5">
+              {renderSectionAvailability('files', 'instances.detail.instanceWorkbench.empty.files')}
             </div>
           )}
         </div>
@@ -1544,11 +1998,7 @@ export function InstanceDetail() {
 
   const renderMemorySection = () => {
     if (!workbench || workbench.memories.length === 0) {
-      return (
-        <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
-          {t('instances.detail.instanceWorkbench.empty.memory')}
-        </div>
-      );
+      return renderSectionAvailability('memory', 'instances.detail.instanceWorkbench.empty.memory');
     }
 
     return (
@@ -1599,109 +2049,61 @@ export function InstanceDetail() {
   };
 
   const renderToolsSection = () => {
-    return (
-      <div className="space-y-6">
-        {workbench && workbench.tools.length > 0 ? (
-          <WorkbenchRowList>
-            {workbench.tools.map((tool, index) => (
-              <WorkbenchRow key={tool.id} isLast={index === workbench.tools.length - 1}>
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                      {tool.name}
-                    </h3>
-                    <span
-                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                        tool.status === 'restricted' ? getDangerBadge(tool.status) : getStatusBadge(tool.status)
-                      }`}
-                    >
-                      {t(`instances.detail.instanceWorkbench.toolStatus.${tool.status}`)}
-                    </span>
-                  </div>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                    {tool.description}
-                  </p>
-                  <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm font-mono text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
-                    {tool.command}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-5">
-                  <RowMetric
-                    label={t('instances.detail.instanceWorkbench.sections.tools.title')}
-                    value={t(`instances.detail.instanceWorkbench.toolCategories.${tool.category}`)}
-                  />
-                  <RowMetric
-                    label={t('instances.detail.instanceWorkbench.metrics.actionType')}
-                    value={t(`instances.detail.instanceWorkbench.toolAccess.${tool.access}`)}
-                  />
-                  <RowMetric
-                    label={t('instances.detail.instanceWorkbench.metrics.lastRun')}
-                    value={tool.lastUsedAt || '--'}
-                  />
-                </div>
-                <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
-                  {tool.lastUsedAt || '--'}
-                </div>
-              </WorkbenchRow>
-            ))}
-          </WorkbenchRowList>
-        ) : (
-          <div className="rounded-[1.5rem] bg-zinc-950/[0.03] p-5 text-sm text-zinc-500 dark:bg-white/[0.04] dark:text-zinc-400">
-            {t('instances.detail.instanceWorkbench.empty.tools')}
-          </div>
-        )}
+    if (!workbench || workbench.tools.length === 0) {
+      return renderSectionAvailability('tools', 'instances.detail.instanceWorkbench.empty.tools');
+    }
 
-        <div className="rounded-[1.6rem] border border-rose-200 bg-rose-50/80 p-5 dark:border-rose-500/20 dark:bg-rose-500/8">
-          <h3 className="text-lg font-semibold tracking-tight text-rose-700 dark:text-rose-300">
-            {t('instances.detail.dangerZone')}
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-rose-600 dark:text-rose-300">
-            {t('instances.detail.dangerDescription')}
-          </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            {instance?.status === 'online' ? (
-              <button
-                type="button"
-                onClick={handleStop}
-                className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 dark:border-rose-500/20 dark:bg-zinc-950 dark:text-rose-300 dark:hover:bg-rose-500/10"
-              >
-                <Power className="h-4 w-4" />
-                {t('instances.detail.actions.stop')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleStart}
-                className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 dark:border-emerald-500/20 dark:bg-zinc-950 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-              >
-                <Power className="h-4 w-4" />
-                {t('instances.detail.actions.start')}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleRestart}
-              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-            >
-              <RefreshCw className="h-4 w-4" />
-              {t('instances.detail.actions.restart')}
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
-            >
-              <Trash2 className="h-4 w-4" />
-              {t('instances.detail.actions.uninstallInstance')}
-            </button>
-          </div>
-        </div>
-      </div>
+    return (
+      <WorkbenchRowList>
+        {workbench.tools.map((tool, index) => (
+          <WorkbenchRow key={tool.id} isLast={index === workbench.tools.length - 1}>
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {tool.name}
+                </h3>
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                    tool.status === 'restricted' ? getDangerBadge(tool.status) : getStatusBadge(tool.status)
+                  }`}
+                >
+                  {t(`instances.detail.instanceWorkbench.toolStatus.${tool.status}`)}
+                </span>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {tool.description}
+              </p>
+              <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm font-mono text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
+                {tool.command}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-5">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.sections.tools.title')}
+                value={t(`instances.detail.instanceWorkbench.toolCategories.${tool.category}`)}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.actionType')}
+                value={t(`instances.detail.instanceWorkbench.toolAccess.${tool.access}`)}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.lastRun')}
+                value={tool.lastUsedAt || '--'}
+              />
+            </div>
+            <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+              {tool.lastUsedAt || '--'}
+            </div>
+          </WorkbenchRow>
+        ))}
+      </WorkbenchRowList>
     );
   };
 
   const renderSectionContent = () => {
     switch (activeSection) {
+      case 'overview':
+        return renderOverviewSection();
       case 'channels':
         return renderChannelsSection();
       case 'cronTasks':
@@ -1839,6 +2241,14 @@ export function InstanceDetail() {
                 {t('instances.detail.actions.start')}
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 dark:border-rose-500/20 dark:bg-zinc-950 dark:text-rose-300 dark:hover:bg-rose-500/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              {t('instances.detail.actions.uninstallInstance')}
+            </button>
           </div>
         </div>
 

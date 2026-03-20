@@ -103,6 +103,32 @@ function getImports(file) {
   return imports;
 }
 
+function resolveLocalImportTarget(fromFile, importPath) {
+  const absoluteImportBase = path.resolve(path.dirname(fromFile), importPath);
+  const candidates = [
+    absoluteImportBase,
+    `${absoluteImportBase}.ts`,
+    `${absoluteImportBase}.tsx`,
+    path.join(absoluteImportBase, 'index.ts'),
+    path.join(absoluteImportBase, 'index.tsx'),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+}
+
+function isAllowedLocalServiceImport(fromFile, importPath) {
+  const target = resolveLocalImportTarget(fromFile, importPath);
+  if (!target) {
+    return false;
+  }
+
+  if (fs.statSync(target).isDirectory()) {
+    return target.includes(`${path.sep}services`);
+  }
+
+  return /[\\/]services(?:[\\/][^\\/]+)*[\\/]index\.(ts|tsx)$/.test(target);
+}
+
 function toPkgName(importPath) {
   const [scope, name] = importPath.split('/');
   return `${scope}/${name}`;
@@ -254,7 +280,7 @@ for (const [dirName, pkgName] of packageNameByDir.entries()) {
       for (const importPath of imports) {
         if (
           /^(\.\.\/|\.\/)+services\/.+/.test(importPath) &&
-          !/\/services(?:\/index(?:\.ts|\.tsx)?)?$/.test(importPath)
+          !isAllowedLocalServiceImport(file, importPath)
         ) {
           localServiceBarrelViolations.push({
             file: path.relative(root, file),

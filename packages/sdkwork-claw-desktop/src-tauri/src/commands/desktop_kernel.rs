@@ -65,8 +65,12 @@ mod tests {
         assert!(normalize_path_suffix(&info.directories.modules_dir).ends_with("install/modules"));
         assert!(normalize_path_suffix(&info.directories.runtimes_dir).ends_with("install/runtimes"));
         assert!(normalize_path_suffix(&info.directories.machine_root).ends_with("machine"));
-        assert!(normalize_path_suffix(&info.directories.machine_state_dir).ends_with("machine/state"));
-        assert!(normalize_path_suffix(&info.directories.machine_store_dir).ends_with("machine/store"));
+        assert!(
+            normalize_path_suffix(&info.directories.machine_state_dir).ends_with("machine/state")
+        );
+        assert!(
+            normalize_path_suffix(&info.directories.machine_store_dir).ends_with("machine/store")
+        );
         assert!(normalize_path_suffix(&info.directories.machine_staging_dir)
             .ends_with("machine/staging"));
         assert!(normalize_path_suffix(&info.directories.user_root).ends_with("user-home"));

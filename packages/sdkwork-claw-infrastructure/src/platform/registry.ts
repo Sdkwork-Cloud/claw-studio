@@ -1,17 +1,20 @@
 import type { InstallerPlatformAPI } from './contracts/installer.ts';
 import type { StoragePlatformAPI } from './contracts/storage.ts';
+import type { StudioPlatformAPI } from './contracts/studio.ts';
 import type { RuntimePlatformAPI } from './contracts/runtime.ts';
 import type { PlatformAPI } from './types.ts';
 import { WebInstallerPlatform } from './webInstaller.ts';
 import { WebPlatform } from './web.ts';
 import { WebRuntimePlatform } from './webRuntime.ts';
 import { WebStoragePlatform } from './webStorage.ts';
+import { WebStudioPlatform } from './webStudio.ts';
 
 export interface PlatformBridge {
   platform: PlatformAPI;
   installer: InstallerPlatformAPI;
   runtime: RuntimePlatformAPI;
   storage: StoragePlatformAPI;
+  studio: StudioPlatformAPI;
 }
 
 let platformBridge: PlatformBridge = {
@@ -19,6 +22,7 @@ let platformBridge: PlatformBridge = {
   installer: new WebInstallerPlatform(),
   runtime: new WebRuntimePlatform(),
   storage: new WebStoragePlatform(),
+  studio: new WebStudioPlatform(),
 };
 
 export function configurePlatformBridge(nextBridge: Partial<PlatformBridge>) {
@@ -42,6 +46,10 @@ export function getRuntimePlatform(): RuntimePlatformAPI {
 
 export function getStoragePlatform(): StoragePlatformAPI {
   return platformBridge.storage;
+}
+
+export function getStudioPlatform(): StudioPlatformAPI {
+  return platformBridge.studio;
 }
 
 export const platform: PlatformAPI = {
@@ -79,4 +87,33 @@ export const storage: StoragePlatformAPI = {
   putText: (request) => platformBridge.storage.putText(request),
   delete: (request) => platformBridge.storage.delete(request),
   listKeys: (request) => platformBridge.storage.listKeys(request),
+};
+
+export const studio: StudioPlatformAPI = {
+  listInstances: () => platformBridge.studio.listInstances(),
+  getInstance: (id) => platformBridge.studio.getInstance(id),
+  getInstanceDetail: (id) => platformBridge.studio.getInstanceDetail(id),
+  createInstance: (input) => platformBridge.studio.createInstance(input),
+  updateInstance: (id, input) => platformBridge.studio.updateInstance(id, input),
+  deleteInstance: (id) => platformBridge.studio.deleteInstance(id),
+  startInstance: (id) => platformBridge.studio.startInstance(id),
+  stopInstance: (id) => platformBridge.studio.stopInstance(id),
+  restartInstance: (id) => platformBridge.studio.restartInstance(id),
+  setInstanceStatus: (id, status) => platformBridge.studio.setInstanceStatus(id, status),
+  getInstanceConfig: (id) => platformBridge.studio.getInstanceConfig(id),
+  updateInstanceConfig: (id, config) => platformBridge.studio.updateInstanceConfig(id, config),
+  getInstanceLogs: (id) => platformBridge.studio.getInstanceLogs(id),
+  cloneInstanceTask: (instanceId, taskId, name) =>
+    platformBridge.studio.cloneInstanceTask(instanceId, taskId, name),
+  runInstanceTaskNow: (instanceId, taskId) =>
+    platformBridge.studio.runInstanceTaskNow(instanceId, taskId),
+  listInstanceTaskExecutions: (instanceId, taskId) =>
+    platformBridge.studio.listInstanceTaskExecutions(instanceId, taskId),
+  updateInstanceTaskStatus: (instanceId, taskId, status) =>
+    platformBridge.studio.updateInstanceTaskStatus(instanceId, taskId, status),
+  deleteInstanceTask: (instanceId, taskId) =>
+    platformBridge.studio.deleteInstanceTask(instanceId, taskId),
+  listConversations: (instanceId) => platformBridge.studio.listConversations(instanceId),
+  putConversation: (record) => platformBridge.studio.putConversation(record),
+  deleteConversation: (id) => platformBridge.studio.deleteConversation(id),
 };

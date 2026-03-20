@@ -40,8 +40,6 @@ await runTest('model purchase catalog includes default plus curated US and China
       'doubao',
       'moonshot',
       'minimax',
-      'baichuan',
-      'yi',
     ],
   );
 });

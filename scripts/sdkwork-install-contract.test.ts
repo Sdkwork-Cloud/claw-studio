@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -78,16 +79,16 @@ runTest(
     assert.doesNotMatch(installSource, /profileLabel/);
     assert.match(enLocale, /WSL install/);
     assert.match(enLocale, /Cloud install/);
-    assert.match(enLocale, /Uninstall OpenClaw/);
-    assert.match(enLocale, /Migrate OpenClaw/);
+    assert.match(enLocale, /Uninstall {{product}}/);
+    assert.match(enLocale, /Migrate {{product}}/);
     assert.match(
       enLocale,
-      /Import settings, workspace data, and related files into Claw Studio/,
+      /Import settings, workspace data, and related files from {{product}} into Claw Studio/,
     );
-    assert.match(zhLocale, /\u8fc1\u79fb OpenClaw/);
+    assert.match(zhLocale, /\u8fc1\u79fb {{product}}/);
     assert.match(zhLocale, /WSL \u5b89\u88c5/);
     assert.match(zhLocale, /\u4e91\u7aef\u5b89\u88c5/);
-    assert.match(zhLocale, /\u5378\u8f7d OpenClaw/);
+    assert.match(zhLocale, /\u5378\u8f7d {{product}}/);
     assert.doesNotMatch(enLocale, /hub-installer|Hub installer|registry|Hub profile/);
     assert.doesNotMatch(zhLocale, /hub-installer|registry|Hub 闁板秶鐤?/);
   },
@@ -103,6 +104,9 @@ runTest('sdkwork-claw-install routes installation through the shared hub-install
   );
   const bridgeSource = read('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
   const catalogSource = read('packages/sdkwork-claw-desktop/src/desktop/catalog.ts');
+  const tauriCommandSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs',
+  );
   const webInstallerSource = read('packages/sdkwork-claw-infrastructure/src/platform/webInstaller.ts');
 
   assert.match(featureServiceSource, /@sdkwork\/claw-infrastructure/);
@@ -112,11 +116,20 @@ runTest('sdkwork-claw-install routes installation through the shared hub-install
   assert.match(infraContractSource, /HubInstallResult/);
   assert.match(infraContractSource, /HubInstallAssessmentResult/);
   assert.match(infraContractSource, /HubInstallAssessmentDependency/);
+  assert.match(infraContractSource, /HubInstallAssessmentInstallation/);
+  assert.match(infraContractSource, /HubInstallAssessmentDataItem/);
+  assert.match(infraContractSource, /HubInstallAssessmentMigrationStrategy/);
+  assert.match(infraContractSource, /HubInstallDependencyRequest/);
+  assert.match(infraContractSource, /HubInstallDependencyResult/);
   assert.match(infraContractSource, /HubInstallProgressEvent/);
   assert.match(infraContractSource, /HubUninstallRequest/);
   assert.match(infraContractSource, /HubUninstallResult/);
+  assert.match(infraContractSource, /installation\?: HubInstallAssessmentInstallation \| null/);
+  assert.match(infraContractSource, /dataItems: HubInstallAssessmentDataItem\[\]/);
+  assert.match(infraContractSource, /migrationStrategies: HubInstallAssessmentMigrationStrategy\[\]/);
   assert.match(infraContractSource, /runHubInstall/);
   assert.match(infraContractSource, /inspectHubInstall/);
+  assert.match(infraContractSource, /runHubDependencyInstall/);
   assert.match(infraContractSource, /runHubUninstall/);
   assert.match(infraContractSource, /subscribeHubInstallProgress/);
   assert.doesNotMatch(infraContractSource, /InstallScriptRequest/);
@@ -124,41 +137,70 @@ runTest('sdkwork-claw-install routes installation through the shared hub-install
 
   assert.match(infraServiceSource, /runHubInstall/);
   assert.match(infraServiceSource, /inspectHubInstall/);
+  assert.match(infraServiceSource, /runHubDependencyInstall/);
   assert.match(infraServiceSource, /runHubUninstall/);
   assert.match(infraServiceSource, /subscribeHubInstallProgress/);
   assert.doesNotMatch(infraServiceSource, /executeInstallScript/);
 
   assert.match(catalogSource, /inspectHubInstall:\s*'inspect_hub_install'/);
+  assert.match(catalogSource, /runHubDependencyInstall:\s*'run_hub_dependency_install'/);
   assert.match(bridgeSource, /runHubInstall/);
   assert.match(bridgeSource, /inspectHubInstall/);
+  assert.match(bridgeSource, /runHubDependencyInstall/);
   assert.match(bridgeSource, /runHubUninstall/);
   assert.match(bridgeSource, /subscribeHubInstallProgress/);
+  assert.match(tauriCommandSource, /HubInstallAssessmentInstallation/);
+  assert.match(tauriCommandSource, /HubInstallAssessmentDataItem/);
+  assert.match(tauriCommandSource, /HubInstallAssessmentMigrationStrategy/);
+  assert.match(
+    tauriCommandSource,
+    /installation:\s+assessment[\s\S]*?installation[\s\S]*?HubInstallAssessmentInstallation::from/,
+  );
+  assert.match(tauriCommandSource, /data_items:\s+assessment[\s\S]*?HubInstallAssessmentDataItem::from/);
+  assert.match(
+    tauriCommandSource,
+    /migration_strategies:\s+assessment[\s\S]*?HubInstallAssessmentMigrationStrategy::from/,
+  );
   assert.match(webInstallerSource, /inspectHubInstall/);
   assert.doesNotMatch(bridgeSource, /executeInstallScript/);
 });
 
-runTest('sdkwork-claw-install vendors hub-installer registry assets for the desktop runtime', () => {
-  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/rust/Cargo.toml'));
-  assert.ok(
-    exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/software-registry.yaml'),
+runTest('sdkwork-claw-install keeps hub-installer as an updateable git submodule for the desktop runtime', () => {
+  const gitModules = read('.gitmodules');
+  const registrySource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/software-registry.yaml',
   );
-  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs'));
-  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_uninstall.rs'));
+  const submoduleStatus = childProcess
+    .execSync('git submodule status -- packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer', {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    .trim();
+
+  assert.ok(exists('.gitmodules'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/.git'));
+  assert.match(gitModules, /\[submodule "packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer"\]/);
+  assert.match(gitModules, /path = packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer/);
+  assert.match(gitModules, /url = https:\/\/github\.com\/Sdkwork-Cloud\/hub-installer/);
+  assert.match(gitModules, /branch = main/);
+  assert.match(submoduleStatus, /^[ +\-u]?[0-9a-f]{7,40}\s+packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer/);
+  assert.match(registrySource, /name: "openclaw-wsl"/);
   assert.match(
-    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/software-registry.yaml'),
-    /name: "openclaw-wsl"/,
+    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-pnpm.hub.yaml'),
+    /migration:/,
   );
   assert.match(
     read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-pnpm.hub.yaml'),
-    /uninstall:/,
+    /dataLayout:/,
   );
   assert.match(
-    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-npm.hub.yaml'),
-    /uninstall:/,
+    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/zeroclaw-source.hub.yaml'),
+    /previewCommands:/,
   );
   assert.match(
-    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-source.hub.yaml'),
-    /uninstall:/,
+    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/ironclaw-source.hub.yaml'),
+    /uninstallByDefault: "manual"/,
   );
 });
 
@@ -166,6 +208,12 @@ runTest(
   'sdkwork-claw-install exposes install environment assessment and dependency guidance before execution',
   () => {
     const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
+    const descriptorComponentSource = read(
+      'packages/sdkwork-claw-install/src/components/HubInstallDescriptorSummary.tsx',
+    );
+    const wizardSource = read(
+      'packages/sdkwork-claw-install/src/components/OpenClawGuidedInstallWizard.tsx',
+    );
     const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
     const openclawDockerManifest = read(
       'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-docker.hub.yaml',
@@ -184,6 +232,8 @@ runTest(
     );
 
     assert.match(installSource, /inspectHubInstall/);
+    assert.match(installSource, /useSearchParams/);
+    assert.match(installSource, /state === 'installed'/);
     assert.match(installSource, /assessment/);
     assert.match(installSource, /dependency/);
     assert.match(installSource, /recommendation/);
@@ -192,10 +242,22 @@ runTest(
     assert.match(installSource, /commandAvailability/);
     assert.match(installSource, /availableWslDistributions/);
     assert.match(installSource, /remediationCommands/);
+    assert.match(installSource, /HubInstallDescriptorSummary/);
+    assert.match(descriptorComponentSource, /assessment\.installation/);
+    assert.match(descriptorComponentSource, /assessment\.dataItems/);
+    assert.match(descriptorComponentSource, /assessment\.migrationStrategies/);
+    assert.match(descriptorComponentSource, /previewCommands/);
+    assert.match(descriptorComponentSource, /applyCommands/);
+    assert.match(wizardSource, /HubInstallDescriptorSummary/);
+    assert.match(wizardSource, /result\.installStatus === 'installed'/);
+    assert.match(wizardSource, /runHubDependencyInstall/);
     assert.match(zhLocale, /\u73af\u5883\u68c0\u67e5/);
     assert.match(zhLocale, /\u5b89\u88c5\u524d\u8bf7\u5148\u68c0\u67e5\u524d\u7f6e\u6761\u4ef6/);
     assert.match(zhLocale, /\u963b\u585e\u9879/);
     assert.match(zhLocale, /\u81ea\u52a8\u4fee\u590d/);
+    assert.match(zhLocale, /\u5b89\u88c5\u65b9\u5f0f/);
+    assert.match(zhLocale, /\u6570\u636e\u5e03\u5c40/);
+    assert.match(zhLocale, /\u8fc1\u79fb\u7b56\u7565/);
 
     assert.match(openclawDockerManifest, /dependencies:/);
     assert.match(openclawNpmManifest, /dependencies:/);
@@ -250,5 +312,94 @@ runTest(
       zhLocale,
       /\u5c06 {{product}} \u7684\u8bbe\u7f6e\u3001\u5de5\u4f5c\u533a\u6570\u636e\u548c\u76f8\u5173\u6587\u4ef6\u5bfc\u5165\u5230 Claw Studio/,
     );
+  },
+);
+
+runTest(
+  'sdkwork-claw-install upgrades OpenClaw install into a guided five-step bootstrap flow',
+  () => {
+    const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
+    const wizardSource = read(
+      'packages/sdkwork-claw-install/src/components/OpenClawGuidedInstallWizard.tsx',
+    );
+    const enLocale = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+    const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+
+    assert.match(installSource, /OpenClawGuidedInstallWizard/);
+    assert.match(wizardSource, /guided-install-shell/);
+    assert.match(wizardSource, /guided-install-step/);
+    assert.match(wizardSource, /guided-install-config/);
+    assert.match(wizardSource, /guided-install-initialize/);
+    assert.match(wizardSource, /guided-install-verify/);
+    assert.match(wizardSource, /openClawInstallWizardService/);
+    assert.match(wizardSource, /openClawBootstrapService/);
+
+    assert.match(enLocale, /Guided install/);
+    assert.match(enLocale, /Dependencies/);
+    assert.match(enLocale, /Install OpenClaw/);
+    assert.match(enLocale, /Configure OpenClaw/);
+    assert.match(enLocale, /Initialize OpenClaw/);
+    assert.match(enLocale, /Verify installation/);
+    assert.match(enLocale, /Ready to use/);
+    assert.match(enLocale, /Installed with follow-up needed/);
+
+    assert.match(zhLocale, /\u5206\u6b65\u5b89\u88c5/);
+    assert.match(zhLocale, /\u4f9d\u8d56\u4e0e\u5de5\u5177/);
+    assert.match(zhLocale, /\u5b89\u88c5 OpenClaw/);
+    assert.match(zhLocale, /\u914d\u7f6e OpenClaw/);
+    assert.match(zhLocale, /\u521d\u59cb\u5316 OpenClaw/);
+    assert.match(zhLocale, /\u9a8c\u8bc1\u5b89\u88c5/);
+    assert.match(zhLocale, /\u53ef\u4ee5\u7acb\u5373\u4f7f\u7528/);
+    assert.match(zhLocale, /\u5df2\u5b89\u88c5\uff0c\u4f46\u4ecd\u9700\u540e\u7eed\u5904\u7406/);
+  },
+);
+
+runTest(
+  'sdkwork-claw-install keeps ZeroClaw and IronClaw aligned with their Rust-native source install manifests',
+  () => {
+    const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
+    const enLocale = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+    const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+
+    assert.doesNotMatch(installSource, /zeroclaw-pnpm/);
+    assert.doesNotMatch(installSource, /ironclaw-pnpm/);
+    assert.match(enLocale, /Rust-native runtime/);
+    assert.match(enLocale, /PostgreSQL \+ pgvector/);
+    assert.match(zhLocale, /Rust 原生运行时/);
+    assert.match(zhLocale, /PostgreSQL \+ pgvector/);
+  },
+);
+
+runTest(
+  'sdkwork-claw-install keeps uninstall and migration flows truthful for every product',
+  () => {
+    const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
+    const zeroclawManifest = read(
+      'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/zeroclaw-source.hub.yaml',
+    );
+    const ironclawManifest = read(
+      'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/ironclaw-source.hub.yaml',
+    );
+    const enLocale = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+    const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+
+    assert.match(zeroclawManifest, /uninstall:/);
+    assert.match(ironclawManifest, /uninstall:/);
+    assert.match(
+      installSource,
+      /kind: 'uninstall'; product: ProductConfig; choice: UninstallChoice/,
+    );
+    assert.match(installSource, /setAction\(\{ kind: 'uninstall', product, choice \}\)/);
+    assert.doesNotMatch(enLocale, /"title": "Uninstall OpenClaw"/);
+    assert.doesNotMatch(enLocale, /"title": "Migrate OpenClaw"/);
+    assert.match(enLocale, /Uninstall {{product}}/);
+    assert.match(enLocale, /Migrate {{product}}/);
+    assert.match(enLocale, /PostgreSQL-backed data is not copied automatically/);
+    assert.doesNotMatch(zhLocale, /"title": "\u5378\u8f7d OpenClaw"/);
+    assert.doesNotMatch(zhLocale, /"title": "\u8fc1\u79fb OpenClaw"/);
+    assert.match(zhLocale, /\u5378\u8f7d {{product}}/);
+    assert.match(zhLocale, /\u8fc1\u79fb {{product}}/);
+    assert.match(zhLocale, /PostgreSQL/);
+    assert.match(zhLocale, /\u4e0d\u4f1a\u81ea\u52a8\u590d\u5236/);
   },
 );

@@ -44,7 +44,7 @@ runTest('sdkwork-claw-types is implemented locally instead of re-exporting claw-
   assert.ok(exists('packages/sdkwork-claw-types/src/service.ts'));
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-domain']);
   assert.doesNotMatch(source, /@sdkwork\/claw-studio-domain/);
-  assert.match(source, /export \* from '.\/service'/);
+  assert.match(source, /export \* from '.\/service(?:\.ts)?'/);
 });
 
 runTest('sdkwork-claw-distribution is implemented locally instead of re-exporting claw-studio distribution', () => {
