@@ -27,7 +27,8 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "vendor/hub-installer/registry/**/*"
+      "vendor/hub-installer/registry/**/*",
+      "resources/openclaw-runtime/**/*"
     ],
     "icon": [
       "icons/32x32.png",

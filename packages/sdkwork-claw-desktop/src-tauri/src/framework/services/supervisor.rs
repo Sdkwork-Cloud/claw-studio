@@ -1,20 +1,34 @@
 #![allow(dead_code)]
 
 use crate::framework::{
+    paths::AppPaths,
     kernel::{DesktopSupervisorInfo, DesktopSupervisorServiceInfo},
     FrameworkError, Result,
 };
+use crate::framework::services::openclaw_runtime::ActivatedOpenClawRuntime;
 use std::{
     collections::{BTreeMap, HashMap},
+    env, fs,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream},
     path::PathBuf,
+    process::{Child, Command, Stdio},
     sync::{Arc, Mutex, MutexGuard},
-    time::{Duration, SystemTime},
+    thread,
+    time::{Duration, Instant, SystemTime},
 };
+#[cfg(unix)]
+use std::io;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 const DEFAULT_RESTART_WINDOW_MS: u64 = 60_000;
 const DEFAULT_RESTART_BACKOFF_MS: u64 = 5_000;
 const DEFAULT_MAX_RESTARTS: usize = 3;
 const DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS: u64 = 10_000;
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 
 pub const SERVICE_ID_OPENCLAW_GATEWAY: &str = "openclaw_gateway";
 pub const SERVICE_ID_WEB_SERVER: &str = "web_server";
@@ -100,6 +114,8 @@ pub struct SupervisorSnapshot {
 pub struct SupervisorService {
     definitions: Arc<Vec<ManagedServiceDefinition>>,
     runtime: Arc<Mutex<SupervisorRuntime>>,
+    openclaw_runtime: Arc<Mutex<Option<ActivatedOpenClawRuntime>>>,
+    managed_processes: Arc<Mutex<HashMap<String, ManagedServiceProcessHandle>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -117,6 +133,11 @@ struct ManagedServiceRuntime {
     restart_count: usize,
     recent_restart_attempts: Vec<SystemTime>,
     last_error: Option<String>,
+}
+
+#[derive(Debug)]
+struct ManagedServiceProcessHandle {
+    child: Child,
 }
 
 impl SupervisorService {
@@ -146,6 +167,8 @@ impl SupervisorService {
                 shutdown_requested: false,
                 services,
             })),
+            openclaw_runtime: Arc::new(Mutex::new(None)),
+            managed_processes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -178,10 +201,9 @@ impl SupervisorService {
             return Ok(false);
         }
 
-        let service = runtime
-            .services
-            .get_mut(service_id)
-            .ok_or_else(|| FrameworkError::NotFound(format!("managed service not found: {service_id}")))?;
+        let service = runtime.services.get_mut(service_id).ok_or_else(|| {
+            FrameworkError::NotFound(format!("managed service not found: {service_id}"))
+        })?;
 
         let window = Duration::from_millis(definition.restart_policy.window_ms);
         service
@@ -217,10 +239,9 @@ impl SupervisorService {
             ));
         }
 
-        let service = runtime
-            .services
-            .get_mut(service_id)
-            .ok_or_else(|| FrameworkError::NotFound(format!("managed service not found: {service_id}")))?;
+        let service = runtime.services.get_mut(service_id).ok_or_else(|| {
+            FrameworkError::NotFound(format!("managed service not found: {service_id}"))
+        })?;
         service.lifecycle = ManagedServiceLifecycle::Starting;
         service.pid = None;
         service.last_exit_code = None;
@@ -238,6 +259,84 @@ impl SupervisorService {
         Ok(planned_services)
     }
 
+    pub fn configure_openclaw_gateway(&self, runtime: &ActivatedOpenClawRuntime) -> Result<()> {
+        *self.lock_openclaw_runtime()? = Some(runtime.clone());
+        Ok(())
+    }
+
+    pub fn configured_openclaw_runtime(&self) -> Result<Option<ActivatedOpenClawRuntime>> {
+        Ok(self.lock_openclaw_runtime()?.clone())
+    }
+
+    pub fn start_openclaw_gateway(&self, paths: &AppPaths) -> Result<()> {
+        let runtime = self
+            .lock_openclaw_runtime()?
+            .clone()
+            .ok_or_else(|| FrameworkError::NotFound("configured openclaw runtime".to_string()))?;
+
+        self.request_restart(SERVICE_ID_OPENCLAW_GATEWAY)?;
+
+        let log_file_path = paths.logs_dir.join("openclaw-gateway.log");
+        if let Some(parent) = log_file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let stdout = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_file_path)?;
+        let stderr = stdout.try_clone()?;
+        let mut command = Command::new(&runtime.node_path);
+        configure_command_for_managed_process(&mut command);
+        command.arg(&runtime.cli_path);
+        command.arg("gateway");
+        command.current_dir(&runtime.runtime_dir);
+        command.env("PATH", prepend_path_env(&paths.user_bin_dir));
+        command.envs(runtime.managed_env());
+        command.stdout(Stdio::from(stdout));
+        command.stderr(Stdio::from(stderr));
+
+        match command.spawn() {
+            Ok(mut child) => {
+                if let Err(error) = wait_for_gateway_ready(&mut child, runtime.gateway_port, 10_000)
+                {
+                    let _ = force_process_shutdown(&mut child);
+                    let _ = child.wait();
+                    let _ = self.record_stopped(
+                        SERVICE_ID_OPENCLAW_GATEWAY,
+                        None,
+                        Some(error.to_string()),
+                    );
+                    return Err(error);
+                }
+                let pid = child.id();
+                self.lock_managed_processes()?.insert(
+                    SERVICE_ID_OPENCLAW_GATEWAY.to_string(),
+                    ManagedServiceProcessHandle { child },
+                );
+                self.record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(pid))?;
+                Ok(())
+            }
+            Err(error) => {
+                let failure = FrameworkError::Io(error);
+                let _ = self.record_stopped(
+                    SERVICE_ID_OPENCLAW_GATEWAY,
+                    None,
+                    Some(failure.to_string()),
+                );
+                Err(failure)
+            }
+        }
+    }
+
+    pub fn restart_openclaw_gateway(&self, paths: &AppPaths) -> Result<()> {
+        let _ = self.stop_openclaw_gateway();
+        self.start_openclaw_gateway(paths)
+    }
+
+    pub fn stop_openclaw_gateway(&self) -> Result<()> {
+        self.stop_service_process(SERVICE_ID_OPENCLAW_GATEWAY)
+    }
+
     pub fn begin_shutdown(&self) -> Result<()> {
         let mut runtime = self.lock_runtime()?;
         runtime.shutdown_requested = true;
@@ -251,6 +350,8 @@ impl SupervisorService {
                 _ => ManagedServiceLifecycle::Stopped,
             };
         }
+        drop(runtime);
+        self.stop_openclaw_gateway()?;
         Ok(())
     }
 
@@ -266,10 +367,9 @@ impl SupervisorService {
 
     pub fn record_running(&self, service_id: &str, pid: Option<u32>) -> Result<()> {
         let mut runtime = self.lock_runtime()?;
-        let service = runtime
-            .services
-            .get_mut(service_id)
-            .ok_or_else(|| FrameworkError::NotFound(format!("managed service not found: {service_id}")))?;
+        let service = runtime.services.get_mut(service_id).ok_or_else(|| {
+            FrameworkError::NotFound(format!("managed service not found: {service_id}"))
+        })?;
         service.lifecycle = ManagedServiceLifecycle::Running;
         service.pid = pid;
         service.last_error = None;
@@ -284,10 +384,9 @@ impl SupervisorService {
         last_error: Option<String>,
     ) -> Result<()> {
         let mut runtime = self.lock_runtime()?;
-        let service = runtime
-            .services
-            .get_mut(service_id)
-            .ok_or_else(|| FrameworkError::NotFound(format!("managed service not found: {service_id}")))?;
+        let service = runtime.services.get_mut(service_id).ok_or_else(|| {
+            FrameworkError::NotFound(format!("managed service not found: {service_id}"))
+        })?;
         service.pid = None;
         service.last_exit_code = exit_code;
         service.last_error = last_error;
@@ -368,13 +467,62 @@ impl SupervisorService {
         self.definitions
             .iter()
             .find(|definition| definition.id == service_id)
-            .ok_or_else(|| FrameworkError::NotFound(format!("managed service not found: {service_id}")))
+            .ok_or_else(|| {
+                FrameworkError::NotFound(format!("managed service not found: {service_id}"))
+            })
     }
 
     fn lock_runtime(&self) -> Result<MutexGuard<'_, SupervisorRuntime>> {
         self.runtime
             .lock()
             .map_err(|_| FrameworkError::Internal("supervisor runtime lock poisoned".to_string()))
+    }
+
+    fn stop_service_process(&self, service_id: &str) -> Result<()> {
+        let graceful_shutdown_timeout_ms =
+            self.require_definition(service_id)?.graceful_shutdown_timeout_ms;
+
+        {
+            let mut runtime = self.lock_runtime()?;
+            if let Some(service) = runtime.services.get_mut(service_id) {
+                service.lifecycle = ManagedServiceLifecycle::Stopping;
+            }
+        }
+
+        let Some(mut handle) = self.lock_managed_processes()?.remove(service_id) else {
+            self.record_stopped(service_id, None, None)?;
+            return Ok(());
+        };
+
+        let exit_code = terminate_managed_process(&mut handle.child, graceful_shutdown_timeout_ms)?;
+        self.record_stopped(service_id, exit_code, None)
+    }
+
+    fn lock_openclaw_runtime(&self) -> Result<MutexGuard<'_, Option<ActivatedOpenClawRuntime>>> {
+        self.openclaw_runtime
+            .lock()
+            .map_err(|_| FrameworkError::Internal("openclaw runtime lock poisoned".to_string()))
+    }
+
+    fn lock_managed_processes(
+        &self,
+    ) -> Result<MutexGuard<'_, HashMap<String, ManagedServiceProcessHandle>>> {
+        self.managed_processes.lock().map_err(|_| {
+            FrameworkError::Internal("managed process registry lock poisoned".to_string())
+        })
+    }
+
+    #[cfg(test)]
+    pub fn openclaw_gateway_launch_snapshot(&self) -> Result<Option<(String, Vec<String>)>> {
+        Ok(self.lock_openclaw_runtime()?.as_ref().map(|runtime| {
+            (
+                runtime.node_path.to_string_lossy().into_owned(),
+                vec![
+                    runtime.cli_path.to_string_lossy().into_owned(),
+                    "gateway".to_string(),
+                ],
+            )
+        }))
     }
 }
 
@@ -445,13 +593,145 @@ fn managed_service_lifecycle_label(lifecycle: &ManagedServiceLifecycle) -> &'sta
     }
 }
 
+fn prepend_path_env(user_bin_dir: &std::path::Path) -> String {
+    let current = env::var_os("PATH")
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let separator = if cfg!(windows) { ';' } else { ':' };
+    let user_bin = user_bin_dir.to_string_lossy();
+
+    if current
+        .split(separator)
+        .any(|entry| entry.eq_ignore_ascii_case(user_bin.as_ref()))
+    {
+        return current;
+    }
+
+    if current.is_empty() {
+        return user_bin.into_owned();
+    }
+
+    format!("{user_bin}{separator}{current}")
+}
+
+fn configure_command_for_managed_process(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    }
+
+    #[cfg(unix)]
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setsid() == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+}
+
+fn terminate_managed_process(child: &mut Child, timeout_ms: u64) -> Result<Option<i32>> {
+    if let Some(status) = child.try_wait()? {
+        return Ok(status.code());
+    }
+
+    request_process_shutdown(child)?;
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+
+    while Instant::now() < deadline {
+        if let Some(status) = child.try_wait()? {
+            return Ok(status.code());
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    force_process_shutdown(child)?;
+    Ok(child.wait()?.code())
+}
+
+fn wait_for_gateway_ready(child: &mut Child, port: u16, timeout_ms: u64) -> Result<()> {
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    let loopback = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port));
+
+    while Instant::now() < deadline {
+        if let Some(status) = child.try_wait()? {
+            return Err(FrameworkError::ProcessFailed {
+                command: "openclaw gateway".to_string(),
+                exit_code: status.code(),
+                stderr_tail: format!("gateway exited before becoming ready on {}", loopback),
+            });
+        }
+
+        if TcpStream::connect_timeout(&loopback, Duration::from_millis(200)).is_ok() {
+            return Ok(());
+        }
+
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    Err(FrameworkError::Timeout(format!(
+        "openclaw gateway did not become ready on {} within {}ms",
+        loopback, timeout_ms
+    )))
+}
+
+#[cfg(windows)]
+fn request_process_shutdown(child: &mut Child) -> Result<()> {
+    let pid = child.id().to_string();
+    let _ = Command::new("taskkill")
+        .args(["/PID", pid.as_str(), "/T"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn request_process_shutdown(child: &mut Child) -> Result<()> {
+    let pid = child.id() as i32;
+    unsafe {
+        libc::killpg(pid, libc::SIGTERM);
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn force_process_shutdown(child: &mut Child) -> Result<()> {
+    let pid = child.id().to_string();
+    let _ = Command::new("taskkill")
+        .args(["/PID", pid.as_str(), "/T", "/F"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    if child.try_wait()?.is_none() {
+        child.kill()?;
+    }
+
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn force_process_shutdown(child: &mut Child) -> Result<()> {
+    let pid = child.id() as i32;
+    unsafe {
+        libc::killpg(pid, libc::SIGKILL);
+    }
+    if child.try_wait()?.is_none() {
+        child.kill()?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ManagedServiceLifecycle, SupervisorService, SERVICE_ID_API_ROUTER,
         SERVICE_ID_OPENCLAW_GATEWAY, SERVICE_ID_WEB_SERVER,
     };
-    use std::time::{Duration, UNIX_EPOCH};
+    use crate::framework::{paths::resolve_paths_for_root, services::openclaw_runtime::ActivatedOpenClawRuntime};
+    use std::{fs, time::{Duration, UNIX_EPOCH}};
 
     #[test]
     fn supervisor_registers_default_background_services() {
@@ -555,5 +835,130 @@ mod tests {
         assert!(!service
             .register_restart_attempt(SERVICE_ID_API_ROUTER, UNIX_EPOCH + Duration::from_secs(10))
             .expect("restart should be disabled"));
+    }
+
+    #[test]
+    fn supervisor_configures_openclaw_gateway_launch_from_runtime() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime(&paths);
+
+        service
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+
+        let launch = service
+            .openclaw_gateway_launch_snapshot()
+            .expect("launch snapshot")
+            .expect("configured launch");
+
+        assert_eq!(launch.0, runtime.node_path.to_string_lossy());
+        assert_eq!(
+            launch.1,
+            vec![
+                runtime.cli_path.to_string_lossy().into_owned(),
+                "gateway".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn supervisor_starts_and_stops_configured_openclaw_gateway_process() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime(&paths);
+
+        service
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+        service
+            .start_openclaw_gateway(&paths)
+            .expect("start gateway");
+
+        let running = service.snapshot().expect("running snapshot");
+        let openclaw = running
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_OPENCLAW_GATEWAY)
+            .expect("openclaw service");
+        assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Running);
+        assert!(openclaw.pid.is_some());
+
+        service.begin_shutdown().expect("shutdown");
+
+        let stopped = service.snapshot().expect("stopped snapshot");
+        let openclaw = stopped
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_OPENCLAW_GATEWAY)
+            .expect("openclaw service");
+        assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Stopped);
+        assert_eq!(openclaw.pid, None);
+    }
+
+    #[cfg(windows)]
+    fn fake_gateway_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
+        let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
+        let runtime_dir = install_dir.join("runtime");
+        let node_path = std::path::PathBuf::from("node");
+        let cli_path = runtime_dir.join("package").join("openclaw.mjs");
+        let gateway_port = 18_789;
+
+        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
+        fs::write(
+            &cli_path,
+            format!(
+                "import net from 'node:net';\nconst server = net.createServer();\nserver.listen({gateway_port}, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n"
+            ),
+        )
+        .expect("cli file");
+
+        ActivatedOpenClawRuntime {
+            install_key: "test-gateway".to_string(),
+            install_dir,
+            runtime_dir,
+            node_path,
+            cli_path,
+            home_dir: paths.openclaw_home_dir.clone(),
+            state_dir: paths.openclaw_state_dir.clone(),
+            workspace_dir: paths.openclaw_workspace_dir.clone(),
+            config_path: paths.openclaw_config_file.clone(),
+            gateway_port,
+            gateway_auth_token: "test-token".to_string(),
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn fake_gateway_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
+        let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
+        let runtime_dir = install_dir.join("runtime");
+        let node_path = std::path::PathBuf::from("node");
+        let cli_path = runtime_dir.join("package").join("openclaw.mjs");
+        let gateway_port = 18_789;
+
+        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
+        fs::write(
+            &cli_path,
+            format!(
+                "import net from 'node:net';\nconst server = net.createServer();\nserver.listen({gateway_port}, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n"
+            ),
+        )
+        .expect("cli file");
+
+        ActivatedOpenClawRuntime {
+            install_key: "test-gateway".to_string(),
+            install_dir,
+            runtime_dir,
+            node_path,
+            cli_path,
+            home_dir: paths.openclaw_home_dir.clone(),
+            state_dir: paths.openclaw_state_dir.clone(),
+            workspace_dir: paths.openclaw_workspace_dir.clone(),
+            config_path: paths.openclaw_config_file.clone(),
+            gateway_port,
+            gateway_auth_token: "test-token".to_string(),
+        }
     }
 }

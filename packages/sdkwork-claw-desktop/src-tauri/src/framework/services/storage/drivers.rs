@@ -1,16 +1,44 @@
 use super::{profiles::StorageDriverScope, registry::StorageDriver};
 use crate::framework::{storage::StorageProviderKind, FrameworkError, Result};
+use postgres::{Client as PostgresClient, Config as PostgresConfig, NoTls};
+use rusqlite::{params, Connection as SqliteConnection, OptionalExtension};
 use std::{
     collections::BTreeMap,
     fs,
     path::Path,
+    str::FromStr,
     sync::{Arc, Mutex, MutexGuard},
+    time::Duration,
 };
 
 type NamespaceStore = BTreeMap<String, String>;
 type ProfileNamespaceStore = BTreeMap<String, NamespaceStore>;
 type MemoryStorageState = BTreeMap<String, ProfileNamespaceStore>;
 type LocalFileStorageDocument = BTreeMap<String, NamespaceStore>;
+
+const SQLITE_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS storage_entries (
+    namespace TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (namespace, key)
+);
+CREATE INDEX IF NOT EXISTS idx_storage_entries_namespace
+ON storage_entries (namespace);
+"#;
+
+const POSTGRES_SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS storage_entries (
+    namespace TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at BIGINT NOT NULL DEFAULT ((EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT),
+    PRIMARY KEY (namespace, key)
+);
+CREATE INDEX IF NOT EXISTS idx_storage_entries_namespace
+ON storage_entries (namespace);
+"#;
 
 #[derive(Clone, Debug, Default)]
 pub struct LocalFileStorageDriver {
@@ -21,6 +49,14 @@ pub struct LocalFileStorageDriver {
 pub struct MemoryStorageDriver {
     state: Arc<Mutex<MemoryStorageState>>,
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct SqliteStorageDriver {
+    lock: Arc<Mutex<()>>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PostgresStorageDriver;
 
 #[derive(Clone, Debug)]
 pub struct UnavailableStorageDriver {
@@ -170,6 +206,172 @@ impl MemoryStorageDriver {
     }
 }
 
+impl StorageDriver for SqliteStorageDriver {
+    fn get_text(&self, scope: &StorageDriverScope, key: &str) -> Result<Option<String>> {
+        self.with_connection(scope, |connection| {
+            connection
+                .query_row(
+                    "SELECT value FROM storage_entries WHERE namespace = ?1 AND key = ?2",
+                    params![scope.namespace.as_str(), key],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+        })
+    }
+
+    fn put_text(&self, scope: &StorageDriverScope, key: &str, value: &str) -> Result<()> {
+        self.with_connection(scope, |connection| {
+            connection.execute(
+                "INSERT INTO storage_entries (namespace, key, value, updated_at)
+                 VALUES (?1, ?2, ?3, unixepoch())
+                 ON CONFLICT(namespace, key)
+                 DO UPDATE SET value = excluded.value, updated_at = unixepoch()",
+                params![scope.namespace.as_str(), key, value],
+            )?;
+            Ok(())
+        })
+    }
+
+    fn delete(&self, scope: &StorageDriverScope, key: &str) -> Result<bool> {
+        self.with_connection(scope, |connection| {
+            let affected = connection.execute(
+                "DELETE FROM storage_entries WHERE namespace = ?1 AND key = ?2",
+                params![scope.namespace.as_str(), key],
+            )?;
+            Ok(affected > 0)
+        })
+    }
+
+    fn list_keys(&self, scope: &StorageDriverScope) -> Result<Vec<String>> {
+        self.with_connection(scope, |connection| {
+            let mut statement = connection.prepare(
+                "SELECT key FROM storage_entries WHERE namespace = ?1 ORDER BY key ASC",
+            )?;
+            let rows = statement.query_map(params![scope.namespace.as_str()], |row| {
+                row.get::<_, String>(0)
+            })?;
+
+            rows.collect::<std::result::Result<Vec<_>, _>>()
+        })
+    }
+}
+
+impl SqliteStorageDriver {
+    fn lock(&self) -> Result<MutexGuard<'_, ()>> {
+        self.lock
+            .lock()
+            .map_err(|_| FrameworkError::Internal("sqlite storage driver lock poisoned".to_string()))
+    }
+
+    fn with_connection<T, F>(&self, scope: &StorageDriverScope, operation: F) -> Result<T>
+    where
+        F: FnOnce(&SqliteConnection) -> std::result::Result<T, rusqlite::Error>,
+    {
+        let _guard = self.lock()?;
+        let path = scope.path()?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let connection = SqliteConnection::open(path).map_err(sqlite_driver_error)?;
+        connection
+            .busy_timeout(Duration::from_secs(5))
+            .map_err(sqlite_driver_error)?;
+        connection
+            .execute_batch(SQLITE_SCHEMA_SQL)
+            .map_err(sqlite_driver_error)?;
+
+        operation(&connection).map_err(sqlite_driver_error)
+    }
+}
+
+impl StorageDriver for PostgresStorageDriver {
+    fn get_text(&self, scope: &StorageDriverScope, key: &str) -> Result<Option<String>> {
+        let mut client = self.connect(scope)?;
+        Ok(client
+            .query_opt(
+                "SELECT value FROM storage_entries WHERE namespace = $1 AND key = $2",
+                &[&scope.namespace, &key],
+            )
+            .map_err(|error| postgres_query_error(scope, "read storage entry", error))?
+            .map(|row| row.get::<_, String>(0)))
+    }
+
+    fn put_text(&self, scope: &StorageDriverScope, key: &str, value: &str) -> Result<()> {
+        let mut client = self.connect(scope)?;
+        client
+            .execute(
+                "INSERT INTO storage_entries (namespace, key, value, updated_at)
+                 VALUES ($1, $2, $3, (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT)
+                 ON CONFLICT(namespace, key)
+                 DO UPDATE SET value = EXCLUDED.value,
+                               updated_at = (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT",
+                &[&scope.namespace, &key, &value],
+            )
+            .map_err(|error| postgres_query_error(scope, "write storage entry", error))?;
+        Ok(())
+    }
+
+    fn delete(&self, scope: &StorageDriverScope, key: &str) -> Result<bool> {
+        let mut client = self.connect(scope)?;
+        let affected = client
+            .execute(
+                "DELETE FROM storage_entries WHERE namespace = $1 AND key = $2",
+                &[&scope.namespace, &key],
+            )
+            .map_err(|error| postgres_query_error(scope, "delete storage entry", error))?;
+        Ok(affected > 0)
+    }
+
+    fn list_keys(&self, scope: &StorageDriverScope) -> Result<Vec<String>> {
+        let mut client = self.connect(scope)?;
+        let rows = client
+            .query(
+                "SELECT key FROM storage_entries WHERE namespace = $1 ORDER BY key ASC",
+                &[&scope.namespace],
+            )
+            .map_err(|error| postgres_query_error(scope, "list storage keys", error))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| row.get::<_, String>(0))
+            .collect())
+    }
+}
+
+impl PostgresStorageDriver {
+    fn connect(&self, scope: &StorageDriverScope) -> Result<PostgresClient> {
+        let connection = scope.connection.as_deref().ok_or_else(|| {
+            FrameworkError::ValidationFailed(format!(
+                "storage profile \"{}\" does not define a database connection",
+                scope.profile_id
+            ))
+        })?;
+        let mut config = PostgresConfig::from_str(connection).map_err(|error| {
+            FrameworkError::ValidationFailed(format!(
+                "storage profile \"{}\" has an invalid database connection: {error}",
+                scope.profile_id
+            ))
+        })?;
+        config.connect_timeout(Duration::from_secs(5));
+        if let Some(database) = scope.database.as_deref() {
+            config.dbname(database);
+        }
+
+        let mut client = config.connect(NoTls).map_err(|error| {
+            FrameworkError::InvalidOperation(format!(
+                "unable to connect storage profile \"{}\" to postgres: {error}",
+                scope.profile_id
+            ))
+        })?;
+        client
+            .batch_execute(POSTGRES_SCHEMA_SQL)
+            .map_err(|error| postgres_query_error(scope, "initialize postgres storage", error))?;
+
+        Ok(client)
+    }
+}
+
 impl UnavailableStorageDriver {
     pub fn new(kind: StorageProviderKind, reason: String) -> Self {
         Self { kind, reason }
@@ -202,11 +404,27 @@ impl StorageDriver for UnavailableStorageDriver {
     }
 }
 
+fn sqlite_driver_error(error: rusqlite::Error) -> FrameworkError {
+    FrameworkError::InvalidOperation(format!("sqlite storage driver error: {error}"))
+}
+
+fn postgres_query_error(
+    scope: &StorageDriverScope,
+    action: &str,
+    error: postgres::Error,
+) -> FrameworkError {
+    FrameworkError::InvalidOperation(format!(
+        "unable to {action} for storage profile \"{}\": {error}",
+        scope.profile_id
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::StorageDriverScope;
     use super::{
-        LocalFileStorageDriver, MemoryStorageDriver, StorageDriver, UnavailableStorageDriver,
+        LocalFileStorageDriver, MemoryStorageDriver, PostgresStorageDriver, SqliteStorageDriver,
+        StorageDriver, UnavailableStorageDriver,
     };
     use crate::framework::storage::StorageProviderKind;
 
@@ -269,6 +487,52 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "invalid operation: storage driver \"sqlite\" is not implemented yet"
+        );
+    }
+
+    #[test]
+    fn sqlite_driver_persists_values_across_driver_instances() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let path = root.path().join("profiles/default.db");
+        let scope = storage_scope(
+            "default-sqlite",
+            StorageProviderKind::Sqlite,
+            "studio.chat",
+            Some(path),
+        );
+
+        let first = SqliteStorageDriver::default();
+        first
+            .put_text(&scope, "conversation:1", "{\"title\":\"Hello\"}")
+            .expect("put text");
+
+        let reopened = SqliteStorageDriver::default();
+        let value = reopened
+            .get_text(&scope, "conversation:1")
+            .expect("get text");
+        let keys = reopened.list_keys(&scope).expect("list keys");
+
+        assert_eq!(value.as_deref(), Some("{\"title\":\"Hello\"}"));
+        assert_eq!(keys, vec!["conversation:1".to_string()]);
+    }
+
+    #[test]
+    fn postgres_driver_requires_connection_details() {
+        let scope = storage_scope(
+            "team-postgres",
+            StorageProviderKind::Postgres,
+            "studio.chat",
+            None,
+        );
+        let driver = PostgresStorageDriver::default();
+
+        let error = driver
+            .get_text(&scope, "conversation:1")
+            .expect_err("postgres driver should require connection details");
+
+        assert_eq!(
+            error.to_string(),
+            "validation failed: storage profile \"team-postgres\" does not define a database connection"
         );
     }
 

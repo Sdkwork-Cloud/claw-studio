@@ -1,5 +1,8 @@
 use super::{
-    drivers::{LocalFileStorageDriver, MemoryStorageDriver, UnavailableStorageDriver},
+    drivers::{
+        LocalFileStorageDriver, MemoryStorageDriver, PostgresStorageDriver, SqliteStorageDriver,
+        UnavailableStorageDriver,
+    },
     profiles::StorageDriverScope,
 };
 use crate::framework::{
@@ -47,17 +50,11 @@ impl StorageDriverRegistry {
         );
         registry.register_driver(
             built_in_provider_info(StorageProviderKind::Sqlite),
-            Arc::new(UnavailableStorageDriver::new(
-                StorageProviderKind::Sqlite,
-                "storage driver \"sqlite\" is not implemented yet".to_string(),
-            )),
+            Arc::new(SqliteStorageDriver::default()),
         );
         registry.register_driver(
             built_in_provider_info(StorageProviderKind::Postgres),
-            Arc::new(UnavailableStorageDriver::new(
-                StorageProviderKind::Postgres,
-                "storage driver \"postgres\" is not implemented yet".to_string(),
-            )),
+            Arc::new(PostgresStorageDriver::default()),
         );
         registry.register_driver(
             built_in_provider_info(StorageProviderKind::RemoteApi),
@@ -102,28 +99,32 @@ impl StorageDriverRegistry {
 pub(crate) fn built_in_provider_info(kind: StorageProviderKind) -> StorageProviderInfo {
     let capabilities = capabilities_for_kind(&kind);
     let availability = availability_for_provider(&kind);
+    let requires_configuration = requires_configuration_for_provider(&kind);
 
     StorageProviderInfo {
         id: kind.id().to_string(),
         label: kind.label().to_string(),
         kind,
         availability,
-        requires_configuration: requires_configuration(&capabilities),
+        requires_configuration,
         capabilities,
     }
 }
 
-fn requires_configuration(capabilities: &StorageCapabilities) -> bool {
-    capabilities.remote || capabilities.queryable
+fn requires_configuration_for_provider(kind: &StorageProviderKind) -> bool {
+    matches!(
+        kind,
+        StorageProviderKind::Postgres | StorageProviderKind::RemoteApi
+    )
 }
 
 fn availability_for_provider(kind: &StorageProviderKind) -> StorageAvailability {
     match kind {
-        StorageProviderKind::Memory | StorageProviderKind::LocalFile => StorageAvailability::Ready,
-        StorageProviderKind::Sqlite => StorageAvailability::Planned,
-        StorageProviderKind::Postgres | StorageProviderKind::RemoteApi => {
-            StorageAvailability::ConfigurationRequired
-        }
+        StorageProviderKind::Memory
+        | StorageProviderKind::LocalFile
+        | StorageProviderKind::Sqlite => StorageAvailability::Ready,
+        StorageProviderKind::Postgres => StorageAvailability::ConfigurationRequired,
+        StorageProviderKind::RemoteApi => StorageAvailability::Planned,
     }
 }
 
@@ -170,7 +171,7 @@ fn capabilities_for_kind(kind: &StorageProviderKind) -> StorageCapabilities {
 #[cfg(test)]
 mod tests {
     use super::StorageDriverRegistry;
-    use crate::framework::storage::StorageProviderKind;
+    use crate::framework::storage::{StorageAvailability, StorageProviderKind};
 
     #[test]
     fn built_in_storage_registry_includes_pluggable_backends() {
@@ -191,5 +192,32 @@ mod tests {
         assert!(providers
             .iter()
             .any(|provider| provider.kind == StorageProviderKind::RemoteApi));
+    }
+
+    #[test]
+    fn provider_metadata_distinguishes_ready_and_configuration_required_backends() {
+        let providers = StorageDriverRegistry::with_built_in_drivers().providers();
+        let sqlite = providers
+            .iter()
+            .find(|provider| provider.kind == StorageProviderKind::Sqlite)
+            .expect("sqlite provider");
+        let postgres = providers
+            .iter()
+            .find(|provider| provider.kind == StorageProviderKind::Postgres)
+            .expect("postgres provider");
+        let remote_api = providers
+            .iter()
+            .find(|provider| provider.kind == StorageProviderKind::RemoteApi)
+            .expect("remote api provider");
+
+        assert_eq!(sqlite.availability, StorageAvailability::Ready);
+        assert!(!sqlite.requires_configuration);
+        assert_eq!(
+            postgres.availability,
+            StorageAvailability::ConfigurationRequired
+        );
+        assert!(postgres.requires_configuration);
+        assert_eq!(remote_api.availability, StorageAvailability::Planned);
+        assert!(remote_api.requires_configuration);
     }
 }

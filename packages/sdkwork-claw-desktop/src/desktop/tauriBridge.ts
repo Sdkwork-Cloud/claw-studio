@@ -1,11 +1,16 @@
 import {
   WebPlatform,
   WebStoragePlatform,
+  WebStudioPlatform,
   configurePlatformBridge,
 } from '@sdkwork/claw-infrastructure';
 import type {
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
+  HubInstallCatalogEntry,
+  HubInstallCatalogQuery,
+  HubInstallDependencyRequest,
+  HubInstallDependencyResult,
   HubInstallAssessmentResult,
   HubInstallProgressEvent,
   HubInstallRequest,
@@ -35,10 +40,16 @@ import type {
   StorageListKeysResult,
   StoragePutTextRequest,
   StoragePutTextResult,
+  StudioConversationRecord,
+  StudioCreateInstanceInput,
+  StudioInstanceDetailRecord,
+  StudioInstanceConfig,
+  StudioInstanceRecord,
+  StudioWorkbenchTaskExecutionRecord,
+  StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
 import { DESKTOP_COMMANDS, DESKTOP_EVENTS } from './catalog';
 import {
-  DesktopBridgeError,
   getDesktopWindow,
   invokeDesktopCommand,
   isTauriRuntime,
@@ -48,6 +59,7 @@ import {
 
 const webPlatform = new WebPlatform();
 const webStoragePlatform = new WebStoragePlatform();
+const webStudioPlatform = new WebStudioPlatform();
 
 export interface DesktopAppInfo extends RuntimeAppInfo {}
 export interface DesktopAppPaths extends RuntimePathsInfo {}
@@ -138,6 +150,299 @@ export async function getDesktopStorageInfo(): Promise<DesktopStorageInfo | null
         operation: 'storage.getInfo',
       }),
     async () => null,
+  );
+}
+
+export async function studioListInstances(): Promise<StudioInstanceRecord[]> {
+  return runDesktopOrFallback(
+    'studio.listInstances',
+    () =>
+      invokeDesktopCommand<StudioInstanceRecord[]>(
+        DESKTOP_COMMANDS.studioListInstances,
+        undefined,
+        { operation: 'studio.listInstances' },
+      ),
+    () => webStudioPlatform.listInstances(),
+  );
+}
+
+export async function studioGetInstance(id: string): Promise<StudioInstanceRecord | null> {
+  return runDesktopOrFallback(
+    'studio.getInstance',
+    () =>
+      invokeDesktopCommand<StudioInstanceRecord | null>(
+        DESKTOP_COMMANDS.studioGetInstance,
+        { id },
+        { operation: 'studio.getInstance' },
+      ),
+    () => webStudioPlatform.getInstance(id),
+  );
+}
+
+export async function studioGetInstanceDetail(
+  id: string,
+): Promise<StudioInstanceDetailRecord | null> {
+  return runDesktopOrFallback(
+    'studio.getInstanceDetail',
+    () =>
+      invokeDesktopCommand<StudioInstanceDetailRecord | null>(
+        DESKTOP_COMMANDS.studioGetInstanceDetail,
+        { id },
+        { operation: 'studio.getInstanceDetail' },
+      ),
+    () => webStudioPlatform.getInstanceDetail(id),
+  );
+}
+
+export async function studioCreateInstance(
+  input: StudioCreateInstanceInput,
+): Promise<StudioInstanceRecord> {
+  return runDesktopOrFallback(
+    'studio.createInstance',
+    () =>
+      invokeDesktopCommand<StudioInstanceRecord>(
+        DESKTOP_COMMANDS.studioCreateInstance,
+        { input },
+        { operation: 'studio.createInstance' },
+      ),
+    () => webStudioPlatform.createInstance(input),
+  );
+}
+
+export async function studioUpdateInstance(
+  id: string,
+  input: StudioUpdateInstanceInput,
+): Promise<StudioInstanceRecord> {
+  return runDesktopOrFallback(
+    'studio.updateInstance',
+    () =>
+      invokeDesktopCommand<StudioInstanceRecord>(
+        DESKTOP_COMMANDS.studioUpdateInstance,
+        { id, input },
+        { operation: 'studio.updateInstance' },
+      ),
+    () => webStudioPlatform.updateInstance(id, input),
+  );
+}
+
+export async function studioDeleteInstance(id: string): Promise<boolean> {
+  return runDesktopOrFallback(
+    'studio.deleteInstance',
+    () =>
+      invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.studioDeleteInstance, { id }, {
+        operation: 'studio.deleteInstance',
+      }),
+    () => webStudioPlatform.deleteInstance(id),
+  );
+}
+
+export async function studioStartInstance(
+  id: string,
+): Promise<StudioInstanceRecord | null> {
+  return runDesktopOrFallback(
+    'studio.startInstance',
+    () =>
+      invokeDesktopCommand<StudioInstanceRecord | null>(
+        DESKTOP_COMMANDS.studioStartInstance,
+        { id },
+        { operation: 'studio.startInstance' },
+      ),
+    () => webStudioPlatform.startInstance(id),
+  );
+}
+
+export async function studioStopInstance(
+  id: string,
+): Promise<StudioInstanceRecord | null> {
+  return runDesktopOrFallback(
+    'studio.stopInstance',
+    () =>
+      invokeDesktopCommand<StudioInstanceRecord | null>(
+        DESKTOP_COMMANDS.studioStopInstance,
+        { id },
+        { operation: 'studio.stopInstance' },
+      ),
+    () => webStudioPlatform.stopInstance(id),
+  );
+}
+
+export async function studioRestartInstance(
+  id: string,
+): Promise<StudioInstanceRecord | null> {
+  return runDesktopOrFallback(
+    'studio.restartInstance',
+    () =>
+      invokeDesktopCommand<StudioInstanceRecord | null>(
+        DESKTOP_COMMANDS.studioRestartInstance,
+        { id },
+        { operation: 'studio.restartInstance' },
+      ),
+    () => webStudioPlatform.restartInstance(id),
+  );
+}
+
+export async function studioGetInstanceConfig(
+  id: string,
+): Promise<StudioInstanceConfig | null> {
+  return runDesktopOrFallback(
+    'studio.getInstanceConfig',
+    () =>
+      invokeDesktopCommand<StudioInstanceConfig | null>(
+        DESKTOP_COMMANDS.studioGetInstanceConfig,
+        { id },
+        { operation: 'studio.getInstanceConfig' },
+      ),
+    () => webStudioPlatform.getInstanceConfig(id),
+  );
+}
+
+export async function studioUpdateInstanceConfig(
+  id: string,
+  config: StudioInstanceConfig,
+): Promise<StudioInstanceConfig | null> {
+  return runDesktopOrFallback(
+    'studio.updateInstanceConfig',
+    () =>
+      invokeDesktopCommand<StudioInstanceConfig | null>(
+        DESKTOP_COMMANDS.studioUpdateInstanceConfig,
+        { id, config },
+        { operation: 'studio.updateInstanceConfig' },
+      ),
+    () => webStudioPlatform.updateInstanceConfig(id, config),
+  );
+}
+
+export async function studioGetInstanceLogs(id: string): Promise<string> {
+  return runDesktopOrFallback(
+    'studio.getInstanceLogs',
+    () =>
+      invokeDesktopCommand<string>(DESKTOP_COMMANDS.studioGetInstanceLogs, { id }, {
+        operation: 'studio.getInstanceLogs',
+      }),
+    () => webStudioPlatform.getInstanceLogs(id),
+  );
+}
+
+export async function studioCloneInstanceTask(
+  instanceId: string,
+  taskId: string,
+  name?: string,
+): Promise<void> {
+  await runDesktopOrFallback(
+    'studio.cloneInstanceTask',
+    () =>
+      invokeDesktopCommand<void>(
+        DESKTOP_COMMANDS.studioCloneInstanceTask,
+        { instanceId, taskId, name },
+        { operation: 'studio.cloneInstanceTask' },
+      ),
+    () => webStudioPlatform.cloneInstanceTask(instanceId, taskId, name),
+  );
+}
+
+export async function studioRunInstanceTaskNow(
+  instanceId: string,
+  taskId: string,
+): Promise<StudioWorkbenchTaskExecutionRecord> {
+  return runDesktopOrFallback(
+    'studio.runInstanceTaskNow',
+    () =>
+      invokeDesktopCommand<StudioWorkbenchTaskExecutionRecord>(
+        DESKTOP_COMMANDS.studioRunInstanceTaskNow,
+        { instanceId, taskId },
+        { operation: 'studio.runInstanceTaskNow' },
+      ),
+    () => webStudioPlatform.runInstanceTaskNow(instanceId, taskId),
+  );
+}
+
+export async function studioListInstanceTaskExecutions(
+  instanceId: string,
+  taskId: string,
+): Promise<StudioWorkbenchTaskExecutionRecord[]> {
+  return runDesktopOrFallback(
+    'studio.listInstanceTaskExecutions',
+    () =>
+      invokeDesktopCommand<StudioWorkbenchTaskExecutionRecord[]>(
+        DESKTOP_COMMANDS.studioListInstanceTaskExecutions,
+        { instanceId, taskId },
+        { operation: 'studio.listInstanceTaskExecutions' },
+      ),
+    () => webStudioPlatform.listInstanceTaskExecutions(instanceId, taskId),
+  );
+}
+
+export async function studioUpdateInstanceTaskStatus(
+  instanceId: string,
+  taskId: string,
+  status: 'active' | 'paused',
+): Promise<void> {
+  await runDesktopOrFallback(
+    'studio.updateInstanceTaskStatus',
+    () =>
+      invokeDesktopCommand<void>(
+        DESKTOP_COMMANDS.studioUpdateInstanceTaskStatus,
+        { instanceId, taskId, status },
+        { operation: 'studio.updateInstanceTaskStatus' },
+      ),
+    () => webStudioPlatform.updateInstanceTaskStatus(instanceId, taskId, status),
+  );
+}
+
+export async function studioDeleteInstanceTask(
+  instanceId: string,
+  taskId: string,
+): Promise<boolean> {
+  return runDesktopOrFallback(
+    'studio.deleteInstanceTask',
+    () =>
+      invokeDesktopCommand<boolean>(
+        DESKTOP_COMMANDS.studioDeleteInstanceTask,
+        { instanceId, taskId },
+        { operation: 'studio.deleteInstanceTask' },
+      ),
+    () => webStudioPlatform.deleteInstanceTask(instanceId, taskId),
+  );
+}
+
+export async function studioListConversations(
+  instanceId: string,
+): Promise<StudioConversationRecord[]> {
+  return runDesktopOrFallback(
+    'studio.listConversations',
+    () =>
+      invokeDesktopCommand<StudioConversationRecord[]>(
+        DESKTOP_COMMANDS.studioListConversations,
+        { instanceId },
+        { operation: 'studio.listConversations' },
+      ),
+    () => webStudioPlatform.listConversations(instanceId),
+  );
+}
+
+export async function studioPutConversation(
+  record: StudioConversationRecord,
+): Promise<StudioConversationRecord> {
+  return runDesktopOrFallback(
+    'studio.putConversation',
+    () =>
+      invokeDesktopCommand<StudioConversationRecord>(
+        DESKTOP_COMMANDS.studioPutConversation,
+        { record },
+        { operation: 'studio.putConversation' },
+      ),
+    () => webStudioPlatform.putConversation(record),
+  );
+}
+
+export async function studioDeleteConversation(id: string): Promise<boolean> {
+  return runDesktopOrFallback(
+    'studio.deleteConversation',
+    () =>
+      invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.studioDeleteConversation, { id }, {
+        operation: 'studio.deleteConversation',
+      }),
+    () => webStudioPlatform.deleteConversation(id),
   );
 }
 
@@ -606,6 +911,26 @@ export async function runHubInstall(
   );
 }
 
+export async function listHubInstallCatalog(
+  query?: HubInstallCatalogQuery,
+): Promise<HubInstallCatalogEntry[]> {
+  return invokeDesktopCommand<HubInstallCatalogEntry[]>(
+    DESKTOP_COMMANDS.listHubInstallCatalog,
+    { query },
+    { operation: 'installer.listHubInstallCatalog' },
+  );
+}
+
+export async function runHubDependencyInstall(
+  request: HubInstallDependencyRequest,
+): Promise<HubInstallDependencyResult> {
+  return invokeDesktopCommand<HubInstallDependencyResult>(
+    DESKTOP_COMMANDS.runHubDependencyInstall,
+    { request },
+    { operation: 'installer.runHubDependencyInstall' },
+  );
+}
+
 export async function inspectHubInstall(
   request: HubInstallRequest,
 ): Promise<HubInstallAssessmentResult> {
@@ -681,6 +1006,28 @@ export const desktopTemplateApi = {
     delete: storageDelete,
     listKeys: storageListKeys,
   },
+  studio: {
+    listInstances: studioListInstances,
+    getInstance: studioGetInstance,
+    getInstanceDetail: studioGetInstanceDetail,
+    createInstance: studioCreateInstance,
+    updateInstance: studioUpdateInstance,
+    deleteInstance: studioDeleteInstance,
+    startInstance: studioStartInstance,
+    stopInstance: studioStopInstance,
+    restartInstance: studioRestartInstance,
+    getInstanceConfig: studioGetInstanceConfig,
+    updateInstanceConfig: studioUpdateInstanceConfig,
+    getInstanceLogs: studioGetInstanceLogs,
+    cloneInstanceTask: studioCloneInstanceTask,
+    runInstanceTaskNow: studioRunInstanceTaskNow,
+    listInstanceTaskExecutions: studioListInstanceTaskExecutions,
+    updateInstanceTaskStatus: studioUpdateInstanceTaskStatus,
+    deleteInstanceTask: studioDeleteInstanceTask,
+    listConversations: studioListConversations,
+    putConversation: studioPutConversation,
+    deleteConversation: studioDeleteConversation,
+  },
   filesystem: {
     listDirectory,
     pathExists,
@@ -715,7 +1062,9 @@ export const desktopTemplateApi = {
     closeWindow,
   },
   installer: {
+    listHubInstallCatalog,
     inspectHubInstall,
+    runHubDependencyInstall,
     runHubInstall,
     runHubUninstall,
     subscribeHubInstallProgress,
@@ -759,7 +1108,9 @@ export function configureDesktopPlatformBridge() {
       writeFile: (path, content) => writeTextFile(path, content),
     },
     installer: {
+      listHubInstallCatalog: (query) => listHubInstallCatalog(query),
       inspectHubInstall: (request) => inspectHubInstall(request),
+      runHubDependencyInstall: (request) => runHubDependencyInstall(request),
       runHubInstall: (request) => runHubInstall(request),
       runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
@@ -774,6 +1125,44 @@ export function configureDesktopPlatformBridge() {
       putText: (request) => storagePutText(request),
       delete: (request) => storageDelete(request),
       listKeys: (request) => storageListKeys(request),
+    },
+    studio: {
+      listInstances: () => studioListInstances(),
+      getInstance: (id) => studioGetInstance(id),
+      getInstanceDetail: (id) => studioGetInstanceDetail(id),
+      createInstance: (input) => studioCreateInstance(input),
+      updateInstance: (id, input) => studioUpdateInstance(id, input),
+      deleteInstance: (id) => studioDeleteInstance(id),
+      startInstance: (id) => studioStartInstance(id),
+      stopInstance: (id) => studioStopInstance(id),
+      restartInstance: (id) => studioRestartInstance(id),
+      setInstanceStatus: async (id, status) => {
+        if (status === 'online') {
+          return studioStartInstance(id);
+        }
+
+        if (status === 'offline') {
+          return studioStopInstance(id);
+        }
+
+        return studioUpdateInstance(id, { status });
+      },
+      getInstanceConfig: (id) => studioGetInstanceConfig(id),
+      updateInstanceConfig: (id, config) => studioUpdateInstanceConfig(id, config),
+      getInstanceLogs: (id) => studioGetInstanceLogs(id),
+      cloneInstanceTask: (instanceId, taskId, name) =>
+        studioCloneInstanceTask(instanceId, taskId, name),
+      runInstanceTaskNow: (instanceId, taskId) =>
+        studioRunInstanceTaskNow(instanceId, taskId),
+      listInstanceTaskExecutions: (instanceId, taskId) =>
+        studioListInstanceTaskExecutions(instanceId, taskId),
+      updateInstanceTaskStatus: (instanceId, taskId, status) =>
+        studioUpdateInstanceTaskStatus(instanceId, taskId, status),
+      deleteInstanceTask: (instanceId, taskId) =>
+        studioDeleteInstanceTask(instanceId, taskId),
+      listConversations: (instanceId) => studioListConversations(instanceId),
+      putConversation: (record) => studioPutConversation(record),
+      deleteConversation: (id) => studioDeleteConversation(id),
     },
     runtime: {
       getRuntimeInfo: () => getRuntimeInfo(),

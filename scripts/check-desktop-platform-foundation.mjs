@@ -79,6 +79,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-core/src/stores/useUpdateStore.ts', 'desktop update state store'],
   ['packages/sdkwork-claw-desktop/src-tauri/Cargo.toml', 'desktop Cargo manifest'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json', 'desktop Tauri config'],
+  ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw-runtime/runtime', 'bundled openclaw runtime resource root'],
+  ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw-runtime/manifest.json', 'bundled openclaw runtime manifest'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs', 'desktop framework module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/error.rs', 'desktop framework error module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/context.rs', 'desktop framework context module'],
@@ -98,6 +100,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/notifications.rs', 'desktop notifications service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/payments.rs', 'desktop payments service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/integrations.rs', 'desktop integrations service module'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime.rs', 'desktop bundled openclaw runtime service module'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/path_registration.rs', 'desktop bundled openclaw path registration service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/permissions.rs', 'desktop permissions service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/process.rs', 'desktop process service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/jobs.rs', 'desktop jobs service module'],
@@ -127,6 +131,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/save_blob_file.rs', 'desktop save blob file command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/state/mod.rs', 'desktop state module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/platform/mod.rs', 'desktop platform module'],
+  ['scripts/prepare-openclaw-runtime.mjs', 'bundled openclaw runtime prepare script'],
+  ['scripts/prepare-openclaw-runtime.test.mjs', 'bundled openclaw runtime prepare test'],
   ['packages/sdkwork-claw-distribution/package.json', 'distribution package'],
   ['packages/sdkwork-claw-distribution/src/index.ts', 'distribution entry'],
   ['packages/sdkwork-claw-distribution/src/manifests/cn/index.ts', 'cn distribution manifest'],
@@ -148,6 +154,7 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
 }
 
 assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
+assertScript(desktopPackage, desktopPackagePath, 'prepare:openclaw-runtime');
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
 assertIncludes(
@@ -437,8 +444,28 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'activate_bundled_openclaw',
+  'bundled openclaw startup activation wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'restart_openclaw_gateway',
+  'bundled openclaw supervisor restart wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
   'commands::install_api_router_client_setup::install_api_router_client_setup',
   'desktop api router installer command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'pub mod openclaw_runtime;',
+  'bundled openclaw runtime service export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'pub mod path_registration;',
+  'bundled openclaw path registration service export',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs',

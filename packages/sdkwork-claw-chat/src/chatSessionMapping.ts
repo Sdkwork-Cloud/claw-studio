@@ -1,0 +1,57 @@
+import type {
+  StudioConversationMessage,
+  StudioConversationRecord,
+} from '@sdkwork/claw-types';
+import type { ChatSession, Message } from './store/useChatStore';
+
+function normalizeMessageStatus(_message: Message): StudioConversationMessage['status'] {
+  return 'complete';
+}
+
+export function mapStudioMessage(message: StudioConversationMessage): Message {
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    timestamp: message.createdAt,
+    model: message.model,
+  };
+}
+
+export function mapStudioConversation(record: StudioConversationRecord): ChatSession {
+  return {
+    id: record.id,
+    title: record.title,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    messages: record.messages.map(mapStudioMessage),
+    model: record.messages.find((message) => message.model)?.model || 'unknown',
+    instanceId: record.primaryInstanceId,
+  };
+}
+
+export function mapChatSession(session: ChatSession): StudioConversationRecord {
+  const messages = session.messages.map((message) => ({
+    id: message.id,
+    conversationId: session.id,
+    role: message.role,
+    content: message.content,
+    createdAt: message.timestamp,
+    updatedAt: message.timestamp,
+    model: message.model,
+    senderInstanceId: session.instanceId || null,
+    status: normalizeMessageStatus(message),
+  }));
+
+  return {
+    id: session.id,
+    title: session.title,
+    primaryInstanceId: session.instanceId || 'local-built-in',
+    participantInstanceIds: session.instanceId ? [session.instanceId] : ['local-built-in'],
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    messageCount: messages.length,
+    lastMessagePreview: messages[messages.length - 1]?.content.slice(0, 120) || '',
+    messages,
+  };
+}

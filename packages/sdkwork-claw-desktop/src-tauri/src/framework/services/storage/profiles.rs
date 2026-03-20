@@ -259,21 +259,21 @@ fn availability_for_profile(
     kind: &StorageProviderKind,
     path: Option<&str>,
     connection: Option<&str>,
-    database: Option<&str>,
+    _database: Option<&str>,
     endpoint: Option<&str>,
 ) -> StorageAvailability {
     match kind {
         StorageProviderKind::Memory | StorageProviderKind::LocalFile => StorageAvailability::Ready,
         StorageProviderKind::Sqlite => {
             if path.is_some() {
-                StorageAvailability::Planned
+                StorageAvailability::Ready
             } else {
                 StorageAvailability::ConfigurationRequired
             }
         }
         StorageProviderKind::Postgres => {
-            if connection.is_some() || database.is_some() {
-                StorageAvailability::Planned
+            if connection.is_some() {
+                StorageAvailability::Ready
             } else {
                 StorageAvailability::ConfigurationRequired
             }
@@ -293,7 +293,7 @@ mod tests {
     use super::build_storage_snapshot;
     use crate::framework::{
         paths::resolve_paths_for_root,
-        storage::{StorageProfileConfig, StorageProviderKind},
+        storage::{StorageAvailability, StorageProfileConfig, StorageProviderKind},
     };
 
     #[test]
@@ -334,9 +334,32 @@ mod tests {
         assert_eq!(profile.namespace, "team-space");
         assert!(profile.active);
         assert!(profile.read_only);
+        assert_eq!(profile.availability, StorageAvailability::Ready);
         assert!(profile.connection_configured);
         assert!(profile.database_configured);
         assert!(!profile.endpoint_configured);
+    }
+
+    #[test]
+    fn sqlite_profiles_with_a_managed_path_are_ready() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let profiles = vec![StorageProfileConfig {
+            id: "default-sqlite".to_string(),
+            label: "SQLite".to_string(),
+            provider: StorageProviderKind::Sqlite,
+            namespace: "studio.chat".to_string(),
+            path: Some("profiles/default.db".to_string()),
+            connection: None,
+            database: None,
+            endpoint: None,
+            read_only: false,
+        }];
+
+        let snapshot = build_storage_snapshot(&paths, &profiles, "default-sqlite");
+        let profile = snapshot.profiles.first().expect("sqlite profile");
+
+        assert_eq!(profile.availability, StorageAvailability::Ready);
     }
 
     #[test]

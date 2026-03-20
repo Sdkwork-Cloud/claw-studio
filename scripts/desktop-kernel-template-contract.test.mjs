@@ -79,6 +79,10 @@ assertPath(
   'desktop storage service module',
 );
 assertPath(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/supervisor.rs',
+  'desktop supervisor service module',
+);
+assertPath(
   'packages/sdkwork-claw-desktop/src-tauri/src/commands/desktop_kernel.rs',
   'desktop kernel command module',
 );
@@ -152,6 +156,16 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
   'pub mod storage;',
   'desktop storage service export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'pub openclaw_runtime: OpenClawRuntimeService,',
+  'bundled openclaw runtime service wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'pub path_registration: PathRegistrationService,',
+  'bundled openclaw path registration wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/commands/mod.rs',
@@ -327,6 +341,16 @@ assertIncludes(
   'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
   'integrations: RuntimeDesktopIntegrationInfo;',
   'desktop kernel integrations payload',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/supervisor.rs',
+  'SERVICE_ID_OPENCLAW_GATEWAY',
+  'bundled openclaw gateway service id',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/supervisor.rs',
+  'start_openclaw_gateway',
+  'bundled openclaw gateway supervisor startup',
 );
 
 if (failures.length > 0) {

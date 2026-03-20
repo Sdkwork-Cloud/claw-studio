@@ -29,7 +29,16 @@ const EMPTY_AGENTS: Agent[] = [];
 
 export function Chat() {
   const { activeInstanceId } = useInstanceStore();
-  const { sessions, activeSessionId, createSession, addMessage, updateMessage } = useChatStore();
+  const {
+    sessions,
+    activeSessionId,
+    syncState,
+    hydrateInstance,
+    createSession,
+    addMessage,
+    updateMessage,
+    flushSession,
+  } = useChatStore();
   const { channels, setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
   const { t } = useTranslation();
   const suggestions = [
@@ -40,7 +49,6 @@ export function Chat() {
   ];
 
   const [isTyping, setIsTyping] = useState(false);
-  const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showSkillDropdown, setShowSkillDropdown] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
@@ -116,7 +124,15 @@ export function Chat() {
   }, [activeAgent, activeChannel, activeModel, activeSkill]);
 
   useEffect(() => {
+    void hydrateInstance(activeInstanceId);
+  }, [activeInstanceId, hydrateInstance]);
+
+  useEffect(() => {
     if (!activeInstanceId) {
+      return;
+    }
+
+    if (syncState === 'loading') {
       return;
     }
 
@@ -137,44 +153,87 @@ export function Chat() {
         createSession(activeModel.name, activeInstanceId);
       }
     }
-  }, [activeInstanceId, activeModel, activeSessionId, createSession, instanceSessions]);
+  }, [
+    activeInstanceId,
+    activeModel,
+    activeSessionId,
+    createSession,
+    instanceSessions,
+    syncState,
+  ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeMessages, isTyping]);
 
-  const handleSend = async (content: string) => {
-    if (!activeSessionId || !activeModel || !activeChannel) {
+  const handleChannelChange = (channelId: string) => {
+    if (!activeInstanceId) {
       return;
     }
 
-    addMessage(activeSessionId, {
+    const nextChannel = channels.find((channel) => channel.id === channelId);
+    if (!nextChannel) {
+      return;
+    }
+
+    setActiveChannel(activeInstanceId, channelId);
+
+    if (nextChannel.models.length > 0) {
+      setActiveModel(activeInstanceId, nextChannel.defaultModelId || nextChannel.models[0].id);
+    }
+  };
+
+  const handleModelChange = (channelId: string, modelId: string) => {
+    if (!activeInstanceId) {
+      return;
+    }
+
+    if (activeChannel?.id !== channelId) {
+      setActiveChannel(activeInstanceId, channelId);
+    }
+
+    setActiveModel(activeInstanceId, modelId);
+  };
+
+  const handleSend = async (content: string) => {
+    if (!activeSessionId || !activeModel || !activeChannel || isTyping) {
+      return;
+    }
+
+    const sessionId = activeSessionId;
+    const requestModel = activeModel;
+    const requestChannel = activeChannel;
+    const requestSkill = activeSkill;
+    const requestAgent = activeAgent;
+    const requestChatSession = chatRef.current;
+
+    addMessage(sessionId, {
       role: 'user',
       content,
     });
 
     setIsTyping(true);
 
-    addMessage(activeSessionId, {
+    addMessage(sessionId, {
       role: 'assistant',
       content: '',
-      model: activeModel.name,
+      model: requestModel.name,
     });
 
     try {
       abortControllerRef.current = new AbortController();
       let fullContent = '';
       const stream = chatService.sendMessageStream(
-        chatRef.current,
+        requestChatSession,
         content,
         {
-          id: activeModel.id,
-          name: activeModel.name,
-          provider: activeChannel.provider,
-          icon: activeChannel.icon,
+          id: requestModel.id,
+          name: requestModel.name,
+          provider: requestChannel.provider,
+          icon: requestChannel.icon,
         },
-        activeSkill,
-        activeAgent,
+        requestSkill,
+        requestAgent,
         abortControllerRef.current.signal,
       );
 
@@ -182,7 +241,7 @@ export function Chat() {
         fullContent += chunk;
         const currentSession = useChatStore
           .getState()
-          .sessions.find((session) => session.id === activeSessionId);
+          .sessions.find((session) => session.id === sessionId);
 
         if (!currentSession) {
           continue;
@@ -193,7 +252,7 @@ export function Chat() {
           : [];
         const lastMessage = currentMessages[currentMessages.length - 1];
         if (lastMessage?.role === 'assistant') {
-          updateMessage(activeSessionId, lastMessage.id, fullContent);
+          updateMessage(sessionId, lastMessage.id, fullContent);
         }
       }
     } catch (error: any) {
@@ -204,7 +263,7 @@ export function Chat() {
       console.error('Chat error:', error);
       const currentSession = useChatStore
         .getState()
-        .sessions.find((session) => session.id === activeSessionId);
+        .sessions.find((session) => session.id === sessionId);
 
       if (currentSession) {
         const currentMessages = Array.isArray(currentSession.messages)
@@ -212,12 +271,13 @@ export function Chat() {
           : [];
         const lastMessage = currentMessages[currentMessages.length - 1];
         if (lastMessage?.role === 'assistant') {
-          updateMessage(activeSessionId, lastMessage.id, t('chat.page.errorResponse'));
+          updateMessage(sessionId, lastMessage.id, t('chat.page.errorResponse'));
         }
       }
     } finally {
       setIsTyping(false);
       abortControllerRef.current = null;
+      void flushSession(sessionId);
     }
   };
 
@@ -253,126 +313,7 @@ export function Chat() {
             <div className="relative">
               <button
                 onClick={() => {
-                  setShowModelDropdown((current) => !current);
-                  setShowSkillDropdown(false);
-                  setShowAgentDropdown(false);
-                }}
-                className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
-              >
-                <span>{activeChannel?.icon}</span>
-                <span>{activeModel?.name || t('chat.page.selectModel')}</span>
-                <ChevronDown className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
-              </button>
-
-              <AnimatePresence>
-                {showModelDropdown ? (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute left-0 top-full z-50 mt-2 flex h-[360px] w-[500px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
-                    >
-                      <div className="w-1/3 overflow-y-auto border-r border-zinc-100 bg-zinc-50/50 p-2 dark:border-zinc-800 dark:bg-zinc-900/50">
-                        <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                          {t('chat.page.channels')}
-                        </div>
-                        <div className="mt-1 space-y-1">
-                          {channels.map((channel) => (
-                            <button
-                              key={channel.id}
-                              onClick={() => {
-                                if (!activeInstanceId) {
-                                  return;
-                                }
-
-                                setActiveChannel(activeInstanceId, channel.id);
-                                if (channel.models.length > 0) {
-                                  setActiveModel(
-                                    activeInstanceId,
-                                    channel.defaultModelId || channel.models[0].id,
-                                  );
-                                }
-                              }}
-                              className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                                activeChannelId === channel.id
-                                  ? 'border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800'
-                                  : 'border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
-                              }`}
-                            >
-                              <span className="text-lg">{channel.icon}</span>
-                              <span
-                                className={`truncate text-sm font-medium ${
-                                  activeChannelId === channel.id
-                                    ? 'text-zinc-900 dark:text-zinc-100'
-                                    : 'text-zinc-600 dark:text-zinc-400'
-                                }`}
-                              >
-                                {channel.name}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="w-2/3 overflow-y-auto bg-white p-2 dark:bg-zinc-900">
-                        <div className="flex items-center justify-between px-3 py-2">
-                          <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                            {t('chat.page.models')}
-                          </span>
-                          <button
-                            onClick={() => {
-                              setShowModelDropdown(false);
-                              navigate('/settings/llm');
-                            }}
-                            className="flex items-center gap-1 text-xs text-primary-600 hover:underline dark:text-primary-400"
-                          >
-                            <Settings2 className="h-3 w-3" />
-                            {t('chat.page.config')}
-                          </button>
-                        </div>
-                        <div className="mt-1 space-y-1">
-                          {activeChannel?.models.map((model) => (
-                            <button
-                              key={model.id}
-                              onClick={() => {
-                                if (!activeInstanceId) {
-                                  return;
-                                }
-
-                                setActiveModel(activeInstanceId, model.id);
-                                setShowModelDropdown(false);
-                              }}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors ${
-                                activeModelId === model.id
-                                  ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
-                                  : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                              }`}
-                            >
-                              <span className="text-sm font-medium">{model.name}</span>
-                              {activeModelId === model.id ? <Check className="h-4 w-4" /> : null}
-                            </button>
-                          ))}
-                          {!activeChannel?.models || activeChannel.models.length === 0 ? (
-                            <div className="px-3 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                              {t('chat.page.noModels')}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </motion.div>
-                  </>
-                ) : null}
-              </AnimatePresence>
-            </div>
-
-            <div className="relative">
-              <button
-                onClick={() => {
                   setShowAgentDropdown((current) => !current);
-                  setShowModelDropdown(false);
                   setShowSkillDropdown(false);
                 }}
                 className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
@@ -459,7 +400,6 @@ export function Chat() {
               <button
                 onClick={() => {
                   setShowSkillDropdown((current) => !current);
-                  setShowModelDropdown(false);
                   setShowAgentDropdown(false);
                 }}
                 className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
@@ -546,7 +486,10 @@ export function Chat() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+            <button
+              onClick={() => navigate('/settings/llm')}
+              className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            >
               <Settings2 className="h-5 w-5" />
             </button>
           </div>
@@ -591,7 +534,7 @@ export function Chat() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 space-y-6 py-8 pb-32">
+            <div className="flex-1 space-y-6 py-8 pb-40">
               {activeMessages.map((message, index) => {
                 const isLastMessage = index === activeMessages.length - 1;
                 const showTyping = isTyping && isLastMessage && message.role === 'assistant';
@@ -614,7 +557,17 @@ export function Chat() {
 
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-50 via-zinc-50/90 to-transparent p-4 pb-6 pt-12 dark:from-zinc-950 dark:via-zinc-950/90 dark:to-transparent">
           <div className="pointer-events-auto mx-auto max-w-4xl">
-            <ChatInput onSend={handleSend} isLoading={isTyping} onStop={handleStop} />
+            <ChatInput
+              onSend={handleSend}
+              isLoading={isTyping}
+              onStop={handleStop}
+              channels={channels}
+              activeChannel={activeChannel}
+              activeModel={activeModel}
+              onChannelChange={handleChannelChange}
+              onModelChange={handleModelChange}
+              onOpenModelConfig={() => navigate('/settings/llm')}
+            />
           </div>
         </div>
       </div>

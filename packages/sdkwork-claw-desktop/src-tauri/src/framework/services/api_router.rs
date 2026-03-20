@@ -242,9 +242,7 @@ struct EnvVariableAssignment {
     value: String,
 }
 
-fn resolve_install_mode(
-    request: &ApiRouterClientInstallRequest,
-) -> ApiRouterInstallerInstallMode {
+fn resolve_install_mode(request: &ApiRouterClientInstallRequest) -> ApiRouterInstallerInstallMode {
     request.install_mode.unwrap_or(match request.client_id {
         ApiRouterInstallerClientId::Gemini => ApiRouterInstallerInstallMode::Standard,
         ApiRouterInstallerClientId::Codex
@@ -255,7 +253,9 @@ fn resolve_install_mode(
 }
 
 fn resolve_env_scope(request: &ApiRouterClientInstallRequest) -> ApiRouterInstallerEnvScope {
-    request.env_scope.unwrap_or(ApiRouterInstallerEnvScope::User)
+    request
+        .env_scope
+        .unwrap_or(ApiRouterInstallerEnvScope::User)
 }
 
 fn supports_install_mode(
@@ -355,7 +355,8 @@ fn build_environment_variables(
             },
             EnvVariableAssignment {
                 key: GEMINI_API_KEY_AUTH_MECHANISM_ENV_KEY.to_string(),
-                value: resolve_gemini_auth_mechanism(request.provider.base_url.as_str()).to_string(),
+                value: resolve_gemini_auth_mechanism(request.provider.base_url.as_str())
+                    .to_string(),
             },
         ],
         ApiRouterInstallerClientId::Openclaw => Vec::new(),
@@ -425,8 +426,7 @@ fn validate_request(request: &ApiRouterClientInstallRequest) -> Result<()> {
     ) && build_environment_variables(request).is_empty()
     {
         return Err(FrameworkError::ValidationFailed(
-            "requested environment installation does not have any variables to persist"
-                .to_string(),
+            "requested environment installation does not have any variables to persist".to_string(),
         ));
     }
 
@@ -585,10 +585,7 @@ fn install_codex(
 
         let config_content = format!("{}\n", config);
         let auth_content = serialize_json_value(&Value::Object(Map::from_iter([
-            (
-                "auth_mode".to_string(),
-                Value::String("apikey".to_string()),
-            ),
+            ("auth_mode".to_string(), Value::String("apikey".to_string())),
             (
                 "OPENAI_API_KEY".to_string(),
                 Value::String(request.provider.api_key.clone()),
@@ -701,10 +698,10 @@ fn install_opencode(
                 let api_router_provider = ensure_object_field(providers, "api-router")?;
                 api_router_provider.insert(
                     "npm".to_string(),
-                    Value::String(opencode_openai_provider_package(
-                        request.provider.channel_id.as_str(),
-                    )
-                    .to_string()),
+                    Value::String(
+                        opencode_openai_provider_package(request.provider.channel_id.as_str())
+                            .to_string(),
+                    ),
                 );
                 api_router_provider.insert(
                     "name".to_string(),
@@ -1043,10 +1040,7 @@ fn resolve_opencode_auth_path(home_dir: &Path) -> PathBuf {
     resolve_opencode_auth_path_for_platform(home_dir, current_install_platform())
 }
 
-fn resolve_opencode_auth_path_for_platform(
-    home_dir: &Path,
-    platform: InstallPlatform,
-) -> PathBuf {
+fn resolve_opencode_auth_path_for_platform(home_dir: &Path, platform: InstallPlatform) -> PathBuf {
     let official_path = home_dir
         .join(".local")
         .join("share")
@@ -1337,7 +1331,10 @@ fn resolve_unix_system_env_path(runtime: &InstallerRuntime) -> PathBuf {
 fn install_environment_variables(
     request: &ApiRouterClientInstallRequest,
     runtime: &InstallerRuntime,
-) -> Result<(Vec<ApiRouterInstalledFile>, Vec<ApiRouterInstalledEnvironment>)> {
+) -> Result<(
+    Vec<ApiRouterInstalledFile>,
+    Vec<ApiRouterInstalledEnvironment>,
+)> {
     let variables = build_environment_variables(request);
     if variables.is_empty() {
         return Ok((Vec::new(), Vec::new()));
@@ -1346,11 +1343,7 @@ fn install_environment_variables(
     let scope = resolve_env_scope(request);
 
     match runtime.platform {
-        InstallPlatform::Windows => install_powershell_environment(
-            runtime,
-            scope,
-            &variables,
-        ),
+        InstallPlatform::Windows => install_powershell_environment(runtime, scope, &variables),
         InstallPlatform::Macos | InstallPlatform::Linux => {
             install_sh_environment(runtime, scope, &variables)
         }
@@ -1361,7 +1354,10 @@ fn install_powershell_environment(
     runtime: &InstallerRuntime,
     scope: ApiRouterInstallerEnvScope,
     variables: &[EnvVariableAssignment],
-) -> Result<(Vec<ApiRouterInstalledFile>, Vec<ApiRouterInstalledEnvironment>)> {
+) -> Result<(
+    Vec<ApiRouterInstalledFile>,
+    Vec<ApiRouterInstalledEnvironment>,
+)> {
     let env_path = match scope {
         ApiRouterInstallerEnvScope::User => resolve_windows_user_env_path(&runtime.home_dir),
         ApiRouterInstallerEnvScope::System => resolve_windows_system_env_path(runtime),
@@ -1370,7 +1366,10 @@ fn install_powershell_environment(
         ApiRouterInstallerEnvScope::User => resolve_windows_user_profile_path(&runtime.home_dir),
         ApiRouterInstallerEnvScope::System => resolve_windows_system_profile_path(runtime),
     };
-    let mut written_files = vec![write_text_file(&env_path, &render_powershell_env_file(variables))?];
+    let mut written_files = vec![write_text_file(
+        &env_path,
+        &render_powershell_env_file(variables),
+    )?];
     written_files.push(write_profile_loader(
         &profile_path,
         build_powershell_loader(&env_path).as_str(),
@@ -1382,7 +1381,10 @@ fn install_powershell_environment(
             scope,
             shell: ApiRouterInstalledEnvironmentShell::Powershell,
             target: env_path.to_string_lossy().into_owned(),
-            variables: variables.iter().map(|variable| variable.key.clone()).collect(),
+            variables: variables
+                .iter()
+                .map(|variable| variable.key.clone())
+                .collect(),
         }],
     ))
 }
@@ -1391,7 +1393,10 @@ fn install_sh_environment(
     runtime: &InstallerRuntime,
     scope: ApiRouterInstallerEnvScope,
     variables: &[EnvVariableAssignment],
-) -> Result<(Vec<ApiRouterInstalledFile>, Vec<ApiRouterInstalledEnvironment>)> {
+) -> Result<(
+    Vec<ApiRouterInstalledFile>,
+    Vec<ApiRouterInstalledEnvironment>,
+)> {
     match scope {
         ApiRouterInstallerEnvScope::User => {
             let env_path = resolve_unix_user_env_path(&runtime.home_dir);
@@ -1409,7 +1414,10 @@ fn install_sh_environment(
                     scope,
                     shell: ApiRouterInstalledEnvironmentShell::Sh,
                     target: env_path.to_string_lossy().into_owned(),
-                    variables: variables.iter().map(|variable| variable.key.clone()).collect(),
+                    variables: variables
+                        .iter()
+                        .map(|variable| variable.key.clone())
+                        .collect(),
                 }],
             ))
         }
@@ -1421,7 +1429,10 @@ fn install_sh_environment(
                     scope,
                     shell: ApiRouterInstalledEnvironmentShell::Sh,
                     target: env_path.to_string_lossy().into_owned(),
-                    variables: variables.iter().map(|variable| variable.key.clone()).collect(),
+                    variables: variables
+                        .iter()
+                        .map(|variable| variable.key.clone())
+                        .collect(),
                 }],
             ))
         }
@@ -1620,14 +1631,13 @@ fn get_openclaw_icon(channel_id: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        ApiRouterClientInstallRequest, ApiRouterInstallerClientId, ApiRouterInstallerCompatibility,
-        ApiRouterInstallerEnvScope, ApiRouterInstallerInstallMode, ApiRouterInstallerModel,
-        ApiRouterInstallerOpenClawOptions, ApiRouterInstallerProvider, ApiRouterInstallerService,
-        InstallPlatform, InstallerRuntime,
-        resolve_unix_system_env_path, resolve_unix_user_env_path, resolve_windows_user_env_path,
-        resolve_windows_user_profile_path,
         resolve_opencode_auth_path, resolve_opencode_auth_path_for_platform,
-        resolve_opencode_config_path_for_platform,
+        resolve_opencode_config_path_for_platform, resolve_unix_system_env_path,
+        resolve_unix_user_env_path, resolve_windows_user_env_path,
+        resolve_windows_user_profile_path, ApiRouterClientInstallRequest,
+        ApiRouterInstallerClientId, ApiRouterInstallerCompatibility, ApiRouterInstallerEnvScope,
+        ApiRouterInstallerInstallMode, ApiRouterInstallerModel, ApiRouterInstallerOpenClawOptions,
+        ApiRouterInstallerProvider, ApiRouterInstallerService, InstallPlatform, InstallerRuntime,
     };
     use crate::framework::paths::resolve_paths_for_root;
     use serde_json::Value;
@@ -2078,7 +2088,10 @@ env_key = "OPENAI_API_KEY"
         );
         assert_eq!(
             resolve_opencode_auth_path_for_platform(&home, InstallPlatform::Windows),
-            home.join(".local").join("share").join("opencode").join("auth.json")
+            home.join(".local")
+                .join("share")
+                .join("opencode")
+                .join("auth.json")
         );
     }
 
@@ -2089,20 +2102,34 @@ env_key = "OPENAI_API_KEY"
 
         assert_eq!(
             resolve_opencode_config_path_for_platform(&linux_home, InstallPlatform::Linux),
-            linux_home.join(".config").join("opencode").join("opencode.json")
+            linux_home
+                .join(".config")
+                .join("opencode")
+                .join("opencode.json")
         );
         assert_eq!(
             resolve_opencode_auth_path_for_platform(&linux_home, InstallPlatform::Linux),
-            linux_home.join(".local").join("share").join("opencode").join("auth.json")
+            linux_home
+                .join(".local")
+                .join("share")
+                .join("opencode")
+                .join("auth.json")
         );
 
         assert_eq!(
             resolve_opencode_config_path_for_platform(&macos_home, InstallPlatform::Macos),
-            macos_home.join(".config").join("opencode").join("opencode.json")
+            macos_home
+                .join(".config")
+                .join("opencode")
+                .join("opencode.json")
         );
         assert_eq!(
             resolve_opencode_auth_path_for_platform(&macos_home, InstallPlatform::Macos),
-            macos_home.join(".local").join("share").join("opencode").join("auth.json")
+            macos_home
+                .join(".local")
+                .join("share")
+                .join("opencode")
+                .join("auth.json")
         );
     }
 
@@ -2184,9 +2211,7 @@ env_key = "OPENAI_API_KEY"
         assert!(env.contains(
             "GOOGLE_GEMINI_BASE_URL=\"https://generativelanguage.googleapis.com/v1beta\""
         ));
-        assert!(env.contains(
-            "GEMINI_API_KEY_AUTH_MECHANISM=\"x-goog-api-key\""
-        ));
+        assert!(env.contains("GEMINI_API_KEY_AUTH_MECHANISM=\"x-goog-api-key\""));
         assert!(result.updated_environments.is_empty());
     }
 
@@ -2226,12 +2251,9 @@ env_key = "OPENAI_API_KEY"
         let shell_env_path = resolve_unix_user_env_path(&home);
         let shell_env = fs::read_to_string(&shell_env_path).expect("shell env");
         assert!(shell_env.contains("export GEMINI_API_KEY=\"google-router-live-secret\""));
-        assert!(shell_env.contains(
-            "export GOOGLE_GEMINI_BASE_URL=\"https://api-router.example.com/gemini\""
-        ));
-        assert!(shell_env.contains(
-            "export GEMINI_API_KEY_AUTH_MECHANISM=\"bearer\""
-        ));
+        assert!(shell_env
+            .contains("export GOOGLE_GEMINI_BASE_URL=\"https://api-router.example.com/gemini\""));
+        assert!(shell_env.contains("export GEMINI_API_KEY_AUTH_MECHANISM=\"bearer\""));
 
         let zshrc = fs::read_to_string(home.join(".zshrc")).expect("zshrc");
         assert!(zshrc.contains("claw-studio-api-router-env"));
@@ -2371,9 +2393,7 @@ env_key = "OPENAI_API_KEY"
             .install_client_setup_with_runtime(&paths, request, &runtime)
             .expect_err("openclaw env mode should fail");
 
-        assert!(error
-            .to_string()
-            .contains("requested install mode"));
+        assert!(error.to_string().contains("requested install mode"));
     }
 
     #[test]

@@ -122,10 +122,7 @@ impl PermissionService {
 #[cfg(test)]
 mod tests {
     use super::PermissionService;
-    use crate::framework::{
-        config::AppConfig,
-        kernel::DesktopPermissionStatus,
-    };
+    use crate::framework::{config::AppConfig, kernel::DesktopPermissionStatus};
 
     fn find_entry<'a>(
         entries: &'a [crate::framework::kernel::DesktopPermissionInfo],

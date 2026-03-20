@@ -613,7 +613,11 @@ mod tests {
         });
 
         let deadline = std::time::Instant::now() + Duration::from_secs(3);
-        while runtime.active_process_count().expect("active process count") == 0 {
+        while runtime
+            .active_process_count()
+            .expect("active process count")
+            == 0
+        {
             assert!(
                 std::time::Instant::now() < deadline,
                 "process did not register as active in time"
@@ -635,7 +639,12 @@ mod tests {
             other => panic!("expected cancellation error, got {other}"),
         }
 
-        assert_eq!(runtime.active_process_count().expect("active process count"), 0);
+        assert_eq!(
+            runtime
+                .active_process_count()
+                .expect("active process count"),
+            0
+        );
     }
 
     #[cfg(windows)]

@@ -7,6 +7,8 @@ use crate::{
         },
         context::FrameworkContext,
         events,
+        services::openclaw_runtime::ActivatedOpenClawRuntime,
+        services::studio::StudioInstanceStatus,
         services::supervisor::{
             SERVICE_ID_API_ROUTER, SERVICE_ID_OPENCLAW_GATEWAY, SERVICE_ID_WEB_SERVER,
         },
@@ -79,7 +81,10 @@ pub(crate) enum TrayLanguage {
 #[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum TrayMenuEntry {
-    Item { id: &'static str, label: String },
+    Item {
+        id: &'static str,
+        label: String,
+    },
     Separator,
     Submenu {
         label: String,
@@ -116,6 +121,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
         .setup(|app| {
             let app_handle = app.handle().clone();
             let context = Arc::new(FrameworkContext::bootstrap(&app_handle)?);
+            activate_bundled_openclaw(&app_handle, context.as_ref())?;
             context.logger.info("managed desktop state initialized")?;
             let package_info = app.package_info();
             let metadata = AppMetadata::new(
@@ -145,6 +151,26 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::storage_commands::storage_put_text,
             commands::storage_commands::storage_delete,
             commands::storage_commands::storage_list_keys,
+            commands::studio_commands::studio_list_instances,
+            commands::studio_commands::studio_get_instance,
+            commands::studio_commands::studio_get_instance_detail,
+            commands::studio_commands::studio_create_instance,
+            commands::studio_commands::studio_update_instance,
+            commands::studio_commands::studio_delete_instance,
+            commands::studio_commands::studio_start_instance,
+            commands::studio_commands::studio_stop_instance,
+            commands::studio_commands::studio_restart_instance,
+            commands::studio_commands::studio_get_instance_config,
+            commands::studio_commands::studio_update_instance_config,
+            commands::studio_commands::studio_get_instance_logs,
+            commands::studio_commands::studio_clone_instance_task,
+            commands::studio_commands::studio_run_instance_task_now,
+            commands::studio_commands::studio_list_instance_task_executions,
+            commands::studio_commands::studio_update_instance_task_status,
+            commands::studio_commands::studio_delete_instance_task,
+            commands::studio_commands::studio_list_conversations,
+            commands::studio_commands::studio_put_conversation,
+            commands::studio_commands::studio_delete_conversation,
             commands::job_commands::job_submit,
             commands::job_commands::job_submit_process,
             commands::job_commands::job_get,
@@ -157,7 +183,9 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::move_path::move_path,
             commands::path_exists::path_exists,
             commands::get_path_info::get_path_info,
+            commands::hub_install_catalog::list_hub_install_catalog,
             commands::run_hub_install::inspect_hub_install,
+            commands::run_hub_install::run_hub_dependency_install,
             commands::run_hub_install::run_hub_install,
             commands::run_hub_uninstall::run_hub_uninstall,
             commands::install_api_router_client_setup::install_api_router_client_setup,
@@ -197,9 +225,9 @@ pub(crate) fn tray_action_for_menu_id(id: &str) -> Option<TrayAction> {
         TRAY_MENU_ID_OPEN_TASKS => Some(TrayAction::OpenRoute(ROUTE_TASKS)),
         TRAY_MENU_ID_OPEN_API_ROUTER => Some(TrayAction::OpenRoute(ROUTE_API_ROUTER)),
         TRAY_MENU_ID_OPEN_SETTINGS => Some(TrayAction::OpenRoute(ROUTE_SETTINGS)),
-        TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY => {
-            Some(TrayAction::RestartManagedService(SERVICE_ID_OPENCLAW_GATEWAY))
-        }
+        TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY => Some(TrayAction::RestartManagedService(
+            SERVICE_ID_OPENCLAW_GATEWAY,
+        )),
         TRAY_MENU_ID_RESTART_WEB_SERVER => {
             Some(TrayAction::RestartManagedService(SERVICE_ID_WEB_SERVER))
         }
@@ -322,10 +350,9 @@ pub(crate) fn build_tray_menu_spec(language: TrayLanguage) -> Vec<TrayMenuEntry>
 }
 
 fn create_tray<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .ok_or_else(|| FrameworkError::Internal("default window icon is not available".to_string()))?;
+    let icon = app.default_window_icon().cloned().ok_or_else(|| {
+        FrameworkError::Internal("default window icon is not available".to_string())
+    })?;
     let menu = build_tray_menu(app, active_tray_language(app))?;
 
     TrayIconBuilder::with_id(TRAY_ICON_ID)
@@ -377,7 +404,10 @@ fn handle_tray_menu_event<R: Runtime>(app: &AppHandle<R>, menu_id: &str) {
     match action {
         TrayAction::ShowWindow => {
             if let Err(error) = show_main_window(app) {
-                log_runtime_error(app, &format!("failed to show main window from tray: {error}"));
+                log_runtime_error(
+                    app,
+                    &format!("failed to show main window from tray: {error}"),
+                );
             }
         }
         TrayAction::OpenRoute(route) => {
@@ -454,7 +484,21 @@ fn restart_background_services<R: Runtime>(app: &AppHandle<R>) -> FrameworkResul
         ));
     }
 
-    let planned_services = state.context.services.supervisor.request_restart_all()?;
+    state
+        .context
+        .services
+        .supervisor
+        .restart_openclaw_gateway(&state.paths)?;
+    let mut planned_services = vec![SERVICE_ID_OPENCLAW_GATEWAY.to_string()];
+    planned_services.extend(
+        [SERVICE_ID_WEB_SERVER, SERVICE_ID_API_ROUTER]
+            .into_iter()
+            .map(|service_id| {
+                state.context.services.supervisor.request_restart(service_id)?;
+                Ok(service_id.to_string())
+            })
+            .collect::<FrameworkResult<Vec<_>>>()?,
+    );
     state.context.logger.info(&format!(
         "tray requested background service restart plan: {}",
         planned_services.join(", ")
@@ -473,11 +517,22 @@ fn restart_managed_service<R: Runtime>(
         ));
     }
 
-    state.context.services.supervisor.request_restart(service_id)?;
-    state
-        .context
-        .logger
-        .info(&format!("tray requested managed service restart: {service_id}"))?;
+    if service_id == SERVICE_ID_OPENCLAW_GATEWAY {
+        state
+            .context
+            .services
+            .supervisor
+            .restart_openclaw_gateway(&state.paths)?;
+    } else {
+        state
+            .context
+            .services
+            .supervisor
+            .request_restart(service_id)?;
+    }
+    state.context.logger.info(&format!(
+        "tray requested managed service restart: {service_id}"
+    ))?;
     Ok(())
 }
 
@@ -503,11 +558,12 @@ fn open_route_from_tray<R: Runtime>(app: &AppHandle<R>, route: &str) -> Framewor
 
 fn open_logs_directory<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
     let state = app.state::<AppState>();
-    app.opener().open_path(
-        state.paths.logs_dir.to_string_lossy().into_owned(),
-        None::<&str>,
-    )
-    .map_err(|error| FrameworkError::Internal(error.to_string()))?;
+    app.opener()
+        .open_path(
+            state.paths.logs_dir.to_string_lossy().into_owned(),
+            None::<&str>,
+        )
+        .map_err(|error| FrameworkError::Internal(error.to_string()))?;
     Ok(())
 }
 
@@ -521,31 +577,93 @@ fn reveal_main_log<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
 
 fn open_integrations_directory<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
     let state = app.state::<AppState>();
-    app.opener().open_path(
-        state.paths.integrations_dir.to_string_lossy().into_owned(),
-        None::<&str>,
-    )
-    .map_err(|error| FrameworkError::Internal(error.to_string()))?;
+    app.opener()
+        .open_path(
+            state.paths.integrations_dir.to_string_lossy().into_owned(),
+            None::<&str>,
+        )
+        .map_err(|error| FrameworkError::Internal(error.to_string()))?;
     Ok(())
 }
 
 fn open_plugins_directory<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
     let state = app.state::<AppState>();
-    app.opener().open_path(
-        state.paths.plugins_dir.to_string_lossy().into_owned(),
-        None::<&str>,
-    )
-    .map_err(|error| FrameworkError::Internal(error.to_string()))?;
+    app.opener()
+        .open_path(
+            state.paths.plugins_dir.to_string_lossy().into_owned(),
+            None::<&str>,
+        )
+        .map_err(|error| FrameworkError::Internal(error.to_string()))?;
     Ok(())
 }
 
 fn request_explicit_quit<R: Runtime>(app: AppHandle<R>) {
     thread::spawn(move || {
         if let Err(error) = perform_explicit_shutdown(&app) {
-            log_runtime_error(&app, &format!("graceful shutdown encountered an error: {error}"));
+            log_runtime_error(
+                &app,
+                &format!("graceful shutdown encountered an error: {error}"),
+            );
         }
         app.exit(0);
     });
+}
+
+fn activate_bundled_openclaw<R: Runtime>(
+    app: &AppHandle<R>,
+    context: &FrameworkContext,
+) -> FrameworkResult<()> {
+    let runtime = context
+        .services
+        .openclaw_runtime
+        .ensure_bundled_runtime(app, &context.paths)?;
+    finalize_openclaw_activation(context, runtime)
+}
+
+fn finalize_openclaw_activation(
+    context: &FrameworkContext,
+    runtime: ActivatedOpenClawRuntime,
+) -> FrameworkResult<()> {
+    context
+        .services
+        .path_registration
+        .install_openclaw_shims(&context.paths, &runtime)?;
+    context
+        .services
+        .path_registration
+        .ensure_user_bin_on_path(&context.paths)?;
+    context
+        .services
+        .supervisor
+        .configure_openclaw_gateway(&runtime)?;
+    context
+        .services
+        .supervisor
+        .start_openclaw_gateway(&context.paths)?;
+    if let Err(error) = context.services.studio.set_instance_status(
+        &context.paths,
+        &context.config,
+        &context.services.storage,
+        "local-built-in",
+        StudioInstanceStatus::Online,
+    ) {
+        let _ = context.logger.warn(&format!(
+            "failed to mark built-in instance online during activation: {error}"
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn activate_bundled_openclaw_from_resource_root(
+    context: &FrameworkContext,
+    resource_root: &std::path::Path,
+) -> FrameworkResult<()> {
+    let runtime = context
+        .services
+        .openclaw_runtime
+        .ensure_bundled_runtime_from_root(&context.paths, resource_root)?;
+    finalize_openclaw_activation(context, runtime)
 }
 
 fn perform_explicit_shutdown<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
@@ -593,7 +711,11 @@ fn active_tray_language<R: Runtime>(app: &AppHandle<R>) -> TrayLanguage {
 }
 
 fn system_locale_to_tray_language(locale: Option<&str>) -> TrayLanguage {
-    let normalized = locale.unwrap_or_default().trim().to_lowercase().replace('_', "-");
+    let normalized = locale
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase()
+        .replace('_', "-");
 
     if normalized.starts_with("zh") {
         return TrayLanguage::Zh;
@@ -685,7 +807,10 @@ fn build_tray_menu<R: Runtime>(
             TRAY_MENU_ID_OPEN_INTEGRATIONS_DIRECTORY,
             labels.open_integrations_directory,
         )
-        .text(TRAY_MENU_ID_OPEN_PLUGINS_DIRECTORY, labels.open_plugins_directory)
+        .text(
+            TRAY_MENU_ID_OPEN_PLUGINS_DIRECTORY,
+            labels.open_plugins_directory,
+        )
         .build()?;
 
     MenuBuilder::new(app)
@@ -703,12 +828,25 @@ fn build_tray_menu<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::{
+        activate_bundled_openclaw_from_resource_root,
         build_tray_menu_spec, resolve_tray_language, should_prevent_main_window_close,
         tray_action_for_menu_id, TrayAction, TrayLanguage, TrayMenuEntry, TRAY_MENU_ID_QUIT_APP,
         TRAY_MENU_ID_RESTART_API_ROUTER, TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES,
         TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY, TRAY_MENU_ID_RESTART_WEB_SERVER,
         TRAY_MENU_ID_SHOW_WINDOW,
     };
+    use crate::framework::{
+        config::AppConfig,
+        context::FrameworkContext,
+        layout::ActiveState,
+        logging::init_logger,
+        paths::resolve_paths_for_root,
+        services::{
+            openclaw_runtime::BundledOpenClawManifest,
+            supervisor::{ManagedServiceLifecycle, SERVICE_ID_OPENCLAW_GATEWAY},
+        },
+    };
+    use std::fs;
 
     #[test]
     fn close_request_is_intercepted_until_shutdown_is_requested() {
@@ -768,7 +906,10 @@ mod tests {
 
     #[test]
     fn tray_language_uses_explicit_preference_before_system_locale() {
-        assert_eq!(resolve_tray_language("system", Some("zh-CN")), TrayLanguage::Zh);
+        assert_eq!(
+            resolve_tray_language("system", Some("zh-CN")),
+            TrayLanguage::Zh
+        );
         assert_eq!(resolve_tray_language("en", Some("zh-CN")), TrayLanguage::En);
     }
 
@@ -900,5 +1041,158 @@ mod tests {
             Some(TrayAction::QuitApp)
         );
         assert_eq!(tray_action_for_menu_id("missing"), None);
+    }
+
+    #[test]
+    fn bundled_openclaw_activation_installs_runtime_shims_and_starts_gateway() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let logger = init_logger(&paths).expect("logger");
+        let context = FrameworkContext::from_parts(paths.clone(), AppConfig::default(), logger);
+        let resource_root = create_bundled_gateway_fixture(root.path());
+
+        activate_bundled_openclaw_from_resource_root(&context, &resource_root)
+            .expect("activate bundled openclaw");
+
+        assert!(paths.user_bin_dir.join("openclaw.cmd").exists());
+        assert!(paths.user_bin_dir.join("openclaw.ps1").exists());
+        assert!(paths.user_bin_dir.join("openclaw").exists());
+
+        let active = serde_json::from_str::<ActiveState>(
+            &fs::read_to_string(&paths.active_file).expect("active file"),
+        )
+        .expect("active json");
+        assert_eq!(
+            active
+                .runtimes
+                .get("openclaw")
+                .and_then(|entry| entry.active_version.as_deref()),
+            Some(
+                format!(
+                    "2026.3.13-{}-{}",
+                    normalized_openclaw_platform(),
+                    normalized_openclaw_arch()
+                )
+                .as_str()
+            )
+        );
+
+        let snapshot = context.services.supervisor.snapshot().expect("snapshot");
+        let openclaw = snapshot
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_OPENCLAW_GATEWAY)
+            .expect("openclaw service");
+        assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Running);
+        assert!(openclaw.pid.is_some());
+
+        context.services.supervisor.begin_shutdown().expect("shutdown");
+        context
+            .services
+            .supervisor
+            .complete_shutdown()
+            .expect("complete shutdown");
+    }
+
+    #[cfg(windows)]
+    fn resolve_test_node_executable() -> std::path::PathBuf {
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
+            .map(|entry| entry.join("node.exe"))
+            .find(|candidate| candidate.exists())
+            .expect("node.exe should be available on PATH for bundled gateway tests")
+    }
+
+    #[cfg(windows)]
+    fn create_bundled_gateway_fixture(root: &std::path::Path) -> std::path::PathBuf {
+        let resource_root = root.join("bundled-openclaw");
+        let runtime_root = resource_root.join("runtime");
+        let cli_path = runtime_root.join("package").join("openclaw.mjs");
+        let node_path = resolve_test_node_executable();
+
+        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
+        fs::write(
+            &cli_path,
+            "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst port = config?.gateway?.port ?? 18789;\nconst server = net.createServer();\nserver.listen(port, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("cli file");
+
+        let manifest = BundledOpenClawManifest {
+            schema_version: 1,
+            runtime_id: "openclaw".to_string(),
+            openclaw_version: "2026.3.13".to_string(),
+            node_version: "22.16.0".to_string(),
+            platform: normalized_openclaw_platform().to_string(),
+            arch: normalized_openclaw_arch().to_string(),
+            node_relative_path: node_path.to_string_lossy().into_owned(),
+            cli_relative_path: "runtime/package/openclaw.mjs".to_string(),
+        };
+
+        fs::write(
+            resource_root.join("manifest.json"),
+            serde_json::to_string_pretty(&manifest).expect("manifest json"),
+        )
+        .expect("manifest file");
+
+        resource_root
+    }
+
+    #[cfg(not(windows))]
+    fn create_bundled_gateway_fixture(root: &std::path::Path) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let resource_root = root.join("bundled-openclaw");
+        let runtime_root = resource_root.join("runtime");
+        let node_path = runtime_root.join("node").join("node");
+        let cli_path = runtime_root.join("package").join("openclaw.mjs");
+
+        fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
+        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
+        fs::write(&node_path, "#!/bin/sh\nexec node \"$@\"\n").expect("node shim");
+        let mut permissions = fs::metadata(&node_path).expect("node metadata").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&node_path, permissions).expect("node permissions");
+        fs::write(
+            &cli_path,
+            "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst port = config?.gateway?.port ?? 18789;\nconst server = net.createServer();\nserver.listen(port, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("cli file");
+
+        let manifest = BundledOpenClawManifest {
+            schema_version: 1,
+            runtime_id: "openclaw".to_string(),
+            openclaw_version: "2026.3.13".to_string(),
+            node_version: "22.16.0".to_string(),
+            platform: normalized_openclaw_platform().to_string(),
+            arch: normalized_openclaw_arch().to_string(),
+            node_relative_path: "runtime/node/node".to_string(),
+            cli_relative_path: "runtime/package/openclaw.mjs".to_string(),
+        };
+
+        fs::write(
+            resource_root.join("manifest.json"),
+            serde_json::to_string_pretty(&manifest).expect("manifest json"),
+        )
+        .expect("manifest file");
+
+        resource_root
+    }
+
+    fn normalized_openclaw_platform() -> &'static str {
+        match crate::platform::current_target() {
+            "windows" => "windows",
+            "macos" => "macos",
+            "linux" => "linux",
+            other => other,
+        }
+    }
+
+    fn normalized_openclaw_arch() -> &'static str {
+        match crate::platform::current_arch() {
+            "x86_64" => "x64",
+            "aarch64" => "arm64",
+            other => other,
+        }
     }
 }

@@ -1,15 +1,88 @@
-import { studioMockService } from '@sdkwork/claw-infrastructure';
-import { ListParams, PaginatedResult } from '@sdkwork/claw-types';
+import {
+  studio,
+  studioMockService,
+  type StudioCreateInstanceInput,
+  type StudioUpdateInstanceInput,
+} from '@sdkwork/claw-infrastructure';
+import { ListParams, PaginatedResult, type StudioInstanceRecord } from '@sdkwork/claw-types';
 import { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types';
 
 export interface CreateInstanceDTO {
   name: string;
-  type: string;
-  iconType: 'apple' | 'box' | 'server';
+  type?: string;
+  iconType?: 'apple' | 'box' | 'server';
+  description?: string;
+  runtimeKind?: 'openclaw' | 'zeroclaw' | 'ironclaw' | 'custom';
+  deploymentMode?: 'local-managed' | 'local-external' | 'remote';
+  transportKind?:
+    | 'openclawGatewayWs'
+    | 'zeroclawHttp'
+    | 'ironclawWeb'
+    | 'openaiHttp'
+    | 'customHttp'
+    | 'customWs';
+  host?: string;
+  port?: number | null;
+  baseUrl?: string | null;
+  websocketUrl?: string | null;
 }
 
 export interface UpdateInstanceDTO extends Partial<CreateInstanceDTO> {
   status?: 'online' | 'offline' | 'starting' | 'error';
+}
+
+function mapStudioInstance(instance: StudioInstanceRecord): Instance {
+  const status: Instance['status'] =
+    instance.status === 'syncing' ? 'starting' : instance.status;
+
+  return {
+    id: instance.id,
+    name: instance.name,
+    type: instance.typeLabel,
+    iconType: instance.iconType,
+    status,
+    version: instance.version,
+    uptime: instance.uptime,
+    ip: instance.host,
+    cpu: instance.cpu,
+    memory: instance.memory,
+    totalMemory: instance.totalMemory,
+  };
+}
+
+function mapCreateInput(data: CreateInstanceDTO): StudioCreateInstanceInput {
+  return {
+    name: data.name,
+    description: data.description,
+    runtimeKind: data.runtimeKind || 'custom',
+    deploymentMode: data.deploymentMode || 'remote',
+    transportKind: data.transportKind || 'customHttp',
+    iconType: data.iconType || 'server',
+    typeLabel: data.type,
+    host: data.host,
+    port: data.port ?? null,
+    baseUrl: data.baseUrl ?? null,
+    websocketUrl: data.websocketUrl ?? null,
+  };
+}
+
+function mapUpdateInput(data: UpdateInstanceDTO): StudioUpdateInstanceInput {
+  return {
+    name: data.name,
+    description: data.description,
+    iconType: data.iconType,
+    typeLabel: data.type,
+    host: data.host,
+    port: data.port ?? null,
+    baseUrl: data.baseUrl ?? null,
+    websocketUrl: data.websocketUrl ?? null,
+    status:
+      data.status === 'starting'
+        ? 'starting'
+        : data.status === 'error'
+          ? 'error'
+          : data.status,
+  };
 }
 
 export interface IInstanceService {
@@ -70,12 +143,14 @@ class InstanceService implements IInstanceService {
     return instance || null;
   }
 
-  async create(_data: CreateInstanceDTO): Promise<Instance> {
-    throw new Error('Method not implemented.');
+  async create(data: CreateInstanceDTO): Promise<Instance> {
+    const created = await studio.createInstance(mapCreateInput(data));
+    return mapStudioInstance(created);
   }
 
-  async update(_id: string, _data: UpdateInstanceDTO): Promise<Instance> {
-    throw new Error('Method not implemented.');
+  async update(id: string, data: UpdateInstanceDTO): Promise<Instance> {
+    const updated = await studio.updateInstance(id, mapUpdateInput(data));
+    return mapStudioInstance(updated);
   }
 
   async delete(id: string): Promise<boolean> {
@@ -84,58 +159,86 @@ class InstanceService implements IInstanceService {
   }
 
   async getInstances(): Promise<Instance[]> {
-    return studioMockService.listInstances();
+    const instances = await studio.listInstances();
+    return instances.map((instance) => mapStudioInstance(instance));
   }
 
   async getInstanceById(id: string): Promise<Instance | undefined> {
-    return studioMockService.getInstance(id);
+    const instance = await studio.getInstance(id);
+    return instance ? mapStudioInstance(instance) : undefined;
   }
 
   async startInstance(id: string): Promise<void> {
-    const updated = await studioMockService.setInstanceStatus(id, 'online');
+    const updated = await studio.startInstance(id);
     if (!updated) {
       throw new Error('Failed to start instance');
     }
   }
 
   async stopInstance(id: string): Promise<void> {
-    const updated = await studioMockService.setInstanceStatus(id, 'offline');
+    const updated = await studio.stopInstance(id);
     if (!updated) {
       throw new Error('Failed to stop instance');
     }
   }
 
   async restartInstance(id: string): Promise<void> {
-    const updated = await studioMockService.setInstanceStatus(id, 'online');
+    const updated = await studio.restartInstance(id);
     if (!updated) {
       throw new Error('Failed to restart instance');
     }
   }
 
   async getInstanceConfig(id: string): Promise<InstanceConfig | undefined> {
-    return studioMockService.getInstanceConfig(id);
+    const config = await studio.getInstanceConfig(id);
+    if (!config) {
+      return undefined;
+    }
+
+    return {
+      port: config.port,
+      sandbox: config.sandbox,
+      autoUpdate: config.autoUpdate,
+      logLevel: config.logLevel,
+      corsOrigins: config.corsOrigins,
+    };
   }
 
   async updateInstanceConfig(id: string, config: InstanceConfig): Promise<void> {
-    const updated = await studioMockService.updateInstanceConfig(id, config);
+    const current = await studio.getInstanceConfig(id);
+    const updated = await studio.updateInstanceConfig(id, {
+      ...(current || {
+        port: config.port,
+        sandbox: config.sandbox,
+        autoUpdate: config.autoUpdate,
+        logLevel: config.logLevel,
+        corsOrigins: config.corsOrigins,
+      }),
+      port: config.port,
+      sandbox: config.sandbox,
+      autoUpdate: config.autoUpdate,
+      logLevel: config.logLevel,
+      corsOrigins: config.corsOrigins,
+    });
     if (!updated) {
       throw new Error('Failed to update instance config');
     }
   }
 
   async getInstanceToken(id: string): Promise<string | undefined> {
-    return studioMockService.getInstanceToken(id);
+    const config = await studio.getInstanceConfig(id);
+    return config?.authToken || undefined;
   }
 
   async deleteInstance(id: string): Promise<void> {
-    const deleted = await studioMockService.deleteInstance(id);
+    const deleted = await studio.deleteInstance(id);
     if (!deleted) {
       throw new Error('Failed to delete instance');
     }
   }
 
   async getInstanceLogs(id: string): Promise<string> {
-    return studioMockService.getInstanceLogs(id);
+    return studio.getInstanceLogs(id);
   }
 
   async updateInstanceFileContent(id: string, fileId: string, content: string): Promise<void> {

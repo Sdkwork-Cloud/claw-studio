@@ -19,9 +19,16 @@ pub struct AppPaths {
     pub machine_staging_dir: PathBuf,
     pub machine_receipts_dir: PathBuf,
     pub machine_runtime_dir: PathBuf,
+    pub managed_runtimes_dir: PathBuf,
+    pub openclaw_runtime_dir: PathBuf,
     pub machine_recovery_dir: PathBuf,
     pub machine_logs_dir: PathBuf,
     pub user_root: PathBuf,
+    pub user_bin_dir: PathBuf,
+    pub openclaw_home_dir: PathBuf,
+    pub openclaw_state_dir: PathBuf,
+    pub openclaw_workspace_dir: PathBuf,
+    pub openclaw_config_file: PathBuf,
     pub user_dir: PathBuf,
     pub user_auth_dir: PathBuf,
     pub user_storage_dir: PathBuf,
@@ -70,9 +77,15 @@ impl AppPaths {
             self.machine_staging_dir.clone(),
             self.machine_receipts_dir.clone(),
             self.machine_runtime_dir.clone(),
+            self.managed_runtimes_dir.clone(),
+            self.openclaw_runtime_dir.clone(),
             self.machine_recovery_dir.clone(),
             self.machine_logs_dir.clone(),
             self.user_root.clone(),
+            self.user_bin_dir.clone(),
+            self.openclaw_home_dir.clone(),
+            self.openclaw_state_dir.clone(),
+            self.openclaw_workspace_dir.clone(),
             self.user_dir.clone(),
             self.user_auth_dir.clone(),
             self.user_storage_dir.clone(),
@@ -133,9 +146,16 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let machine_staging_dir = machine_root.join("staging");
     let machine_receipts_dir = machine_root.join("receipts");
     let machine_runtime_dir = machine_root.join("runtime");
+    let managed_runtimes_dir = machine_runtime_dir.join("runtimes");
+    let openclaw_runtime_dir = managed_runtimes_dir.join("openclaw");
     let machine_recovery_dir = machine_root.join("recovery");
     let machine_logs_dir = machine_root.join("logs");
 
+    let user_bin_dir = user_root.join("bin");
+    let openclaw_home_dir = user_root.join("openclaw-home");
+    let openclaw_state_dir = openclaw_home_dir.join(".openclaw");
+    let openclaw_workspace_dir = openclaw_state_dir.join("workspace");
+    let openclaw_config_file = openclaw_state_dir.join("openclaw.json");
     let user_dir = user_root.join("user");
     let user_auth_dir = user_dir.join("auth");
     let user_storage_dir = user_dir.join("storage");
@@ -181,9 +201,16 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
         machine_staging_dir,
         machine_receipts_dir,
         machine_runtime_dir,
+        managed_runtimes_dir,
+        openclaw_runtime_dir,
         machine_recovery_dir,
         machine_logs_dir,
         user_root,
+        user_bin_dir,
+        openclaw_home_dir,
+        openclaw_state_dir,
+        openclaw_workspace_dir,
+        openclaw_config_file,
         user_dir,
         user_auth_dir,
         user_storage_dir,
@@ -218,9 +245,14 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
 
 fn resolve_install_root() -> Result<PathBuf> {
     let executable = std::env::current_exe()?;
-    executable.parent().map(|path| path.to_path_buf()).ok_or_else(|| {
-        FrameworkError::Internal("failed to resolve install root from current executable".to_string())
-    })
+    executable
+        .parent()
+        .map(|path| path.to_path_buf())
+        .ok_or_else(|| {
+            FrameworkError::Internal(
+                "failed to resolve install root from current executable".to_string(),
+            )
+        })
 }
 
 #[cfg(windows)]
@@ -304,10 +336,50 @@ mod tests {
         assert!(normalize(&paths.plugins_dir).ends_with("install/extensions/plugins"));
         assert!(normalize(&paths.integrations_dir).ends_with("user-home/user/integrations"));
         assert!(normalize(&paths.backups_dir).ends_with("user-home/studio/backups"));
-        assert!(root.path().join("user-home").join("user").join("storage").exists());
-        assert!(root.path().join("install").join("extensions").join("plugins").exists());
-        assert!(root.path().join("user-home").join("user").join("integrations").exists());
-        assert!(root.path().join("user-home").join("studio").join("backups").exists());
+        assert!(root
+            .path()
+            .join("user-home")
+            .join("user")
+            .join("storage")
+            .exists());
+        assert!(root
+            .path()
+            .join("install")
+            .join("extensions")
+            .join("plugins")
+            .exists());
+        assert!(root
+            .path()
+            .join("user-home")
+            .join("user")
+            .join("integrations")
+            .exists());
+        assert!(root
+            .path()
+            .join("user-home")
+            .join("studio")
+            .join("backups")
+            .exists());
+    }
+
+    #[test]
+    fn creates_openclaw_runtime_management_directories() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        assert!(normalize(&paths.managed_runtimes_dir).ends_with("machine/runtime/runtimes"));
+        assert!(normalize(&paths.openclaw_runtime_dir).ends_with("machine/runtime/runtimes/openclaw"));
+        assert!(normalize(&paths.user_bin_dir).ends_with("user-home/bin"));
+        assert!(normalize(&paths.openclaw_home_dir).ends_with("user-home/openclaw-home"));
+        assert!(normalize(&paths.openclaw_state_dir).ends_with("user-home/openclaw-home/.openclaw"));
+        assert!(normalize(&paths.openclaw_workspace_dir).ends_with("user-home/openclaw-home/.openclaw/workspace"));
+        assert!(normalize(&paths.openclaw_config_file).ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
+        assert!(paths.managed_runtimes_dir.exists());
+        assert!(paths.openclaw_runtime_dir.exists());
+        assert!(paths.user_bin_dir.exists());
+        assert!(paths.openclaw_home_dir.exists());
+        assert!(paths.openclaw_state_dir.exists());
+        assert!(paths.openclaw_workspace_dir.exists());
     }
 
     #[test]

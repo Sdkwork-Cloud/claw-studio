@@ -73,7 +73,6 @@ impl ExecutionPolicy {
             .filter(|(key, _)| is_allowed_environment_key(key))
             .collect()
     }
-
 }
 
 pub fn resolve_managed_path(paths: &AppPaths, candidate: &Path) -> Result<PathBuf> {

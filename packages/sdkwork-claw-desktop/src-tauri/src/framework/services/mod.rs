@@ -11,12 +11,15 @@ pub mod integrations;
 pub mod jobs;
 pub mod kernel;
 pub mod notifications;
+pub mod openclaw_runtime;
+pub mod path_registration;
 pub mod payments;
 pub mod permissions;
 pub mod process;
 pub mod retention;
 pub mod security;
 pub mod storage;
+pub mod studio;
 pub mod supervisor;
 pub mod system;
 
@@ -29,12 +32,15 @@ use self::{
     jobs::JobService,
     kernel::{KernelDomainSnapshots, KernelService},
     notifications::NotificationService,
+    openclaw_runtime::OpenClawRuntimeService,
+    path_registration::PathRegistrationService,
     payments::PaymentService,
     permissions::PermissionService,
     process::ProcessService,
     retention::RetentionService,
     security::SecurityService,
     storage::StorageService,
+    studio::StudioService,
     supervisor::SupervisorService,
     system::SystemService,
 };
@@ -51,11 +57,14 @@ pub struct FrameworkServices {
     pub payments: PaymentService,
     pub integrations: IntegrationService,
     pub permissions: PermissionService,
+    pub openclaw_runtime: OpenClawRuntimeService,
+    pub path_registration: PathRegistrationService,
     pub process: ProcessService,
     pub jobs: JobService,
     #[allow(dead_code)]
     pub retention: RetentionService,
     pub storage: StorageService,
+    pub studio: StudioService,
     pub kernel: KernelService,
     pub supervisor: SupervisorService,
 }
@@ -75,10 +84,13 @@ impl FrameworkServices {
             payments: PaymentService::new(),
             integrations: IntegrationService::new(),
             permissions: PermissionService::new(),
+            openclaw_runtime: OpenClawRuntimeService::new(),
+            path_registration: PathRegistrationService::new(),
             process: ProcessService::new(policy),
             jobs: JobService::with_max_concurrent_process_jobs(config.process.max_concurrent_jobs),
             retention: RetentionService::new(),
             storage: StorageService::new(),
+            studio: StudioService::new(),
             kernel: KernelService::new(),
             supervisor: SupervisorService::new(),
         })

@@ -202,9 +202,10 @@ fn compare_versions(left: &str, right: &str) -> Ordering {
 
     for index in 0..max_len {
         let ordering = match (left_segments.get(index), right_segments.get(index)) {
-            (Some(VersionSegment::Numeric(left_value)), Some(VersionSegment::Numeric(right_value))) => {
-                left_value.cmp(right_value)
-            }
+            (
+                Some(VersionSegment::Numeric(left_value)),
+                Some(VersionSegment::Numeric(right_value)),
+            ) => left_value.cmp(right_value),
             (Some(VersionSegment::Text(left_value)), Some(VersionSegment::Text(right_value))) => {
                 left_value.cmp(right_value)
             }

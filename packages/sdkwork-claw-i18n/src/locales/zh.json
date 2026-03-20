@@ -203,6 +203,107 @@
       "terminal": {
         "title": "Open Terminal",
         "subtitle": "Launch local CLI"
+      },
+      "guided": {
+        "title": "分步安装",
+        "heading": "逐步完成 {{product}} 的安装与初始化",
+        "subtitle": "使用 {{method}} 方式完成安装、配置与初始化。",
+        "steps": {
+          "dependencies": {
+            "title": "依赖与工具",
+            "description": "先检查工具链、阻塞项和推荐修复项，再开始安装。"
+          },
+          "install": {
+            "title": "安装 OpenClaw",
+            "description": "执行所选安装方式，并在这里持续查看实时日志。"
+          },
+          "configure": {
+            "title": "配置 OpenClaw",
+            "description": "选择实例、模型配置以及要接入的 channels。"
+          },
+          "initialize": {
+            "title": "初始化 OpenClaw",
+            "description": "安装默认 skills，并补充需要的 skill 或 package。"
+          },
+          "verify": {
+            "title": "验证安装",
+            "description": "确认安装、模型提供方、channels 和 skills 是否已经就绪。"
+          }
+        },
+        "actions": {
+          "continue": "继续",
+          "continueToConfig": "继续配置",
+          "continueToInitialize": "继续初始化",
+          "continueToVerify": "继续验证",
+          "install": "安装 OpenClaw",
+          "applyConfig": "保存配置",
+          "initialize": "初始化 OpenClaw",
+          "verify": "验证安装"
+        },
+        "dependencies": {
+          "ready": "安装所需依赖已经准备就绪。",
+          "noIssues": "当前未检测到阻塞问题。"
+        },
+        "install": {
+          "existingInstall": "\u68c0\u6d4b\u5230\u73b0\u6709\u5b89\u88c5\uff0c\u53ef\u76f4\u63a5\u7ee7\u7eed\u5b8c\u6210\u914d\u7f6e\u6216\u9a8c\u8bc1\u3002",
+          "description": "按当前方式安装 OpenClaw，并在完成前持续查看执行日志。",
+          "logPlaceholder": "安装输出会显示在这里。"
+        },
+        "config": {
+          "loading": "正在加载配置工作台...",
+          "instance": "目标实例",
+          "provider": "模型提供方",
+          "defaultModel": "默认模型",
+          "reasoningModel": "推理模型",
+          "embeddingModel": "向量模型",
+          "channels": "Channels 配置",
+          "channelsDescription": "保留已经连通的 channels，或继续启用更多通知与工作流通道。",
+          "validation": {
+            "provider": "保存配置前，请先选择实例、提供方和默认模型。",
+            "loading": "配置数据仍在加载中。",
+            "channel": "保存前请先补全 {{channel}} 的 {{field}}。"
+          }
+        },
+        "initialize": {
+          "defaultPack": "默认初始化包",
+          "defaultPackDescription": "向导会默认勾选推荐包，让 OpenClaw 安装完成后即可直接使用。",
+          "recommended": "推荐",
+          "additionalSkills": "附加技能",
+          "includedByPack": "已包含在包内",
+          "summary": "初始化摘要",
+          "summaryValue": "已选择 {{packs}} 个包，合计 {{skills}} 个技能。",
+          "validation": {
+            "instance": "初始化前请先选择目标实例。"
+          }
+        },
+        "verify": {
+          "running": "正在验证安装结果...",
+          "ready": "可以立即使用",
+          "followUp": "已安装，但仍需后续处理",
+          "description": "OpenClaw 已完成安装，请在关闭向导前确认下面的就绪项。",
+          "items": {
+            "install": "安装执行",
+            "provider": "模型提供方",
+            "channels": "Channels",
+            "skills": "Skills 与包"
+          },
+          "status": {
+            "success": "已就绪",
+            "warning": "仍需处理",
+            "blocked": "已阻塞"
+          }
+        },
+        "providerStatus": {
+          "active": "正常",
+          "warning": "告警",
+          "expired": "已过期",
+          "disabled": "已禁用"
+        },
+        "channelStatus": {
+          "connected": "已连接",
+          "disconnected": "已断开",
+          "not_configured": "待配置"
+        }
       }
     },
     "switchInstanceTitle": "Switch Instance: {{name}}",
@@ -1027,7 +1128,11 @@
       "uploadImage": "Upload image",
       "voiceInput": "Voice input",
       "stopGenerating": "Stop generating",
-      "disclaimer": "AI models can make mistakes. Consider verifying important information."
+      "disclaimer": "AI models can make mistakes. Consider verifying important information.",
+      "modelLabel": "模型",
+      "readyWith": "当前将使用 {{model}}",
+      "respondingWith": "正在使用 {{model}} 回复",
+      "nextReplyUses": "当前回复仍使用 {{currentModel}}，下一条消息将切换为 {{nextModel}}。"
     },
     "message": {
       "copyMessage": "Copy message",
@@ -1880,6 +1985,7 @@
         "finishedAt": "Finished at",
         "details": "Details",
         "status": {
+          "installed": "\u5df2\u5b89\u88c5",
           "success": "Success",
           "failed": "Failed",
           "running": "Running"
@@ -2041,6 +2147,7 @@
         "sidebar": {
           "title": "Instance Workbench",
           "description": "Switch between the runtime capabilities available on this OpenClaw instance.",
+          "overview": "概览",
           "channels": "Channels",
           "cronTasks": "Cron Tasks",
           "llmProviders": "LLM Providers",
@@ -2050,6 +2157,7 @@
           "memory": "Memory",
           "tools": "Tools",
           "itemDescriptions": {
+            "overview": "运行时身份、连接方式、存储绑定与诊断状态",
             "channels": "Delivery routes and operator notifications",
             "cronTasks": "Scheduled routines and automation cadence",
             "llmProviders": "Provider routing, models, and inference controls",
@@ -2061,14 +2169,20 @@
           }
         },
         "sections": {
+          "overview": {
+            "title": "概览",
+            "description": "查看当前实例的运行时契约、连接方式、存储绑定与能力状态。"
+          },
           "channels": {
             "title": "Channels",
             "description": "Inspect delivery readiness, configuration depth, and connection state for this instance."
           },
-          "cronTasks": {
-            "title": "Cron Tasks",
-            "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime."
-          },
+        "cronTasks": {
+          "title": "Cron Tasks",
+          "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime.",
+          "editorNotice": "当前面板已经接通 OpenClaw 的运行时任务操作，但新建和编辑仍然会跳到旧版任务编辑器。当前请在这里使用克隆、立即运行、暂停、恢复、删除和历史记录。",
+          "readonlyNotice": "当前 OpenClaw cron 任务仅以运行时快照的方式只读展示。创建、编辑、立即运行、启停和删除会在接入原生运行时命令后开放。"
+        },
           "llmProviders": {
             "title": "LLM Providers",
             "description": "Inspect active providers, model routing, and the generation parameters shaping this instance."
@@ -2107,7 +2221,34 @@
         "runtimeStates": {
           "healthy": "Healthy",
           "attention": "Attention",
-          "degraded": "Degraded"
+          "degraded": "Degraded",
+          "offline": "Offline"
+        },
+        "overview": {
+          "identity": "运行时身份",
+          "lifecycle": "生命周期归属",
+          "host": "主机",
+          "version": "版本",
+          "storage": "存储绑定",
+          "profile": "配置档案",
+          "namespace": "命名空间",
+          "database": "数据库",
+          "observability": "可观测性",
+          "healthChecks": "健康检查",
+          "logLines": "日志行数",
+          "connectivity": "连接方式",
+          "connectivityDescription": "展示当前实例已知的传输入口与认证形态。",
+          "noConnectivity": "当前实例还没有可用的连接元数据。",
+          "capabilities": "能力矩阵",
+          "capabilitiesDescription": "查看各项运行时能力是已就绪、已降级，还是仍需进一步集成。",
+          "dataAccess": "数据接入",
+          "dataAccessDescription": "说明 Claw Studio 如何链接每一类运行时数据，以及该链路是否具备权威性。",
+          "noDataAccess": "当前实例还没有可展示的数据接入链路。",
+          "artifacts": "工件资源",
+          "artifactsDescription": "查看与当前实例关联的具体文件、目录、端点与存储绑定。",
+          "noArtifacts": "当前实例还没有可展示的具体工件资源。",
+          "runtimeNotes": "运行时说明",
+          "logPreview": "日志预览"
         },
         "metrics": {
           "configuredFields": "Configured Fields",
@@ -2147,6 +2288,7 @@
           "saveFile": "Save File",
           "savingFile": "Saving...",
           "selectFile": "Select a file from the explorer to preview or edit it.",
+          "readonlyNotice": "当前工件仅提供预览模式，避免与内置 OpenClaw 运行时状态产生漂移。",
           "fileSaved": "File saved",
           "fileSaveFailed": "Failed to save file",
           "on": "On",
@@ -2168,6 +2310,7 @@
           "saveConfig": "Save Provider",
           "saving": "Saving...",
           "revertConfig": "Revert Config",
+          "readonlyNotice": "当前 Provider 配置仅以 OpenClaw 只读快照展示。接入原生 Provider 写入能力后才会开放编辑。",
           "saved": "LLM provider saved",
           "saveFailed": "Failed to save LLM provider",
           "selectProvider": "Select an LLM provider to inspect or edit its runtime configuration.",
@@ -2647,6 +2790,9 @@
           "lifecycleMode": "生命周期模式",
           "availableActions": "当前可用",
           "availableForProduct": "当前产品可用",
+          "recommendedPath": "推荐路径",
+          "readyPaths": "可直接安装",
+          "needsAttention": "需要处理",
           "installPaths": "种安装路径",
           "uninstallPaths": "种卸载路径",
           "migrationSources": "个导入来源"
@@ -2662,15 +2808,18 @@
           "description": "选择安装路径，确认环境是否就绪，然后直接在桌面应用里开始安装。"
         },
         "uninstall": {
-          "description": "先确认已检测到的运行环境，再按匹配的卸载路径移除当前 OpenClaw 安装。"
+          "description": "先确认已检测到的 {{product}} 运行环境，再按匹配的卸载路径移除当前安装。"
         },
         "migrate": {
-          "description": "选择要导入的来源，检查已检测目录，然后把 OpenClaw 内容迁移到 Claw Studio。"
+          "description": "选择要导入的来源，检查已检测目录，然后把 {{product}} 内容迁移到 Claw Studio。"
         }
       },
       "runtime": {
         "label": "已检测平台",
         "detectedInstall": "已检测到 OpenClaw",
+        "actions": {
+          "rescan": "重新扫描环境"
+        },
         "values": {
           "windows": "Windows",
           "macos": "macOS",
@@ -2683,6 +2832,7 @@
         "modalTitle": "安装前请先检查前置条件",
         "status": {
           "inspecting": "正在检查环境",
+          "installed": "已安装",
           "ready": "可以开始安装",
           "needsSetup": "仍需准备",
           "blocked": "已阻塞",
@@ -2697,6 +2847,9 @@
         "sections": {
           "issues": "问题",
           "dependencies": "依赖",
+          "installation": "安装方式",
+          "dataLayout": "数据布局",
+          "migration": "迁移策略",
           "recommendations": "建议"
         },
         "labels": {
@@ -2723,21 +2876,128 @@
           "autoRun": "自动修复",
           "manualFix": "手动修复"
         },
+        "methodType": {
+          "binary": "二进制",
+          "command": "命令",
+          "container": "容器",
+          "git": "Git",
+          "package": "包管理器",
+          "script": "脚本",
+          "source": "源码构建",
+          "wsl": "WSL"
+        },
+        "dataKind": {
+          "database": "数据库",
+          "directory": "目录",
+          "file": "文件",
+          "log": "日志"
+        },
+        "uninstallPolicy": {
+          "manual": "手动清理",
+          "preserve": "卸载时保留",
+          "remove": "卸载时移除"
+        },
+        "installation": {
+          "description": "查看当前 profile 如何安装产品、会管理哪些目录，以及哪些替代方式仅作为文档说明。",
+          "primaryMethod": "主安装方式",
+          "alternatives": "文档中的替代方式",
+          "noAlternatives": "当前 profile 没有声明其它文档化安装路径。",
+          "directories": "托管目录",
+          "noDirectories": "当前 profile 没有声明托管目录元信息。",
+          "customizable": "可自定义",
+          "fixed": "固定",
+          "supported": "当前可自动化",
+          "documentedOnly": "仅文档说明",
+          "declared": "已声明",
+          "documentation": "打开文档",
+          "notes": "说明",
+          "notAvailable": "当前 profile 没有暴露结构化安装元信息。",
+          "directoryKinds": {
+            "installRoot": "安装目录",
+            "workRoot": "工作目录",
+            "binDir": "二进制目录",
+            "dataRoot": "数据目录",
+            "additional": "附加路径"
+          }
+        },
+        "dataLayout": {
+          "description": "查看产品会产生哪些数据、哪些应该备份，以及卸载后默认如何处理。",
+          "includes": "包含内容",
+          "backupByDefault": "默认备份",
+          "sensitive": "敏感",
+          "empty": "当前 profile 没有声明结构化数据布局元信息。"
+        },
+        "migration": {
+          "description": "查看可迁移内容、可用命令，以及仍需人工确认的部分。",
+          "fromSource": "来自 {{source}}",
+          "supported": "支持",
+          "reviewRequired": "需人工确认",
+          "warnings": "注意事项",
+          "affectedData": "影响数据",
+          "previewCommands": "预览命令",
+          "applyCommands": "执行命令",
+          "empty": "当前 profile 没有声明迁移策略。",
+          "mode": {
+            "command": "命令辅助",
+            "manual": "手动处理"
+          }
+        },
         "emptyRecommendations": "暂无额外建议。",
         "blockedDescription": "请先解决上方阻塞项，再开始安装。"
       },
       "products": {
         "openclaw": {
           "name": "OpenClaw",
-          "description": "完整的 OpenClaw 网关与工作区栈。"
+          "description": "面向个人使用的 AI 助手，带 onboarding、channels、skills 与 dashboard。"
         },
         "zeroclaw": {
           "name": "ZeroClaw",
-          "description": "更轻量的 Claw 工具链，适合快速安装与使用。"
+          "description": "面向边缘和低资源设备的超轻量 Rust 原生运行时。"
         },
         "ironclaw": {
           "name": "IronClaw",
-          "description": "更偏源码与深度定制场景的 Claw 工具链。"
+          "description": "安全优先的 Rust 原生助手，支持数据库记忆与自动化例程。"
+        }
+      },
+      "productProfiles": {
+        "openclaw": {
+          "bestFor": "多通道个人 AI 助手",
+          "runtime": "Node.js 网关 + onboarding",
+          "recommendedPath": "Windows 优先 WSL；macOS / Linux 优先 npm。",
+          "recommendedReason": "OpenClaw 文档推荐先完成 onboarding；在 Windows 上通过 WSL2 运行通常更稳定。",
+          "firstRunTitle": "下一步先跑 onboarding",
+          "firstRun": "先完成模型提供方、channels 和 starter skills 的初始化，再进入正式工作流。",
+          "prerequisites": {
+            "one": "推荐 Node 24，Node 22.16+ 也仍受支持。",
+            "two": "Windows 日常使用优先选择 WSL2。",
+            "three": "Docker 适合隔离部署，但不是默认安装路径。"
+          }
+        },
+        "zeroclaw": {
+          "bestFor": "边缘设备与低资源代理",
+          "runtime": "Rust 原生运行时",
+          "recommendedPath": "克隆仓库并使用 Cargo 安装。",
+          "recommendedReason": "安装清单与 vendor 文档都以 Rust 源码安装为准，旧的 pnpm 只是兼容别名。",
+          "firstRunTitle": "先验证二进制",
+          "firstRun": "先确认 `zeroclaw --version` 正常，再按你的 provider、channel 和硬件场景继续调优。",
+          "prerequisites": {
+            "one": "先安装 Git 与 Rust/Cargo 工具链。",
+            "two": "Windows 构建建议准备 Visual Studio Build Tools 或等价的 C++ 工具链。",
+            "three": "ZeroClaw 适合极低内存和低成本硬件环境。"
+          }
+        },
+        "ironclaw": {
+          "bestFor": "安全优先的个人助手",
+          "runtime": "Rust 原生运行时",
+          "recommendedPath": "克隆仓库、用 Cargo 构建，然后运行 onboarding。",
+          "recommendedReason": "IronClaw 当前以源码安装为主，README 明确要求 PostgreSQL + pgvector 以及 NEAR AI 认证。",
+          "firstRunTitle": "先准备数据库",
+          "firstRun": "先创建数据库并启用 pgvector，再执行 `ironclaw onboard` 完成认证和密钥设置。",
+          "prerequisites": {
+            "one": "构建前先安装 Git、Rust 和 Cargo。",
+            "two": "为记忆与检索能力准备 PostgreSQL + pgvector。",
+            "three": "提前准备好 NEAR AI 账号与凭据。"
+          }
         }
       },
       "methods": {
@@ -2761,12 +3021,21 @@
           "title": "源码安装",
           "description": "从源码克隆、构建并运行所选产品。"
         },
+        "zeroclawSource": {
+          "title": "Rust 源码安装",
+          "description": "使用 Git + Cargo 构建 ZeroClaw，这才是官方 Rust 原生安装路径。"
+        },
+        "ironclawSource": {
+          "title": "安全源码安装",
+          "description": "使用 Rust 从源码构建 IronClaw，并继续准备 PostgreSQL + pgvector 与 onboarding。"
+        },
         "cloud": {
           "title": "云端安装",
           "description": "在云端部署所选产品，该模式正在开发中。"
         }
       },
       "tags": {
+        "cargo": "Cargo",
         "cloud": "云端",
         "docker": "Docker",
         "git": "Git",
@@ -2776,6 +3045,9 @@
         "nodejs": "Node.js",
         "npm": "npm",
         "pnpm": "pnpm",
+        "postgresql": "PostgreSQL",
+        "rust": "Rust",
+        "security": "安全优先",
         "source": "源码",
         "windows": "Windows",
         "wsl": "WSL"
@@ -2783,6 +3055,7 @@
       "method": {
         "actions": {
           "install": "立即安装",
+          "guidedInstall": "分步安装",
           "uninstall": "立即卸载",
           "comingSoon": "开发中"
         }
@@ -2791,22 +3064,71 @@
         "sectionTitle": "选择产品",
         "sectionHeading": "当前设备已准备好安装",
         "sectionDescription": "先选择产品，再比较适合当前机器的安装方式，直接从最合适的路径开始。",
-        "supportTitle": "快速环境提示",
-        "supportDescription": "开始前请确认 {{product}} 所需的 CPU、网络连接与可用磁盘空间已经准备好。",
+        "briefingTitle": "安装简报",
+        "briefingLabels": {
+          "recommendedPath": "推荐路径",
+          "bestFor": "适合场景",
+          "runtime": "主要运行时",
+          "firstRun": "首次启动",
+          "prerequisites": "关键检查"
+        },
+        "autoRefresh": "环境就绪状态会每 {{seconds}} 秒自动复查一次。",
+        "recommendedMethod": "推荐",
         "selectedProduct": "已选择",
-        "readyHint": "可以安装"
+        "readyHint": "可以安装",
+        "states": {
+          "comingSoon": "开发中"
+        },
+        "sections": {
+          "recommended": "当前设备推荐"
+        },
+        "labels": {
+          "installRoot": "安装目录",
+          "dataRoot": "数据目录",
+          "nextStep": "下一步",
+          "readyPaths": "可直接安装",
+          "needsAttention": "需要处理"
+        },
+        "autoDetection": {
+          "title": "自动检测",
+          "heading": "我们已经为这台机器筛出最快且更稳妥的安装路径",
+          "description": "下面的推荐会综合当前系统、架构、运行时可用性和依赖检查结果，帮助你直接从最合适的路径开始。",
+          "featuredBadge": "最佳匹配",
+          "signals": {
+            "host": "主机系统",
+            "arch": "架构",
+            "runtime": "运行时目标",
+            "wsl": "WSL",
+            "docker": "Docker",
+            "node": "Node.js"
+          },
+          "values": {
+            "available": "可用",
+            "unavailable": "不可用",
+            "unknown": "未知"
+          }
+        },
+        "recommendationReasons": {
+          "platformPreferred": "根据当前设备检测到的平台和运行时，{{method}} 是更合适的默认路径。",
+          "bestReadyFallback": "{{method}} 是当前这台机器上已经就绪、可以最快开始的安装路径。",
+          "requiresSetup": "{{method}} 仍然是更合适的长期方案，但这台机器需要先补齐前置条件。",
+          "installed": "系统看起来已经存在通过 {{method}} 安装的结果，你可以继续完成配置和验证。",
+          "singlePath": "当前产品只提供这一条受支持的安装路径，因此我们将它作为默认推荐。"
+        }
       },
       "systemRequirements": {
         "title": "系统要求",
         "description": "建议准备现代 CPU、稳定的网络连接，以及足够的磁盘空间来完成 {{product}} 的安装与运行。"
       },
       "uninstall": {
-        "title": "卸载 OpenClaw",
-        "description": "选择与当前 OpenClaw 安装方式匹配的卸载模式，干净移除现有运行环境。",
-        "detectedTitle": "已检测到 OpenClaw 运行环境",
+        "title": "卸载 {{product}}",
+        "description": "选择与当前 {{product}} 安装方式匹配的卸载模式，干净移除现有运行环境。",
+        "detectedTitle": "已检测到 {{product}} 运行环境",
         "reviewTitle": "卸载前确认",
         "reviewHeading": "确认当前运行环境后再移除",
         "reviewDescription": "先确认当前 {{product}} 运行环境，再执行移除。",
+        "noInstallDetected": "未检测到安装",
+        "noInstallDetectedDescription": "当前系统未发现 {{product}} 的现有安装。请切换到「安装」标签页进行安装。",
         "detected": {
           "installMode": "已检测安装方式",
           "installRoot": "安装目录",
@@ -2828,12 +3150,18 @@
           },
           "source": {
             "description": "移除源码方式关联的 OpenClaw 运行环境和本地构建产物。"
+          },
+          "zeroclawSource": {
+            "description": "移除通过 Cargo 安装的 ZeroClaw 二进制与本地源码目录，同时保留可供迁移的工作区数据。"
+          },
+          "ironclawSource": {
+            "description": "移除通过 Cargo 安装的 IronClaw 二进制与源码目录。基于 PostgreSQL 的数据会继续保留在数据库中，需单独导出或清理。"
           }
         }
       },
       "migrate": {
-        "title": "迁移 OpenClaw",
-        "description": "将 OpenClaw 的设置、工作区数据以及相关文件迁移到 Claw Studio。",
+        "title": "迁移 {{product}}",
+        "description": "将 {{product}} 的设置、工作区数据以及相关文件迁移到 Claw Studio。",
         "productDescription": "将 {{product}} 的设置、工作区数据和相关文件导入到 Claw Studio。",
         "workspaceTitle": "选择要导入的来源",
         "customSourceLabel": "手动选择的源目录",
@@ -2843,6 +3171,7 @@
         "actions": {
           "rescan": "重新扫描",
           "selectSource": "选择目录",
+          "clearSource": "清除目录",
           "start": "开始迁移"
         },
         "status": {
@@ -2878,6 +3207,12 @@
             "description": "当自动扫描未命中原始位置时，导入你手动选择的目录。"
           }
         },
+        "notes": {
+          "ironclaw": {
+            "title": "仍需单独导出数据库",
+            "description": "IronClaw 的主要记忆、routines 和聊天数据存储在 PostgreSQL 中。这个文件导入器不会自动复制基于 PostgreSQL 的数据，因此在卸载旧运行环境前仍需单独导出数据库。"
+          }
+        },
         "output": {
           "title": "迁移输出",
           "placeholder": "迁移日志会显示在这里。",
@@ -2892,11 +3227,11 @@
       "modal": {
         "title": {
           "install": "通过 {{method}} 安装 {{product}}",
-          "uninstall": "通过 {{method}} 卸载 OpenClaw"
+          "uninstall": "通过 {{method}} 卸载 {{product}}"
         },
         "subtitle": {
           "install": "直接在桌面应用内安装所选产品。",
-          "uninstall": "直接在桌面应用内卸载所选 OpenClaw 运行环境。"
+          "uninstall": "直接在桌面应用内卸载所选 {{product}} 运行环境。"
         },
         "summaryLabel": "操作概览",
         "operationLabel": "模式",
@@ -2908,7 +3243,7 @@
         },
         "output": {
           "preparingInstall": "正在准备通过 {{method}} 安装 {{product}}...",
-          "preparingUninstall": "正在准备通过 {{method}} 卸载...",
+          "preparingUninstall": "正在准备通过 {{method}} 卸载 {{product}}...",
           "starting": "正在启动操作...",
           "errorPrefix": "错误",
           "completedInstall": "安装已完成。",
@@ -2920,6 +3255,13 @@
           "downloadFailed": "所需下载未完成。",
           "stepSkipped": "某个步骤已跳过。",
           "stepFailed": "某个步骤未完成。"
+        },
+        "progressSummary": {
+          "currentStage": "当前阶段",
+          "currentStep": "当前步骤",
+          "stages": "阶段进度",
+          "artifacts": "工件进度",
+          "lastCommand": "最后一条命令"
         },
         "status": {
           "install": {
@@ -2943,6 +3285,110 @@
           "done": "完成",
           "startInstall": "开始安装",
           "startUninstall": "开始卸载"
+        }
+      },
+      "guided": {
+        "title": "分步安装",
+        "heading": "逐步完成 {{product}} 的安装与初始化",
+        "subtitle": "通过 {{method}} 路径完成安装、配置与初始化。",
+        "steps": {
+          "dependencies": {
+            "title": "依赖与工具",
+            "description": "先检查工具链、阻塞项和推荐修复，再开始安装。"
+          },
+          "install": {
+            "title": "安装 OpenClaw",
+            "description": "执行所选安装方式，并持续查看实时执行日志。"
+          },
+          "configure": {
+            "title": "配置 OpenClaw",
+            "description": "选择实例、模型配置，以及 OpenClaw 要接入的 channels。"
+          },
+          "initialize": {
+            "title": "初始化 OpenClaw",
+            "description": "安装默认 starter pack，并补充所需的 skill 或 package。"
+          },
+          "verify": {
+            "title": "验证安装",
+            "description": "确认安装、模型提供方、channels 和 skills 是否已经就绪。"
+          }
+        },
+        "actions": {
+          "continue": "继续",
+          "continueToConfig": "继续配置",
+          "continueToInitialize": "继续初始化",
+          "continueToVerify": "继续验证",
+          "install": "安装 OpenClaw",
+          "applyConfig": "保存配置",
+          "initialize": "初始化 OpenClaw",
+          "verify": "验证安装"
+        },
+        "dependencies": {
+          "ready": "安装所需依赖已经准备就绪。",
+          "noIssues": "当前未检测到阻塞问题。",
+          "autoRefresh": "在你继续前，环境检查会持续自动重跑。",
+          "lastChecked": "上次检查时间：{{time}}。"
+        },
+        "install": {
+          "description": "按当前方式安装 OpenClaw，并在完成前持续查看实时日志。",
+          "logPlaceholder": "安装输出会显示在这里。"
+        },
+        "config": {
+          "loading": "正在加载配置工作区...",
+          "instance": "目标实例",
+          "provider": "模型提供方",
+          "defaultModel": "默认模型",
+          "reasoningModel": "推理模型",
+          "embeddingModel": "向量模型",
+          "channels": "Channels",
+          "channelsDescription": "保留已连接的 channels，或继续启用更多通知与工作流通道。",
+          "validation": {
+            "provider": "保存配置前，请先选择实例、提供方和默认模型。",
+            "loading": "配置数据仍在加载中。",
+            "channel": "保存前请先为 {{channel}} 完成 {{field}}。"
+          }
+        },
+        "initialize": {
+          "defaultPack": "默认 starter pack",
+          "defaultPackDescription": "向导会默认勾选推荐 pack，让 OpenClaw 安装完成后即可开始工作。",
+          "recommended": "推荐",
+          "additionalSkills": "额外 skills",
+          "includedByPack": "已由 pack 包含",
+          "summary": "初始化摘要",
+          "summaryValue": "已选择 {{packs}} 个 pack、{{skills}} 个 skill。",
+          "validation": {
+            "instance": "初始化前请先选择目标实例。"
+          }
+        },
+        "verify": {
+          "running": "正在验证安装...",
+          "ready": "可以立即使用",
+          "followUp": "已安装，但仍需后续处理",
+          "description": "OpenClaw 已安装完成。关闭向导前，请先检查下面的就绪项。",
+          "retryStatus": "自动复验第 {{attempt}} / {{max}} 次。",
+          "lastChecked": "上次验证时间：{{time}}。",
+          "items": {
+            "install": "安装执行",
+            "provider": "模型提供方",
+            "channels": "Channels",
+            "skills": "Skills 与 packs"
+          },
+          "status": {
+            "success": "已就绪",
+            "warning": "仍需处理",
+            "blocked": "已阻塞"
+          }
+        },
+        "providerStatus": {
+          "active": "正常",
+          "warning": "警告",
+          "expired": "已过期",
+          "disabled": "已禁用"
+        },
+        "channelStatus": {
+          "connected": "已连接",
+          "disconnected": "未连接",
+          "not_configured": "待配置"
         }
       }
     },
@@ -3437,6 +3883,20 @@
       "includedModels": "包含模型",
       "startPlan": "开通 {{planName}}"
     },
+    "freeMembership": {
+      "badge": "免费",
+      "title": "免费会员",
+      "tagline": "先看清套餐结构和权益差异，准备好后再升级付费方案。",
+      "audienceLabel": "适合",
+      "audience": "首次体验用户与轻度评估用户",
+      "note": "无需购买，登录后即可享有基础会员权益。",
+      "benefits": {
+        "previewVendorPlans": "预览 {{vendor}} 套餐差异",
+        "savePreferences": "保存偏好的厂商与计费周期",
+        "memberUpdates": "接收套餐更新与会员通知",
+        "upgradeAnytime": "随时升级到付费套餐"
+      }
+    },
     "metrics": {
       "curatedRoutes": {
         "label": "精选路由",
@@ -3680,26 +4140,6 @@
           "多模态",
           "长上下文",
           "媒体生成"
-        ]
-      },
-      "baichuan": {
-        "tagline": "适合助手规模化落地的稳定国产套餐。",
-        "heroDescription": "兼顾企业采购流程与稳定的路由接入能力。",
-        "audience": "企业助手落地团队",
-        "modelHighlights": [
-          "百川",
-          "生产力场景",
-          "稳定采购"
-        ]
-      },
-      "yi": {
-        "tagline": "结构清晰的通用型国产采购套餐。",
-        "heroDescription": "是主流国产 AI 应用的灵活选择。",
-        "audience": "通用型国产 AI 应用",
-        "modelHighlights": [
-          "Yi",
-          "通用能力",
-          "灵活路由"
         ]
       }
     }

@@ -1,0 +1,4 @@
+[submodule "packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer"]
+	path = packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer
+	url = https://github.com/Sdkwork-Cloud/hub-installer
+	branch = main

@@ -4,9 +4,8 @@ mod runtime;
 
 pub use self::profiles::ProcessProfile;
 pub use self::requests::ProcessRequest;
-pub use self::runtime::{ProcessEventSink, ProcessResult};
-#[cfg(test)]
-pub use self::runtime::ProcessOutputEvent;
+#[allow(unused_imports)]
+pub use self::runtime::{ProcessEventSink, ProcessOutputEvent, ProcessOutputStream, ProcessResult};
 
 use self::{
     profiles::{

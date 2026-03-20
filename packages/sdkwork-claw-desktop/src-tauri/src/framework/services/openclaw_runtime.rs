@@ -1,0 +1,672 @@
+use crate::{
+    framework::{
+        layout::set_active_runtime_version,
+        paths::AppPaths,
+        FrameworkError, Result,
+    },
+    platform,
+};
+use serde_json::{Map, Number, Value};
+use std::{
+    collections::BTreeMap,
+    fs,
+    net::{Ipv4Addr, SocketAddrV4, TcpListener},
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
+use tauri::{AppHandle, Manager, Runtime};
+use uuid::Uuid;
+
+pub const OPENCLAW_RUNTIME_ID: &str = "openclaw";
+const BUNDLED_RESOURCE_DIR: &str = "openclaw-runtime";
+const NESTED_BUNDLED_RESOURCE_DIR: &str = "resources/openclaw-runtime";
+const DEFAULT_GATEWAY_PORT: u16 = 18_789;
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundledOpenClawManifest {
+    pub schema_version: u32,
+    pub runtime_id: String,
+    pub openclaw_version: String,
+    pub node_version: String,
+    pub platform: String,
+    pub arch: String,
+    pub node_relative_path: String,
+    pub cli_relative_path: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActivatedOpenClawRuntime {
+    pub install_key: String,
+    pub install_dir: PathBuf,
+    pub runtime_dir: PathBuf,
+    pub node_path: PathBuf,
+    pub cli_path: PathBuf,
+    pub home_dir: PathBuf,
+    pub state_dir: PathBuf,
+    pub workspace_dir: PathBuf,
+    pub config_path: PathBuf,
+    pub gateway_port: u16,
+    pub gateway_auth_token: String,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct OpenClawRuntimeService;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ManagedOpenClawState {
+    home_dir: PathBuf,
+    state_dir: PathBuf,
+    workspace_dir: PathBuf,
+    config_path: PathBuf,
+    gateway_port: u16,
+    gateway_auth_token: String,
+}
+
+impl BundledOpenClawManifest {
+    pub fn install_key(&self) -> String {
+        format!("{}-{}-{}", self.openclaw_version, self.platform, self.arch)
+    }
+}
+
+impl ActivatedOpenClawRuntime {
+    pub fn managed_env(&self) -> BTreeMap<String, String> {
+        BTreeMap::from([
+            (
+                "OPENCLAW_HOME".to_string(),
+                self.home_dir.to_string_lossy().into_owned(),
+            ),
+            (
+                "OPENCLAW_STATE_DIR".to_string(),
+                self.state_dir.to_string_lossy().into_owned(),
+            ),
+            (
+                "OPENCLAW_CONFIG_PATH".to_string(),
+                self.config_path.to_string_lossy().into_owned(),
+            ),
+            (
+                "OPENCLAW_GATEWAY_TOKEN".to_string(),
+                self.gateway_auth_token.clone(),
+            ),
+        ])
+    }
+}
+
+impl OpenClawRuntimeService {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn ensure_bundled_runtime<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        paths: &AppPaths,
+    ) -> Result<ActivatedOpenClawRuntime> {
+        let resource_dir = app.path().resource_dir().map_err(FrameworkError::from)?;
+        let resource_root = resolve_bundled_resource_root(&resource_dir)?;
+        self.ensure_bundled_runtime_from_root(paths, &resource_root)
+    }
+
+    pub fn ensure_bundled_runtime_from_root(
+        &self,
+        paths: &AppPaths,
+        resource_root: &Path,
+    ) -> Result<ActivatedOpenClawRuntime> {
+        let manifest = load_manifest(&resource_root.join("manifest.json"))?;
+        validate_manifest_target(&manifest)?;
+
+        if manifest.runtime_id != OPENCLAW_RUNTIME_ID {
+            return Err(FrameworkError::ValidationFailed(format!(
+                "unsupported bundled runtime id {}",
+                manifest.runtime_id
+            )));
+        }
+
+        let bundled_runtime_dir = resource_root.join("runtime");
+        if !bundled_runtime_dir.exists() {
+            return Err(FrameworkError::NotFound(format!(
+                "bundled runtime directory not found: {}",
+                bundled_runtime_dir.display()
+            )));
+        }
+
+        let install_key = manifest.install_key();
+        let install_dir = paths.openclaw_runtime_dir.join(&install_key);
+        let runtime_dir = install_dir.join("runtime");
+        let manifest_path = install_dir.join("manifest.json");
+
+        ensure_runtime_installation(
+            &bundled_runtime_dir,
+            &resource_root.join("manifest.json"),
+            &manifest,
+            &install_dir,
+            &runtime_dir,
+            &manifest_path,
+        )?;
+
+        let node_path = install_dir.join(&manifest.node_relative_path);
+        let cli_path = install_dir.join(&manifest.cli_relative_path);
+        if !node_path.exists() || !cli_path.exists() {
+            return Err(FrameworkError::NotFound(format!(
+                "bundled openclaw runtime is incomplete under {}",
+                install_dir.display()
+            )));
+        }
+
+        let managed_state = ensure_managed_openclaw_state(paths)?;
+        set_active_runtime_version(paths, OPENCLAW_RUNTIME_ID, &install_key)?;
+
+        Ok(ActivatedOpenClawRuntime {
+            install_key,
+            install_dir,
+            runtime_dir,
+            node_path,
+            cli_path,
+            home_dir: managed_state.home_dir,
+            state_dir: managed_state.state_dir,
+            workspace_dir: managed_state.workspace_dir,
+            config_path: managed_state.config_path,
+            gateway_port: managed_state.gateway_port,
+            gateway_auth_token: managed_state.gateway_auth_token,
+        })
+    }
+}
+
+fn resolve_bundled_resource_root(resource_dir: &Path) -> Result<PathBuf> {
+    let direct = resource_dir.join(BUNDLED_RESOURCE_DIR);
+    if direct.exists() {
+        return Ok(direct);
+    }
+
+    let nested = resource_dir.join(NESTED_BUNDLED_RESOURCE_DIR);
+    if nested.exists() {
+        return Ok(nested);
+    }
+
+    Err(FrameworkError::NotFound(format!(
+        "bundled openclaw runtime resources not found under {} or {}",
+        direct.display(),
+        nested.display()
+    )))
+}
+
+fn ensure_runtime_installation(
+    bundled_runtime_dir: &Path,
+    bundled_manifest_path: &Path,
+    manifest: &BundledOpenClawManifest,
+    install_dir: &Path,
+    runtime_dir: &Path,
+    manifest_path: &Path,
+) -> Result<()> {
+    let node_path = install_dir.join(&manifest.node_relative_path);
+    let cli_path = install_dir.join(&manifest.cli_relative_path);
+    if install_dir.exists() && node_path.exists() && cli_path.exists() && manifest_path.exists() {
+        return Ok(());
+    }
+
+    if install_dir.exists() {
+        fs::remove_dir_all(install_dir)?;
+    }
+
+    let staging_dir = install_dir.with_extension(format!("staging-{}", unix_timestamp_ms()?));
+    if staging_dir.exists() {
+        fs::remove_dir_all(&staging_dir)?;
+    }
+
+    fs::create_dir_all(&staging_dir)?;
+    copy_directory_recursive(bundled_runtime_dir, &staging_dir.join("runtime"))?;
+    fs::copy(bundled_manifest_path, staging_dir.join("manifest.json"))?;
+
+    if let Some(parent) = install_dir.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::rename(&staging_dir, install_dir)?;
+    if !runtime_dir.exists() {
+        return Err(FrameworkError::Internal(format!(
+            "failed to finalize bundled runtime installation at {}",
+            install_dir.display()
+        )));
+    }
+
+    Ok(())
+}
+
+fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawState> {
+    fs::create_dir_all(&paths.openclaw_home_dir)?;
+    fs::create_dir_all(&paths.openclaw_state_dir)?;
+    fs::create_dir_all(&paths.openclaw_workspace_dir)?;
+
+    let mut config = read_managed_config(&paths.openclaw_config_file)?;
+    set_nested_string(&mut config, &["gateway", "mode"], "local");
+    set_nested_string(&mut config, &["gateway", "bind"], "loopback");
+    let configured_port = get_nested_u16(&config, &["gateway", "port"]).filter(|port| *port > 0);
+    let gateway_port = match configured_port {
+        Some(port) if is_loopback_port_available(port) => port,
+        Some(port) => find_available_gateway_port(port)?,
+        None => find_available_gateway_port(DEFAULT_GATEWAY_PORT)?,
+    };
+    let gateway_auth_token = get_nested_string(&config, &["gateway", "auth", "token"])
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(generate_gateway_auth_token);
+    set_nested_u16(&mut config, &["gateway", "port"], gateway_port);
+    set_nested_string(&mut config, &["gateway", "auth", "mode"], "token");
+    set_nested_string(
+        &mut config,
+        &["gateway", "auth", "token"],
+        gateway_auth_token.as_str(),
+    );
+    set_nested_bool(
+        &mut config,
+        &["gateway", "http", "endpoints", "chatCompletions", "enabled"],
+        true,
+    );
+    set_nested_string(
+        &mut config,
+        &["agents", "defaults", "workspace"],
+        &paths.openclaw_workspace_dir.to_string_lossy(),
+    );
+
+    fs::write(
+        &paths.openclaw_config_file,
+        format!("{}\n", serde_json::to_string_pretty(&config)?),
+    )?;
+
+    Ok(ManagedOpenClawState {
+        home_dir: paths.openclaw_home_dir.clone(),
+        state_dir: paths.openclaw_state_dir.clone(),
+        workspace_dir: paths.openclaw_workspace_dir.clone(),
+        config_path: paths.openclaw_config_file.clone(),
+        gateway_port,
+        gateway_auth_token,
+    })
+}
+
+fn read_managed_config(path: &Path) -> Result<Value> {
+    if !path.exists() {
+        return Ok(Value::Object(Map::new()));
+    }
+
+    let content = fs::read_to_string(path)?;
+    let parsed = json5::from_str::<Value>(&content)
+        .map_err(|error| FrameworkError::ValidationFailed(format!("invalid managed openclaw config: {error}")))?;
+
+    if parsed.is_object() {
+        return Ok(parsed);
+    }
+
+    Err(FrameworkError::ValidationFailed(format!(
+        "managed openclaw config must be a JSON object: {}",
+        path.display()
+    )))
+}
+
+fn load_manifest(path: &Path) -> Result<BundledOpenClawManifest> {
+    let content = fs::read_to_string(path)?;
+    serde_json::from_str::<BundledOpenClawManifest>(&content).map_err(Into::into)
+}
+
+fn validate_manifest_target(manifest: &BundledOpenClawManifest) -> Result<()> {
+    let expected_platform = normalized_target_platform();
+    let expected_arch = normalized_target_arch();
+
+    if manifest.platform != expected_platform || manifest.arch != expected_arch {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "bundled openclaw runtime target mismatch: expected {expected_platform}-{expected_arch}, received {}-{}",
+            manifest.platform, manifest.arch
+        )));
+    }
+
+    Ok(())
+}
+
+fn normalized_target_platform() -> &'static str {
+    match platform::current_target() {
+        "windows" => "windows",
+        "macos" => "macos",
+        "linux" => "linux",
+        other => other,
+    }
+}
+
+fn normalized_target_arch() -> &'static str {
+    match platform::current_arch() {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        other => other,
+    }
+}
+
+fn copy_directory_recursive(source: &Path, target: &Path) -> Result<()> {
+    fs::create_dir_all(target)?;
+
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let entry_path = entry.path();
+        let target_path = target.join(entry.file_name());
+
+        if entry.file_type()?.is_dir() {
+            copy_directory_recursive(&entry_path, &target_path)?;
+        } else {
+            if let Some(parent) = target_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(entry_path, target_path)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn set_nested_string(value: &mut Value, path: &[&str], next: &str) {
+    set_nested_value(value, path, Value::String(next.to_string()));
+}
+
+fn set_nested_bool(value: &mut Value, path: &[&str], next: bool) {
+    set_nested_value(value, path, Value::Bool(next));
+}
+
+fn set_nested_u16(value: &mut Value, path: &[&str], next: u16) {
+    set_nested_value(value, path, Value::Number(Number::from(next)));
+}
+
+fn set_nested_value(value: &mut Value, path: &[&str], next: Value) {
+    if path.is_empty() {
+        *value = next;
+        return;
+    }
+
+    let mut current = value;
+    for segment in &path[..path.len() - 1] {
+        let object = current.as_object_mut().expect("nested config objects");
+        current = object
+            .entry((*segment).to_string())
+            .or_insert_with(|| Value::Object(Map::new()));
+        if !current.is_object() {
+            *current = Value::Object(Map::new());
+        }
+    }
+
+    current
+        .as_object_mut()
+        .expect("nested config objects")
+        .insert(path[path.len() - 1].to_string(), next);
+}
+
+fn get_nested_u16(value: &Value, path: &[&str]) -> Option<u16> {
+    let mut current = value;
+    for segment in path {
+        current = current.as_object()?.get(*segment)?;
+    }
+    current.as_u64().and_then(|number| u16::try_from(number).ok())
+}
+
+fn get_nested_string(value: &Value, path: &[&str]) -> Option<String> {
+    let mut current = value;
+    for segment in path {
+        current = current.as_object()?.get(*segment)?;
+    }
+
+    current.as_str().map(|item| item.to_string())
+}
+
+fn generate_gateway_auth_token() -> String {
+    Uuid::new_v4().simple().to_string()
+}
+
+fn unix_timestamp_ms() -> Result<u128> {
+    Ok(SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| FrameworkError::Internal(error.to_string()))?
+        .as_millis())
+}
+
+fn find_available_gateway_port(preferred_port: u16) -> Result<u16> {
+    for candidate in preferred_port..preferred_port.saturating_add(32) {
+        if is_loopback_port_available(candidate) {
+            return Ok(candidate);
+        }
+    }
+
+    Err(FrameworkError::Conflict(
+        "failed to reserve an available loopback port for the bundled openclaw gateway".to_string(),
+    ))
+}
+
+fn is_loopback_port_available(port: u16) -> bool {
+    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
+    TcpListener::bind(address).is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        normalized_target_arch, normalized_target_platform, resolve_bundled_resource_root,
+        BundledOpenClawManifest, OpenClawRuntimeService, DEFAULT_GATEWAY_PORT,
+        OPENCLAW_RUNTIME_ID,
+    };
+    use crate::framework::{layout::ActiveState, paths::resolve_paths_for_root};
+    use serde_json::Value;
+    use std::fs;
+
+    #[test]
+    fn installs_bundled_runtime_into_managed_directory_and_activates_it() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let service = OpenClawRuntimeService::new();
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        let expected_install_key = format!(
+            "2026.3.13-{}-{}",
+            normalized_target_platform(),
+            normalized_target_arch()
+        );
+
+        assert_eq!(activated.install_key, expected_install_key);
+        assert!(activated.install_dir.exists());
+        assert!(activated.runtime_dir.exists());
+        assert!(activated.node_path.exists());
+        assert!(activated.cli_path.exists());
+        assert_eq!(activated.home_dir, paths.openclaw_home_dir);
+        assert_eq!(activated.state_dir, paths.openclaw_state_dir);
+        assert_eq!(activated.workspace_dir, paths.openclaw_workspace_dir);
+        assert_eq!(activated.config_path, paths.openclaw_config_file);
+        assert!(activated.gateway_port >= DEFAULT_GATEWAY_PORT);
+        assert!(activated.gateway_port < DEFAULT_GATEWAY_PORT + 32);
+        assert!(paths
+            .openclaw_runtime_dir
+            .join(&expected_install_key)
+            .join("manifest.json")
+            .exists());
+
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+        )
+        .expect("config json");
+        assert_eq!(
+            config.pointer("/gateway/mode").and_then(Value::as_str),
+            Some("local")
+        );
+        assert_eq!(
+            config.pointer("/gateway/bind").and_then(Value::as_str),
+            Some("loopback")
+        );
+        assert_eq!(
+            config
+                .pointer("/gateway/http/endpoints/chatCompletions/enabled")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            config.pointer("/gateway/auth/mode").and_then(Value::as_str),
+            Some("token")
+        );
+        assert!(config
+            .pointer("/gateway/auth/token")
+            .and_then(Value::as_str)
+            .is_some_and(|token| !token.trim().is_empty()));
+        assert_eq!(
+            config
+                .pointer("/agents/defaults/workspace")
+                .and_then(Value::as_str),
+            Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())
+        );
+
+        let active = serde_json::from_str::<ActiveState>(
+            &fs::read_to_string(&paths.active_file).expect("active file"),
+        )
+        .expect("active json");
+        assert_eq!(
+            active
+                .runtimes
+                .get(OPENCLAW_RUNTIME_ID)
+                .and_then(|entry| entry.active_version.as_deref()),
+            Some(expected_install_key.as_str())
+        );
+    }
+
+    #[test]
+    fn reuses_existing_install_when_the_bundled_runtime_key_matches() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let service = OpenClawRuntimeService::new();
+
+        let first = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("first activation");
+        let sentinel = first.install_dir.join("sentinel.txt");
+        fs::write(&sentinel, "keep").expect("sentinel");
+
+        let second = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("second activation");
+
+        assert_eq!(first.install_key, second.install_key);
+        assert!(sentinel.exists());
+    }
+
+    #[test]
+    fn rejects_bundled_runtime_for_a_different_target() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture_for_target(temp.path(), "2026.3.13", "windows", "x64");
+        let service = OpenClawRuntimeService::new();
+
+        if normalized_target_platform() == "windows" && normalized_target_arch() == "x64" {
+            return;
+        }
+
+        let error = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect_err("target mismatch should fail");
+
+        assert!(error.to_string().contains("target mismatch"));
+    }
+
+    #[test]
+    fn rewrites_busy_gateway_ports_to_an_available_loopback_port() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let service = OpenClawRuntimeService::new();
+        let busy_port = super::find_available_gateway_port(DEFAULT_GATEWAY_PORT)
+            .expect("available busy-port candidate");
+        let busy_listener =
+            std::net::TcpListener::bind(("127.0.0.1", busy_port)).expect("busy gateway port listener");
+
+        fs::write(
+            &paths.openclaw_config_file,
+            format!(
+                "{{\n  \"gateway\": {{\n    \"port\": {busy_port}\n  }}\n}}\n"
+            ),
+        )
+        .expect("seed config file");
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        drop(busy_listener);
+
+        assert_ne!(activated.gateway_port, busy_port);
+
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+        )
+        .expect("config json");
+        assert_eq!(
+            config.pointer("/gateway/port").and_then(Value::as_u64),
+            Some(u64::from(activated.gateway_port))
+        );
+    }
+
+    #[test]
+    fn resolves_bundled_runtime_from_nested_resources_directory() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let resource_dir = temp.path().join("target").join("debug");
+        let nested_resource_root = resource_dir.join("resources").join("openclaw-runtime");
+        fs::create_dir_all(&nested_resource_root).expect("nested resource root");
+
+        let resolved = resolve_bundled_resource_root(&resource_dir).expect("resolved resource root");
+
+        assert_eq!(resolved, nested_resource_root);
+    }
+
+    fn create_bundled_runtime_fixture(root: &std::path::Path, version: &str) -> std::path::PathBuf {
+        create_bundled_runtime_fixture_for_target(
+            root,
+            version,
+            normalized_target_platform(),
+            normalized_target_arch(),
+        )
+    }
+
+    fn create_bundled_runtime_fixture_for_target(
+        root: &std::path::Path,
+        version: &str,
+        platform: &str,
+        arch: &str,
+    ) -> std::path::PathBuf {
+        let resource_root = root.join(format!("bundled-openclaw-{platform}-{arch}"));
+        let runtime_root = resource_root.join("runtime");
+        let node_relative_path = if platform == "windows" {
+            "runtime/node/node.exe"
+        } else {
+            "runtime/node/bin/node"
+        };
+        let cli_relative_path = "runtime/package/openclaw.mjs";
+        let node_path = resource_root.join(node_relative_path);
+        let cli_path = resource_root.join(cli_relative_path);
+
+        fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
+        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
+        fs::write(&node_path, "node").expect("node file");
+        fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
+        assert!(runtime_root.exists());
+
+        let manifest = BundledOpenClawManifest {
+            schema_version: 1,
+            runtime_id: OPENCLAW_RUNTIME_ID.to_string(),
+            openclaw_version: version.to_string(),
+            node_version: "22.16.0".to_string(),
+            platform: platform.to_string(),
+            arch: arch.to_string(),
+            node_relative_path: node_relative_path.to_string(),
+            cli_relative_path: cli_relative_path.to_string(),
+        };
+
+        fs::write(
+            resource_root.join("manifest.json"),
+            serde_json::to_string_pretty(&manifest).expect("manifest json"),
+        )
+        .expect("manifest file");
+
+        resource_root
+    }
+}

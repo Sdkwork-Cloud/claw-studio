@@ -293,4 +293,54 @@ mod tests {
         assert_eq!(response.profile_id, "cloud-api");
         assert_eq!(response.value.as_deref(), Some("ready"));
     }
+
+    #[test]
+    fn sqlite_profile_round_trips_values_through_storage_service() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let mut config = AppConfig::default();
+        config.storage.active_profile_id = "default-sqlite".to_string();
+        config.storage.profiles = vec![StorageProfileConfig {
+            id: "default-sqlite".to_string(),
+            label: "SQLite".to_string(),
+            provider: StorageProviderKind::Sqlite,
+            namespace: "studio.chat".to_string(),
+            path: Some("profiles/default.db".to_string()),
+            connection: None,
+            database: None,
+            endpoint: None,
+            read_only: false,
+        }];
+        let service = StorageService::new();
+
+        service
+            .put_text(
+                &paths,
+                &config,
+                StoragePutTextRequest {
+                    key: "conversation:1".to_string(),
+                    value: "{\"title\":\"SQLite\"}".to_string(),
+                    ..StoragePutTextRequest::default()
+                },
+            )
+            .expect("put sqlite value");
+
+        let listed = service
+            .list_keys(&paths, &config, StorageListKeysRequest::default())
+            .expect("list sqlite keys");
+        let response = service
+            .get_text(
+                &paths,
+                &config,
+                StorageGetTextRequest {
+                    key: "conversation:1".to_string(),
+                    ..StorageGetTextRequest::default()
+                },
+            )
+            .expect("get sqlite value");
+
+        assert_eq!(listed.profile_id, "default-sqlite");
+        assert_eq!(listed.keys, vec!["conversation:1".to_string()]);
+        assert_eq!(response.value.as_deref(), Some("{\"title\":\"SQLite\"}"));
+    }
 }

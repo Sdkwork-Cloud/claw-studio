@@ -236,18 +236,48 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     Ok(())
 }
 
+pub fn set_active_runtime_version(
+    paths: &AppPaths,
+    runtime_id: &str,
+    version: &str,
+) -> Result<()> {
+    let mut active = read_json_file::<ActiveState>(&paths.active_file)?;
+    let entry = active.runtimes.entry(runtime_id.to_string()).or_default();
+
+    if entry.active_version.as_deref() != Some(version) {
+        entry.fallback_version = entry.active_version.clone();
+        entry.active_version = Some(version.to_string());
+    }
+
+    write_json_file(&paths.active_file, &active)
+}
+
 fn write_json_if_missing<T>(path: &Path, value: &T) -> Result<()>
 where
     T: Serialize + DeserializeOwned,
 {
     if path.exists() {
-        let content = fs::read_to_string(path)?;
-        let parsed = serde_json::from_str::<T>(&content)?;
-        let normalized = serde_json::to_string_pretty(&parsed)?;
-        fs::write(path, normalized)?;
+        let parsed = read_json_file::<T>(path)?;
+        write_json_file(path, &parsed)?;
         return Ok(());
     }
 
+    write_json_file(path, value)?;
+    Ok(())
+}
+
+fn read_json_file<T>(path: &Path) -> Result<T>
+where
+    T: DeserializeOwned,
+{
+    let content = fs::read_to_string(path)?;
+    serde_json::from_str::<T>(&content).map_err(Into::into)
+}
+
+fn write_json_file<T>(path: &Path, value: &T) -> Result<()>
+where
+    T: Serialize,
+{
     let content = serde_json::to_string_pretty(value)?;
     fs::write(path, content)?;
     Ok(())
@@ -256,8 +286,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        initialize_machine_state, ActiveState, InventoryState, LayoutState, PinnedState,
-        RetentionState,
+        initialize_machine_state, set_active_runtime_version, ActiveState, InventoryState,
+        LayoutState, PinnedState, RetentionState,
     };
     use crate::framework::paths::resolve_paths_for_root;
     use serde_json::Value;
@@ -318,16 +348,28 @@ mod tests {
         assert_eq!(retention.runtimes.historical_packages, 2);
         assert!(pinned.modules.is_empty());
         assert!(pinned.runtimes.is_empty());
-        assert_eq!(channels.get("layoutVersion").and_then(Value::as_u64), Some(1));
         assert_eq!(
-            channels.pointer("/modules").and_then(Value::as_object).map(|value| value.len()),
+            channels.get("layoutVersion").and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            channels
+                .pointer("/modules")
+                .and_then(Value::as_object)
+                .map(|value| value.len()),
             Some(0)
         );
         assert_eq!(
-            channels.pointer("/runtimes").and_then(Value::as_object).map(|value| value.len()),
+            channels
+                .pointer("/runtimes")
+                .and_then(Value::as_object)
+                .map(|value| value.len()),
             Some(0)
         );
-        assert_eq!(policies.get("layoutVersion").and_then(Value::as_u64), Some(1));
+        assert_eq!(
+            policies.get("layoutVersion").and_then(Value::as_u64),
+            Some(1)
+        );
         assert_eq!(
             policies
                 .get("allowModuleHotUpdate")
@@ -340,20 +382,64 @@ mod tests {
                 .and_then(Value::as_bool),
             Some(true)
         );
-        assert_eq!(sources.get("layoutVersion").and_then(Value::as_u64), Some(1));
         assert_eq!(
-            sources.pointer("/modules").and_then(Value::as_object).map(|value| value.len()),
+            sources.get("layoutVersion").and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            sources
+                .pointer("/modules")
+                .and_then(Value::as_object)
+                .map(|value| value.len()),
             Some(0)
         );
         assert_eq!(
-            sources.pointer("/runtimes").and_then(Value::as_object).map(|value| value.len()),
+            sources
+                .pointer("/runtimes")
+                .and_then(Value::as_object)
+                .map(|value| value.len()),
             Some(0)
         );
-        assert_eq!(service.get("layoutVersion").and_then(Value::as_u64), Some(1));
-        assert_eq!(service.get("serviceEnabled").and_then(Value::as_bool), Some(true));
+        assert_eq!(
+            service.get("layoutVersion").and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            service.get("serviceEnabled").and_then(Value::as_bool),
+            Some(true)
+        );
         assert_eq!(
             service.get("maintenanceMode").and_then(Value::as_bool),
             Some(false)
+        );
+    }
+
+    #[test]
+    fn tracks_active_runtime_versions_with_fallback_history() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        set_active_runtime_version(&paths, "openclaw", "2026.3.13-windows-x64")
+            .expect("first runtime activation");
+        set_active_runtime_version(&paths, "openclaw", "2026.3.20-windows-x64")
+            .expect("second runtime activation");
+
+        let active = serde_json::from_str::<ActiveState>(
+            &std::fs::read_to_string(&paths.active_file).expect("active file"),
+        )
+        .expect("active json");
+        let openclaw = active
+            .runtimes
+            .get("openclaw")
+            .expect("openclaw active runtime");
+
+        assert_eq!(
+            openclaw.active_version.as_deref(),
+            Some("2026.3.20-windows-x64")
+        );
+        assert_eq!(
+            openclaw.fallback_version.as_deref(),
+            Some("2026.3.13-windows-x64")
         );
     }
 }
