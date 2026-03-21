@@ -20,6 +20,12 @@ function workspacePackageResolver() {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  // Allow pnpm workspace-linked SDK packages that live above apps/claw-studio.
+  const monorepoRoot = path.resolve(__dirname, '../../../../..');
+  const sharedAppSdkEntry = path.resolve(
+    __dirname,
+    '../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts',
+  );
 
   return {
     plugins: [workspacePackageResolver(), react(), tailwindcss()],
@@ -28,12 +34,16 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_ACCESS_TOKEN': JSON.stringify(env.VITE_ACCESS_TOKEN || ''),
     },
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
+      alias: [
+        { find: '@', replacement: path.resolve(__dirname, '.') },
+        { find: '@sdkwork/app-sdk', replacement: sharedAppSdkEntry },
+      ],
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
+      fs: {
+        allow: [monorepoRoot],
+      },
     },
   };
 });

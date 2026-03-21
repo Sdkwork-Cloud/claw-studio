@@ -101,6 +101,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/payments.rs', 'desktop payments service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/integrations.rs', 'desktop integrations service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime.rs', 'desktop bundled openclaw runtime service module'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/api_router_managed_runtime.rs', 'desktop bundled api router runtime service module'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/api_router_runtime.rs', 'desktop api router runtime service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/path_registration.rs', 'desktop bundled openclaw path registration service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/permissions.rs', 'desktop permissions service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/process.rs', 'desktop process service module'],
@@ -113,6 +115,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/desktop_kernel.rs', 'desktop kernel command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_paths.rs', 'desktop app paths command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_config.rs', 'desktop app config command'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/api_router_runtime.rs', 'desktop api router runtime command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs', 'desktop hub install command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_uninstall.rs', 'desktop hub uninstall command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/process_commands.rs', 'desktop process command module'],
@@ -133,6 +136,10 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/platform/mod.rs', 'desktop platform module'],
   ['scripts/prepare-openclaw-runtime.mjs', 'bundled openclaw runtime prepare script'],
   ['scripts/prepare-openclaw-runtime.test.mjs', 'bundled openclaw runtime prepare test'],
+  ['scripts/prepare-sdkwork-api-router-runtime.mjs', 'bundled sdkwork-api-router runtime prepare script'],
+  ['scripts/prepare-sdkwork-api-router-runtime.test.mjs', 'bundled sdkwork-api-router runtime prepare test'],
+  ['scripts/ensure-tauri-dev-binary-unlocked.mjs', 'tauri dev binary unlock guard script'],
+  ['scripts/ensure-tauri-dev-binary-unlocked.test.mjs', 'tauri dev binary unlock guard test'],
   ['packages/sdkwork-claw-distribution/package.json', 'distribution package'],
   ['packages/sdkwork-claw-distribution/src/index.ts', 'distribution entry'],
   ['packages/sdkwork-claw-distribution/src/manifests/cn/index.ts', 'cn distribution manifest'],
@@ -155,8 +162,34 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
 
 assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
 assertScript(desktopPackage, desktopPackagePath, 'prepare:openclaw-runtime');
+assertScript(desktopPackage, desktopPackagePath, 'prepare:api-router-runtime');
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_BUNDLED_SOURCE_DIR',
+  'desktop bundled sdkwork-api-router source dir env example',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_BASE_PORT',
+  'desktop managed sdkwork-api-router base port env example',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_GATEWAY_BIND',
+  'desktop managed sdkwork-api-router gateway bind env example',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_ADMIN_BIND',
+  'desktop managed sdkwork-api-router admin bind env example',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_PORTAL_BIND',
+  'desktop managed sdkwork-api-router portal bind env example',
+);
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
   'export const DESKTOP_COMMANDS',
@@ -166,6 +199,11 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
   'installApiRouterClientSetup',
   'desktop api router installer command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'getApiRouterRuntimeStatus',
+  'desktop api router runtime command catalog entry',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
@@ -399,6 +437,11 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function getApiRouterRuntimeStatus',
+  'desktop api router runtime bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'listenDesktopEvent',
   'desktop event listener wiring',
 );
@@ -449,6 +492,16 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'inspect_api_router_runtime_on_startup(&app_handle, context.as_ref())?;',
+  'bundled api router startup inspection wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'activate_bundled_api_router',
+  'bundled api router startup activation wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
   'restart_openclaw_gateway',
   'bundled openclaw supervisor restart wiring',
 );
@@ -458,9 +511,29 @@ assertIncludes(
   'desktop api router installer command registration',
 );
 assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::api_router_runtime::get_api_router_runtime_status',
+  'desktop api router runtime command registration',
+);
+assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
   'pub mod openclaw_runtime;',
   'bundled openclaw runtime service export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'pub mod api_router_managed_runtime;',
+  'bundled api router runtime service export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'pub mod api_router_runtime;',
+  'desktop api router runtime service export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  'resources/sdkwork-api-router-runtime/**/*',
+  'bundled api router runtime resource declaration',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
@@ -491,6 +564,11 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/events.rs',
   'process://output',
   'desktop process output event constant',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  'RuntimeApiRouterRuntimeStatus',
+  'runtime api router status contract',
 );
 assertIncludes(
   'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',

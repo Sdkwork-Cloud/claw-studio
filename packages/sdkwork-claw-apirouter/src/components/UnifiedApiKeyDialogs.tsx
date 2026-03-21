@@ -42,6 +42,7 @@ import {
   buildUnifiedApiKeyCurlExample,
   createEmptyUnifiedApiKeyFormState,
   normalizeUnifiedApiKeyFormState,
+  resolveUnifiedApiAccessGateways,
   type ProviderAccessClientConfig,
   type ProviderAccessClientId,
   type ProviderAccessInstallMode,
@@ -80,28 +81,35 @@ interface UnifiedApiKeyDialogsProps {
   onCopyApiKey: (item: UnifiedApiKey) => void;
 }
 
-function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
+function UnifiedApiKeyUsageDefaultPanel({
+  item,
+  gateways,
+}: {
+  item: UnifiedApiKey;
+  gateways: typeof UNIFIED_API_ACCESS_GATEWAYS;
+}) {
   const { t } = useTranslation();
+  const hasVisibleSecret = item.canCopyApiKey !== false && !!item.apiKey;
   const routedClientModels = [
     {
       id: 'codex',
-      model: UNIFIED_API_ACCESS_GATEWAYS.openai.defaultModel.name,
+      model: gateways.openai.defaultModel.name,
     },
     {
       id: 'claude-code',
-      model: UNIFIED_API_ACCESS_GATEWAYS.anthropic.defaultModel.name,
+      model: gateways.anthropic.defaultModel.name,
     },
     {
       id: 'opencode',
-      model: UNIFIED_API_ACCESS_GATEWAYS.openai.defaultModel.name,
+      model: gateways.openai.defaultModel.name,
     },
     {
       id: 'openclaw',
-      model: UNIFIED_API_ACCESS_GATEWAYS.openai.defaultModel.name,
+      model: gateways.openai.defaultModel.name,
     },
     {
       id: 'gemini',
-      model: UNIFIED_API_ACCESS_GATEWAYS.gemini.defaultModel.name,
+      model: gateways.gemini.defaultModel.name,
     },
   ] as const;
 
@@ -114,7 +122,7 @@ function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
             {t('apiRouterPage.unifiedApiKey.detail.openaiBaseUrl')}
           </div>
           <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
-            {UNIFIED_API_ACCESS_GATEWAYS.openai.baseUrl}
+            {gateways.openai.baseUrl}
           </div>
         </div>
 
@@ -124,7 +132,7 @@ function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
             {t('apiRouterPage.unifiedApiKey.detail.anthropicBaseUrl')}
           </div>
           <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
-            {UNIFIED_API_ACCESS_GATEWAYS.anthropic.baseUrl}
+            {gateways.anthropic.baseUrl}
           </div>
         </div>
 
@@ -133,10 +141,18 @@ function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
             {t('apiRouterPage.detail.authHeader')}
           </div>
           <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
-            {`Authorization: Bearer ${item.apiKey}`}
+            {hasVisibleSecret
+              ? `Authorization: Bearer ${item.apiKey}`
+              : t('apiRouterPage.unifiedApiKey.values.oneTimeSecretUnavailable')}
           </div>
         </div>
       </div>
+
+      {!hasVisibleSecret ? (
+        <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+          {t('apiRouterPage.unifiedApiKey.detail.secretRevealHint')}
+        </div>
+      ) : null}
 
       <div className="rounded-[24px] border border-primary-500/15 bg-primary-500/5 px-4 py-3 text-sm leading-6 text-zinc-600 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-zinc-300">
         {t('apiRouterPage.unifiedApiKey.detail.gatewayHint')}
@@ -167,7 +183,7 @@ function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
           {t('apiRouterPage.dialogs.exampleRequest')}
         </div>
         <pre className="mt-4 overflow-x-auto text-sm leading-6 text-zinc-300">
-          <code>{buildUnifiedApiKeyCurlExample(item)}</code>
+          <code>{buildUnifiedApiKeyCurlExample(item, gateways)}</code>
         </pre>
       </div>
 
@@ -268,15 +284,20 @@ function UnifiedApiKeyForm({
   onChange,
   onSubmit,
   submitLabel,
+  allowSecretEditing = true,
+  allowFreeformGroupName = false,
 }: {
   formState: UnifiedApiKeyFormState;
   groups: ProxyProviderGroup[];
   onChange: (updater: (previous: UnifiedApiKeyFormState) => UnifiedApiKeyFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   submitLabel: string;
+  allowSecretEditing?: boolean;
+  allowFreeformGroupName?: boolean;
 }) {
   const { t } = useTranslation();
   const isSystemGenerated = formState.keyMode === 'system-generated';
+  const usesFreeformGroupName = allowFreeformGroupName && groups.length === 0;
 
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
@@ -300,45 +321,79 @@ function UnifiedApiKeyForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="unified-api-key-group">
-              {t('apiRouterPage.unifiedApiKey.fields.group')}
+            <Label htmlFor={usesFreeformGroupName ? 'unified-api-key-group-name' : 'unified-api-key-group'}>
+              {usesFreeformGroupName
+                ? t('apiRouterPage.unifiedApiKey.fields.groupName')
+                : t('apiRouterPage.unifiedApiKey.fields.group')}
             </Label>
-            <Select
-              value={formState.groupId}
-              onValueChange={(value) =>
-                onChange((previous) => ({ ...previous, groupId: value }))
-              }
-            >
-              <SelectTrigger id="unified-api-key-group" className="h-11">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {usesFreeformGroupName ? (
+              <Input
+                id="unified-api-key-group-name"
+                placeholder={t('apiRouterPage.unifiedApiKey.placeholders.groupName')}
+                value={formState.groupName}
+                onChange={(event) =>
+                  onChange((previous) => ({
+                    ...previous,
+                    groupId: '',
+                    groupName: event.target.value,
+                  }))
+                }
+              />
+            ) : (
+              <Select
+                value={formState.groupId}
+                onValueChange={(value) =>
+                  onChange((previous) => ({
+                    ...previous,
+                    groupId: value,
+                    groupName: '',
+                  }))
+                }
+              >
+                <SelectTrigger id="unified-api-key-group" className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t('apiRouterPage.unifiedApiKey.fields.groupHint')}
+              {usesFreeformGroupName
+                ? t('apiRouterPage.unifiedApiKey.fields.groupNameHint')
+                : t('apiRouterPage.unifiedApiKey.fields.groupHint')}
             </p>
           </div>
 
-          <div className="lg:col-span-2">
-            <UnifiedApiKeyModeSelector
-              value={formState.keyMode}
-              onChange={(value) =>
-                onChange((previous) => ({
-                  ...previous,
-                  keyMode: value,
-                  apiKey: value === previous.keyMode ? previous.apiKey : '',
-                }))
-              }
-            />
-          </div>
+          {allowSecretEditing ? (
+            <div className="lg:col-span-2">
+              <UnifiedApiKeyModeSelector
+                value={formState.keyMode}
+                onChange={(value) =>
+                  onChange((previous) => ({
+                    ...previous,
+                    keyMode: value,
+                    apiKey: value === previous.keyMode ? previous.apiKey : '',
+                  }))
+                }
+              />
+            </div>
+          ) : (
+            <div className="lg:col-span-2 rounded-[24px] border border-primary-500/15 bg-primary-500/8 p-4 dark:border-primary-500/20 dark:bg-primary-500/10">
+              <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                {t('apiRouterPage.unifiedApiKey.fields.keyModeLockedTitle')}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {t('apiRouterPage.unifiedApiKey.fields.keyModeLockedHint')}
+              </p>
+            </div>
+          )}
 
-          {isSystemGenerated ? (
+          {isSystemGenerated && allowSecretEditing ? (
             <div className="lg:col-span-2 rounded-[24px] border border-primary-500/15 bg-primary-500/8 p-4 dark:border-primary-500/20 dark:bg-primary-500/10">
               <div className="flex items-start gap-3">
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-500 text-white">
@@ -464,6 +519,7 @@ export function UnifiedApiKeyDialogs({
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
   const [modelMappingSearchQuery, setModelMappingSearchQuery] = useState('');
   const [selectedModelMappingId, setSelectedModelMappingId] = useState<string | null>(null);
+  const [accessGateways, setAccessGateways] = useState(UNIFIED_API_ACCESS_GATEWAYS);
 
   useEffect(() => {
     if (!isCreateOpen) {
@@ -503,6 +559,29 @@ export function UnifiedApiKeyDialogs({
     setIsLoadingInstances(false);
     setIsInstanceSelectorOpen(false);
     setSelectedInstanceIds([]);
+  }, [usageKey?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAccessGateways() {
+      try {
+        const resolved = await resolveUnifiedApiAccessGateways();
+        if (!cancelled) {
+          setAccessGateways(resolved);
+        }
+      } catch {
+        if (!cancelled) {
+          setAccessGateways(UNIFIED_API_ACCESS_GATEWAYS);
+        }
+      }
+    }
+
+    void loadAccessGateways();
+
+    return () => {
+      cancelled = true;
+    };
   }, [usageKey?.id]);
 
   useEffect(() => {
@@ -570,7 +649,9 @@ export function UnifiedApiKeyDialogs({
     }
   }
 
-  const accessClients = usageKey ? buildUnifiedApiKeyAccessClientConfigs(usageKey) : [];
+  const accessClients = usageKey
+    ? buildUnifiedApiKeyAccessClientConfigs(usageKey, accessGateways)
+    : [];
   const activeAccessClient =
     activeUsageTab === 'default'
       ? null
@@ -712,6 +793,7 @@ export function UnifiedApiKeyDialogs({
               title={usageKey.name}
               subtitle={t(`apiRouterPage.unifiedApiKey.sources.${usageKey.source}`)}
               copyLabel={t('apiRouterPage.unifiedApiKey.actions.copyKey')}
+              copyDisabled={usageKey.canCopyApiKey === false || !usageKey.apiKey}
               onCopy={() => onCopyApiKey(usageKey)}
             />
 
@@ -729,7 +811,7 @@ export function UnifiedApiKeyDialogs({
                 aria-labelledby={`unified-api-key-usage-tab-${activeUsageTab}`}
               >
                 {activeUsageTab === 'default' ? (
-                  <UnifiedApiKeyUsageDefaultPanel item={usageKey} />
+                  <UnifiedApiKeyUsageDefaultPanel item={usageKey} gateways={accessGateways} />
                 ) : activeAccessClient ? (
                   <div className="space-y-4">
                     <div>
@@ -775,6 +857,7 @@ export function UnifiedApiKeyDialogs({
           <UnifiedApiKeyForm
             formState={createFormState}
             groups={groups}
+            allowFreeformGroupName
             onChange={(updater) => setCreateFormState((previous) => updater(previous))}
             onSubmit={(event) => {
               event.preventDefault();
@@ -788,6 +871,7 @@ export function UnifiedApiKeyDialogs({
               onCreate({
                 name: normalized.name,
                 groupId: normalized.groupId,
+                groupName: normalized.groupName,
                 apiKey: normalized.apiKey,
                 source: normalized.source,
                 expiresAt: normalized.expiresAt,
@@ -813,22 +897,29 @@ export function UnifiedApiKeyDialogs({
             onSubmit={(event) => {
               event.preventDefault();
               const normalized = normalizeUnifiedApiKeyFormState(editFormState);
+              const allowSecretEditing = !(editingKey.tenantId && editingKey.projectId);
 
               if (!normalized) {
                 toast.error(t('apiRouterPage.unifiedApiKey.toast.validationFailed'));
                 return;
               }
 
-              onSave(editingKey.id, {
+              const updatePayload: UnifiedApiKeyUpdate = {
                 name: normalized.name,
                 groupId: normalized.groupId,
-                apiKey: normalized.apiKey,
-                source: normalized.source,
                 expiresAt: normalized.expiresAt,
                 notes: normalized.notes || undefined,
-              });
+              };
+
+              if (allowSecretEditing) {
+                updatePayload.apiKey = normalized.apiKey;
+                updatePayload.source = normalized.source;
+              }
+
+              onSave(editingKey.id, updatePayload);
             }}
             submitLabel={t('apiRouterPage.unifiedApiKey.dialogs.save')}
+            allowSecretEditing={!(editingKey.tenantId && editingKey.projectId)}
           />
         ) : null}
       </Modal>

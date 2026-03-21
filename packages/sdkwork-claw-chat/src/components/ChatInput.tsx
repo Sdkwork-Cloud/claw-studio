@@ -65,8 +65,11 @@ export function ChatInput({
     }
 
     const rect = trigger.getBoundingClientRect();
-    const viewportPadding = 16;
-    const dropdownWidth = Math.min(560, Math.max(320, window.innerWidth - viewportPadding * 2));
+    const viewportPadding = window.innerWidth < 640 ? 12 : 16;
+    const dropdownWidth = Math.min(
+      560,
+      Math.max(window.innerWidth < 640 ? 280 : 320, window.innerWidth - viewportPadding * 2),
+    );
     const left = Math.min(
       Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - dropdownWidth - viewportPadding),
@@ -159,19 +162,19 @@ export function ChatInput({
   const showElevatedSurface = isFocused || Boolean(message.trim()) || showModelDropdown;
 
   return (
-    <div className="relative w-full px-2 sm:px-4">
+    <div className="relative w-full px-0 sm:px-2 lg:px-4">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         className={cn(
-          'relative flex w-full flex-col overflow-hidden rounded-[26px] border backdrop-blur-xl transition-all duration-300',
+          'relative flex w-full flex-col overflow-hidden rounded-[22px] border backdrop-blur-xl transition-all duration-300 sm:rounded-[26px]',
           showElevatedSurface
             ? 'border-zinc-300 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.14)] ring-1 ring-zinc-200/80 dark:border-zinc-700 dark:bg-zinc-900 dark:shadow-[0_18px_48px_rgba(0,0,0,0.32)] dark:ring-zinc-800'
             : 'border-zinc-300/90 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.09)] ring-1 ring-zinc-200/70 dark:border-zinc-700/90 dark:bg-zinc-900 dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:ring-zinc-800/80',
         )}
       >
-        <div className="flex flex-col gap-2 px-4 py-3 sm:px-5 sm:py-4">
+        <div className="flex flex-col gap-2 px-3 py-3 sm:px-5 sm:py-4">
           <Textarea
             ref={textareaRef}
             value={message}
@@ -184,7 +187,7 @@ export function ChatInput({
             rows={1}
           />
 
-          <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 sm:gap-1.5">
               <button
                 className={actionButtonClassName}
@@ -211,7 +214,7 @@ export function ChatInput({
                   onClick={() => setShowModelDropdown((current) => !current)}
                   className={modelTriggerClassName}
                 >
-                  <span className="truncate max-w-[160px] sm:max-w-[220px]">
+                  <span className="truncate max-w-[8.5rem] sm:max-w-[12rem] lg:max-w-[16rem]">
                     {activeModel?.name || t('chat.page.selectModel')}
                   </span>
                   <ChevronDown
@@ -224,38 +227,40 @@ export function ChatInput({
               </div>
             </div>
 
-            <AnimatePresence mode="wait">
-              {isLoading ? (
-                <motion.button
-                  key="stop"
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  onClick={onStop}
-                  className="group flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900"
-                  title={t('chat.input.stopGenerating')}
-                >
-                  <StopCircle className="h-[18px] w-[18px] transition-colors group-hover:text-red-400" />
-                </motion.button>
-              ) : (
-                <motion.button
-                  key="send"
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  onClick={handleSend}
-                  disabled={!message.trim() || !activeModel}
-                  className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300',
-                    message.trim() && activeModel
-                      ? 'bg-zinc-900 text-white shadow-sm hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900'
-                      : 'bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500',
-                  )}
-                >
-                  <Send className="h-[18px] w-[18px]" />
-                </motion.button>
-              )}
-            </AnimatePresence>
+            <div className="flex justify-end sm:justify-start">
+              <AnimatePresence mode="wait">
+                {isLoading ? (
+                  <motion.button
+                    key="stop"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={onStop}
+                    className="group flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900"
+                    title={t('chat.input.stopGenerating')}
+                  >
+                    <StopCircle className="h-[18px] w-[18px] transition-colors group-hover:text-red-400" />
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    key="send"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={handleSend}
+                    disabled={!message.trim() || !activeModel}
+                    className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300',
+                      message.trim() && activeModel
+                        ? 'bg-zinc-900 text-white shadow-sm hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500',
+                    )}
+                  >
+                    <Send className="h-[18px] w-[18px]" />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </motion.div>

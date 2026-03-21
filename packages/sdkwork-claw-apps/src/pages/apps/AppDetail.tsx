@@ -37,6 +37,7 @@ type InstallState =
   | 'error';
 
 type InstallDirectoryKey = 'installRoot' | 'workRoot' | 'binDir' | 'dataRoot' | 'additional';
+type Translator = ReturnType<typeof useTranslation>['t'];
 
 interface ProgressSummary {
   currentStage: string | null;
@@ -89,6 +90,24 @@ function humanizeLabel(value: string | null | undefined) {
   }
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function normalizeTranslationToken(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+}
+
+function translateDynamicLabel(
+  t: Translator,
+  baseKey: string,
+  value: string | null | undefined,
+) {
+  if (!value) {
+    return null;
+  }
+
+  return t(`${baseKey}.${normalizeTranslationToken(value)}`, {
+    defaultValue: humanizeLabel(value) || value,
+  });
 }
 
 function isBusyInstallState(installState: InstallState) {
@@ -150,16 +169,27 @@ function reduceProgressEvent(state: ProgressSummary, event: HubInstallProgressEv
   return state;
 }
 
-function formatProgressEvent(event: HubInstallProgressEvent) {
+function formatProgressEvent(t: Translator, event: HubInstallProgressEvent) {
   if (event.type === 'dependencyStarted') {
-    return `Checking ${event.description || event.target || event.dependencyId}`;
+    return t('apps.detail.progress.dependencyChecking', {
+      target: event.description || event.target || event.dependencyId,
+    });
   }
 
   if (event.type === 'dependencyCompleted') {
     if (event.skipped) {
-      return `${event.target || event.dependencyId}: already ready`;
+      return t('apps.detail.progress.dependencyReady', {
+        target: event.target || event.dependencyId,
+      });
     }
-    return `${event.target || event.dependencyId}: ${event.success ? 'ready' : 'failed'}`;
+    return t(
+      event.success
+        ? 'apps.detail.progress.dependencyCompleted'
+        : 'apps.detail.progress.dependencyFailed',
+      {
+        target: event.target || event.dependencyId,
+      },
+    );
   }
 
   if (event.type === 'stepStarted') {
@@ -171,23 +201,36 @@ function formatProgressEvent(event: HubInstallProgressEvent) {
   }
 
   if (event.type === 'stepCompleted') {
-    return event.success ? 'Step completed' : 'Step failed';
+    return t(
+      event.success ? 'apps.detail.progress.stepCompleted' : 'apps.detail.progress.stepFailed',
+    );
   }
 
   if (event.type === 'artifactStarted') {
-    return `Starting ${event.artifactId}`;
+    return t('apps.detail.progress.artifactStarting', {
+      artifact: event.artifactId,
+    });
   }
 
   if (event.type === 'artifactCompleted') {
-    return `${event.artifactId}: ${event.success ? 'completed' : 'failed'}`;
+    return t(
+      event.success ? 'apps.detail.progress.artifactCompleted' : 'apps.detail.progress.artifactFailed',
+      {
+        artifact: event.artifactId,
+      },
+    );
   }
 
   if (event.type === 'stageStarted') {
-    return `Stage: ${humanizeLabel(event.stage) || event.stage}`;
+    return t('apps.detail.progress.stageStarted', {
+      stage: humanizeLabel(event.stage) || event.stage,
+    });
   }
 
   if (event.type === 'stageCompleted') {
-    return `Stage complete: ${humanizeLabel(event.stage) || event.stage}`;
+    return t('apps.detail.progress.stageCompleted', {
+      stage: humanizeLabel(event.stage) || event.stage,
+    });
   }
 
   if (event.type === 'stepLogChunk') {
@@ -245,16 +288,16 @@ function getSupportTone(supported?: boolean | null) {
   return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
 }
 
-function getSupportLabel(supported?: boolean | null) {
+function getSupportLabel(t: Translator, supported?: boolean | null) {
   if (supported === true) {
-    return 'Supported';
+    return t('install.page.assessment.installation.supported');
   }
 
   if (supported === false) {
-    return 'Documented';
+    return t('install.page.assessment.installation.documentedOnly');
   }
 
-  return 'Declared';
+  return t('install.page.assessment.installation.declared');
 }
 
 function getBooleanTone(value: boolean) {
@@ -263,20 +306,23 @@ function getBooleanTone(value: boolean) {
     : 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300';
 }
 
-function getBooleanLabel(value: boolean) {
-  return value ? 'Available' : 'Missing';
+function getBooleanLabel(t: Translator, value: boolean) {
+  return value ? t('apps.detail.availability.available') : t('apps.detail.availability.missing');
 }
 
-function getInstallStatusLabel(value: HubInstallRecordStatus | null | undefined) {
+function getInstallStatusLabel(
+  t: Translator,
+  value: HubInstallRecordStatus | null | undefined,
+) {
   if (value === 'installed') {
-    return 'Installed';
+    return t('install.page.install.states.installed');
   }
 
   if (value === 'uninstalled') {
-    return 'Uninstalled';
+    return t('apps.detail.installStatus.uninstalled');
   }
 
-  return 'Not managed yet';
+  return t('apps.detail.installStatus.notManaged');
 }
 
 function getInstallStatusTone(value: HubInstallRecordStatus | null | undefined) {
@@ -347,24 +393,77 @@ function collectInstallationDirectories(inspection: AppInstallInspection | null)
   return items;
 }
 
-function getDirectoryLabel(entry: InstallDirectoryEntry) {
+function getDirectoryLabel(t: Translator, entry: InstallDirectoryEntry) {
   if (entry.key === 'installRoot') {
-    return 'Install Root';
+    return t('install.page.assessment.installation.directoryKinds.installRoot');
   }
 
   if (entry.key === 'workRoot') {
-    return 'Work Root';
+    return t('install.page.assessment.installation.directoryKinds.workRoot');
   }
 
   if (entry.key === 'binDir') {
-    return 'Bin Directory';
+    return t('install.page.assessment.installation.directoryKinds.binDir');
   }
 
   if (entry.key === 'dataRoot') {
-    return 'Data Root';
+    return t('install.page.assessment.installation.directoryKinds.dataRoot');
   }
 
-  return humanizeLabel(entry.id) || 'Additional Directory';
+  return humanizeLabel(entry.id) || t('install.page.assessment.installation.directoryKinds.additional');
+}
+
+function getDependencyStatusLabel(
+  t: Translator,
+  value: HubInstallAssessmentDependency['status'],
+) {
+  return t(`install.page.assessment.dependencyStatus.${value}`, {
+    defaultValue: humanizeLabel(value) || value,
+  });
+}
+
+function getCheckTypeLabel(t: Translator, value: HubInstallAssessmentDependency['checkType']) {
+  return t(`apps.detail.values.checkTypes.${normalizeTranslationToken(value)}`, {
+    defaultValue: humanizeLabel(value) || value,
+  });
+}
+
+function getPlatformLabel(t: Translator, value: string | null | undefined) {
+  return translateDynamicLabel(t, 'apps.detail.values.platforms', value);
+}
+
+function getControlLevelLabel(t: Translator, value: string | null | undefined) {
+  return translateDynamicLabel(t, 'apps.detail.values.controlLevels', value);
+}
+
+function getDataKindLabel(t: Translator, value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return t(`install.page.assessment.dataKind.${value}`, {
+    defaultValue: humanizeLabel(value) || value,
+  });
+}
+
+function getUninstallPolicyLabel(t: Translator, value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return t(`install.page.assessment.uninstallPolicy.${value}`, {
+    defaultValue: humanizeLabel(value) || value,
+  });
+}
+
+function getMigrationModeLabel(t: Translator, value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return t(`install.page.assessment.migration.mode.${value}`, {
+    defaultValue: humanizeLabel(value) || value,
+  });
 }
 
 function getVariantDocumentationUrl(
@@ -542,9 +641,9 @@ export function AppDetail() {
             `https://picsum.photos/seed/${app.id}_3/800/500`,
           ],
         version: app.version || '1.0.0',
-        size: app.size || 'Unknown',
+        size: app.size || t('apps.detail.defaults.unknown'),
         releaseDate: app.releaseDate || '2026-03-20',
-        compatibility: app.compatibility || 'Windows 11, macOS 13+, Ubuntu 22.04+',
+        compatibility: app.compatibility || t('apps.detail.defaults.compatibility'),
         ageRating: app.ageRating || '4+',
       }
     : null;
@@ -574,7 +673,7 @@ export function AppDetail() {
 
       setProgressSummary((current) => reduceProgressEvent(current, event));
 
-      const line = formatProgressEvent(event);
+      const line = formatProgressEvent(t, event);
       if (!line) {
         return;
       }
@@ -626,8 +725,12 @@ export function AppDetail() {
       });
       toast.success(
         dependencyIds?.length === 1
-          ? `${dependencyLabel || dependencyIds[0]} is ready.`
-          : `Dependencies are ready for ${app.name}.`,
+          ? t('apps.detail.toasts.dependencyReady', {
+              dependency: dependencyLabel || dependencyIds[0],
+            })
+          : t('apps.detail.toasts.dependenciesReady', {
+              name: app.name,
+            }),
       );
       setInstallState('idle');
       refreshInspection();
@@ -704,7 +807,11 @@ export function AppDetail() {
       });
       setOptimisticInstallStatus('uninstalled');
       setInstallState('idle');
-      toast.success(`${app.name} uninstall finished.`);
+      toast.success(
+        t('apps.detail.toasts.uninstallSuccess', {
+          name: app.name,
+        }),
+      );
       refreshInspection();
     } catch (error) {
       const message = getErrorMessage(error);
@@ -742,7 +849,9 @@ export function AppDetail() {
     <div className="h-full overflow-y-auto bg-white dark:bg-zinc-950">
       <div className="sticky top-0 z-20 flex items-center gap-4 border-b border-zinc-200 bg-white/80 px-6 py-4 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/80">
         <button
+          type="button"
           onClick={() => navigate(-1)}
+          aria-label={t('common.back')}
           className="rounded-full p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           <ArrowLeft className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
@@ -814,11 +923,12 @@ export function AppDetail() {
                   installStatus,
                 )}`}
               >
-                {getInstallStatusLabel(installStatus)}
+                {getInstallStatusLabel(t, installStatus)}
               </span>
 
               {autoRemediableDependencies.length > 0 && installState !== 'installing' ? (
                 <button
+                  type="button"
                   onClick={handleInstallDependencies}
                   disabled={installBusy}
                   className="flex items-center gap-2 rounded-full bg-amber-500 px-6 py-2.5 font-bold text-zinc-950 shadow-sm transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
@@ -829,18 +939,22 @@ export function AppDetail() {
                     <Wrench className="h-4 w-4" />
                   )}
                   {installState === 'installing-dependencies' && dependencyActionTarget === 'all'
-                    ? 'Installing Dependencies...'
-                    : 'Install All Dependencies'}
+                    ? t('apps.detail.actions.installingDependencies')
+                    : t('apps.detail.actions.installAllDependencies')}
                 </button>
               ) : null}
 
               {isInstalledTarget ? (
-                <button className="flex items-center gap-2 rounded-full bg-zinc-900 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-full bg-zinc-900 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
                   <Check className="h-4 w-4" />
-                  Installed
+                  {t('install.page.install.states.installed')}
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={handleInstall}
                   disabled={installBusy || !!blockingIssues.length || !inspection || !readyToInstall}
                   className="flex items-center gap-2 rounded-full bg-primary-500 px-8 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
@@ -851,9 +965,9 @@ export function AppDetail() {
                     <Download className="h-4 w-4" />
                   )}
                   {installState === 'installing'
-                    ? 'Installing...'
+                    ? t('apps.detail.installing')
                     : selectedVariant
-                      ? `Install ${selectedVariant.label}`
+                      ? t('apps.detail.actions.installVariant', { variant: selectedVariant.label })
                       : t('apps.detail.installToLocal')}
                 </button>
               )}
@@ -866,22 +980,28 @@ export function AppDetail() {
                   className="flex items-center gap-2 rounded-full border border-zinc-300 px-5 py-2.5 font-bold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  Docs
+                  {t('apps.detail.actions.docs')}
                 </a>
               ) : null}
 
               {isInstalledTarget ? (
                 <button
+                  type="button"
                   onClick={handleUninstall}
                   disabled={installBusy}
                   className="flex items-center gap-2 rounded-full border border-zinc-300 px-6 py-2.5 font-bold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Uninstall
+                  {t('install.page.method.actions.uninstall')}
                 </button>
               ) : null}
 
-              <button className="rounded-full p-2.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+              <button
+                type="button"
+                aria-label={t('apps.detail.actions.share')}
+                title={t('apps.detail.actions.share')}
+                className="rounded-full p-2.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              >
                 <Share className="h-5 w-5" />
               </button>
             </div>
@@ -890,7 +1010,7 @@ export function AppDetail() {
               <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Selected Profile
+                    {t('apps.detail.cards.selectedProfile')}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                     {installTargetLabel}
@@ -902,51 +1022,59 @@ export function AppDetail() {
 
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Runtime
+                    {t('install.page.assessment.labels.runtime')}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    {humanizeLabel(inspection.target.runtimePlatform) || inspection.target.runtimePlatform}
+                    {getPlatformLabel(t, inspection.target.runtimePlatform)}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Host: {humanizeLabel(inspection.target.hostPlatform) || inspection.target.hostPlatform}
+                    {t('apps.detail.hostValue', {
+                      host: getPlatformLabel(t, inspection.target.hostPlatform),
+                    })}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Installation Method
+                    {t('apps.detail.cards.installationMethod')}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    {installationMethod?.label || installTargetLabel || 'Managed profile'}
+                    {installationMethod?.label || installTargetLabel || t('apps.detail.methodFallback')}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                     {installationMethod
-                      ? humanizeLabel(installationMethod.type) || installationMethod.type
-                      : inspection.assessment.installControlLevel}
+                      ? t(`install.page.assessment.methodType.${installationMethod.type}`, {
+                          defaultValue: humanizeLabel(installationMethod.type) || installationMethod.type,
+                        })
+                      : getControlLevelLabel(t, inspection.assessment.installControlLevel)}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Readiness
+                    {t('apps.detail.cards.readiness')}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    {readyToInstall ? 'Ready to install' : 'Needs attention'}
+                    {readyToInstall
+                      ? t('install.page.install.readyHint')
+                      : t('install.page.install.labels.needsAttention')}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {inspection.assessment.dependencies.length} dependency checks
+                    {t('apps.detail.dependencyChecks', {
+                      count: inspection.assessment.dependencies.length,
+                    })}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Install Status
+                    {t('apps.detail.cards.installStatus')}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    {getInstallStatusLabel(inspection.assessment.installStatus)}
+                    {getInstallStatusLabel(t, inspection.assessment.installStatus)}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    State comes from the Rust assessment record for this selected profile.
+                    {t('apps.detail.installStatusNote')}
                   </div>
                 </div>
               </div>
@@ -967,14 +1095,14 @@ export function AppDetail() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                      Install Profiles
+                      {t('apps.detail.sections.installProfiles')}
                     </h3>
                     <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                      Choose the Rust-backed installation path that best matches this host and runtime.
+                      {t('apps.detail.sections.installProfilesDescription')}
                     </p>
                   </div>
                   <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                    {compatibleVariants.length} available
+                    {t('apps.detail.installProfilesCount', { count: compatibleVariants.length })}
                   </span>
                 </div>
 
@@ -1004,11 +1132,15 @@ export function AppDetail() {
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                              {humanizeLabel(variant.runtimePlatform) || variant.runtimePlatform}
+                              {getPlatformLabel(t, variant.runtimePlatform)}
                             </span>
                             {variant.installationMethod ? (
                               <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                                {humanizeLabel(variant.installationMethod.type) || variant.installationMethod.type}
+                                {t(`install.page.assessment.methodType.${variant.installationMethod.type}`, {
+                                  defaultValue:
+                                    humanizeLabel(variant.installationMethod.type) ||
+                                    variant.installationMethod.type,
+                                })}
                               </span>
                             ) : null}
                           </div>
@@ -1024,20 +1156,20 @@ export function AppDetail() {
                               key={`${variant.id}-${hostPlatform}`}
                               className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
                             >
-                              {humanizeLabel(hostPlatform) || hostPlatform}
+                              {getPlatformLabel(t, hostPlatform)}
                             </span>
                           ))}
                         </div>
 
                         <div className="mt-4 flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleSelectVariant(variant.id)}
-                            disabled={installBusy || isSelected}
-                            className="rounded-full bg-primary-500 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-                          >
-                            {isSelected ? 'Selected' : 'Use Profile'}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectVariant(variant.id)}
+                              disabled={installBusy || isSelected}
+                              className="rounded-full bg-primary-500 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+                            >
+                              {isSelected ? t('apps.detail.actions.selected') : t('apps.detail.actions.useProfile')}
+                            </button>
                           {variantDocs ? (
                             <a
                               href={variantDocs}
@@ -1046,7 +1178,7 @@ export function AppDetail() {
                               className="inline-flex items-center gap-2 rounded-full border border-zinc-200 px-4 py-2 text-xs font-bold text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                             >
                               <ExternalLink className="h-3.5 w-3.5" />
-                              Profile Docs
+                              {t('apps.detail.actions.profileDocs')}
                             </a>
                           ) : null}
                         </div>
@@ -1060,10 +1192,10 @@ export function AppDetail() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                      Install Readiness
+                      {t('apps.detail.sections.installReadiness')}
                     </h3>
                     <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                      Dependency inspection comes directly from the Rust installer assessment.
+                      {t('apps.detail.sections.installReadinessDescription')}
                     </p>
                   </div>
                   <button
@@ -1072,7 +1204,7 @@ export function AppDetail() {
                     disabled={installBusy}
                     className="rounded-full border border-zinc-200 px-4 py-1.5 text-xs font-bold text-zinc-600 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
-                    Refresh
+                    {t('install.page.assessment.actions.refresh')}
                   </button>
                 </div>
 
@@ -1094,7 +1226,7 @@ export function AppDetail() {
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-semibold ${getDependencyBadgeColor(dependency)}`}
                         >
-                          {dependency.status}
+                          {getDependencyStatusLabel(t, dependency.status)}
                         </span>
                       </div>
 
@@ -1131,15 +1263,17 @@ export function AppDetail() {
                               ) : (
                                 <Wrench className="h-3.5 w-3.5" />
                               )}
-                              Fix This Dependency
+                              {t('apps.detail.actions.fixDependency')}
                             </button>
                           ) : (
                             <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
-                              Manual setup required
+                              {t('apps.detail.dependency.manualSetupRequired')}
                             </span>
                           )}
                           <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                            Check: {dependency.checkType}
+                            {t('apps.detail.dependency.check', {
+                              check: getCheckTypeLabel(t, dependency.checkType),
+                            })}
                           </span>
                         </div>
                       ) : null}
@@ -1152,10 +1286,10 @@ export function AppDetail() {
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50/80 p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <div className="mb-4">
                     <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                      Installation Blueprint
+                      {t('apps.detail.sections.installationBlueprint')}
                     </h3>
                     <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                      The selected profile exposes method, directory, and lifecycle metadata from Rust.
+                      {t('apps.detail.sections.installationBlueprintDescription')}
                     </p>
                   </div>
 
@@ -1163,7 +1297,7 @@ export function AppDetail() {
                     <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                          {installationMethod?.label || 'Managed profile'}
+                          {installationMethod?.label || t('apps.detail.methodFallback')}
                         </div>
                         {installationMethod ? (
                           <>
@@ -1172,7 +1306,7 @@ export function AppDetail() {
                                 installationMethod.supported,
                               )}`}
                             >
-                              {getSupportLabel(installationMethod.supported)}
+                              {getSupportLabel(t, installationMethod.supported)}
                             </span>
                             <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                               {humanizeLabel(installationMethod.type) || installationMethod.type}
@@ -1185,13 +1319,13 @@ export function AppDetail() {
                         {inspection.assessment.installation?.method.summary ||
                           selectedVariant?.summary ||
                           inspection.assessment.manifestDescription ||
-                          'Profile metadata is available through the selected Rust manifest.'}
+                          t('apps.detail.defaults.manifestSummary')}
                       </p>
 
                       {inspection.assessment.installation?.alternatives.length ? (
                         <div className="mt-4 space-y-2">
                           <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                            Alternatives
+                            {t('install.page.assessment.installation.alternatives')}
                           </div>
                           {inspection.assessment.installation.alternatives.map((method) => (
                             <div
@@ -1207,7 +1341,7 @@ export function AppDetail() {
                                     method.supported,
                                   )}`}
                                 >
-                                  {getSupportLabel(method.supported)}
+                                  {getSupportLabel(t, method.supported)}
                                 </span>
                               </div>
                               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
@@ -1221,7 +1355,7 @@ export function AppDetail() {
 
                     <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                       <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        Managed Directories
+                        {t('install.page.assessment.installation.directories')}
                       </div>
                       <div className="mt-4 space-y-3">
                         {installationDirectories.length > 0 ? (
@@ -1232,10 +1366,12 @@ export function AppDetail() {
                             >
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                  {getDirectoryLabel(entry)}
+                                  {getDirectoryLabel(t, entry)}
                                 </div>
                                 <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                                  {entry.customizable ? 'Customizable' : 'Fixed'}
+                                  {entry.customizable
+                                    ? t('install.page.assessment.installation.customizable')
+                                    : t('install.page.assessment.installation.fixed')}
                                 </span>
                               </div>
                               <div className="mt-2 break-all text-sm font-medium text-zinc-700 dark:text-zinc-200">
@@ -1250,7 +1386,7 @@ export function AppDetail() {
                           ))
                         ) : (
                           <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-400">
-                            The selected profile does not declare managed directories.
+                            {t('install.page.assessment.installation.noDirectories')}
                           </div>
                         )}
                       </div>
@@ -1263,10 +1399,10 @@ export function AppDetail() {
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50/80 p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <div className="mb-4">
                     <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                      Data and Migration
+                      {t('apps.detail.sections.dataMigration')}
                     </h3>
                     <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                      Data layout and migration guidance help preserve existing OpenClaw state safely.
+                      {t('apps.detail.sections.dataMigrationDescription')}
                     </p>
                   </div>
 
@@ -1295,10 +1431,10 @@ export function AppDetail() {
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                                {humanizeLabel(item.kind) || item.kind}
+                                {getDataKindLabel(t, item.kind)}
                               </span>
                               <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                                {humanizeLabel(item.uninstallByDefault) || item.uninstallByDefault}
+                                {getUninstallPolicyLabel(t, item.uninstallByDefault)}
                               </span>
                             </div>
                           </div>
@@ -1338,14 +1474,14 @@ export function AppDetail() {
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                                {humanizeLabel(strategy.mode) || strategy.mode}
+                                {getMigrationModeLabel(t, strategy.mode)}
                               </span>
                               <span
                                 className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider ${getSupportTone(
                                   strategy.supported,
                                 )}`}
                               >
-                                {getSupportLabel(strategy.supported)}
+                                {getSupportLabel(t, strategy.supported)}
                               </span>
                             </div>
                           </div>
@@ -1368,12 +1504,12 @@ export function AppDetail() {
             <div className="space-y-6">
               <div className="rounded-3xl border border-zinc-200 bg-zinc-50/80 p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
                 <h3 className="mb-4 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                  Summary
+                  {t('apps.detail.sections.summary')}
                 </h3>
                 <div className="grid gap-4 text-sm">
                   <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                     <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Blocking Issues
+                      {t('apps.detail.summary.blockingIssues')}
                     </div>
                     <div className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                       {blockingIssues.length}
@@ -1381,7 +1517,7 @@ export function AppDetail() {
                   </div>
                   <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                     <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Warnings
+                      {t('apps.detail.summary.warnings')}
                     </div>
                     <div className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                       {warningIssues.length}
@@ -1389,7 +1525,7 @@ export function AppDetail() {
                   </div>
                   <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                     <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Auto-fixable Dependencies
+                      {t('apps.detail.summary.autoFixableDependencies')}
                     </div>
                     <div className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                       {autoRemediableDependencies.length}
@@ -1397,10 +1533,12 @@ export function AppDetail() {
                   </div>
                   <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                     <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Elevated Setup
+                      {t('apps.detail.summary.elevatedSetup')}
                     </div>
                     <div className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                      {inspection.assessment.requiresElevatedSetup ? 'Required' : 'Not required'}
+                      {inspection.assessment.requiresElevatedSetup
+                        ? t('apps.detail.summary.required')
+                        : t('apps.detail.summary.notRequired')}
                     </div>
                   </div>
                 </div>
@@ -1435,31 +1573,31 @@ export function AppDetail() {
               {runtime ? (
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50/80 p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <h3 className="mb-4 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                    Runtime Detection
+                    {t('apps.detail.sections.runtimeDetection')}
                   </h3>
                   <div className="grid gap-3">
                     <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                       <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        Host Platform
+                        {t('apps.detail.runtime.hostPlatform')}
                       </div>
                       <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        {humanizeLabel(runtime.hostPlatform) || runtime.hostPlatform}
+                        {getPlatformLabel(t, runtime.hostPlatform)}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                       <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        Effective Runtime
+                        {t('apps.detail.runtime.effectiveRuntime')}
                       </div>
                       <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        {humanizeLabel(runtime.effectiveRuntimePlatform) || runtime.effectiveRuntimePlatform}
+                        {getPlatformLabel(t, runtime.effectiveRuntimePlatform)}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                       <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        Container Runtime
+                        {t('apps.detail.runtime.containerRuntime')}
                       </div>
                       <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        {humanizeLabel(runtime.resolvedContainerRuntime) || 'Not applicable'}
+                        {getPlatformLabel(t, runtime.resolvedContainerRuntime) || t('apps.detail.runtime.notApplicable')}
                       </div>
                     </div>
 
@@ -1469,28 +1607,34 @@ export function AppDetail() {
                           runtime.wslAvailable,
                         )}`}
                       >
-                        WSL: {getBooleanLabel(runtime.wslAvailable)}
+                        {t('apps.detail.runtime.wsl', {
+                          status: getBooleanLabel(t, runtime.wslAvailable),
+                        })}
                       </span>
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${getBooleanTone(
                           runtime.hostDockerAvailable,
                         )}`}
                       >
-                        Host Docker: {getBooleanLabel(runtime.hostDockerAvailable)}
+                        {t('apps.detail.runtime.hostDocker', {
+                          status: getBooleanLabel(t, runtime.hostDockerAvailable),
+                        })}
                       </span>
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${getBooleanTone(
                           runtime.wslDockerAvailable,
                         )}`}
                       >
-                        WSL Docker: {getBooleanLabel(runtime.wslDockerAvailable)}
+                        {t('apps.detail.runtime.wslDocker', {
+                          status: getBooleanLabel(t, runtime.wslDockerAvailable),
+                        })}
                       </span>
                     </div>
 
                     {runtime.availableWslDistributions.length > 0 ? (
                       <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
                         <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                          Available WSL Distributions
+                          {t('install.page.assessment.labels.availableWslDistributions')}
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {runtime.availableWslDistributions.map((distribution) => (
@@ -1511,7 +1655,7 @@ export function AppDetail() {
               {(inspection.assessment.recommendations.length > 0 || installDocumentationUrl) ? (
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50/80 p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
                   <h3 className="mb-4 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                    Guidance
+                    {t('apps.detail.sections.guidance')}
                   </h3>
 
                   {installDocumentationUrl ? (
@@ -1522,7 +1666,7 @@ export function AppDetail() {
                       className="inline-flex items-center gap-2 rounded-full border border-zinc-200 px-4 py-2 text-sm font-bold text-primary-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-primary-300 dark:hover:bg-zinc-800"
                     >
                       <ExternalLink className="h-4 w-4" />
-                      Open Installation Docs
+                      {t('apps.detail.actions.openInstallationDocs')}
                     </a>
                   ) : null}
 
@@ -1545,29 +1689,29 @@ export function AppDetail() {
                 <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
                   <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-zinc-100">
                     <Loader2 className="h-4 w-4" />
-                    Live Progress
+                    {t('apps.detail.sections.liveProgress')}
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
                       <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                        Stage
+                        {t('apps.detail.progress.stage')}
                       </div>
                       <div className="mt-2 text-sm font-semibold text-zinc-100">
-                        {humanizeLabel(progressSummary.currentStage) || 'Waiting'}
+                        {humanizeLabel(progressSummary.currentStage) || t('apps.detail.progress.waiting')}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
                       <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                        Step
+                        {t('apps.detail.progress.step')}
                       </div>
                       <div className="mt-2 text-sm font-semibold text-zinc-100">
-                        {progressSummary.currentStep || 'Waiting'}
+                        {progressSummary.currentStep || t('apps.detail.progress.waiting')}
                       </div>
                     </div>
                   </div>
                   <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                      Recent Output
+                      {t('apps.detail.progress.recentOutput')}
                     </div>
                     <div className="max-h-56 space-y-2 overflow-y-auto font-mono text-xs leading-relaxed text-zinc-300">
                       {progressLines.map((line, index) => (
@@ -1631,10 +1775,10 @@ export function AppDetail() {
                   -{' '}
                   {selectedVariant?.summary ||
                     app.installSummary ||
-                    'Platform-aware install flow backed by Rust hub-installer.'}
+                    t('apps.detail.whatsNewBullets.one')}
                 </p>
-                <p>- Dependency inspection runs before the install action and supports per-item repair.</p>
-                <p>- Install progress comes from the desktop runtime event stream.</p>
+                <p>- {t('apps.detail.whatsNewBullets.two')}</p>
+                <p>- {t('apps.detail.whatsNewBullets.three')}</p>
               </div>
             </div>
           </div>
@@ -1673,7 +1817,7 @@ export function AppDetail() {
                 <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
                   <div className="text-sm text-red-700 dark:text-red-300">
-                    {blockingIssues[0]?.message || 'Install is currently blocked.'}
+                    {blockingIssues[0]?.message || t('apps.detail.installBlockedFallback')}
                   </div>
                 </div>
               ) : null}

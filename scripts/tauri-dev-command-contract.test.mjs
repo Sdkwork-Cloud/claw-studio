@@ -21,8 +21,11 @@ function parsePort(url) {
 const desktopPackage = readJson('packages/sdkwork-claw-desktop/package.json');
 const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
 const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
+const devBinaryUnlockGuardCommand =
+  'node ../../scripts/ensure-tauri-dev-binary-unlocked.mjs src-tauri sdkwork-claw-desktop';
 const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420';
 const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runtime.mjs';
+const bundledApiRouterPrepareCommand = 'node ../../scripts/prepare-sdkwork-api-router-runtime.mjs';
 
 const tauriDevScript = desktopPackage.scripts?.['dev:tauri'];
 if (typeof tauriDevScript !== 'string' || tauriDevScript.trim().length === 0) {
@@ -62,6 +65,13 @@ if (bundledOpenClawPrepareScript !== bundledOpenClawPrepareCommand) {
   );
 }
 
+const bundledApiRouterPrepareScript = desktopPackage.scripts?.['prepare:api-router-runtime'];
+if (bundledApiRouterPrepareScript !== bundledApiRouterPrepareCommand) {
+  fail(
+    `Desktop package must define "prepare:api-router-runtime" as "${bundledApiRouterPrepareCommand}".`,
+  );
+}
+
 if (!tauriCliDevScript.startsWith(`${staleTargetGuardCommand} && `)) {
   fail(
     `Desktop "tauri:dev" must guard against stale Tauri target artifacts via "${staleTargetGuardCommand}" before invoking the Tauri CLI.`,
@@ -71,6 +81,18 @@ if (!tauriCliDevScript.startsWith(`${staleTargetGuardCommand} && `)) {
 if (!tauriCliDevScript.includes(`&& ${bundledOpenClawPrepareCommand} &&`)) {
   fail(
     `Desktop "tauri:dev" must prepare the bundled OpenClaw runtime via "${bundledOpenClawPrepareCommand}" before invoking the Tauri CLI.`,
+  );
+}
+
+if (!tauriCliDevScript.includes(`&& ${bundledApiRouterPrepareCommand} &&`)) {
+  fail(
+    `Desktop "tauri:dev" must prepare the bundled sdkwork-api-router runtime via "${bundledApiRouterPrepareCommand}" before invoking the Tauri CLI.`,
+  );
+}
+
+if (!tauriCliDevScript.includes(`&& ${devBinaryUnlockGuardCommand} &&`)) {
+  fail(
+    `Desktop "tauri:dev" must stop locked debug binaries via "${devBinaryUnlockGuardCommand}" before invoking the Tauri CLI.`,
   );
 }
 
@@ -97,9 +119,19 @@ if (!tauriCliBuildScript.includes(`&& ${bundledOpenClawPrepareCommand} &&`)) {
   );
 }
 
+if (!tauriCliBuildScript.includes(`&& ${bundledApiRouterPrepareCommand} &&`)) {
+  fail(
+    `Desktop "tauri:build" must prepare the bundled sdkwork-api-router runtime via "${bundledApiRouterPrepareCommand}" before invoking the Tauri CLI.`,
+  );
+}
+
 const bundledResources = tauriConfig.bundle?.resources;
 if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/openclaw-runtime/**/*')) {
   fail('Desktop Tauri bundle resources must include resources/openclaw-runtime/**/*.');
+}
+
+if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/sdkwork-api-router-runtime/**/*')) {
+  fail('Desktop Tauri bundle resources must include resources/sdkwork-api-router-runtime/**/*.');
 }
 
 console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');

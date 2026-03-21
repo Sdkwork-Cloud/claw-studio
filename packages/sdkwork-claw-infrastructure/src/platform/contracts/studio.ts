@@ -39,6 +39,8 @@ export interface StudioUpdateInstanceInput
   isDefault?: boolean;
 }
 
+export type StudioInstanceTaskMutationPayload = Record<string, unknown>;
+
 export interface StudioPlatformAPI {
   listInstances(): Promise<StudioInstanceRecord[]>;
   getInstance(id: string): Promise<StudioInstanceRecord | null>;
@@ -59,6 +61,15 @@ export interface StudioPlatformAPI {
     config: StudioInstanceConfig,
   ): Promise<StudioInstanceConfig | null>;
   getInstanceLogs(id: string): Promise<string>;
+  createInstanceTask(
+    instanceId: string,
+    payload: StudioInstanceTaskMutationPayload,
+  ): Promise<void>;
+  updateInstanceTask(
+    instanceId: string,
+    taskId: string,
+    payload: StudioInstanceTaskMutationPayload,
+  ): Promise<void>;
   cloneInstanceTask(instanceId: string, taskId: string, name?: string): Promise<void>;
   runInstanceTaskNow(
     instanceId: string,

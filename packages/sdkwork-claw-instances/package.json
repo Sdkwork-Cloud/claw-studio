@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@sdkwork/claw-commons": "workspace:*",
     "@sdkwork/claw-core": "workspace:*",
     "@sdkwork/claw-infrastructure": "workspace:*",
     "@sdkwork/claw-types": "workspace:*",

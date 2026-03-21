@@ -28,6 +28,28 @@ import { ProxyProviderTable } from './ProxyProviderTable';
 const channelQueryKey = ['api-router', 'channels'] as const;
 const groupQueryKey = ['api-router', 'groups'] as const;
 
+function resolveMutationErrorMessage(error: unknown, fallbackMessage: string) {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : fallbackMessage;
+}
+
+function matchesProviderIdentity(current: ProxyProvider | null, next: ProxyProvider) {
+  if (!current) {
+    return false;
+  }
+
+  if (current.id === next.id) {
+    return true;
+  }
+
+  return Boolean(
+    current.credentialReference
+      && next.credentialReference
+      && current.credentialReference === next.credentialReference,
+  );
+}
+
 interface ProxyProviderManagerProps {
   channels: ApiRouterChannel[];
   groups: ProxyProviderGroup[];
@@ -96,14 +118,28 @@ export function ProxyProviderManager({
       });
       await refreshApiRouterData();
     },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.toast.providerCreateFailed')),
+      );
+    },
   });
 
   const updateGroupMutation = useMutation({
     mutationFn: ({ providerId, groupId }: { providerId: string; groupId: string }) =>
       apiRouterService.updateGroup(providerId, groupId),
-    onSuccess: async () => {
+    onSuccess: async (provider) => {
       toast.success(t('apiRouterPage.toast.groupUpdated'));
+      setUsageProvider((current) => (matchesProviderIdentity(current, provider) ? provider : current));
+      setEditingProvider((current) =>
+        matchesProviderIdentity(current, provider) ? provider : current,
+      );
       await refreshApiRouterData();
+    },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.toast.groupUpdateFailed')),
+      );
     },
   });
 
@@ -112,10 +148,16 @@ export function ProxyProviderManager({
       apiRouterService.updateStatus(providerId, status),
     onSuccess: async (provider) => {
       toast.success(t('apiRouterPage.toast.statusUpdated'));
-      if (usageProvider?.id === provider.id) {
-        setUsageProvider(provider);
-      }
+      setUsageProvider((current) => (matchesProviderIdentity(current, provider) ? provider : current));
+      setEditingProvider((current) =>
+        matchesProviderIdentity(current, provider) ? provider : current,
+      );
       await refreshApiRouterData();
+    },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.toast.statusUpdateFailed')),
+      );
     },
   });
 
@@ -125,10 +167,13 @@ export function ProxyProviderManager({
     onSuccess: async (provider) => {
       toast.success(t('apiRouterPage.toast.providerUpdated'));
       setEditingProvider(null);
-      if (usageProvider?.id === provider.id) {
-        setUsageProvider(provider);
-      }
+      setUsageProvider((current) => (matchesProviderIdentity(current, provider) ? provider : current));
       await refreshApiRouterData();
+    },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.toast.providerUpdateFailed')),
+      );
     },
   });
 
@@ -136,17 +181,31 @@ export function ProxyProviderManager({
     mutationFn: (provider: ProxyProvider) => apiRouterService.deleteProvider(provider.id),
     onSuccess: async (_, provider) => {
       toast.success(t('apiRouterPage.toast.providerDeleted'));
-      if (usageProvider?.id === provider.id) {
+      if (matchesProviderIdentity(usageProvider, provider)) {
         setUsageProvider(null);
       }
-      if (editingProvider?.id === provider.id) {
+      if (matchesProviderIdentity(editingProvider, provider)) {
         setEditingProvider(null);
       }
       await refreshApiRouterData();
     },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.toast.providerDeleteFailed')),
+      );
+    },
   });
 
   async function handleCopyApiKey(provider: ProxyProvider) {
+    if (provider.canCopyApiKey === false || !provider.apiKey) {
+      toast.error(
+        provider.credentialReference
+          ? t('apiRouterPage.toast.copyUnavailable')
+          : t('apiRouterPage.toast.copyFailed'),
+      );
+      return;
+    }
+
     try {
       await platform.copy(provider.apiKey);
       toast.success(t('apiRouterPage.toast.copySuccess'));

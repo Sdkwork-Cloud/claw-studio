@@ -194,12 +194,12 @@ export function TokenTrendChart({
     isRangeDialogOpen,
   ]);
 
-  const width = Math.max(chartWidth, 720);
-  const height = 352;
+  const width = Math.max(chartWidth, 320);
+  const height = width < 520 ? 320 : 352;
   const paddingTop = 18;
-  const paddingBottom = 38;
-  const chartPaddingX = 16;
-  const yAxisLabelWidth = 36;
+  const paddingBottom = width < 520 ? 34 : 38;
+  const chartPaddingX = width < 520 ? 12 : 16;
+  const yAxisLabelWidth = width < 520 ? 32 : 36;
   const plotLeft = chartPaddingX + yAxisLabelWidth;
   const plotRight = width - chartPaddingX;
   const usableWidth = plotRight - plotLeft;
@@ -228,7 +228,8 @@ export function TokenTrendChart({
     const ratio = 1 - index / 4;
     return Math.round(maxValue * ratio);
   });
-  const labelStep = Math.max(1, Math.ceil(points.length / 8));
+  const targetXAxisLabelCount = width < 520 ? 4 : width < 760 ? 6 : 8;
+  const labelStep = Math.max(1, Math.ceil(points.length / targetXAxisLabelCount));
   const xAxisIndices = hasRenderableData
     ? Array.from(
         new Set(
@@ -278,18 +279,18 @@ export function TokenTrendChart({
     <div className="overflow-hidden rounded-[1.6rem] border border-white/70 bg-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-white/6 dark:bg-zinc-950/35">
       {controls ? (
         <div className="mx-4 mb-5 mt-4 rounded-[1.4rem] border border-zinc-200/70 bg-zinc-50/85 p-4 dark:border-white/6 dark:bg-white/[0.04]">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
                 {t('dashboard.charts.tokenUsageTrend')}
               </div>
-              <div className="mt-1 truncate text-sm font-medium text-zinc-700 dark:text-zinc-200">
+              <div className="mt-1 text-sm font-medium leading-5 text-zinc-700 dark:text-zinc-200">
                 {rangeSummaryLabel}
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-nowrap sm:items-end xl:shrink-0">
-              <div className="min-w-0 sm:w-44 sm:flex-none">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap 2xl:shrink-0">
+              <div className="min-w-0 sm:min-w-[11rem] sm:flex-1 xl:w-44 xl:flex-none">
                 <Label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
                   {t('dashboard.filters.granularity')}
                 </Label>
@@ -309,7 +310,7 @@ export function TokenTrendChart({
                 </Select>
               </div>
 
-              <div className="min-w-0 sm:w-56 sm:flex-none">
+              <div className="min-w-0 sm:min-w-[14rem] sm:flex-1 xl:w-56 xl:flex-none">
                 <Label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
                   {t('dashboard.filters.range')}
                 </Label>
@@ -438,7 +439,7 @@ export function TokenTrendChart({
         <div ref={chartFrameRef} className="w-full">
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className="h-[22rem] w-full"
+            className="h-[20rem] w-full sm:h-[22rem]"
             role="img"
             aria-label={t('dashboard.charts.tokenUsageTrend')}
           >

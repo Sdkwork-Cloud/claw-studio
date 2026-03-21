@@ -14,8 +14,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { useInstanceStore } from '@sdkwork/claw-core';
-import { useLocalizedText } from '@sdkwork/claw-i18n';
 import {
   Button,
   Input,
@@ -41,7 +41,6 @@ export function LLMSettings() {
     setActiveModel,
     getInstanceConfig,
   } = useLLMStore();
-  const { text } = useLocalizedText();
 
   const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
   const activeChannelId = instanceConfig?.activeChannelId ?? '';
@@ -51,6 +50,7 @@ export function LLMSettings() {
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<LLMChannel>>({});
   const [isAdding, setIsAdding] = useState(false);
+  const { t } = useTranslation();
 
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? channels[0];
   const selectedChannelId = activeChannelId || activeChannel?.id;
@@ -67,7 +67,7 @@ export function LLMSettings() {
     setIsAdding(true);
     setEditingChannelId(null);
     setEditForm({
-      name: text('New Channel', '\u65b0\u6e20\u9053'),
+      name: t('settings.llm.form.newChannelName'),
       provider: 'custom',
       baseUrl: 'https://api.example.com/v1',
       apiKey: '',
@@ -75,7 +75,7 @@ export function LLMSettings() {
       models: [
         {
           id: 'custom-model',
-          name: text('Custom Model', '\u81ea\u5b9a\u4e49\u6a21\u578b'),
+          name: t('settings.llm.form.customModelName'),
         },
       ],
     });
@@ -104,13 +104,10 @@ export function LLMSettings() {
       <div className="mx-auto flex h-64 max-w-[1400px] flex-col items-center justify-center p-6 text-center md:p-10">
         <AlertCircle className="mb-4 h-12 w-12 text-zinc-400" />
         <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
-          {text('No Instance Selected', '\u672a\u9009\u4e2d\u5b9e\u4f8b')}
+          {t('settings.llm.noInstanceTitle')}
         </h2>
         <p className="text-zinc-500 dark:text-zinc-400">
-          {text(
-            'Please select an instance from the sidebar to configure LLM settings.',
-            '\u8bf7\u5148\u4ece\u4fa7\u8fb9\u680f\u9009\u62e9\u4e00\u4e2a\u5b9e\u4f8b\uff0c\u7136\u540e\u518d\u914d\u7f6e LLM \u8bbe\u7f6e\u3002',
-          )}
+          {t('settings.llm.noInstanceDescription')}
         </p>
       </div>
     );
@@ -129,14 +126,11 @@ export function LLMSettings() {
                 <Sparkles className="h-6 w-6 text-primary-400" />
               </div>
               <h2 className="text-3xl font-black tracking-tight">
-                {text('LLM Configuration', 'LLM \u914d\u7f6e')}
+                {t('settings.llm.title')}
               </h2>
             </div>
             <p className="max-w-xl text-lg text-zinc-400">
-              {text(
-                'Fine-tune your AI experience. Manage model providers, API keys, and global generation parameters for the ultimate control.',
-                '\u7ec6\u81f4\u8c03\u6574\u4f60\u7684 AI \u4f53\u9a8c\uff0c\u7edf\u4e00\u7ba1\u7406\u6a21\u578b\u63d0\u4f9b\u65b9\u3001API \u5bc6\u94a5\u4e0e\u5168\u5c40\u751f\u6210\u53c2\u6570\uff0c\u83b7\u5f97\u66f4\u5f3a\u63a7\u5236\u529b\u3002',
-              )}
+              {t('settings.llm.description')}
             </p>
           </div>
           <Button
@@ -144,18 +138,18 @@ export function LLMSettings() {
             disabled={isAdding || editingChannelId !== null}
             variant="secondary"
             className="h-auto shrink-0 rounded-xl bg-white px-6 py-3 font-bold text-zinc-900 shadow-xl transition-all hover:scale-105 hover:bg-zinc-100 active:scale-95 disabled:hover:scale-100"
-          >
-            <Plus className="h-5 w-5" />
-            {text('Add Channel', '\u65b0\u589e\u6e20\u9053')}
-          </Button>
-        </div>
+        >
+          <Plus className="h-5 w-5" />
+          {t('settings.llm.addChannel')}
+        </Button>
+      </div>
       </div>
 
       <section>
         <div className="mb-6 flex items-center gap-2 px-2">
           <Star className="h-5 w-5 fill-primary-500 text-primary-500" />
           <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            {text('Instance Defaults', '\u5b9e\u4f8b\u9ed8\u8ba4\u503c')}
+            {t('settings.llm.defaultsTitle')}
           </h3>
         </div>
 
@@ -163,7 +157,7 @@ export function LLMSettings() {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <div className="space-y-3">
               <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
-                {text('Default Channel', '\u9ed8\u8ba4\u6e20\u9053')}
+                {t('settings.llm.defaultChannel')}
               </Label>
               <Select
                 value={selectedChannelId}
@@ -183,7 +177,7 @@ export function LLMSettings() {
                 }}
               >
                 <SelectTrigger className="h-auto rounded-xl bg-zinc-50 px-4 py-3.5 font-bold dark:bg-zinc-950">
-                  <SelectValue placeholder={text('Select channel', '\u9009\u62e9\u6e20\u9053')} />
+                  <SelectValue placeholder={t('settings.llm.selectChannel')} />
                 </SelectTrigger>
                 <SelectContent>
                   {channels.map((channel) => (
@@ -194,16 +188,13 @@ export function LLMSettings() {
                 </SelectContent>
               </Select>
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                {text(
-                  'This channel will be selected by default in new chats.',
-                  '\u65b0\u5efa\u804a\u5929\u65f6\u5c06\u9ed8\u8ba4\u9009\u62e9\u6b64\u6e20\u9053\u3002',
-                )}
+                {t('settings.llm.defaultChannelDescription')}
               </p>
             </div>
 
             <div className="space-y-3">
               <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
-                {text('Default Model', '\u9ed8\u8ba4\u6a21\u578b')}
+                {t('settings.llm.defaultModel')}
               </Label>
               <Select
                 value={selectedModelId}
@@ -214,7 +205,7 @@ export function LLMSettings() {
                 }}
               >
                 <SelectTrigger className="h-auto rounded-xl bg-zinc-50 px-4 py-3.5 font-bold dark:bg-zinc-950">
-                  <SelectValue placeholder={text('Select model', '\u9009\u62e9\u6a21\u578b')} />
+                  <SelectValue placeholder={t('settings.llm.selectModel')} />
                 </SelectTrigger>
                 <SelectContent>
                   {activeChannel?.models.map((model) => (
@@ -225,10 +216,7 @@ export function LLMSettings() {
                 </SelectContent>
               </Select>
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                {text(
-                  'The default model to use for the selected channel.',
-                  '\u5f53\u524d\u6e20\u9053\u9ed8\u8ba4\u4f7f\u7528\u7684\u6a21\u578b\u3002',
-                )}
+                {t('settings.llm.defaultModelDescription')}
               </p>
             </div>
           </div>
@@ -239,7 +227,7 @@ export function LLMSettings() {
         <div className="mb-6 flex items-center gap-2 px-2">
           <Settings2 className="h-5 w-5 text-primary-500" />
           <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            {text('Instance Parameters', '\u5b9e\u4f8b\u53c2\u6570')}
+            {t('settings.llm.parametersTitle')}
           </h3>
         </div>
 
@@ -247,7 +235,7 @@ export function LLMSettings() {
           <div className="group rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
               <Label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                {text('Temperature', '\u6e29\u5ea6')}
+                {t('settings.llm.temperature')}
               </Label>
               <span className="rounded-lg bg-primary-50 px-2.5 py-1 font-mono text-xs font-bold text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
                 {config.temperature.toFixed(2)}
@@ -266,15 +254,15 @@ export function LLMSettings() {
               className="mb-4"
             />
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              <span>{text('Precise', '\u7cbe\u786e')}</span>
-              <span>{text('Creative', '\u521b\u9020')}</span>
+              <span>{t('settings.llm.precise')}</span>
+              <span>{t('settings.llm.creative')}</span>
             </div>
           </div>
 
           <div className="group rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
               <Label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                {text('Max Tokens', '\u6700\u5927 Tokens')}
+                {t('settings.llm.maxTokens')}
               </Label>
               <Hash className="h-4 w-4 text-zinc-400" />
             </div>
@@ -289,17 +277,14 @@ export function LLMSettings() {
               className="bg-zinc-50 font-mono dark:bg-zinc-950"
             />
             <p className="mt-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              {text(
-                'Maximum length of the generated response.',
-                '\u751f\u6210\u54cd\u5e94\u7684\u6700\u5927\u957f\u5ea6\u3002',
-              )}
+              {t('settings.llm.maxTokensDescription')}
             </p>
           </div>
 
           <div className="group rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
               <Label className="flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                {text('Top P', 'Top P')}
+                {t('settings.llm.topP')}
               </Label>
               <span className="rounded-lg bg-primary-50 px-2.5 py-1 font-mono text-xs font-bold text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
                 {config.topP.toFixed(2)}
@@ -318,8 +303,8 @@ export function LLMSettings() {
               className="mb-4"
             />
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              <span>{text('Focused', '\u96c6\u4e2d')}</span>
-              <span>{text('Diverse', '\u591a\u6837')}</span>
+              <span>{t('settings.llm.focused')}</span>
+              <span>{t('settings.llm.diverse')}</span>
             </div>
           </div>
         </div>
@@ -329,7 +314,7 @@ export function LLMSettings() {
         <div className="mb-6 flex items-center gap-2 px-2">
           <Globe className="h-5 w-5 text-primary-500" />
           <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            {text('Model Channels', '\u6a21\u578b\u6e20\u9053')}
+            {t('settings.llm.channelsTitle')}
           </h3>
         </div>
 
@@ -400,11 +385,8 @@ export function LLMSettings() {
                               onClick={() => updateChannel(channel.id, { defaultModelId: model.id })}
                               title={
                                 channel.defaultModelId === model.id
-                                  ? text('Default model', '\u9ed8\u8ba4\u6a21\u578b')
-                                  : text(
-                                      'Click to set as default',
-                                      '\u70b9\u51fb\u8bbe\u4e3a\u9ed8\u8ba4',
-                                    )
+                                  ? t('settings.llm.defaultModel')
+                                  : t('settings.llm.clickToSetDefault')
                               }
                               className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors ${
                                 channel.defaultModelId === model.id
@@ -427,14 +409,14 @@ export function LLMSettings() {
                       <button
                         onClick={() => handleEdit(channel)}
                         className="rounded-xl p-2.5 text-zinc-400 transition-colors hover:bg-primary-50 hover:text-primary-500 dark:hover:bg-primary-500/10"
-                        title={text('Edit channel', '\u7f16\u8f91\u6e20\u9053')}
+                        title={t('settings.llm.editChannel')}
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => removeChannel(channel.id)}
                         className="rounded-xl p-2.5 text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10"
-                        title={text('Delete channel', '\u5220\u9664\u6e20\u9053')}
+                        title={t('settings.llm.deleteChannel')}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -463,7 +445,7 @@ function ChannelForm({
 }) {
   const [newModelId, setNewModelId] = useState('');
   const [newModelName, setNewModelName] = useState('');
-  const { text } = useLocalizedText();
+  const { t } = useTranslation();
 
   const handleAddModel = () => {
     if (!newModelId.trim() || !newModelName.trim()) {
@@ -501,15 +483,15 @@ function ChannelForm({
         </div>
         <h4 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
           {form.id
-            ? text('Edit Channel', '\u7f16\u8f91\u6e20\u9053')
-            : text('Configure New Channel', '\u914d\u7f6e\u65b0\u6e20\u9053')}
+            ? t('settings.llm.form.editTitle')
+            : t('settings.llm.form.createTitle')}
         </h4>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            {text('Channel Name', '\u6e20\u9053\u540d\u79f0')}
+            {t('settings.llm.form.channelName')}
           </Label>
           <Input
             type="text"
@@ -517,17 +499,14 @@ function ChannelForm({
             onChange={(event) =>
               setForm((current) => ({ ...current, name: event.target.value }))
             }
-            placeholder={text(
-              'e.g., My Custom OpenAI',
-              '\u4f8b\u5982\uff1aMy Custom OpenAI',
-            )}
+            placeholder={t('settings.llm.form.channelNamePlaceholder')}
             className="bg-zinc-50 text-sm font-medium dark:bg-zinc-950"
           />
         </div>
 
         <div className="space-y-1.5">
           <Label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            {text('Provider Type', '\u63d0\u4f9b\u65b9\u7c7b\u578b')}
+            {t('settings.llm.form.providerType')}
           </Label>
           <Input
             type="text"
@@ -535,7 +514,7 @@ function ChannelForm({
             onChange={(event) =>
               setForm((current) => ({ ...current, provider: event.target.value }))
             }
-            placeholder={text('e.g., openai, custom', '\u4f8b\u5982\uff1aopenai, custom')}
+            placeholder={t('settings.llm.form.providerTypePlaceholder')}
             className="bg-zinc-50 text-sm font-medium dark:bg-zinc-950"
           />
         </div>
@@ -543,7 +522,7 @@ function ChannelForm({
         <div className="space-y-1.5 md:col-span-2">
           <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
             <Globe className="h-4 w-4 text-zinc-400" />
-            {text('Base URL', '\u57fa\u7840 URL')}
+            {t('settings.llm.form.baseUrl')}
           </Label>
           <Input
             type="text"
@@ -559,7 +538,7 @@ function ChannelForm({
         <div className="space-y-1.5 md:col-span-2">
           <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
             <Key className="h-4 w-4 text-zinc-400" />
-            {text('API Key', 'API \u5bc6\u94a5')}
+            {t('settings.llm.form.apiKey')}
           </Label>
           <Input
             type="password"
@@ -567,17 +546,14 @@ function ChannelForm({
             onChange={(event) =>
               setForm((current) => ({ ...current, apiKey: event.target.value }))
             }
-            placeholder={text(
-              'sk-... (Leave empty to use environment variable)',
-              'sk-... (\u7559\u7a7a\u5219\u4f7f\u7528\u73af\u5883\u53d8\u91cf)',
-            )}
+            placeholder={t('settings.llm.form.apiKeyPlaceholder')}
             className="bg-zinc-50 font-mono dark:bg-zinc-950"
           />
         </div>
 
         <div className="space-y-1.5">
           <Label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            {text('Icon (Emoji)', '\u56fe\u6807\uff08Emoji\uff09')}
+            {t('settings.llm.form.icon')}
           </Label>
           <Input
             type="text"
@@ -585,7 +561,7 @@ function ChannelForm({
             onChange={(event) =>
               setForm((current) => ({ ...current, icon: event.target.value }))
             }
-            placeholder={text('e.g. icon', '\u4f8b\u5982\uff1a\u56fe\u6807')}
+            placeholder={t('settings.llm.form.iconPlaceholder')}
             className="bg-zinc-50 dark:bg-zinc-950"
           />
         </div>
@@ -594,13 +570,10 @@ function ChannelForm({
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
               <Cpu className="h-4 w-4 text-zinc-400" />
-              {text('Models Configuration', '\u6a21\u578b\u914d\u7f6e')}
+              {t('settings.llm.form.models')}
             </Label>
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              {text(
-                'Click the star to set as default',
-                '\u70b9\u51fb\u661f\u6807\u8bbe\u4e3a\u9ed8\u8ba4',
-              )}
+              {t('settings.llm.form.modelsHint')}
             </span>
           </div>
 
@@ -624,8 +597,8 @@ function ChannelForm({
                         }`}
                         title={
                           form.defaultModelId === model.id
-                            ? text('Default model', '\u9ed8\u8ba4\u6a21\u578b')
-                            : text('Set as default', '\u8bbe\u4e3a\u9ed8\u8ba4')
+                            ? t('settings.llm.defaultModel')
+                            : t('settings.llm.form.setAsDefault')
                         }
                       >
                         <Star
@@ -646,7 +619,7 @@ function ChannelForm({
                     <button
                       onClick={() => handleRemoveModel(model.id)}
                       className="rounded-lg p-2 text-zinc-400 opacity-0 transition-colors group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10"
-                      title={text('Remove model', '\u79fb\u9664\u6a21\u578b')}
+                      title={t('settings.llm.form.removeModel')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -655,10 +628,7 @@ function ChannelForm({
               </div>
             ) : (
               <div className="py-6 text-center text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                {text(
-                  'No models configured. Add one below.',
-                  '\u5c1a\u672a\u914d\u7f6e\u6a21\u578b\uff0c\u53ef\u5728\u4e0b\u65b9\u6dfb\u52a0\u3002',
-                )}
+                {t('settings.llm.form.noModels')}
               </div>
             )}
 
@@ -667,10 +637,7 @@ function ChannelForm({
                 type="text"
                 value={newModelId}
                 onChange={(event) => setNewModelId(event.target.value)}
-                placeholder={text(
-                  'Model ID (e.g., gpt-4o)',
-                  '\u6a21\u578b ID\uff08\u4f8b\u5982\uff1agpt-4o\uff09',
-                )}
+                placeholder={t('settings.llm.form.modelIdPlaceholder')}
                 onKeyDown={(event) => event.key === 'Enter' && handleAddModel()}
                 className="flex-1 bg-white font-mono dark:border-zinc-800 dark:bg-zinc-900"
               />
@@ -678,10 +645,7 @@ function ChannelForm({
                 type="text"
                 value={newModelName}
                 onChange={(event) => setNewModelName(event.target.value)}
-                placeholder={text(
-                  'Display Name (e.g., GPT-4o)',
-                  '\u663e\u793a\u540d\u79f0\uff08\u4f8b\u5982\uff1aGPT-4o\uff09',
-                )}
+                placeholder={t('settings.llm.form.modelNamePlaceholder')}
                 onKeyDown={(event) => event.key === 'Enter' && handleAddModel()}
                 className="flex-1 bg-white text-sm font-medium dark:border-zinc-800 dark:bg-zinc-900"
               />
@@ -691,7 +655,7 @@ function ChannelForm({
                 className="h-auto shrink-0 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
                 <Plus className="h-4 w-4" />
-                {text('Add', '\u6dfb\u52a0')}
+                {t('common.add')}
               </Button>
             </div>
           </div>
@@ -704,14 +668,14 @@ function ChannelForm({
           variant="ghost"
           className="rounded-xl px-5 py-2.5 text-sm font-bold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
         >
-          {text('Cancel', '\u53d6\u6d88')}
+          {t('common.cancel')}
         </Button>
         <Button
           onClick={onSave}
           className="h-auto rounded-xl px-6 py-2.5 text-sm font-bold shadow-lg shadow-primary-500/20 transition-all hover:shadow-xl hover:shadow-primary-500/30 active:scale-95"
         >
           <Save className="h-4 w-4" />
-          {text('Save Configuration', '\u4fdd\u5b58\u914d\u7f6e')}
+          {t('settings.llm.form.save')}
         </Button>
       </div>
     </div>

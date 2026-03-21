@@ -29,6 +29,7 @@ runTest('sdkwork-claw-apirouter is implemented as a real feature package', () =>
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/pages/ApiRouter.tsx'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/pages/ApiRouterUsageRecordsPage.tsx'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/services/apiRouterService.ts'), true);
+  assert.equal(exists('packages/sdkwork-claw-apirouter/src/services/apiRouterRuntimeService.ts'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/services/modelMappingService.ts'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/services/modelMappingFormService.ts'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/services/unifiedApiKeyService.ts'), true);
@@ -40,6 +41,7 @@ runTest('sdkwork-claw-apirouter is implemented as a real feature package', () =>
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/ApiRouterUsageFilters.tsx'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/ApiRouterUsageTable.tsx'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/ApiRouterUsagePagination.tsx'), true);
+  assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/ApiRouterRuntimeStatusCard.tsx'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/ProxyProviderManager.tsx'), true);
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/ApiRouterRouteConfigView.tsx'), true);
   assert.equal(
@@ -53,6 +55,12 @@ runTest('sdkwork-claw-apirouter is implemented as a real feature package', () =>
 
 runTest('sdkwork-claw-apirouter page exposes top tabs and composes dedicated route-config and unified-key building blocks', () => {
   const pageSource = read('packages/sdkwork-claw-apirouter/src/pages/ApiRouter.tsx');
+  const runtimeServiceSource = read(
+    'packages/sdkwork-claw-apirouter/src/services/apiRouterRuntimeService.ts',
+  );
+  const runtimeCardSource = read(
+    'packages/sdkwork-claw-apirouter/src/components/ApiRouterRuntimeStatusCard.tsx',
+  );
   const usageRecordsPageSource = read(
     'packages/sdkwork-claw-apirouter/src/pages/ApiRouterUsageRecordsPage.tsx',
   );
@@ -97,6 +105,8 @@ runTest('sdkwork-claw-apirouter page exposes top tabs and composes dedicated rou
 
   assert.match(pageSource, /data-slot="api-router-page"/);
   assert.match(pageSource, /data-slot="api-router-page-tabs"/);
+  assert.match(pageSource, /ApiRouterRuntimeStatusCard/);
+  assert.match(pageSource, /apiRouterRuntimeService\.getStatus/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.unifiedApiKey/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.routeConfig/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.modelMapping/);
@@ -104,6 +114,14 @@ runTest('sdkwork-claw-apirouter page exposes top tabs and composes dedicated rou
   assert.match(pageSource, /<UnifiedApiKeyManager/);
   assert.match(pageSource, /<ModelMappingManager/);
   assert.match(pageSource, /<ApiRouterUsageRecordsPage/);
+  assert.match(runtimeServiceSource, /getRuntimePlatform\(\)\.getApiRouterRuntimeStatus\(\)/);
+  assert.match(runtimeServiceSource, /describeApiRouterRuntimeStatus/);
+  assert.match(runtimeCardSource, /data-slot="api-router-runtime-status-card"/);
+  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.title/);
+  assert.match(runtimeCardSource, /description\.modeKey|apiRouterPage\.runtime\.mode\./);
+  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.endpoint\.admin/);
+  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.endpoint\.gateway/);
+  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.reason/);
   assert.match(usageRecordsPageSource, /data-slot="api-router-usage-records-page"/);
   assert.match(usageRecordsPageSource, /getUsageRecordApiKeys/);
   assert.match(usageRecordsPageSource, /getUsageRecordSummary/);

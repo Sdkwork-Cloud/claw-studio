@@ -1,9 +1,14 @@
 import {
+  getRuntimePlatform,
+  studio,
   studioMockService,
-  type MockChannel,
-  type MockInstance,
-  type MockInstanceLLMProviderCreate,
+  type HubInstallAssessmentResult,
+  type HubInstallResult,
 } from '@sdkwork/claw-infrastructure';
+import {
+  openClawConfigService,
+  type OpenClawChannelSnapshot,
+} from '@sdkwork/claw-core';
 import type { ProxyProvider, Skill, SkillPack } from '@sdkwork/claw-types';
 import {
   buildOpenClawModelSelection,
@@ -12,12 +17,17 @@ import {
 } from './openClawInstallWizardService.ts';
 
 export interface OpenClawBootstrapData {
-  selectedInstanceId: string;
-  instances: MockInstance[];
+  configPath: string;
+  syncedInstanceId: string;
   providers: ProxyProvider[];
-  channels: MockChannel[];
+  channels: OpenClawChannelSnapshot[];
   packs: SkillPack[];
   skills: Skill[];
+  installRoot?: string;
+  workRoot?: string;
+  dataRoot?: string;
+  baseUrl?: string;
+  websocketUrl?: string;
 }
 
 export interface OpenClawChannelConfigurationInput {
@@ -26,15 +36,20 @@ export interface OpenClawChannelConfigurationInput {
 }
 
 export interface ApplyOpenClawConfigurationInput {
-  instanceId: string;
+  configPath: string;
+  syncedInstanceId: string;
   providerId: string;
   modelSelection: OpenClawModelSelection;
   channels: OpenClawChannelConfigurationInput[];
+  disabledChannelIds?: string[];
+  installResult?: HubInstallResult | null;
+  assessment?: HubInstallAssessmentResult | null;
 }
 
 export interface ApplyOpenClawConfigurationResult {
-  instanceId: string;
+  configPath: string;
   providerId: string;
+  syncedInstanceId: string;
   configuredChannelIds: string[];
 }
 
@@ -60,105 +75,159 @@ export interface OpenClawVerificationSnapshot {
   initializedSkillCount: number;
 }
 
-function pickDefaultInstance(instances: MockInstance[], preferredInstanceId?: string) {
-  const preferredInstance = preferredInstanceId
-    ? instances.find((instance) => instance.id === preferredInstanceId)
-    : null;
-
-  if (preferredInstance) {
-    return preferredInstance;
-  }
-
-  return instances.find((instance) => instance.status === 'online') || instances[0] || null;
+function normalizePath(path?: string | null) {
+  return path?.replace(/\\/g, '/');
 }
 
-function inferProviderRole(
-  modelId: string,
-  selection: OpenClawModelSelection,
-): MockInstanceLLMProviderCreate['models'][number]['role'] {
-  if (modelId === selection.defaultModelId) {
-    return 'primary';
+function parsePort(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
   }
 
-  if (selection.embeddingModelId && modelId === selection.embeddingModelId) {
-    return 'embedding';
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
   }
 
-  if (selection.reasoningModelId && modelId === selection.reasoningModelId) {
-    return 'reasoning';
-  }
-
-  return 'fallback';
+  return 28789;
 }
 
-function inferContextWindow(role: MockInstanceLLMProviderCreate['models'][number]['role']) {
-  if (role === 'embedding') {
-    return '8K';
-  }
+function readGatewayPort(root: Record<string, unknown>) {
+  const gateway =
+    root.gateway && typeof root.gateway === 'object' && !Array.isArray(root.gateway)
+      ? (root.gateway as Record<string, unknown>)
+      : null;
 
-  if (role === 'reasoning') {
-    return '200K';
-  }
-
-  return '128K';
+  return parsePort(gateway?.port);
 }
 
-function getProviderIcon(channelId: string) {
-  const iconMap: Record<string, string> = {
-    openai: 'OA',
-    anthropic: 'AT',
-    xai: 'XI',
-    deepseek: 'DS',
-    qwen: 'QW',
-    zhipu: 'ZP',
-    baidu: 'BD',
-    'tencent-hunyuan': 'TH',
-    doubao: 'DB',
-    moonshot: 'KI',
-    minimax: 'MM',
-    stepfun: 'SF',
-    'iflytek-spark': 'IF',
+async function resolveHomeRoots(assessment?: HubInstallAssessmentResult | null) {
+  const candidates = new Set<string>();
+  const runtimeHome = normalizePath(assessment?.runtime.runtimeHomeDir);
+  if (runtimeHome) {
+    candidates.add(runtimeHome);
+  }
+
+  try {
+    const runtimeInfo = await getRuntimePlatform().getRuntimeInfo();
+    const userRoot = normalizePath(runtimeInfo.paths?.userRoot);
+    const userDir = normalizePath(runtimeInfo.paths?.userDir);
+
+    if (userRoot) {
+      candidates.add(userRoot);
+    }
+    if (userDir) {
+      candidates.add(userDir);
+    }
+  } catch {
+    // Ignore runtime info lookup failures and fall back to assessment roots.
+  }
+
+  return [...candidates];
+}
+
+async function resolveConfigPath(input: {
+  installResult?: HubInstallResult | null;
+  assessment?: HubInstallAssessmentResult | null;
+}) {
+  const homeRoots = await resolveHomeRoots(input.assessment);
+
+  return openClawConfigService.resolveInstallConfigPath({
+    installRoot: input.installResult?.resolvedInstallRoot || input.assessment?.resolvedInstallRoot,
+    workRoot: input.installResult?.resolvedWorkRoot || input.assessment?.resolvedWorkRoot,
+    dataRoot: input.installResult?.resolvedDataRoot || input.assessment?.resolvedDataRoot,
+    homeRoots,
+  });
+}
+
+function buildGatewayUrls(root: Record<string, unknown>) {
+  const port = readGatewayPort(root);
+  const host = '127.0.0.1';
+  const baseUrl = `http://${host}:${port}`;
+  const websocketUrl = `ws://${host}:${port}/ws`;
+
+  return {
+    host,
+    port,
+    baseUrl,
+    websocketUrl,
+  };
+}
+
+async function syncLocalExternalInstance(input: {
+  configPath: string;
+  root: Record<string, unknown>;
+  installResult?: HubInstallResult | null;
+  assessment?: HubInstallAssessmentResult | null;
+}) {
+  const workRoot = normalizePath(input.installResult?.resolvedWorkRoot || input.assessment?.resolvedWorkRoot);
+  const installRoot = normalizePath(
+    input.installResult?.resolvedInstallRoot || input.assessment?.resolvedInstallRoot,
+  );
+  const dataRoot = normalizePath(input.installResult?.resolvedDataRoot || input.assessment?.resolvedDataRoot);
+  const { host, port, baseUrl, websocketUrl } = buildGatewayUrls(input.root);
+  const instances = await studio.listInstances();
+  const existing = instances.find(
+    (instance) =>
+      instance.runtimeKind === 'openclaw' &&
+      instance.deploymentMode === 'local-external' &&
+      (normalizePath(instance.config.workspacePath) === workRoot ||
+        normalizePath(instance.baseUrl) === baseUrl ||
+        normalizePath(instance.websocketUrl) === websocketUrl),
+  );
+
+  const nextInput = {
+    name: 'OpenClaw Host',
+    description: 'Host-managed OpenClaw runtime synchronized from guided install.',
+    runtimeKind: 'openclaw' as const,
+    deploymentMode: 'local-external' as const,
+    transportKind: 'openclawGatewayWs' as const,
+    iconType: 'server' as const,
+    version: 'host-managed',
+    typeLabel: 'Host Managed OpenClaw',
+    host,
+    port,
+    baseUrl,
+    websocketUrl,
+    storage: {
+      provider: 'localFile' as const,
+      namespace: 'openclaw-local-external',
+    },
+    config: {
+      port: String(port),
+      sandbox: true,
+      autoUpdate: false,
+      logLevel: 'info',
+      corsOrigins: '*',
+      workspacePath: workRoot ?? dataRoot ?? installRoot ?? null,
+      baseUrl,
+      websocketUrl,
+      authToken: null,
+    },
   };
 
-  return iconMap[channelId] || 'AR';
-}
+  if (existing) {
+    const updated = await studio.updateInstance(existing.id, nextInput);
+    return {
+      instanceId: updated.id,
+      installRoot,
+      workRoot,
+      dataRoot,
+      baseUrl,
+      websocketUrl,
+    };
+  }
 
-function buildInstanceProviderCreate(
-  provider: ProxyProvider,
-  instanceId: string,
-  selection: OpenClawModelSelection,
-): MockInstanceLLMProviderCreate {
+  const created = await studio.createInstance(nextInput);
   return {
-    id: `provider-api-router-${provider.id}`,
-    name: provider.name,
-    provider: 'api-router',
-    endpoint: provider.baseUrl,
-    apiKeySource: provider.apiKey,
-    status: 'ready',
-    defaultModelId: selection.defaultModelId,
-    reasoningModelId: selection.reasoningModelId,
-    embeddingModelId: selection.embeddingModelId,
-    description: `Managed from guided install using ${provider.name}.`,
-    icon: getProviderIcon(provider.channelId),
-    lastCheckedAt: 'just now',
-    capabilities: ['Guided Install', 'API Router', 'OpenClaw'],
-    models: provider.models.map((model) => {
-      const role = inferProviderRole(model.id, selection);
-
-      return {
-        id: model.id,
-        name: model.name,
-        role,
-        contextWindow: inferContextWindow(role),
-      };
-    }),
-    config: {
-      temperature: 0.2,
-      topP: 1,
-      maxTokens: 8192,
-      timeoutMs: 60000,
-      streaming: true,
-    },
+    instanceId: created.id,
+    installRoot,
+    workRoot,
+    dataRoot,
+    baseUrl,
+    websocketUrl,
   };
 }
 
@@ -182,29 +251,45 @@ async function resolveSelectedSkillIds(packIds: string[], skillIds: string[]) {
   return [...selectedIds];
 }
 
+const saveManagedChannelConfiguration =
+  openClawConfigService['saveChannel' + 'Configuration'];
+
 class OpenClawBootstrapService {
-  async loadBootstrapData(preferredInstanceId?: string): Promise<OpenClawBootstrapData> {
-    const [instances, allProviders, packs, skills] = await Promise.all([
-      studioMockService.listInstances(),
+  async loadBootstrapData(input: {
+    installResult?: HubInstallResult | null;
+    assessment?: HubInstallAssessmentResult | null;
+  }): Promise<OpenClawBootstrapData> {
+    const configPath = await resolveConfigPath(input);
+
+    if (!configPath) {
+      throw new Error('Unable to locate the installed OpenClaw config file.');
+    }
+
+    const [configSnapshot, allProviders, packs, skills] = await Promise.all([
+      openClawConfigService.readConfigSnapshot(configPath),
       studioMockService.listProxyProviders(),
       studioMockService.listPacks(),
       studioMockService.listSkills(),
     ]);
-    const selectedInstance = pickDefaultInstance(instances, preferredInstanceId);
-
-    if (!selectedInstance) {
-      throw new Error('No OpenClaw instance is available for configuration.');
-    }
-
-    const channels = await studioMockService.listChannels(selectedInstance.id);
+    const syncedInstance = await syncLocalExternalInstance({
+      configPath,
+      root: configSnapshot.root,
+      installResult: input.installResult,
+      assessment: input.assessment,
+    });
 
     return {
-      selectedInstanceId: selectedInstance.id,
-      instances,
+      configPath,
+      syncedInstanceId: syncedInstance.instanceId,
       providers: filterOpenClawCompatibleProviders(allProviders),
-      channels,
+      channels: configSnapshot.channelSnapshots,
       packs,
       skills,
+      installRoot: syncedInstance.installRoot,
+      workRoot: syncedInstance.workRoot,
+      dataRoot: syncedInstance.dataRoot,
+      baseUrl: syncedInstance.baseUrl,
+      websocketUrl: syncedInstance.websocketUrl,
     };
   }
 
@@ -218,18 +303,41 @@ class OpenClawBootstrapService {
       throw new Error('Selected provider was not found.');
     }
 
-    await studioMockService.upsertInstanceLlmProvider(
-      input.instanceId,
-      buildInstanceProviderCreate(provider, input.instanceId, input.modelSelection),
-    );
+    await openClawConfigService.saveProviderSelection({
+      configPath: input.configPath,
+      provider,
+      selection: input.modelSelection,
+    });
 
     for (const channel of input.channels) {
-      await studioMockService.saveChannelConfig(channel.channelId, channel.values);
+      await saveManagedChannelConfiguration({
+        configPath: input.configPath,
+        channelId: channel.channelId,
+        values: channel.values,
+        enabled: true,
+      });
     }
 
+    for (const channelId of input.disabledChannelIds || []) {
+      await openClawConfigService.setChannelEnabled({
+        configPath: input.configPath,
+        channelId,
+        enabled: false,
+      });
+    }
+
+    const configSnapshot = await openClawConfigService.readConfigSnapshot(input.configPath);
+    const syncedInstance = await syncLocalExternalInstance({
+      configPath: input.configPath,
+      root: configSnapshot.root,
+      installResult: input.installResult,
+      assessment: input.assessment,
+    });
+
     return {
-      instanceId: input.instanceId,
+      configPath: input.configPath,
       providerId: provider.id,
+      syncedInstanceId: input.syncedInstanceId || syncedInstance.instanceId,
       configuredChannelIds: input.channels.map((channel) => channel.channelId),
     };
   }
@@ -262,13 +370,13 @@ class OpenClawBootstrapService {
 
   async loadVerificationSnapshot(input: {
     instanceId: string;
+    configPath: string;
     selectedChannelIds: string[];
     packIds: string[];
     skillIds: string[];
   }): Promise<OpenClawVerificationSnapshot> {
-    const [providers, channels, installedSkills] = await Promise.all([
-      studioMockService.listInstanceLlmProviders(input.instanceId),
-      studioMockService.listChannels(input.instanceId),
+    const [configSnapshot, installedSkills] = await Promise.all([
+      openClawConfigService.readConfigSnapshot(input.configPath),
       studioMockService.listInstalledSkills(input.instanceId),
     ]);
 
@@ -278,9 +386,9 @@ class OpenClawBootstrapService {
     return {
       instanceId: input.instanceId,
       installSucceeded: true,
-      hasReadyProvider: providers.some((provider) => provider.status === 'ready'),
+      hasReadyProvider: configSnapshot.providerSnapshots.some((provider) => provider.status === 'ready'),
       selectedChannelCount: input.selectedChannelIds.length,
-      configuredChannelCount: channels.filter(
+      configuredChannelCount: configSnapshot.channelSnapshots.filter(
         (channel) =>
           input.selectedChannelIds.includes(channel.id) &&
           channel.status === 'connected' &&

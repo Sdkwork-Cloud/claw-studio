@@ -1,4 +1,10 @@
 import assert from 'node:assert/strict';
+import type {
+  HubInstallAssessmentResult,
+  HubInstallResult,
+  PlatformAPI,
+  StudioPlatformAPI,
+} from '@sdkwork/claw-infrastructure';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -10,104 +16,421 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
   }
 }
 
-await runTest('openClawBootstrapService loads instances, compatible providers, channels, packs, and skills', async () => {
-  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+function createPlatformStub(
+  fileSystem: Record<string, string>,
+  overrides: Partial<PlatformAPI> = {},
+): PlatformAPI {
+  return {
+    getPlatform: () => 'desktop',
+    getDeviceId: async () => 'bootstrap-test-device',
+    setStorage: async () => {},
+    getStorage: async () => null,
+    copy: async () => {},
+    openExternal: async () => {},
+    selectFile: async () => [],
+    saveFile: async () => {},
+    minimizeWindow: async () => {},
+    maximizeWindow: async () => {},
+    restoreWindow: async () => {},
+    isWindowMaximized: async () => false,
+    subscribeWindowMaximized: async () => async () => {},
+    closeWindow: async () => {},
+    listDirectory: async () => [],
+    pathExists: async (path) => fileSystem[path.replace(/\\/g, '/')] !== undefined,
+    getPathInfo: async (path) => ({
+      path,
+      name: path.split(/[\\/]/).pop() || path,
+      kind: fileSystem[path.replace(/\\/g, '/')] !== undefined ? 'file' : 'missing',
+      size: fileSystem[path.replace(/\\/g, '/')]?.length ?? null,
+      extension: path.includes('.') ? path.slice(path.lastIndexOf('.')) : null,
+      exists: fileSystem[path.replace(/\\/g, '/')] !== undefined,
+      lastModifiedMs: null,
+    }),
+    createDirectory: async () => {},
+    removePath: async () => {},
+    copyPath: async () => {},
+    movePath: async () => {},
+    readBinaryFile: async () => new Uint8Array(),
+    writeBinaryFile: async () => {},
+    readFile: async (path) => {
+      const normalized = path.replace(/\\/g, '/');
+      if (fileSystem[normalized] === undefined) {
+        throw new Error(`Missing file: ${normalized}`);
+      }
 
-  const data = await openClawBootstrapService.loadBootstrapData('local-built-in');
-
-  assert.equal(data.selectedInstanceId, 'local-built-in');
-  assert.ok(data.instances.length >= 1);
-  assert.ok(data.providers.length >= 1);
-  assert.ok(data.providers.every((provider) => ['openai', 'anthropic', 'xai', 'deepseek', 'qwen', 'zhipu', 'baidu', 'tencent-hunyuan', 'doubao', 'moonshot', 'stepfun', 'iflytek-spark', 'minimax'].includes(provider.channelId)));
-  assert.ok(data.channels.length >= 1);
-  assert.ok(data.packs.length >= 1);
-  assert.ok(data.skills.length >= 1);
-});
-
-await runTest('openClawBootstrapService applies provider and channel configuration to the selected instance', async () => {
-  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
-  const { studioMockService } = await import('@sdkwork/claw-infrastructure');
-
-  const data = await openClawBootstrapService.loadBootstrapData('local-built-in');
-  const provider = data.providers[0];
-  const channel = data.channels.find((item) => item.status === 'not_configured') || data.channels[0];
-
-  assert.ok(provider);
-  assert.ok(channel);
-
-  const channelValues = Object.fromEntries(
-    channel.fields.map((field, index) => [field.key, field.value || `wizard-value-${index + 1}`]),
-  );
-
-  const result = await openClawBootstrapService.applyConfiguration({
-    instanceId: 'local-built-in',
-    providerId: provider.id,
-    modelSelection: {
-      defaultModelId: provider.models[0]?.id || 'model-id',
-      reasoningModelId: provider.models[1]?.id,
-      embeddingModelId: provider.models.find((model) => /embed/i.test(`${model.id} ${model.name}`))?.id,
+      return fileSystem[normalized];
     },
-    channels: [
-      {
-        channelId: channel.id,
-        values: channelValues,
+    writeFile: async (path, content) => {
+      fileSystem[path.replace(/\\/g, '/')] = content;
+    },
+    ...overrides,
+  };
+}
+
+function createStudioStub(
+  originalStudio: StudioPlatformAPI,
+  instanceState: {
+    instances: Array<Awaited<ReturnType<StudioPlatformAPI['createInstance']>>>;
+    created: Array<Record<string, unknown>>;
+    updated: Array<{ id: string; input: Record<string, unknown> }>;
+  },
+): StudioPlatformAPI {
+  return {
+    listInstances: async () => instanceState.instances.map((instance) => ({ ...instance })),
+    getInstance: async (id) =>
+      instanceState.instances.find((instance) => instance.id === id) || null,
+    getInstanceDetail: originalStudio.getInstanceDetail.bind(originalStudio),
+    createInstance: async (input) => {
+      const created = {
+        id: `synced-${instanceState.instances.length + 1}`,
+        name: input.name,
+        description: input.description,
+        runtimeKind: input.runtimeKind,
+        deploymentMode: input.deploymentMode,
+        transportKind: input.transportKind,
+        status: 'online' as const,
+        isBuiltIn: false,
+        isDefault: false,
+        iconType: input.iconType || 'server',
+        version: input.version || 'host',
+        typeLabel: input.typeLabel || 'Host Managed',
+        host: input.host || '127.0.0.1',
+        port: input.port ?? 28789,
+        baseUrl: input.baseUrl ?? null,
+        websocketUrl: input.websocketUrl ?? null,
+        cpu: 0,
+        memory: 0,
+        totalMemory: 'Unknown',
+        uptime: '-',
+        capabilities: ['chat', 'health', 'tasks', 'models'],
+        storage: {
+          profileId: 'default-local',
+          provider: input.storage?.provider || 'localFile',
+          namespace: input.storage?.namespace || 'openclaw-local-external',
+          database: null,
+          connectionHint: null,
+          endpoint: null,
+        },
+        config: {
+          port: input.config?.port || String(input.port ?? 28789),
+          sandbox: input.config?.sandbox ?? true,
+          autoUpdate: input.config?.autoUpdate ?? false,
+          logLevel: input.config?.logLevel || 'info',
+          corsOrigins: input.config?.corsOrigins || '*',
+          workspacePath: input.config?.workspacePath ?? null,
+          baseUrl: input.config?.baseUrl ?? input.baseUrl ?? null,
+          websocketUrl: input.config?.websocketUrl ?? input.websocketUrl ?? null,
+          authToken: input.config?.authToken ?? null,
+        },
+        createdAt: 1,
+        updatedAt: 1,
+        lastSeenAt: 1,
+      };
+
+      instanceState.instances.push(created);
+      instanceState.created.push(input as Record<string, unknown>);
+      return { ...created };
+    },
+    updateInstance: async (id, input) => {
+      const current = instanceState.instances.find((instance) => instance.id === id);
+      if (!current) {
+        throw new Error(`Instance not found: ${id}`);
+      }
+
+      Object.assign(current, input, {
+        baseUrl: input.baseUrl ?? current.baseUrl,
+        websocketUrl: input.websocketUrl ?? current.websocketUrl,
+        host: input.host ?? current.host,
+        port: input.port ?? current.port,
+        config: {
+          ...current.config,
+          ...(input.config || {}),
+          port: input.config?.port ?? current.config.port,
+        },
+      });
+      instanceState.updated.push({ id, input: input as Record<string, unknown> });
+      return { ...current };
+    },
+    deleteInstance: originalStudio.deleteInstance.bind(originalStudio),
+    startInstance: originalStudio.startInstance.bind(originalStudio),
+    stopInstance: originalStudio.stopInstance.bind(originalStudio),
+    restartInstance: originalStudio.restartInstance.bind(originalStudio),
+    setInstanceStatus: originalStudio.setInstanceStatus.bind(originalStudio),
+    getInstanceConfig: originalStudio.getInstanceConfig.bind(originalStudio),
+    updateInstanceConfig: originalStudio.updateInstanceConfig.bind(originalStudio),
+    getInstanceLogs: originalStudio.getInstanceLogs.bind(originalStudio),
+    cloneInstanceTask: originalStudio.cloneInstanceTask.bind(originalStudio),
+    runInstanceTaskNow: originalStudio.runInstanceTaskNow.bind(originalStudio),
+    listInstanceTaskExecutions: originalStudio.listInstanceTaskExecutions.bind(originalStudio),
+    updateInstanceTaskStatus: originalStudio.updateInstanceTaskStatus.bind(originalStudio),
+    deleteInstanceTask: originalStudio.deleteInstanceTask.bind(originalStudio),
+    listConversations: originalStudio.listConversations.bind(originalStudio),
+    putConversation: originalStudio.putConversation.bind(originalStudio),
+    deleteConversation: originalStudio.deleteConversation.bind(originalStudio),
+  };
+}
+
+function createAssessmentResult(overrides: Partial<HubInstallAssessmentResult> = {}): HubInstallAssessmentResult {
+  return {
+    registryName: 'hub-installer',
+    registrySource: 'https://example.com/registry',
+    softwareName: 'openclaw',
+    manifestSource: 'openclaw-pnpm.hub.yaml',
+    manifestName: 'openclaw-pnpm',
+    manifestDescription: 'OpenClaw PNPM install',
+    manifestHomepage: 'https://openclaw.dev',
+    ready: true,
+    requiresElevatedSetup: false,
+    platform: 'windows',
+    effectiveRuntimePlatform: 'windows',
+    resolvedInstallScope: 'user',
+    resolvedInstallRoot: 'D:/OpenClaw/install',
+    resolvedWorkRoot: 'D:/OpenClaw/work',
+    resolvedBinDir: 'D:/OpenClaw/bin',
+    resolvedDataRoot: 'D:/OpenClaw/data',
+    installControlLevel: 'partial',
+    installStatus: 'installed',
+    dependencies: [],
+    issues: [],
+    recommendations: [],
+    installation: null,
+    dataItems: [],
+    migrationStrategies: [],
+    runtime: {
+      hostPlatform: 'windows',
+      requestedRuntimePlatform: 'windows',
+      effectiveRuntimePlatform: 'windows',
+      containerRuntimePreference: 'host',
+      resolvedContainerRuntime: 'host',
+      wslDistribution: null,
+      availableWslDistributions: [],
+      wslAvailable: false,
+      hostDockerAvailable: false,
+      wslDockerAvailable: false,
+      runtimeHomeDir: 'D:/Users/admin',
+      commandAvailability: {},
+    },
+    ...overrides,
+  };
+}
+
+function createInstallResult(overrides: Partial<HubInstallResult> = {}): HubInstallResult {
+  return {
+    registryName: 'hub-installer',
+    registrySource: 'https://example.com/registry',
+    softwareName: 'openclaw',
+    manifestSource: 'openclaw-pnpm.hub.yaml',
+    manifestName: 'openclaw-pnpm',
+    success: true,
+    durationMs: 5000,
+    platform: 'windows',
+    effectiveRuntimePlatform: 'windows',
+    resolvedInstallScope: 'user',
+    resolvedInstallRoot: 'D:/OpenClaw/install',
+    resolvedWorkRoot: 'D:/OpenClaw/work',
+    resolvedBinDir: 'D:/OpenClaw/bin',
+    resolvedDataRoot: 'D:/OpenClaw/data',
+    installControlLevel: 'partial',
+    stageReports: [],
+    artifactReports: [],
+    ...overrides,
+  };
+}
+
+await runTest('openClawBootstrapService resolves the installed openclaw.json and syncs one local-external instance before configuration', async () => {
+  const { configurePlatformBridge, getPlatformBridge, studioMockService } = await import(
+    '@sdkwork/claw-infrastructure'
+  );
+  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+
+  const originalBridge = getPlatformBridge();
+  const fileSystem: Record<string, string> = {
+    'D:/Users/admin/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {},
+  models: { providers: {} },
+  agents: { defaults: {} },
+}`,
+  };
+  const instanceState = {
+    instances: [],
+    created: [] as Array<Record<string, unknown>>,
+    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
+  };
+
+  configurePlatformBridge({
+    platform: createPlatformStub(fileSystem),
+    studio: createStudioStub(originalBridge.studio, instanceState),
+  });
+
+  try {
+    const data = await openClawBootstrapService.loadBootstrapData({
+      assessment: createAssessmentResult(),
+      installResult: createInstallResult(),
+    });
+
+    assert.equal(data.configPath, 'D:/Users/admin/.openclaw/openclaw.json');
+    assert.equal(typeof data.syncedInstanceId, 'string');
+    assert.ok(data.providers.length >= 1);
+    assert.ok(data.channels.some((channel) => channel.id === 'telegram'));
+    assert.equal(instanceState.created.length, 1);
+    assert.equal(instanceState.instances[0]?.deploymentMode, 'local-external');
+    assert.equal(instanceState.instances[0]?.runtimeKind, 'openclaw');
+    assert.equal(instanceState.instances[0]?.transportKind, 'openclawGatewayWs');
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawBootstrapService writes provider and channel selections to the real openclaw config and keeps one synced instance', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+
+  const originalBridge = getPlatformBridge();
+  const fileSystem: Record<string, string> = {
+    'D:/Users/admin/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {},
+  models: { providers: {} },
+  agents: { defaults: {} },
+}`,
+  };
+  const instanceState = {
+    instances: [],
+    created: [] as Array<Record<string, unknown>>,
+    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
+  };
+
+  configurePlatformBridge({
+    platform: createPlatformStub(fileSystem),
+    studio: createStudioStub(originalBridge.studio, instanceState),
+  });
+
+  try {
+    const data = await openClawBootstrapService.loadBootstrapData({
+      assessment: createAssessmentResult(),
+      installResult: createInstallResult(),
+    });
+    const provider = data.providers[0];
+
+    assert.ok(provider);
+
+    const result = await openClawBootstrapService.applyConfiguration({
+      configPath: data.configPath,
+      syncedInstanceId: data.syncedInstanceId,
+      providerId: provider.id,
+      modelSelection: {
+        defaultModelId: provider.models[0]?.id || 'gpt-4.1',
+        reasoningModelId: provider.models[1]?.id,
+        embeddingModelId: provider.models.find((model) => /embed/i.test(`${model.id} ${model.name}`))?.id,
       },
-    ],
-  });
+      channels: [
+        {
+          channelId: 'telegram',
+          values: {
+            botToken: '123456:telegram-token',
+            webhookUrl: 'https://example.com/openclaw/telegram',
+          },
+        },
+      ],
+      assessment: createAssessmentResult(),
+      installResult: createInstallResult(),
+    });
 
-  assert.equal(result.instanceId, 'local-built-in');
-  assert.deepEqual(result.configuredChannelIds, [channel.id]);
-
-  const providers = await studioMockService.listInstanceLlmProviders('local-built-in');
-  const configuredProvider = providers.find((item) => item.id === `provider-api-router-${provider.id}`);
-  assert.ok(configuredProvider);
-  assert.equal(configuredProvider?.defaultModelId, provider.models[0]?.id);
-
-  const channels = await studioMockService.listChannels('local-built-in');
-  const configuredChannel = channels.find((item) => item.id === channel.id);
-  assert.equal(configuredChannel?.status, 'connected');
-  assert.equal(configuredChannel?.enabled, true);
+    assert.equal(result.configuredChannelIds.includes('telegram'), true);
+    assert.equal(result.syncedInstanceId, data.syncedInstanceId);
+    assert.match(fileSystem[data.configPath], /api-router-/);
+    assert.match(fileSystem[data.configPath], /telegram/);
+    assert.equal(instanceState.instances.length, 1);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
 });
 
-await runTest('openClawBootstrapService initializes selected packs and skills without double-counting duplicate skills', async () => {
+await runTest('openClawBootstrapService initializes packs on the synced local-external instance and builds verification from config + installed skills', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
   const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
 
-  const data = await openClawBootstrapService.loadBootstrapData('local-built-in');
-  const pack = data.packs[0];
-  const duplicateSkill = pack.skills[0];
+  const originalBridge = getPlatformBridge();
+  const fileSystem: Record<string, string> = {
+    'D:/Users/admin/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {
+    telegram: {
+      enabled: true,
+      botToken: "123456:telegram-token",
+    },
+  },
+  models: {
+    providers: {
+      "api-router-provider-openai": {
+        baseUrl: "https://router.example.com/v1",
+        apiKey: "sk-router-live",
+        api: "openai-completions",
+        auth: "api-key",
+        models: [{ id: "gpt-4.1", name: "GPT-4.1", contextWindow: 128000, maxTokens: 32000 }],
+      },
+    },
+  },
+  agents: {
+    defaults: {
+      model: {
+        primary: "api-router-provider-openai/gpt-4.1",
+        fallbacks: [],
+      },
+      models: {
+        "api-router-provider-openai/gpt-4.1": {
+          alias: "GPT-4.1",
+          streaming: true,
+        },
+      },
+    },
+  },
+}`,
+  };
+  const instanceState = {
+    instances: [],
+    created: [] as Array<Record<string, unknown>>,
+    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
+  };
 
-  assert.ok(pack);
-  assert.ok(duplicateSkill);
-
-  const result = await openClawBootstrapService.initializeOpenClawInstance({
-    instanceId: 'local-built-in',
-    packIds: [pack.id],
-    skillIds: [duplicateSkill.id],
+  configurePlatformBridge({
+    platform: createPlatformStub(fileSystem),
+    studio: createStudioStub(originalBridge.studio, instanceState),
   });
 
-  assert.deepEqual(result.installedPackIds, [pack.id]);
-  assert.equal(result.installedSkillIds.includes(duplicateSkill.id), true);
-  assert.equal(result.installedSkillIds.length, new Set(result.installedSkillIds).size);
-});
+  try {
+    const data = await openClawBootstrapService.loadBootstrapData({
+      assessment: createAssessmentResult(),
+      installResult: createInstallResult(),
+    });
+    const pack = data.packs[0];
 
-await runTest('openClawBootstrapService builds a verification snapshot from the applied bootstrap state', async () => {
-  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+    assert.ok(pack);
 
-  const data = await openClawBootstrapService.loadBootstrapData('local-built-in');
-  const pack = data.packs[0];
-  const selectedSkillIds = pack.skills.map((skill) => skill.id);
-  const selectedChannelIds = data.channels.slice(0, 1).map((channel) => channel.id);
+    const initialization = await openClawBootstrapService.initializeOpenClawInstance({
+      instanceId: data.syncedInstanceId,
+      packIds: [pack.id],
+      skillIds: [pack.skills[0]?.id || 'skill-1'],
+    });
 
-  const snapshot = await openClawBootstrapService.loadVerificationSnapshot({
-    instanceId: 'local-built-in',
-    selectedChannelIds,
-    packIds: [pack.id],
-    skillIds: selectedSkillIds,
-  });
+    assert.equal(initialization.instanceId, data.syncedInstanceId);
+    assert.equal(initialization.installedPackIds.includes(pack.id), true);
 
-  assert.equal(snapshot.instanceId, 'local-built-in');
-  assert.equal(snapshot.installSucceeded, true);
-  assert.equal(typeof snapshot.hasReadyProvider, 'boolean');
-  assert.ok(snapshot.initializedSkillCount >= pack.skills.length);
-  assert.ok(snapshot.configuredChannelCount >= 0);
+    const snapshot = await openClawBootstrapService.loadVerificationSnapshot({
+      instanceId: data.syncedInstanceId,
+      configPath: data.configPath,
+      selectedChannelIds: ['telegram'],
+      packIds: [pack.id],
+      skillIds: pack.skills.map((skill) => skill.id),
+    });
+
+    assert.equal(snapshot.instanceId, data.syncedInstanceId);
+    assert.equal(snapshot.installSucceeded, true);
+    assert.equal(snapshot.hasReadyProvider, true);
+    assert.equal(snapshot.configuredChannelCount, 1);
+    assert.ok(snapshot.initializedSkillCount >= pack.skills.length);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
 });

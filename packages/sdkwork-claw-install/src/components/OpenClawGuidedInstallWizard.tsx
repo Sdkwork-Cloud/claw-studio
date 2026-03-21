@@ -23,7 +23,15 @@ import {
   type RuntimeEventUnsubscribe,
 } from '@sdkwork/claw-infrastructure';
 import {
+  Button,
+  ChannelCatalog,
   Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Select,
@@ -31,6 +39,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Textarea,
 } from '@sdkwork/claw-ui';
 import type { ProxyProvider, SkillPack } from '@sdkwork/claw-types';
 import { useTranslation } from 'react-i18next';
@@ -125,7 +134,7 @@ function buildChannelDrafts(
   return channels.reduce<ChannelDrafts>((accumulator, channel) => {
     const previousDraft = previous[channel.id] || {};
     accumulator[channel.id] = channel.fields.reduce<Record<string, string>>((fieldAccumulator, field) => {
-      fieldAccumulator[field.key] = previousDraft[field.key] ?? field.value ?? '';
+      fieldAccumulator[field.key] = previousDraft[field.key] ?? channel.values[field.key] ?? '';
       return fieldAccumulator;
     }, {});
     return accumulator;
@@ -153,6 +162,13 @@ function buildDefaultPackIds(packs: SkillPack[], previousIds: string[]) {
   }
 
   return packs[0] ? [packs[0].id] : [];
+}
+
+function countConfiguredChannelFields(
+  values: Record<string, string>,
+  fields: NonNullable<BootstrapState['data']>['channels'][number]['fields'],
+) {
+  return fields.filter((field) => Boolean((values[field.key] || '').trim())).length;
 }
 
 function mergeModelSelection(
@@ -251,7 +267,6 @@ export function OpenClawGuidedInstallWizard({
   const [installProgress, setInstallProgress] = useState(createHubInstallProgressState());
   const [installResult, setInstallResult] = useState<HubInstallResult | null>(null);
   const [bootstrapState, setBootstrapState] = useState<BootstrapState>({ status: 'idle' });
-  const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [selectedProviderId, setSelectedProviderId] = useState('');
   const [modelSelection, setModelSelection] =
     useState<openClawInstallWizardService.OpenClawModelSelection>({
@@ -259,6 +274,9 @@ export function OpenClawGuidedInstallWizard({
     });
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
   const [channelDrafts, setChannelDrafts] = useState<ChannelDrafts>({});
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [channelDialogDraft, setChannelDialogDraft] = useState<Record<string, string>>({});
+  const [channelDialogError, setChannelDialogError] = useState<string | null>(null);
   const [configurationStatus, setConfigurationStatus] = useState<ActionStatus>('idle');
   const [configurationError, setConfigurationError] = useState<string | null>(null);
   const [selectedPackIds, setSelectedPackIds] = useState<string[]>([]);
@@ -330,7 +348,9 @@ export function OpenClawGuidedInstallWizard({
       setAssessmentState({ status, result });
       if (result.installStatus === 'installed') {
         setInstallStatus('success');
-        setInstallOutput(`${t('install.page.guided.install.existingInstall')}\n`);
+        setInstallOutput(
+          `${t('install.page.guided.install.existingInstall', { product: 'OpenClaw' })}\n`,
+        );
       }
       setAssessmentCheckedAt(Date.now());
     } catch (error: unknown) {
@@ -344,14 +364,17 @@ export function OpenClawGuidedInstallWizard({
     }
   };
 
-  const loadBootstrap = async (preferredInstanceId?: string) => {
+  const loadBootstrap = async (nextInstallResult: HubInstallResult | null = installResult) => {
     setBootstrapState((previous) => ({
       status: 'loading',
       data: previous.data,
     }));
 
     try {
-      const data = await openClawBootstrapService.loadBootstrapData(preferredInstanceId);
+      const data = await openClawBootstrapService.loadBootstrapData({
+        assessment: assessmentState.result,
+        installResult: nextInstallResult,
+      });
       const providers = sortProviders(data.providers);
       const nextData = {
         ...data,
@@ -364,7 +387,6 @@ export function OpenClawGuidedInstallWizard({
         status: 'ready',
         data: nextData,
       });
-      setSelectedInstanceId(nextData.selectedInstanceId);
       setSelectedProviderId(nextProvider?.id ?? '');
       setModelSelection((previousSelection) =>
         mergeModelSelection(nextProvider, selectedProviderId, previousSelection),
@@ -397,11 +419,13 @@ export function OpenClawGuidedInstallWizard({
     setInstallProgress(createHubInstallProgressState());
     setInstallResult(null);
     setBootstrapState({ status: 'idle' });
-    setSelectedInstanceId('');
     setSelectedProviderId('');
     setModelSelection({ defaultModelId: '' });
     setSelectedChannelIds([]);
     setChannelDrafts({});
+    setSelectedChannelId(null);
+    setChannelDialogDraft({});
+    setChannelDialogError(null);
     setConfigurationStatus('idle');
     setConfigurationError(null);
     setSelectedPackIds([]);
@@ -457,6 +481,7 @@ export function OpenClawGuidedInstallWizard({
 
   const bootstrapData = bootstrapState.data;
   const selectedProvider = bootstrapData?.providers.find((provider) => provider.id === selectedProviderId);
+  const selectedChannel = bootstrapData?.channels.find((channel) => channel.id === selectedChannelId) ?? null;
   const selectedChannelSet = useMemo(() => new Set(selectedChannelIds), [selectedChannelIds]);
   const selectedPackSet = useMemo(() => new Set(selectedPackIds), [selectedPackIds]);
 
@@ -506,7 +531,7 @@ export function OpenClawGuidedInstallWizard({
     verificationState.status !== 'running';
 
   const configurationValidationMessage = useMemo(() => {
-    if (!selectedInstanceId || !selectedProvider || !modelSelection.defaultModelId) {
+    if (!selectedProvider || !modelSelection.defaultModelId) {
       return t('install.page.guided.config.validation.provider');
     }
 
@@ -537,7 +562,6 @@ export function OpenClawGuidedInstallWizard({
     channelDrafts,
     modelSelection.defaultModelId,
     selectedChannelIds,
-    selectedInstanceId,
     selectedProvider,
     t,
   ]);
@@ -602,7 +626,9 @@ export function OpenClawGuidedInstallWizard({
   const runInstall = async () => {
     if (assessmentState.result?.installStatus === 'installed') {
       setInstallStatus('success');
-      setInstallOutput(`${t('install.page.guided.install.existingInstall')}\n`);
+      setInstallOutput(
+        `${t('install.page.guided.install.existingInstall', { product: 'OpenClaw' })}\n`,
+      );
       return;
     }
 
@@ -642,7 +668,7 @@ export function OpenClawGuidedInstallWizard({
       );
 
       if (result.success && activeStepOrder.includes('configure')) {
-        await loadBootstrap();
+        await loadBootstrap(result);
         setCurrentStepId('configure');
       }
     } catch (error: unknown) {
@@ -668,15 +694,22 @@ export function OpenClawGuidedInstallWizard({
 
     try {
       await openClawBootstrapService.applyConfiguration({
-        instanceId: selectedInstanceId,
+        configPath: bootstrapData.configPath,
+        syncedInstanceId: bootstrapData.syncedInstanceId,
         providerId: selectedProvider.id,
         modelSelection,
         channels: selectedChannelIds.map((channelId) => ({
           channelId,
           values: channelDrafts[channelId] || {},
         })),
+        disabledChannelIds: bootstrapData.channels
+          .map((channel) => channel.id)
+          .filter((channelId) => !selectedChannelSet.has(channelId)),
+        assessment: assessmentState.result,
+        installResult,
       });
       setConfigurationStatus('success');
+      closeChannelDialog();
       setCurrentStepId('initialize');
     } catch (error: unknown) {
       setConfigurationStatus('error');
@@ -685,8 +718,8 @@ export function OpenClawGuidedInstallWizard({
   };
 
   const initializeInstance = async () => {
-    if (!selectedInstanceId) {
-      setInitializationError(t('install.page.guided.initialize.validation.instance'));
+    if (!bootstrapData?.syncedInstanceId) {
+      setInitializationError(t('install.page.guided.initialize.validation.target'));
       return;
     }
 
@@ -695,7 +728,7 @@ export function OpenClawGuidedInstallWizard({
 
     try {
       await openClawBootstrapService.initializeOpenClawInstance({
-        instanceId: selectedInstanceId,
+        instanceId: bootstrapData.syncedInstanceId,
         packIds: selectedPackIds,
         skillIds: selectedSkillIds,
       });
@@ -708,7 +741,7 @@ export function OpenClawGuidedInstallWizard({
   };
 
   const runVerification = async () => {
-    if (!selectedInstanceId) {
+    if (!bootstrapData?.syncedInstanceId || !bootstrapData.configPath) {
       return;
     }
 
@@ -717,7 +750,8 @@ export function OpenClawGuidedInstallWizard({
 
     try {
       const snapshot = await openClawBootstrapService.loadVerificationSnapshot({
-        instanceId: selectedInstanceId,
+        instanceId: bootstrapData.syncedInstanceId,
+        configPath: bootstrapData.configPath,
         selectedChannelIds,
         packIds: selectedPackIds,
         skillIds: selectedSkillIds,
@@ -771,14 +805,9 @@ export function OpenClawGuidedInstallWizard({
     verificationAttemptCount,
     verificationState.status,
     verificationState.summary?.status,
+    bootstrapData?.configPath,
+    bootstrapData?.syncedInstanceId,
   ]);
-
-  const handleInstanceChange = async (nextInstanceId: string) => {
-    setSelectedInstanceId(nextInstanceId);
-    setConfigurationStatus('idle');
-    resetVerification();
-    await loadBootstrap(nextInstanceId);
-  };
 
   const handleProviderChange = (nextProviderId: string) => {
     const provider = bootstrapData?.providers.find((item) => item.id === nextProviderId);
@@ -792,22 +821,76 @@ export function OpenClawGuidedInstallWizard({
 
   const handleChannelToggle = (channelId: string, checked: boolean) => {
     setConfigurationStatus('idle');
+    setConfigurationError(null);
     resetVerification();
     setSelectedChannelIds((previous) =>
       checked ? [...previous, channelId] : previous.filter((id) => id !== channelId),
     );
   };
 
-  const handleChannelFieldChange = (channelId: string, key: string, value: string) => {
+  const openChannelDialog = (channelId: string) => {
+    const channel = bootstrapData?.channels.find((item) => item.id === channelId);
+    if (!channel) {
+      return;
+    }
+
+    setSelectedChannelId(channelId);
+    setChannelDialogDraft(channelDrafts[channelId] || channel.values);
+    setChannelDialogError(null);
+  };
+
+  const closeChannelDialog = () => {
+    setSelectedChannelId(null);
+    setChannelDialogDraft({});
+    setChannelDialogError(null);
+  };
+
+  const handleChannelDialogFieldChange = (key: string, value: string) => {
+    setChannelDialogError(null);
+    setChannelDialogDraft((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  };
+
+  const handleSaveChannelDraft = () => {
+    if (!selectedChannel) {
+      return;
+    }
+
+    for (const field of selectedChannel.fields) {
+      if (field.required && !(channelDialogDraft[field.key] || '').trim()) {
+        setChannelDialogError(
+          t('install.page.guided.config.validation.channel', {
+            channel: selectedChannel.name,
+            field: field.label,
+          }),
+        );
+        return;
+      }
+    }
+
     setConfigurationStatus('idle');
+    setConfigurationError(null);
     resetVerification();
     setChannelDrafts((previous) => ({
       ...previous,
-      [channelId]: {
-        ...(previous[channelId] || {}),
-        [key]: value,
+      [selectedChannel.id]: {
+        ...(previous[selectedChannel.id] || selectedChannel.values),
+        ...channelDialogDraft,
       },
     }));
+    setSelectedChannelIds((previous) =>
+      previous.includes(selectedChannel.id) ? previous : [...previous, selectedChannel.id],
+    );
+    closeChannelDialog();
+  };
+
+  const handleSkipConfiguration = () => {
+    setConfigurationError(null);
+    setChannelDialogError(null);
+    setConfigurationStatus('skipped');
+    setCurrentStepId('initialize');
   };
 
   const handlePackToggle = (packId: string, checked: boolean) => {
@@ -1225,42 +1308,53 @@ export function OpenClawGuidedInstallWizard({
 
       {bootstrapData && (
         <>
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-              <Label className="text-sm font-semibold">
-                {t('install.page.guided.config.instance')}
-              </Label>
-              <Select value={selectedInstanceId} onValueChange={(value) => void handleInstanceChange(value)}>
-                <SelectTrigger className="mt-3 h-12 rounded-xl bg-zinc-50 dark:bg-zinc-950">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {bootstrapData.instances.map((instance) => (
-                    <SelectItem key={instance.id} value={instance.id}>
-                      {instance.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {t('install.page.guided.config.provider')}
+                </div>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  {t('install.page.guided.config.editLater')}
+                </p>
+              </div>
+              <div className="grid w-full gap-4 xl:max-w-2xl xl:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                    {t('install.page.guided.config.instance')}
+                  </div>
+                  <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {bootstrapData.syncedInstanceId}
+                  </div>
+                </div>
+                <div className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                    {t('install.page.guided.config.configPath')}
+                  </div>
+                  <div className="mt-2 break-all font-mono text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                    {bootstrapData.configPath}
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-              <Label className="text-sm font-semibold">
-                {t('install.page.guided.config.provider')}
-              </Label>
-              <Select value={selectedProviderId} onValueChange={handleProviderChange}>
-                <SelectTrigger className="mt-3 h-12 rounded-xl bg-zinc-50 dark:bg-zinc-950">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {bootstrapData.providers.map((provider) => (
-                    <SelectItem key={provider.id} value={provider.id}>
-                      {provider.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <Label className="text-sm font-semibold">
+              {t('install.page.guided.config.provider')}
+            </Label>
+            <Select value={selectedProviderId} onValueChange={handleProviderChange}>
+              <SelectTrigger className="mt-3 h-12 rounded-xl bg-zinc-50 dark:bg-zinc-950">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {bootstrapData.providers.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {selectedProvider && (
@@ -1363,8 +1457,8 @@ export function OpenClawGuidedInstallWizard({
             </div>
           )}
 
-          <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <div>
+          <div className="space-y-4">
+            <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                 {t('install.page.guided.config.channels')}
               </div>
@@ -1373,73 +1467,142 @@ export function OpenClawGuidedInstallWizard({
               </p>
             </div>
 
-            <div className="mt-5 space-y-4">
-              {bootstrapData.channels.map((channel) => {
-                const checked = selectedChannelSet.has(channel.id);
-                return (
-                  <div
-                    key={channel.id}
-                    className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/60"
-                  >
-                    <label className="flex cursor-pointer items-start gap-3">
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(value) => handleChannelToggle(channel.id, value === true)}
-                        className="mt-1"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                              {channel.name}
-                            </div>
-                            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                              {channel.description}
-                            </p>
-                          </div>
-                          <span className="rounded-full border border-current/20 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600 dark:text-zinc-300">
-                            {t(`install.page.guided.channelStatus.${channel.status}`)}
-                          </span>
-                        </div>
-                      </div>
-                    </label>
+            <ChannelCatalog
+              items={bootstrapData.channels.map((channel) => {
+                const values = channelDrafts[channel.id] || channel.values;
+                const configuredFieldCount = countConfiguredChannelFields(values, channel.fields);
 
-                    {checked && (
-                      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {channel.fields.map((field) => (
-                          <div key={field.key} className="block">
-                            <Label className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
-                              {field.label}
-                            </Label>
-                            <Input
-                              type={field.type === 'password' ? 'password' : 'text'}
-                              value={channelDrafts[channel.id]?.[field.key] ?? ''}
-                              onChange={(event) =>
-                                handleChannelFieldChange(channel.id, field.key, event.target.value)
-                              }
-                              placeholder={field.placeholder}
-                              className="mt-2 h-12 rounded-xl bg-white dark:bg-zinc-900"
-                            />
-                            {field.helpText && (
-                              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                                {field.helpText}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
+                return {
+                  id: channel.id,
+                  name: channel.name,
+                  description: channel.description,
+                  status:
+                    configuredFieldCount === 0
+                      ? 'not_configured'
+                      : selectedChannelSet.has(channel.id)
+                        ? 'connected'
+                        : 'disconnected',
+                  enabled: selectedChannelSet.has(channel.id),
+                  fieldCount: channel.fieldCount,
+                  configuredFieldCount,
+                  setupSteps: channel.setupSteps,
+                };
               })}
-            </div>
+              variant="management"
+              texts={{
+                statusActive: t('channels.page.status.active'),
+                statusConnected: t('dashboard.status.connected'),
+                statusDisconnected: t('dashboard.status.disconnected'),
+                statusNotConfigured: t('dashboard.status.not_configured'),
+                actionConnect: t('channels.page.actions.connect'),
+                actionConfigure: t('channels.page.actions.configure'),
+                actionOpenOfficialSite: t('channels.page.actions.openOfficialSite'),
+                actionEnableChannel: (name: string) =>
+                  t('channels.page.actions.enableChannel', { name }),
+                metricConfiguredFields: t('instances.detail.instanceWorkbench.metrics.configuredFields'),
+                metricSetupSteps: t('instances.detail.instanceWorkbench.metrics.setupSteps'),
+                metricDeliveryState: t('instances.detail.instanceWorkbench.metrics.deliveryState'),
+                stateEnabled: t('instances.detail.instanceWorkbench.state.enabled'),
+                statePending: t('instances.detail.instanceWorkbench.state.pending'),
+                summaryFallback: t('install.page.guided.config.channelsDescription'),
+              }}
+              onOpenOfficialLink={(_channel, link) => void platform.openExternal(link.href)}
+              onConfigure={(channel) => openChannelDialog(channel.id)}
+              onToggleEnabled={(channel, nextEnabled) => handleChannelToggle(channel.id, nextEnabled)}
+            />
           </div>
+
+          {configurationStatus === 'skipped' && (
+            <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              {t('install.page.guided.config.skippedNotice')}
+            </div>
+          )}
 
           {configurationError && (
             <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
               {configurationError}
             </div>
           )}
+
+          <Dialog open={Boolean(selectedChannel)} onOpenChange={(open) => !open && closeChannelDialog()}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>{selectedChannel?.name || t('install.page.guided.config.channels')}</DialogTitle>
+                <DialogDescription>{selectedChannel?.description || ''}</DialogDescription>
+              </DialogHeader>
+
+              {selectedChannel ? (
+                <div className="space-y-4">
+                  {selectedChannel.fields.map((field) =>
+                    field.multiline ? (
+                      <label key={field.key} className="block">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                          {field.label}
+                          {field.required ? ' *' : ''}
+                        </div>
+                        <Textarea
+                          value={channelDialogDraft[field.key] || ''}
+                          onChange={(event) =>
+                            handleChannelDialogFieldChange(field.key, event.target.value)
+                          }
+                          placeholder={field.placeholder}
+                          rows={5}
+                          className="min-h-[7rem] w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-primary-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                        {field.helpText ? (
+                          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            {field.helpText}
+                          </p>
+                        ) : null}
+                      </label>
+                    ) : (
+                      <label key={field.key} className="block">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                          {field.label}
+                          {field.required ? ' *' : ''}
+                        </div>
+                        <Input
+                          type={
+                            field.sensitive
+                              ? 'password'
+                              : field.inputMode === 'numeric'
+                                ? 'number'
+                                : field.inputMode === 'url'
+                                  ? 'url'
+                                  : 'text'
+                          }
+                          value={channelDialogDraft[field.key] || ''}
+                          onChange={(event) =>
+                            handleChannelDialogFieldChange(field.key, event.target.value)
+                          }
+                          placeholder={field.placeholder}
+                          className="h-12 rounded-xl bg-white dark:bg-zinc-900"
+                        />
+                        {field.helpText ? (
+                          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            {field.helpText}
+                          </p>
+                        ) : null}
+                      </label>
+                    ),
+                  )}
+
+                  {channelDialogError ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                      {channelDialogError}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeChannelDialog}>
+                  {t('common.cancel')}
+                </Button>
+                <Button onClick={handleSaveChannelDraft}>{t('common.save')}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
@@ -1477,7 +1640,7 @@ export function OpenClawGuidedInstallWizard({
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-medium text-zinc-900 dark:text-zinc-100">{pack.name}</div>
                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    {pack.skills.length} skills
+                    {t('install.page.guided.initialize.skillCount', { count: pack.skills.length })}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{pack.description}</p>
@@ -1578,7 +1741,7 @@ export function OpenClawGuidedInstallWizard({
                       : t('install.page.guided.verify.followUp')}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed">
-                    {t('install.page.guided.verify.description')}
+                    {t('install.page.guided.verify.description', { product: 'OpenClaw' })}
                   </p>
                 </div>
                 <CheckCircle2 className="h-7 w-7 shrink-0" />
@@ -1622,11 +1785,19 @@ export function OpenClawGuidedInstallWizard({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                 <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                  {t('install.page.guided.config.configPath')}
+                </div>
+                <div className="mt-2 break-all font-mono text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                  {bootstrapData?.configPath || '-'}
+                </div>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
                   {t('install.page.guided.config.instance')}
                 </div>
                 <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {bootstrapData?.instances.find((instance) => instance.id === selectedInstanceId)?.name ||
-                    selectedInstanceId}
+                  {bootstrapData?.syncedInstanceId || '-'}
                 </div>
               </div>
 
@@ -1636,18 +1807,6 @@ export function OpenClawGuidedInstallWizard({
                 </div>
                 <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {selectedProvider?.name || '-'}
-                </div>
-              </div>
-
-              <div className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
-                  {t('install.page.guided.initialize.summary')}
-                </div>
-                <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {t('install.page.guided.initialize.summaryValue', {
-                    packs: selectedPackIds.length,
-                    skills: selectedSkillCount,
-                  })}
                 </div>
               </div>
             </div>
@@ -1667,13 +1826,13 @@ export function OpenClawGuidedInstallWizard({
             : t('install.page.guided.actions.continueToConfig')
           : t('install.page.guided.actions.install')
         : currentStepId === 'configure'
-          ? configurationStatus === 'success'
+          ? configurationStatus === 'success' || configurationStatus === 'skipped'
             ? t('install.page.guided.actions.continueToInitialize')
             : t('install.page.guided.actions.applyConfig')
           : currentStepId === 'initialize'
             ? initializationStatus === 'success'
               ? t('install.page.guided.actions.continueToVerify')
-              : t('install.page.guided.actions.initialize')
+              : t('install.page.guided.actions.initialize', { product: 'OpenClaw' })
             : verificationState.status === 'success'
               ? t('install.page.modal.actions.done')
               : t('install.page.guided.actions.verify');
@@ -1684,7 +1843,9 @@ export function OpenClawGuidedInstallWizard({
       : currentStepId === 'install'
         ? installStatus === 'running'
         : currentStepId === 'configure'
-          ? configurationStatus === 'running' || Boolean(configurationValidationMessage)
+          ? configurationStatus === 'running' ||
+            ((configurationStatus !== 'success' && configurationStatus !== 'skipped') &&
+              Boolean(configurationValidationMessage))
           : currentStepId === 'initialize'
             ? initializationStatus === 'running'
             : verificationState.status === 'running';
@@ -1715,7 +1876,7 @@ export function OpenClawGuidedInstallWizard({
     }
 
     if (currentStepId === 'configure') {
-      if (configurationStatus === 'success') {
+      if (configurationStatus === 'success' || configurationStatus === 'skipped') {
         setCurrentStepId('initialize');
         return;
       }
@@ -1884,27 +2045,19 @@ export function OpenClawGuidedInstallWizard({
                   {renderCurrentStep()}
                 </div>
 
-                <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-950">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-end gap-3 border-t border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-950">
+                  {currentStepId === 'configure' &&
+                  configurationStatus !== 'success' &&
+                  configurationStatus !== 'skipped' ? (
                     <button
                       type="button"
-                      onClick={onClose}
-                      disabled={!canClose}
+                      onClick={handleSkipConfiguration}
+                      disabled={configurationStatus === 'running'}
                       className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                     >
-                      {t('install.page.modal.actions.close')}
+                      {t('install.page.guided.actions.skipConfig')}
                     </button>
-                    {currentStepIndex > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setCurrentStepId(activeStepOrder[currentStepIndex - 1] || 'dependencies')}
-                        className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                      >
-                        {t('common.back')}
-                      </button>
-                    )}
-                  </div>
-
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void executeCurrentStep()}

@@ -4,6 +4,9 @@ use crate::framework::{
 };
 
 pub mod api_router;
+pub mod api_router_managed_runtime;
+pub mod api_router_runtime;
+pub mod api_router_web_server;
 pub mod browser;
 pub mod dialog;
 pub mod filesystem;
@@ -25,6 +28,8 @@ pub mod system;
 
 use self::{
     api_router::ApiRouterInstallerService,
+    api_router_managed_runtime::ApiRouterManagedRuntimeService,
+    api_router_runtime::ApiRouterRuntimeService,
     browser::BrowserService,
     dialog::DialogService,
     filesystem::FileSystemService,
@@ -48,6 +53,8 @@ use self::{
 #[derive(Clone, Debug)]
 pub struct FrameworkServices {
     pub api_router: ApiRouterInstallerService,
+    pub api_router_managed_runtime: ApiRouterManagedRuntimeService,
+    pub api_router_runtime: ApiRouterRuntimeService,
     pub system: SystemService,
     pub browser: BrowserService,
     pub dialog: DialogService,
@@ -75,6 +82,8 @@ impl FrameworkServices {
 
         Ok(Self {
             api_router: ApiRouterInstallerService::new(),
+            api_router_managed_runtime: ApiRouterManagedRuntimeService::new(),
+            api_router_runtime: ApiRouterRuntimeService::new(),
             system: SystemService::new(),
             browser: BrowserService::with_security(&config.security),
             dialog: DialogService::new(),

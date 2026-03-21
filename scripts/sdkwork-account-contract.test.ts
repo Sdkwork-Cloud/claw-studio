@@ -29,11 +29,13 @@ function runTest(name: string, fn: () => void) {
 runTest('sdkwork-claw-account is implemented locally instead of re-exporting claw-studio-account', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-account/package.json');
   const indexSource = read('packages/sdkwork-claw-account/src/index.ts');
+  const accountServiceSource = read('packages/sdkwork-claw-account/src/services/accountService.ts');
 
   assert.ok(exists('packages/sdkwork-claw-account/src/Account.tsx'));
   assert.ok(exists('packages/sdkwork-claw-account/src/services/accountService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-account']);
+  assert.ok(pkg.dependencies?.['@sdkwork/claw-core']);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-account/);
   assert.match(indexSource, /Account/);
 
@@ -41,4 +43,7 @@ runTest('sdkwork-claw-account is implemented locally instead of re-exporting cla
   assert.match(accountSource, /useTranslation/);
   assert.match(accountSource, /t\('account\.title'\)/);
   assert.match(accountSource, /wallet/i);
+  assert.match(accountServiceSource, /@sdkwork\/claw-core\/sdk/);
+  assert.match(accountServiceSource, /getAppSdkClientWithSession/);
+  assert.doesNotMatch(accountServiceSource, /@sdkwork\/claw-infrastructure/);
 });

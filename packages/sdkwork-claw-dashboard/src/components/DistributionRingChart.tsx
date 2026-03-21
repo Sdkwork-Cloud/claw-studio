@@ -20,9 +20,14 @@ export function DistributionRingChart<T extends { id: string }>({
   let cumulativeOffset = 0;
 
   return (
-    <div className="rounded-[1.6rem] border border-white/70 bg-white/65 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-white/6 dark:bg-zinc-950/35">
+    <div className="min-w-0 rounded-[1.6rem] border border-white/70 bg-white/65 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] sm:p-5 dark:border-white/6 dark:bg-zinc-950/35">
       <div className="flex items-center justify-center">
-        <svg viewBox="0 0 220 220" className="h-[15rem] w-[15rem]" role="img" aria-label={ariaLabel}>
+        <svg
+          viewBox="0 0 220 220"
+          className="h-auto w-full max-w-[15rem]"
+          role="img"
+          aria-label={ariaLabel}
+        >
           <circle
             cx="110"
             cy="110"

@@ -1,16 +1,22 @@
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import {
   buildOpenClawManifest,
+  inspectPreparedOpenClawRuntime,
+  prepareOpenClawRuntime,
   prepareOpenClawRuntimeFromStagedDirs,
   prepareOpenClawRuntimeFromSource,
+  resolveNodeArchiveExtractionCommand,
   resolveBundledNpmCommand,
+  resolveOpenClawPrepareCachePaths,
   resolveOpenClawTarget,
+  shouldReusePreparedOpenClawRuntime,
 } from './prepare-openclaw-runtime.mjs';
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'prepare-openclaw-runtime-test-'));
+const actualNodeVersion = process.version.replace(/^v/i, '');
 
 try {
   const sourceRuntimeDir = path.join(tempRoot, 'source-runtime');
@@ -23,11 +29,23 @@ try {
   });
   const nodePath = path.join(sourceRuntimeDir, manifest.nodeRelativePath.replace(/^runtime[\\/]/, ''));
   const cliPath = path.join(sourceRuntimeDir, manifest.cliRelativePath.replace(/^runtime[\\/]/, ''));
+  const openclawPackageJsonPath = path.join(
+    sourceRuntimeDir,
+    'package',
+    'node_modules',
+    'openclaw',
+    'package.json',
+  );
 
   await mkdir(path.dirname(nodePath), { recursive: true });
   await mkdir(path.dirname(cliPath), { recursive: true });
-  await writeFile(nodePath, 'node');
+  await mkdir(path.dirname(openclawPackageJsonPath), { recursive: true });
+  await copyFile(process.execPath, nodePath);
   await writeFile(cliPath, 'console.log("openclaw");');
+  await writeFile(
+    openclawPackageJsonPath,
+    `${JSON.stringify({ name: 'openclaw', version: '2026.3.13' }, null, 2)}\n`,
+  );
 
   const result = await prepareOpenClawRuntimeFromSource({
     sourceRuntimeDir,
@@ -97,6 +115,135 @@ try {
 
   await stat(path.join(stagedResourceDir, 'runtime', 'node', 'node.exe'));
   await stat(path.join(stagedResourceDir, 'runtime', 'package', 'node_modules', 'openclaw', 'openclaw.mjs'));
+
+  const reusableResourceDir = path.join(tempRoot, 'reusable-resource-runtime');
+  await prepareOpenClawRuntimeFromSource({
+    sourceRuntimeDir,
+    resourceDir: reusableResourceDir,
+    openclawVersion: '2026.3.13',
+    nodeVersion: '22.16.0',
+    target,
+  });
+
+  const inspection = await inspectPreparedOpenClawRuntime({
+    resourceDir: reusableResourceDir,
+    manifest,
+  });
+  if (!inspection.reusable) {
+    throw new Error(`Expected prepared runtime inspection to be reusable, received ${inspection.reason}`);
+  }
+
+  if (shouldReusePreparedOpenClawRuntime({ inspection, forcePrepare: true })) {
+    throw new Error('Expected forcePrepare=true to disable reuse of an otherwise valid prepared runtime');
+  }
+
+  const sentinelPath = path.join(reusableResourceDir, 'runtime', 'package', 'sentinel.txt');
+  await writeFile(sentinelPath, 'keep');
+
+  const reused = await prepareOpenClawRuntime({
+    resourceDir: reusableResourceDir,
+    openclawVersion: '2026.3.13',
+    nodeVersion: '22.16.0',
+    openclawPackage: 'openclaw',
+    fetchImpl: async () => {
+      throw new Error('prepareOpenClawRuntime should have reused the existing runtime instead of downloading Node');
+    },
+    target,
+  });
+
+  if (reused.strategy !== 'reused-existing') {
+    throw new Error(`Expected an existing runtime reuse strategy, received ${reused.strategy}`);
+  }
+
+  const sentinelValue = await readFile(sentinelPath, 'utf8');
+  if (sentinelValue !== 'keep') {
+    throw new Error(`Expected runtime reuse to preserve existing files, received ${sentinelValue}`);
+  }
+
+  const repairableResourceDir = path.join(tempRoot, 'repairable-resource-runtime');
+  await prepareOpenClawRuntimeFromSource({
+    sourceRuntimeDir,
+    resourceDir: repairableResourceDir,
+    openclawVersion: '2026.3.13',
+    nodeVersion: actualNodeVersion,
+    target,
+  });
+  await rm(path.join(repairableResourceDir, 'manifest.json'));
+
+  const repaired = await prepareOpenClawRuntime({
+    resourceDir: repairableResourceDir,
+    openclawVersion: '2026.3.13',
+    nodeVersion: actualNodeVersion,
+    openclawPackage: 'openclaw',
+    fetchImpl: async () => {
+      throw new Error('prepareOpenClawRuntime should have repaired the missing manifest instead of downloading Node');
+    },
+    target,
+  });
+
+  if (repaired.strategy !== 'repaired-existing-manifest') {
+    throw new Error(`Expected a repaired-existing-manifest strategy, received ${repaired.strategy}`);
+  }
+
+  const repairedManifest = JSON.parse(
+    await readFile(path.join(repairableResourceDir, 'manifest.json'), 'utf8'),
+  );
+  if (repairedManifest.openclawVersion !== '2026.3.13') {
+    throw new Error(
+      `Expected repaired manifest to restore openclawVersion=2026.3.13, received ${repairedManifest.openclawVersion}`,
+    );
+  }
+
+  const cacheDir = path.join(tempRoot, 'persistent-cache');
+  const cachePaths = resolveOpenClawPrepareCachePaths({
+    cacheDir,
+    openclawVersion: '2026.3.13',
+    nodeVersion: '22.16.0',
+    target,
+  });
+  await mkdir(path.dirname(cachePaths.cachedArchivePath), { recursive: true });
+  await writeFile(cachePaths.cachedArchivePath, 'cached-archive');
+  await cp(path.join(sourceRuntimeDir, 'node'), cachePaths.nodeCacheDir, { recursive: true });
+  await cp(path.join(sourceRuntimeDir, 'package'), cachePaths.packageCacheDir, { recursive: true });
+
+  const cachePreparedResourceDir = path.join(tempRoot, 'cache-prepared-resource-runtime');
+  const cached = await prepareOpenClawRuntime({
+    resourceDir: cachePreparedResourceDir,
+    cacheDir,
+    openclawVersion: '2026.3.13',
+    nodeVersion: '22.16.0',
+    openclawPackage: 'openclaw',
+    fetchImpl: async () => {
+      throw new Error('prepareOpenClawRuntime should have reused cached artifacts instead of downloading Node');
+    },
+    target,
+  });
+
+  if (cached.strategy !== 'prepared-cache') {
+    throw new Error(`Expected a prepared-cache strategy, received ${cached.strategy}`);
+  }
+
+  await stat(path.join(cachePreparedResourceDir, 'runtime', 'node', 'node.exe'));
+  await stat(
+    path.join(
+      cachePreparedResourceDir,
+      'runtime',
+      'package',
+      'node_modules',
+      'openclaw',
+      'openclaw.mjs',
+    ),
+  );
+
+  const windowsExtractor = resolveNodeArchiveExtractionCommand({
+    archivePath: 'C:\\temp\\node-v22.16.0-win-x64.zip',
+    extractRoot: 'C:\\temp\\extract-root',
+    target,
+    hasTarCommand: true,
+  });
+  if (windowsExtractor.command.toLowerCase() !== 'tar') {
+    throw new Error(`Expected Windows zip extraction to prefer tar, received ${windowsExtractor.command}`);
+  }
 
   console.log('ok - bundled OpenClaw runtime preparation copies runtime files and writes manifest');
 } finally {

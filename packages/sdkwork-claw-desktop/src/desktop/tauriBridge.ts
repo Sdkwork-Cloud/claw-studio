@@ -21,6 +21,8 @@ import type {
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
+  RuntimeApiRouterAdminBootstrapSession,
+  RuntimeApiRouterRuntimeStatus,
   RuntimeAppInfo,
   RuntimeConfigInfo,
   RuntimeDesktopKernelInfo,
@@ -45,6 +47,7 @@ import type {
   StudioInstanceDetailRecord,
   StudioInstanceConfig,
   StudioInstanceRecord,
+  StudioInstanceTaskMutationPayload,
   StudioWorkbenchTaskExecutionRecord,
   StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
@@ -71,6 +74,9 @@ export interface DesktopJobUpdateEvent extends RuntimeJobUpdateEvent {}
 export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
 export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo {}
 export interface DesktopStorageInfo extends RuntimeStorageInfo {}
+export interface DesktopApiRouterAdminBootstrapSession
+  extends RuntimeApiRouterAdminBootstrapSession {}
+export interface DesktopApiRouterRuntimeStatus extends RuntimeApiRouterRuntimeStatus {}
 
 const noopUnsubscribe: RuntimeEventUnsubscribe = () => {};
 
@@ -320,6 +326,39 @@ export async function studioGetInstanceLogs(id: string): Promise<string> {
         operation: 'studio.getInstanceLogs',
       }),
     () => webStudioPlatform.getInstanceLogs(id),
+  );
+}
+
+export async function studioCreateInstanceTask(
+  instanceId: string,
+  payload: StudioInstanceTaskMutationPayload,
+): Promise<void> {
+  await runDesktopOrFallback(
+    'studio.createInstanceTask',
+    () =>
+      invokeDesktopCommand<void>(
+        DESKTOP_COMMANDS.studioCreateInstanceTask,
+        { instanceId, payload },
+        { operation: 'studio.createInstanceTask' },
+      ),
+    () => webStudioPlatform.createInstanceTask(instanceId, payload),
+  );
+}
+
+export async function studioUpdateInstanceTask(
+  instanceId: string,
+  taskId: string,
+  payload: StudioInstanceTaskMutationPayload,
+): Promise<void> {
+  await runDesktopOrFallback(
+    'studio.updateInstanceTask',
+    () =>
+      invokeDesktopCommand<void>(
+        DESKTOP_COMMANDS.studioUpdateInstanceTask,
+        { instanceId, taskId, payload },
+        { operation: 'studio.updateInstanceTask' },
+      ),
+    () => webStudioPlatform.updateInstanceTask(instanceId, taskId, payload),
   );
 }
 
@@ -961,6 +1000,32 @@ export async function installApiRouterClientSetup(
   );
 }
 
+export async function getApiRouterRuntimeStatus(): Promise<DesktopApiRouterRuntimeStatus | null> {
+  return runDesktopOrFallback(
+    'runtime.getApiRouterRuntimeStatus',
+    () =>
+      invokeDesktopCommand<DesktopApiRouterRuntimeStatus>(
+        DESKTOP_COMMANDS.getApiRouterRuntimeStatus,
+        undefined,
+        { operation: 'runtime.getApiRouterRuntimeStatus' },
+      ),
+    async () => null,
+  );
+}
+
+export async function getApiRouterAdminBootstrapSession(): Promise<DesktopApiRouterAdminBootstrapSession | null> {
+  return runDesktopOrFallback(
+    'runtime.getApiRouterAdminBootstrapSession',
+    () =>
+      invokeDesktopCommand<DesktopApiRouterAdminBootstrapSession>(
+        DESKTOP_COMMANDS.getApiRouterAdminBootstrapSession,
+        undefined,
+        { operation: 'runtime.getApiRouterAdminBootstrapSession' },
+      ),
+    async () => null,
+  );
+}
+
 export async function getRuntimeInfo(): Promise<RuntimeInfo> {
   const [app, paths, config, system] = await Promise.all([
     getAppInfo(),
@@ -1019,6 +1084,8 @@ export const desktopTemplateApi = {
     getInstanceConfig: studioGetInstanceConfig,
     updateInstanceConfig: studioUpdateInstanceConfig,
     getInstanceLogs: studioGetInstanceLogs,
+    createInstanceTask: studioCreateInstanceTask,
+    updateInstanceTask: studioUpdateInstanceTask,
     cloneInstanceTask: studioCloneInstanceTask,
     runInstanceTaskNow: studioRunInstanceTaskNow,
     listInstanceTaskExecutions: studioListInstanceTaskExecutions,
@@ -1072,6 +1139,8 @@ export const desktopTemplateApi = {
   },
   runtime: {
     getInfo: getRuntimeInfo,
+    getApiRouterAdminBootstrapSession,
+    getApiRouterRuntimeStatus,
     setAppLanguage,
   },
 };
@@ -1150,6 +1219,10 @@ export function configureDesktopPlatformBridge() {
       getInstanceConfig: (id) => studioGetInstanceConfig(id),
       updateInstanceConfig: (id, config) => studioUpdateInstanceConfig(id, config),
       getInstanceLogs: (id) => studioGetInstanceLogs(id),
+      createInstanceTask: (instanceId, payload) =>
+        studioCreateInstanceTask(instanceId, payload),
+      updateInstanceTask: (instanceId, taskId, payload) =>
+        studioUpdateInstanceTask(instanceId, taskId, payload),
       cloneInstanceTask: (instanceId, taskId, name) =>
         studioCloneInstanceTask(instanceId, taskId, name),
       runInstanceTaskNow: (instanceId, taskId) =>
@@ -1166,6 +1239,8 @@ export function configureDesktopPlatformBridge() {
     },
     runtime: {
       getRuntimeInfo: () => getRuntimeInfo(),
+      getApiRouterAdminBootstrapSession: () => getApiRouterAdminBootstrapSession(),
+      getApiRouterRuntimeStatus: () => getApiRouterRuntimeStatus(),
       setAppLanguage: (language) => setAppLanguage(language),
       submitProcessJob: (profileId) => submitProcessJob(profileId),
       getJob: (id) => getJob(id),

@@ -187,6 +187,56 @@ export interface RuntimeStorageInfo {
   profiles: RuntimeStorageProfileInfo[];
 }
 
+export type RuntimeApiRouterRuntimeMode =
+  | 'attachedExternal'
+  | 'managedActive'
+  | 'needsManagedStart'
+  | 'conflicted';
+
+export type RuntimeApiRouterManagedMode = 'inProcess';
+
+export type RuntimeApiRouterConfigSource = 'defaults' | 'file' | 'env';
+
+export interface RuntimeApiRouterEndpointStatus {
+  bindAddr: string;
+  healthUrl: string;
+  enabled: boolean;
+  publicBaseUrl?: string | null;
+  healthy: boolean;
+  portAvailable: boolean;
+}
+
+export interface RuntimeApiRouterRuntimeStatus {
+  mode: RuntimeApiRouterRuntimeMode;
+  recommendedManagedMode?: RuntimeApiRouterManagedMode | null;
+  sharedRootDir: string;
+  configDir: string;
+  configSource: RuntimeApiRouterConfigSource;
+  resolvedConfigFile?: string | null;
+  admin: RuntimeApiRouterEndpointStatus;
+  portal: RuntimeApiRouterEndpointStatus;
+  gateway: RuntimeApiRouterEndpointStatus;
+  adminSiteBaseUrl?: string | null;
+  portalSiteBaseUrl?: string | null;
+  reason: string;
+}
+
+export type RuntimeApiRouterAdminBootstrapSessionSource = 'managedLocalJwt';
+
+export interface RuntimeApiRouterAdminBootstrapSessionUser {
+  id: string;
+  email: string;
+  displayName: string;
+  active: boolean;
+  createdAtMs: number;
+}
+
+export interface RuntimeApiRouterAdminBootstrapSession {
+  token: string;
+  source: RuntimeApiRouterAdminBootstrapSessionSource;
+  user: RuntimeApiRouterAdminBootstrapSessionUser;
+}
+
 export type RuntimeDesktopKernelCapabilityStatus = 'ready' | 'planned';
 export type RuntimeDesktopProviderAvailability = 'ready' | 'configurationRequired' | 'planned';
 
@@ -350,6 +400,8 @@ export interface RuntimeInfo {
 
 export interface RuntimePlatformAPI {
   getRuntimeInfo(): Promise<RuntimeInfo>;
+  getApiRouterRuntimeStatus(): Promise<RuntimeApiRouterRuntimeStatus | null>;
+  getApiRouterAdminBootstrapSession(): Promise<RuntimeApiRouterAdminBootstrapSession | null>;
   setAppLanguage(language: RuntimeLanguagePreference): Promise<void>;
   submitProcessJob(profileId: string): Promise<string>;
   getJob(id: string): Promise<RuntimeJobRecord>;

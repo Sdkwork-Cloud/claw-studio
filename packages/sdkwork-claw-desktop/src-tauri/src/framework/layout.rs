@@ -236,11 +236,7 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     Ok(())
 }
 
-pub fn set_active_runtime_version(
-    paths: &AppPaths,
-    runtime_id: &str,
-    version: &str,
-) -> Result<()> {
+pub fn set_active_runtime_version(paths: &AppPaths, runtime_id: &str, version: &str) -> Result<()> {
     let mut active = read_json_file::<ActiveState>(&paths.active_file)?;
     let entry = active.runtimes.entry(runtime_id.to_string()).or_default();
 

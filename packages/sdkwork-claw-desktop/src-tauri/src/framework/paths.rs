@@ -368,12 +368,16 @@ mod tests {
         let paths = resolve_paths_for_root(root.path()).expect("paths");
 
         assert!(normalize(&paths.managed_runtimes_dir).ends_with("machine/runtime/runtimes"));
-        assert!(normalize(&paths.openclaw_runtime_dir).ends_with("machine/runtime/runtimes/openclaw"));
+        assert!(
+            normalize(&paths.openclaw_runtime_dir).ends_with("machine/runtime/runtimes/openclaw")
+        );
         assert!(normalize(&paths.user_bin_dir).ends_with("user-home/bin"));
         assert!(normalize(&paths.openclaw_home_dir).ends_with("user-home/openclaw-home"));
         assert!(normalize(&paths.openclaw_state_dir).ends_with("user-home/openclaw-home/.openclaw"));
-        assert!(normalize(&paths.openclaw_workspace_dir).ends_with("user-home/openclaw-home/.openclaw/workspace"));
-        assert!(normalize(&paths.openclaw_config_file).ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
+        assert!(normalize(&paths.openclaw_workspace_dir)
+            .ends_with("user-home/openclaw-home/.openclaw/workspace"));
+        assert!(normalize(&paths.openclaw_config_file)
+            .ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
         assert!(paths.managed_runtimes_dir.exists());
         assert!(paths.openclaw_runtime_dir.exists());
         assert!(paths.user_bin_dir.exists());

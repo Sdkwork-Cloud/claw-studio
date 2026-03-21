@@ -37,10 +37,12 @@ runTest('sdkwork-claw-tasks is implemented locally instead of re-exporting claw-
   assert.ok(exists('packages/sdkwork-claw-tasks/src/store/useTaskStore.ts'));
   assert.ok(exists('packages/sdkwork-claw-tasks/src/pages/Tasks.tsx'));
   assert.ok(exists('packages/sdkwork-claw-tasks/src/services/taskService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-tasks']);
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-instances']);
   assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], 'workspace:*');
+  assert.equal(pkg.dependencies?.['@sdkwork/claw-commons'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-tasks/);
   assert.match(indexSource, /\.\/Tasks/);
   assert.match(indexSource, /\.\/components\/GlobalTaskManager/);
@@ -48,52 +50,52 @@ runTest('sdkwork-claw-tasks is implemented locally instead of re-exporting claw-
   assert.match(indexSource, /taskService/);
 });
 
-runTest('sdkwork-claw-tasks keeps the V5 instance-aware task service and page wiring', () => {
-  const serviceSource = read('packages/sdkwork-claw-tasks/src/services/taskService.ts');
+runTest('sdkwork-claw-tasks routes cron CRUD through the shared manager and the real studio bridge', () => {
+  const serviceSource = read('packages/sdkwork-claw-core/src/services/taskService.ts');
   const pageSource = read('packages/sdkwork-claw-tasks/src/pages/Tasks.tsx');
 
-  assert.match(
-    serviceSource,
-    /import\s+\{\s*studioMockService\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/,
-  );
-  assert.match(serviceSource, /getTasks\(instanceId: string\): Promise<Task\[]>/);
-  assert.match(serviceSource, /studioMockService\.listTasks\(instanceId\)/);
-  assert.match(serviceSource, /createTask\(instanceId: string, task: Omit<Task, 'id'>\): Promise<Task>/);
-  assert.match(serviceSource, /studioMockService\.createTask\(instanceId, task\)/);
-  assert.match(serviceSource, /studioMockService\.updateTaskStatus\(id, status\)/);
-  assert.match(serviceSource, /studioMockService\.deleteTask\(id\)/);
+  assert.match(serviceSource, /studio\.getInstanceDetail\(instanceId\)/);
+  assert.match(serviceSource, /detail\?\.instance\.runtimeKind === 'openclaw'/);
+  assert.match(serviceSource, /studio\.createInstanceTask\(/);
+  assert.match(serviceSource, /studio\.updateInstanceTask\(/);
+  assert.match(serviceSource, /studio\.cloneInstanceTask\(/);
+  assert.match(serviceSource, /studio\.runInstanceTaskNow\(/);
+  assert.match(serviceSource, /studio\.listInstanceTaskExecutions\(/);
+  assert.match(serviceSource, /studio\.updateInstanceTaskStatus\(/);
+  assert.match(serviceSource, /studio\.deleteInstanceTask\(/);
   assert.doesNotMatch(serviceSource, /fetch\('/);
   assert.doesNotMatch(serviceSource, /const tasksData/);
 
+  assert.match(pageSource, /CronTasksManager/);
   assert.match(pageSource, /useInstanceStore/);
-  assert.match(pageSource, /const \{ activeInstanceId \} = useInstanceStore\(\)/);
-  assert.match(pageSource, /taskService\.getTasks\(activeInstanceId\)/);
-  assert.match(pageSource, /taskService\.(createTask|create)\(activeInstanceId,/);
+  assert.match(pageSource, /instanceId=\{activeInstanceId \?\? undefined\}/);
+  assert.doesNotMatch(pageSource, /taskService\.getTasks\(activeInstanceId\)/);
+  assert.doesNotMatch(pageSource, /taskService\.(createTask|create)\(activeInstanceId,/);
 });
 
-runTest('sdkwork-claw-tasks page composes the refined task workspace and card actions', () => {
-  const pageSource = read('packages/sdkwork-claw-tasks/src/pages/Tasks.tsx');
+runTest('sdkwork-claw-tasks shared manager keeps the refined task workspace and card actions', () => {
+  const managerSource = read('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx');
 
-  assert.match(pageSource, /buildTaskCreateWorkspaceState/);
-  assert.match(pageSource, /buildTaskCardState/);
-  assert.match(pageSource, /buildTaskFormValuesFromTask/);
-  assert.match(pageSource, /buildCreateTaskInput/);
-  assert.match(pageSource, /OverlaySurface/);
-  assert.match(pageSource, /taskService\.cloneTask\(/);
-  assert.match(pageSource, /taskService\.runTaskNow\(/);
-  assert.match(pageSource, /taskService\.listTaskExecutions\(/);
-  assert.match(pageSource, /taskService\.updateTask\(/);
-  assert.match(pageSource, /taskService\.updateTaskStatus\(/);
-  assert.match(pageSource, /taskService\.deleteTask\(/);
+  assert.match(managerSource, /buildTaskCreateWorkspaceState/);
+  assert.match(managerSource, /buildTaskCardState/);
+  assert.match(managerSource, /buildTaskFormValuesFromTask/);
+  assert.match(managerSource, /buildCreateTaskInput/);
+  assert.match(managerSource, /OverlaySurface/);
+  assert.match(managerSource, /taskService\.cloneTask\(/);
+  assert.match(managerSource, /taskService\.runTaskNow\(/);
+  assert.match(managerSource, /taskService\.listTaskExecutions\(/);
+  assert.match(managerSource, /taskService\.updateTask\(/);
+  assert.match(managerSource, /taskService\.updateTaskStatus\(/);
+  assert.match(managerSource, /taskService\.deleteTask\(/);
 });
 
-runTest('sdkwork-claw-tasks page uses the shared task catalog surface', () => {
-  const pageSource = read('packages/sdkwork-claw-tasks/src/pages/Tasks.tsx');
+runTest('sdkwork-claw-tasks shared manager uses the shared task catalog surface', () => {
+  const managerSource = read('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx');
 
-  assert.match(pageSource, /TaskCatalog/);
-  assert.match(pageSource, /TaskExecutionHistoryDrawer/);
-  assert.match(pageSource, /getTaskToggleStatusTarget/);
-  assert.doesNotMatch(pageSource, /<TaskRow/);
+  assert.match(managerSource, /TaskCatalog/);
+  assert.match(managerSource, /TaskExecutionHistoryDrawer/);
+  assert.match(managerSource, /getTaskToggleStatusTarget/);
+  assert.doesNotMatch(managerSource, /<TaskRow/);
 });
 
 runTest('sdkwork-claw-tasks ships readable zh task copy without mojibake placeholders', () => {

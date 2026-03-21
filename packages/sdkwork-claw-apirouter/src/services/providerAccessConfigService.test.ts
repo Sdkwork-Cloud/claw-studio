@@ -382,3 +382,26 @@ await runTest('providerAccessConfigService resolves platform-specific manual tar
   assert.ok(bundle.includes('# %USERPROFILE%\\.config\\opencode\\opencode.json'));
   assert.ok(bundle.includes('# %USERPROFILE%\\.local\\share\\opencode\\auth.json'));
 });
+
+await runTest('providerAccessConfigService marks every client unavailable when the plaintext provider secret is no longer present', async () => {
+  const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
+  const provider = createProvider({
+    apiKey: '',
+    canCopyApiKey: false,
+    credentialReference: 'cred-router-openai',
+  });
+  const configs = buildProviderAccessClientConfigs(provider);
+
+  assert.equal(configs.length, 5);
+
+  for (const config of configs) {
+    assert.equal(config.available, false);
+    assert.equal(config.reason, 'requiresOneTimeKeyReveal');
+    assert.deepEqual(config.install.supportedModes, []);
+    assert.deepEqual(config.install.supportedEnvScopes, []);
+    assert.equal(config.install.defaultMode, null);
+    assert.equal(config.install.defaultEnvScope, null);
+    assert.deepEqual(config.install.environmentVariables, []);
+    assert.deepEqual(config.snippets, []);
+  }
+});

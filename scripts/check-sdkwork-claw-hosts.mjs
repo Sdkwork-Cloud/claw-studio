@@ -33,6 +33,26 @@ function assertAnyIncludes(relPaths, pattern, label) {
 
 assertIncludes('packages/sdkwork-claw-web/src/App.tsx', '@sdkwork/claw-shell', 'web host shell dependency');
 assertIncludes('packages/sdkwork-claw-desktop/package.json', '@sdkwork/claw-shell', 'desktop package shell dependency');
+assertIncludes(
+  'packages/sdkwork-claw-web/vite.config.ts',
+  'allow:',
+  'web Vite external workspace fs allow list',
+);
+assertIncludes(
+  'packages/sdkwork-claw-web/vite.config.ts',
+  '../../../../..',
+  'web Vite monorepo fs allow root',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  'allow:',
+  'desktop Vite external workspace fs allow list',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  '../../../../..',
+  'desktop Vite monorepo fs allow root',
+);
 assertAnyIncludes(
   [
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx',

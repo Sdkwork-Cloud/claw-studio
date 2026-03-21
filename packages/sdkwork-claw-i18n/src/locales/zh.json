@@ -2,102 +2,104 @@
   "common": {
     "productName": "Claw Studio",
     "back": "返回",
-    "goBack": "Go Back",
-    "save": "Save",
-    "cancel": "Cancel",
+    "goBack": "返回上一页",
+    "save": "保存",
+    "cancel": "取消",
     "close": "关闭",
-    "search": "Search",
-    "get": "Get",
-    "install": "Install",
-    "loading": "Loading",
-    "none": "None",
-    "preview": "Preview",
-    "official": "Official",
-    "copy": "Copy",
-    "copied": "Copied",
-    "collapseSidebar": "Collapse sidebar",
-    "expandSidebar": "Expand sidebar",
-    "manageInstances": "Manage Instances",
-    "minimizeWindow": "Minimize window",
-    "maximizeWindow": "Maximize window",
-    "restoreWindow": "Restore window",
-    "closeWindow": "Close window",
-    "today": "Today",
-    "previous7Days": "Previous 7 Days",
-    "older": "Older",
-    "viewAll": "See All"
+    "search": "搜索",
+    "get": "获取",
+    "install": "安装",
+    "loading": "加载中",
+    "none": "无",
+    "preview": "预览",
+    "official": "官方",
+    "copy": "复制",
+    "copied": "已复制",
+    "collapseSidebar": "收起侧边栏",
+    "expandSidebar": "展开侧边栏",
+    "manageInstances": "管理实例",
+    "minimizeWindow": "最小化窗口",
+    "maximizeWindow": "最大化窗口",
+    "restoreWindow": "还原窗口",
+    "closeWindow": "关闭窗口",
+    "today": "今天",
+    "previous7Days": "过去 7 天",
+    "older": "更早",
+    "viewAll": "查看全部",
+    "add": "添加",
+    "done": "完成"
   },
   "sidebar": {
     "brand": "Claw Studio",
-    "dashboard": "Dashboard",
-    "hotBadge": "Hot",
-    "clawMall": "Claw Mall",
+    "dashboard": "控制台",
+    "hotBadge": "热门",
+    "clawMall": "Claw 商城",
     "instances": "实例",
-    "devices": "Devices",
+    "devices": "设备",
     "install": "安装 Claw",
     "market": "ClawHub",
-    "aiChat": "AI Chat",
-    "channels": "Channels",
-    "cronTasks": "Cron Tasks",
-    "appStore": "App Store",
-    "extensions": "Extensions",
+    "aiChat": "AI 对话",
+    "channels": "渠道",
+    "cronTasks": "定时任务",
+    "appStore": "应用商店",
+    "extensions": "扩展",
     "community": "分类信息",
-    "githubRepos": "GitHub Repos",
+    "githubRepos": "GitHub 仓库",
     "huggingFace": "Hugging Face",
-    "workspace": "Workspace",
-    "ecosystem": "Ecosystem",
-    "setup": "Setup",
+    "workspace": "工作区",
+    "ecosystem": "生态",
+    "setup": "配置",
     "codebox": "CodeBox",
-    "apiRouter": "API Router",
+    "apiRouter": "API 路由",
     "modelPurchase": "模型购买",
-    "clawUpload": "Claw Upload",
-    "systemResources": "System Resources",
+    "clawUpload": "Claw 发布",
+    "systemResources": "系统资源",
     "cpu": "CPU",
     "ram": "RAM",
-    "switchInstance": "Switch Instance",
-    "manageInstances": "Manage Instances",
-    "noInstances": "No instances found",
-    "addOne": "Add one to get started",
-    "selectInstance": "Select Instance",
-    "documentation": "Documentation",
-    "settings": "Settings",
-    "account": "Account",
+    "switchInstance": "切换实例",
+    "manageInstances": "管理实例",
+    "noInstances": "暂无实例",
+    "addOne": "添加一个实例开始使用",
+    "selectInstance": "选择实例",
+    "documentation": "文档",
+    "settings": "设置",
+    "account": "账户",
     "userMenu": {
-      "open": "Open account menu",
-      "close": "Close account menu",
-      "guest": "Not signed in",
-      "login": "Log in",
-      "loginHint": "Sign in to manage your account",
-      "signedIn": "Signed in",
-      "profileSettings": "Profile settings",
-      "logout": "Sign out"
+      "open": "打开账户菜单",
+      "close": "关闭账户菜单",
+      "guest": "未登录",
+      "login": "登录",
+      "loginHint": "登录后管理你的账户",
+      "signedIn": "已登录",
+      "profileSettings": "个人资料设置",
+      "logout": "退出登录"
     }
   },
   "auth": {
-    "qrLogin": "Scan to Login",
-    "qrDesc": "Use the SDKWork mobile app to scan the QR code for instant access.",
-    "openApp": "Open SDKWork App",
-    "welcomeBack": "Welcome back",
-    "createAccount": "Create an account",
-    "resetPassword": "Reset password",
-    "loginDesc": "Enter your details to access your account.",
-    "registerDesc": "Join us to start building amazing things.",
-    "resetDesc": "Enter your email to receive a reset link.",
-    "name": "Full Name",
-    "email": "Email Address",
-    "password": "Password",
-    "forgotPassword": "Forgot password?",
-    "signIn": "Sign In",
-    "signUp": "Sign Up",
-    "sendResetLink": "Send Reset Link",
-    "continueWith": "Or continue with",
-    "noAccount": "Don't have an account?",
-    "hasAccount": "Already have an account?",
-    "backToLogin": "Back to login",
+    "qrLogin": "扫码登录",
+    "qrDesc": "使用 SDKWork 移动应用扫描二维码即可快速登录。",
+    "openApp": "打开 SDKWork App",
+    "welcomeBack": "欢迎回来",
+    "createAccount": "创建账号",
+    "resetPassword": "重置密码",
+    "loginDesc": "输入你的信息以访问账号。",
+    "registerDesc": "加入我们，开始创造精彩内容。",
+    "resetDesc": "输入你的邮箱以接收重置链接。",
+    "name": "姓名",
+    "email": "邮箱地址",
+    "password": "密码",
+    "forgotPassword": "忘记密码？",
+    "signIn": "登录",
+    "signUp": "注册",
+    "sendResetLink": "发送重置链接",
+    "continueWith": "或使用以下方式继续",
+    "noAccount": "还没有账号？",
+    "hasAccount": "已经有账号了？",
+    "backToLogin": "返回登录",
     "placeholders": {
-      "name": "John Doe",
+      "name": "张三",
       "email": "you@example.com",
-      "password": "Enter your password"
+      "password": "输入你的密码"
     },
     "providers": {
       "github": "GitHub",
@@ -106,103 +108,376 @@
   },
   "settings": {
     "general": {
-      "title": "General",
-      "description": "Manage your basic application preferences.",
-      "appearance": "Appearance",
-      "themeMode": "Theme mode",
-      "themeColor": "Theme color",
-      "languageRegion": "Language & Region",
-      "language": "Language",
-      "languageDescription": "Select your preferred language.",
-      "sidebarNavigation": "Sidebar Navigation",
-      "sidebarDescription": "Choose which items to display in the sidebar.",
-      "startup": "Startup",
-      "launchOnStartup": "Launch on startup",
-      "launchOnStartupDescription": "Automatically start Claw Studio when you log in to your computer.",
-      "startMinimized": "Start minimized",
-      "startMinimizedDescription": "Open the application in the system tray instead of a window.",
-      "updatePreferenceFailed": "Failed to update preference",
+      "title": "通用",
+      "description": "管理应用的基础偏好设置。",
+      "appearance": "外观",
+      "themeMode": "主题模式",
+      "themeColor": "主题颜色",
+      "languageRegion": "语言与地区",
+      "language": "语言",
+      "languageDescription": "选择你偏好的界面语言。",
+      "sidebarNavigation": "侧边栏导航",
+      "sidebarDescription": "选择要在侧边栏中显示的项目。",
+      "startup": "启动",
+      "launchOnStartup": "开机启动",
+      "launchOnStartupDescription": "登录电脑后自动启动 Claw Studio。",
+      "startMinimized": "最小化启动",
+      "startMinimizedDescription": "启动时进入系统托盘而不是直接打开窗口。",
+      "updatePreferenceFailed": "更新偏好设置失败",
       "themeModes": {
-        "light": "Light",
-        "dark": "Dark",
-        "system": "System"
+        "light": "浅色",
+        "dark": "深色",
+        "system": "跟随系统"
       },
       "themeColors": {
-        "tech-blue": "Tech Blue",
-        "lobster": "Lobster",
-        "green-tech": "Green Tech",
-        "zinc": "Zinc",
-        "violet": "Violet",
-        "rose": "Rose"
+        "tech-blue": "科技蓝",
+        "lobster": "龙虾红",
+        "green-tech": "科技绿",
+        "zinc": "锌灰",
+        "violet": "紫罗兰",
+        "rose": "玫瑰粉"
+      }
+    },
+    "page": {
+      "title": "设置",
+      "searchPlaceholder": "搜索设置...",
+      "empty": "未找到匹配的设置项。"
+    },
+    "tabs": {
+      "general": "通用",
+      "llm": "LLM 配置",
+      "billing": "账单与用量",
+      "wallet": "账户",
+      "account": "个人资料设置",
+      "notifications": "通知",
+      "security": "安全",
+      "api": "API 密钥",
+      "data": "数据与隐私"
+    },
+    "account": {
+      "title": "账户",
+      "description": "更新你的个人资料与详细信息。",
+      "signedOutDescription": "登录后即可管理你的个人资料与账户设置。",
+      "signInRequired": "需要登录",
+      "signedOut": "当前尚未登录。",
+      "signInPrompt": "请前往登录页面后再编辑个人资料或重新登录。",
+      "goToLogin": "前往登录",
+      "profileTitle": "个人资料",
+      "changeAvatar": "更换头像",
+      "avatarHint": "支持 JPG、GIF 或 PNG，最大 800K",
+      "firstName": "名",
+      "lastName": "姓",
+      "email": "邮箱地址",
+      "saving": "保存中...",
+      "saveChanges": "保存更改",
+      "dangerZone": "危险操作",
+      "signOut": "退出登录",
+      "signOutDescription": "在当前设备上退出你的 Claw Studio 账户。",
+      "toasts": {
+        "avatarSimulated": "已模拟头像更新",
+        "loadFailed": "加载个人资料失败",
+        "updated": "个人资料已更新",
+        "updateFailed": "更新个人资料失败",
+        "signedOut": "已成功退出登录",
+        "signOutFailed": "退出登录失败"
+      }
+    },
+    "apiKeys": {
+      "title": "API 密钥",
+      "description": "管理用于 Claw Studio 请求认证的 API 密钥。",
+      "createNew": "创建新密钥",
+      "empty": "尚无 API 密钥，创建一个即可开始使用。",
+      "never": "从未",
+      "revokeKey": "吊销密钥",
+      "securityTitle": "妥善保护密钥",
+      "securityDescription": "请不要在 GitHub、客户端代码等公开可访问的场所分享 API 密钥。所有 API 请求都必须通过 HTTPS 发起。",
+      "copyToClipboard": "复制到剪贴板",
+      "table": {
+        "name": "名称",
+        "secretKey": "密钥",
+        "created": "创建时间",
+        "lastUsed": "最后使用",
+        "usageMtd": "本月用量",
+        "actions": "操作"
+      },
+      "createModal": {
+        "title": "创建新密钥",
+        "name": "名称",
+        "namePlaceholder": "例如：Production App",
+        "creating": "创建中...",
+        "create": "创建密钥"
+      },
+      "saveModal": {
+        "title": "保存你的密钥",
+        "description": "请将此密钥保存到安全且可访问的位置。出于安全原因，你无法在 Claw Studio 中再次查看它。如果丢失，则需要重新生成一个新密钥。"
+      },
+      "revokeModal": {
+        "title": "吊销 API 密钥",
+        "description": "确定要吊销密钥“{{name}}”吗？任何仍在使用该密钥的应用或脚本都将立即失去对 Claw Studio API 的访问权限。此操作无法撤销。",
+        "revoking": "吊销中...",
+        "revoke": "吊销密钥"
+      },
+      "toasts": {
+        "loadFailed": "加载 API 密钥失败",
+        "enterName": "请输入密钥名称",
+        "created": "API 密钥创建成功",
+        "createFailed": "创建 API 密钥失败",
+        "copied": "已将 API 密钥复制到剪贴板",
+        "revoked": "API 密钥“{{name}}”已吊销",
+        "revokeFailed": "吊销 API 密钥失败"
+      }
+    },
+    "billing": {
+      "title": "账单与用量",
+      "description": "管理你的订阅、付款方式，并监控 API 或实例的费用。",
+      "thisMonth": "本月",
+      "currentUsage": "当前用量",
+      "vsLastMonth": "较上月",
+      "apiCosts": "API 费用",
+      "totalTokens": "Tokens 总量",
+      "estimatedCost": "预估费用：",
+      "paymentMethod": "付款方式",
+      "paymentMethodValue": "Visa，尾号 **** 4242",
+      "updatePaymentMethod": "更新付款方式",
+      "costBreakdownTitle": "2026 年 3 月费用明细",
+      "spendingLimitTitle": "支出上限提醒",
+      "spendingLimitDescription": "你已达到每月 {{limit}} 支出上限的 85%，建议调整限额或密切监控使用情况。",
+      "historyTitle": "账单历史",
+      "tabs": {
+        "overview": "用量明细",
+        "invoices": "发票与历史"
+      },
+      "usageTypes": {
+        "llmApi": "LLM 接口",
+        "instance": "实例"
+      },
+      "usageNames": {
+        "productionNode": "生产节点 (aws-us-east-1)",
+        "devNode": "开发节点 (local)"
+      },
+      "usageMetrics": {
+        "tokens": "{{value}} 令牌",
+        "hours": "{{value}} 小时"
+      },
+      "status": {
+        "paid": "已支付"
+      },
+      "table": {
+        "resource": "资源",
+        "type": "类型",
+        "usage": "用量",
+        "cost": "费用",
+        "totalEstimatedCost": "总预估费用"
+      },
+      "invoiceTable": {
+        "invoice": "发票",
+        "date": "日期",
+        "amount": "金额",
+        "status": "状态",
+        "action": "操作"
+      },
+      "downloadInvoice": "下载发票"
+    },
+    "dataPrivacy": {
+      "title": "数据与隐私",
+      "description": "管理你的数据、遥测及账户删除设置。",
+      "updatePreferenceFailed": "更新偏好设置失败",
+      "telemetry": {
+        "title": "遥测与分析",
+        "shareUsageData": "分享使用数据",
+        "shareUsageDataDescription": "通过分享匿名使用统计与崩溃报告，帮助我们改进 Claw Studio。",
+        "personalizedRecommendations": "个性化推荐",
+        "personalizedRecommendationsDescription": "允许我们基于你已安装的设备为你推荐技能与套装。"
+      },
+      "export": {
+        "title": "导出数据",
+        "downloadTitle": "下载你的数据",
+        "description": "获取一份 Claw Studio 数据副本，包括设备配置、已安装的技能以及 JSON 格式的任务历史。",
+        "action": "申请导出数据",
+        "requested": "已提交数据导出申请，稍后会通过邮件发送给你。"
+      },
+      "deleteAccount": {
+        "title": "删除账户",
+        "heading": "永久删除账户",
+        "description": "账户删除后将无法恢复，请务必确认。所有设备都会被解绑，数据也将被永久删除。",
+        "action": "删除账户",
+        "requested": "已发起账户删除流程，请查看邮件进行确认。"
+      }
+    },
+    "notifications": {
+      "title": "通知",
+      "description": "选择你希望接收的更新通知。",
+      "emailTitle": "邮件通知",
+      "systemUpdates": "系统更新",
+      "systemUpdatesDescription": "通过邮件接收 Claw Studio 更新与新功能通知。",
+      "taskFailures": "任务失败",
+      "taskFailuresDescription": "当定时任务执行失败时接收通知。",
+      "securityAlerts": "安全提醒",
+      "securityAlertsDescription": "接收关于账户异常活动的提醒。",
+      "desktopTitle": "桌面通知",
+      "taskCompletions": "任务完成",
+      "taskCompletionsDescription": "当任务成功完成时显示桌面通知。",
+      "newMessages": "新消息",
+      "newMessagesDescription": "当我在渠道中收到新消息时通知我。",
+      "updatePreferenceFailed": "更新偏好设置失败"
+    },
+    "security": {
+      "title": "安全",
+      "description": "管理你的密码并保护账户安全。",
+      "changePassword": "修改密码",
+      "currentPassword": "当前密码",
+      "newPassword": "新密码",
+      "confirmNewPassword": "确认新密码",
+      "updating": "更新中...",
+      "updatePassword": "更新密码",
+      "twoFactor": {
+        "title": "双重身份验证",
+        "authenticatorApp": "验证器应用",
+        "description": "使用 Google Authenticator 或 1Password 等应用生成一次性验证码。",
+        "disable": "关闭双重验证",
+        "enable": "开启双重验证",
+        "toggleDescription": "切换当前账户的多重验证保护。"
+      },
+      "alerts": {
+        "title": "安全提醒",
+        "loginAlerts": "登录提醒",
+        "loginAlertsDescription": "当有人通过未识别设备登录你的账户时通知你。"
+      },
+      "sessions": {
+        "title": "活跃会话",
+        "currentDeviceName": "MacBook Pro - Safari",
+        "currentDeviceLocation": "旧金山，加州 • 当前活跃",
+        "mobileDeviceName": "iPhone 13 - Claw Studio 应用",
+        "mobileDeviceLocation": "旧金山，加州 • 2 小时前活跃",
+        "current": "当前设备",
+        "revoke": "撤销"
+      },
+      "toasts": {
+        "fillAllFields": "请填写所有密码字段",
+        "passwordMismatch": "两次输入的新密码不一致",
+        "passwordUpdated": "密码更新成功",
+        "passwordUpdateFailed": "更新密码失败",
+        "preferenceUpdateFailed": "更新偏好设置失败",
+        "sessionRevoked": "会话已成功撤销"
+      }
+    },
+    "llm": {
+      "title": "LLM 配置",
+      "description": "细致调整你的 AI 体验，统一管理模型提供方、API 密钥与全局生成参数，获得更强控制力。",
+      "noInstanceTitle": "未选中实例",
+      "noInstanceDescription": "请先从侧边栏选择一个实例，然后再配置 LLM 设置。",
+      "addChannel": "新增渠道",
+      "defaultsTitle": "实例默认值",
+      "defaultChannel": "默认渠道",
+      "selectChannel": "选择渠道",
+      "defaultChannelDescription": "新建聊天时将默认选择此渠道。",
+      "defaultModel": "默认模型",
+      "selectModel": "选择模型",
+      "defaultModelDescription": "当前渠道默认使用的模型。",
+      "parametersTitle": "实例参数",
+      "temperature": "温度",
+      "precise": "精确",
+      "creative": "创造",
+      "maxTokens": "最大 Tokens",
+      "maxTokensDescription": "生成响应的最大长度。",
+      "topP": "Top P 采样",
+      "focused": "集中",
+      "diverse": "多样",
+      "channelsTitle": "模型渠道",
+      "clickToSetDefault": "点击设为默认",
+      "editChannel": "编辑渠道",
+      "deleteChannel": "删除渠道",
+      "form": {
+        "newChannelName": "新渠道",
+        "customModelName": "自定义模型",
+        "editTitle": "编辑渠道",
+        "createTitle": "配置新渠道",
+        "channelName": "渠道名称",
+        "channelNamePlaceholder": "例如：My Custom OpenAI",
+        "providerType": "提供方类型",
+        "providerTypePlaceholder": "例如：openai, custom",
+        "baseUrl": "基础 URL",
+        "apiKey": "API 密钥",
+        "apiKeyPlaceholder": "sk-... (留空则使用环境变量)",
+        "icon": "图标（Emoji）",
+        "iconPlaceholder": "例如：图标",
+        "models": "模型配置",
+        "modelsHint": "点击星标设为默认",
+        "setAsDefault": "设为默认",
+        "removeModel": "移除模型",
+        "noModels": "尚未配置模型，可在下方添加。",
+        "modelIdPlaceholder": "模型 ID（例如：gpt-4o）",
+        "modelNamePlaceholder": "显示名称（例如：GPT-4o）",
+        "save": "保存配置"
       }
     }
   },
   "commandPalette": {
     "shortcut": "Ctrl K",
     "categories": {
-      "navigation": "Navigation",
-      "actions": "Actions",
-      "instances": "Instances"
+      "navigation": "导航",
+      "actions": "操作",
+      "instances": "实例"
     },
-    "searchPlaceholder": "Type a command or search...",
-    "noResults": "No results found.",
+    "searchPlaceholder": "输入命令或搜索...",
+    "noResults": "未找到匹配结果。",
     "footer": {
-      "navigationHint": "Use up and down arrows to navigate",
-      "selectHint": "Press Enter to select",
-      "title": "Claw Studio Command Palette"
+      "navigationHint": "使用上下箭头导航",
+      "selectHint": "按 Enter 执行",
+      "title": "Claw Studio 命令面板"
     },
     "commands": {
       "dashboard": {
-        "title": "Go to Dashboard",
-        "subtitle": "Open the operator control plane"
+        "title": "前往仪表盘",
+        "subtitle": "打开运营控制台"
       },
       "apps": {
-        "title": "Go to App Store",
-        "subtitle": "Browse AI applications"
+        "title": "前往应用商店",
+        "subtitle": "浏览 AI 应用"
       },
       "github": {
-        "title": "Go to GitHub Repos",
-        "subtitle": "Install open-source projects"
+        "title": "前往 GitHub 仓库",
+        "subtitle": "安装开源项目"
       },
       "huggingface": {
-        "title": "Go to Hugging Face",
-        "subtitle": "Download AI models"
+        "title": "前往 Hugging Face",
+        "subtitle": "下载 AI 模型"
       },
       "upload": {
-        "title": "Go to Claw Upload",
-        "subtitle": "Publish your Claw to the ecosystem"
+        "title": "前往 Claw 发布",
+        "subtitle": "将你的 Claw 发布到生态中"
       },
       "instances": {
-        "title": "Go to Instances",
-        "subtitle": "Manage running containers"
+        "title": "前往实例",
+        "subtitle": "管理运行中的容器"
       },
       "devices": {
-        "title": "Go to Devices",
-        "subtitle": "Hardware and GPU settings"
+        "title": "前往设备",
+        "subtitle": "硬件与 GPU 设置"
       },
       "chat": {
-        "title": "Go to AI Chat",
-        "subtitle": "Talk to your local models"
+        "title": "前往 AI 对话",
+        "subtitle": "与本地模型交流"
       },
       "codebox": {
-        "title": "Go to CodeBox",
-        "subtitle": "Open the staged CodeBox integration route"
+        "title": "前往 CodeBox",
+        "subtitle": "打开预置的 CodeBox 集成路由"
       },
       "apiRouter": {
-        "title": "Go to API Router",
-        "subtitle": "Manage model channels and proxy providers"
+        "title": "前往 API 路由",
+        "subtitle": "管理模型渠道与代理提供方"
       },
       "modelPurchase": {
         "title": "前往模型购买",
         "subtitle": "浏览独立模型套餐与计费方案"
       },
       "settings": {
-        "title": "Go to Settings",
-        "subtitle": "Preferences and configuration"
+        "title": "前往设置",
+        "subtitle": "偏好与配置"
       },
       "terminal": {
-        "title": "Open Terminal",
-        "subtitle": "Launch local CLI"
+        "title": "打开终端",
+        "subtitle": "启动本地 CLI"
       },
       "guided": {
         "title": "分步安装",
@@ -219,15 +494,15 @@
           },
           "configure": {
             "title": "配置 OpenClaw",
-            "description": "选择实例、模型配置以及要接入的 channels。"
+            "description": "选择实例、模型配置以及要接入的渠道。"
           },
           "initialize": {
             "title": "初始化 OpenClaw",
-            "description": "安装默认 skills，并补充需要的 skill 或 package。"
+            "description": "安装默认技能，并补充需要的技能或扩展包。"
           },
           "verify": {
             "title": "验证安装",
-            "description": "确认安装、模型提供方、channels 和 skills 是否已经就绪。"
+            "description": "确认安装、模型提供方、渠道和技能是否已经就绪。"
           }
         },
         "actions": {
@@ -245,7 +520,7 @@
           "noIssues": "当前未检测到阻塞问题。"
         },
         "install": {
-          "existingInstall": "\u68c0\u6d4b\u5230\u73b0\u6709\u5b89\u88c5\uff0c\u53ef\u76f4\u63a5\u7ee7\u7eed\u5b8c\u6210\u914d\u7f6e\u6216\u9a8c\u8bc1\u3002",
+          "existingInstall": "检测到现有安装，可直接继续完成配置或验证。",
           "description": "按当前方式安装 OpenClaw，并在完成前持续查看执行日志。",
           "logPlaceholder": "安装输出会显示在这里。"
         },
@@ -256,8 +531,8 @@
           "defaultModel": "默认模型",
           "reasoningModel": "推理模型",
           "embeddingModel": "向量模型",
-          "channels": "Channels 配置",
-          "channelsDescription": "保留已经连通的 channels，或继续启用更多通知与工作流通道。",
+          "channels": "渠道配置",
+          "channelsDescription": "保留已经连通的渠道，或继续启用更多通知与工作流通道。",
           "validation": {
             "provider": "保存配置前，请先选择实例、提供方和默认模型。",
             "loading": "配置数据仍在加载中。",
@@ -271,7 +546,7 @@
           "additionalSkills": "附加技能",
           "includedByPack": "已包含在包内",
           "summary": "初始化摘要",
-          "summaryValue": "已选择 {{packs}} 个包，合计 {{skills}} 个技能。",
+          "summaryValue": "已选择 {{packs}} 个包，共 {{skills}} 个技能。",
           "validation": {
             "instance": "初始化前请先选择目标实例。"
           }
@@ -284,8 +559,8 @@
           "items": {
             "install": "安装执行",
             "provider": "模型提供方",
-            "channels": "Channels",
-            "skills": "Skills 与包"
+            "channels": "渠道",
+            "skills": "技能与扩展包"
           },
           "status": {
             "success": "已就绪",
@@ -306,133 +581,236 @@
         }
       }
     },
-    "switchInstanceTitle": "Switch Instance: {{name}}",
-    "instanceSubtitle": "{{ip}} - {{status}}"
+    "switchInstanceTitle": "切换实例：{{name}}",
+    "instanceSubtitle": "{{ip}} · {{status}}"
   },
   "taskManager": {
-    "activeTasks": "{{count, number}} active tasks",
-    "allCompleted": "All tasks completed",
-    "clearCompleted": "Clear completed",
-    "noRecentTasks": "No recent tasks",
-    "processing": "Processing...",
-    "finalizing": "Finalizing...",
-    "failedTryAgain": "Task failed. Please try again."
+    "activeTasks": "{{count, number}} 个活动任务",
+    "allCompleted": "所有任务均已完成",
+    "clearCompleted": "清除已完成项",
+    "noRecentTasks": "暂无最近任务",
+    "processing": "处理中...",
+    "finalizing": "收尾中...",
+    "failedTryAgain": "任务执行失败，请重试。"
   },
   "routes": {
-    "codeboxComingSoon": "CodeBox integration coming soon.",
-    "apiRouterComingSoon": "API Router integration coming soon."
+    "codeboxComingSoon": "CodeBox 集成即将上线。",
+    "apiRouterComingSoon": "API 路由集成即将上线。"
   },
   "apiRouterPage": {
     "page": {
-      "eyebrow": "Routing Control Plane",
-      "title": "API Router",
-      "description": "Manage model vendors, proxy providers, and key lifecycle from one operational surface.",
-      "descriptionWithChannel": "Operate {{channel}} routes and monitor the active {{modelFamily}} provider pool from one control plane."
+      "eyebrow": "路由控制平面",
+      "title": "API 路由",
+      "description": "在一个运营界面中统一管理模型厂商、代理提供方和密钥生命周期。",
+      "descriptionWithChannel": "在同一个控制平面中管理 {{channel}} 路由，并监控当前活跃的 {{modelFamily}} 提供方池。"
     },
     "pageTabs": {
-      "unifiedApiKey": "Unified API Key",
-      "routeConfig": "Route Config",
+      "unifiedApiKey": "统一 API 密钥",
+      "routeConfig": "路由配置",
       "modelMapping": "模型映射",
       "usageRecords": "使用记录"
     },
+    "routeConfig": {
+      "emptyTitle": "暂时还没有可配置的模型通道",
+      "emptyDescription": "即使当前没有路由数据，API Router 控制台也会继续显示。接入 router 数据或创建上游提供方后，这里就会出现可配置的路由视图。"
+    },
+    "admin": {
+      "title": "管理控制面",
+      "heading": "sdkwork-api-router 管理端",
+      "state": {
+        "authenticated": "已连接",
+        "needsLogin": "需要登录",
+        "unavailable": "不可用"
+      },
+        "authSource": {
+          "session": "操作员会话",
+          "managedBootstrap": "本地托管静默引导",
+          "configuredToken": "已配置令牌",
+          "none": "未提供凭据"
+        },
+      "fields": {
+        "authSource": "认证来源",
+        "adminBaseUrl": "管理端地址",
+        "gatewayBaseUrl": "网关地址",
+        "operator": "当前操作员",
+        "email": "管理员邮箱",
+        "password": "密码"
+      },
+      "placeholders": {
+        "email": "admin@example.com",
+        "password": "输入管理员密码"
+      },
+      "actions": {
+        "refresh": "刷新",
+        "signIn": "登录",
+        "disconnect": "断开连接"
+      },
+      "values": {
+        "autoResolved": "由运行时自动解析",
+        "unknown": "未知"
+      },
+        "messages": {
+          "sessionConnected": "当前 API Router 控制面已经通过操作员会话完成认证，可以直接调用 router 原生管理接口。",
+          "managedBootstrapConnected": "Claw Studio 已为当前本地托管的 sdkwork-api-router 静默完成认证，可以直接调用 router 原生管理接口。",
+          "configuredTokenConnected": "当前 API Router 控制面已经通过预配置管理员令牌完成认证，可以直接调用 router 原生管理接口。",
+          "signInRequired": "请登录 sdkwork-api-router 管理接口，这样控制面能力才能切换到真实 router 后端，而不是继续使用 mock 回退。",
+          "reauthenticateRequired": "已保存的 router 管理凭据已经失效。请重新登录，恢复 router-backed 控制面访问能力。"
+        },
+      "loginHint": "无论是独立部署的服务端，还是当前附着的本地托管运行时，都使用这里的 router 管理员账号登录。",
+      "toast": {
+        "connected": "已使用 {{email}} 连接到 sdkwork-api-router",
+        "connectionFailed": "连接 sdkwork-api-router 管理端失败",
+        "disconnected": "已清除 router 管理会话",
+        "disconnectFailed": "清除 router 管理会话失败"
+      }
+    },
+    "runtime": {
+      "title": "路由运行时",
+      "reason": "运行时判断",
+      "recommendation": "建议的托管模式",
+      "conflictHint": "当前配置端口已经被占用，但占用进程没有通过 router 健康检查。在启动托管实例前，需要先处理这个冲突。",
+      "sharedRoot": "共享 Router 根目录",
+      "configFile": "解析后的配置文件",
+      "bind": "绑定地址",
+    "mode": {
+      "attachedExternal": "已附着到外部 Router",
+      "managedActive": "由 Claw Studio 托管运行",
+      "needsManagedStart": "需要进入托管启动",
+      "conflicted": "Router 启动被阻塞"
+    },
+    "summary": {
+      "attachedExternal": "外部实例已运行",
+      "managedActive": "托管实例已运行",
+      "needsManagedStart": "可以准备启动",
+      "conflicted": "需要人工处理"
+    },
+      "managedMode": {
+        "inProcess": "在托管启动器接入后，由 Claw 随应用生命周期以进程内方式启动 sdkwork-api-router。"
+      },
+      "configSource": {
+        "defaults": "未发现共享 router 配置文件，当前使用默认绑定地址。",
+        "file": "已从共享 router 配置加载。"
+      },
+      "endpoint": {
+        "admin": "管理端点",
+        "gateway": "网关端点"
+      },
+      "health": {
+        "healthy": "健康",
+        "unhealthy": "异常"
+      },
+      "port": {
+        "available": "端口可用",
+        "occupied": "端口已占用"
+      }
+    },
     "unifiedApiKey": {
       "filters": {
-        "searchPlaceholder": "Search key name, note, or API key",
-        "allGroups": "All groups",
+        "searchPlaceholder": "搜索密钥名称、备注或 API 密钥",
+        "allGroups": "全部分组",
         "modelMappingSearchPlaceholder": "搜索映射名称、描述或映射模型"
       },
       "table": {
-        "name": "Name",
-        "apiKey": "API Key",
-        "source": "Source",
-        "group": "Group",
-        "usage": "Usage",
-        "expiresAt": "Expires",
-        "status": "Status",
-        "createdAt": "Created",
-        "actions": "Actions",
-        "emptyTitle": "No unified API keys match the current filters",
-        "emptyDescription": "Create a new global API key or relax the current search conditions."
+        "name": "名称",
+        "apiKey": "API 密钥",
+        "source": "来源",
+        "group": "分组",
+        "usage": "用量",
+        "expiresAt": "到期时间",
+        "status": "状态",
+        "createdAt": "创建时间",
+        "actions": "操作",
+        "emptyTitle": "当前筛选条件下暂无匹配的统一 API 密钥",
+        "emptyDescription": "新建一个全局 API 密钥，或放宽当前搜索条件。"
       },
       "actions": {
-        "createKey": "New Key",
-        "refresh": "Refresh",
-        "copyKey": "Copy Key",
-        "copySnippet": "Copy Snippet",
-        "usageMethod": "Usage",
+        "createKey": "新建密钥",
+        "refresh": "刷新",
+        "copyKey": "复制密钥",
+        "copySnippet": "复制片段",
+        "usageMethod": "使用方式",
         "associateModelMapping": "关联模型映射",
         "clearModelMapping": "清除映射",
-        "enable": "Enable",
-        "disable": "Disable",
-        "edit": "Edit",
-        "delete": "Delete",
-        "confirmDelete": "Delete {{name}}?"
+        "enable": "启用",
+        "disable": "禁用",
+        "edit": "编辑",
+        "delete": "删除",
+        "confirmDelete": "确认删除 {{name}} 吗？"
       },
       "sources": {
-        "system-generated": "System Generated",
-        "custom": "Custom"
+        "system-generated": "系统生成",
+        "custom": "自定义"
       },
       "dialogs": {
-        "usageTitle": "Usage Method",
-        "createTitle": "New Unified API Key",
-        "editTitle": "Edit Unified API Key",
+        "usageTitle": "使用方式",
+        "createTitle": "新建统一 API 密钥",
+        "editTitle": "编辑统一 API 密钥",
         "associateModelMappingTitle": "关联模型映射",
-        "exampleRequest": "Example Request",
-        "create": "Create Key",
-        "save": "Save Changes"
+        "exampleRequest": "示例请求",
+        "create": "创建密钥",
+        "save": "保存更改"
       },
       "detail": {
-        "openaiBaseUrl": "OpenAI Base URL",
-        "anthropicBaseUrl": "Anthropic Base URL",
-        "baseUrl": "Base URL",
-        "authHeader": "Authorization Header",
-        "gatewayHint": "One-click setup maps each client to the matching unified gateway protocol. OpenAI-compatible clients use /v1, while Claude Code uses /anthropic.",
-        "geminiGatewayHint": "Unified API Key now supports Gemini CLI through the routed Gemini gateway. When environment setup is enabled, the installer writes GEMINI_API_KEY, GOOGLE_GEMINI_BASE_URL, and the matching auth mechanism."
+        "openaiBaseUrl": "OpenAI 基础 URL",
+        "anthropicBaseUrl": "Anthropic 基础 URL",
+        "baseUrl": "基础 URL",
+        "authHeader": "认证请求头",
+        "gatewayHint": "一键配置会把每个客户端映射到对应的统一网关协议。兼容 OpenAI 的客户端使用 /v1，Claude Code 使用 /anthropic。",
+        "geminiGatewayHint": "统一 API 密钥现在已通过路由化 Gemini 网关支持 Gemini CLI。启用环境配置时，安装器会写入 GEMINI_API_KEY、GOOGLE_GEMINI_BASE_URL 以及对应的认证机制。",
+        "secretRevealHint": "当前设备暂时没有这把密钥的本地明文托管副本。如需恢复复制、本地使用和一键接入，请在这里重新创建或轮换这把密钥。"
       },
       "fields": {
-        "name": "Name",
-        "nameHint": "Use a business-facing key name that operators and customer teams can recognize immediately.",
-        "apiKey": "API Key",
-        "apiKeyHint": "Paste the full API key only when you intentionally want to manage a custom external key.",
-        "group": "Group",
-        "groupHint": "Group unified keys by tenant, traffic tier, customer segment, or operating boundary.",
-        "keyMode": "Key Mode",
-        "generateKey": "System generated",
-        "generateKeyHint": "Recommended. The platform creates and manages a brand new outward-facing API key for this router.",
-        "customKey": "Manual input",
-        "customKeyHint": "Use a manually supplied API key when you need to preserve an existing external credential.",
-        "systemGeneratedTitle": "Managed unified key",
-        "systemGeneratedCreateHint": "A new key in the format `sk-ar-v1-...` will be generated automatically after creation.",
-        "systemGeneratedExistingHint": "This key is managed by the platform. Editing metadata keeps the existing generated credential unless you switch to manual input.",
-        "systemGeneratedPreview": "The system will create a fresh outward-facing API key for you after saving.",
-        "expiresAt": "Expires",
-        "expiresAtHint": "Track planned rotation or contract deadlines with a date picker.",
-        "notes": "Notes"
+        "name": "名称",
+        "nameHint": "使用业务可识别的密钥名称，让操作人员和客户团队一眼就能认出。",
+        "apiKey": "API 密钥",
+        "apiKeyHint": "手动模式下请输入完整的 `sk-...` 路由密钥；托管模式会自动生成并在本机保存一个脱敏展示的 `sk-ar-v1-...` 密钥供本地使用。",
+        "group": "分组",
+        "groupHint": "按租户、流量层级、客户分群或运营边界对统一密钥进行分组。",
+        "groupName": "首个分组名称",
+        "groupNameHint": "当前还没有 router tenant。输入首个分组名称后，Claw Studio 会先创建 tenant，再创建这把统一密钥。",
+        "keyMode": "密钥模式",
+        "generateKey": "系统生成",
+        "generateKeyHint": "推荐。平台会为这个路由创建并管理一个全新的对外 API 密钥。",
+        "customKey": "手动输入",
+        "customKeyHint": "当你需要保留现有外部凭据时，可使用手动提供的 API 密钥。",
+        "systemGeneratedTitle": "托管统一密钥",
+        "systemGeneratedCreateHint": "创建后会自动生成一个 `sk-ar-v1-...` 格式的新密钥。",
+        "systemGeneratedExistingHint": "该密钥由平台托管。编辑元数据会保留当前生成凭据，并继续在本机保留可复制、可一键接入的明文副本。",
+        "systemGeneratedPreview": "保存后系统将为你创建一个新的对外 API 密钥。",
+        "keyModeLockedTitle": "密钥轮换需单独处理",
+        "keyModeLockedHint": "这个 router 托管密钥仍然可以在这里修改租户、名称、到期时间和备注，但创建后的明文密钥会被有意隐藏。",
+        "expiresAt": "到期时间",
+        "expiresAtHint": "使用日期选择器跟踪轮换计划或合同截止时间。",
+        "notes": "备注"
       },
       "placeholders": {
-        "name": "Global Production Key",
+        "name": "全局生产密钥",
+        "groupName": "Acme Workspace",
         "apiKey": "sk-ar-v1-...",
-        "notes": "Describe the tenant, purpose, quota policy, or rotation context."
+        "notes": "描述租户、用途、配额策略或轮换背景。"
       },
       "toast": {
-        "copySuccess": "Unified API key copied",
-        "copyFailed": "Failed to copy unified API key",
-        "accessConfigCopied": "Usage snippet copied",
-        "accessConfigCopyFailed": "Failed to copy usage snippet",
-        "validationFailed": "Please complete the name and group. Custom mode also requires an API key value.",
-        "keyCreated": "Unified API key created",
-        "groupUpdated": "Key group updated",
-        "statusUpdated": "Key status updated",
+        "copySuccess": "统一 API 密钥已复制",
+        "copyFailed": "复制统一 API 密钥失败",
+        "copyUnavailable": "当前设备还没有这把密钥的本地明文托管副本。请在这里重新创建或轮换后再复制或进行本地一键接入。",
+        "accessConfigCopied": "使用片段已复制",
+        "accessConfigCopyFailed": "复制使用片段失败",
+        "validationFailed": "请填写名称，并选择或输入分组。自定义模式还需要提供 API 密钥值。",
+        "keyCreated": "统一 API 密钥已创建",
+        "groupUpdated": "密钥分组已更新",
+        "statusUpdated": "密钥状态已更新",
         "modelMappingUpdated": "模型映射关联已更新",
-        "keyUpdated": "Unified API key updated",
-        "keyDeleted": "Unified API key deleted"
+        "keyUpdated": "统一 API 密钥已更新",
+        "keyDeleted": "统一 API 密钥已删除"
       },
       "values": {
-        "never": "Never",
+        "never": "永不过期",
         "mappedTo": "已关联 {{name}}",
         "mappingUnavailable": "映射已不可用",
         "associationHint": "为该 Key 选择一个模型映射，清空选择即可移除当前关联。",
-        "noModelMappings": "当前搜索条件下没有匹配的模型映射。"
+        "noModelMappings": "当前搜索条件下没有匹配的模型映射。",
+        "hiddenAfterCreation": "已脱敏",
+        "oneTimeSecretUnavailable": "当前设备没有这把密钥的本地明文托管副本"
       }
     },
     "modelMapping": {
@@ -512,8 +890,8 @@
         "averageDuration": "平均耗时"
       },
       "filters": {
-        "apiKey": "API Key",
-        "allApiKeys": "全部 API Key",
+        "apiKey": "API 密钥",
+        "allApiKeys": "全部 API 密钥",
         "timeRange": "时间范围",
         "startDate": "开始日期",
         "endDate": "结束日期",
@@ -531,7 +909,7 @@
         "exportCsv": "导出 CSV"
       },
       "table": {
-        "apiKey": "API Key",
+        "apiKey": "API 密钥",
         "model": "模型",
         "reasoningEffort": "推理强度",
         "endpoint": "端点",
@@ -545,7 +923,7 @@
         "streaming": "流式",
         "standard": "非流式",
         "emptyTitle": "当前筛选条件下暂无使用记录",
-        "emptyDescription": "请尝试切换 API Key 或调整时间范围。"
+        "emptyDescription": "请尝试切换 API 密钥或调整时间范围。"
       },
       "pagination": {
         "totalResults": "共 {{count}} 条结果",
@@ -563,107 +941,110 @@
       }
     },
     "summary": {
-      "providers": "Providers",
-      "healthy": "Healthy",
-      "attention": "Attention",
-      "groups": "Groups"
+      "providers": "提供方",
+      "healthy": "健康",
+      "attention": "需关注",
+      "groups": "分组"
     },
     "sidebar": {
-      "title": "Model Channels",
-      "heading": "Channel Directory",
-      "description": "Select a base model vendor to inspect its routed proxy provider inventory and operational posture.",
-      "providers": "{{count}} providers"
+      "title": "模型渠道",
+      "heading": "渠道目录",
+      "description": "选择一个基础模型厂商，查看其路由代理提供方清单和运行状态。",
+      "providers": "{{count}} 个提供方"
     },
     "filters": {
-      "searchPlaceholder": "Search provider name, model, or endpoint",
-      "allGroups": "All groups",
-      "allChannels": "All channels",
-      "channelPlaceholder": "Filter channel"
+      "searchPlaceholder": "搜索提供方名称、模型或端点",
+      "allGroups": "全部分组",
+      "allChannels": "全部渠道",
+      "channelPlaceholder": "筛选渠道"
     },
     "table": {
-      "name": "Name",
-      "channel": "Channel",
-      "apiKey": "API KEY",
-      "group": "Group",
-      "usage": "Usage",
-      "expiresAt": "Expires",
-      "status": "Status",
-      "createdAt": "Created",
-      "actions": "Actions",
-      "emptyTitle": "No proxy providers matched this view",
-      "emptyDescription": "Try another channel or relax the current filters."
+      "name": "名称",
+      "channel": "渠道",
+      "apiKey": "API 密钥",
+      "group": "分组",
+      "usage": "用量",
+      "expiresAt": "到期时间",
+      "status": "状态",
+      "createdAt": "创建时间",
+      "actions": "操作",
+      "oneTimeSecretHidden": "单次明文已隐藏",
+      "groupLockedHint": "如需将该提供方移动到其他分组，请先在“编辑”中重新输入 API 密钥。",
+      "statusManagedHint": "状态由 router 健康快照派生，不支持手动切换。",
+      "emptyTitle": "当前视图下没有匹配的代理提供方",
+      "emptyDescription": "试试其他渠道，或放宽当前筛选条件。"
     },
     "actions": {
-      "createKey": "New Key",
-      "refresh": "Refresh",
-      "copyKey": "Copy Key",
-      "usageMethod": "Usage Method",
-      "addModel": "Add model",
-      "removeModel": "Remove",
-      "enable": "Enable",
-      "disable": "Disable",
-      "edit": "Edit",
-      "delete": "Delete",
-      "confirmDelete": "Delete {{name}}?"
+      "createKey": "新建密钥",
+      "refresh": "刷新",
+      "copyKey": "复制密钥",
+      "usageMethod": "使用方式",
+      "addModel": "添加模型",
+      "removeModel": "移除",
+      "enable": "启用",
+      "disable": "禁用",
+      "edit": "编辑",
+      "delete": "删除",
+      "confirmDelete": "确认删除 {{name}} 吗？"
     },
     "status": {
-      "active": "Active",
-      "warning": "Warning",
-      "disabled": "Disabled",
-      "expired": "Expired"
+      "active": "启用中",
+      "warning": "告警",
+      "disabled": "已禁用",
+      "expired": "已过期"
     },
     "dialogs": {
-      "usageTitle": "Usage Method",
-      "createTitle": "Create Key",
-      "editTitle": "Edit Provider",
-      "instanceSelectorTitle": "Choose OpenClaw instances",
-      "instanceSelectorDescription": "Select the OpenClaw instances that should receive {{provider}} as a managed API Router provider.",
-      "exampleRequest": "Example Request",
-      "create": "Create Key",
-      "save": "Save changes"
+      "usageTitle": "使用方式",
+      "createTitle": "创建密钥",
+      "editTitle": "编辑提供方",
+      "instanceSelectorTitle": "选择 OpenClaw 实例",
+      "instanceSelectorDescription": "选择应接收 {{provider}} 作为托管 API 路由提供方的 OpenClaw 实例。",
+      "exampleRequest": "示例请求",
+      "create": "创建密钥",
+      "save": "保存更改"
     },
     "quickSetup": {
-      "title": "One-click setup",
-      "description": "可分别一键配置本地文件或一键配置环境变量，适用于 Codex、Claude Code、OpenCode、OpenClaw 和 Gemini CLI，同时保留手动片段作为兜底方案。",
-      "primaryAction": "One-click setup",
+      "title": "一键配置",
+      "description": "可分别一键配置本地文件或环境变量，适用于 Codex、Claude Code、OpenCode、OpenClaw 和 Gemini CLI，同时保留手动片段作为兜底方案。",
+      "primaryAction": "一键配置",
       "configureLocalFiles": "配置本地文件",
       "configureEnvironment": "配置环境变量",
-      "selectInstances": "Choose instances",
-      "applyToInstances": "Apply to instances",
-      "processing": "Configuring...",
-      "available": "Ready to install",
-      "unavailable": "Not supported for this route",
-      "copyAll": "Copy setup",
-      "copySnippet": "Copy snippet",
+      "selectInstances": "选择实例",
+      "applyToInstances": "应用到实例",
+      "processing": "配置中...",
+      "available": "准备安装",
+      "unavailable": "当前路由不支持",
+      "copyAll": "复制完整配置",
+      "copySnippet": "复制片段",
       "installMode": {
-        "title": "Install mode",
+        "title": "安装模式",
         "options": {
-          "standard": "Standard config",
-          "env": "Environment only",
-          "both": "Config + environment"
+          "standard": "标准配置",
+          "env": "仅环境变量",
+          "both": "配置 + 环境变量"
         }
       },
       "envScope": {
-        "title": "Environment scope",
+        "title": "环境范围",
         "options": {
-          "user": "Current user",
-          "system": "System-wide"
+          "user": "当前用户",
+          "system": "系统范围"
         }
       },
       "environmentPreview": {
-        "title": "Environment variables",
+        "title": "环境变量",
         "description": "只有执行“配置环境变量”时，才会持久化这些环境变量。"
       },
-      "selectionCount": "{{count}} selected",
-      "selectionHint": "Select one or more instances to inject this API Router provider into OpenClaw.",
-      "selectAll": "Select all",
-      "clearSelection": "Clear",
-      "loadingInstances": "Loading instances...",
-      "emptyInstancesTitle": "No OpenClaw instances available",
-      "emptyInstancesDescription": "Create or connect an instance before applying one-click setup.",
-      "openclawSummary": "One-click setup writes this provider into the selected OpenClaw instances while keeping the manual command below as a fallback.",
+      "selectionCount": "已选择 {{count}} 个",
+      "selectionHint": "选择一个或多个实例，把该 API 路由提供方注入到 OpenClaw。",
+      "selectAll": "全选",
+      "clearSelection": "清空",
+      "loadingInstances": "正在加载实例...",
+      "emptyInstancesTitle": "暂无 OpenClaw 实例",
+      "emptyInstancesDescription": "应用一键配置前，请先创建或连接一个实例。",
+      "openclawSummary": "一键配置会把该提供方写入所选 OpenClaw 实例，同时保留下方的手动命令作为兜底方案。",
       "tabs": {
-        "default": "Default",
+        "default": "默认",
         "codex": "Codex",
         "claude-code": "Claude Code",
         "opencode": "OpenCode",
@@ -671,101 +1052,111 @@
         "gemini": "Gemini CLI"
       },
       "kinds": {
-        "env": "Environment",
-        "file": "Config file",
-        "command": "Command"
+        "env": "环境变量",
+        "file": "配置文件",
+        "command": "命令"
       },
       "instanceStatus": {
-        "online": "Online",
-        "offline": "Offline",
-        "starting": "Starting",
-        "error": "Error"
+        "online": "在线",
+        "offline": "离线",
+        "starting": "启动中",
+        "error": "错误"
       },
       "clients": {
         "codex": {
           "title": "Codex",
-          "description": "Install ~/.codex/config.toml and ~/.codex/auth.json so Codex can use this route through the official API key flow."
+          "description": "安装 ~/.codex/config.toml 和 ~/.codex/auth.json，让 Codex 通过官方 API 密钥流程使用该路由。"
         },
         "claude-code": {
           "title": "Claude Code",
-          "description": "Install ~/.claude/settings.json with the Anthropic gateway token, base URL, and default model."
+          "description": "安装 ~/.claude/settings.json，并写入 Anthropic 网关令牌、基础 URL 和默认模型。"
         },
         "opencode": {
           "title": "OpenCode",
-          "description": "Install the global OpenCode config with the provider route, credentials, and default model selection."
+          "description": "安装全局 OpenCode 配置，写入提供方路由、凭据和默认模型选择。"
         },
         "openclaw": {
           "title": "OpenClaw",
-          "description": "Write managed provider manifests for the selected OpenClaw instances and keep the runtime view in sync."
+          "description": "为所选 OpenClaw 实例写入托管提供方清单，并保持运行时视图同步。"
         },
         "gemini": {
           "title": "Gemini CLI",
-          "description": "Install ~/.gemini/settings.json and ~/.gemini/.env using Gemini API key authentication with the selected default model."
+          "description": "安装 ~/.gemini/settings.json 和 ~/.gemini/.env，并使用 Gemini API 密钥认证与所选默认模型。"
         }
       },
       "reasons": {
-        "requiresOpenAIResponses": "Codex one-click setup currently requires an OpenAI channel with a Responses-compatible route.",
-        "requiresAnthropicCompatible": "Claude Code one-click setup requires an Anthropic-compatible route.",
-        "requiresOpenAIOrAnthropicCompatible": "This client currently supports OpenAI-compatible or Anthropic-compatible routes only.",
-        "requiresGeminiCompatible": "Gemini CLI one-click setup currently requires a Gemini-compatible Google route.",
-        "requiresGoogleIssuedGeminiKey": "Gemini CLI currently requires a direct Google-issued Gemini API key, so it cannot be installed from a unified API gateway key."
+        "requiresOpenAIResponses": "Codex 一键配置当前需要带有 Responses 兼容路由的 OpenAI 渠道。",
+        "requiresAnthropicCompatible": "Claude Code 一键配置需要兼容 Anthropic 的路由。",
+        "requiresOpenAIOrAnthropicCompatible": "当前客户端仅支持兼容 OpenAI 或 Anthropic 的路由。",
+        "requiresGeminiCompatible": "Gemini CLI 一键配置当前需要兼容 Gemini 的 Google 路由。",
+        "requiresGoogleIssuedGeminiKey": "Gemini CLI 当前需要 Google 直接签发的 Gemini API 密钥，因此无法通过统一 API 网关密钥安装。",
+        "requiresOneTimeKeyReveal": "当前设备还没有这把密钥的本地明文托管副本。如需一键配置，请先在这里重新创建或轮换密钥。"
       }
     },
     "detail": {
-      "baseUrl": "Base URL",
-      "authHeader": "Auth Header",
-      "models": "Models",
-      "notes": "Notes"
+      "baseUrl": "基础 URL",
+      "authHeader": "认证请求头",
+      "models": "模型",
+      "notes": "备注",
+      "secretUnavailable": "当前无法在 Claw Studio 中再次查看该提供方的明文密钥。如需复制手动 Header，请先重新输入或轮换密钥。"
     },
     "fields": {
-      "name": "Name",
-      "nameHint": "Use an operationally recognizable provider name for your team.",
-      "apiKey": "API KEY",
-      "apiKeyHint": "Paste the upstream key exactly as issued by the proxy provider.",
-      "group": "Group",
-      "groupHint": "Use groups to separate traffic domains such as production, sandbox, or shared routing.",
-      "baseUrl": "Base URL",
-      "baseUrlHint": "Enter the provider endpoint root. This URL is reused for client one-click setup.",
-      "models": "Models",
-      "modelsHint": "Add one or more models. Each row needs a model ID and a display name.",
-      "modelId": "Model ID",
-      "modelDisplayName": "Display Name",
-      "expiresAt": "Expires At",
-      "expiresAtHint": "Use the date control to track key rotation or contract expiry.",
-      "notes": "Notes"
+      "name": "名称",
+      "nameHint": "使用一个便于团队识别的提供方名称。",
+      "apiKey": "API 密钥",
+      "apiKeyHint": "按代理提供方签发的原样粘贴上游密钥。",
+      "apiKeyEditHint": "留空即可保持当前 router credential。如需轮换密钥或移动到其他分组，请输入新的 API 密钥。",
+      "group": "分组",
+      "groupHint": "使用分组隔离生产、沙箱或共享路由等流量域。",
+      "baseUrl": "基础 URL",
+      "baseUrlHint": "输入提供方端点根地址。这个 URL 会被一键配置复用到客户端。",
+      "models": "模型",
+      "modelsHint": "添加一个或多个模型。每行都需要模型 ID 和显示名称。",
+      "modelId": "模型 ID",
+      "modelDisplayName": "显示名称",
+      "expiresAt": "到期时间",
+      "expiresAtHint": "使用日期控件跟踪密钥轮换或合同到期。",
+      "notes": "备注"
     },
     "placeholders": {
-      "providerName": "OpenAI Production Router",
+      "providerName": "OpenAI 生产路由",
       "apiKey": "sk-router-live-...",
       "baseUrl": "https://api.example.com/v1",
       "modelId": "gpt-4.1-mini",
       "modelDisplayName": "GPT-4.1 Mini",
-      "notes": "Add routing notes, quota policy, or rotation context."
+      "notes": "添加路由备注、配额策略或轮换背景。"
     },
     "toast": {
-      "copySuccess": "API key copied",
-      "copyFailed": "Unable to copy API key",
-      "accessConfigCopied": "Access configuration copied",
-      "accessConfigCopyFailed": "Unable to copy access configuration",
-      "instanceLoadFailed": "Unable to load instances",
-      "clientSetupInstalled": "{{client}} configured. Wrote {{count}} file(s).",
-      "clientSetupInstalledWithEnv": "{{client}} configured. Wrote {{files}} file(s) and updated {{envs}} environment target(s).",
-      "clientSetupEnvUpdated": "{{client}} configured. Updated {{count}} environment target(s).",
-      "clientSetupComplete": "{{client}} configured.",
-      "clientSetupFailed": "Unable to configure {{client}}",
-      "openClawNoInstanceSelected": "Select at least one OpenClaw instance",
-      "openClawSetupApplied": "Applied to {{count}} instance(s)",
-      "openClawSetupFailed": "Unable to configure the selected OpenClaw instances",
-      "validationFailed": "Complete the name, API key, group, base URL, and every model row with both ID and display name.",
-      "providerCreated": "Provider created",
-      "groupUpdated": "Group updated",
-      "statusUpdated": "Provider status updated",
-      "providerUpdated": "Provider updated",
-      "providerDeleted": "Provider deleted"
+      "copySuccess": "API 密钥已复制",
+      "copyFailed": "无法复制 API 密钥",
+      "copyUnavailable": "该提供方的明文 API 密钥已不再可用。如需再次复制，请先重新输入或轮换密钥。",
+      "accessConfigCopied": "接入配置已复制",
+      "accessConfigCopyFailed": "无法复制接入配置",
+      "instanceLoadFailed": "无法加载实例",
+      "clientSetupInstalled": "{{client}} 已完成配置。已写入 {{count}} 个文件。",
+      "clientSetupInstalledWithEnv": "{{client}} 已完成配置。已写入 {{files}} 个文件，并更新 {{envs}} 个环境目标。",
+      "clientSetupEnvUpdated": "{{client}} 已完成配置。已更新 {{count}} 个环境目标。",
+      "clientSetupComplete": "{{client}} 已完成配置。",
+      "clientSetupFailed": "无法配置 {{client}}",
+      "openClawNoInstanceSelected": "至少选择一个 OpenClaw 实例",
+      "openClawSetupApplied": "已应用到 {{count}} 个实例",
+      "openClawSetupFailed": "无法配置所选 OpenClaw 实例",
+      "validationFailed": "请填写名称、API 密钥、分组、基础 URL，并为每一行模型补全 ID 和显示名称。",
+      "validationFailedEdit": "请填写名称、分组、基础 URL，并为每一行模型补全 ID 和显示名称。只有在轮换 credential 或移动分组时才需要重新输入 API 密钥。",
+      "providerCreated": "提供方已创建",
+      "providerCreateFailed": "创建提供方失败",
+      "groupUpdated": "分组已更新",
+      "groupUpdateFailed": "更新分组失败",
+      "statusUpdated": "提供方状态已更新",
+      "statusUpdateFailed": "更新提供方状态失败",
+      "providerUpdated": "提供方已更新",
+      "providerUpdateFailed": "更新提供方失败",
+      "providerDeleted": "提供方已删除",
+      "providerDeleteFailed": "删除提供方失败"
     },
     "values": {
-      "never": "Never",
-      "modelIndex": "Model {{index}}",
+      "never": "永不过期",
+      "modelIndex": "模型 {{index}}",
       "requestCountShort": "{{value}} 次请求",
       "tokenCountShort": "{{value}} 个 Token"
     }
@@ -876,7 +1267,7 @@
         "description": "追踪调用活跃度如何转化为订单、客单价与变现产出。"
       },
       "tokenUsage": {
-        "eyebrow": "Tokens",
+        "eyebrow": "Token",
         "label": "Token 用量",
         "description": "快速查看所选分析窗口内的 Token 规模与用量变化。"
       },
@@ -913,7 +1304,7 @@
       "averageTokensPerRun": "平均每次运行 Token",
       "peakUsage": "峰值区间",
       "delta": "变化幅度",
-      "rangeSummary": "{{granularity}} | {{range}}",
+      "rangeSummary": "{{granularity}} · {{range}}",
       "readiness": "准备度",
       "activeTasks": "活跃任务",
       "connectedChannels": "已连接通道",
@@ -1055,100 +1446,214 @@
   },
   "apps": {
     "store": {
-      "title": "AI App Store",
-      "searchPlaceholder": "Search AI agents, models, tools...",
-      "featuredLabel": "Featured AI",
-      "featuredTitle": "Discover the Best",
-      "bannerAlt": "Featured banner",
-      "iconAlt": "App icon",
-      "editorsChoice": "Editor's Choice",
-      "getButton": "Get",
-      "topChartsTitle": "Top Charts",
-      "topChartsDescription": "The most popular apps right now",
-      "seeAll": "See All"
+      "title": "AI 应用商店",
+      "searchPlaceholder": "搜索 AI 智能体、模型、工具...",
+      "featuredLabel": "精选 AI",
+      "featuredTitle": "发现最佳内容",
+      "bannerAlt": "精选横幅",
+      "iconAlt": "应用图标",
+      "editorsChoice": "编辑精选",
+      "getButton": "获取",
+      "topChartsTitle": "热门榜单",
+      "topChartsDescription": "当前最受欢迎的应用",
+      "seeAll": "查看全部"
     },
     "detail": {
-      "notFoundTitle": "App not found",
-      "pageTitle": "App Details",
-      "installSuccess": "{{name}} installed successfully!",
-      "rating": "Rating",
-      "category": "Category",
-      "age": "Age",
-      "installToLocal": "Install to Local",
-      "downloading": "Downloading...",
-      "installing": "Installing...",
-      "openApp": "Open App",
-      "screenshotAlt": "Screenshot {{index}}",
-      "about": "About this app",
-      "whatsNew": "What's New",
-      "versionReleased": "Version {{version}} - {{date}}",
+      "notFoundTitle": "未找到应用",
+      "pageTitle": "应用详情",
+      "installSuccess": "{{name}} 安装成功！",
+      "rating": "评分",
+      "category": "分类",
+      "age": "年龄分级",
+      "installToLocal": "安装到本地",
+      "downloading": "下载中...",
+      "installing": "安装中...",
+      "openApp": "打开应用",
+      "screenshotAlt": "截图 {{index}}",
+      "about": "关于此应用",
+      "whatsNew": "更新内容",
+      "versionReleased": "版本 {{version}} - {{date}}",
       "whatsNewBullets": {
-        "one": "Performance improvements and bug fixes.",
-        "two": "Added support for the latest OpenClaw Core APIs.",
-        "three": "UI enhancements for better accessibility."
+        "one": "基于 Rust hub-installer 的平台感知安装流程。",
+        "two": "安装前会先做依赖检查，并支持逐项修复。",
+        "three": "安装进度直接来自桌面运行时的实时事件流。"
       },
-      "information": "Information",
-      "size": "Size",
-      "compatibility": "Compatibility"
+      "information": "信息",
+      "size": "大小",
+      "compatibility": "兼容性",
+      "hostValue": "主机：{{host}}",
+      "installProfilesCount": "{{count}} 个可用方案",
+      "dependencyChecks": "{{count}} 项依赖检查",
+      "installStatusNote": "状态来自 Rust 评估结果中当前所选安装方案的记录。",
+      "installBlockedFallback": "当前安装被阻止。",
+      "methodFallback": "托管方案",
+      "installStatus": {
+        "uninstalled": "已卸载",
+        "notManaged": "尚未纳管"
+      },
+      "availability": {
+        "available": "可用",
+        "missing": "缺失"
+      },
+      "cards": {
+        "selectedProfile": "已选方案",
+        "installationMethod": "安装方式",
+        "readiness": "就绪状态",
+        "installStatus": "安装状态"
+      },
+      "actions": {
+        "installAllDependencies": "安装全部依赖",
+        "installingDependencies": "正在安装依赖...",
+        "installVariant": "安装 {{variant}}",
+        "docs": "文档",
+        "openInstallationDocs": "打开安装文档",
+        "profileDocs": "方案文档",
+        "selected": "已选中",
+        "useProfile": "使用此方案",
+        "fixDependency": "修复此依赖",
+        "share": "分享"
+      },
+      "sections": {
+        "installProfiles": "安装方案",
+        "installProfilesDescription": "选择最适合当前主机和运行时的 Rust 安装路径。",
+        "installReadiness": "安装就绪检查",
+        "installReadinessDescription": "依赖检查结果直接来自 Rust 安装器评估。",
+        "installationBlueprint": "安装蓝图",
+        "installationBlueprintDescription": "所选方案会展示来自 Rust 的安装方式、目录与生命周期元数据。",
+        "dataMigration": "数据与迁移",
+        "dataMigrationDescription": "数据布局和迁移建议可帮助你安全保留现有 OpenClaw 状态。",
+        "summary": "概览",
+        "runtimeDetection": "运行时检测",
+        "guidance": "使用建议",
+        "liveProgress": "实时进度"
+      },
+      "summary": {
+        "blockingIssues": "阻塞问题",
+        "warnings": "警告",
+        "autoFixableDependencies": "可自动修复的依赖",
+        "elevatedSetup": "提权配置",
+        "required": "需要",
+        "notRequired": "不需要"
+      },
+      "runtime": {
+        "hostPlatform": "主机平台",
+        "effectiveRuntime": "实际运行时",
+        "containerRuntime": "容器运行时",
+        "notApplicable": "不适用",
+        "wsl": "WSL：{{status}}",
+        "hostDocker": "主机 Docker：{{status}}",
+        "wslDocker": "WSL Docker：{{status}}"
+      },
+      "progress": {
+        "dependencyChecking": "正在检查 {{target}}",
+        "dependencyReady": "{{target}}：已就绪",
+        "dependencyCompleted": "{{target}}：就绪",
+        "dependencyFailed": "{{target}}：失败",
+        "stepCompleted": "步骤完成",
+        "stepFailed": "步骤失败",
+        "artifactStarting": "开始处理 {{artifact}}",
+        "artifactCompleted": "{{artifact}}：完成",
+        "artifactFailed": "{{artifact}}：失败",
+        "stageStarted": "阶段：{{stage}}",
+        "stageCompleted": "阶段完成：{{stage}}",
+        "stage": "阶段",
+        "step": "步骤",
+        "waiting": "等待中",
+        "recentOutput": "最近输出"
+      },
+      "dependency": {
+        "manualSetupRequired": "需要手动完成配置",
+        "check": "检查项：{{check}}"
+      },
+      "defaults": {
+        "unknown": "未知",
+        "compatibility": "Windows 11、macOS 13+、Ubuntu 22.04+",
+        "manifestSummary": "所选 Rust manifest 已提供该方案的元数据信息。"
+      },
+      "values": {
+        "platforms": {
+          "windows": "Windows",
+          "macos": "macOS",
+          "ubuntu": "Ubuntu",
+          "host": "主机",
+          "wsl": "WSL"
+        },
+        "controlLevels": {
+          "managed": "受管",
+          "partial": "部分可见",
+          "opaque": "黑盒"
+        },
+        "checkTypes": {
+          "command": "命令",
+          "file": "文件",
+          "env": "环境变量",
+          "platform": "平台"
+        }
+      },
+      "toasts": {
+        "dependencyReady": "{{dependency}} 已就绪。",
+        "dependenciesReady": "{{name}} 的依赖已全部就绪。",
+        "uninstallSuccess": "{{name}} 卸载完成。"
+      }
     }
   },
   "chat": {
     "page": {
-      "noInstanceTitle": "No Instance Selected",
-      "noInstanceDescription": "Please select an instance from the sidebar to start chatting.",
-      "manageInstances": "Manage Instances",
-      "selectModel": "Select Model",
-      "selectAgent": "Select Agent",
-      "selectSkill": "Select Skill",
-      "channels": "Channels",
-      "models": "Models",
-      "config": "Config",
-      "noModels": "No models configured for this channel.",
-      "availableAgents": "Available Agents",
-      "searchAgentsPlaceholder": "Search agents...",
-      "noneDefault": "None (Default)",
-      "availableSkills": "Available Skills",
-      "searchSkillsPlaceholder": "Search skills...",
-      "noneGeneralChat": "None (General Chat)",
-      "emptyTitle": "How can I help you today?",
-      "emptyWithSkill": "I am equipped with the \"{{skill}}\" skill. I can help you with tasks related to {{category}} using {{model}}.",
-      "emptyDefault": "I can write code, answer questions, draft emails, or help you brainstorm ideas using {{model}}.",
-      "selectedModelFallback": "the selected model",
-      "errorResponse": "Sorry, I encountered an error while processing your request. Please check your API key or internet connection.",
+      "noInstanceTitle": "未选择实例",
+      "noInstanceDescription": "请先从侧边栏选择一个实例后再开始聊天。",
+      "manageInstances": "管理实例",
+      "selectModel": "选择模型",
+      "selectAgent": "选择智能体",
+      "selectSkill": "选择技能",
+      "channels": "渠道",
+      "models": "模型",
+      "config": "配置",
+      "noModels": "当前渠道尚未配置模型。",
+      "availableAgents": "可用智能体",
+      "searchAgentsPlaceholder": "搜索智能体...",
+      "noneDefault": "无（默认）",
+      "availableSkills": "可用技能",
+      "searchSkillsPlaceholder": "搜索技能...",
+      "noneGeneralChat": "无（通用对话）",
+      "emptyTitle": "今天想让我帮你做什么？",
+      "emptyWithSkill": "我已启用“{{skill}}”技能，会在 {{appName}} 中帮你处理与 {{category}} 相关的任务。",
+      "emptyDefault": "我会在 {{appName}} 中帮你编写代码、回答问题、起草邮件，或一起头脑风暴。",
+      "selectedModelFallback": "当前所选模型",
+      "errorResponse": "抱歉，处理你的请求时出现了问题。请检查 API 密钥或网络连接。",
       "suggestions": {
-        "quantum": "Explain quantum computing in simple terms",
-        "python": "Write a Python script to scrape a website",
-        "react": "Help me debug this React component",
-        "email": "Draft a professional email to my boss"
+        "quantum": "用简单易懂的方式解释量子计算",
+        "python": "编写一个用于抓取网站内容的 Python 脚本",
+        "react": "帮我调试这个 React 组件",
+        "email": "帮我起草一封发给老板的专业邮件"
       }
     },
     "input": {
-      "placeholder": "Ask Claw Studio...",
-      "attachFile": "Attach file",
-      "uploadImage": "Upload image",
-      "voiceInput": "Voice input",
-      "stopGenerating": "Stop generating",
-      "disclaimer": "AI models can make mistakes. Consider verifying important information.",
+      "placeholder": "向 Claw Studio 提问...",
+      "attachFile": "附加文件",
+      "uploadImage": "上传图片",
+      "voiceInput": "语音输入",
+      "stopGenerating": "停止生成",
+      "disclaimer": "AI 模型可能会出错，请核实重要信息。",
       "modelLabel": "模型",
       "readyWith": "当前将使用 {{model}}",
       "respondingWith": "正在使用 {{model}} 回复",
       "nextReplyUses": "当前回复仍使用 {{currentModel}}，下一条消息将切换为 {{nextModel}}。"
     },
     "message": {
-      "copyMessage": "Copy message",
-      "copyCode": "Copy code",
-      "copied": "Copied!",
-      "assistant": "Assistant",
-      "regenerateResponse": "Regenerate response"
+      "copyMessage": "复制消息",
+      "copyCode": "复制代码",
+      "copied": "已复制！",
+      "assistant": "助手",
+      "regenerateResponse": "重新生成回答"
     },
     "sidebar": {
-      "newChat": "New Chat",
-      "today": "Today",
-      "previous7Days": "Previous 7 Days",
-      "older": "Older",
-      "deleteChat": "Delete chat",
-      "noHistory": "No chat history",
-      "noHistoryDescription": "Start a new conversation to see it here."
+      "newChat": "新建对话",
+      "today": "今天",
+      "previous7Days": "过去 7 天",
+      "older": "更早",
+      "deleteChat": "删除对话",
+      "noHistory": "暂无聊天记录",
+      "noHistoryDescription": "开始一段新对话后会显示在这里。"
     }
   },
   "community": {
@@ -1402,8 +1907,7 @@
         "marketing": "营销与增长",
         "translation": "翻译与本地化",
         "operations": "远程运营",
-        "training": "培训与赋能"
-        ,
+        "training": "培训与赋能",
         "consulting": "咨询与策略顾问",
         "content": "内容与代写",
         "data": "数据与分析",
@@ -1520,8 +2024,7 @@
           "marketing": "营销与增长",
           "translation": "翻译与本地化",
           "operations": "远程运营",
-          "training": "培训与赋能"
-          ,
+          "training": "培训与赋能",
           "consulting": "咨询与策略顾问",
           "content": "内容与代写",
           "data": "数据与分析",
@@ -1534,7 +2037,7 @@
         }
       },
       "meta": {
-        "views": "{{count, number}} 次浏览"
+        "views": "{{count, number}} 浏览次数"
       },
       "newsPanelTitle": "平台资讯",
       "newsPanelDescription": "这是一条官方资讯内容，适合保留在资讯模块中集中浏览、转发与归档。",
@@ -1546,184 +2049,184 @@
     }
   },
   "clawUpload": {
-    "title": "Claw Upload",
-    "subtitle": "Publish your Claw to the ecosystem",
-    "comingSoon": "Claw Publishing Coming Soon",
-    "description": "Soon you will be able to package and publish your custom Claws to the global ecosystem for others to discover and use.",
-    "prepare": "Prepare Your Claw"
+    "title": "Claw 发布",
+    "subtitle": "将你的 Claw 发布到生态中",
+    "comingSoon": "Claw 发布即将上线",
+    "description": "很快你就能打包并发布自定义 Claw，让更多人发现并使用。",
+    "prepare": "准备你的 Claw"
   },
   "account": {
-    "title": "Account & Wallet",
-    "subtitle": "Manage your agent earnings, recharges, and withdrawals.",
-    "totalBalance": "Total Balance",
-    "recharge": "Recharge",
-    "withdraw": "Withdraw",
-    "monthlyIncome": "Monthly Income",
-    "vsLastMonth": "vs last month",
-    "monthlyExpense": "Monthly Expense",
-    "mostlyApiFees": "Mostly API usage fees",
-    "transactionHistory": "Transaction History",
-    "all": "All",
-    "income": "Income",
-    "expense": "Expense",
-    "completed": "Completed",
-    "pending": "Pending",
-    "noTransactions": "No transactions found.",
-    "amount": "Amount ($)",
-    "paymentMethod": "Payment Method",
-    "creditCard": "Credit Card",
+    "title": "账户与钱包",
+    "subtitle": "管理你的智能体收益、充值和提现。",
+    "totalBalance": "总余额",
+    "recharge": "充值",
+    "withdraw": "提现",
+    "monthlyIncome": "本月收入",
+    "vsLastMonth": "较上月",
+    "monthlyExpense": "本月支出",
+    "mostlyApiFees": "主要来自 API 使用费",
+    "transactionHistory": "交易记录",
+    "all": "全部",
+    "income": "收入",
+    "expense": "支出",
+    "completed": "已完成",
+    "pending": "待处理",
+    "noTransactions": "暂无交易记录。",
+    "amount": "金额（$）",
+    "paymentMethod": "支付方式",
+    "creditCard": "信用卡",
     "paypal": "PayPal",
-    "crypto": "Crypto (USDT/USDC)",
-    "confirmRecharge": "Confirm Recharge",
-    "availableBalance": "Available Balance",
-    "withdrawDestination": "Withdraw to",
-    "bankAccount": "Bank Account",
-    "confirmWithdraw": "Confirm Withdraw",
-    "rechargeSuccess": "Recharge successful",
-    "rechargeFailed": "Recharge failed",
-    "withdrawSuccess": "Withdrawal request submitted",
-    "withdrawFailed": "Withdrawal failed",
-    "invalidAmount": "Please enter a valid amount",
-    "insufficientBalance": "Insufficient balance",
-    "fetchError": "Failed to load account data"
+    "crypto": "加密货币（USDT/USDC）",
+    "confirmRecharge": "确认充值",
+    "availableBalance": "可用余额",
+    "withdrawDestination": "提现至",
+    "bankAccount": "银行账户",
+    "confirmWithdraw": "确认提现",
+    "rechargeSuccess": "充值成功",
+    "rechargeFailed": "充值失败",
+    "withdrawSuccess": "提现申请已提交",
+    "withdrawFailed": "提现失败",
+    "invalidAmount": "请输入有效金额",
+    "insufficientBalance": "余额不足",
+    "fetchError": "加载账户数据失败"
   },
   "clawCenter": {
     "title": "Claw",
-    "titleHighlight": " Mall",
-    "subtitle": "Connect directly with top-tier OpenClaw providers. Negotiate, integrate, and scale your AI workforce instantly.",
-    "searchPlaceholder": "Search providers, services, or tags...",
-    "allCategories": "All Categories",
-    "verifiedOnly": "Verified Only",
-    "rating": "Rating",
-    "orders": "Orders",
-    "responseRate": "Response Rate",
-    "viewDetails": "View Details",
-    "noResults": "We couldn't find any Claw providers matching your search criteria. Try adjusting your filters or search terms.",
-    "services": "Services",
-    "search": "Search",
-    "messages": "Messages",
-    "myOrders": "My Orders",
-    "supercharge": "Supercharge Your Business",
-    "futureOfB2B": "The Future of B2B",
-    "aiAgentSourcing": "AI Agent Sourcing",
-    "exploreProviders": "Explore Top Providers",
-    "trendingProviders": "Trending Providers",
-    "providers": "Providers",
-    "noProvidersFound": "No providers found",
-    "bannerAlt": "AI service marketplace banner"
+    "titleHighlight": "商城",
+    "subtitle": "直接连接顶级 OpenClaw 提供方，立即完成洽谈、集成并扩展你的 AI 劳动力。",
+    "searchPlaceholder": "搜索提供方、服务或标签...",
+    "allCategories": "全部分类",
+    "verifiedOnly": "仅看已认证",
+    "rating": "评分",
+    "orders": "订单",
+    "responseRate": "回复率",
+    "viewDetails": "查看详情",
+    "noResults": "没有找到符合你搜索条件的 Claw 提供方。试着调整筛选条件或搜索词。",
+    "services": "服务",
+    "search": "搜索",
+    "messages": "消息",
+    "myOrders": "我的订单",
+    "supercharge": "强化你的业务",
+    "futureOfB2B": "B2B 的未来",
+    "aiAgentSourcing": "AI 智能体采购",
+    "exploreProviders": "探索优质提供方",
+    "trendingProviders": "热门提供方",
+    "providers": "提供方",
+    "noProvidersFound": "未找到提供方",
+    "bannerAlt": "AI 服务市场横幅"
   },
   "clawDetail": {
-    "back": "Back to Marketplace",
-    "verified": "Verified",
-    "rating": "Rating",
-    "orders": "Orders",
-    "responseRate": "Response Rate",
-    "chatNow": "Chat Now",
-    "visitWebsite": "Visit Website",
+    "back": "返回市场",
+    "verified": "已认证",
+    "rating": "评分",
+    "orders": "订单",
+    "responseRate": "回复率",
+    "chatNow": "立即沟通",
+    "visitWebsite": "访问网站",
     "tabs": {
-      "products": "Products & Services",
-      "about": "About Company",
-      "reviews": "Reviews"
+      "products": "产品与服务",
+      "about": "关于公司",
+      "reviews": "评价"
     },
     "about": {
-      "title": "Company Overview"
+      "title": "公司概览"
     },
     "reviews": {
-      "empty": "No reviews yet."
+      "empty": "暂无评价。"
     },
     "details": {
-      "title": "Provider Details",
-      "established": "Established",
-      "location": "Location",
-      "email": "Email"
+      "title": "提供方详情",
+      "established": "成立时间",
+      "location": "所在地",
+      "email": "邮箱"
     },
     "secure": {
-      "title": "Secure Transaction",
-      "desc": "All transactions and service agreements made through Claw Mall are protected by our platform guarantee. Payments are held in escrow until service delivery is confirmed."
+      "title": "安全交易",
+      "desc": "通过 Claw Mall 达成的所有交易和服务协议都受平台担保保护。款项会在确认服务交付后进入结算。"
     },
     "notFound": {
-      "title": "Provider Not Found",
-      "back": "Return to Marketplace"
+      "title": "未找到提供方",
+      "back": "返回市场"
     },
     "chat": {
-      "repliesIn": "Typically replies in minutes",
-      "placeholder": "Type your inquiry...",
-      "welcome": "Hello! Welcome to our storefront. How can we help you today?",
-      "autoReply": "Thanks for reaching out! Let me check our availability and get right back to you. Do you have any specific requirements?",
-      "inquirePrefix": "Hi, I'm interested in"
+      "repliesIn": "通常几分钟内回复",
+      "placeholder": "输入你的咨询内容...",
+      "welcome": "你好，欢迎来到我们的店铺。今天想了解什么？",
+      "autoReply": "感谢联系！我先确认一下当前可提供的服务，马上回复你。你这边有具体需求吗？",
+      "inquirePrefix": "你好，我对以下内容感兴趣："
     }
   },
   "products": {
     "buttons": {
-      "physical": "Buy Now",
-      "auction": "Place Bid",
-      "recharge": "Top Up",
-      "content": "Read / Subscribe",
-      "ai": "Generate Now",
-      "service": "Inquire",
-      "default": "View Details",
-      "buyNow": "Buy Now",
-      "claim": "Claim Coupon",
-      "generateNow": "Generate Now",
-      "generateSoftware": "Generate Software",
-      "inquire": "Inquire",
-      "orderFood": "Order Now",
-      "placeBid": "Place Bid",
-      "readSubscribe": "Read / Subscribe",
-      "topUp": "Top Up",
-      "viewDetails": "View Details"
+      "physical": "立即购买",
+      "auction": "出价",
+      "recharge": "充值",
+      "content": "阅读 / 订阅",
+      "ai": "立即生成",
+      "service": "咨询",
+      "default": "查看详情",
+      "buyNow": "立即购买",
+      "claim": "领取优惠券",
+      "generateNow": "立即生成",
+      "generateSoftware": "生成软件",
+      "inquire": "咨询",
+      "orderFood": "立即下单",
+      "placeBid": "出价",
+      "readSubscribe": "阅读 / 订阅",
+      "topUp": "充值",
+      "viewDetails": "查看详情"
     },
     "labels": {
-      "stock": "Stock",
-      "shipping": "Shipping",
-      "currentBid": "Current Bid",
-      "ends": "Ends",
-      "bids": "Bids",
-      "provider": "Provider",
-      "category": "Category",
-      "chapters": "Chapters",
-      "updated": "Updated",
-      "format": "Format",
-      "delivery": "Delivery",
-      "resolution": "Resolution",
-      "duration": "Duration",
-      "physical": "Physical",
-      "auction": "Auction",
-      "recharge": "Recharge",
-      "content": "Content",
-      "coupon": "Coupon",
-      "food": "Food",
-      "ai_image": "AI Image",
-      "ai_video": "AI Video",
-      "ai_music": "AI Music",
-      "service": "Service",
-      "software": "Software"
+      "stock": "库存",
+      "shipping": "配送",
+      "currentBid": "当前出价",
+      "ends": "结束时间",
+      "bids": "出价次数",
+      "provider": "提供方",
+      "category": "分类",
+      "chapters": "章节",
+      "updated": "更新时间",
+      "format": "格式",
+      "delivery": "交付",
+      "resolution": "分辨率",
+      "duration": "时长",
+      "physical": "实物",
+      "auction": "拍卖",
+      "recharge": "充值",
+      "content": "内容",
+      "coupon": "优惠券",
+      "food": "食品",
+      "ai_image": "AI 图像",
+      "ai_video": "AI 视频",
+      "ai_music": "AI 音乐",
+      "service": "服务",
+      "software": "软件"
     },
     "software": {
-      "deployNow": "Deploy Now",
-      "deployed": "Deployed",
-      "deploying": "Deploying...",
-      "features": "Features",
-      "generate": "Generate",
-      "generated": "Generated",
-      "generating": "Generating...",
-      "visitSite": "Visit Site"
+      "deployNow": "立即部署",
+      "deployed": "已部署",
+      "deploying": "部署中...",
+      "features": "功能",
+      "generate": "生成",
+      "generated": "已生成",
+      "generating": "生成中...",
+      "visitSite": "访问网站"
     },
-    "validUntil": "Valid until"
+    "validUntil": "有效期至"
   },
   "categories": {
-    "Data Processing": "Data Processing",
-    "Content Generation": "Content Generation",
-    "Customer Service": "Customer Service",
-    "Legal": "Legal",
-    "E-Commerce": "E-Commerce",
-    "Utility": "Utility",
-    "Auction": "Auction"
+    "Data Processing": "数据处理",
+    "Content Generation": "内容生成",
+    "Customer Service": "客户服务",
+    "Legal": "法律",
+    "E-Commerce": "电商",
+    "Utility": "工具",
+    "Auction": "拍卖"
   },
   "channels": {
     "page": {
-      "title": "Channels",
-      "subtitle": "Connect your OpenClaw agents to external messaging platforms and APIs.",
+      "title": "渠道",
+      "subtitle": "将你的 OpenClaw 智能体连接到外部消息平台和 API。",
       "status": {
         "active": "已启用",
         "disconnected": "未连接",
@@ -1753,85 +2256,85 @@
       "huggingFace": "Hugging Face"
     },
     "status": {
-      "online": "Online",
-      "offline": "Offline"
+      "online": "在线",
+      "offline": "离线"
     },
     "fields": {
-      "targetInstances": "Target Instances",
-      "localEnvironmentDefault": "Local Environment (Default)",
-      "dockerContainerDefault": "Docker Container (claw-env-1)",
-      "installPath": "Install Path",
-      "branchOrTag": "Branch / Tag",
-      "revision": "Revision"
+      "targetInstances": "目标实例",
+      "localEnvironmentDefault": "本地环境（默认）",
+      "dockerContainerDefault": "Docker 容器（claw-env-1）",
+      "installPath": "安装路径",
+      "branchOrTag": "分支 / Tag",
+      "revision": "修订版本"
     },
     "progress": {
-      "installingRepo": "Installing {{repoName}}...",
-      "processing": "Processing..."
+      "installingRepo": "正在安装 {{repoName}}...",
+      "processing": "处理中..."
     },
     "logs": {
-      "startingInstallation": "Starting installation for {{repoName}}...",
-      "connectingTo": "Connecting to {{source}}...",
-      "downloadingMetadata": "Downloading repository metadata...",
-      "fetchingFiles": "Fetching files and dependencies...",
-      "configuringEnvironment": "Configuring local environment...",
-      "installationCompleted": "Installation completed successfully."
+      "startingInstallation": "开始安装 {{repoName}}...",
+      "connectingTo": "正在连接到 {{source}}...",
+      "downloadingMetadata": "正在下载仓库元数据...",
+      "fetchingFiles": "正在获取文件和依赖...",
+      "configuringEnvironment": "正在配置本地环境...",
+      "installationCompleted": "安装已成功完成。"
     },
     "success": {
-      "title": "Installation Complete",
-      "description": "{{repoName}} has been successfully installed and is ready to use."
+      "title": "安装完成",
+      "description": "{{repoName}} 已成功安装并可立即使用。"
     },
     "error": {
-      "title": "Installation Failed",
-      "description": "An error occurred while installing {{repoName}}. Please check the logs and try again."
+      "title": "安装失败",
+      "description": "安装 {{repoName}} 时发生错误。请检查日志后重试。"
     },
     "actions": {
-      "startInstall": "Start Install",
-      "close": "Close"
+      "startInstall": "开始安装",
+      "close": "关闭"
     }
   },
   "tasks": {
     "page": {
       "title": "定时任务",
-      "subtitle": "Design, schedule, and operate recurring AI workflows from a clearer task studio.",
+      "subtitle": "在更清晰的任务工作台中设计、编排并运行周期性 AI 工作流。",
       "stats": {
-        "total": "Total Tasks",
-        "active": "Active",
-        "paused": "Paused",
-        "failed": "Failed"
+        "total": "总任务数",
+        "active": "已启用",
+        "paused": "已暂停",
+        "failed": "失败"
       },
       "empty": {
-        "title": "No scheduled tasks yet",
-        "description": "Create your first task to automate recurring analysis, summaries, and delivery workflows.",
-        "noInstanceTitle": "Select an active instance first",
-        "noInstanceDescription": "Choose an active instance before creating or managing scheduled tasks."
+        "title": "还没有定时任务",
+        "description": "创建第一个任务，自动执行周期性分析、摘要与交付流程。",
+        "noInstanceTitle": "请先选择一个活跃实例",
+        "noInstanceDescription": "在创建或管理定时任务前，请先选择一个活跃实例。"
       },
       "status": {
-        "active": "Active",
-        "paused": "Paused",
-        "failed": "Failed"
+        "active": "已启用",
+        "paused": "已暂停",
+        "failed": "失败"
       },
       "scheduleModes": {
-        "interval": "Every interval",
-        "datetime": "Specific time",
-        "cron": "Cron expression"
+        "interval": "按间隔重复",
+        "datetime": "指定时间",
+        "cron": "Cron 表达式"
       },
       "scheduleModeHelp": {
-        "interval": "Run every selected number of minutes, hours, or days.",
-        "datetime": "Run on one specific date and time.",
-        "cron": "Use a raw 5-field cron expression for full control."
+        "interval": "按选择的分钟、小时或天数重复执行。",
+        "datetime": "在指定的日期和时间执行一次。",
+        "cron": "使用原始 5 段或 6 段 Cron 表达式以获得完整控制。"
       },
       "scheduleSummary": {
-        "interval": "Every {{value}} {{unit}}",
-        "datetime": "{{date}} at {{time}}",
-        "cron": "Custom cron expression"
+        "interval": "每 {{value}} {{unit}}",
+        "datetime": "{{date}} {{time}}",
+        "cron": "自定义 Cron 表达式"
       },
       "intervalUnits": {
-        "minute": "minute",
-        "minutes": "minutes",
-        "hour": "hour",
-        "hours": "hours",
-        "day": "day",
-        "days": "days"
+        "minute": "分钟",
+        "minutes": "分钟",
+        "hour": "小时",
+        "hours": "小时",
+        "day": "天",
+        "days": "天"
       },
       "sections": {
         "basicInfo": "基本信息",
@@ -1839,197 +2342,249 @@
       },
       "cards": {
         "prompt": "提示词",
-        "schedule": "Schedule",
-        "latestExecution": "Latest execution",
-        "nextRun": "Next run",
-        "lastRun": "Last run",
-        "delivery": "Delivery",
-        "noDescription": "No description provided.",
-        "noExecutionYet": "This task has no execution history yet."
+        "schedule": "调度",
+        "latestExecution": "最近一次执行",
+        "nextRun": "下次运行",
+        "lastRun": "上次运行",
+        "delivery": "交付",
+        "noDescription": "暂无描述。",
+        "noExecutionYet": "此任务还没有执行历史。"
       },
       "fields": {
-        "taskName": "Task name",
-        "taskNamePlaceholder": "e.g. Morning operator briefing",
-        "description": "Description",
-        "descriptionPlaceholder": "Optional note for operators",
-        "enabled": "Enable immediately",
-        "enabledHelp": "Disabled tasks are created paused so you can review them safely.",
+        "taskName": "任务名称",
+        "taskNamePlaceholder": "例如：早间运营简报",
+        "description": "描述",
+        "descriptionPlaceholder": "面向操作人员的可选说明",
+        "enabled": "立即启用",
+        "enabledHelp": "禁用状态创建的任务会默认暂停，方便你先检查配置。",
         "prompt": "提示词",
-        "promptPlaceholder": "Describe what should happen every time this task runs...",
-        "promptHelp": "Keep the prompt outcome-focused so repeated runs stay reliable.",
-        "intervalValue": "Interval",
-        "intervalUnit": "Unit",
-        "scheduledDate": "Date",
-        "scheduledTime": "Time",
+        "promptPlaceholder": "描述每次任务运行时应该执行的内容...",
+        "promptHelp": "让提示词聚焦结果，便于任务重复执行时保持稳定。",
+        "intervalValue": "间隔",
+        "intervalUnit": "单位",
+        "scheduledDate": "日期",
+        "scheduledTime": "时间",
         "executionContent": "执行内容",
-        "cronExpression": "Cron expression",
+        "cronExpression": "Cron 表达式",
         "cronExpressionPlaceholder": "0 9 * * *",
-        "cronExpressionHelp": "Use standard 5-field cron syntax.",
-        "generatedSchedule": "Generated schedule",
-        "schedulePreviewPending": "Complete the schedule inputs to generate a preview.",
-        "cronPreview": "Cron preview",
-        "cronPreviewPending": "A cron preview will appear here when available.",
-        "deliveryChannel": "Delivery channel",
-        "deliveryChannelPlaceholder": "Select a connected channel",
-        "deliveryChannelHelp": "Pick where summaries or outcomes should be delivered.",
-        "noConnectedChannels": "No connected delivery channels are available yet.",
-        "recipient": "Recipient",
-        "recipientPlaceholder": "e.g. ops-room",
-        "recipientHelp": "Optional routing target such as a room, group, or contact.",
-        "timeoutSeconds": "Timeout (seconds)",
-        "timeoutSecondsPlaceholder": "Optional",
-        "timeoutSecondsHelp": "Stop overly long runs before they block later schedules."
+        "cronExpressionHelp": "使用标准 5 段或 6 段 Cron 语法。",
+        "cronTimezone": "Cron 时区",
+        "cronTimezonePlaceholder": "例如 Asia/Shanghai",
+        "cronTimezoneHelp": "可选 IANA 时区。留空时使用运行时默认时区。",
+        "staggerMs": "错峰窗口（毫秒）",
+        "staggerMsPlaceholder": "可选",
+        "staggerMsHelp": "为重复 Cron 任务设置可选的确定性错峰窗口。填 0 表示保持精确触发。",
+        "generatedSchedule": "生成的调度",
+        "schedulePreviewPending": "完成调度配置后将在此生成预览。",
+        "cronPreview": "Cron 预览",
+        "cronPreviewPending": "可用时会在此显示 Cron 预览。",
+        "customSessionId": "自定义会话 ID",
+        "customSessionIdPlaceholder": "例如 project-alpha-monitor",
+        "customSessionIdHelp": "持久化自定义会话会在多次定时运行之间保留上下文。",
+        "deleteAfterRun": "运行后删除",
+        "deleteAfterRunHelp": "一次性任务可以在成功执行后自动删除自身。",
+        "deliveryChannel": "交付渠道",
+        "deliveryChannelPlaceholder": "选择一个已连接的渠道",
+        "deliveryChannelHelp": "可选。选择摘要要发布到的渠道，或留空以复用上一次路由。",
+        "noConnectedChannels": "目前还没有可用的已连接交付渠道。",
+        "recipient": "接收方",
+        "recipientPlaceholder": "例如：channel:ops-room",
+        "recipientHelp": "可选的公告目标，例如房间、群组或联系人。",
+        "webhookUrl": "Webhook 地址",
+        "webhookUrlPlaceholder": "https://example.com/hooks/openclaw",
+        "webhookUrlHelp": "使用有效的 HTTP(S) 地址接收完成后的 cron 事件负载。",
+        "timeoutSeconds": "超时时间（秒）",
+        "timeoutSecondsPlaceholder": "可选",
+        "timeoutSecondsHelp": "在运行时间过长时提前停止，避免阻塞后续调度。",
+        "agentId": "Agent ID",
+        "agentIdPlaceholder": "可选 agent 绑定",
+        "agentIdHelp": "当运行时存在多个 OpenClaw agent 时，可将任务固定到指定 agent。",
+        "model": "模型覆盖",
+        "modelPlaceholder": "例如 openai/gpt-5.4",
+        "modelHelp": "为 agentTurn 任务设置可选的 provider/model 或别名覆盖。",
+        "thinking": "思考级别",
+        "thinkingPlaceholder": "使用运行时默认值",
+        "thinkingHelp": "为支持的 GPT-5 和 Codex 模型覆盖推理深度。",
+        "lightContext": "使用轻量上下文",
+        "lightContextHelp": "当任务只需要轻量上下文时，跳过较重的工作区 bootstrap。",
+        "deliveryBestEffort": "尽力交付",
+        "deliveryBestEffortHelp": "当下游交付短暂异常时，不让整个 cron 运行直接失败。"
       },
       "actions": {
-        "refresh": "Refresh",
-        "newTask": "New task",
-        "edit": "Edit",
-        "clone": "Clone",
-        "cloneName": "{{name}} Copy",
-        "enable": "Enable",
-        "disable": "Disable",
-        "runNow": "Run now",
-        "history": "History",
-        "delete": "Delete"
+        "refresh": "刷新",
+        "newTask": "新建任务",
+        "edit": "编辑",
+        "clone": "克隆",
+        "cloneName": "{{name}} 副本",
+        "enable": "启用",
+        "disable": "暂停",
+        "runNow": "立即运行",
+        "history": "历史",
+        "delete": "删除"
       },
       "modal": {
-        "createTitle": "Create task",
-        "createSubtitle": "Capture the task intent first, then define how it should run and deliver.",
-        "editTitle": "Edit task",
-        "editSubtitle": "Update schedule, prompt, and execution behavior without losing context.",
-        "createTask": "Create task",
-        "saveTask": "Save changes",
-        "creating": "Creating...",
-        "saving": "Saving..."
+        "createTitle": "创建任务",
+        "createSubtitle": "先明确任务意图，再定义运行方式和交付方式。",
+        "editTitle": "编辑任务",
+        "editSubtitle": "在不丢失上下文的前提下更新调度、提示词和执行行为。",
+        "createTask": "创建任务",
+        "saveTask": "保存更改",
+        "creating": "创建中...",
+        "saving": "保存中..."
       },
       "workspace": {
-        "navigationTitle": "Sections",
-        "navigationHint": "Switch between focused sections instead of scrolling through one long form.",
+        "navigationTitle": "分区",
+        "navigationHint": "在聚焦分区间切换，避免在一个超长表单里滚动。",
         "sectionDescriptions": {
-          "basicInfo": "Name, schedule, and prompt",
-          "execution": "Runtime and delivery behavior"
+          "basicInfo": "名称、调度与提示词",
+          "execution": "运行时与交付行为"
         },
         "sectionStatus": {
-          "pending": "Pending",
-          "attention": "Needs setup",
-          "complete": "Ready"
+          "pending": "待完善",
+          "attention": "需要配置",
+          "complete": "已就绪"
         },
-        "overviewTitle": "Task basics",
-        "overviewDescription": "Give the task a clear name, context, and default state.",
+        "overviewTitle": "任务基础信息",
+        "overviewDescription": "为任务设置清晰的名称、上下文与默认状态。",
         "promptTitle": "提示词",
-        "promptDescription": "Define the core job the task should complete each time it runs.",
+        "promptDescription": "定义任务每次执行时要完成的核心工作。",
         "scheduleTitle": "调度设置",
-        "scheduleDescription": "Choose the timing model that best matches this workflow.",
-        "runtimeTitle": "Runtime behavior",
-        "runtimeDescription": "Decide how the task session wakes up and what it executes.",
+        "scheduleDescription": "选择最适合当前工作流的时间模型。",
+        "runtimeTitle": "运行时行为",
+        "runtimeDescription": "决定任务会话如何唤醒以及执行什么内容。",
         "deliveryTitle": "结果交付",
-        "deliveryDescription": "Control whether outcomes are published and where they should go.",
-        "commonConfigTitle": "Common settings",
-        "commonConfigDescription": "Keep the most-used setup controls up front for faster creation.",
-        "advancedTitle": "Advanced",
-        "advancedDescription": "Open expert controls only when you need deeper scheduling precision.",
-        "cronManagedInAdvanced": "Cron mode keeps the raw expression in Advanced so the main flow stays cleaner.",
-        "executionAdvancedTitle": "Advanced safeguards",
-        "executionAdvancedDescription": "Tune guardrails and limits for longer-running task executions.",
+        "deliveryDescription": "控制是否发布执行结果以及发送到哪里。",
+        "commonConfigTitle": "常用设置",
+        "commonConfigDescription": "将最常用的配置放在前面，加快创建速度。",
+        "advancedTitle": "高级",
+        "advancedDescription": "仅在你需要更精细的调度控制时再展开专家选项。",
+        "cronManagedInAdvanced": "Cron 模式会将原始表达式保留在高级区域，让主流程保持简洁。",
+        "executionAdvancedTitle": "高级防护",
+        "executionAdvancedDescription": "为更长时间运行的任务调整护栏与限制。",
         "executionSafeguardsTitle": "为什么要设置超时",
-        "executionSafeguardsDescription": "Timeouts help prevent a stuck execution from delaying the next scheduled run or keeping a shared runtime busy."
+        "executionSafeguardsDescription": "超时可以避免卡住的执行拖延下一次计划运行，或长期占用共享运行时。"
       },
       "sessionModes": {
         "isolated": {
-          "title": "Isolated session",
-          "description": "Start a fresh execution context for safer, repeatable runs."
+          "title": "独立会话",
+          "description": "启动全新的执行上下文，让任务运行更安全、可重复。"
+        },
+        "current": {
+          "title": "当前会话",
+          "description": "将任务绑定到创建时处于活动状态的会话。"
+        },
+        "custom": {
+          "title": "自定义会话",
+          "description": "在命名的持久化会话中运行，让上下文可以在多次执行之间持续累积。"
         },
         "main": {
-          "title": "Main session",
-          "description": "Reuse the primary session when you want continuity with existing context."
+          "title": "主会话",
+          "description": "当你需要延续现有上下文时，复用主会话。"
         }
       },
       "wakeUpModes": {
         "immediate": {
-          "title": "Wake immediately",
-          "description": "Start the execution as soon as the schedule triggers."
+          "title": "立即唤醒",
+          "description": "调度触发后立即开始执行。"
         },
         "nextCycle": {
-          "title": "Next cycle",
-          "description": "Queue the task for the next runtime cycle instead of interrupting immediately."
+          "title": "下一个周期",
+          "description": "不立即打断运行时，而是排队到下一个运行周期执行。"
         }
       },
       "executionContents": {
         "runAssistantTask": {
-          "title": "Run assistant task",
-          "description": "Launch a task-style assistant run using the prompt as the work order."
+          "title": "运行助手任务",
+          "description": "以任务形式启动一次助手执行，并将提示词作为工作指令。"
         },
         "sendPromptMessage": {
-          "title": "Send prompt message",
-          "description": "Send the prompt as a direct message-style execution."
+          "title": "发送提示消息",
+          "description": "将提示词作为直接消息形式执行。"
         }
       },
       "deliveryModes": {
         "publishSummary": {
-          "title": "Publish summary",
-          "description": "Deliver the outcome to a downstream channel after execution completes."
+          "title": "发布摘要",
+          "description": "执行完成后，将结果投递到下游渠道。"
+        },
+        "webhook": {
+          "title": "Webhook",
+          "description": "将完成后的 cron 负载 POST 到外部 HTTP 端点。"
         },
         "none": {
-          "title": "No delivery",
-          "description": "Run the task without publishing a summary externally."
+          "title": "不交付",
+          "description": "执行任务但不向外部发布摘要。"
         }
       },
+      "thinkingLevels": {
+        "inherit": "使用运行时默认值",
+        "off": "关闭",
+        "minimal": "极少",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "极高"
+      },
       "history": {
-        "title": "Execution history",
-        "subtitle": "Recent runs for {{name}}",
-        "description": "Inspect recent executions, outcomes, and delivery details.",
-        "loading": "Loading history...",
-        "emptyTitle": "No execution history yet",
-        "emptyDescription": "This task has not produced any recorded runs yet.",
-        "startedAt": "Started at",
-        "finishedAt": "Finished at",
-        "details": "Details",
+        "title": "执行历史",
+        "subtitle": "{{name}} 的最近运行",
+        "description": "检查最近的执行记录、结果和交付详情。",
+        "loading": "正在加载历史记录...",
+        "emptyTitle": "暂无执行历史",
+        "emptyDescription": "这个任务还没有产生任何执行记录。",
+        "startedAt": "开始时间",
+        "finishedAt": "结束时间",
+        "details": "详情",
         "status": {
-          "installed": "\u5df2\u5b89\u88c5",
-          "success": "Success",
-          "failed": "Failed",
-          "running": "Running"
+          "installed": "已安装",
+          "success": "成功",
+          "failed": "失败",
+          "running": "运行中"
         },
         "triggers": {
-          "schedule": "Scheduled",
-          "manual": "Manual",
-          "clone": "Clone"
+          "schedule": "定时触发",
+          "manual": "手动触发",
+          "clone": "克隆"
         }
       },
       "validation": {
-        "title": "Task is not ready yet",
-        "description": "Complete the required setup before saving this task.",
-        "neutral": "Fill in the task details and execution settings to enable save.",
-        "ready": "This task is ready to save.",
-        "activeInstanceRequired": "Select an active instance before creating or editing tasks.",
-        "nameRequired": "Task name is required.",
-        "promptRequired": "Prompt is required.",
-        "intervalValueRequired": "Interval is required.",
-        "intervalValueInvalid": "Enter a valid positive interval.",
-        "scheduledDateRequired": "Date is required.",
-        "scheduledTimeRequired": "Time is required.",
-        "cronExpressionRequired": "Cron expression is required.",
-        "cronExpressionInvalid": "Enter a valid 5-field cron expression.",
-        "timeoutSecondsInvalid": "Enter a valid positive timeout in seconds."
+        "title": "任务尚未就绪",
+        "description": "请在保存前完成必需配置。",
+        "neutral": "填写任务详情和执行设置后即可保存。",
+        "ready": "此任务已可保存。",
+        "activeInstanceRequired": "在创建或编辑任务前，请先选择一个活跃实例。",
+        "nameRequired": "必须填写任务名称。",
+        "promptRequired": "必须填写提示词。",
+        "intervalValueRequired": "必须填写间隔值。",
+        "intervalValueInvalid": "请输入有效的正数间隔值。",
+        "scheduledDateRequired": "必须填写日期。",
+        "scheduledTimeRequired": "必须填写时间。",
+        "cronExpressionRequired": "必须填写 Cron 表达式。",
+        "cronExpressionInvalid": "请输入有效的 5 段或 6 段 Cron 表达式。",
+        "staggerMsInvalid": "请输入有效的非负错峰毫秒数。",
+        "customSessionIdRequired": "必须填写自定义会话 ID。",
+        "timeoutSecondsInvalid": "请输入有效的正数超时时间。",
+        "recipientRequired": "必须填写 Webhook 地址。",
+        "recipientInvalid": "请输入有效的 HTTP(S) Webhook 地址。"
       },
       "toasts": {
-        "failedToLoad": "Failed to load tasks",
-        "failedToLoadChannels": "Failed to load delivery channels",
-        "failedToLoadHistory": "Failed to load execution history",
+        "failedToLoad": "加载任务失败",
+        "failedToLoadChannels": "加载交付渠道失败",
+        "failedToLoadHistory": "加载执行历史失败",
         "created": "任务创建成功",
-        "failedToCreate": "Failed to create task",
-        "updated": "Task updated successfully",
-        "failedToUpdate": "Failed to update task",
-        "enabled": "Task enabled",
-        "disabled": "Task disabled",
-        "failedToUpdateStatus": "Failed to update task status",
-        "cloned": "Task cloned successfully",
-        "failedToClone": "Failed to clone task",
-        "ranNow": "Task started successfully",
-        "failedToRunNow": "Failed to run task now",
-        "deleted": "Task deleted",
-        "failedToDelete": "Failed to delete task",
-        "noActiveInstance": "Select an active instance before creating tasks."
+        "failedToCreate": "创建任务失败",
+        "updated": "任务更新成功",
+        "failedToUpdate": "更新任务失败",
+        "enabled": "任务已启用",
+        "disabled": "任务已暂停",
+        "failedToUpdateStatus": "更新任务状态失败",
+        "cloned": "任务克隆成功",
+        "failedToClone": "克隆任务失败",
+        "ranNow": "任务已成功启动",
+        "failedToRunNow": "立即运行任务失败",
+        "deleted": "任务已删除",
+        "failedToDelete": "删除任务失败",
+        "noActiveInstance": "在创建任务前，请先选择一个活跃实例。"
       },
       "confirmDelete": "确认删除“{{name}}”吗？此操作不可恢复。"
     }
@@ -2037,135 +2592,137 @@
   "instances": {
     "shared": {
       "status": {
-        "online": "Online",
-        "offline": "Offline",
-        "starting": "Starting",
-        "error": "Error"
+        "online": "在线",
+        "offline": "离线",
+        "starting": "启动中",
+        "error": "异常"
       }
     },
     "list": {
-      "title": "Instances",
-      "subtitle": "Manage, monitor, and configure your Claw Studio compute nodes.",
-      "activeBadge": "Active",
-      "confirmUninstall": "Are you sure you want to uninstall this instance?",
+      "title": "实例",
+      "subtitle": "管理、监控并配置你的 Claw Studio 计算节点。",
+      "activeBadge": "活跃",
+      "confirmUninstall": "确认要卸载这个实例吗？",
       "actionNames": {
-        "start": "start",
-        "stop": "stop",
-        "restart": "restart",
-        "delete": "uninstall"
+        "start": "启动",
+        "stop": "停止",
+        "restart": "重启",
+        "delete": "卸载"
       },
       "actions": {
-        "deployInstance": "Deploy Instance",
-        "setActive": "Set Active",
-        "setAsActive": "Set as Active",
-        "openTerminal": "Open Terminal",
-        "viewLogs": "View Logs",
-        "restart": "Restart",
-        "stopInstance": "Stop Instance",
-        "startInstance": "Start Instance",
-        "uninstall": "Uninstall",
-        "details": "Details"
+        "deployInstance": "部署实例",
+        "setActive": "设为活跃",
+        "setAsActive": "设为活跃",
+        "openTerminal": "打开终端",
+        "viewLogs": "查看日志",
+        "restart": "重启",
+        "stopInstance": "停止实例",
+        "startInstance": "启动实例",
+        "uninstall": "卸载",
+        "details": "详情"
       },
       "metrics": {
         "cpu": "CPU",
-        "memory": "Memory",
-        "totalMemory": "Total: {{value}}",
-        "estimatedCost": "Est. Cost",
-        "monthlyCost": "{{value}}/mo",
-        "hourlyRate": "Based on {{value}}/hr rate",
-        "apiTokens": "API Tokens",
-        "billingCycle": "This billing cycle",
-        "uptime": "Uptime: {{value}}"
+        "memory": "内存",
+        "totalMemory": "总计：{{value}}",
+        "estimatedCost": "估算成本",
+        "monthlyCost": "{{value}}/月",
+        "hourlyRate": "按 {{value}}/小时计费",
+        "apiTokens": "API 令牌",
+        "billingCycle": "本计费周期",
+        "uptime": "运行时长：{{value}}"
       },
       "toasts": {
-        "started": "Instance started",
-        "stopped": "Instance stopped",
-        "restarted": "Instance restarted",
-        "uninstalled": "Instance uninstalled",
-        "actionFailed": "Failed to {{action}} instance"
+        "started": "实例已启动",
+        "stopped": "实例已停止",
+        "restarted": "实例已重启",
+        "uninstalled": "实例已卸载",
+        "actionFailed": "执行实例{{action}}操作失败"
       }
     },
     "detail": {
-      "notFoundTitle": "Instance Not Found",
-      "returnToInstances": "Return to Instances",
-      "backToInstances": "Back to Instances",
-      "activeBadge": "Active Instance",
-      "uptime": "Uptime: {{value}}",
+      "notFoundTitle": "未找到实例",
+      "returnToInstances": "返回实例列表",
+      "backToInstances": "返回实例",
+      "activeBadge": "当前活跃实例",
+      "uptime": "运行时长：{{value}}",
       "tabs": {
-        "configuration": "Configuration",
-        "daemonLogs": "Daemon Logs"
+        "configuration": "配置",
+        "daemonLogs": "守护进程日志"
       },
-      "connectionSettings": "Connection Settings",
-      "securityBehavior": "Security & Behavior",
-      "dangerZone": "Danger Zone",
-      "dangerDescription": "Irreversible actions for this instance. Proceed with caution.",
-      "liveDaemonLogs": "Live Daemon Logs",
-      "connected": "Connected",
+      "connectionSettings": "连接设置",
+      "securityBehavior": "安全与行为",
+      "dangerZone": "危险操作区",
+      "dangerDescription": "此实例的操作不可撤销，请谨慎继续。",
+      "liveDaemonLogs": "实时守护进程日志",
+      "connected": "已连接",
       "fields": {
-        "gatewayPort": "Gateway Port",
-        "gatewayPortDescription": "The port the Claw Studio daemon listens on.",
-        "corsOrigins": "CORS Origins",
-        "corsOriginsDescription": "Allowed origins for API requests (comma separated).",
-        "apiToken": "API Token",
-        "apiTokenDescription": "Use this token to authenticate external applications with this gateway.",
-        "agentSandbox": "Agent Sandbox",
-        "agentSandboxDescription": "Isolate skill execution in a secure sandbox environment.",
-        "autoUpdate": "Auto-Update",
-        "autoUpdateDescription": "Automatically download and install daemon updates.",
-        "logLevel": "Log Level"
+        "gatewayPort": "网关端口",
+        "gatewayPortDescription": "Claw Studio 守护进程监听的端口。",
+        "corsOrigins": "CORS 来源",
+        "corsOriginsDescription": "API 请求允许的来源（逗号分隔）。",
+        "apiToken": "API 令牌",
+        "apiTokenDescription": "使用此令牌让外部应用与该网关完成认证。",
+        "agentSandbox": "智能体沙箱",
+        "agentSandboxDescription": "在安全沙箱环境中隔离技能执行。",
+        "autoUpdate": "自动更新",
+        "autoUpdateDescription": "自动下载并安装守护进程更新。",
+        "logLevel": "日志级别"
       },
       "logLevels": {
-        "debug": "Debug",
-        "info": "Info",
-        "warn": "Warning",
-        "error": "Error"
+        "debug": "调试",
+        "info": "信息",
+        "warn": "警告",
+        "error": "错误"
       },
       "actions": {
-        "setAsActive": "Set as Active",
-        "restart": "Restart",
-        "stop": "Stop",
-        "start": "Start",
-        "factoryReset": "Factory Reset",
-        "uninstallInstance": "Uninstall Instance",
-        "saveConfiguration": "Save Configuration",
-        "saving": "Saving..."
+        "setAsActive": "设为活跃",
+        "openOpenClawConsole": "打开 OpenClaw 控制台",
+        "restart": "重启",
+        "stop": "停止",
+        "start": "启动",
+        "factoryReset": "恢复出厂设置",
+        "uninstallInstance": "卸载实例",
+        "saveConfiguration": "保存配置",
+        "saving": "保存中..."
       },
       "toasts": {
-        "configurationSaved": "Configuration saved successfully",
-        "failedToSaveConfiguration": "Failed to save configuration",
-        "restarted": "Instance restarted successfully",
-        "failedToRestart": "Failed to restart instance",
-        "stopped": "Instance stopped successfully",
-        "failedToStop": "Failed to stop instance",
-        "started": "Instance started successfully",
-        "failedToStart": "Failed to start instance",
-        "uninstalled": "Instance uninstalled successfully",
-        "failedToUninstall": "Failed to uninstall instance"
+        "configurationSaved": "配置保存成功",
+        "failedToSaveConfiguration": "保存配置失败",
+        "restarted": "实例重启成功",
+        "failedToRestart": "重启实例失败",
+        "stopped": "实例停止成功",
+        "failedToStop": "停止实例失败",
+        "started": "实例启动成功",
+        "failedToStart": "启动实例失败",
+        "uninstalled": "实例卸载成功",
+        "failedToUninstall": "卸载实例失败",
+        "failedToOpenOpenClawConsole": "打开 OpenClaw 控制台失败"
       },
-      "confirmUninstall": "Are you sure you want to uninstall this instance? This action cannot be undone.",
+      "confirmUninstall": "确认要卸载这个实例吗？此操作不可撤销。",
       "instanceWorkbench": {
         "sidebar": {
-          "title": "Instance Workbench",
-          "description": "Switch between the runtime capabilities available on this OpenClaw instance.",
+          "title": "实例工作台",
+          "description": "在这个 OpenClaw 实例提供的运行时能力之间切换。",
           "overview": "概览",
-          "channels": "Channels",
-          "cronTasks": "Cron Tasks",
-          "llmProviders": "LLM Providers",
-          "agents": "Agents",
-          "skills": "Skills",
-          "files": "Files",
-          "memory": "Memory",
-          "tools": "Tools",
+          "channels": "渠道",
+          "cronTasks": "Cron 任务",
+          "llmProviders": "LLM 提供方",
+          "agents": "智能体",
+          "skills": "技能",
+          "files": "文件",
+          "memory": "记忆",
+          "tools": "工具",
           "itemDescriptions": {
             "overview": "运行时身份、连接方式、存储绑定与诊断状态",
-            "channels": "Delivery routes and operator notifications",
-            "cronTasks": "Scheduled routines and automation cadence",
-            "llmProviders": "Provider routing, models, and inference controls",
-            "agents": "Operators available on this runtime",
-            "skills": "Installed runtime capabilities",
-            "files": "Config, prompts, logs, and artifacts",
-            "memory": "Pinned context and retained knowledge",
-            "tools": "Callable runtime tools and controls"
+            "channels": "交付路由与操作员通知",
+            "cronTasks": "计划任务与自动化节奏",
+            "llmProviders": "提供方路由、模型与推理控制",
+            "agents": "此运行时可用的操作员",
+            "skills": "已安装的运行时能力",
+            "files": "配置、提示词、日志与产物",
+            "memory": "固定上下文与保留知识",
+            "tools": "可调用的运行时工具与控制"
           }
         },
         "sections": {
@@ -2174,55 +2731,55 @@
             "description": "查看当前实例的运行时契约、连接方式、存储绑定与能力状态。"
           },
           "channels": {
-            "title": "Channels",
-            "description": "Inspect delivery readiness, configuration depth, and connection state for this instance."
+            "title": "渠道",
+            "description": "检查此实例的交付就绪度、配置深度与连接状态。"
           },
-        "cronTasks": {
-          "title": "Cron Tasks",
-          "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime.",
-          "editorNotice": "当前面板已经接通 OpenClaw 的运行时任务操作，但新建和编辑仍然会跳到旧版任务编辑器。当前请在这里使用克隆、立即运行、暂停、恢复、删除和历史记录。",
-          "readonlyNotice": "当前 OpenClaw cron 任务仅以运行时快照的方式只读展示。创建、编辑、立即运行、启停和删除会在接入原生运行时命令后开放。"
-        },
+          "cronTasks": {
+            "title": "Cron 任务",
+            "description": "监控计划任务、最近运行和该运行时的操作节奏。",
+            "editorNotice": "当前面板已经接通 OpenClaw 的运行时任务操作，但新建和编辑仍然会跳到旧版任务编辑器。当前请在这里使用克隆、立即运行、暂停、恢复、删除和历史记录。",
+            "readonlyNotice": "当前 OpenClaw cron 任务仅以运行时快照的方式只读展示。创建、编辑、立即运行、启停和删除会在接入原生运行时命令后开放。"
+          },
           "llmProviders": {
-            "title": "LLM Providers",
-            "description": "Inspect active providers, model routing, and the generation parameters shaping this instance."
+            "title": "LLM 提供方",
+            "description": "检查活跃提供方、模型路由以及影响本实例的生成参数。"
           },
           "agents": {
-            "title": "Agents",
-            "description": "Review the operator catalog and the focus areas available inside this instance."
+            "title": "智能体",
+            "description": "查看该实例内部可用的操作员目录和关注领域。"
           },
           "skills": {
-            "title": "Skills",
-            "description": "See which reusable skills are installed and ready to amplify local workflows."
+            "title": "技能",
+            "description": "查看哪些可复用技能已安装并可放大本地工作流。"
           },
           "files": {
-            "title": "Files",
-            "description": "Manage gateway profile details and inspect the runtime files that support this instance."
+            "title": "文件",
+            "description": "管理网关配置档案，并检查支撑该实例的运行时文件。"
           },
           "memory": {
-            "title": "Memory",
-            "description": "Audit retained runbooks, facts, and rolling context used by the runtime."
+            "title": "记忆",
+            "description": "审计运行时使用的保留手册、事实和滚动上下文。"
           },
           "tools": {
-            "title": "Tools",
-            "description": "Inspect callable tools, execution privileges, and high-impact runtime controls."
+            "title": "工具",
+            "description": "检查可调用工具、执行权限和高影响运行时控制。"
           }
         },
         "summary": {
-          "healthScore": "Health Score",
-          "connectedChannels": "Connected Channels",
-          "activeTasks": "Active Tasks",
-          "readyTools": "Ready Tools",
-          "agents": "Agents",
-          "skills": "Skills",
-          "cpuLoad": "CPU Load",
-          "memoryPressure": "Memory Pressure"
+          "healthScore": "健康评分",
+          "connectedChannels": "已连接渠道",
+          "activeTasks": "活动任务",
+          "readyTools": "就绪工具",
+          "agents": "智能体",
+          "skills": "技能",
+          "cpuLoad": "CPU 负载",
+          "memoryPressure": "内存压力"
         },
         "runtimeStates": {
-          "healthy": "Healthy",
-          "attention": "Attention",
-          "degraded": "Degraded",
-          "offline": "Offline"
+          "healthy": "健康",
+          "attention": "需关注",
+          "degraded": "降级",
+          "offline": "离线"
         },
         "overview": {
           "identity": "运行时身份",
@@ -2251,529 +2808,529 @@
           "logPreview": "日志预览"
         },
         "metrics": {
-          "configuredFields": "Configured Fields",
-          "deliveryState": "Delivery State",
-          "setupSteps": "Setup Steps",
-          "schedule": "Schedule",
-          "lastRun": "Last Run",
-          "nextRun": "Next Run",
-          "actionType": "Action Type",
-          "automationFitScore": "Automation Fit",
-          "version": "Version",
-          "downloads": "Downloads",
-          "rating": "Rating",
-          "memorySource": "Source",
-          "memoryTokens": "Tokens",
-          "updatedAt": "Updated"
+          "configuredFields": "已配置字段",
+          "deliveryState": "交付状态",
+          "setupSteps": "设置步骤",
+          "schedule": "调度",
+          "lastRun": "上次运行",
+          "nextRun": "下次运行",
+          "actionType": "动作类型",
+          "automationFitScore": "自动化适配度",
+          "version": "版本",
+          "downloads": "下载量",
+          "rating": "评分",
+          "memorySource": "来源",
+          "memoryTokens": "Token",
+          "updatedAt": "更新时间"
         },
         "state": {
-          "enabled": "Enabled",
-          "pending": "Pending"
+          "enabled": "已启用",
+          "pending": "待处理"
         },
         "actionTypes": {
-          "message": "Message",
-          "skill": "Skill"
+          "message": "消息",
+          "skill": "技能"
         },
         "files": {
-          "gatewayProfile": "Gateway Profile",
-          "gatewayProfileDescription": "Tune the gateway contract that powers this instance's runtime behavior and security posture.",
-          "runtimeArtifacts": "Runtime Artifacts",
-          "runtimeArtifactsDescription": "Configuration, prompts, logs, datasets, and generated artifacts bound to this instance.",
-          "liveDaemonLogs": "Live Daemon Logs",
-          "explorer": "File Explorer",
-          "editMode": "Editable",
-          "previewMode": "Preview",
-          "unsavedChanges": "Unsaved",
-          "revertDraft": "Revert Draft",
-          "saveFile": "Save File",
-          "savingFile": "Saving...",
-          "selectFile": "Select a file from the explorer to preview or edit it.",
+          "gatewayProfile": "网关配置档案",
+          "gatewayProfileDescription": "调整驱动该实例运行时行为和安全态势的网关契约。",
+          "runtimeArtifacts": "运行时产物",
+          "runtimeArtifactsDescription": "与该实例绑定的配置、提示词、日志、数据集与生成产物。",
+          "liveDaemonLogs": "实时守护进程日志",
+          "explorer": "文件浏览器",
+          "editMode": "可编辑",
+          "previewMode": "预览",
+          "unsavedChanges": "未保存",
+          "revertDraft": "撤销草稿",
+          "saveFile": "保存文件",
+          "savingFile": "保存中...",
+          "selectFile": "从浏览器中选择一个文件进行预览或编辑。",
           "readonlyNotice": "当前工件仅提供预览模式，避免与内置 OpenClaw 运行时状态产生漂移。",
-          "fileSaved": "File saved",
-          "fileSaveFailed": "Failed to save file",
-          "on": "On",
-          "off": "Off"
+          "fileSaved": "文件已保存",
+          "fileSaveFailed": "保存文件失败",
+          "on": "开",
+          "off": "关"
         },
         "llmProviders": {
-          "endpoint": "Endpoint",
-          "apiKeySource": "Credential Source",
-          "defaultModel": "Default Model",
-          "reasoningModel": "Reasoning Model",
-          "embeddingModel": "Embedding Model",
-          "parameters": "Inference Parameters",
-          "temperature": "Temperature",
-          "topP": "Top P",
-          "maxTokens": "Max Tokens",
-          "timeoutMs": "Timeout (ms)",
-          "streaming": "Streaming",
-          "streamingDescription": "Enable token streaming for runtime responses and live previews.",
-          "saveConfig": "Save Provider",
-          "saving": "Saving...",
-          "revertConfig": "Revert Config",
+          "endpoint": "端点",
+          "apiKeySource": "凭据来源",
+          "defaultModel": "默认模型",
+          "reasoningModel": "推理模型",
+          "embeddingModel": "向量模型",
+          "parameters": "推理参数",
+          "temperature": "温度",
+          "topP": "Top P 采样",
+          "maxTokens": "最大 Tokens",
+          "timeoutMs": "超时（毫秒）",
+          "streaming": "流式输出",
+          "streamingDescription": "为运行时响应和实时预览启用 Token 流式输出。",
+          "saveConfig": "保存提供方",
+          "saving": "保存中...",
+          "revertConfig": "恢复配置",
           "readonlyNotice": "当前 Provider 配置仅以 OpenClaw 只读快照展示。接入原生 Provider 写入能力后才会开放编辑。",
-          "saved": "LLM provider saved",
-          "saveFailed": "Failed to save LLM provider",
-          "selectProvider": "Select an LLM provider to inspect or edit its runtime configuration.",
+          "saved": "LLM 提供方已保存",
+          "saveFailed": "保存 LLM 提供方失败",
+          "selectProvider": "选择一个 LLM 提供方以检查或编辑其运行时配置。",
           "status": {
-            "ready": "Ready",
-            "degraded": "Degraded",
-            "configurationRequired": "Config Required"
+            "ready": "就绪",
+            "degraded": "降级",
+            "configurationRequired": "需要配置"
           },
           "modelRoles": {
-            "primary": "Primary",
-            "reasoning": "Reasoning",
-            "embedding": "Embedding",
-            "fallback": "Fallback"
+            "primary": "主模型",
+            "reasoning": "推理",
+            "embedding": "向量",
+            "fallback": "兜底"
           }
         },
         "empty": {
-          "channels": "No channels are attached to this instance yet.",
-          "cronTasks": "No cron tasks are scheduled on this instance yet.",
-          "llmProviders": "No LLM providers are configured for this instance yet.",
-          "agents": "No agents are available for this instance.",
-          "skills": "No skills are installed on this instance yet.",
-          "files": "No runtime files are available for this instance.",
-          "memory": "No retained memory entries are available for this instance.",
-          "tools": "No callable tools are currently exposed by this instance."
+          "channels": "此实例还没有挂接任何渠道。",
+          "cronTasks": "此实例还没有计划中的 Cron 任务。",
+          "llmProviders": "此实例还没有配置任何 LLM 提供方。",
+          "agents": "此实例暂无可用智能体。",
+          "skills": "此实例还没有安装任何技能。",
+          "files": "此实例暂无可用运行时文件。",
+          "memory": "此实例暂无保留记忆条目。",
+          "tools": "此实例当前没有暴露可调用工具。"
         },
         "fileStatus": {
-          "synced": "Synced",
-          "modified": "Modified",
-          "generated": "Generated",
-          "missing": "Missing"
+          "synced": "已同步",
+          "modified": "已修改",
+          "generated": "已生成",
+          "missing": "缺失"
         },
         "fileCategories": {
-          "config": "Config",
-          "log": "Log",
-          "prompt": "Prompt",
-          "dataset": "Dataset",
-          "memory": "Memory",
-          "artifact": "Artifact"
+          "config": "配置",
+          "log": "日志",
+          "prompt": "提示词",
+          "dataset": "数据集",
+          "memory": "记忆",
+          "artifact": "产物"
         },
         "memoryTypes": {
-          "runbook": "Runbook",
-          "conversation": "Conversation",
-          "fact": "Fact",
-          "artifact": "Artifact"
+          "runbook": "手册",
+          "conversation": "对话",
+          "fact": "事实",
+          "artifact": "产物"
         },
         "memorySources": {
-          "operator": "Operator",
-          "agent": "Agent",
-          "system": "System",
-          "task": "Task"
+          "operator": "操作员",
+          "agent": "智能体",
+          "system": "系统",
+          "task": "任务"
         },
         "retention": {
-          "pinned": "Pinned",
-          "rolling": "Rolling",
-          "expiring": "Expiring"
+          "pinned": "固定",
+          "rolling": "滚动",
+          "expiring": "即将过期"
         },
         "toolStatus": {
-          "ready": "Ready",
-          "beta": "Beta",
-          "restricted": "Restricted"
+          "ready": "就绪",
+          "beta": "测试版",
+          "restricted": "受限"
         },
         "toolCategories": {
-          "filesystem": "Filesystem",
-          "automation": "Automation",
-          "observability": "Observability",
-          "integration": "Integration",
-          "reasoning": "Reasoning"
+          "filesystem": "文件系统",
+          "automation": "自动化",
+          "observability": "可观测性",
+          "integration": "集成",
+          "reasoning": "推理"
         },
         "toolAccess": {
-          "read": "Read",
-          "write": "Write",
-          "execute": "Execute"
+          "read": "读取",
+          "write": "写入",
+          "execute": "执行"
         }
       }
     }
   },
   "extensions": {
     "page": {
-      "title": "Extensions",
+      "title": "扩展",
       "tabs": {
-        "discover": "Discover",
-        "installed": "Installed"
+        "discover": "发现",
+        "installed": "已安装"
       },
-      "searchPlaceholder": "Search extensions...",
+      "searchPlaceholder": "搜索扩展...",
       "featured": {
-        "badge": "Featured",
-        "title": "Supercharge Your Workflow",
-        "description": "Discover powerful extensions to customize your Claw environment. Add new tools, integrations, and capabilities with just one click.",
-        "browse": "Browse Top Extensions"
+        "badge": "精选",
+        "title": "强化你的工作流",
+        "description": "发现强大的扩展来自定义你的 Claw 环境。只需一次点击即可添加新工具、集成和能力。",
+        "browse": "浏览热门扩展"
       },
       "empty": {
-        "title": "No extensions found",
-        "description": "Try adjusting your search terms or filters."
+        "title": "未找到扩展",
+        "description": "尝试调整搜索词或筛选条件。"
       },
       "status": {
-        "online": "Online",
-        "offline": "Offline"
+        "online": "在线",
+        "offline": "离线"
       },
       "actions": {
-        "uninstall": "Uninstall"
+        "uninstall": "卸载"
       },
       "modal": {
-        "title": "Install Extension",
-        "byAuthor": "by {{author}}",
-        "noInstancesTitle": "No instances available",
-        "noInstancesDescription": "Please create an instance first.",
-        "selectTargetInstances": "Select Target Instances",
-        "installing": "Installing...",
-        "installToInstance": "Install to Instance"
+        "title": "安装扩展",
+        "byAuthor": "作者：{{author}}",
+        "noInstancesTitle": "暂无可用实例",
+        "noInstancesDescription": "请先创建一个实例。",
+        "selectTargetInstances": "选择目标实例",
+        "installing": "安装中...",
+        "installToInstance": "安装到实例"
       },
       "toasts": {
-        "installSuccess": "Extension installed successfully",
-        "installFailed": "Failed to install extension",
-        "uninstallSuccess": "Extension uninstalled successfully",
-        "uninstallFailed": "Failed to uninstall extension"
+        "installSuccess": "扩展安装成功",
+        "installFailed": "扩展安装失败",
+        "uninstallSuccess": "扩展卸载成功",
+        "uninstallFailed": "扩展卸载失败"
       },
-      "confirmUninstall": "Are you sure you want to uninstall this extension?"
+      "confirmUninstall": "确认要卸载这个扩展吗？"
     }
   },
   "repositoryCard": {
     "stats": {
-      "stars": "Stars",
-      "downloads": "Downloads",
-      "forks": "Forks"
+      "stars": "星标",
+      "downloads": "下载量",
+      "forks": "分叉"
     },
     "actions": {
-      "clone": "Clone",
-      "download": "Download"
+      "clone": "克隆",
+      "download": "下载"
     }
   },
   "devices": {
     "page": {
       "actions": {
-        "registerDevice": "Register device",
-        "remove": "Remove"
+        "registerDevice": "注册设备",
+        "remove": "移除"
       },
       "banner": {
-        "description": "Connect hardware so you can monitor it through Claw Studio.",
-        "title": "Register a device"
+        "description": "连接硬件后即可通过 Claw Studio 进行监控。",
+        "title": "注册设备"
       },
-      "confirmUninstallSkill": "Uninstall this skill?",
-      "confirmUnregister": "Unregister this device?",
+      "confirmUninstallSkill": "卸载这个技能？",
+      "confirmUnregister": "注销这个设备？",
       "empty": {
-        "description": "Register a device to start monitoring it.",
-        "title": "No devices found"
+        "description": "注册一个设备后即可开始监控。",
+        "title": "未找到设备"
       },
-      "installedSkills": "Installed skills",
+      "installedSkills": "已安装技能",
       "modal": {
-        "deviceName": "Device name",
-        "deviceNameDescription": "Give your device a descriptive name so you can find it later.",
-        "deviceNamePlaceholder": "My Device",
-        "title": "Register new device"
+        "deviceName": "设备名称",
+        "deviceNameDescription": "给设备起一个便于识别的名称，方便后续查找。",
+        "deviceNamePlaceholder": "我的设备",
+        "title": "注册新设备"
       },
-      "moreActions": "More actions",
-      "noSkillsInstalled": "No skills installed",
-      "powerLabel": "Power",
-      "selectDeviceHint": "Select a device to view its details.",
+      "moreActions": "更多操作",
+      "noSkillsInstalled": "暂无已安装技能",
+      "powerLabel": "功耗",
+      "selectDeviceHint": "选择一个设备查看详情。",
       "skillVersion": "v{{version}}",
       "specs": {
-        "latency": "Latency",
-        "ram": "RAM",
+        "latency": "延迟",
+        "ram": "内存",
         "soc": "SoC",
-        "storage": "Storage"
+        "storage": "存储"
       },
-      "subtitle": "Monitor your registered hardware",
-      "title": "Devices"
+      "subtitle": "监控你已注册的硬件",
+      "title": "设备"
     }
   },
   "docs": {
     "architecture": {
-      "description": "OpenClaw is organized around a thin control plane, portable runtimes, and reusable skill packages.",
-      "diagramPlaceholder": "Architecture diagram placeholder",
-      "overview": "The studio UI talks to shared services, the gateway executes installs and task orchestration, and connected devices run workloads where they are most effective.",
+      "description": "OpenClaw 围绕精简控制平面、可移植运行时和可复用技能包来组织。",
+      "diagramPlaceholder": "架构图占位符",
+      "overview": "Studio UI 会与共享服务通信，网关负责安装和任务编排，连接的设备则在最合适的位置运行工作负载。",
       "security": {
-        "description": "Credentials stay scoped to the environments that need them, while installs and automation flow through explicit gateway or device targets.",
-        "title": "Security model"
+        "description": "凭据只会保留在真正需要它们的环境中，而安装和自动化会通过明确的网关或设备目标来流转。",
+        "title": "安全模型"
       },
-      "title": "Architecture"
+      "title": "架构"
     },
     "cli": {
-      "description": "Use the OpenClaw CLI to inspect runtimes, install skills, and automate repetitive operations.",
+      "description": "使用 OpenClaw CLI 检查运行时、安装技能并自动化重复操作。",
       "examples": {
         "install": {
-          "downloading": "Downloading weather-pro...",
-          "installingDependencies": "Installing dependencies...",
-          "success": "Success: skill installed"
+          "downloading": "正在下载 weather-pro...",
+          "installingDependencies": "正在安装依赖...",
+          "success": "成功：技能已安装"
         },
         "status": {
-          "connectedDevices": "Connected devices: 12",
-          "gateway": "Gateway: online",
-          "uptime": "Uptime: 3 days 04h"
+          "connectedDevices": "已连接设备：12",
+          "gateway": "网关：在线",
+          "uptime": "运行时长：3 天 04 小时"
         }
       },
       "install": {
-        "description": "Installs a skill by id from the active repository."
+        "description": "从当前活动仓库按 id 安装技能。"
       },
       "status": {
-        "description": "Shows the status of your gateway and connected devices."
+        "description": "显示网关和已连接设备的状态。"
       },
-      "title": "CLI Commands"
+      "title": "CLI 命令"
     },
     "intro": {
-      "badge": "Introduction",
+      "badge": "介绍",
       "components": {
         "devices": {
-          "description": "Devices connect edge hardware and remote workers so they can run skills close to the data they need.",
-          "label": "Devices"
+          "description": "设备会连接边缘硬件和远程工作节点，让它们在最接近数据的位置运行技能。",
+          "label": "设备"
         },
         "gateway": {
-          "description": "The gateway handles runtime access, installs, and automation on the machines that host your agents.",
-          "label": "Gateway"
+          "description": "网关负责运行时访问、安装以及托管智能体机器上的自动化。",
+          "label": "网关"
         },
         "manager": {
-          "description": "The manager coordinates skills, instances, and policy from a single control surface.",
-          "label": "Studio manager"
+          "description": "管理器会在一个统一控制面上协调技能、实例和策略。",
+          "label": "Studio 管理器"
         }
       },
-      "description": "OpenClaw is a local-first platform for deploying, managing, and extending AI agents across desktop, servers, and edge devices.",
+      "description": "OpenClaw 是一个本地优先平台，用于在桌面、服务器和边缘设备上部署、管理并扩展 AI 智能体。",
       "features": {
-        "title": "Key features"
+        "title": "关键特性"
       },
       "howItWorks": {
-        "description": "OpenClaw separates orchestration, runtime access, and device execution so you can keep control of your workloads while scaling them across environments.",
-        "title": "How it works"
+        "description": "OpenClaw 将编排、运行时访问和设备执行分离，让你在跨环境扩展工作负载时仍保持控制。",
+        "title": "工作原理"
       },
-      "title": "Meet OpenClaw"
+      "title": "认识 OpenClaw"
     },
     "nav": {
-      "apiReference": "API Reference",
-      "coreConcepts": "Core Concepts",
-      "gettingStarted": "Getting Started",
+      "apiReference": "API 参考",
+      "coreConcepts": "核心概念",
+      "gettingStarted": "快速开始",
       "items": {
-        "architecture": "Architecture",
-        "cliCommands": "CLI Commands",
-        "installation": "Installation",
-        "introduction": "Introduction",
-        "quickStart": "Quick Start",
-        "skillsAndPacks": "Skills & Packs"
+        "architecture": "架构",
+        "cliCommands": "CLI 命令",
+        "installation": "安装",
+        "introduction": "介绍",
+        "quickStart": "快速开始",
+        "skillsAndPacks": "技能与技能包"
       }
     },
     "page": {
-      "title": "Documentation"
+      "title": "文档"
     },
     "quickstart": {
-      "badge": "Quick Start",
-      "description": "Follow these three steps to install the gateway, register a device, and deploy a skill in minutes.",
+      "badge": "快速开始",
+      "description": "按这 3 步操作，即可在几分钟内安装网关、注册设备并部署技能。",
       "steps": {
         "installGateway": {
-          "description": "Run the installer on a supported machine so OpenClaw can manage local and remote workloads.",
-          "title": "1. Install the gateway"
+          "description": "在受支持的机器上运行安装器，让 OpenClaw 能够管理本地和远程工作负载。",
+          "title": "1. 安装网关"
         },
         "installSkill": {
-          "description": "Choose a skill or pack from the marketplace and install it to your gateway or connected device.",
-          "title": "3. Install a skill"
+          "description": "从市场选择一个技能或技能包，并将其安装到你的网关或已连接设备。",
+          "title": "3. 安装技能"
         },
         "registerDevice": {
-          "description": "Open Claw Studio, add a device, and confirm it reports online before assigning work.",
-          "title": "2. Register a device"
+          "description": "打开 Claw Studio，添加一个设备，并在分配工作前确认其已在线。",
+          "title": "2. 注册设备"
         }
       },
-      "title": "Launch your first workflow"
+      "title": "启动你的第一个工作流"
     },
     "sidebar": {
-      "onThisPage": "On this page",
+      "onThisPage": "本页内容",
       "sections": {
-        "architectureDiagram": "Architecture diagram",
-        "cloudDeploy": "Cloud deployment",
-        "dockerGateway": "Docker gateway",
-        "fromSource": "Build from source",
-        "howItWorks": "How it works",
-        "installCommand": "Install command",
-        "installGateway": "Install gateway",
-        "installSkill": "Install a skill",
-        "installerScript": "Installer script",
-        "keyFeatures": "Key features",
-        "overview": "Overview",
-        "packageManagers": "Package managers",
-        "registerDevice": "Register device",
-        "securityModel": "Security model",
-        "skillPacks": "Skill packs",
-        "statusCommand": "Status command",
-        "whatIsSkill": "What is a skill?"
+        "architectureDiagram": "架构图",
+        "cloudDeploy": "云端部署",
+        "dockerGateway": "Docker 网关",
+        "fromSource": "从源码构建",
+        "howItWorks": "工作原理",
+        "installCommand": "安装命令",
+        "installGateway": "安装网关",
+        "installSkill": "安装技能",
+        "installerScript": "安装脚本",
+        "keyFeatures": "关键特性",
+        "overview": "概览",
+        "packageManagers": "包管理器",
+        "registerDevice": "注册设备",
+        "securityModel": "安全模型",
+        "skillPacks": "技能包",
+        "statusCommand": "状态命令",
+        "whatIsSkill": "什么是技能？"
       }
     },
     "skills": {
-      "description": "Skills are reusable capability bundles, and packs combine multiple skills into opinionated workflows.",
+      "description": "技能是可复用的能力包，而技能包会把多个技能组合成带有明确偏好的工作流。",
       "packs": {
-        "description": "A skill pack groups complementary skills so teams can deploy a whole toolkit with one action.",
-        "title": "What is a skill pack?"
+        "description": "技能包会将互补技能组合在一起，让团队一次操作就能部署整套工具链。",
+        "title": "什么是技能包？"
       },
-      "title": "Skills & Packs",
+      "title": "技能与技能包",
       "whatIsSkill": {
-        "description": "A skill packages prompts, tools, permissions, and metadata so the runtime can install and execute it consistently.",
-        "title": "What is a skill?"
+        "description": "技能会把提示词、工具、权限和元数据打包在一起，让运行时可以一致地安装和执行。",
+        "title": "什么是技能？"
       }
     },
     "install": {
-      "description": "Choose the installation path that fits your environment, from one-line scripts to source builds.",
+      "description": "选择最适合你环境的安装路径，从一行脚本到源码构建都支持。",
       "platforms": {
         "macosLinuxWsl": "macOS / Linux / WSL",
         "windowsPowerShell": "Windows PowerShell"
       },
       "sections": {
         "cloud": {
-          "description": "Provision a cloud VM when you want a gateway that stays online for your whole team.",
-          "runInstallerTitle": "2. Run the installer",
-          "sshTitle": "1. Connect over SSH",
-          "title": "Cloud deployment",
-          "warning": "Use a fresh Linux host and lock down SSH before exposing the dashboard."
+          "description": "当你需要为整个团队提供持续在线的网关时，可先创建云主机。",
+          "runInstallerTitle": "2. 运行安装器",
+          "sshTitle": "1. 通过 SSH 连接",
+          "title": "云端部署",
+          "warning": "在暴露控制台前，请使用全新的 Linux 主机并锁紧 SSH。"
         },
         "docker": {
-          "description": "Run OpenClaw inside Docker for a reproducible gateway on servers, NAS devices, or homelabs.",
-          "downloadTitle": "1. Download the setup script",
-          "runTitle": "2. Run the Docker setup",
-          "title": "Docker gateway"
+          "description": "在服务器、NAS 或 homelab 上通过 Docker 运行 OpenClaw，获得可复现的网关部署。",
+          "downloadTitle": "1. 下载安装脚本",
+          "runTitle": "2. 运行 Docker 部署",
+          "title": "Docker 网关"
         },
         "npm": {
-          "description": "Install the CLI globally when you already have a modern Node.js toolchain.",
+          "description": "如果宿主机已经有现代 Node.js 工具链，可全局安装 CLI。",
           "title": "npm / pnpm",
-          "usingNpm": "Install with npm",
-          "usingPnpm": "Install with pnpm"
+          "usingNpm": "使用 npm 安装",
+          "usingPnpm": "使用 pnpm 安装"
         },
         "script": {
-          "description": "The fastest path for local development and single-machine setups.",
-          "title": "Installer script"
+          "description": "本地开发和单机部署的最快路径。",
+          "title": "安装脚本"
         },
         "source": {
-          "cloneAndBuildTitle": "1. Clone and build",
-          "description": "Clone the repository when you need to contribute, debug internals, or build custom distributions.",
-          "linkAndRunTitle": "2. Link the CLI and run onboarding",
-          "title": "Build from source"
+          "cloneAndBuildTitle": "1. 克隆并构建",
+          "description": "当你需要贡献代码、调试内部实现或构建自定义发行版时，请克隆仓库。",
+          "linkAndRunTitle": "2. 链接 CLI 并运行引导",
+          "title": "从源码构建"
         }
       },
-      "title": "Installation"
+      "title": "安装"
     }
   },
   "github": {
     "detail": {
       "activity": {
-        "pushedToMain": "pushed new commits to main.",
-        "twoHoursAgo": "2 hours ago"
+        "pushedToMain": "向 main 分支推送了新的提交。",
+        "twoHoursAgo": "2 小时前"
       },
-      "back": "Back to GitHub",
-      "downloadToLocal": "Download to local",
+      "back": "返回 GitHub",
+      "downloadToLocal": "下载到本地",
       "files": {
-        "dir": "[DIR]",
-        "file": "[FILE]"
+        "dir": "[目录]",
+        "file": "[文件]"
       },
-      "notFoundBack": "Return to repositories",
-      "notFoundTitle": "Repository not found",
+      "notFoundBack": "返回仓库列表",
+      "notFoundTitle": "未找到仓库",
       "readme": {
-        "aboutTitle": "About {{name}}",
-        "installation": "Installation",
-        "usage": "Usage",
-        "usageDescription": "Clone the repository, install dependencies, and follow the project README to get started."
+        "aboutTitle": "关于 {{name}}",
+        "installation": "安装",
+        "usage": "使用",
+        "usageDescription": "克隆仓库、安装依赖，并按照项目 README 开始使用。"
       },
       "stats": {
-        "forks": "Forks",
-        "stars": "Stars",
-        "title": "Repository stats"
+        "forks": "Fork 数",
+        "stars": "星标",
+        "title": "仓库统计"
       },
       "tabs": {
-        "activity": "Activity",
-        "files": "Files",
+        "activity": "动态",
+        "files": "文件",
         "readme": "README"
       },
       "task": {
-        "downloadComplete": "Repository download complete",
-        "downloadFailed": "Repository download failed",
-        "downloadSubtitle": "Downloading repository contents",
-        "downloadTitle": "Download {{name}}"
+        "downloadComplete": "仓库下载完成",
+        "downloadFailed": "仓库下载失败",
+        "downloadSubtitle": "正在下载仓库内容",
+        "downloadTitle": "下载 {{name}}"
       },
       "toast": {
-        "downloadFailed": "Failed to download {{name}}",
-        "downloadStarted": "Downloading {{name}}",
-        "downloadSuccess": "{{name}} downloaded"
+        "downloadFailed": "下载 {{name}} 失败",
+        "downloadStarted": "正在下载 {{name}}",
+        "downloadSuccess": "{{name}} 已下载"
       },
-      "verifiedPopular": "Popular verified repository"
+      "verifiedPopular": "热门认证仓库"
     },
     "repos": {
-      "emptyDescription": "Try a different search term or sync more sources.",
-      "emptyTitle": "No repositories found",
-      "filter": "Filter repositories",
-      "searchPlaceholder": "Search repositories, authors, or tags...",
-      "sort": "Sort repositories",
-      "subtitle": "{{count, number}} repositories ready to install",
+      "emptyDescription": "换个搜索词，或同步更多来源后再试。",
+      "emptyTitle": "未找到仓库",
+      "filter": "筛选仓库",
+      "searchPlaceholder": "搜索仓库、作者或标签...",
+      "sort": "排序",
+      "subtitle": "{{count, number}} 个可安装仓库",
       "task": {
-        "installComplete": "Repository installed",
-        "installFailed": "Repository install failed",
-        "installSubtitle": "Installing from GitHub",
-        "installTitle": "Install {{name}}"
+        "installComplete": "仓库已安装",
+        "installFailed": "仓库安装失败",
+        "installSubtitle": "正在从 GitHub 安装",
+        "installTitle": "安装 {{name}}"
       },
-      "title": "GitHub Repositories",
+      "title": "GitHub 仓库",
       "toast": {
-        "installFailed": "Failed to install {{name}}",
-        "installStarted": "Installing {{name}}",
-        "installSuccess": "{{name}} installed"
+        "installFailed": "安装 {{name}} 失败",
+        "installStarted": "正在安装 {{name}}",
+        "installSuccess": "{{name}} 已安装"
       }
     }
   },
   "huggingface": {
     "detail": {
-      "back": "Back to Hugging Face",
+      "back": "返回 Hugging Face",
       "community": {
-        "issueOpened": "opened a discussion about deployment tips.",
-        "oneDayAgo": "1 day ago",
+        "issueOpened": "发起了一个关于部署技巧的讨论。",
+        "oneDayAgo": "1 天前",
         "userInitial": "HF",
-        "userName": "Model Maintainer"
+        "userName": "模型维护者"
       },
-      "downloadToLocal": "Download to local",
+      "downloadToLocal": "下载到本地",
       "files": {
-        "file": "[FILE]"
+        "file": "[文件]"
       },
-      "highlyDownloaded": "Highly downloaded model",
+      "highlyDownloaded": "高下载量模型",
       "modelCard": {
-        "descriptionTitle": "Model description",
-        "howToUse": "How to use",
-        "intendedUseDescription": "Use this model as a starting point for experimentation, evaluation, and downstream fine-tuning in your own environment.",
-        "intendedUseTitle": "Intended use"
+        "descriptionTitle": "模型说明",
+        "howToUse": "使用方法",
+        "intendedUseDescription": "将此模型作为你在本地环境中开展实验、评估和下游微调的起点。",
+        "intendedUseTitle": "适用场景"
       },
-      "notFoundBack": "Return to models",
-      "notFoundTitle": "Model not found",
+      "notFoundBack": "返回模型列表",
+      "notFoundTitle": "未找到模型",
       "stats": {
-        "downloads": "Downloads",
-        "estimatedSize": "Estimated from model files",
-        "size": "Size",
-        "title": "Model stats"
+        "downloads": "下载量",
+        "estimatedSize": "根据模型文件估算",
+        "size": "大小",
+        "title": "模型统计"
       },
       "tabs": {
-        "community": "分类信息",
-        "files": "Files",
-        "modelCard": "Model card"
+        "community": "社区",
+        "files": "文件",
+        "modelCard": "模型卡片"
       },
       "task": {
-        "downloadComplete": "Model download complete",
-        "downloadFailed": "Model download failed",
-        "downloadSubtitle": "Downloading model artifacts",
-        "downloadTitle": "Download {{name}}"
+        "downloadComplete": "模型下载完成",
+        "downloadFailed": "模型下载失败",
+        "downloadSubtitle": "正在下载模型制品",
+        "downloadTitle": "下载 {{name}}"
       },
       "toast": {
-        "downloadFailed": "Failed to download {{name}}",
-        "downloadStarted": "Downloading {{name}}",
-        "downloadSuccess": "{{name}} downloaded"
+        "downloadFailed": "下载 {{name}} 失败",
+        "downloadStarted": "正在下载 {{name}}",
+        "downloadSuccess": "{{name}} 已下载"
       }
     },
     "models": {
-      "emptyDescription": "Try a different keyword or broaden your search.",
-      "emptyTitle": "No models found",
-      "filter": "Filter models",
-      "searchPlaceholder": "Search models, authors, or tags...",
-      "sort": "Sort models",
-      "subtitle": "{{count, number}} models ready to explore",
+      "emptyDescription": "换个关键词，或扩大搜索范围。",
+      "emptyTitle": "未找到模型",
+      "filter": "筛选模型",
+      "searchPlaceholder": "搜索模型、作者或标签...",
+      "sort": "排序",
+      "subtitle": "{{count, number}} 个待探索模型",
       "task": {
-        "downloadComplete": "Model download complete",
-        "downloadFailed": "Model download failed",
-        "downloadSubtitle": "Downloading model artifacts",
-        "downloadTitle": "Download {{name}}"
+        "downloadComplete": "模型下载完成",
+        "downloadFailed": "模型下载失败",
+        "downloadSubtitle": "正在下载模型制品",
+        "downloadTitle": "下载 {{name}}"
       },
-      "title": "Hugging Face Models",
+      "title": "Hugging Face 模型",
       "toast": {
-        "downloadFailed": "Failed to download {{name}}",
-        "downloadStarted": "Downloading {{name}}",
-        "downloadSuccess": "{{name}} downloaded"
+        "downloadFailed": "下载 {{name}} 失败",
+        "downloadStarted": "正在下载 {{name}}",
+        "downloadSuccess": "{{name}} 已下载"
       }
     }
   },
@@ -3077,7 +3634,12 @@
         "selectedProduct": "已选择",
         "readyHint": "可以安装",
         "states": {
-          "comingSoon": "开发中"
+          "installed": "已安装",
+          "ready": "已就绪",
+          "setupNeeded": "需要设置",
+          "fixFirst": "先修复",
+          "checking": "检查中",
+          "comingSoon": "即将支持"
         },
         "sections": {
           "recommended": "当前设备推荐"
@@ -3109,11 +3671,11 @@
           }
         },
         "recommendationReasons": {
-          "platformPreferred": "根据当前设备检测到的平台和运行时，{{method}} 是更合适的默认路径。",
-          "bestReadyFallback": "{{method}} 是当前这台机器上已经就绪、可以最快开始的安装路径。",
-          "requiresSetup": "{{method}} 仍然是更合适的长期方案，但这台机器需要先补齐前置条件。",
-          "installed": "系统看起来已经存在通过 {{method}} 安装的结果，你可以继续完成配置和验证。",
-          "singlePath": "当前产品只提供这一条受支持的安装路径，因此我们将它作为默认推荐。"
+          "platformPreferred": "{{method}} 最适合当前设备检测到的平台和运行时环境。",
+          "bestReadyFallback": "{{method}} 是当前机器上已就绪且最快可用的安装路径。",
+          "requiresSetup": "{{method}} 依然是更适合长期使用的方案，但这台机器还需要先完成前置修复。",
+          "installed": "检测到这台机器似乎已经安装了 {{method}}，你可以直接继续后续配置和验证。",
+          "singlePath": "当前产品只提供一种受支持的安装路径，因此我们将其作为默认推荐。"
         }
       },
       "systemRequirements": {
@@ -3289,28 +3851,32 @@
       },
       "guided": {
         "title": "分步安装",
-        "heading": "逐步完成 {{product}} 的安装与初始化",
-        "subtitle": "通过 {{method}} 路径完成安装、配置与初始化。",
+        "heading": "按步骤完成 {{product}} 的安装与初始化",
+        "subtitle": "通过 {{method}} 安装 {{product}}",
         "steps": {
           "dependencies": {
-            "title": "依赖与工具",
-            "description": "先检查工具链、阻塞项和推荐修复，再开始安装。"
+            "title": "安装依赖",
+            "description": "继续之前先检查所需工具和安装阻塞项。"
           },
           "install": {
-            "title": "安装 OpenClaw",
-            "description": "执行所选安装方式，并持续查看实时执行日志。"
+            "title": "执行安装",
+            "description": "为当前产品运行所选安装流程。"
           },
           "configure": {
-            "title": "配置 OpenClaw",
-            "description": "选择实例、模型配置，以及 OpenClaw 要接入的 channels。"
+            "title": "进行配置",
+            "description": "设置模型提供方、模型与通信通道。"
           },
           "initialize": {
-            "title": "初始化 OpenClaw",
-            "description": "安装默认 starter pack，并补充所需的 skill 或 package。"
+            "title": "初始化",
+            "description": "从技能市场选择入门包和技能。"
           },
           "verify": {
             "title": "验证安装",
-            "description": "确认安装、模型提供方、channels 和 skills 是否已经就绪。"
+            "description": "确认安装、模型、通道和技能均已就绪。"
+          },
+          "success": {
+            "title": "安装完成",
+            "description": "检查最终设置后进入聊天。"
           }
         },
         "actions": {
@@ -3320,68 +3886,109 @@
           "continueToVerify": "继续验证",
           "install": "安装 OpenClaw",
           "applyConfig": "保存配置",
-          "initialize": "初始化 OpenClaw",
-          "verify": "验证安装"
+          "skipConfig": "暂时跳过",
+          "initialize": "初始化 {{product}}",
+          "verify": "验证安装",
+          "installNow": "立即安装",
+          "applyConfiguration": "保存配置",
+          "continueToConfigure": "继续配置",
+          "continueToSuccess": "继续完成",
+          "confirmAndChat": "进入聊天"
         },
         "dependencies": {
-          "ready": "安装所需依赖已经准备就绪。",
+          "ready": "安装所需依赖已全部就绪。",
           "noIssues": "当前未检测到阻塞问题。",
-          "autoRefresh": "在你继续前，环境检查会持续自动重跑。",
-          "lastChecked": "上次检查时间：{{time}}。"
+          "autoRefresh": "在你继续之前，环境检查会持续自动重跑。",
+          "lastChecked": "上次检查时间：{{time}}。",
+          "title": "安装依赖",
+          "description": "请先安装所需依赖，然后继续产品安装。",
+          "install": "安装",
+          "installing": "安装中...",
+          "done": "完成",
+          "manual": "手动处理",
+          "needsAttention": "需要关注",
+          "readyShort": "就绪",
+          "pendingShort": "待处理",
+          "labels": {
+            "blockers": "阻塞项",
+            "dependencies": "依赖项",
+            "readiness": "就绪状态"
+          }
         },
         "install": {
-          "description": "按当前方式安装 OpenClaw，并在完成前持续查看实时日志。",
-          "logPlaceholder": "安装输出会显示在这里。"
+          "description": "按照 {{method}} 安装 {{product}}，并在完成前持续查看实时日志。",
+          "logPlaceholder": "安装输出将显示在这里。",
+          "existingInstall": "检测到现有的 {{product}} 安装，你可以直接继续配置或完成后续设置。",
+          "title": "执行安装",
+          "liveOutput": "实时输出",
+          "waiting": "等待开始安装。",
+          "completed": "安装完成。",
+          "failed": "安装失败。",
+          "installRoot": "安装目录",
+          "dataRoot": "数据目录"
         },
         "config": {
           "loading": "正在加载配置工作区...",
           "instance": "目标实例",
+          "configPath": "配置文件",
           "provider": "模型提供方",
           "defaultModel": "默认模型",
           "reasoningModel": "推理模型",
-          "embeddingModel": "向量模型",
-          "channels": "Channels",
-          "channelsDescription": "保留已连接的 channels，或继续启用更多通知与工作流通道。",
+          "embeddingModel": "嵌入模型",
+          "channels": "通信通道",
+          "channelsDescription": "保留已连接的通道，或继续启用更多通道用于通知和工作流投递。",
+          "editLater": "所选模型与通道设置会直接写入已安装 OpenClaw 的配置文件。你现在可以跳过此步骤，稍后再到实例详情页统一修改。",
+          "skippedNotice": "当前已跳过配置。OpenClaw 仍会继续完成安装，之后你可以在实例详情页更新模型与通道设置。",
           "validation": {
-            "provider": "保存配置前，请先选择实例、提供方和默认模型。",
+            "provider": "保存配置前，请先选择提供方并填写默认模型。",
             "loading": "配置数据仍在加载中。",
-            "channel": "保存前请先为 {{channel}} 完成 {{field}}。"
+            "channel": "保存前请先完成 {{channel}} 的 {{field}}。"
           }
         },
         "initialize": {
-          "defaultPack": "默认 starter pack",
-          "defaultPackDescription": "向导会默认勾选推荐 pack，让 OpenClaw 安装完成后即可开始工作。",
+          "defaultPack": "默认入门包",
+          "defaultPackDescription": "向导会默认勾选推荐包，让 {{product}} 在完成安装后即可直接使用。",
           "recommended": "推荐",
-          "additionalSkills": "额外 skills",
-          "includedByPack": "已由 pack 包含",
+          "additionalSkills": "附加技能",
+          "skillCount": "{{count}} 个技能",
+          "includedByPack": "已包含在入门包中",
           "summary": "初始化摘要",
-          "summaryValue": "已选择 {{packs}} 个 pack、{{skills}} 个 skill。",
+          "summaryValue": "已选择 {{packs}} 个包，共 {{skills}} 个技能。",
           "validation": {
-            "instance": "初始化前请先选择目标实例。"
-          }
+            "instance": "初始化前请先选择目标实例。",
+            "target": "尚未解析到已安装的 OpenClaw 目标，请先完成安装步骤。"
+          },
+          "title": "初始化",
+          "description": "从技能市场选择包或技能，完成 {{product}} 的首次使用配置。",
+          "packages": "包",
+          "skills": "技能",
+          "openSelector": "选择包和技能",
+          "selectorTitle": "选择包和技能",
+          "selectorConfirm": "应用选择",
+          "noneSelected": "尚未选择"
         },
         "verify": {
-          "running": "正在验证安装...",
+          "running": "正在验证安装结果...",
           "ready": "可以立即使用",
           "followUp": "已安装，但仍需后续处理",
-          "description": "OpenClaw 已安装完成。关闭向导前，请先检查下面的就绪项。",
-          "retryStatus": "自动复验第 {{attempt}} / {{max}} 次。",
+          "description": "{{product}} 已完成安装，请在关闭向导前确认下列就绪项。",
+          "retryStatus": "自动验证第 {{attempt}} / {{max}} 轮。",
           "lastChecked": "上次验证时间：{{time}}。",
           "items": {
             "install": "安装执行",
             "provider": "模型提供方",
-            "channels": "Channels",
-            "skills": "Skills 与 packs"
+            "channels": "通道",
+            "skills": "技能与包"
           },
           "status": {
-            "success": "已就绪",
+            "success": "就绪",
             "warning": "仍需处理",
             "blocked": "已阻塞"
           }
         },
         "providerStatus": {
           "active": "正常",
-          "warning": "警告",
+          "warning": "告警",
           "expired": "已过期",
           "disabled": "已禁用"
         },
@@ -3389,6 +3996,91 @@
           "connected": "已连接",
           "disconnected": "未连接",
           "not_configured": "待配置"
+        },
+        "configure": {
+          "title": "配置",
+          "description": "配置模型提供方，并绑定你希望立即可用的通信通道。",
+          "instance": "目标实例",
+          "modelChannel": "模型通道",
+          "providerTemplate": "提供方模板",
+          "createNewProvider": "创建新提供方",
+          "providerName": "提供方名称",
+          "apiKey": "API 密钥",
+          "baseUrl": "基础 URL",
+          "model": "模型",
+          "communicationTitle": "通信通道",
+          "communicationDescription": "绑定安装完成后应立即可用的通道。",
+          "validation": {
+            "provider": "继续之前，请先完成提供方设置并选择模型。",
+            "loading": "配置数据仍在加载中。",
+            "channel": "继续之前，请先完成 {{channel}} 的 {{field}}。"
+          }
+        },
+        "success": {
+          "eyebrow": "已就绪",
+          "title": "{{product}} 已就绪",
+          "description": "{{product}} 的安装、配置和初始化均已完成，确认后即可进入聊天。",
+          "instance": "实例",
+          "modelChannel": "模型通道",
+          "model": "模型",
+          "bindings": "已绑定通道",
+          "bindingsValue": "已绑定 {{count}} 个通道"
+        }
+      },
+      "experience": {
+        "heading": "通过 {{method}} 安装 {{product}}",
+        "steps": {
+          "method": {
+            "title": "选择安装方式",
+            "description": "确认当前选择的路径，以及为什么它更适合这台设备。"
+          },
+          "prepare": {
+            "title": "准备安装环境",
+            "description": "先检查依赖、阻塞项和可自动修复的内容，再开始安装。"
+          },
+          "install": {
+            "title": "执行安装",
+            "description": "启动真实安装流程，并持续查看实时执行输出。"
+          },
+          "complete": {
+            "title": "完成安装",
+            "description": "检查结果、安装路径以及下一步动作。"
+          }
+        },
+        "actions": {
+          "continue": "继续",
+          "continueToInstall": "继续安装",
+          "autoFix": "自动修复",
+          "backToMethods": "返回方式列表",
+          "retry": "重新尝试"
+        },
+        "prepare": {
+          "heading": "准备安装环境",
+          "description": "确认当前方式已就绪，然后再进入真实安装。",
+          "issues": "阻塞项",
+          "dependenciesTitle": "依赖与工具",
+          "dependenciesDescription": "如果安装器支持自动修复，可直接在这里补齐缺失依赖。",
+          "labels": {
+            "blockers": "阻塞项",
+            "dependencies": "依赖数",
+            "readiness": "就绪状态"
+          }
+        },
+        "install": {
+          "heading": "执行安装",
+          "description": "这里会启动所选方式对应的真实安装流程。",
+          "labels": {
+            "status": "当前状态"
+          },
+          "status": {
+            "idle": "等待开始"
+          }
+        },
+        "complete": {
+          "successTitle": "安装完成",
+          "errorTitle": "安装需要处理",
+          "successDescription": "{{method}} 已执行完成，可以继续检查运行路径。",
+          "errorDescription": "{{method}} 没有完整执行成功，请查看输出后再重试。"
         }
       }
     },
@@ -3444,356 +4136,356 @@
     },
     "detail": {
       "codeBlock": {
-        "errorPrefix": "Error",
-        "executingViaTauri": "Executing via desktop runtime...",
-        "run": "Run",
-        "running": "Running...",
-        "terminalOutput": "Terminal output"
+        "errorPrefix": "错误",
+        "executingViaTauri": "正在通过桌面运行时执行...",
+        "run": "运行",
+        "running": "运行中...",
+        "terminalOutput": "终端输出"
       },
       "guides": {
         "script": {
-          "description": "Use the one-line installer when you want the fastest way to get OpenClaw running on a supported machine.",
+          "description": "当你想以最快方式在受支持的机器上运行 OpenClaw 时，请使用一行式安装器。",
           "steps": {
             "onboarding": {
-              "description": "Follow the prompts to create or connect a workspace, then verify the dashboard opens correctly.",
-              "title": "Complete onboarding"
+              "description": "按提示创建或连接工作区，然后确认仪表盘可以正常打开。",
+              "title": "完成引导"
             },
             "openTerminal": {
-              "description": "Use Terminal, iTerm, Windows Terminal, or PowerShell with permission to run network installers.",
-              "title": "Open a terminal"
+              "description": "使用 Terminal、iTerm、Windows Terminal，或具备运行网络安装器权限的 PowerShell。",
+              "title": "打开终端"
             },
             "runCommand": {
-              "description": "Choose the command for your platform and let the installer bootstrap the gateway and CLI.",
-              "title": "Run the install command"
+              "description": "根据你的平台选择对应命令，让安装器自动引导网关和 CLI。",
+              "title": "运行安装命令"
             },
             "skipOnboarding": {
-              "description": "Use the no-onboard flag when you want to defer dashboard setup until later.",
-              "title": "Skip onboarding"
+              "description": "如果你想稍后再配置控制台，可以使用 no-onboard 标志。",
+              "title": "跳过引导"
             }
           },
-          "title": "Installer script"
+          "title": "安装脚本"
         },
         "docker": {
-          "description": "Deploy the gateway in Docker for a portable, server-friendly installation.",
+          "description": "使用 Docker 部署网关，获得便携且适合服务器的安装方式。",
           "steps": {
             "accessUi": {
-              "description": "Open the dashboard in a browser and finish the initial connection flow.",
+              "description": "在浏览器中打开控制台并完成初始连接流程。",
               "items": {
-                "needUrlAgain": "If you need the URL and token again, run the following command.",
-                "openBrowser": "Open the dashboard at",
-                "pasteToken": "Paste the one-time token shown in the terminal to link your browser session."
+                "needUrlAgain": "如果你需要再次查看 URL 和令牌，请运行下面的命令。",
+                "openBrowser": "在浏览器中打开控制台：",
+                "pasteToken": "将终端中显示的一次性令牌粘贴进去，以关联当前浏览器会话。"
               },
-              "title": "Access the web UI"
+              "title": "访问 Web UI"
             },
             "download": {
-              "description": "Fetch the helper script that prepares the Docker-based gateway deployment.",
-              "title": "Download the setup script"
+              "description": "获取用于准备 Docker 网关部署的辅助脚本。",
+              "title": "下载安装脚本"
             },
             "enableSandbox": {
-              "description": "Set the sandbox flag when you want an additional runtime isolation layer.",
-              "title": "Enable sandbox mode"
+              "description": "如果你需要额外的运行时隔离层，请设置 sandbox 标志。",
+              "title": "启用沙箱模式"
             },
             "run": {
-              "description": "Start the gateway stack and let the script configure the required services.",
-              "title": "Run the Docker setup"
+              "description": "启动网关栈，让脚本配置所需服务。",
+              "title": "运行 Docker 部署"
             }
           },
-          "title": "Docker gateway"
+          "title": "Docker 网关"
         },
         "npm": {
-          "description": "Install the CLI globally when you already manage Node.js on the host.",
+          "description": "如果宿主机已经管理 Node.js 环境，可全局安装 CLI。",
           "steps": {
             "installGlobally": {
-              "description": "Use npm or pnpm to install the latest CLI release.",
-              "pnpmNote": "Run pnpm approve-builds -g if your environment blocks postinstall scripts.",
-              "title": "Install OpenClaw globally",
-              "usingNpm": "Using npm",
-              "usingPnpm": "Using pnpm"
+              "description": "使用 npm 或 pnpm 安装最新 CLI 版本。",
+              "pnpmNote": "如果环境阻止 postinstall 脚本，请运行 pnpm approve-builds -g。",
+              "title": "全局安装 OpenClaw",
+              "usingNpm": "使用 npm",
+              "usingPnpm": "使用 pnpm"
             },
             "runOnboarding": {
-              "description": "Launch onboarding to configure the gateway and local dashboard.",
-              "title": "Run onboarding"
+              "description": "启动引导，配置网关和本地控制台。",
+              "title": "运行引导"
             },
             "troubleshooting": {
-              "description": "If Sharp or other native modules fail to install, retry with the compatibility flag.",
-              "title": "Troubleshoot native dependencies"
+              "description": "如果 Sharp 或其他原生模块安装失败，请带兼容参数重试。",
+              "title": "排查原生依赖"
             },
             "verifyNode": {
-              "description": "Confirm Node.js is available before installing the OpenClaw CLI.",
-              "title": "Verify Node.js"
+              "description": "在安装 OpenClaw CLI 前，先确认 Node.js 可用。",
+              "title": "验证 Node.js"
             }
           },
           "title": "npm / pnpm"
         },
         "cloud": {
-          "description": "Provision a Linux VM when you need a continuously available gateway for remote access.",
+          "description": "当你需要一个持续可用、可远程访问的网关时，请先创建 Linux VM。",
           "steps": {
             "firewall": {
-              "description": "Allow inbound traffic for the dashboard port only if you intend to expose it.",
-              "title": "Open the dashboard port"
+              "description": "只有在你打算对外暴露控制台端口时，才开放入站流量。",
+              "title": "打开控制台端口"
             },
             "provisionOs": {
-              "description": "Start from a clean Ubuntu or Debian host with sudo access and updated packages.",
-              "title": "Provision a supported OS",
-              "warning": "Prefer a fresh VM image so system packages and ports are easy to reason about."
+              "description": "从一个干净的 Ubuntu 或 Debian 主机开始，并确保具备 sudo 权限且软件包已更新。",
+              "title": "准备受支持的操作系统",
+              "warning": "优先选择全新的 VM 镜像，便于推断系统软件包和端口状态。"
             },
             "runInstaller": {
-              "description": "Execute the OpenClaw install script on the server to bootstrap the gateway.",
-              "title": "Run the installer"
+              "description": "在服务器上执行 OpenClaw 安装脚本，引导网关启动。",
+              "title": "运行安装器"
             },
             "ssh": {
-              "description": "SSH into the target server with an administrative account before running the installer.",
-              "title": "Connect over SSH"
+              "description": "在运行安装器前，使用管理员账号 SSH 进入目标服务器。",
+              "title": "通过 SSH 连接"
             }
           },
-          "title": "Cloud deployment"
+          "title": "云端部署"
         },
         "source": {
-          "description": "Use the source workflow when you need to contribute, debug internals, or test local changes.",
+          "description": "当你需要贡献代码、调试内部实现或验证本地改动时，请使用源码流程。",
           "steps": {
             "clone": {
-              "description": "Fetch the source tree and switch into the project directory.",
-              "title": "Clone the repository"
+              "description": "获取源码树并切换到项目目录。",
+              "title": "克隆仓库"
             },
             "installAndBuild": {
-              "description": "Install workspace packages and compile the UI plus runtime artifacts.",
-              "title": "Install dependencies and build"
+              "description": "安装工作区依赖并编译 UI 与运行时产物。",
+              "title": "安装依赖并构建"
             },
             "linkCli": {
-              "description": "Link the built CLI so local shell commands use your development checkout.",
-              "title": "Link the CLI globally"
+              "description": "将构建出的 CLI 链接到全局，让本地 shell 命令使用你的开发分支。",
+              "title": "全局链接 CLI"
             },
             "runOnboarding": {
-              "description": "Start onboarding to validate the source build and configure the local gateway.",
-              "title": "Run onboarding"
+              "description": "启动引导，验证源码构建并配置本地网关。",
+              "title": "运行引导"
             }
           },
-          "title": "Build from source"
+          "title": "从源码构建"
         }
       },
-      "back": "Back to install methods",
+      "back": "返回安装方式",
       "help": {
         "description": {
-          "after": "for live support.",
-          "before": "If something goes wrong, start with the",
-          "discordCommunity": "Discord community",
-          "middle": "or join the",
-          "troubleshootingGuide": "Troubleshooting Guide"
+          "after": "获取实时支持。",
+          "before": "如果遇到问题，请先查看",
+          "discordCommunity": "Discord 社区",
+          "middle": "或加入",
+          "troubleshootingGuide": "故障排查指南"
         },
-        "title": "Need help?"
+        "title": "需要帮助？"
       },
       "notFound": {
-        "back": "Back to install",
-        "title": "Installation method not found"
+        "back": "返回安装",
+        "title": "未找到安装方式"
       },
       "platforms": {
         "macosLinuxWsl": "macOS / Linux / WSL",
         "windowsPowerShell": "Windows PowerShell"
       },
-      "stepByStepGuide": "Step-by-step guide"
+      "stepByStepGuide": "分步指南"
     }
   },
   "market": {
     "actions": {
-      "confirmUninstallSkill": "Uninstall this skill?",
-      "uninstall": "Uninstall"
+      "confirmUninstallSkill": "卸载这个技能？",
+      "uninstall": "卸载"
     },
     "categories": {
-      "aiModels": "AI Models",
-      "all": "All",
-      "development": "Development",
-      "productivity": "Productivity",
-      "system": "System",
-      "utilities": "Utilities"
+      "aiModels": "AI 模型",
+      "all": "全部",
+      "development": "开发",
+      "productivity": "效率",
+      "system": "系统",
+      "utilities": "工具"
     },
     "categoryLabels": {
-      "AI Models": "AI Models",
-      "All": "All",
-      "Development": "Development",
-      "Productivity": "Productivity",
-      "System": "System",
-      "Utilities": "Utilities"
+      "AI Models": "AI 模型",
+      "All": "全部",
+      "Development": "开发",
+      "Productivity": "效率",
+      "System": "系统",
+      "Utilities": "工具"
     },
     "download": {
-      "complete": "Download complete",
-      "failed": "Download failed",
-      "failure": "Failed to download {{name}}",
-      "packSubtitle": "Downloading skill pack files",
-      "skillSubtitle": "Downloading skill files",
-      "started": "Starting download for {{name}}",
-      "success": "{{name}} downloaded successfully",
-      "taskTitle": "Download {{name}}"
+      "complete": "下载完成",
+      "failed": "下载失败",
+      "failure": "下载 {{name}} 失败",
+      "packSubtitle": "正在下载技能包文件",
+      "skillSubtitle": "正在下载技能文件",
+      "started": "开始下载 {{name}}",
+      "success": "{{name}} 下载成功",
+      "taskTitle": "下载 {{name}}"
     },
     "empty": {
-      "installedDescription": "Install a skill from the marketplace to see it here.",
-      "installedTitle": "No installed skills",
-      "packagesDescription": "No skill packs match your filters right now.",
-      "packagesTitle": "No skill packs found",
-      "skillsDescription": "No skills match your filters right now.",
-      "skillsTitle": "No skills found"
+      "installedDescription": "从市场安装一个技能后会显示在这里。",
+      "installedTitle": "暂无已安装技能",
+      "packagesDescription": "当前没有符合筛选条件的技能包。",
+      "packagesTitle": "未找到技能包",
+      "skillsDescription": "当前没有符合筛选条件的技能。",
+      "skillsTitle": "未找到技能"
     },
     "errors": {
-      "invalidSelection": "Select a target instance and at least one skill before continuing.",
-      "noActiveInstance": "Choose an active instance before uninstalling skills.",
-      "noInstanceSelected": "Select at least one instance before installing."
+      "invalidSelection": "继续前请选择目标实例并至少勾选一个技能。",
+      "noActiveInstance": "卸载技能前请选择一个活跃实例。",
+      "noInstanceSelected": "安装前至少选择一个实例。"
     },
     "featured": {
-      "bundleLabel": "Featured bundle",
-      "defaultPackDescription": "A curated starter pack for setting up a capable OpenClaw workspace in minutes.",
-      "defaultPackName": "Starter Team Pack",
-      "editorChoice": "Editor choice",
-      "freeInstallSummary": "{{downloads}} installs and growing",
-      "getBundle": "Get bundle",
-      "packAlt": "Featured skill pack cover",
-      "setupLabel": "Quick setup"
+      "bundleLabel": "精选套装",
+      "defaultPackDescription": "几分钟内即可为 OpenClaw 工作区完成能力搭建的精选入门套装。",
+      "defaultPackName": "入门团队套装",
+      "editorChoice": "编辑精选",
+      "freeInstallSummary": "{{downloads}} 次安装且仍在增长",
+      "getBundle": "获取套装",
+      "packAlt": "精选技能包封面",
+      "setupLabel": "快速上手"
     },
     "labels": {
-      "installCount": "{{count, number}} installs",
-      "installed": "Installed",
-      "sdkworkOfficial": "SDKWork Official",
-      "version": "Version {{value}}"
+      "installCount": "{{count, number}} 次安装",
+      "installed": "已安装",
+      "sdkworkOfficial": "SDKWork 官方",
+      "version": "版本 {{value}}"
     },
     "modals": {
       "installPack": {
-        "confirm": "Install pack",
-        "includedSkills": "Included skills",
-        "installing": "Installing...",
-        "subtitle": "Install every included skill on the selected instances.",
-        "title": "Install skill pack"
+        "confirm": "安装技能包",
+        "includedSkills": "包含技能",
+        "installing": "安装中...",
+        "subtitle": "在所选实例上安装该包中的全部技能。",
+        "title": "安装技能包"
       },
       "installSkill": {
-        "confirm": "Install skill",
-        "installing": "Installing...",
-        "title": "Install skill"
+        "confirm": "安装技能",
+        "installing": "安装中...",
+        "title": "安装技能"
       },
       "noInstances": {
-        "description": "Create or connect an instance before installing from the marketplace.",
-        "title": "No instances available"
+        "description": "从市场安装前，请先创建或连接一个实例。",
+        "title": "暂无可用实例"
       },
-      "selectTargetInstances": "Select target instances"
+      "selectTargetInstances": "选择目标实例"
     },
     "page": {
-      "title": "Marketplace"
+      "title": "市场"
     },
     "search": {
       "placeholders": {
-        "packages": "Search skill packs, authors, or categories...",
-        "skills": "Search skills, authors, or categories..."
+        "packages": "搜索技能包、作者或分类...",
+        "skills": "搜索技能、作者或分类..."
       }
     },
     "sections": {
-      "myInstalledSkills": "My installed skills",
-      "sdkworkOfficialSkills": "SDKWork official skills",
-      "topFreeSkills": "Top free skills",
-      "trendingBundles": "Trending bundles"
+      "myInstalledSkills": "我已安装的技能",
+      "sdkworkOfficialSkills": "SDKWork 官方技能",
+      "topFreeSkills": "热门免费技能",
+      "trendingBundles": "趋势套装"
     },
     "status": {
-      "offline": "Offline",
-      "online": "Online"
+      "offline": "离线",
+      "online": "在线"
     },
     "tabs": {
-      "mySkills": "My Skills",
-      "packages": "Packs",
+      "mySkills": "我的技能",
+      "packages": "套装",
       "sdkwork": "SDKWork",
-      "skills": "Skills"
+      "skills": "技能"
     },
     "toast": {
-      "installationFailed": "Installation failed",
-      "installationStarted": "Installation queued",
-      "installationStartedDescription": "{{name}} is being installed on the selected instances.",
-      "packInstallationCountDescription": "Installing {{count, number}} skills from this pack.",
-      "packInstallationStarted": "Pack installation queued",
-      "packInstallationStartedDescription": "{{name}} is being installed on the selected instances.",
-      "skillUninstalled": "Skill uninstalled",
-      "uninstallFailed": "Failed to uninstall skill"
+      "installationFailed": "安装失败",
+      "installationStarted": "已加入安装队列",
+      "installationStartedDescription": "{{name}} 正在安装到所选实例。",
+      "packInstallationCountDescription": "正在从该套装安装 {{count, number}} 个技能。",
+      "packInstallationStarted": "套装安装已加入队列",
+      "packInstallationStartedDescription": "{{name}} 正在安装到所选实例。",
+      "skillUninstalled": "技能已卸载",
+      "uninstallFailed": "卸载技能失败"
     },
     "skillDetail": {
       "actions": {
-        "downloadToLocal": "Download to local",
-        "getSkill": "Get skill",
-        "share": "Share"
+        "downloadToLocal": "下载到本地",
+        "getSkill": "获取技能",
+        "share": "分享"
       },
-      "backToMarket": "Back to marketplace",
+      "backToMarket": "返回市场",
       "information": {
-        "category": "Category",
-        "compatibility": "Compatibility",
-        "compatibilityValue": "OpenClaw gateway 1.0+",
-        "provider": "Provider",
-        "size": "Size",
-        "title": "Skill information",
-        "version": "Version"
+        "category": "分类",
+        "compatibility": "兼容性",
+        "compatibilityValue": "OpenClaw 网关 1.0+",
+        "provider": "提供方",
+        "size": "大小",
+        "title": "技能信息",
+        "version": "版本"
       },
       "links": {
-        "developerWebsite": "Developer website",
-        "privacyPolicy": "Privacy policy",
-        "sourceCode": "Source code"
+        "developerWebsite": "开发者网站",
+        "privacyPolicy": "隐私政策",
+        "sourceCode": "源代码"
       },
-      "mediaPreviewUnavailable": "Preview unavailable",
+      "mediaPreviewUnavailable": "预览不可用",
       "metrics": {
-        "installs": "{{count, number}} installs",
-        "ratings": "{{count, number}} reviews"
+        "installs": "{{count, number}} 次安装",
+        "ratings": "{{count, number}} 条评价"
       },
-      "noReviewsDescription": "Be the first to leave a review for this skill.",
-      "noReviewsTitle": "No reviews yet",
-      "notFoundTitle": "Skill not found",
+      "noReviewsDescription": "成为第一个为这个技能留下评价的人。",
+      "noReviewsTitle": "暂无评价",
+      "notFoundTitle": "未找到技能",
       "repository": {
-        "badge": "Recommended",
-        "description": "Choose which repository to use when installing or updating this skill.",
+        "badge": "推荐",
+        "description": "选择安装或更新该技能时要使用的仓库来源。",
         "options": {
           "custom": {
-            "description": "Point to a self-hosted or private repository URL.",
-            "title": "Custom repository"
+            "description": "指向自托管或私有仓库 URL。",
+            "title": "自定义仓库"
           },
           "official": {
-            "description": "Use the official SDKWork repository recommended for most teams.",
-            "title": "Official repository"
+            "description": "使用适合大多数团队的 SDKWork 官方仓库。",
+            "title": "官方仓库"
           },
           "tencent": {
-            "description": "Use the Tencent mirror when you need faster regional access.",
-            "title": "Tencent mirror"
+            "description": "当你需要更快的区域访问速度时使用腾讯镜像。",
+            "title": "腾讯镜像"
           }
         },
-        "title": "Repository source"
+        "title": "仓库来源"
       },
-      "returnToMarket": "Return to marketplace",
+      "returnToMarket": "返回市场",
       "tabs": {
-        "overview": "Overview",
-        "reviews": "Reviews"
+        "overview": "概览",
+        "reviews": "评价"
       }
     },
     "skillPackDetail": {
-      "aboutTitle": "About this pack",
+      "aboutTitle": "关于这个套装",
       "actions": {
-        "deselectAll": "Deselect all",
-        "installPack": "Install pack",
-        "selectAll": "Select all",
-        "viewSkill": "View skill"
+        "deselectAll": "取消全选",
+        "installPack": "安装技能包",
+        "selectAll": "全选",
+        "viewSkill": "查看技能"
       },
-      "backToMarket": "Back to marketplace",
-      "badge": "Skill Pack",
+      "backToMarket": "返回市场",
+      "badge": "技能包",
       "information": {
-        "category": "Category",
-        "compatibility": "Compatibility",
-        "compatibilityValue": "OpenClaw gateway 1.0+",
-        "provider": "Provider",
-        "title": "Pack information",
-        "totalSkills": "Total skills"
+        "category": "分类",
+        "compatibility": "兼容性",
+        "compatibilityValue": "OpenClaw 网关 1.0+",
+        "provider": "提供方",
+        "title": "套装信息",
+        "totalSkills": "技能总数"
       },
-      "installationTitle": "Installation",
+      "installationTitle": "安装",
       "metrics": {
-        "installs": "{{count, number}} installs"
+        "installs": "{{count, number}} 次安装"
       },
-      "notFoundTitle": "Skill pack not found",
-      "returnToMarket": "Return to marketplace",
-      "selectSkillsTitle": "Select skills",
-      "selectedSkills": "Selected skills",
-      "targetInstance": "Target instance"
+      "notFoundTitle": "未找到技能包",
+      "returnToMarket": "返回市场",
+      "selectSkillsTitle": "选择技能",
+      "selectedSkills": "已选技能",
+      "targetInstance": "目标实例"
     }
   },
   "apiRouterWorkspace": {
     "eyebrow": "路由商业区",
-    "title": "API Router 工作区",
-    "description": "在不新增顶级路由的前提下，把路由运维和模型采购整合到同一个 API Router 工作区中。",
+    "title": "API 路由工作区",
+    "description": "在不新增顶级路由的前提下，把路由运维和模型采购整合到同一个 API 路由工作区中。",
     "tabs": {
       "routerConsole": "路由控制台",
       "modelPurchase": "模型购买"

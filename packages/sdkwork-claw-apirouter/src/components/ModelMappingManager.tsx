@@ -19,6 +19,12 @@ export function ModelMappingManager() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const normalizedKeyword = deferredSearchQuery.trim();
 
+  function resolveMutationErrorMessage(error: unknown, fallbackMessage: string) {
+    return error instanceof Error && error.message.trim()
+      ? error.message
+      : fallbackMessage;
+  }
+
   const { data: modelCatalog = [] } = useQuery({
     queryKey: ['api-router', 'model-mapping-catalog'],
     queryFn: () => modelMappingService.getModelCatalog(),
@@ -50,6 +56,11 @@ export function ModelMappingManager() {
       });
       await refreshModelMappingData();
     },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.modelMapping.toast.validationFailed')),
+      );
+    },
   });
 
   const updateMutation = useMutation({
@@ -60,6 +71,11 @@ export function ModelMappingManager() {
       setEditingItem(null);
       await refreshModelMappingData();
     },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.modelMapping.toast.validationFailed')),
+      );
+    },
   });
 
   const updateStatusMutation = useMutation({
@@ -68,6 +84,11 @@ export function ModelMappingManager() {
     onSuccess: async () => {
       toast.success(t('apiRouterPage.modelMapping.toast.statusUpdated'));
       await refreshModelMappingData();
+    },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.modelMapping.toast.validationFailed')),
+      );
     },
   });
 
@@ -82,6 +103,11 @@ export function ModelMappingManager() {
         setEditingItem(null);
       }
       await refreshModelMappingData();
+    },
+    onError: (error) => {
+      toast.error(
+        resolveMutationErrorMessage(error, t('apiRouterPage.modelMapping.toast.validationFailed')),
+      );
     },
   });
 

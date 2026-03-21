@@ -12,9 +12,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { Account } from '@sdkwork/claw-account';
-import { useLocalizedText } from '@sdkwork/claw-i18n';
 import { Input } from '@sdkwork/claw-ui';
 import { AccountSettings } from './AccountSettings';
 import { ApiKeysSettings } from './ApiKeysSettings';
@@ -28,18 +28,18 @@ import { SecuritySettings } from './SecuritySettings';
 export function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
-  const { text } = useLocalizedText();
+  const { t } = useTranslation();
 
   const settingsTabs = [
-    { id: 'general', label: text('General', '\u901a\u7528'), icon: Monitor },
-    { id: 'llm', label: text('LLM Configuration', 'LLM \u914d\u7f6e'), icon: Sparkles },
-    { id: 'billing', label: text('Billing & Usage', '\u8d26\u5355\u4e0e\u7528\u91cf'), icon: Receipt },
-    { id: 'wallet', label: text('Account', '\u8d26\u6237'), icon: Wallet },
-    { id: 'account', label: text('Profile Settings', '\u4e2a\u4eba\u8d44\u6599\u8bbe\u7f6e'), icon: User },
-    { id: 'notifications', label: text('Notifications', '\u901a\u77e5'), icon: Bell },
-    { id: 'security', label: text('Security', '\u5b89\u5168'), icon: Shield },
-    { id: 'api', label: text('API Keys', 'API \u5bc6\u94a5'), icon: Key },
-    { id: 'data', label: text('Data & Privacy', '\u6570\u636e\u4e0e\u9690\u79c1'), icon: Database },
+    { id: 'general', label: t('settings.tabs.general'), icon: Monitor },
+    { id: 'llm', label: t('settings.tabs.llm'), icon: Sparkles },
+    { id: 'billing', label: t('settings.tabs.billing'), icon: Receipt },
+    { id: 'wallet', label: t('settings.tabs.wallet'), icon: Wallet },
+    { id: 'account', label: t('settings.tabs.account'), icon: User },
+    { id: 'notifications', label: t('settings.tabs.notifications'), icon: Bell },
+    { id: 'security', label: t('settings.tabs.security'), icon: Shield },
+    { id: 'api', label: t('settings.tabs.api'), icon: Key },
+    { id: 'data', label: t('settings.tabs.data'), icon: Database },
   ];
 
   const requestedTab = searchParams.get('tab');
@@ -54,13 +54,13 @@ export function Settings() {
       <div className="flex w-72 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50/80 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="p-6 pb-4">
           <h1 className="mb-6 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {text('Settings', '\u8bbe\u7f6e')}
+            {t('settings.page.title')}
           </h1>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
             <Input
               type="text"
-              placeholder={text('Search settings...', '\u641c\u7d22\u8bbe\u7f6e...')}
+              placeholder={t('settings.page.searchPlaceholder')}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               className="py-2.5 pl-9 pr-4 text-[13px]"
@@ -103,7 +103,7 @@ export function Settings() {
             })
           ) : (
             <div className="px-3 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              {text('No settings found.', '\u672a\u627e\u5230\u5339\u914d\u7684\u8bbe\u7f6e\u9879\u3002')}
+              {t('settings.page.empty')}
             </div>
           )}
         </nav>

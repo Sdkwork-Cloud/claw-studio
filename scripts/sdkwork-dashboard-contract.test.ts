@@ -169,16 +169,22 @@ runTest('sdkwork-claw-dashboard token trend chart tolerates missing series input
 runTest('sdkwork-claw-dashboard token trend chart uses the available card width more aggressively', () => {
   const pageSource = read('packages/sdkwork-claw-dashboard/src/pages/Dashboard.tsx');
   const chartSource = read('packages/sdkwork-claw-dashboard/src/components/TokenTrendChart.tsx');
+  const revenueChartSource = read('packages/sdkwork-claw-dashboard/src/components/RevenueTrendChart.tsx');
 
   assert.doesNotMatch(
     pageSource,
     /rounded-\[1\.6rem\] border border-zinc-200\/70 bg-white\/70 p-4[\s\S]*<TokenTrendChart/,
   );
   assert.match(chartSource, /new ResizeObserver/);
-  assert.match(chartSource, /const chartPaddingX = 16;/);
-  assert.match(chartSource, /const yAxisLabelWidth = 36;/);
+  assert.match(chartSource, /const width = Math\.max\(chartWidth, 320\);/);
+  assert.match(revenueChartSource, /const width = Math\.max\(chartWidth, 320\);/);
+  assert.match(chartSource, /const chartPaddingX = width < 520 \? 12 : 16;/);
+  assert.match(revenueChartSource, /const chartPaddingX = width < 520 \? 12 : 16;/);
   assert.match(chartSource, /const plotLeft = chartPaddingX \+ yAxisLabelWidth;/);
-  assert.match(chartSource, /className="h-\[22rem\] w-full"/);
+  assert.match(chartSource, /const targetXAxisLabelCount = width < 520 \? 4 : width < 760 \? 6 : 8;/);
+  assert.match(revenueChartSource, /const targetXAxisLabelCount = width < 520 \? 4 : width < 760 \? 6 : 8;/);
+  assert.match(chartSource, /className="h-\[20rem\] w-full sm:h-\[22rem\]"/);
+  assert.match(revenueChartSource, /className="h-\[20rem\] w-full sm:h-\[22rem\]"/);
   assert.doesNotMatch(chartSource, /w-\[calc\(100%\+1rem\)\]/);
 });
 
@@ -194,12 +200,30 @@ runTest('sdkwork-claw-dashboard keeps advanced time-range configuration inside a
   assert.doesNotMatch(chartSource, /\{controls\.rangeMode === 'custom' \? \(/);
 });
 
-runTest('sdkwork-claw-dashboard keeps chart filter controls aligned in a single desktop row', () => {
+runTest('sdkwork-claw-dashboard lets chart filters wrap on tablet widths before locking into a desktop row', () => {
   const chartSource = read('packages/sdkwork-claw-dashboard/src/components/TokenTrendChart.tsx');
 
-  assert.match(chartSource, /sm:flex-row sm:flex-nowrap sm:items-end/);
+  assert.match(chartSource, /sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap/);
+  assert.match(chartSource, /sm:min-w-\[11rem\] sm:flex-1 xl:w-44 xl:flex-none/);
+  assert.match(chartSource, /sm:min-w-\[14rem\] sm:flex-1 xl:w-56 xl:flex-none/);
   assert.match(chartSource, /SelectTrigger className="mt-2 h-11 w-full rounded-2xl/);
   assert.match(chartSource, /className="mt-2 h-11 w-full justify-between rounded-2xl/);
   assert.doesNotMatch(chartSource, /SelectTrigger className="mt-2 h-auto/);
   assert.doesNotMatch(chartSource, /className="mt-2 h-auto w-full items-center justify-between/);
+});
+
+runTest('sdkwork-claw-dashboard prefers reflow over text compression at intermediate viewport widths', () => {
+  const pageSource = read('packages/sdkwork-claw-dashboard/src/pages/Dashboard.tsx');
+  const summaryCardSource = read('packages/sdkwork-claw-dashboard/src/components/DashboardSummaryCard.tsx');
+  const sectionHeaderSource = read('packages/sdkwork-claw-dashboard/src/components/SectionHeader.tsx');
+  const ringChartSource = read('packages/sdkwork-claw-dashboard/src/components/DistributionRingChart.tsx');
+
+  assert.match(pageSource, /xl:grid-cols-2 2xl:grid-cols-3/);
+  assert.match(pageSource, /sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2/);
+  assert.match(pageSource, /grid gap-6 2xl:grid-cols-\[1\.35fr_0\.95fr\]/);
+  assert.match(pageSource, /mt-6 grid gap-5 xl:grid-cols-\[minmax\(16rem,0\.82fr\)_minmax\(0,1\.18fr\)\]/);
+  assert.match(summaryCardSource, /min-w-0 relative overflow-hidden/);
+  assert.match(summaryCardSource, /flex-col gap-4 sm:flex-row/);
+  assert.match(sectionHeaderSource, /lg:flex-row lg:items-end lg:justify-between/);
+  assert.match(ringChartSource, /className="h-auto w-full max-w-\[15rem\]"/);
 });

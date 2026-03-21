@@ -1,5 +1,7 @@
 packages:
   - 'packages/sdkwork-claw-*'
+  - '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript'
+  - '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript'
 
 ignoredBuiltDependencies:
   - esbuild

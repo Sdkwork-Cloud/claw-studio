@@ -43,6 +43,7 @@ import {
   buildEditProviderFormState,
   buildProviderAccessClientConfigs,
   createEmptyProviderFormState,
+  normalizeProviderEditFormState,
   normalizeProviderFormState,
   providerAccessApplyService,
   removeProviderFormModel,
@@ -87,6 +88,7 @@ function buildCurlExample(provider: ProxyProvider) {
 
 function ProviderUsageDefaultPanel({ provider }: { provider: ProxyProvider }) {
   const { t } = useTranslation();
+  const canRevealSecret = provider.canCopyApiKey !== false && Boolean(provider.apiKey);
 
   return (
     <div className="space-y-5">
@@ -106,7 +108,9 @@ function ProviderUsageDefaultPanel({ provider }: { provider: ProxyProvider }) {
             {t('apiRouterPage.detail.authHeader')}
           </div>
           <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
-            {`Authorization: Bearer ${provider.apiKey}`}
+            {canRevealSecret
+              ? `Authorization: Bearer ${provider.apiKey}`
+              : t('apiRouterPage.detail.secretUnavailable')}
           </div>
         </div>
       </div>
@@ -135,9 +139,15 @@ function ProviderUsageDefaultPanel({ provider }: { provider: ProxyProvider }) {
         <div className="text-sm font-semibold text-zinc-100">
           {t('apiRouterPage.dialogs.exampleRequest')}
         </div>
-        <pre className="mt-4 overflow-x-auto text-sm leading-6 text-zinc-300">
-          <code>{buildCurlExample(provider)}</code>
-        </pre>
+        {canRevealSecret ? (
+          <pre className="mt-4 overflow-x-auto text-sm leading-6 text-zinc-300">
+            <code>{buildCurlExample(provider)}</code>
+          </pre>
+        ) : (
+          <p className="mt-4 text-sm leading-6 text-zinc-300">
+            {t('apiRouterPage.detail.secretUnavailable')}
+          </p>
+        )}
       </div>
 
       {provider.notes ? (
@@ -287,12 +297,14 @@ function ProxyProviderForm({
   groups,
   onChange,
   onSubmit,
+  apiKeyHint,
   submitLabel,
 }: {
   formState: ProxyProviderFormState;
   groups: ProxyProviderGroup[];
   onChange: (updater: (previous: ProxyProviderFormState) => ProxyProviderFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  apiKeyHint: string;
   submitLabel: string;
 }) {
   const { t } = useTranslation();
@@ -354,7 +366,7 @@ function ProxyProviderForm({
               }
             />
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t('apiRouterPage.fields.apiKeyHint')}
+              {apiKeyHint}
             </p>
           </div>
 
@@ -671,6 +683,7 @@ export function ProxyProviderDialogs({
               title={usageProvider.name}
               subtitle={usageProvider.baseUrl}
               copyLabel={t('apiRouterPage.actions.copyKey')}
+              copyDisabled={usageProvider.canCopyApiKey === false || !usageProvider.apiKey}
               onCopy={() => onCopyApiKey(usageProvider)}
             />
 
@@ -755,6 +768,7 @@ export function ProxyProviderDialogs({
                 notes: normalized.notes || undefined,
               });
             }}
+            apiKeyHint={t('apiRouterPage.fields.apiKeyHint')}
             submitLabel={t('apiRouterPage.dialogs.create')}
           />
         ) : null}
@@ -773,10 +787,10 @@ export function ProxyProviderDialogs({
             onChange={(updater) => setEditFormState((previous) => updater(previous))}
             onSubmit={(event) => {
               event.preventDefault();
-              const normalized = normalizeProviderFormState(editFormState);
+              const normalized = normalizeProviderEditFormState(editFormState);
 
               if (!normalized) {
-                toast.error(t('apiRouterPage.toast.validationFailed'));
+                toast.error(t('apiRouterPage.toast.validationFailedEdit'));
                 return;
               }
 
@@ -790,6 +804,7 @@ export function ProxyProviderDialogs({
                 notes: normalized.notes,
               });
             }}
+            apiKeyHint={t('apiRouterPage.fields.apiKeyEditHint')}
             submitLabel={t('apiRouterPage.dialogs.save')}
           />
         ) : null}

@@ -187,11 +187,13 @@ export function ApiRouterUsageHeaderCard({
   title,
   subtitle,
   copyLabel,
+  copyDisabled = false,
   onCopy,
 }: {
   title: string;
   subtitle: string;
   copyLabel: string;
+  copyDisabled?: boolean;
   onCopy: () => void;
 }) {
   return (
@@ -201,7 +203,7 @@ export function ApiRouterUsageHeaderCard({
           <h3 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">{title}</h3>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={onCopy}>
+        <Button type="button" variant="outline" size="sm" disabled={copyDisabled} onClick={onCopy}>
           <Copy className="h-4 w-4" />
           {copyLabel}
         </Button>

@@ -69,15 +69,24 @@ export interface MockTask {
     scheduledDate?: string;
     scheduledTime?: string;
     cronExpression?: string;
+    cronTimezone?: string;
+    staggerMs?: number;
   };
   cronExpression?: string;
   actionType: 'message' | 'skill';
   status: 'active' | 'paused' | 'failed';
-  sessionMode: 'isolated' | 'main';
+  sessionMode: 'isolated' | 'main' | 'current' | 'custom';
+  customSessionId?: string;
   wakeUpMode: 'immediate' | 'nextCycle';
   executionContent: 'runAssistantTask' | 'sendPromptMessage';
   timeoutSeconds?: number;
-  deliveryMode: 'publishSummary' | 'none';
+  deleteAfterRun?: boolean;
+  agentId?: string;
+  model?: string;
+  thinking?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  lightContext?: boolean;
+  deliveryMode: 'publishSummary' | 'webhook' | 'none';
+  deliveryBestEffort?: boolean;
   deliveryChannel?: string;
   recipient?: string;
   lastRun?: string;
@@ -3420,6 +3429,8 @@ function buildTaskExecutionSummary(task: MockTask, trigger: MockTaskExecutionHis
   const deliveryLabel =
     task.deliveryMode === 'publishSummary'
       ? `Delivered via ${task.deliveryChannel || 'default channel'}`
+      : task.deliveryMode === 'webhook'
+        ? `Webhook delivery to ${task.recipient || 'unconfigured webhook'}${task.deliveryBestEffort ? ' (best effort)' : ''}`
       : 'No delivery configured';
 
   return {

@@ -103,6 +103,10 @@ export const studio: StudioPlatformAPI = {
   getInstanceConfig: (id) => platformBridge.studio.getInstanceConfig(id),
   updateInstanceConfig: (id, config) => platformBridge.studio.updateInstanceConfig(id, config),
   getInstanceLogs: (id) => platformBridge.studio.getInstanceLogs(id),
+  createInstanceTask: (instanceId, payload) =>
+    platformBridge.studio.createInstanceTask(instanceId, payload),
+  updateInstanceTask: (instanceId, taskId, payload) =>
+    platformBridge.studio.updateInstanceTask(instanceId, taskId, payload),
   cloneInstanceTask: (instanceId, taskId, name) =>
     platformBridge.studio.cloneInstanceTask(instanceId, taskId, name),
   runInstanceTaskNow: (instanceId, taskId) =>

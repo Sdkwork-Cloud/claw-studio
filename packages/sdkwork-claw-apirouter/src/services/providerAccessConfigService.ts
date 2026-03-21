@@ -17,7 +17,8 @@ export type ProviderAccessUnavailableReason =
   | 'requiresAnthropicCompatible'
   | 'requiresOpenAIOrAnthropicCompatible'
   | 'requiresGeminiCompatible'
-  | 'requiresGoogleIssuedGeminiKey';
+  | 'requiresGoogleIssuedGeminiKey'
+  | 'requiresOneTimeKeyReveal';
 
 export interface ProviderAccessSnippet {
   id: string;
@@ -171,6 +172,24 @@ function resolveCompatibility(provider: ProxyProvider): ProviderAccessCompatibil
   }
 
   return 'unsupported';
+}
+
+function hasReusableProviderSecret(provider: ProxyProvider) {
+  return provider.canCopyApiKey !== false && Boolean(provider.apiKey.trim());
+}
+
+function buildOneTimeRevealRequiredConfig(
+  clientId: ProviderAccessClientId,
+  compatibility: ProviderAccessCompatibility,
+): ProviderAccessClientConfig {
+  return {
+    id: clientId,
+    compatibility,
+    available: false,
+    reason: 'requiresOneTimeKeyReveal',
+    install: buildUnavailableInstallConfig(),
+    snippets: [],
+  };
 }
 
 function buildOpenAIEnvironmentVariables(provider: ProxyProvider): ProviderAccessEnvironmentVariable[] {
@@ -544,6 +563,11 @@ export function buildProviderAccessClientConfigById(
   clientId: ProviderAccessClientId,
   provider: ProxyProvider,
 ): ProviderAccessClientConfig {
+  const compatibility = resolveCompatibility(provider);
+  if (!hasReusableProviderSecret(provider)) {
+    return buildOneTimeRevealRequiredConfig(clientId, compatibility);
+  }
+
   switch (clientId) {
     case 'codex':
       return buildCodexConfig(provider);

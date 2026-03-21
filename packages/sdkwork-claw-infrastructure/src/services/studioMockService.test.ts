@@ -111,6 +111,38 @@ await runTest('tasks can be updated, cloned, run immediately, and queried for ex
   assert.equal(history[0]?.taskId, created.id);
 });
 
+await runTest('webhook cron tasks keep their advanced delivery metadata in mock execution history', async () => {
+  const service = createStudioMockService();
+
+  const created = await service.createTask('local-built-in', {
+    ...createTaskPayload({
+      name: 'Webhook delivery task',
+      sessionMode: 'custom',
+      customSessionId: 'project-alpha-monitor',
+      deleteAfterRun: true,
+      agentId: 'ops',
+      model: 'openai/gpt-5.4',
+      thinking: 'high',
+      lightContext: true,
+      deliveryMode: 'webhook',
+      deliveryBestEffort: true,
+      deliveryChannel: undefined,
+      recipient: 'https://hooks.example.com/openclaw/cron',
+      scheduleConfig: {
+        cronExpression: '0 7 * * *',
+        cronTimezone: 'Asia/Shanghai',
+        staggerMs: 30000,
+      },
+    }),
+  });
+
+  const run = await service.runTaskNow(created.id);
+
+  assert.ok(run?.details?.includes('Webhook'));
+  assert.ok(run?.details?.includes('https://hooks.example.com/openclaw/cron'));
+  assert.ok(run?.details?.includes('Session: custom'));
+});
+
 await runTest('instance file edits persist and can be reloaded from the runtime file store', async () => {
   const service = createStudioMockService();
 

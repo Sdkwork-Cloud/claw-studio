@@ -1,6 +1,7 @@
-function delay(ms = 300) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import {
+  getAppSdkClientWithSession,
+  unwrapAppSdkResponse,
+} from '@sdkwork/claw-core/sdk';
 
 export interface Transaction {
   id: string;
@@ -24,144 +25,127 @@ export interface AccountService {
   withdraw(amount: number, destination: string): Promise<Transaction>;
 }
 
-const SEEDED_TRANSACTIONS: Transaction[] = [
-  {
-    id: '1',
-    type: 'income',
-    amount: 150,
-    desc: 'Data Processing Service - Client A',
-    date: new Date(Date.now() - 86400000).toISOString(),
-    status: 'completed',
-  },
-  {
-    id: '2',
-    type: 'expense',
-    amount: 20,
-    desc: 'API Usage Fee - OpenAI',
-    date: new Date(Date.now() - 86400000 * 2).toISOString(),
-    status: 'completed',
-  },
-  {
-    id: '3',
-    type: 'income',
-    amount: 300,
-    desc: 'Content Generation - Project X',
-    date: new Date(Date.now() - 86400000 * 3).toISOString(),
-    status: 'completed',
-  },
-  {
-    id: '4',
-    type: 'recharge',
-    amount: 500,
-    desc: 'Wallet Top-up',
-    date: new Date(Date.now() - 86400000 * 6).toISOString(),
-    status: 'completed',
-  },
-  {
-    id: '5',
-    type: 'withdraw',
-    amount: 100,
-    desc: 'Withdrawal to Bank Account',
-    date: new Date(Date.now() - 86400000 * 10).toISOString(),
-    status: 'pending',
-  },
-];
+function toNumber(value: number | string | undefined, fallback = 0) {
+  if (typeof value === 'number') {
+    return value;
+  }
 
-export function createAccountService(
-  seedTransactions: Transaction[] = SEEDED_TRANSACTIONS,
-  startingBalance = 1250.5,
-): AccountService {
-  const transactions = [...seedTransactions];
-  let balance = startingBalance;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
 
+  return fallback;
+}
+
+function resolveTransactionType(transactionType?: string): Transaction['type'] {
+  const normalized = transactionType?.toUpperCase() || '';
+  if (normalized.includes('RECHARGE') || normalized.includes('TOPUP')) {
+    return 'recharge';
+  }
+  if (normalized.includes('WITHDRAW')) {
+    return 'withdraw';
+  }
+  if (normalized.includes('PAY') || normalized.includes('EXPENSE') || normalized.includes('CONSUME')) {
+    return 'expense';
+  }
+  return 'income';
+}
+
+function resolveTransactionStatus(status?: string): Transaction['status'] {
+  const normalized = status?.toUpperCase() || '';
+  if (normalized === 'SUCCESS' || normalized === 'COMPLETED') {
+    return 'completed';
+  }
+  if (normalized === 'FAILED') {
+    return 'failed';
+  }
+  return 'pending';
+}
+
+function createTransactionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `txn-${Date.now()}`;
+}
+
+export function createAccountService(): AccountService {
   return {
     async getSummary() {
-      await delay(500);
-
-      const currentMonth = new Date().getMonth();
-      let totalIncome = 0;
-      let totalExpense = 0;
-
-      for (const transaction of transactions) {
-        if (
-          new Date(transaction.date).getMonth() !== currentMonth ||
-          transaction.status !== 'completed'
-        ) {
-          continue;
-        }
-
-        if (transaction.type === 'income') {
-          totalIncome += transaction.amount;
-        }
-        if (transaction.type === 'expense') {
-          totalExpense += transaction.amount;
-        }
-      }
+      const client = getAppSdkClientWithSession();
+      const [summaryResponse, cashAccountResponse] = await Promise.all([
+        client.account.getAccountSummary(),
+        client.account.getCash(),
+      ]);
+      const summary = unwrapAppSdkResponse(summaryResponse);
+      const cashAccount = unwrapAppSdkResponse(cashAccountResponse);
 
       return {
-        balance,
-        totalIncome: totalIncome || 450,
-        totalExpense: totalExpense || 20,
+        balance: toNumber(cashAccount.availableBalance, toNumber(summary.cashAvailable)),
+        totalIncome: toNumber(cashAccount.totalRecharged),
+        totalExpense: toNumber(cashAccount.totalSpent, toNumber(cashAccount.totalWithdrawn)),
       };
     },
 
     async getTransactions(filter = 'all') {
-      await delay(500);
+      const client = getAppSdkClientWithSession();
+      const history = unwrapAppSdkResponse(await client.account.getHistoryCash());
+      const items = (history.content ?? []).map((item) => ({
+        id: item.historyId || item.transactionId || createTransactionId(),
+        type: resolveTransactionType(item.transactionType),
+        amount: Math.abs(toNumber(item.amount)),
+        desc: item.remarks || item.transactionTypeName || item.transactionType || 'Transaction',
+        date: item.createdAt || new Date().toISOString(),
+        status: resolveTransactionStatus(item.status),
+      }));
 
-      let filtered = transactions;
-      if (filter === 'income') {
-        filtered = transactions.filter(
-          (transaction) =>
-            transaction.type === 'income' || transaction.type === 'recharge',
-        );
-      } else if (filter === 'expense') {
-        filtered = transactions.filter(
-          (transaction) =>
-            transaction.type === 'expense' || transaction.type === 'withdraw',
-        );
-      }
-
-      return [...filtered].sort(
-        (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime(),
-      );
+      return items.filter((item) => {
+        if (filter === 'income') {
+          return item.type === 'income' || item.type === 'recharge';
+        }
+        if (filter === 'expense') {
+          return item.type === 'expense' || item.type === 'withdraw';
+        }
+        return true;
+      });
     },
 
     async recharge(amount, method) {
-      await delay(1000);
+      const client = getAppSdkClientWithSession();
+      const result = unwrapAppSdkResponse(await client.account.recharge({
+        amount,
+        paymentMethod: method,
+        remarks: `Wallet Top-up via ${method}`,
+      }));
 
-      const transaction: Transaction = {
-        id: Math.random().toString(36).slice(2, 9),
+      return {
+        id: result.transactionId || createTransactionId(),
         type: 'recharge',
         amount,
         desc: `Wallet Top-up via ${method}`,
         date: new Date().toISOString(),
-        status: 'completed',
+        status: resolveTransactionStatus(result.status),
       };
-
-      transactions.unshift(transaction);
-      balance += amount;
-      return transaction;
     },
 
     async withdraw(amount, destination) {
-      await delay(1000);
+      const client = getAppSdkClientWithSession();
+      const result = unwrapAppSdkResponse(await client.account.withdraw({
+        amount,
+        withdrawMethod: destination,
+        remarks: `Withdrawal to ${destination}`,
+      }));
 
-      if (amount > balance) {
-        throw new Error('Insufficient balance');
-      }
-
-      const transaction: Transaction = {
-        id: Math.random().toString(36).slice(2, 9),
+      return {
+        id: result.transactionId || createTransactionId(),
         type: 'withdraw',
         amount,
         desc: `Withdrawal to ${destination}`,
         date: new Date().toISOString(),
-        status: 'pending',
+        status: resolveTransactionStatus(result.status),
       };
-
-      transactions.unshift(transaction);
-      balance -= amount;
-      return transaction;
     },
   };
 }

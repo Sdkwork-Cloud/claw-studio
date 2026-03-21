@@ -295,3 +295,55 @@ await runTest('sdkwork-claw-chat resolves runtime chat routes for multiple claw 
   assert.equal(customWebSocketRoute.websocketUrl, 'wss://custom.example.com/ws');
   assert.equal(resolveInstanceChatRoute(null).mode, 'directLlm');
 });
+
+await runTest('sdkwork-claw-chat reflows chrome before text gets squeezed on smaller screens', () => {
+  const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
+  const chatSidebarSource = read('packages/sdkwork-claw-chat/src/components/ChatSidebar.tsx');
+  const chatInputSource = read('packages/sdkwork-claw-chat/src/components/ChatInput.tsx');
+  const chatMessageSource = read('packages/sdkwork-claw-chat/src/components/ChatMessage.tsx');
+
+  assert.match(chatPageSource, /const \[isSidebarOpen, setIsSidebarOpen\] = useState\(false\);/);
+  assert.match(chatPageSource, /className="hidden h-full w-72 shrink-0 lg:flex xl:w-80"/);
+  assert.match(chatPageSource, /className="fixed inset-0 z-40 bg-zinc-950\/45 backdrop-blur-sm lg:hidden"/);
+  assert.match(chatPageSource, /className="fixed inset-y-0 left-0 z-50 w-\[min\(22rem,calc\(100vw-1rem\)\)\] lg:hidden"/);
+  assert.match(chatPageSource, /className="z-10 flex min-h-16 flex-shrink-0 flex-wrap items-center justify-between gap-3/);
+  assert.match(chatPageSource, /className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3"/);
+  assert.match(chatPageSource, /className="relative min-w-0 max-w-full"/);
+  assert.match(chatPageSource, /className="flex-1 space-y-5 px-3 py-6 pb-36 sm:space-y-6 sm:px-4 sm:py-8 sm:pb-40"/);
+
+  assert.match(chatSidebarSource, /onSessionSelect\?: \(\) => void;/);
+  assert.match(chatSidebarSource, /onClose\?: \(\) => void;/);
+  assert.match(chatSidebarSource, /'flex h-full min-h-0 w-full flex-col border-r border-zinc-200 bg-zinc-50\/50/);
+  assert.match(chatSidebarSource, /opacity-100 transition-opacity hover:bg-zinc-200 md:opacity-0 md:group-hover:opacity-100/);
+
+  assert.match(chatInputSource, /const viewportPadding = window\.innerWidth < 640 \? 12 : 16;/);
+  assert.match(chatInputSource, /Math\.max\(window\.innerWidth < 640 \? 280 : 320/);
+  assert.match(chatInputSource, /className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"/);
+  assert.match(chatInputSource, /truncate max-w-\[8\.5rem\] sm:max-w-\[12rem\] lg:max-w-\[16rem\]/);
+
+  assert.match(chatMessageSource, /justify-end pl-4 sm:pl-12 lg:pl-24/);
+  assert.match(chatMessageSource, /justify-start pr-4 sm:pr-12 lg:pr-24/);
+  assert.match(chatMessageSource, /mb-2 flex flex-wrap items-start justify-between gap-2/);
+  assert.match(chatMessageSource, /opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100/);
+});
+
+await runTest('sdkwork-claw-chat empty state scales from stacked mobile welcome to a balanced desktop split layout', () => {
+  const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
+  const zhLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const enLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+
+  assert.match(chatPageSource, /const appName = t\('common\.productName'\);/);
+  assert.match(chatPageSource, /className="flex min-h-full flex-1 items-center justify-center px-3 pb-\[calc\(9\.5rem\+env\(safe-area-inset-bottom\)\)\] pt-6 sm:px-6 sm:pb-\[calc\(10\.5rem\+env\(safe-area-inset-bottom\)\)\] sm:pt-8 lg:px-8 lg:pb-\[calc\(11rem\+env\(safe-area-inset-bottom\)\)\] lg:pt-10"/);
+  assert.match(chatPageSource, /className="grid w-full max-w-6xl gap-4 lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(20rem,0\.95fr\)\] lg:items-center xl:gap-6"/);
+  assert.match(chatPageSource, /className="flex flex-col items-center rounded-\[2rem\] border border-zinc-200\/70 bg-white\/80 p-6 text-center shadow-\[0_18px_48px_rgba\(15,23,42,0\.08\)\] sm:p-8 lg:items-start lg:p-10 lg:text-left/);
+  assert.match(chatPageSource, /className="mb-6 inline-flex items-center rounded-full border border-primary-500\/15 bg-primary-500\/8 px-3 py-1 text-xs font-semibold tracking-\[0\.16em\] text-primary-600/);
+  assert.match(chatPageSource, /className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"/);
+  assert.match(chatPageSource, /className="group relative flex min-h-\[8\.5rem\] flex-col justify-between overflow-hidden rounded-\[1\.75rem\] border border-zinc-200\/80 bg-white p-5 text-left/);
+  assert.match(chatPageSource, /appName,\s*\n\s*}\)/);
+  assert.match(zhLocaleSource, /"emptyWithSkill":\s*"我已启用“\{\{skill\}\}”技能，会在 \{\{appName\}\} 中帮你处理与 \{\{category\}\} 相关的任务。"/);
+  assert.match(zhLocaleSource, /"emptyDefault":\s*"我会在 \{\{appName\}\} 中帮你编写代码、回答问题、起草邮件，或一起头脑风暴。"/);
+  assert.match(enLocaleSource, /"emptyWithSkill":\s*"I have the \\"\{\{skill\}\}\\" skill ready and can help with \{\{category\}\} tasks in \{\{appName\}\}\."/);
+  assert.match(enLocaleSource, /"emptyDefault":\s*"I can help you write code, answer questions, draft emails, or brainstorm ideas in \{\{appName\}\}\."/);
+  assert.doesNotMatch(zhLocaleSource, /"emptyDefault":\s*"[^"]*\{\{model\}\}[^"]*"/);
+  assert.doesNotMatch(enLocaleSource, /"emptyDefault":\s*"[^"]*\{\{model\}\}[^"]*"/);
+});

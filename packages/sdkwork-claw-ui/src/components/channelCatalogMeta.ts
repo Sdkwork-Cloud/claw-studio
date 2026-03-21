@@ -8,17 +8,21 @@ const channelOfficialLinkMap: Record<string, ChannelOfficialLink> = {
     href: 'https://open.feishu.cn/app?lang=zh-CN',
     label: 'Feishu Open Platform',
   },
-  qq: {
-    href: 'https://q.qq.com/qqbot/#/home',
-    label: 'QQ Bot Platform',
+  telegram: {
+    href: 'https://core.telegram.org/bots',
+    label: 'Telegram Bot Platform',
   },
-  dingtalk: {
-    href: 'https://open-dev.dingtalk.com/',
-    label: 'DingTalk Developer Console',
+  discord: {
+    href: 'https://discord.com/developers/applications',
+    label: 'Discord Developer Portal',
   },
-  wecom: {
-    href: 'https://work.weixin.qq.com/wework_admin/loginpage_wx?redirect_uri=https%3A%2F%2Fwork.weixin.qq.com%2Fwework_admin%2Fframe',
-    label: 'WeCom Admin Console',
+  slack: {
+    href: 'https://api.slack.com/apps',
+    label: 'Slack API Apps',
+  },
+  googlechat: {
+    href: 'https://developers.google.com/workspace/chat',
+    label: 'Google Chat Developer Docs',
   },
 };
 

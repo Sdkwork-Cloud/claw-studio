@@ -1,15 +1,21 @@
-export * from './platform';
-export * from './platform-impl';
-export * from './store';
-export * from './components/CommandPalette';
-export * from './components/Sidebar';
-export * from './lib/llmService';
-export * from './services/instanceDirectoryService';
-export * from './services/updateService';
-export * from './stores/useAuthStore';
-export * from './stores/useAppStore';
-export * from './stores/useInstanceStore';
-export { useTaskStore } from './stores/useTaskStore';
-export type { Task, TaskStatus, TaskType } from './stores/useTaskStore';
-export * from './stores/useUpdateStore';
-export * from './hooks/useKeyboardShortcuts';
+export * from './platform/index.ts';
+export * from './platform-impl/index.ts';
+export * from './store/index.ts';
+export * from './sdk/useAppSdkClient.ts';
+export * from './sdk/appSdkResult.ts';
+export * from './components/CommandPalette.tsx';
+export * from './components/Sidebar.tsx';
+export * from './lib/llmService.ts';
+export * from './services/openClawConfigService.ts';
+export * from './services/index.ts';
+export * from './stores/useAuthStore.ts';
+export * from './stores/useAppStore.ts';
+export * from './stores/useInstanceStore.ts';
+export { useTaskStore } from './stores/useTaskStore.ts';
+export type {
+  Task as GlobalTask,
+  TaskStatus as GlobalTaskStatus,
+  TaskType as GlobalTaskType,
+} from './stores/useTaskStore.ts';
+export * from './stores/useUpdateStore.ts';
+export * from './hooks/useKeyboardShortcuts.ts';

@@ -98,10 +98,13 @@ export interface ProxyProvider {
   usage: ProxyProviderUsage;
   expiresAt: string | null;
   status: ProxyProviderStatus;
-  createdAt: string;
+  createdAt: string | null;
   baseUrl: string;
   models: ProxyProviderModel[];
   notes?: string;
+  canCopyApiKey?: boolean;
+  credentialReference?: string;
+  tenantId?: string;
 }
 
 export interface ProxyProviderCreate {
@@ -140,11 +143,17 @@ export interface UnifiedApiKey {
   createdAt: string;
   modelMappingId?: string;
   notes?: string;
+  canCopyApiKey?: boolean;
+  hashedKey?: string;
+  tenantId?: string;
+  projectId?: string;
+  environment?: string;
 }
 
 export interface UnifiedApiKeyCreate {
   name: string;
   groupId: string;
+  groupName?: string;
   apiKey?: string;
   source?: UnifiedApiKeySource;
   expiresAt?: string | null;
@@ -594,6 +603,49 @@ export interface StudioInstanceRuntimeNote {
   sourceUrl?: string;
 }
 
+export type StudioInstanceConsoleKind = 'openclawControlUi';
+
+export type StudioInstanceConsoleAuthMode =
+  | 'token'
+  | 'password'
+  | 'none'
+  | 'external'
+  | 'unknown';
+
+export type StudioInstanceConsoleAuthSource =
+  | 'managedConfig'
+  | 'installRecord'
+  | 'workspaceConfig'
+  | 'secretRef'
+  | 'unresolved';
+
+export type StudioInstanceConsoleInstallMethod =
+  | 'bundled'
+  | 'installerScript'
+  | 'cliScript'
+  | 'npm'
+  | 'pnpm'
+  | 'source'
+  | 'git'
+  | 'wsl'
+  | 'docker'
+  | 'podman'
+  | 'bun'
+  | 'nix'
+  | 'unknown';
+
+export interface StudioInstanceConsoleAccessRecord {
+  kind: StudioInstanceConsoleKind;
+  available: boolean;
+  url?: string | null;
+  autoLoginUrl?: string | null;
+  gatewayUrl?: string | null;
+  authMode: StudioInstanceConsoleAuthMode;
+  authSource?: StudioInstanceConsoleAuthSource | null;
+  installMethod?: StudioInstanceConsoleInstallMethod | null;
+  reason?: string | null;
+}
+
 export interface StudioWorkbenchChannelRecord {
   id: string;
   name: string;
@@ -611,6 +663,8 @@ export interface StudioWorkbenchTaskScheduleConfig {
   scheduledDate?: string;
   scheduledTime?: string;
   cronExpression?: string;
+  cronTimezone?: string;
+  staggerMs?: number;
 }
 
 export interface StudioWorkbenchTaskExecutionRecord {
@@ -635,14 +689,25 @@ export interface StudioWorkbenchTaskRecord {
   cronExpression?: string;
   actionType: 'message' | 'skill';
   status: 'active' | 'paused' | 'failed';
+  sessionMode: 'isolated' | 'main' | 'current' | 'custom';
+  customSessionId?: string;
+  wakeUpMode: 'immediate' | 'nextCycle';
   executionContent: 'runAssistantTask' | 'sendPromptMessage';
-  deliveryMode: 'publishSummary' | 'none';
+  timeoutSeconds?: number;
+  deleteAfterRun?: boolean;
+  agentId?: string;
+  model?: string;
+  thinking?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  lightContext?: boolean;
+  deliveryMode: 'publishSummary' | 'webhook' | 'none';
+  deliveryBestEffort?: boolean;
   deliveryChannel?: string;
   deliveryLabel?: string;
   recipient?: string;
   lastRun?: string;
   nextRun?: string;
   latestExecution?: StudioWorkbenchTaskExecutionRecord | null;
+  rawDefinition?: Record<string, unknown>;
 }
 
 export interface StudioWorkbenchCronTasksSnapshot {
@@ -773,5 +838,6 @@ export interface StudioInstanceDetailRecord {
   artifacts: StudioInstanceArtifactRecord[];
   capabilities: StudioInstanceCapabilitySnapshot[];
   officialRuntimeNotes: StudioInstanceRuntimeNote[];
+  consoleAccess?: StudioInstanceConsoleAccessRecord | null;
   workbench?: StudioWorkbenchSnapshot | null;
 }

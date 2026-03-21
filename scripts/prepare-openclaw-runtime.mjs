@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   cp,
   mkdtemp,
@@ -9,7 +9,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -19,6 +19,16 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
+const PREPARED_RUNTIME_MANIFEST_KEYS = [
+  'schemaVersion',
+  'runtimeId',
+  'openclawVersion',
+  'nodeVersion',
+  'platform',
+  'arch',
+  'nodeRelativePath',
+  'cliRelativePath',
+];
 
 export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.13';
 export const DEFAULT_NODE_VERSION = process.env.OPENCLAW_NODE_VERSION ?? '22.16.0';
@@ -31,6 +41,7 @@ export const DEFAULT_RESOURCE_DIR = path.join(
   'resources',
   'openclaw-runtime',
 );
+export const DEFAULT_PREPARE_CACHE_DIR = resolveDefaultOpenClawPrepareCacheDir();
 
 export function resolveOpenClawTarget(platform = process.platform, arch = process.arch) {
   const platformId =
@@ -99,6 +110,39 @@ export function resolveBundledNpmCommand(nodeRuntimeDir, platform = process.plat
   };
 }
 
+function resolveDefaultOpenClawPrepareCacheDir() {
+  if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+    return path.join(process.env.LOCALAPPDATA, 'sdkwork-claw', 'openclaw-runtime-cache');
+  }
+
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Caches', 'sdkwork-claw', 'openclaw-runtime-cache');
+  }
+
+  if (process.env.XDG_CACHE_HOME) {
+    return path.join(process.env.XDG_CACHE_HOME, 'sdkwork-claw', 'openclaw-runtime-cache');
+  }
+
+  return path.join(os.homedir(), '.cache', 'sdkwork-claw', 'openclaw-runtime-cache');
+}
+
+export function resolveOpenClawPrepareCachePaths({
+  cacheDir = DEFAULT_PREPARE_CACHE_DIR,
+  openclawVersion,
+  nodeVersion,
+  target,
+}) {
+  const nodeCacheKey = `${target.platformId}-${target.archId}-node-v${nodeVersion}`;
+  const packageCacheKey = `${target.platformId}-${target.archId}-openclaw-v${openclawVersion}`;
+
+  return {
+    cacheDir,
+    cachedArchivePath: path.join(cacheDir, 'archives', target.nodeArchiveName(nodeVersion)),
+    nodeCacheDir: path.join(cacheDir, 'node', nodeCacheKey),
+    packageCacheDir: path.join(cacheDir, 'package', packageCacheKey),
+  };
+}
+
 export function buildOpenClawManifest({
   openclawVersion,
   nodeVersion,
@@ -116,6 +160,93 @@ export function buildOpenClawManifest({
     nodeRelativePath,
     cliRelativePath,
   };
+}
+
+export function preparedOpenClawManifestMatches(existingManifest, expectedManifest) {
+  if (!existingManifest || typeof existingManifest !== 'object') {
+    return false;
+  }
+
+  return PREPARED_RUNTIME_MANIFEST_KEYS.every(
+    (key) => existingManifest[key] === expectedManifest[key],
+  );
+}
+
+export async function inspectPreparedOpenClawRuntime({
+  resourceDir = DEFAULT_RESOURCE_DIR,
+  manifest,
+} = {}) {
+  const manifestPath = path.join(resourceDir, 'manifest.json');
+
+  let existingManifest;
+  try {
+    existingManifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  } catch (error) {
+    if (manifest) {
+      const repairedInspection = await repairPreparedOpenClawRuntimeManifest({
+        resourceDir,
+        manifest,
+      });
+      if (repairedInspection.reusable) {
+        return repairedInspection;
+      }
+    }
+
+    return {
+      reusable: false,
+      reason: 'manifest-unreadable',
+      manifestPath,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (manifest && !preparedOpenClawManifestMatches(existingManifest, manifest)) {
+    return {
+      reusable: false,
+      reason: 'manifest-mismatch',
+      manifestPath,
+      existingManifest,
+    };
+  }
+
+  try {
+    await validatePreparedRuntimeSource(path.join(resourceDir, 'runtime'), manifest ?? existingManifest);
+  } catch (error) {
+    return {
+      reusable: false,
+      reason: 'runtime-invalid',
+      manifestPath,
+      existingManifest,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  return {
+    reusable: true,
+    reason: 'ready',
+    manifestPath,
+    manifest: existingManifest,
+  };
+}
+
+export function shouldReusePreparedOpenClawRuntime({
+  inspection,
+  forcePrepare = false,
+}) {
+  return !forcePrepare && Boolean(inspection?.reusable);
+}
+
+function parseBooleanFlag(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return ['1', 'true', 'yes', 'on'].includes(normalized);
 }
 
 export async function prepareOpenClawRuntimeFromSource({
@@ -171,22 +302,75 @@ export async function prepareOpenClawRuntimeFromStagedDirs({
 
 export async function prepareOpenClawRuntime({
   resourceDir = DEFAULT_RESOURCE_DIR,
+  cacheDir = DEFAULT_PREPARE_CACHE_DIR,
   openclawVersion = DEFAULT_OPENCLAW_VERSION,
   nodeVersion = DEFAULT_NODE_VERSION,
   openclawPackage = DEFAULT_OPENCLAW_PACKAGE,
   sourceRuntimeDir = process.env.OPENCLAW_BUNDLED_SOURCE_DIR,
   packageTarball = process.env.OPENCLAW_PACKAGE_TARBALL,
+  forcePrepare = parseBooleanFlag(process.env.OPENCLAW_FORCE_PREPARE),
   fetchImpl = globalThis.fetch,
   target = resolveOpenClawTarget(),
 } = {}) {
+  const manifest = buildOpenClawManifest({ openclawVersion, nodeVersion, target });
+  const canReusePreparedRuntime = !sourceRuntimeDir && !packageTarball;
+  const cachePaths = resolveOpenClawPrepareCachePaths({
+    cacheDir,
+    openclawVersion,
+    nodeVersion,
+    target,
+  });
+
+  if (canReusePreparedRuntime && !forcePrepare) {
+    const inspection = await inspectPreparedOpenClawRuntime({
+      resourceDir,
+      manifest,
+    });
+
+    if (shouldReusePreparedOpenClawRuntime({ inspection, forcePrepare })) {
+      return {
+        manifest,
+        resourceDir,
+        strategy: inspection.repairedManifest ? 'repaired-existing-manifest' : 'reused-existing',
+      };
+    }
+
+    const cachedRuntime = await inspectCachedOpenClawRuntimeArtifacts({
+      nodeSourceDir: cachePaths.nodeCacheDir,
+      packageSourceDir: cachePaths.packageCacheDir,
+      manifest,
+    });
+
+    if (cachedRuntime.reusable) {
+      const result = await prepareOpenClawRuntimeFromStagedDirs({
+        nodeSourceDir: cachePaths.nodeCacheDir,
+        packageSourceDir: cachePaths.packageCacheDir,
+        resourceDir,
+        openclawVersion,
+        nodeVersion,
+        target,
+      });
+
+      return {
+        ...result,
+        strategy: 'prepared-cache',
+      };
+    }
+  }
+
   if (sourceRuntimeDir) {
-    return prepareOpenClawRuntimeFromSource({
+    const result = await prepareOpenClawRuntimeFromSource({
       sourceRuntimeDir,
       resourceDir,
       openclawVersion,
       nodeVersion,
       target,
     });
+
+    return {
+      ...result,
+      strategy: 'prepared-source',
+    };
   }
 
   if (typeof fetchImpl !== 'function') {
@@ -197,17 +381,19 @@ export async function prepareOpenClawRuntime({
   const packageDir = path.join(stagingRoot, 'runtime-package');
 
   try {
-    const manifest = buildOpenClawManifest({ openclawVersion, nodeVersion, target });
     const archivePath = await downloadNodeRuntime({
       stagingRoot,
       nodeVersion,
       target,
       fetchImpl,
+      cachedArchivePath: cachePaths.cachedArchivePath,
     });
     const extractedNodeDir = await extractNodeRuntimeArchive({
       archivePath,
       stagingRoot,
       target,
+      nodeVersion,
+      cachedNodeDir: cachePaths.nodeCacheDir,
     });
     await rm(resourceDir, { recursive: true, force: true });
     await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
@@ -231,6 +417,11 @@ export async function prepareOpenClawRuntime({
     ], { cwd: packageDir });
 
     await cp(packageDir, path.join(resourceDir, 'runtime', 'package'), { recursive: true });
+    await refreshCachedOpenClawRuntimeArtifacts({
+      nodeSourceDir: extractedNodeDir,
+      packageSourceDir: packageDir,
+      cachePaths,
+    });
     await writeFile(
       path.join(resourceDir, 'manifest.json'),
       `${JSON.stringify(manifest, null, 2)}\n`,
@@ -241,6 +432,7 @@ export async function prepareOpenClawRuntime({
     return {
       manifest,
       resourceDir,
+      strategy: 'prepared-download',
     };
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
@@ -281,34 +473,133 @@ async function validatePreparedRuntimeArtifacts({ nodeSourceDir, packageSourceDi
   }
 }
 
-async function downloadNodeRuntime({ stagingRoot, nodeVersion, target, fetchImpl }) {
+async function inspectCachedOpenClawRuntimeArtifacts({
+  nodeSourceDir,
+  packageSourceDir,
+  manifest,
+}) {
+  try {
+    await validatePreparedRuntimeArtifacts({ nodeSourceDir, packageSourceDir, manifest });
+    return {
+      reusable: true,
+      reason: 'ready',
+    };
+  } catch (error) {
+    return {
+      reusable: false,
+      reason: 'invalid',
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function inspectCachedNodeRuntimeDir({
+  nodeSourceDir,
+  target,
+  nodeVersion,
+}) {
+  try {
+    await stat(nodeSourceDir);
+    const nodeExecutablePath = path.join(
+      nodeSourceDir,
+      target.bundledNodePath.replace(/^runtime[\\/]node[\\/]/, ''),
+    );
+    const preparedNodeVersion = await readPreparedNodeVersion(nodeExecutablePath);
+    return {
+      reusable: preparedNodeVersion === nodeVersion,
+      reason: preparedNodeVersion === nodeVersion ? 'ready' : 'node-version-mismatch',
+      preparedNodeVersion,
+    };
+  } catch (error) {
+    return {
+      reusable: false,
+      reason: 'invalid',
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function downloadNodeRuntime({
+  stagingRoot,
+  nodeVersion,
+  target,
+  fetchImpl,
+  cachedArchivePath,
+}) {
   const archiveName = target.nodeArchiveName(nodeVersion);
   const url = `https://nodejs.org/dist/v${nodeVersion}/${archiveName}`;
-  const archivePath = path.join(stagingRoot, archiveName);
+  const archivePath = cachedArchivePath ?? path.join(stagingRoot, archiveName);
+
+  if (existsSync(archivePath)) {
+    return archivePath;
+  }
+
+  await mkdir(path.dirname(archivePath), { recursive: true });
+  const tempArchivePath = `${archivePath}.downloading`;
   const response = await fetchImpl(url);
 
   if (!response.ok || !response.body) {
     throw new Error(`Failed to download Node runtime from ${url}: ${response.status} ${response.statusText}`);
   }
 
-  await streamToFile(response.body, archivePath);
+  await streamToFile(response.body, tempArchivePath);
+  await rm(archivePath, { force: true });
+  await cp(tempArchivePath, archivePath);
+  await rm(tempArchivePath, { force: true });
   return archivePath;
 }
 
-async function extractNodeRuntimeArchive({ archivePath, stagingRoot, target }) {
+export function resolveNodeArchiveExtractionCommand({
+  archivePath,
+  extractRoot,
+  target,
+  hasTarCommand = commandExistsSync('tar'),
+}) {
+  if (target.nodeArchiveExt === 'zip') {
+    if (hasTarCommand) {
+      return {
+        command: 'tar',
+        args: ['-xf', archivePath, '-C', extractRoot],
+      };
+    }
+
+    return {
+      command: 'powershell',
+      args: [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `Expand-Archive -LiteralPath '${archivePath.replace(/'/g, "''")}' -DestinationPath '${extractRoot.replace(/'/g, "''")}' -Force`,
+      ],
+    };
+  }
+
+  return {
+    command: 'tar',
+    args: ['-xJf', archivePath, '-C', extractRoot],
+  };
+}
+
+async function extractNodeRuntimeArchive({ archivePath, stagingRoot, target, nodeVersion, cachedNodeDir }) {
+  if (cachedNodeDir) {
+    const cachedInspection = await inspectCachedNodeRuntimeDir({
+      nodeSourceDir: cachedNodeDir,
+      target,
+      nodeVersion,
+    });
+    if (cachedInspection.reusable) {
+      return cachedNodeDir;
+    }
+  }
+
   const extractRoot = path.join(stagingRoot, 'node-extract');
   await mkdir(extractRoot, { recursive: true });
-
-  if (target.nodeArchiveExt === 'zip') {
-    await runCommand('powershell', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      `Expand-Archive -LiteralPath '${archivePath.replace(/'/g, "''")}' -DestinationPath '${extractRoot.replace(/'/g, "''")}' -Force`,
-    ]);
-  } else {
-    await runCommand('tar', ['-xJf', archivePath, '-C', extractRoot]);
-  }
+  const extractor = resolveNodeArchiveExtractionCommand({
+    archivePath,
+    extractRoot,
+    target,
+  });
+  await runCommand(extractor.command, extractor.args);
 
   const entries = await readdir(extractRoot, { withFileTypes: true });
   const firstDirectory = entries.find((entry) => entry.isDirectory());
@@ -316,11 +607,128 @@ async function extractNodeRuntimeArchive({ archivePath, stagingRoot, target }) {
     throw new Error(`Unable to find extracted Node runtime directory inside ${extractRoot}`);
   }
 
-  return path.join(extractRoot, firstDirectory.name);
+  const extractedNodeDir = path.join(extractRoot, firstDirectory.name);
+
+  if (cachedNodeDir) {
+    await rm(cachedNodeDir, { recursive: true, force: true });
+    await mkdir(path.dirname(cachedNodeDir), { recursive: true });
+    await cp(extractedNodeDir, cachedNodeDir, { recursive: true });
+    return cachedNodeDir;
+  }
+
+  return extractedNodeDir;
 }
 
 async function streamToFile(body, destinationPath) {
   await pipeline(Readable.fromWeb(body), createWriteStream(destinationPath));
+}
+
+async function repairPreparedOpenClawRuntimeManifest({
+  resourceDir,
+  manifest,
+}) {
+  const manifestPath = path.join(resourceDir, 'manifest.json');
+  const runtimeDir = path.join(resourceDir, 'runtime');
+
+  try {
+    await validatePreparedRuntimeSource(runtimeDir, manifest);
+  } catch (error) {
+    return {
+      reusable: false,
+      reason: 'runtime-invalid',
+      manifestPath,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  let preparedNodeVersion;
+  try {
+    preparedNodeVersion = await readPreparedNodeVersion(
+      path.join(resourceDir, manifest.nodeRelativePath),
+    );
+  } catch (error) {
+    return {
+      reusable: false,
+      reason: 'node-version-unreadable',
+      manifestPath,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (preparedNodeVersion !== manifest.nodeVersion) {
+    return {
+      reusable: false,
+      reason: 'node-version-mismatch',
+      manifestPath,
+      preparedNodeVersion,
+      expectedNodeVersion: manifest.nodeVersion,
+    };
+  }
+
+  let preparedOpenClawVersion;
+  try {
+    preparedOpenClawVersion = await readPreparedOpenClawPackageVersion(
+      path.join(resourceDir, 'runtime', 'package', 'node_modules', 'openclaw', 'package.json'),
+    );
+  } catch (error) {
+    return {
+      reusable: false,
+      reason: 'openclaw-version-unreadable',
+      manifestPath,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (preparedOpenClawVersion !== manifest.openclawVersion) {
+    return {
+      reusable: false,
+      reason: 'openclaw-version-mismatch',
+      manifestPath,
+      preparedOpenClawVersion,
+      expectedOpenClawVersion: manifest.openclawVersion,
+    };
+  }
+
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8',
+  );
+
+  return {
+    reusable: true,
+    repairedManifest: true,
+    reason: 'repaired-manifest',
+    manifestPath,
+    manifest,
+  };
+}
+
+async function refreshCachedOpenClawRuntimeArtifacts({
+  nodeSourceDir,
+  packageSourceDir,
+  cachePaths,
+}) {
+  await rm(cachePaths.nodeCacheDir, { recursive: true, force: true });
+  await rm(cachePaths.packageCacheDir, { recursive: true, force: true });
+  await mkdir(path.dirname(cachePaths.nodeCacheDir), { recursive: true });
+  await mkdir(path.dirname(cachePaths.packageCacheDir), { recursive: true });
+  await cp(nodeSourceDir, cachePaths.nodeCacheDir, { recursive: true });
+  await cp(packageSourceDir, cachePaths.packageCacheDir, { recursive: true });
+}
+
+async function readPreparedNodeVersion(nodeExecutablePath) {
+  const { stdout } = await runCommandCapture(nodeExecutablePath, ['--version']);
+  return stdout.trim().replace(/^v/i, '');
+}
+
+async function readPreparedOpenClawPackageVersion(packageJsonPath) {
+  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
+  if (!packageJson || typeof packageJson.version !== 'string' || packageJson.version.trim().length === 0) {
+    throw new Error(`Prepared OpenClaw package.json is missing a version: ${packageJsonPath}`);
+  }
+
+  return packageJson.version.trim();
 }
 
 async function runCommand(command, args, options = {}) {
@@ -343,10 +751,59 @@ async function runCommand(command, args, options = {}) {
   });
 }
 
+function commandExistsSync(command) {
+  const result = spawnSync(command, ['--version'], {
+    stdio: 'ignore',
+    env: process.env,
+    shell: false,
+  });
+
+  return !result.error && (result.status === 0 || result.status === 1);
+}
+
+async function runCommandCapture(command, args, options = {}) {
+  return await new Promise((resolve, reject) => {
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    const child = spawn(command, args, {
+      cwd: options.cwd ?? rootDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+      shell: false,
+    });
+
+    child.stdout?.on('data', (chunk) => {
+      stdoutChunks.push(chunk);
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderrChunks.push(chunk);
+    });
+
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve({
+          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+          stderr: Buffer.concat(stderrChunks).toString('utf8'),
+        });
+        return;
+      }
+
+      reject(
+        new Error(
+          `Command failed: ${command} ${args.join(' ')} (exit ${code ?? 'unknown'})\n${Buffer.concat(stderrChunks).toString('utf8')}`,
+        ),
+      );
+    });
+  });
+}
+
 async function main() {
-  const result = await prepareOpenClawRuntime();
+  const forcePrepare = process.argv.includes('--force');
+  const result = await prepareOpenClawRuntime({ forcePrepare });
+  const action = result.strategy === 'reused-existing' ? 'Reused' : 'Prepared';
   console.log(
-    `Prepared bundled OpenClaw runtime ${result.manifest.openclawVersion} for ${result.manifest.platform}-${result.manifest.arch} at ${result.resourceDir}`,
+    `${action} bundled OpenClaw runtime ${result.manifest.openclawVersion} for ${result.manifest.platform}-${result.manifest.arch} at ${result.resourceDir} (${result.strategy})`,
   );
 }
 

@@ -1,5 +1,7 @@
 import {
+  sdkworkApiRouterAdminClient,
   studioMockService,
+  type ApiRouterUsageRecordDto,
   type MockChannel,
   type MockInstance,
   type MockTask,
@@ -40,9 +42,9 @@ interface CapabilityCoverageScoreInput extends WorkspaceHealthScoreInput {
   installedSkills: Skill[];
 }
 
-interface TokenAnalyticsInput extends CapabilityCoverageScoreInput {
+interface TokenAnalyticsInput {
   analyticsQuery: ResolvedAnalyticsQuery;
-  instanceSummaries: DashboardInstanceSummary[];
+  usageRecords: ApiRouterUsageRecordDto[];
 }
 
 interface RevenueAnalyticsInput extends CapabilityCoverageScoreInput {
@@ -180,13 +182,17 @@ function formatDayKey(date: Date) {
   return `${date.getUTCFullYear()}-${month}-${day}`;
 }
 
+function formatHourKey(date: Date) {
+  return `${formatDayKey(date)}T${`${date.getUTCHours()}`.padStart(2, '0')}:00`;
+}
+
 function parseMonthKey(monthKey: string) {
   const [yearText, monthText] = monthKey.split('-');
   const year = Number(yearText);
   const month = Number(monthText);
 
   if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
-    return parseMonthKey(DEFAULT_MONTH_KEY);
+    return parseMonthKey(formatMonthKey(REFERENCE_DATE));
   }
 
   return { year, monthIndex: month - 1 };
@@ -229,6 +235,33 @@ function addHours(date: Date, hours: number) {
   return next;
 }
 
+function startOfUtcDay(date: Date) {
+  return createUtcDate(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+function startOfUtcHour(date: Date) {
+  return createUtcDate(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    date.getUTCHours(),
+  );
+}
+
+function startOfUtcMonth(date: Date) {
+  return createUtcDate(date.getUTCFullYear(), date.getUTCMonth(), 1);
+}
+
+function startOfUtcYear(date: Date) {
+  return createUtcDate(date.getUTCFullYear(), 0, 1);
+}
+
+function addYears(date: Date, years: number) {
+  const next = new Date(date.getTime());
+  next.setUTCFullYear(next.getUTCFullYear() + years);
+  return next;
+}
+
 function buildDateRange(
   start: Date,
   bucketCount: number,
@@ -239,14 +272,159 @@ function buildDateRange(
   );
 }
 
+function getBucketLabel(
+  date: Date,
+  granularity: DashboardAnalyticsGranularity,
+) {
+  if (granularity === 'day') {
+    return `${`${date.getUTCMonth() + 1}`.padStart(2, '0')}-${`${date.getUTCDate()}`.padStart(2, '0')}`;
+  }
+
+  return `${`${date.getUTCMonth() + 1}`.padStart(2, '0')}-${`${date.getUTCDate()}`.padStart(2, '0')} ${`${date.getUTCHours()}`.padStart(2, '0')}:00`;
+}
+
+function getBucketKeyFromTimestamp(
+  timestampMs: number,
+  granularity: DashboardAnalyticsGranularity,
+) {
+  const date = new Date(timestampMs);
+  return granularity === 'day' ? formatDayKey(date) : formatHourKey(date);
+}
+
+function getAnalyticsReferenceDate(records: ApiRouterUsageRecordDto[]) {
+  if (records.length === 0) {
+    return REFERENCE_DATE;
+  }
+
+  const latestTimestamp = records.reduce(
+    (currentLatest, record) => Math.max(currentLatest, record.created_at_ms),
+    0,
+  );
+
+  return new Date(latestTimestamp);
+}
+
+function toSafeNumber(value: number | undefined) {
+  return Number.isFinite(value) ? Number(value) : 0;
+}
+
+function getUsageRecordInputTokens(record: ApiRouterUsageRecordDto) {
+  return Math.max(0, Math.round(toSafeNumber(record.input_tokens)));
+}
+
+function getUsageRecordOutputTokens(record: ApiRouterUsageRecordDto) {
+  return Math.max(0, Math.round(toSafeNumber(record.output_tokens)));
+}
+
+function getUsageRecordTotalTokens(record: ApiRouterUsageRecordDto) {
+  const explicitTotal = Math.max(0, Math.round(toSafeNumber(record.total_tokens)));
+  if (explicitTotal > 0) {
+    return explicitTotal;
+  }
+
+  const derivedTotal = getUsageRecordInputTokens(record) + getUsageRecordOutputTokens(record);
+  if (derivedTotal > 0) {
+    return derivedTotal;
+  }
+
+  return Math.max(0, Math.round(toSafeNumber(record.units)));
+}
+
+function getUsageRecordAmount(record: ApiRouterUsageRecordDto) {
+  return Math.max(0, toSafeNumber(record.amount));
+}
+
+function calculateTokenShare(value: number, total: number) {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return roundPercentage((value / total) * 100);
+}
+
+function getAnalyticsWindow(analyticsQuery: ResolvedAnalyticsQuery) {
+  const firstBucketDate = analyticsQuery.bucketDates[0];
+  const lastBucketDate =
+    analyticsQuery.bucketDates[analyticsQuery.bucketDates.length - 1];
+
+  if (!firstBucketDate || !lastBucketDate) {
+    const fallbackStart =
+      analyticsQuery.granularity === 'day'
+        ? startOfUtcDay(REFERENCE_DATE)
+        : startOfUtcHour(REFERENCE_DATE);
+
+    return {
+      startMs: fallbackStart.getTime(),
+      endMs:
+        (analyticsQuery.granularity === 'day'
+          ? addDays(fallbackStart, 1)
+          : addHours(fallbackStart, 1)
+        ).getTime(),
+    };
+  }
+
+  return {
+    startMs: firstBucketDate.getTime(),
+    endMs:
+      (analyticsQuery.granularity === 'day'
+        ? addDays(lastBucketDate, 1)
+        : addHours(lastBucketDate, 1)
+      ).getTime(),
+  };
+}
+
+function filterUsageRecordsByTimeRange(
+  records: ApiRouterUsageRecordDto[],
+  startMs: number,
+  endMs: number,
+) {
+  return records.filter(
+    (record) => record.created_at_ms >= startMs && record.created_at_ms < endMs,
+  );
+}
+
+function filterUsageRecordsForAnalytics(
+  records: ApiRouterUsageRecordDto[],
+  analyticsQuery: ResolvedAnalyticsQuery,
+) {
+  const { startMs, endMs } = getAnalyticsWindow(analyticsQuery);
+  return filterUsageRecordsByTimeRange(records, startMs, endMs);
+}
+
+function summarizeUsageRecords(records: ApiRouterUsageRecordDto[]) {
+  return records.reduce(
+    (summary, record) => {
+      summary.totalTokens += getUsageRecordTotalTokens(record);
+      summary.inputTokens += getUsageRecordInputTokens(record);
+      summary.outputTokens += getUsageRecordOutputTokens(record);
+      summary.amount += getUsageRecordAmount(record);
+      summary.requestCount += 1;
+
+      return summary;
+    },
+    {
+      totalTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      amount: 0,
+      requestCount: 0,
+    },
+  );
+}
+
+function loadRouterUsageRecords() {
+  return sdkworkApiRouterAdminClient.listUsageRecords().catch(() => []);
+}
+
 function resolveAnalyticsQuery(
   query: DashboardAnalyticsQuery = {},
+  referenceDate: Date = REFERENCE_DATE,
 ): ResolvedAnalyticsQuery {
   const granularity = query.granularity ?? 'day';
   const rangeMode = query.rangeMode ?? 'seven_days';
 
   if (rangeMode === 'month') {
-    const selectedMonthKey = query.monthKey ?? DEFAULT_MONTH_KEY;
+    const selectedMonthKey = query.monthKey ?? formatMonthKey(referenceDate);
     const { year, monthIndex } = parseMonthKey(selectedMonthKey);
     const start = createUtcDate(year, monthIndex, 1);
     const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
@@ -262,8 +440,8 @@ function resolveAnalyticsQuery(
   }
 
   if (rangeMode === 'custom') {
-    const fallbackStart = createUtcDate(2026, 2, 1);
-    const fallbackEnd = createUtcDate(2026, 2, 18);
+    const fallbackEnd = startOfUtcDay(referenceDate);
+    const fallbackStart = addDays(fallbackEnd, -17);
     const rawStart = parseCustomDate(query.customStart, fallbackStart);
     const rawEnd = parseCustomDate(query.customEnd, fallbackEnd);
     const start = rawStart <= rawEnd ? rawStart : rawEnd;
@@ -289,8 +467,8 @@ function resolveAnalyticsQuery(
   const bucketCount = granularity === 'day' ? dayCount : dayCount * 24;
   const start =
     granularity === 'day'
-      ? addDays(createUtcDate(2026, 2, 18), -(dayCount - 1))
-      : addHours(createUtcDate(2026, 2, 12), 0);
+      ? addDays(startOfUtcDay(referenceDate), -(dayCount - 1))
+      : addHours(startOfUtcHour(referenceDate), -(bucketCount - 1));
 
   return {
     granularity,
@@ -612,163 +790,138 @@ function buildAgentSummary(
 }
 
 function buildModelBreakdown(
+  records: ApiRouterUsageRecordDto[],
   totalTokens: number,
-  tasks: MockTask[],
-  installedSkills: Skill[],
-  channels: MockChannel[],
 ): DashboardTokenModelBreakdown[] {
-  const activeSkillTasks = tasks.filter(
-    (task) => task.status === 'active' && task.actionType === 'skill',
-  ).length;
-  const enabledChannels = channels.filter((channel) => channel.enabled).length;
-  const weightAdjustments = [
-    1 + activeSkillTasks * 0.04,
-    1 + installedSkills.length * 0.02,
-    1 + enabledChannels * 0.03,
-    1 + Math.max(0, installedSkills.length - 4) * 0.02,
-    1 + Math.max(0, tasks.length - 3) * 0.015,
-  ];
-  const weights = MODEL_PROFILES.map((profile, index) => profile.weight * weightAdjustments[index]);
-  const tokenDistribution = distributeTotal(totalTokens, weights);
+  const modelSummary = new Map<
+    string,
+    {
+      id: string;
+      modelName: string;
+      requestCount: number;
+      tokens: number;
+      actualAmount: number;
+    }
+  >();
 
-  return MODEL_PROFILES.map((profile, index) => {
-    const tokens = tokenDistribution[index];
-
-    return {
-      id: profile.id,
-      modelName: profile.modelName,
-      requestCount: Math.max(1, Math.round(tokens / profile.avgTokensPerRequest)),
-      tokens,
-      actualAmount: calculateAmount(tokens, profile.actualRate),
-      standardAmount: calculateAmount(tokens, profile.standardRate),
-      share: totalTokens === 0 ? 0 : roundPercentage((tokens / totalTokens) * 100),
+  records.forEach((record) => {
+    const key = record.model || 'unknown-model';
+    const current = modelSummary.get(key) ?? {
+      id: key,
+      modelName: key,
+      requestCount: 0,
+      tokens: 0,
+      actualAmount: 0,
     };
-  }).sort((left, right) => right.tokens - left.tokens);
+
+    current.requestCount += 1;
+    current.tokens += getUsageRecordTotalTokens(record);
+    current.actualAmount += getUsageRecordAmount(record);
+
+    modelSummary.set(key, current);
+  });
+
+  return [...modelSummary.values()]
+    .map((row) => ({
+      id: row.id,
+      modelName: row.modelName,
+      requestCount: row.requestCount,
+      tokens: row.tokens,
+      actualAmount: roundCurrency(row.actualAmount),
+      standardAmount: roundCurrency(row.actualAmount),
+      share: calculateTokenShare(row.tokens, totalTokens),
+    }))
+    .sort((left, right) => {
+      if (right.tokens !== left.tokens) {
+        return right.tokens - left.tokens;
+      }
+
+      return right.requestCount - left.requestCount;
+    });
 }
 
 function buildTokenAnalytics({
-  instances,
-  tasks,
-  channels,
-  agents,
-  installedSkills,
   analyticsQuery,
-  instanceSummaries,
+  usageRecords,
 }: TokenAnalyticsInput): DashboardTokenAnalytics {
-  const activeSkillTasks = tasks.filter(
-    (task) => task.status === 'active' && task.actionType === 'skill',
-  ).length;
-  const activeInstanceCount = instances.filter((instance) => instance.status === 'online').length;
-  const enabledChannels = channels.filter((channel) => channel.enabled).length;
-  const basePerBucket =
-    analyticsQuery.granularity === 'hour'
-      ? 340 + activeInstanceCount * 120 + activeSkillTasks * 68 + installedSkills.length * 18 + agents.length * 12 + enabledChannels * 26
-      : 9800 + activeInstanceCount * 2600 + activeSkillTasks * 1200 + installedSkills.length * 240 + agents.length * 180 + enabledChannels * 410;
+  const filteredUsageRecords = filterUsageRecordsForAnalytics(usageRecords, analyticsQuery);
+  const bucketSummaries = new Map<
+    string,
+    {
+      totalTokens: number;
+      inputTokens: number;
+      outputTokens: number;
+      actualAmount: number;
+    }
+  >();
 
-  const modelBreakdownSeed = buildModelBreakdown(
-    Math.max(basePerBucket * analyticsQuery.bucketCount, 1),
-    tasks,
-    installedSkills,
-    channels,
-  );
-  const totalModelWeight = modelBreakdownSeed.reduce((sum, row) => sum + row.tokens, 0);
-  const weightedActualRate = modelBreakdownSeed.reduce((sum, row) => {
-    const profile = MODEL_PROFILES.find((item) => item.id === row.id);
-    return sum + (profile ? profile.actualRate * (row.tokens / totalModelWeight) : 0);
-  }, 0);
-  const weightedStandardRate = modelBreakdownSeed.reduce((sum, row) => {
-    const profile = MODEL_PROFILES.find((item) => item.id === row.id);
-    return sum + (profile ? profile.standardRate * (row.tokens / totalModelWeight) : 0);
-  }, 0);
-
-  const usageTrend = analyticsQuery.bucketDates.map((bucketDate, index) => {
-    const hour = bucketDate.getUTCHours();
-    const dayOfWeek = bucketDate.getUTCDay();
-    const dayFactor = [0.84, 0.92, 1.01, 1.08, 1.15, 0.96, 0.78][dayOfWeek];
-    const hourFactor =
-      analyticsQuery.granularity === 'hour'
-        ? 0.72 +
-          (hour >= 9 && hour <= 18 ? 0.28 : 0.08) +
-          Math.sin((index + 2) / 6) * 0.08
-        : 1;
-    const totalTokens = Math.max(
-      analyticsQuery.granularity === 'hour' ? 240 : 5400,
-      Math.round(basePerBucket * dayFactor * hourFactor),
+  filteredUsageRecords.forEach((record) => {
+    const bucketKey = getBucketKeyFromTimestamp(
+      record.created_at_ms,
+      analyticsQuery.granularity,
     );
-    const rawRatios = [
-      0.44 + Math.sin((index + 1) / 5) * 0.025 + activeSkillTasks * 0.004,
-      0.24 + Math.cos((index + 2) / 6) * 0.018 + enabledChannels * 0.003,
-      0.12 + Math.sin((index + 3) / 8) * 0.01,
-      0.2 + Math.cos((index + 4) / 7) * 0.015 + Math.max(0, installedSkills.length - 3) * 0.002,
-    ];
-    const ratioTotal = rawRatios.reduce((sum, value) => sum + value, 0);
-    const [inputRatio, outputRatio, cacheCreationRatio, cacheReadRatio] = rawRatios.map((value) => {
-      return value / ratioTotal;
-    });
-    const inputTokens = Math.round(totalTokens * inputRatio);
-    const outputTokens = Math.round(totalTokens * outputRatio);
-    const cacheCreationTokens = Math.round(totalTokens * cacheCreationRatio);
-    const cacheReadTokens =
-      totalTokens - inputTokens - outputTokens - cacheCreationTokens;
+    const current = bucketSummaries.get(bucketKey) ?? {
+      totalTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      actualAmount: 0,
+    };
+
+    current.totalTokens += getUsageRecordTotalTokens(record);
+    current.inputTokens += getUsageRecordInputTokens(record);
+    current.outputTokens += getUsageRecordOutputTokens(record);
+    current.actualAmount += getUsageRecordAmount(record);
+
+    bucketSummaries.set(bucketKey, current);
+  });
+
+  const usageTrend = analyticsQuery.bucketDates.map((bucketDate) => {
+    const bucketKey =
+      analyticsQuery.granularity === 'day'
+        ? formatDayKey(bucketDate)
+        : formatHourKey(bucketDate);
+    const summary = bucketSummaries.get(bucketKey);
 
     return {
-      label:
-        analyticsQuery.granularity === 'day'
-          ? `${`${bucketDate.getUTCMonth() + 1}`.padStart(2, '0')}-${`${bucketDate.getUTCDate()}`.padStart(2, '0')}`
-          : `${`${bucketDate.getUTCMonth() + 1}`.padStart(2, '0')}-${`${bucketDate.getUTCDate()}`.padStart(2, '0')} ${`${bucketDate.getUTCHours()}`.padStart(2, '0')}:00`,
-      bucketKey:
-        analyticsQuery.granularity === 'day'
-          ? formatDayKey(bucketDate)
-          : `${formatDayKey(bucketDate)}T${`${bucketDate.getUTCHours()}`.padStart(2, '0')}:00`,
-      totalTokens,
-      inputTokens,
-      outputTokens,
-      cacheCreationTokens,
-      cacheReadTokens,
-      actualAmount: calculateAmount(totalTokens, weightedActualRate),
-      standardAmount: calculateAmount(totalTokens, weightedStandardRate),
+      label: getBucketLabel(bucketDate, analyticsQuery.granularity),
+      bucketKey,
+      totalTokens: summary?.totalTokens ?? 0,
+      inputTokens: summary?.inputTokens ?? 0,
+      outputTokens: summary?.outputTokens ?? 0,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      actualAmount: roundCurrency(summary?.actualAmount ?? 0),
+      standardAmount: roundCurrency(summary?.actualAmount ?? 0),
     } satisfies DashboardTokenTrendPoint;
   });
 
-  const totalTokens = usageTrend.reduce((sum, point) => sum + point.totalTokens, 0);
-  const inputTokens = usageTrend.reduce((sum, point) => sum + point.inputTokens, 0);
-  const outputTokens = usageTrend.reduce((sum, point) => sum + point.outputTokens, 0);
-  const cacheCreationTokens = usageTrend.reduce((sum, point) => sum + point.cacheCreationTokens, 0);
-  const cacheReadTokens = usageTrend.reduce((sum, point) => sum + point.cacheReadTokens, 0);
-  const actualAmount = roundCurrency(usageTrend.reduce((sum, point) => sum + point.actualAmount, 0));
-  const standardAmount = roundCurrency(
-    usageTrend.reduce((sum, point) => sum + point.standardAmount, 0),
-  );
+  const totals = summarizeUsageRecords(filteredUsageRecords);
+  const totalTokens = totals.totalTokens;
+  const inputTokens = totals.inputTokens;
+  const outputTokens = totals.outputTokens;
+  const actualAmount = roundCurrency(totals.amount);
+  const standardAmount = roundCurrency(totals.amount);
   const projectedFactor =
     analyticsQuery.rangeMode === 'month'
       ? 1
       : analyticsQuery.granularity === 'day'
-        ? 30 / analyticsQuery.bucketCount
-        : (30 * 24) / analyticsQuery.bucketCount;
-  const estimatedRunCount = calculateEstimatedRuns(tasks, activeInstanceCount, analyticsQuery.bucketCount);
+        ? 30 / Math.max(analyticsQuery.bucketCount, 1)
+        : (30 * 24) / Math.max(analyticsQuery.bucketCount, 1);
   const peakPoint = usageTrend.reduce((currentPeak, point) => {
     return point.totalTokens > currentPeak.totalTokens ? point : currentPeak;
-  }, usageTrend[0]);
-  const refreshedModelBreakdown = buildModelBreakdown(totalTokens, tasks, installedSkills, channels);
-  const instanceWeights = instanceSummaries.map((summary) =>
-    calculateInstanceBaseWeight(summary, agents),
-  );
-  const instanceTokenDistribution = distributeTotal(totalTokens, instanceWeights);
-  const instanceBreakdown = instanceSummaries
-    .map((summary, index) => {
-      const tokens = instanceTokenDistribution[index];
-
-      return {
-        instanceId: summary.instance.id,
-        name: summary.instance.name,
-        status: summary.instance.status,
-        tokens,
-        estimatedSpend: calculateAmount(tokens, weightedActualRate),
-        share: totalTokens === 0 ? 0 : roundPercentage((tokens / totalTokens) * 100),
-        readinessScore: summary.readinessScore,
-      } satisfies DashboardTokenInstanceBreakdown;
-    })
-    .sort((left, right) => right.tokens - left.tokens);
+  }, usageTrend[0] ?? {
+    label: '--',
+    bucketKey: '',
+    totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    actualAmount: 0,
+    standardAmount: 0,
+  });
+  const modelBreakdown = buildModelBreakdown(filteredUsageRecords, totalTokens);
+  const totalRequestCount = filteredUsageRecords.length;
 
   return {
     granularity: analyticsQuery.granularity,
@@ -778,26 +931,27 @@ function buildTokenAnalytics({
     totalTokens,
     inputTokens,
     outputTokens,
-    cacheCreationTokens,
-    cacheReadTokens,
-    inputShare: roundPercentage((inputTokens / totalTokens) * 100),
-    outputShare: roundPercentage((outputTokens / totalTokens) * 100),
-    cacheCreationShare: roundPercentage((cacheCreationTokens / totalTokens) * 100),
-    cacheReadShare: roundPercentage((cacheReadTokens / totalTokens) * 100),
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    inputShare: calculateTokenShare(inputTokens, totalTokens),
+    outputShare: calculateTokenShare(outputTokens, totalTokens),
+    cacheCreationShare: 0,
+    cacheReadShare: 0,
     actualAmount,
     standardAmount,
     projectedMonthlyActualAmount: roundCurrency(actualAmount * projectedFactor),
     projectedMonthlyStandardAmount: roundCurrency(standardAmount * projectedFactor),
-    averageTokensPerRun: Math.round(totalTokens / estimatedRunCount),
+    averageTokensPerRun:
+      totalRequestCount === 0 ? 0 : Math.round(totalTokens / totalRequestCount),
     projectedMonthlyTokens: Math.round(totalTokens * projectedFactor),
-    estimatedRunCount,
-    totalRequestCount: refreshedModelBreakdown.reduce((sum, row) => sum + row.requestCount, 0),
+    estimatedRunCount: totalRequestCount,
+    totalRequestCount,
     peakUsageLabel: peakPoint.label,
     peakUsageValue: peakPoint.totalTokens,
     deltaPercentage: calculateDeltaPercentage(usageTrend),
     usageTrend,
-    modelBreakdown: refreshedModelBreakdown,
-    instanceBreakdown,
+    modelBreakdown,
+    instanceBreakdown: [],
   };
 }
 
@@ -941,40 +1095,54 @@ function buildRevenueAnalytics({
 
 function buildTokenSummary(
   tokenAnalytics: DashboardTokenAnalytics,
-  analyticsQuery: ResolvedAnalyticsQuery,
+  usageRecords: ApiRouterUsageRecordDto[],
+  referenceDate: Date,
 ): DashboardTokenSummary {
-  const windowDayCount = calculateWindowDayCount(analyticsQuery);
-  const dailyRequestCount = Math.max(
-    1,
-    Math.round(tokenAnalytics.totalRequestCount / Math.max(windowDayCount, 1)),
+  const dayStart = startOfUtcDay(referenceDate);
+  const dailySummary = summarizeUsageRecords(
+    filterUsageRecordsByTimeRange(
+      usageRecords,
+      dayStart.getTime(),
+      addDays(dayStart, 1).getTime(),
+    ),
   );
-  const dailyTokenCount = Math.max(
-    1,
-    Math.round(tokenAnalytics.totalTokens / Math.max(windowDayCount, 1)),
+  const weeklySummary = summarizeUsageRecords(
+    filterUsageRecordsByTimeRange(
+      usageRecords,
+      addDays(dayStart, -6).getTime(),
+      addDays(dayStart, 1).getTime(),
+    ),
   );
-  const dailySpend = roundCurrency(
-    tokenAnalytics.actualAmount / Math.max(windowDayCount, 1),
+  const monthStart = startOfUtcMonth(referenceDate);
+  const monthlySummary = summarizeUsageRecords(
+    filterUsageRecordsByTimeRange(
+      usageRecords,
+      monthStart.getTime(),
+      createUtcDate(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth() + 1, 1).getTime(),
+    ),
+  );
+  const yearStart = startOfUtcYear(referenceDate);
+  const yearlySummary = summarizeUsageRecords(
+    filterUsageRecordsByTimeRange(
+      usageRecords,
+      yearStart.getTime(),
+      createUtcDate(referenceDate.getUTCFullYear() + 1, 0, 1).getTime(),
+    ),
   );
 
   return {
-    dailyRequestCount,
-    dailyTokenCount,
-    dailySpend,
-    weeklyRequestCount: Math.round(dailyRequestCount * 7),
-    weeklyTokenCount: Math.round(dailyTokenCount * 7),
-    weeklySpend: roundCurrency(dailySpend * 7),
-    monthlyRequestCount: Math.max(1, Math.round(tokenAnalytics.projectedMonthlyTokens / Math.max(tokenAnalytics.averageTokensPerRun, 1))),
-    monthlyTokenCount: tokenAnalytics.projectedMonthlyTokens,
-    monthlySpend: tokenAnalytics.projectedMonthlyActualAmount,
-    yearlyRequestCount: Math.max(
-      1,
-      Math.round(
-        (tokenAnalytics.projectedMonthlyTokens * 12) /
-          Math.max(tokenAnalytics.averageTokensPerRun, 1),
-      ),
-    ),
-    yearlyTokenCount: Math.round(tokenAnalytics.projectedMonthlyTokens * 12),
-    yearlySpend: roundCurrency(tokenAnalytics.projectedMonthlyActualAmount * 12),
+    dailyRequestCount: dailySummary.requestCount,
+    dailyTokenCount: dailySummary.totalTokens,
+    dailySpend: roundCurrency(dailySummary.amount),
+    weeklyRequestCount: weeklySummary.requestCount,
+    weeklyTokenCount: weeklySummary.totalTokens,
+    weeklySpend: roundCurrency(weeklySummary.amount),
+    monthlyRequestCount: monthlySummary.requestCount,
+    monthlyTokenCount: monthlySummary.totalTokens,
+    monthlySpend: roundCurrency(monthlySummary.amount),
+    yearlyRequestCount: yearlySummary.requestCount,
+    yearlyTokenCount: yearlySummary.totalTokens,
+    yearlySpend: roundCurrency(yearlySummary.amount),
     usageDelta: tokenAnalytics.deltaPercentage,
   };
 }
@@ -1017,35 +1185,22 @@ function buildBusinessSummary(
 }
 
 function buildRecentApiCalls(
-  tokenAnalytics: DashboardTokenAnalytics,
+  usageRecords: ApiRouterUsageRecordDto[],
 ): DashboardApiCallRecord[] {
-  const endpoints = ['/v1/chat/completions', '/v1/responses', '/v1/messages'];
-
-  return tokenAnalytics.modelBreakdown.flatMap((row, rowIndex) => {
-    return Array.from({ length: 2 }, (_, recordIndex) => {
-      const requestCount = Math.max(
-        1,
-        Math.round(row.requestCount / (recordIndex === 0 ? 6 : 9)),
-      );
-      const tokenCount = Math.max(1, Math.round(row.tokens / (recordIndex === 0 ? 14 : 19)));
-      const costAmount = roundCurrency(row.actualAmount / (recordIndex === 0 ? 5 : 7));
-      const offsetMinutes = rowIndex * 95 + recordIndex * 37;
-      const status = rowIndex % 4 === 3 && recordIndex === 1 ? 'failed' : 'success';
-
-      return {
-        id: `${row.id}-${recordIndex}`,
-        timestamp: buildRecentTimestamp(offsetMinutes),
-        modelName: row.modelName,
-        providerName: toProviderName(row.modelName),
-        endpoint: endpoints[(rowIndex + recordIndex) % endpoints.length]!,
-        requestCount,
-        tokenCount,
-        costAmount,
-        latencyMs: 420 + rowIndex * 68 + recordIndex * 34,
-        status,
-      } satisfies DashboardApiCallRecord;
-    });
-  }).sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+  return [...usageRecords]
+    .sort((left, right) => right.created_at_ms - left.created_at_ms)
+    .map((record, index) => ({
+      id: `${record.project_id}-${record.model}-${record.created_at_ms}-${index}`,
+      timestamp: new Date(record.created_at_ms).toISOString(),
+      modelName: record.model,
+      providerName: record.provider || toProviderName(record.model),
+      endpoint: 'not-tracked',
+      requestCount: 1,
+      tokenCount: getUsageRecordTotalTokens(record),
+      costAmount: roundCurrency(getUsageRecordAmount(record)),
+      latencyMs: 0,
+      status: 'success',
+    }));
 }
 
 function buildRecentRevenueRecords(
@@ -1139,13 +1294,14 @@ function buildAlerts(
 }
 
 function buildActivityFeed(
+  recentApiCalls: DashboardApiCallRecord[],
   tokenAnalytics: DashboardTokenAnalytics,
   revenueAnalytics: DashboardRevenueAnalytics,
   tokenSummary: DashboardTokenSummary,
   businessSummary: DashboardBusinessSummary,
 ): DashboardActivityFeed {
   return {
-    recentApiCalls: buildRecentApiCalls(tokenAnalytics).slice(0, 10),
+    recentApiCalls: recentApiCalls.slice(0, 10),
     recentRevenueRecords: buildRecentRevenueRecords(revenueAnalytics).slice(0, 10),
     productPerformance: buildProductPerformance(revenueAnalytics),
     alerts: buildAlerts(tokenSummary, businessSummary, tokenAnalytics, revenueAnalytics),
@@ -1222,9 +1378,13 @@ function buildRecommendations({
 
 class DashboardService {
   async getSnapshot(analyticsQuery: DashboardAnalyticsQuery = {}): Promise<DashboardSnapshot> {
-    const resolvedAnalyticsQuery = resolveAnalyticsQuery(analyticsQuery);
-    const instances = await studioMockService.listInstances();
-    const agents = await studioMockService.listAgents();
+    const [usageRecords, instances, agents] = await Promise.all([
+      loadRouterUsageRecords(),
+      studioMockService.listInstances(),
+      studioMockService.listAgents(),
+    ]);
+    const referenceDate = getAnalyticsReferenceDate(usageRecords);
+    const resolvedAnalyticsQuery = resolveAnalyticsQuery(analyticsQuery, referenceDate);
 
     const instanceSummaries = await Promise.all(
       instances.map(async (instance) => {
@@ -1277,13 +1437,8 @@ class DashboardService {
       installedSkills,
     });
     const tokenAnalytics = buildTokenAnalytics({
-      instances,
-      tasks,
-      channels,
-      agents,
-      installedSkills,
       analyticsQuery: resolvedAnalyticsQuery,
-      instanceSummaries,
+      usageRecords,
     });
     const revenueAnalytics = buildRevenueAnalytics({
       instances,
@@ -1294,9 +1449,11 @@ class DashboardService {
       analyticsQuery: resolvedAnalyticsQuery,
       tokenAnalytics,
     });
-    const tokenSummary = buildTokenSummary(tokenAnalytics, resolvedAnalyticsQuery);
+    const recentApiCalls = buildRecentApiCalls(usageRecords);
+    const tokenSummary = buildTokenSummary(tokenAnalytics, usageRecords, referenceDate);
     const businessSummary = buildBusinessSummary(revenueAnalytics, tokenSummary);
     const activityFeed = buildActivityFeed(
+      recentApiCalls,
       tokenAnalytics,
       revenueAnalytics,
       tokenSummary,
