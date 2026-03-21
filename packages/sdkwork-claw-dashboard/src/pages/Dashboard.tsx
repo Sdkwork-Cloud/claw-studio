@@ -25,8 +25,7 @@ import type {
 } from '../types';
 
 const surfaceClass =
-  'rounded-[2rem] border border-white/70 bg-white/78 p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/6 dark:bg-zinc-900/82';
-const monthOptions = ['2026-01', '2026-02', '2026-03', '2026-04'];
+  'min-w-0 rounded-[2rem] border border-white/70 bg-white/78 p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/6 dark:bg-zinc-900/82';
 const chartPalette = [
   { dotClassName: 'bg-primary-500', sliceClassName: 'text-primary-500' },
   { dotClassName: 'bg-sky-500', sliceClassName: 'text-sky-500' },
@@ -35,9 +34,48 @@ const chartPalette = [
   { dotClassName: 'bg-rose-500', sliceClassName: 'text-rose-500' },
   { dotClassName: 'bg-cyan-500', sliceClassName: 'text-cyan-500' },
 ];
+const summaryCardGridClass = 'grid gap-4 xl:grid-cols-2 2xl:grid-cols-3';
+const summaryMetricGridClass = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2';
+const analyticsSplitGridClass = 'grid gap-6 2xl:grid-cols-[1.35fr_0.95fr]';
+const distributionSplitGridClass =
+  'mt-6 grid gap-5 xl:grid-cols-[minmax(16rem,0.82fr)_minmax(0,1.18fr)]';
+const tableScrollClass = 'min-w-0 overflow-x-auto [scrollbar-gutter:stable]';
 
 type WorkbenchTab = 'api' | 'revenue' | 'products' | 'alerts';
 type ApiStatusFilter = 'all' | 'success' | 'failed';
+
+function formatMonthKey(date: Date) {
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+  return `${date.getUTCFullYear()}-${month}`;
+}
+
+function parseMonthKey(value: string) {
+  const [yearText, monthText] = value.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return null;
+  }
+
+  return new Date(Date.UTC(year, month - 1, 1));
+}
+
+function buildMonthOptions(anchorMonthKey: string, selectedMonthKey: string, count = 12) {
+  const anchorDate = parseMonthKey(anchorMonthKey) ?? new Date();
+  const options = Array.from({ length: count }, (_, index) => {
+    const offset = count - index - 1;
+    return formatMonthKey(
+      new Date(Date.UTC(anchorDate.getUTCFullYear(), anchorDate.getUTCMonth() - offset, 1)),
+    );
+  });
+
+  if (selectedMonthKey && !options.includes(selectedMonthKey)) {
+    options.push(selectedMonthKey);
+  }
+
+  return [...new Set(options)].sort();
+}
 
 function getDeltaTone(delta: number) {
   if (delta > 0) return 'text-emerald-700 dark:text-emerald-200';
@@ -141,6 +179,13 @@ export function DashboardPage() {
   const tokenAnalytics = snapshot?.tokenAnalytics;
   const revenueAnalytics = snapshot?.revenueAnalytics;
   const activityFeed = snapshot?.activityFeed;
+  const latestApiTimestamp = activityFeed?.recentApiCalls[0]?.timestamp;
+  const latestAvailableMonthKey = useMemo(() => {
+    return formatMonthKey(latestApiTimestamp ? new Date(latestApiTimestamp) : new Date());
+  }, [latestApiTimestamp]);
+  const monthOptions = useMemo(() => {
+    return buildMonthOptions(latestAvailableMonthKey, monthKey);
+  }, [latestAvailableMonthKey, monthKey]);
 
   const selectedRangeLabel =
     rangeMode === 'month'
@@ -163,6 +208,10 @@ export function DashboardPage() {
     return rows.filter((row) => row.status === apiStatusFilter);
   }, [activityFeed?.recentApiCalls, apiStatusFilter]);
 
+  const shouldShowCacheSeries = Boolean(
+    tokenAnalytics &&
+      (tokenAnalytics.cacheCreationTokens > 0 || tokenAnalytics.cacheReadTokens > 0),
+  );
   const chartSeries = [
     {
       key: 'totalTokens' as const,
@@ -182,18 +231,22 @@ export function DashboardPage() {
       dotClassName: 'bg-emerald-500',
       strokeClassName: 'text-emerald-500',
     },
-    {
-      key: 'cacheCreationTokens' as const,
-      label: t('dashboard.series.cacheCreation'),
-      dotClassName: 'bg-amber-500',
-      strokeClassName: 'text-amber-500',
-    },
-    {
-      key: 'cacheReadTokens' as const,
-      label: t('dashboard.series.cacheRead'),
-      dotClassName: 'bg-violet-500',
-      strokeClassName: 'text-violet-500',
-    },
+    ...(shouldShowCacheSeries
+      ? [
+          {
+            key: 'cacheCreationTokens' as const,
+            label: t('dashboard.series.cacheCreation'),
+            dotClassName: 'bg-amber-500',
+            strokeClassName: 'text-amber-500',
+          },
+          {
+            key: 'cacheReadTokens' as const,
+            label: t('dashboard.series.cacheRead'),
+            dotClassName: 'bg-violet-500',
+            strokeClassName: 'text-violet-500',
+          },
+        ]
+      : []),
   ];
 
   if (error && !snapshot) {
@@ -218,7 +271,7 @@ export function DashboardPage() {
     <div className="relative h-full overflow-y-auto">
       <div className="min-h-full px-4 py-5 sm:px-6 lg:px-8 xl:px-10">
         <div className="w-full space-y-6 xl:space-y-8">
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className={summaryCardGridClass}>
             <DashboardSummaryCard
               eyebrow={t('dashboard.metrics.revenue.eyebrow')}
               title={t('dashboard.metrics.revenue.label')}
@@ -240,7 +293,7 @@ export function DashboardPage() {
                       : '--'}
                   </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className={summaryMetricGridClass}>
                   <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.labels.week')}</div>
                     <div className="mt-2 text-lg font-semibold text-zinc-950 dark:text-zinc-50">
@@ -271,7 +324,7 @@ export function DashboardPage() {
               changeLabel={tokenSummary ? formatSignedPercent(tokenSummary.usageDelta) : undefined}
             >
               <div className="grid gap-4">
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className={summaryMetricGridClass}>
                   <div className="rounded-[1.5rem] bg-primary-500/[0.08] p-4">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-700 dark:text-primary-200">{t('dashboard.labels.dailyRequests')}</div>
                     <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
@@ -291,7 +344,7 @@ export function DashboardPage() {
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className={summaryMetricGridClass}>
                   <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.labels.week')}</div>
                     <div className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
@@ -328,7 +381,7 @@ export function DashboardPage() {
               changeLabel={businessSummary ? formatSignedPercent(businessSummary.revenueDelta * 0.6) : undefined}
             >
               <div className="grid gap-4">
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className={summaryMetricGridClass}>
                   <div className="rounded-[1.5rem] bg-amber-500/[0.08] p-4">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-200">{t('dashboard.labels.todayOrders')}</div>
                     <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
@@ -348,7 +401,7 @@ export function DashboardPage() {
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className={summaryMetricGridClass}>
                   <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.labels.week')}</div>
                     <div className="mt-2 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{formatInteger(businessSummary?.weekOrders ?? 0)}</div>
@@ -366,14 +419,14 @@ export function DashboardPage() {
             </DashboardSummaryCard>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+          <div className={analyticsSplitGridClass}>
             <section className={surfaceClass}>
               <SectionHeader
                 eyebrow={t('dashboard.metrics.revenue.eyebrow')}
                 title={t('dashboard.sections.revenueTrend')}
                 description={t('dashboard.sections.revenueTrendDescription')}
                 action={
-                  <div className="inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
+                  <div className="inline-flex max-w-full rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
                     {rangeSummaryLabel}
                   </div>
                 }
@@ -395,7 +448,7 @@ export function DashboardPage() {
                 title={t('dashboard.sections.revenueDistribution')}
                 description={t('dashboard.sections.revenueDistributionDescription')}
               />
-              <div className="mt-6 grid gap-5 2xl:grid-cols-[minmax(320px,0.88fr)_1.12fr]">
+              <div className={distributionSplitGridClass}>
                 {revenueAnalytics ? (
                   <DistributionRingChart
                     rows={revenueAnalytics.productBreakdown}
@@ -408,8 +461,8 @@ export function DashboardPage() {
                 ) : (
                   <div className="flex min-h-[20rem] items-center justify-center rounded-[1.6rem] border border-dashed border-zinc-300/80 bg-white/60 text-sm text-zinc-500 dark:border-zinc-700/70 dark:bg-zinc-950/35 dark:text-zinc-400">--</div>
                 )}
-                <div className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
-                  <div className="overflow-x-auto">
+                <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
+                  <div className={tableScrollClass}>
                     <table className="w-full min-w-[40rem] border-collapse text-left">
                       <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
                         <tr>
@@ -443,7 +496,7 @@ export function DashboardPage() {
             </section>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+          <div className={analyticsSplitGridClass}>
             <section className={surfaceClass}>
               <SectionHeader
                 eyebrow={t('dashboard.metrics.tokenUsage.eyebrow')}
@@ -481,7 +534,7 @@ export function DashboardPage() {
                 title={t('dashboard.sections.modelDistribution')}
                 description={t('dashboard.sections.modelDistributionDescription')}
               />
-              <div className="mt-6 grid gap-5 2xl:grid-cols-[minmax(320px,0.88fr)_1.12fr]">
+              <div className={distributionSplitGridClass}>
                 {tokenAnalytics ? (
                   <ModelDistributionChart
                     rows={tokenAnalytics.modelBreakdown}
@@ -492,8 +545,8 @@ export function DashboardPage() {
                 ) : (
                   <div className="flex min-h-[20rem] items-center justify-center rounded-[1.6rem] border border-dashed border-zinc-300/80 bg-white/60 text-sm text-zinc-500 dark:border-zinc-700/70 dark:bg-zinc-950/35 dark:text-zinc-400">--</div>
                 )}
-                <div className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
-                  <div className="overflow-x-auto">
+                <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
+                  <div className={tableScrollClass}>
                     <table className="w-full min-w-[44rem] border-collapse text-left">
                       <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
                         <tr>
@@ -588,7 +641,7 @@ export function DashboardPage() {
                   </div>
 
                   <div className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
-                    <div className="overflow-x-auto">
+                    <div className={tableScrollClass}>
                       <table className="w-full min-w-[72rem] border-collapse text-left">
                         <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
                           <tr>
@@ -632,7 +685,7 @@ export function DashboardPage() {
 
               {activeTab === 'revenue' ? (
                 <div className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
-                  <div className="overflow-x-auto">
+                  <div className={tableScrollClass}>
                     <table className="w-full min-w-[60rem] border-collapse text-left">
                       <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
                         <tr>
@@ -665,7 +718,7 @@ export function DashboardPage() {
 
               {activeTab === 'products' ? (
                 <div className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
-                  <div className="overflow-x-auto">
+                  <div className={tableScrollClass}>
                     <table className="w-full min-w-[48rem] border-collapse text-left">
                       <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
                         <tr>

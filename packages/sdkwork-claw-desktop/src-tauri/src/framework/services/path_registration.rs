@@ -1,10 +1,8 @@
-use crate::framework::{
-    paths::AppPaths,
-    services::openclaw_runtime::ActivatedOpenClawRuntime,
-    Result,
-};
 #[cfg(not(windows))]
 use crate::framework::FrameworkError;
+use crate::framework::{
+    paths::AppPaths, services::openclaw_runtime::ActivatedOpenClawRuntime, Result,
+};
 use std::{fs, path::Path};
 
 const PATH_BLOCK_START: &str = "# >>> claw-studio-openclaw >>>";
@@ -162,9 +160,14 @@ fn ensure_windows_path_contains(user_bin_dir: &Path) -> Result<()> {
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let environment = hkcu
-        .open_subkey_with_flags("Environment", winreg::enums::KEY_READ | winreg::enums::KEY_WRITE)
+        .open_subkey_with_flags(
+            "Environment",
+            winreg::enums::KEY_READ | winreg::enums::KEY_WRITE,
+        )
         .or_else(|_| hkcu.create_subkey("Environment").map(|(key, _)| key))?;
-    let current = environment.get_value::<String, _>("Path").unwrap_or_default();
+    let current = environment
+        .get_value::<String, _>("Path")
+        .unwrap_or_default();
     let updated = merge_windows_path(&current, user_bin_dir);
 
     if updated != current {
@@ -268,8 +271,7 @@ fn escape_unix_path(path: &Path) -> String {
 mod tests {
     use super::PathRegistrationService;
     use crate::framework::{
-        paths::resolve_paths_for_root,
-        services::openclaw_runtime::ActivatedOpenClawRuntime,
+        paths::resolve_paths_for_root, services::openclaw_runtime::ActivatedOpenClawRuntime,
     };
     use std::fs;
 
@@ -285,8 +287,7 @@ mod tests {
             .expect("install shims");
 
         let cmd = fs::read_to_string(paths.user_bin_dir.join("openclaw.cmd")).expect("cmd shim");
-        let ps1 =
-            fs::read_to_string(paths.user_bin_dir.join("openclaw.ps1")).expect("ps1 shim");
+        let ps1 = fs::read_to_string(paths.user_bin_dir.join("openclaw.ps1")).expect("ps1 shim");
         let unix = fs::read_to_string(paths.user_bin_dir.join("openclaw")).expect("unix shim");
 
         assert!(cmd.contains(runtime.node_path.to_string_lossy().as_ref()));

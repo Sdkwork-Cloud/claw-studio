@@ -1,7 +1,5 @@
 use crate::{
-    commands::hub_install_progress::{
-        emit_hub_install_progress, HubInstallProgressOperationKind,
-    },
+    commands::hub_install_progress::{emit_hub_install_progress, HubInstallProgressOperationKind},
     framework::{FrameworkError, Result as FrameworkResult},
     state::AppState,
 };

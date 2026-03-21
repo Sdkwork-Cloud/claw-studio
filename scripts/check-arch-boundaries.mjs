@@ -74,6 +74,12 @@ const allowedFeatureDependencies = new Map([
   ['@sdkwork/claw-market', new Set(['@sdkwork/claw-instances'])],
   ['@sdkwork/claw-settings', new Set(['@sdkwork/claw-account'])],
 ]);
+const allowedPackageExportKeys = new Map([
+  [CORE, new Set(['./sdk'])],
+]);
+const allowedPackageSubpathImports = new Set([
+  '@sdkwork/claw-core/sdk',
+]);
 
 function listSourceFiles(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -135,7 +141,7 @@ function toPkgName(importPath) {
 }
 
 function isRootPackageImport(importPath) {
-  return importPath === toPkgName(importPath);
+  return importPath === toPkgName(importPath) || allowedPackageSubpathImports.has(importPath);
 }
 
 function isAllowed(fromPkg, toPkg) {
@@ -228,7 +234,10 @@ for (const [dirName, pkgName] of packageNameByDir.entries()) {
 
   if (exportsField && typeof exportsField !== 'string') {
     const exportKeys = Object.keys(exportsField);
-    const nonRootExports = exportKeys.filter((key) => key !== '.');
+    const allowedExportKeys = allowedPackageExportKeys.get(pkgName) ?? new Set();
+    const nonRootExports = exportKeys.filter(
+      (key) => key !== '.' && !allowedExportKeys.has(key),
+    );
 
     if (nonRootExports.length > 0) {
       packageExportViolations.push({

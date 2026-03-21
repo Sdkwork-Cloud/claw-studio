@@ -114,7 +114,15 @@ export function ProxyProviderTable({
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {providers.map((provider) => (
               <tr key={provider.id} className="align-top">
-                <td className="px-5 py-5">
+                {(() => {
+                  const isGroupLocked =
+                    Boolean(provider.credentialReference)
+                    && (provider.canCopyApiKey === false || !provider.apiKey);
+                  const isStatusManaged = Boolean(provider.credentialReference);
+
+                  return (
+                    <>
+                      <td className="px-5 py-5">
                   <div className="min-w-[15rem]">
                     <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
                       {provider.name}
@@ -149,112 +157,124 @@ export function ProxyProviderTable({
                       ))}
                     </div>
                   </div>
-                </td>
+                      </td>
 
-                <td className="px-5 py-5">
-                  <div className="flex min-w-[13rem] items-start gap-3">
-                    <div className="flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-                      {maskApiKey(provider.apiKey)}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onCopyApiKey(provider)}
-                    >
-                      {t('apiRouterPage.actions.copyKey')}
-                    </Button>
-                  </div>
-                </td>
+                      <td className="px-5 py-5">
+                        <div className="flex min-w-[13rem] items-start gap-3">
+                          <div className="flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                            {provider.apiKey
+                              ? maskApiKey(provider.apiKey)
+                              : t('apiRouterPage.table.oneTimeSecretHidden')}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={provider.canCopyApiKey === false || !provider.apiKey}
+                            onClick={() => onCopyApiKey(provider)}
+                          >
+                            {t('apiRouterPage.actions.copyKey')}
+                          </Button>
+                        </div>
+                      </td>
 
-                <td className="px-5 py-5">
-                  <div className="min-w-[11rem]">
-                    <Select
-                      value={provider.groupId}
-                      onValueChange={(value) => onGroupChange(provider.id, value)}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </td>
+                      <td className="px-5 py-5">
+                        <div
+                          className="min-w-[11rem]"
+                          title={isGroupLocked ? t('apiRouterPage.table.groupLockedHint') : undefined}
+                        >
+                          <Select
+                            value={provider.groupId}
+                            disabled={isGroupLocked}
+                            onValueChange={(value) => onGroupChange(provider.id, value)}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {groups.map((group) => (
+                                <SelectItem key={group.id} value={group.id}>
+                                  {group.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </td>
 
-                <td className="px-5 py-5">
-                  <div className="min-w-[10rem]">
-                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                      {t('apiRouterPage.values.requestCountShort', {
-                        value: formatNumber(provider.usage.requestCount, i18n.language),
-                      })}
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                      {t('apiRouterPage.values.tokenCountShort', {
-                        value: formatNumber(provider.usage.tokenCount, i18n.language),
-                      })}
-                    </div>
-                    <div className="mt-2 text-xs font-semibold text-primary-500">
-                      {formatCurrency(provider.usage.spendUsd, i18n.language)} / {provider.usage.period}
-                    </div>
-                  </div>
-                </td>
+                      <td className="px-5 py-5">
+                        <div className="min-w-[10rem]">
+                          <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                            {t('apiRouterPage.values.requestCountShort', {
+                              value: formatNumber(provider.usage.requestCount, i18n.language),
+                            })}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {t('apiRouterPage.values.tokenCountShort', {
+                              value: formatNumber(provider.usage.tokenCount, i18n.language),
+                            })}
+                          </div>
+                          <div className="mt-2 text-xs font-semibold text-primary-500">
+                            {formatCurrency(provider.usage.spendUsd, i18n.language)} / {provider.usage.period}
+                          </div>
+                        </div>
+                      </td>
 
-                <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
-                  {formatDate(provider.expiresAt, i18n.language, t('apiRouterPage.values.never'))}
-                </td>
+                      <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
+                        {formatDate(provider.expiresAt, i18n.language, t('apiRouterPage.values.never'))}
+                      </td>
 
-                <td className="px-5 py-5">
-                  <ProxyProviderStatusBadge status={provider.status} />
-                </td>
+                      <td className="px-5 py-5">
+                        <ProxyProviderStatusBadge status={provider.status} />
+                      </td>
 
-                <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
-                  {formatDate(provider.createdAt, i18n.language, t('apiRouterPage.values.never'))}
-                </td>
+                      <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
+                        {formatDate(provider.createdAt, i18n.language, t('apiRouterPage.values.never'))}
+                      </td>
 
-                <td className="px-5 py-5">
-                  <div className="flex min-w-[17rem] flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onOpenUsage(provider)}
-                    >
-                      {t('apiRouterPage.actions.usageMethod')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onToggleStatus(provider)}
-                    >
-                      {provider.status === 'disabled'
-                        ? t('apiRouterPage.actions.enable')
-                        : t('apiRouterPage.actions.disable')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onOpenEdit(provider)}
-                    >
-                      {t('apiRouterPage.actions.edit')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => onDelete(provider)}
-                    >
-                      {t('apiRouterPage.actions.delete')}
-                    </Button>
-                  </div>
-                </td>
+                      <td className="px-5 py-5">
+                        <div className="flex min-w-[17rem] flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onOpenUsage(provider)}
+                          >
+                            {t('apiRouterPage.actions.usageMethod')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={isStatusManaged}
+                            title={isStatusManaged ? t('apiRouterPage.table.statusManagedHint') : undefined}
+                            onClick={() => onToggleStatus(provider)}
+                          >
+                            {provider.status === 'disabled'
+                              ? t('apiRouterPage.actions.enable')
+                              : t('apiRouterPage.actions.disable')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onOpenEdit(provider)}
+                          >
+                            {t('apiRouterPage.actions.edit')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => onDelete(provider)}
+                          >
+                            {t('apiRouterPage.actions.delete')}
+                          </Button>
+                        </div>
+                      </td>
+                    </>
+                  );
+                })()}
               </tr>
             ))}
           </tbody>

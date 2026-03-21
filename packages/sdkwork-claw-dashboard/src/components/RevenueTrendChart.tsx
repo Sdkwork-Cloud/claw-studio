@@ -67,12 +67,12 @@ export function RevenueTrendChart({
   }, []);
 
   const hasRenderableData = points.length > 0;
-  const width = Math.max(chartWidth, 720);
-  const height = 352;
+  const width = Math.max(chartWidth, 320);
+  const height = width < 520 ? 320 : 352;
   const paddingTop = 18;
-  const paddingBottom = 38;
-  const chartPaddingX = 16;
-  const yAxisLabelWidth = 42;
+  const paddingBottom = width < 520 ? 34 : 38;
+  const chartPaddingX = width < 520 ? 12 : 16;
+  const yAxisLabelWidth = width < 520 ? 36 : 42;
   const plotLeft = chartPaddingX + yAxisLabelWidth;
   const plotRight = width - chartPaddingX;
   const usableWidth = plotRight - plotLeft;
@@ -90,7 +90,8 @@ export function RevenueTrendChart({
     const ratio = 1 - index / 4;
     return Math.round(maxValue * ratio);
   });
-  const labelStep = Math.max(1, Math.ceil(points.length / 8));
+  const targetXAxisLabelCount = width < 520 ? 4 : width < 760 ? 6 : 8;
+  const labelStep = Math.max(1, Math.ceil(points.length / targetXAxisLabelCount));
   const xAxisIndices = hasRenderableData
     ? Array.from(
         new Set(
@@ -113,20 +114,20 @@ export function RevenueTrendChart({
 
   return (
     <div className="overflow-hidden rounded-[1.6rem] border border-white/70 bg-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-white/6 dark:bg-zinc-950/35">
-      <div className="mx-4 mb-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[1.4rem] border border-zinc-200/70 bg-zinc-50/85 px-4 py-3 dark:border-white/6 dark:bg-white/[0.04]">
-        <div className="flex items-center gap-3">
+      <div className="mx-4 mb-4 mt-4 flex flex-col gap-3 rounded-[1.4rem] border border-zinc-200/70 bg-zinc-50/85 px-4 py-3 sm:flex-row sm:items-start sm:justify-between dark:border-white/6 dark:bg-white/[0.04]">
+        <div className="flex min-w-0 items-center gap-3">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <div>
+          <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
               {t('dashboard.charts.revenueTrend')}
             </div>
-            <div className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+            <div className="mt-1 text-sm font-medium leading-5 text-zinc-700 dark:text-zinc-200">
               {t('dashboard.labels.totalOrders')}: {numberFormatter.format(points.reduce((sum, point) => sum + point.orders, 0))}
             </div>
           </div>
         </div>
         {peakRevenue ? (
-          <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
+          <div className="max-w-full rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
             {t('dashboard.labels.peakRevenue')} {peakRevenue.label}
           </div>
         ) : null}
@@ -136,7 +137,7 @@ export function RevenueTrendChart({
         <div ref={chartFrameRef} className="w-full">
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className="h-[22rem] w-full"
+            className="h-[20rem] w-full sm:h-[22rem]"
             role="img"
             aria-label={t('dashboard.charts.revenueTrend')}
           >

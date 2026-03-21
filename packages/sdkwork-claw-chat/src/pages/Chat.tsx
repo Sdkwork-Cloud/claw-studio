@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
+  Menu,
   Package,
   Search,
   Settings2,
@@ -41,6 +42,7 @@ export function Chat() {
   } = useChatStore();
   const { channels, setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
   const { t } = useTranslation();
+  const appName = t('common.productName');
   const suggestions = [
     t('chat.page.suggestions.quantum'),
     t('chat.page.suggestions.python'),
@@ -55,6 +57,7 @@ export function Chat() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
   const [agentSearchQuery, setAgentSearchQuery] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<any>(null);
@@ -285,10 +288,14 @@ export function Chat() {
     abortControllerRef.current?.abort();
   };
 
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+  };
+
   const renderContent = () => {
     if (!activeInstanceId) {
       return (
-        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center md:p-10">
+        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center sm:p-8 lg:p-10">
           <AlertCircle className="mb-4 h-12 w-12 text-zinc-400" />
           <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
             {t('chat.page.noInstanceTitle')}
@@ -307,19 +314,31 @@ export function Chat() {
     }
 
     return (
-      <div className="relative flex h-full flex-1 flex-col">
-        <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-zinc-200 bg-white/80 px-6 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/80">
-          <div className="flex items-center gap-3">
-            <div className="relative">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col">
+        <header className="z-10 flex min-h-16 flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white/80 px-3 py-3 backdrop-blur-xl sm:px-4 lg:px-6 dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 lg:hidden"
+              aria-label={t('common.expandSidebar')}
+              title={t('common.expandSidebar')}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+
+            <div className="relative min-w-0 max-w-full">
               <button
                 onClick={() => {
                   setShowAgentDropdown((current) => !current);
                   setShowSkillDropdown(false);
                 }}
-                className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                className="flex min-w-0 max-w-full items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
               >
                 <UserCircle className="h-4 w-4 text-primary-500" />
-                <span>{activeAgent?.name || t('chat.page.selectAgent')}</span>
+                <span className="truncate max-w-[8rem] sm:max-w-[11rem] lg:max-w-[14rem] xl:max-w-[16rem]">
+                  {activeAgent?.name || t('chat.page.selectAgent')}
+                </span>
                 <ChevronDown className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
               </button>
 
@@ -332,7 +351,7 @@ export function Chat() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute left-0 top-full z-50 mt-2 flex max-h-[360px] w-64 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+                      className="absolute left-0 top-full z-50 mt-2 flex max-h-[360px] w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl sm:w-64 dark:border-zinc-800 dark:bg-zinc-900"
                     >
                       <div className="border-b border-zinc-100 bg-zinc-50/50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-500">
                         {t('chat.page.availableAgents')}
@@ -396,16 +415,18 @@ export function Chat() {
               </AnimatePresence>
             </div>
 
-            <div className="relative">
+            <div className="relative min-w-0 max-w-full">
               <button
                 onClick={() => {
                   setShowSkillDropdown((current) => !current);
                   setShowAgentDropdown(false);
                 }}
-                className="flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                className="flex min-w-0 max-w-full items-center gap-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
               >
                 <Package className="h-4 w-4 text-primary-500" />
-                <span>{activeSkill?.name || t('chat.page.selectSkill')}</span>
+                <span className="truncate max-w-[8rem] sm:max-w-[11rem] lg:max-w-[14rem] xl:max-w-[16rem]">
+                  {activeSkill?.name || t('chat.page.selectSkill')}
+                </span>
                 <ChevronDown className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
               </button>
 
@@ -418,7 +439,7 @@ export function Chat() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute left-0 top-full z-50 mt-2 flex max-h-[360px] w-64 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+                      className="absolute left-0 top-full z-50 mt-2 flex max-h-[360px] w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl sm:w-64 dark:border-zinc-800 dark:bg-zinc-900"
                     >
                       <div className="border-b border-zinc-100 bg-zinc-50/50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-500">
                         {t('chat.page.availableSkills')}
@@ -485,7 +506,7 @@ export function Chat() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
             <button
               onClick={() => navigate('/settings/llm')}
               className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
@@ -497,44 +518,72 @@ export function Chat() {
 
         <div className="relative flex flex-1 flex-col overflow-y-auto scrollbar-hide scroll-smooth">
           {activeMessages.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center p-8">
-              <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-[2rem] bg-primary-500/10 shadow-inner">
-                <Sparkles className="h-10 w-10 text-primary-500" />
-              </div>
-              <h2 className="mb-3 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                {t('chat.page.emptyTitle')}
-              </h2>
-              <p className="mb-10 max-w-md text-center text-lg text-zinc-500 dark:text-zinc-400">
-                {activeSkill
-                  ? t('chat.page.emptyWithSkill', {
-                      skill: activeSkill.name,
-                      category: activeSkill.category.toLowerCase(),
-                      model:
-                        activeModel?.name || t('chat.page.selectedModelFallback'),
-                    })
-                  : t('chat.page.emptyDefault', {
-                      model:
-                        activeModel?.name || t('chat.page.selectedModelFallback'),
-                    })}
-              </p>
+            <div className="flex min-h-full flex-1 items-center justify-center px-3 pb-[calc(9.5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-[calc(10.5rem+env(safe-area-inset-bottom))] sm:pt-8 lg:px-8 lg:pb-[calc(11rem+env(safe-area-inset-bottom))] lg:pt-10">
+              <div className="grid w-full max-w-6xl gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:items-center xl:gap-6">
+                <div className="flex flex-col items-center rounded-[2rem] border border-zinc-200/70 bg-white/80 p-6 text-center shadow-[0_18px_48px_rgba(15,23,42,0.08)] sm:p-8 lg:items-start lg:p-10 lg:text-left dark:border-zinc-800/70 dark:bg-zinc-900/80 dark:shadow-none">
+                  <span className="mb-6 inline-flex items-center rounded-full border border-primary-500/15 bg-primary-500/8 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-primary-600 dark:border-primary-400/20 dark:bg-primary-400/10 dark:text-primary-300">
+                    <span className="max-w-full truncate">{appName.toUpperCase()}</span>
+                  </span>
 
-              <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => handleSend(suggestion)}
-                    className="group relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-5 text-left transition-all duration-300 hover:border-primary-500/50 hover:shadow-lg hover:shadow-primary-500/5 dark:border-zinc-800/80 dark:bg-zinc-900 dark:hover:border-primary-500/50"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary-500/0 to-primary-500/0 transition-colors duration-500 group-hover:from-primary-500/5 group-hover:to-transparent" />
-                    <p className="relative z-10 text-[15px] font-medium text-zinc-700 transition-colors group-hover:text-primary-600 dark:text-zinc-300 dark:group-hover:text-primary-400">
-                      {suggestion}
-                    </p>
-                  </button>
-                ))}
+                  <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-[1.75rem] bg-primary-500/10 shadow-inner sm:h-20 sm:w-20 sm:rounded-[2rem]">
+                    <Sparkles className="h-10 w-10 text-primary-500" />
+                  </div>
+
+                  <h2 className="max-w-[18ch] text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl xl:text-[2.15rem] dark:text-zinc-100">
+                    {t('chat.page.emptyTitle')}
+                  </h2>
+
+                  <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-500 sm:text-base lg:max-w-[34rem] dark:text-zinc-400">
+                    {activeSkill
+                      ? t('chat.page.emptyWithSkill', {
+                          skill: activeSkill.name,
+                          category: activeSkill.category.toLowerCase(),
+                          appName,
+                        })
+                      : t('chat.page.emptyDefault', {
+                          appName,
+                        })}
+                  </p>
+
+                  <div className="mt-8 flex w-full flex-wrap justify-center gap-3 lg:justify-start">
+                    <div className="inline-flex max-w-full items-center rounded-2xl border border-zinc-200/80 bg-zinc-50/90 px-4 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-300">
+                      <span className="truncate">
+                        {activeModel?.name || t('chat.page.selectedModelFallback')}
+                      </span>
+                    </div>
+                    {activeSkill ? (
+                      <div className="inline-flex max-w-full items-center rounded-2xl border border-primary-500/15 bg-primary-500/8 px-4 py-2 text-sm text-primary-600 dark:border-primary-400/20 dark:bg-primary-400/10 dark:text-primary-300">
+                        <span className="truncate">{activeSkill.name}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex min-w-0 items-stretch">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    {suggestions.map((suggestion, index) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => handleSend(suggestion)}
+                        className="group relative flex min-h-[8.5rem] flex-col justify-between overflow-hidden rounded-[1.75rem] border border-zinc-200/80 bg-white p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-primary-500/50 hover:shadow-lg hover:shadow-primary-500/5 dark:border-zinc-800/80 dark:bg-zinc-900 dark:hover:border-primary-500/50"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary-500/0 via-primary-500/0 to-primary-500/0 transition-colors duration-500 group-hover:from-primary-500/5 group-hover:via-primary-500/0 group-hover:to-transparent" />
+                        <span className="relative z-10 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-500">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <div className="relative z-10 flex min-w-0 items-end justify-between gap-4">
+                          <p className="min-w-0 text-[15px] font-medium leading-6 text-zinc-700 transition-colors group-hover:text-primary-600 dark:text-zinc-300 dark:group-hover:text-primary-400">
+                            {suggestion}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex-1 space-y-6 py-8 pb-40">
+            <div className="flex-1 space-y-5 px-3 py-6 pb-36 sm:space-y-6 sm:px-4 sm:py-8 sm:pb-40">
               {activeMessages.map((message, index) => {
                 const isLastMessage = index === activeMessages.length - 1;
                 const showTyping = isTyping && isLastMessage && message.role === 'assistant';
@@ -555,8 +604,8 @@ export function Chat() {
           )}
         </div>
 
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-50 via-zinc-50/90 to-transparent p-4 pb-6 pt-12 dark:from-zinc-950 dark:via-zinc-950/90 dark:to-transparent">
-          <div className="pointer-events-auto mx-auto max-w-4xl">
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-50 via-zinc-50/90 to-transparent p-3 pb-4 pt-10 sm:p-4 sm:pb-6 sm:pt-12 dark:from-zinc-950 dark:via-zinc-950/90 dark:to-transparent">
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl">
             <ChatInput
               onSend={handleSend}
               isLoading={isTyping}
@@ -575,8 +624,36 @@ export function Chat() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-      <ChatSidebar />
+    <div className="relative flex h-full min-w-0 overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+      <div className="hidden h-full w-72 shrink-0 lg:flex xl:w-80">
+        <ChatSidebar />
+      </div>
+      <AnimatePresence>
+        {isSidebarOpen ? (
+          <>
+            <motion.button
+              key="chat-sidebar-backdrop"
+              type="button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeSidebar}
+              className="fixed inset-0 z-40 bg-zinc-950/45 backdrop-blur-sm lg:hidden"
+              aria-label={t('common.close')}
+            />
+            <motion.div
+              key="chat-sidebar-drawer"
+              initial={{ x: -32, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -32, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+              className="fixed inset-y-0 left-0 z-50 w-[min(22rem,calc(100vw-1rem))] lg:hidden"
+            >
+              <ChatSidebar onSessionSelect={closeSidebar} onClose={closeSidebar} />
+            </motion.div>
+          </>
+        ) : null}
+      </AnimatePresence>
       {renderContent()}
     </div>
   );

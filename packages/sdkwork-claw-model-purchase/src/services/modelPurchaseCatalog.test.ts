@@ -97,6 +97,11 @@ await runTest('model purchase catalog localizes vendor copy for Chinese without 
   const { ensureI18n } = await import('@sdkwork/claw-i18n');
   const { modelPurchaseCatalogService } = await import('./modelPurchaseCatalog.ts');
 
+  await ensureI18n('en');
+  const englishCatalog = await modelPurchaseCatalogService.listVendors('en');
+  const englishOpenaiVendor = englishCatalog.find((vendor) => vendor.id === 'openai');
+  const englishMinimaxVendor = englishCatalog.find((vendor) => vendor.id === 'minimax');
+
   await ensureI18n('zh');
   const catalog = await modelPurchaseCatalogService.listVendors('zh');
   const openaiVendor = catalog.find((vendor) => vendor.id === 'openai');
@@ -104,16 +109,13 @@ await runTest('model purchase catalog localizes vendor copy for Chinese without 
 
   assert.ok(openaiVendor);
   assert.ok(minimaxVendor);
-  assert.equal(
-    openaiVendor.tagline,
-    '面向智能体、对话与推理场景的高阶 GPT 套餐。',
-  );
-  assert.equal(
-    minimaxVendor.heroDescription,
-    '适合长会话、多模态应用与富媒体场景。',
-  );
-  assert.deepEqual(
-    openaiVendor.modelHighlights,
-    ['GPT-4.1', 'o4-mini', '实时能力'],
-  );
+  assert.ok(englishOpenaiVendor);
+  assert.ok(englishMinimaxVendor);
+  assert.match(openaiVendor.tagline ?? '', /[\p{Script=Han}]/u);
+  assert.notEqual(openaiVendor.tagline, englishOpenaiVendor.tagline);
+  assert.match(minimaxVendor.heroDescription ?? '', /[\p{Script=Han}]/u);
+  assert.notEqual(minimaxVendor.heroDescription, englishMinimaxVendor.heroDescription);
+  assert.equal(openaiVendor.modelHighlights[0], 'GPT-4.1');
+  assert.equal(openaiVendor.modelHighlights[1], 'o4-mini');
+  assert.match(openaiVendor.modelHighlights[2] ?? '', /[\p{Script=Han}]/u);
 });

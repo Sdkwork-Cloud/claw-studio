@@ -31,6 +31,7 @@ import type {
 } from '@sdkwork/claw-types';
 import type {
   StudioCreateInstanceInput,
+  StudioInstanceTaskMutationPayload,
   StudioPlatformAPI,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
@@ -38,6 +39,123 @@ import { studioMockService } from '../services/index.ts';
 
 const INSTANCE_STORAGE_KEY = 'claw-studio:studio:instances:v1';
 const CONVERSATION_STORAGE_KEY = 'claw-studio:studio:conversations:v1';
+
+function asObject(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asString(value: unknown) {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function asBoolean(value: unknown) {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function asNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function mapOpenClawTaskPayloadToMockTask(
+  payload: StudioInstanceTaskMutationPayload,
+): Omit<Awaited<ReturnType<typeof studioMockService.listTasks>>[number], 'id' | 'instanceId'> {
+  const root = asObject(payload);
+  const schedule = asObject(root.schedule);
+  const jobPayload = asObject(root.payload);
+  const delivery = asObject(root.delivery);
+  const scheduleKind = asString(schedule.kind) || 'cron';
+  const sessionTarget = asString(root.sessionTarget);
+  const payloadKind = asString(jobPayload.kind);
+
+  if (scheduleKind === 'every') {
+    const everyMs = asNumber(schedule.everyMs) || 30 * 60 * 1000;
+    const intervalMinutes = Math.max(1, Math.round(everyMs / (60 * 1000)));
+    return {
+      name: asString(root.name) || 'Untitled task',
+      description: asString(root.description),
+      prompt: asString(jobPayload.message) || asString(jobPayload.text) || '',
+      schedule: `@every ${intervalMinutes}m`,
+      scheduleMode: 'interval',
+      scheduleConfig: {
+        intervalValue: intervalMinutes,
+        intervalUnit: 'minute',
+      },
+      cronExpression: undefined,
+      actionType: payloadKind === 'systemEvent' ? 'message' : 'skill',
+      status: asBoolean(root.enabled) === false ? 'paused' : 'active',
+      sessionMode: sessionTarget === 'main' ? 'main' : 'isolated',
+      wakeUpMode: asString(root.wakeMode) === 'next-heartbeat' ? 'nextCycle' : 'immediate',
+      executionContent: payloadKind === 'systemEvent' ? 'sendPromptMessage' : 'runAssistantTask',
+      timeoutSeconds: asNumber(jobPayload.timeoutSeconds),
+      deliveryMode: asString(delivery.mode) === 'none' ? 'none' : 'publishSummary',
+      deliveryChannel: asString(delivery.channel),
+      recipient: asString(delivery.to),
+      lastRun: undefined,
+      nextRun: undefined,
+    };
+  }
+
+  if (scheduleKind === 'at') {
+    const at = asString(schedule.at) || '';
+    const parsed = at ? new Date(at) : null;
+    const year = parsed && !Number.isNaN(parsed.getTime()) ? parsed.getFullYear() : 2026;
+    const month = parsed && !Number.isNaN(parsed.getTime()) ? String(parsed.getMonth() + 1).padStart(2, '0') : '01';
+    const day = parsed && !Number.isNaN(parsed.getTime()) ? String(parsed.getDate()).padStart(2, '0') : '01';
+    const hours = parsed && !Number.isNaN(parsed.getTime()) ? String(parsed.getHours()).padStart(2, '0') : '09';
+    const minutes = parsed && !Number.isNaN(parsed.getTime()) ? String(parsed.getMinutes()).padStart(2, '0') : '00';
+    const scheduledDate = `${year}-${month}-${day}`;
+    const scheduledTime = `${hours}:${minutes}`;
+
+    return {
+      name: asString(root.name) || 'Untitled task',
+      description: asString(root.description),
+      prompt: asString(jobPayload.message) || asString(jobPayload.text) || '',
+      schedule: `at ${scheduledDate} ${scheduledTime}`,
+      scheduleMode: 'datetime',
+      scheduleConfig: {
+        scheduledDate,
+        scheduledTime,
+      },
+      cronExpression: `${Number(minutes)} ${Number(hours)} ${Number(day)} ${Number(month)} *`,
+      actionType: payloadKind === 'systemEvent' ? 'message' : 'skill',
+      status: asBoolean(root.enabled) === false ? 'paused' : 'active',
+      sessionMode: sessionTarget === 'main' ? 'main' : 'isolated',
+      wakeUpMode: asString(root.wakeMode) === 'next-heartbeat' ? 'nextCycle' : 'immediate',
+      executionContent: payloadKind === 'systemEvent' ? 'sendPromptMessage' : 'runAssistantTask',
+      timeoutSeconds: asNumber(jobPayload.timeoutSeconds),
+      deliveryMode: asString(delivery.mode) === 'none' ? 'none' : 'publishSummary',
+      deliveryChannel: asString(delivery.channel),
+      recipient: asString(delivery.to),
+      lastRun: undefined,
+      nextRun: undefined,
+    };
+  }
+
+  return {
+    name: asString(root.name) || 'Untitled task',
+    description: asString(root.description),
+    prompt: asString(jobPayload.message) || asString(jobPayload.text) || '',
+    schedule: asString(schedule.expr) || '* * * * *',
+    scheduleMode: 'cron',
+    scheduleConfig: {
+      cronExpression: asString(schedule.expr) || '* * * * *',
+    },
+    cronExpression: asString(schedule.expr) || '* * * * *',
+    actionType: payloadKind === 'systemEvent' ? 'message' : 'skill',
+    status: asBoolean(root.enabled) === false ? 'paused' : 'active',
+    sessionMode: sessionTarget === 'main' ? 'main' : 'isolated',
+    wakeUpMode: asString(root.wakeMode) === 'next-heartbeat' ? 'nextCycle' : 'immediate',
+    executionContent: payloadKind === 'systemEvent' ? 'sendPromptMessage' : 'runAssistantTask',
+    timeoutSeconds: asNumber(jobPayload.timeoutSeconds),
+    deliveryMode: asString(delivery.mode) === 'none' ? 'none' : 'publishSummary',
+    deliveryChannel: asString(delivery.channel),
+    recipient: asString(delivery.to),
+    lastRun: undefined,
+    nextRun: undefined,
+  };
+}
 const DEFAULT_INSTANCE_ID = 'local-built-in';
 
 interface StudioInstanceRegistryDocument {
@@ -976,6 +1094,24 @@ export class WebStudioPlatform implements StudioPlatformAPI {
       `[${new Date(instance.updatedAt).toISOString()}] instance=${instance.id} status=${instance.status}`,
       `[${new Date().toISOString()}] transport=${instance.transportKind} baseUrl=${instance.baseUrl || '-'}`,
     ].join('\n');
+  }
+
+  async createInstanceTask(
+    instanceId: string,
+    payload: StudioInstanceTaskMutationPayload,
+  ): Promise<void> {
+    await studioMockService.createTask(instanceId, mapOpenClawTaskPayloadToMockTask(payload));
+  }
+
+  async updateInstanceTask(
+    _instanceId: string,
+    taskId: string,
+    payload: StudioInstanceTaskMutationPayload,
+  ): Promise<void> {
+    const updated = await studioMockService.updateTask(taskId, mapOpenClawTaskPayloadToMockTask(payload));
+    if (!updated) {
+      throw new Error(`Task "${taskId}" not found`);
+    }
   }
 
   async cloneInstanceTask(

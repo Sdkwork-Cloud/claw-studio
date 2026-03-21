@@ -4,6 +4,7 @@ import {
   type StudioCreateInstanceInput,
   type StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
+import { openClawConfigService } from '@sdkwork/claw-core';
 import { ListParams, PaginatedResult, type StudioInstanceRecord } from '@sdkwork/claw-types';
 import { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types';
 
@@ -85,6 +86,32 @@ function mapUpdateInput(data: UpdateInstanceDTO): StudioUpdateInstanceInput {
   };
 }
 
+function trimApiRouterProviderId(providerId: string) {
+  return providerId.startsWith('api-router-')
+    ? providerId.slice('api-router-'.length)
+    : providerId;
+}
+
+const updateMockInstanceLlmProviderConfig =
+  studioMockService['updateInstanceLlmProviderConfig'];
+
+async function resolveManagedOpenClawConfig(id: string) {
+  const detail = await studio.getInstanceDetail(id);
+  if (!detail || detail.instance.runtimeKind !== 'openclaw') {
+    return null;
+  }
+
+  const configPath = openClawConfigService.resolveInstanceConfigPath(detail);
+  if (!configPath) {
+    return null;
+  }
+
+  return {
+    detail,
+    configPath,
+  };
+}
+
 export interface IInstanceService {
   getList(params?: ListParams): Promise<PaginatedResult<Instance>>;
   getById(id: string): Promise<Instance | null>;
@@ -107,6 +134,12 @@ export interface IInstanceService {
     providerId: string,
     update: InstanceLLMProviderUpdate,
   ): Promise<void>;
+  saveOpenClawChannelConfig(
+    id: string,
+    channelId: string,
+    values: Record<string, string>,
+  ): Promise<void>;
+  setOpenClawChannelEnabled(id: string, channelId: string, enabled: boolean): Promise<void>;
 }
 
 class InstanceService implements IInstanceService {
@@ -253,10 +286,79 @@ class InstanceService implements IInstanceService {
     providerId: string,
     update: InstanceLLMProviderUpdate,
   ): Promise<void> {
-    const updated = await studioMockService.updateInstanceLlmProviderConfig(id, providerId, update);
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (managedConfig) {
+      const configSnapshot = await openClawConfigService.readConfigSnapshot(managedConfig.configPath);
+      const currentProvider = configSnapshot.providerSnapshots.find(
+        (provider) => provider.id === providerId,
+      );
+
+      if (!currentProvider) {
+        throw new Error('Failed to resolve the managed OpenClaw provider configuration.');
+      }
+
+      await openClawConfigService.saveProviderSelection({
+        configPath: managedConfig.configPath,
+        provider: {
+          id: trimApiRouterProviderId(providerId),
+          channelId: currentProvider.provider,
+          name: currentProvider.name,
+          apiKey: update.apiKeySource,
+          baseUrl: update.endpoint,
+          models: currentProvider.models.map((model) => ({
+            id: model.id,
+            name: model.name,
+          })),
+          config: update.config,
+        },
+        selection: {
+          defaultModelId: update.defaultModelId,
+          reasoningModelId: update.reasoningModelId,
+          embeddingModelId: update.embeddingModelId,
+        },
+      });
+      return;
+    }
+
+    const updated = await updateMockInstanceLlmProviderConfig(id, providerId, update);
     if (!updated) {
       throw new Error('Failed to update LLM provider config');
     }
+  }
+
+  async saveOpenClawChannelConfig(
+    id: string,
+    channelId: string,
+    values: Record<string, string>,
+  ): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Managed OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.saveChannelConfiguration({
+      configPath: managedConfig.configPath,
+      channelId,
+      values,
+      enabled: true,
+    });
+  }
+
+  async setOpenClawChannelEnabled(
+    id: string,
+    channelId: string,
+    enabled: boolean,
+  ): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Managed OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.setChannelEnabled({
+      configPath: managedConfig.configPath,
+      channelId,
+      enabled,
+    });
   }
 }
 

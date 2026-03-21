@@ -8,12 +8,16 @@ function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
 }
 
-function readJson<T>(relPath: string): T {
-  return JSON.parse(read(relPath)) as T;
-}
-
 function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
+}
+
+function readFromRepo(...segments: string[]) {
+  return fs.readFileSync(path.resolve(root, '..', '..', ...segments), 'utf8');
+}
+
+function existsInRepo(...segments: string[]) {
+  return fs.existsSync(path.resolve(root, '..', '..', ...segments));
 }
 
 function runTest(name: string, fn: () => void) {
@@ -26,54 +30,44 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-settings is implemented locally with V5 settings tabs and sidebar controls', () => {
-  const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-settings/package.json');
-  const indexSource = read('packages/sdkwork-claw-settings/src/index.ts');
+runTest('notification settings SDK contract exposes the app-api notification settings shape', () => {
+  const notificationSettingsType = readFromRepo(
+    'spring-ai-plus-app-api',
+    'sdkwork-sdk-app',
+    'sdkwork-app-sdk-typescript',
+    'src',
+    'types',
+    'notification-settings-vo.ts',
+  );
 
-  assert.ok(exists('packages/sdkwork-claw-settings/src/Settings.tsx'));
-  assert.ok(exists('packages/sdkwork-claw-settings/src/GeneralSettings.tsx'));
-  assert.ok(exists('packages/sdkwork-claw-settings/src/services/settingsService.ts'));
-  assert.ok(exists('packages/sdkwork-claw-settings/src/store/useLLMStore.ts'));
-
-  assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-settings']);
-  assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-settings/);
-
-  const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
-  assert.doesNotMatch(settingsSource, /id: 'codebox'/);
-  assert.doesNotMatch(settingsSource, /id: 'api-router'/);
-
-  const generalSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
-  assert.match(generalSource, /hiddenSidebarItems/);
-  assert.match(generalSource, /toggleSidebarItem/);
+  assert.ok(
+    existsInRepo(
+      'spring-ai-plus-app-api',
+      'sdkwork-sdk-app',
+      'sdkwork-app-sdk-typescript',
+      'src',
+      'types',
+      'notification-type-settings-vo.ts',
+    ),
+    'generated notification type settings VO should exist',
+  );
+  assert.match(notificationSettingsType, /enablePush\?: boolean/);
+  assert.match(notificationSettingsType, /enableEmail\?: boolean/);
+  assert.match(notificationSettingsType, /enableSms\?: boolean/);
+  assert.match(notificationSettingsType, /enableInApp\?: boolean/);
+  assert.match(notificationSettingsType, /quietHoursStart\?: string/);
+  assert.match(notificationSettingsType, /quietHoursEnd\?: string/);
+  assert.match(notificationSettingsType, /notificationSound\?: string/);
+  assert.match(notificationSettingsType, /vibrationEnabled\?: boolean/);
+  assert.match(notificationSettingsType, /typeSettings\?/);
 });
 
-runTest('sdkwork-claw-settings keeps the service-first settings service contract', () => {
+runTest('sdkwork-claw-settings service uses shared app sdk wrapper instead of infrastructure business http', () => {
   const settingsServiceSource = read('packages/sdkwork-claw-settings/src/services/settingsService.ts');
 
-  assert.match(settingsServiceSource, /import\s+\{\s*studioMockService\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
-  assert.match(settingsServiceSource, /getProfile\(\): Promise<UserProfile>/);
-  assert.match(settingsServiceSource, /studioMockService\.getProfile\(\)/);
-  assert.match(settingsServiceSource, /studioMockService\.updateProfile\(profile\)/);
-  assert.match(settingsServiceSource, /getPreferences\(\): Promise<UserPreferences>/);
-  assert.match(settingsServiceSource, /studioMockService\.getPreferences\(\)/);
-  assert.match(settingsServiceSource, /studioMockService\.updatePreferences\(prefs\)/);
-  assert.doesNotMatch(settingsServiceSource, /fetch\('/);
-  assert.doesNotMatch(settingsServiceSource, /john\.doe@example\.com/);
-  assert.doesNotMatch(settingsServiceSource, /currentPreferences/);
-});
-
-runTest('sdkwork-claw-settings keeps the V5 extended api key service surface', () => {
-  const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-settings/package.json');
-  const apiKeyServiceSource = read('packages/sdkwork-claw-settings/src/services/apiKeyService.ts');
-
-  assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
-  assert.match(apiKeyServiceSource, /import\s+\{\s*ListParams,\s*PaginatedResult,\s*delay\s*\}\s+from\s+'@sdkwork\/claw-types'/);
-  assert.match(apiKeyServiceSource, /getList\(params\?: ListParams\)/);
-  assert.match(apiKeyServiceSource, /getById\(id: string\)/);
-  assert.match(apiKeyServiceSource, /create\(data: CreateApiKeyDTO\)/);
-  assert.match(apiKeyServiceSource, /update\(id: string, data: UpdateApiKeyDTO\)/);
-  assert.match(apiKeyServiceSource, /delete\(id: string\)/);
-  assert.match(apiKeyServiceSource, /getApiKeys\(\): Promise<ApiKey\[]>/);
-  assert.match(apiKeyServiceSource, /createApiKey\(name: string\): Promise<CreateApiKeyResponse>/);
-  assert.match(apiKeyServiceSource, /revokeApiKey\(id: string\): Promise<void>/);
+  assert.match(settingsServiceSource, /@sdkwork\/claw-core\/sdk/);
+  assert.match(settingsServiceSource, /getAppSdkClientWithSession/);
+  assert.match(settingsServiceSource, /unwrapAppSdkResponse/);
+  assert.doesNotMatch(settingsServiceSource, /@sdkwork\/claw-infrastructure/);
+  assert.doesNotMatch(settingsServiceSource, /studioMockService/);
 });

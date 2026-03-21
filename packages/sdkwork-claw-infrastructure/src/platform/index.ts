@@ -67,6 +67,14 @@ export type {
   InstallerPlatformAPI,
 } from './contracts/installer.ts';
 export type {
+  RuntimeApiRouterAdminBootstrapSession,
+  RuntimeApiRouterAdminBootstrapSessionSource,
+  RuntimeApiRouterAdminBootstrapSessionUser,
+  RuntimeApiRouterConfigSource,
+  RuntimeApiRouterEndpointStatus,
+  RuntimeApiRouterManagedMode,
+  RuntimeApiRouterRuntimeMode,
+  RuntimeApiRouterRuntimeStatus,
   RuntimeAppInfo,
   RuntimeConfigInfo,
   RuntimeDesktopFilesystemInfo,
@@ -111,6 +119,7 @@ export type {
 } from './contracts/storage.ts';
 export type {
   StudioCreateInstanceInput,
+  StudioInstanceTaskMutationPayload,
   StudioPlatformAPI,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';

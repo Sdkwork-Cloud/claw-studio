@@ -13,6 +13,7 @@ import type {
   StudioWorkbenchTaskRecord,
   StudioWorkbenchToolRecord,
 } from '@sdkwork/claw-types';
+import type { OpenClawChannelSnapshot } from '@sdkwork/claw-core';
 
 export interface Instance {
   id: string;
@@ -78,6 +79,8 @@ export interface InstanceWorkbenchSnapshot {
   token: string;
   logs: string;
   detail: StudioInstanceDetailRecord;
+  managedConfigPath?: string | null;
+  managedChannels?: OpenClawChannelSnapshot[];
   healthScore: number;
   runtimeStatus: StudioInstanceHealthStatus;
   connectedChannelCount: number;

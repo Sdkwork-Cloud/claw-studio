@@ -31,6 +31,18 @@ function maskApiKey(apiKey: string) {
   return `${apiKey.slice(0, 10)}********${apiKey.slice(-4)}`;
 }
 
+function getDisplayApiKey(item: UnifiedApiKey, hiddenLabel: string) {
+  if (item.apiKey) {
+    return maskApiKey(item.apiKey);
+  }
+
+  if (item.hashedKey) {
+    return maskApiKey(item.hashedKey);
+  }
+
+  return hiddenLabel;
+}
+
 function formatDate(value: string | null, language: string, fallback: string) {
   if (!value) {
     return fallback;
@@ -136,12 +148,16 @@ export function UnifiedApiKeyTable({
                 <td className="px-5 py-5">
                   <div className="flex min-w-[14rem] items-start gap-3">
                     <div className="flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-                      {maskApiKey(item.apiKey)}
+                      {getDisplayApiKey(
+                        item,
+                        t('apiRouterPage.unifiedApiKey.values.hiddenAfterCreation'),
+                      )}
                     </div>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
+                      disabled={item.canCopyApiKey === false || !item.apiKey}
                       onClick={() => onCopyApiKey(item)}
                     >
                       {t('apiRouterPage.unifiedApiKey.actions.copyKey')}

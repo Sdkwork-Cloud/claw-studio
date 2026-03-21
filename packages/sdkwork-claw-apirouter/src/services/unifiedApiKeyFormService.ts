@@ -5,6 +5,7 @@ export interface UnifiedApiKeyFormState {
   keyMode: UnifiedApiKeySource;
   apiKey: string;
   groupId: string;
+  groupName: string;
   expiresAt: string;
   notes: string;
 }
@@ -14,6 +15,7 @@ export interface NormalizedUnifiedApiKeyFormState {
   source: UnifiedApiKeySource;
   apiKey?: string;
   groupId: string;
+  groupName?: string;
   expiresAt: string | null;
   notes: string;
 }
@@ -40,6 +42,7 @@ export function createEmptyUnifiedApiKeyFormState(): UnifiedApiKeyFormState {
     keyMode: 'system-generated',
     apiKey: '',
     groupId: '',
+    groupName: '',
     expiresAt: '',
     notes: '',
   };
@@ -51,6 +54,7 @@ export function buildEditUnifiedApiKeyFormState(item: UnifiedApiKey): UnifiedApi
     keyMode: item.source,
     apiKey: item.apiKey,
     groupId: item.groupId,
+    groupName: '',
     expiresAt: formatDateInput(item.expiresAt),
     notes: item.notes || '',
   };
@@ -60,11 +64,12 @@ export function normalizeUnifiedApiKeyFormState(
   formState: UnifiedApiKeyFormState,
 ): NormalizedUnifiedApiKeyFormState | null {
   const name = formState.name.trim();
-  const groupId = formState.groupId;
+  const groupId = formState.groupId.trim();
+  const groupName = formState.groupName.trim();
   const notes = formState.notes.trim();
   const apiKey = formState.apiKey.trim();
 
-  if (!name || !groupId) {
+  if (!name || (!groupId && !groupName)) {
     return null;
   }
 
@@ -77,6 +82,7 @@ export function normalizeUnifiedApiKeyFormState(
     source: formState.keyMode,
     apiKey: apiKey || undefined,
     groupId,
+    groupName: groupName || undefined,
     expiresAt: normalizeDateInput(formState.expiresAt),
     notes,
   };

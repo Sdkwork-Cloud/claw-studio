@@ -1,7 +1,7 @@
 import { create, type StateCreator } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
-import { studioMockService } from '@sdkwork/claw-infrastructure';
+import { appAuthService } from '../services/index.ts';
 
 const STORAGE_KEY = 'claw-studio-auth-storage';
 
@@ -30,6 +30,7 @@ export interface AuthStoreState {
   user: AuthUser | null;
   signIn: (credentials: SignInInput) => Promise<AuthUser>;
   register: (payload: RegisterInput) => Promise<AuthUser>;
+  sendPasswordReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   syncUserProfile: (profile: {
     firstName: string;
@@ -82,34 +83,68 @@ function toAuthUser(profile: {
   };
 }
 
+function toAuthUserFromIdentity(profile: {
+  nickname?: string;
+  username?: string;
+  email?: string;
+  avatar?: string;
+}): AuthUser {
+  const fallbackName = profile.nickname?.trim() || profile.username?.trim() || 'Claw Operator';
+  const nameParts = splitDisplayName(fallbackName);
+
+  return toAuthUser({
+    firstName: nameParts.firstName,
+    lastName: nameParts.lastName,
+    email: profile.email?.trim() || profile.username?.trim() || '',
+    avatarUrl: profile.avatar,
+  });
+}
+
 const createAuthStoreState: StateCreator<AuthStoreState, [], [], AuthStoreState> = (set) => ({
   isAuthenticated: false,
   user: null,
   async signIn(credentials) {
-    const currentProfile = await studioMockService.getProfile();
-    const nextProfile = await studioMockService.updateProfile({
-      ...currentProfile,
-      email: credentials.email.trim() || currentProfile.email,
+    const result = await appAuthService.login({
+      username: credentials.email.trim(),
+      password: credentials.password,
     });
-    const user = toAuthUser(nextProfile);
+    const user = toAuthUserFromIdentity(
+      result.userInfo ?? {
+        email: credentials.email.trim(),
+        username: credentials.email.trim(),
+      },
+    );
     set({ isAuthenticated: true, user });
     return user;
   },
   async register(payload) {
-    const currentProfile = await studioMockService.getProfile();
-    const nameParts = splitDisplayName(payload.name);
-    const nextProfile = await studioMockService.updateProfile({
-      ...currentProfile,
-      firstName: nameParts.firstName,
-      lastName: nameParts.lastName,
-      email: payload.email.trim() || currentProfile.email,
+    const result = await appAuthService.register({
+      username: payload.email.trim(),
+      password: payload.password,
+      confirmPassword: payload.password,
+      email: payload.email.trim(),
     });
-    const user = toAuthUser(nextProfile);
+    const user = toAuthUserFromIdentity(
+      result.userInfo ?? {
+        nickname: payload.name,
+        email: payload.email.trim(),
+      },
+    );
     set({ isAuthenticated: true, user });
     return user;
   },
+  async sendPasswordReset(email) {
+    await appAuthService.requestPasswordReset({
+      account: email.trim(),
+      channel: 'EMAIL',
+    });
+  },
   async signOut() {
-    set({ isAuthenticated: false, user: null });
+    try {
+      await appAuthService.logout();
+    } finally {
+      set({ isAuthenticated: false, user: null });
+    }
   },
   syncUserProfile(profile) {
     set((state) => ({

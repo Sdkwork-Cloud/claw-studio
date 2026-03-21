@@ -25,7 +25,9 @@
     "today": "Today",
     "previous7Days": "Previous 7 Days",
     "older": "Older",
-    "viewAll": "See All"
+    "viewAll": "See All",
+    "add": "Add",
+    "done": "Done"
   },
   "sidebar": {
     "brand": "Claw Studio",
@@ -135,6 +137,279 @@
         "violet": "Violet",
         "rose": "Rose"
       }
+    },
+    "page": {
+      "title": "Settings",
+      "searchPlaceholder": "Search settings...",
+      "empty": "No settings found."
+    },
+    "tabs": {
+      "general": "General",
+      "llm": "LLM Configuration",
+      "billing": "Billing & Usage",
+      "wallet": "Account",
+      "account": "Profile Settings",
+      "notifications": "Notifications",
+      "security": "Security",
+      "api": "API Keys",
+      "data": "Data & Privacy"
+    },
+    "account": {
+      "title": "Account",
+      "description": "Update your profile and personal details.",
+      "signedOutDescription": "Sign in to manage your profile and personal details.",
+      "signInRequired": "Sign In Required",
+      "signedOut": "You are currently signed out.",
+      "signInPrompt": "Go to the login page to update your profile or sign in again.",
+      "goToLogin": "Go to Login",
+      "profileTitle": "Profile",
+      "changeAvatar": "Change Avatar",
+      "avatarHint": "JPG, GIF or PNG. Max size of 800K",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email Address",
+      "saving": "Saving...",
+      "saveChanges": "Save Changes",
+      "dangerZone": "Danger Zone",
+      "signOut": "Sign Out",
+      "signOutDescription": "Sign out of your Claw Studio account on this device.",
+      "toasts": {
+        "avatarSimulated": "Avatar update simulated",
+        "loadFailed": "Failed to load profile",
+        "updated": "Profile updated successfully",
+        "updateFailed": "Failed to update profile",
+        "signedOut": "Signed out successfully",
+        "signOutFailed": "Failed to sign out"
+      }
+    },
+    "apiKeys": {
+      "title": "API Keys",
+      "description": "Manage API keys to authenticate requests to Claw Studio.",
+      "createNew": "Create new secret key",
+      "empty": "No API keys found. Create one to get started.",
+      "never": "Never",
+      "revokeKey": "Revoke key",
+      "securityTitle": "Keep your keys secure",
+      "securityDescription": "Do not share your API keys in publicly accessible areas such as GitHub, client-side code, and so forth. All API requests must be made over HTTPS.",
+      "copyToClipboard": "Copy to clipboard",
+      "table": {
+        "name": "Name",
+        "secretKey": "Secret Key",
+        "created": "Created",
+        "lastUsed": "Last Used",
+        "usageMtd": "Usage (MTD)",
+        "actions": "Actions"
+      },
+      "createModal": {
+        "title": "Create new secret key",
+        "name": "Name",
+        "namePlaceholder": "e.g. Production App",
+        "creating": "Creating...",
+        "create": "Create secret key"
+      },
+      "saveModal": {
+        "title": "Save your secret key",
+        "description": "Please save this secret key somewhere safe and accessible. For security reasons, you won't be able to view it again through Claw Studio. If you lose this secret key, you'll need to generate a new one."
+      },
+      "revokeModal": {
+        "title": "Revoke API key",
+        "description": "Are you sure you want to revoke the key \"{{name}}\"? Any applications or scripts using this key will immediately lose access to the Claw Studio API. This action cannot be undone.",
+        "revoking": "Revoking...",
+        "revoke": "Revoke key"
+      },
+      "toasts": {
+        "loadFailed": "Failed to load API keys",
+        "enterName": "Please enter a key name",
+        "created": "API key created successfully",
+        "createFailed": "Failed to create API key",
+        "copied": "API key copied to clipboard",
+        "revoked": "API key \"{{name}}\" revoked",
+        "revokeFailed": "Failed to revoke API key"
+      }
+    },
+    "billing": {
+      "title": "Billing & Usage",
+      "description": "Manage your subscription, payment methods, and monitor API or instance costs.",
+      "thisMonth": "This Month",
+      "currentUsage": "Current Usage",
+      "vsLastMonth": "vs last month",
+      "apiCosts": "API Costs",
+      "totalTokens": "Total Tokens",
+      "estimatedCost": "Estimated cost:",
+      "paymentMethod": "Payment Method",
+      "paymentMethodValue": "Visa ending in **** 4242",
+      "updatePaymentMethod": "Update Payment Method",
+      "costBreakdownTitle": "Cost Breakdown (March 2026)",
+      "spendingLimitTitle": "Spending Limit Alert",
+      "spendingLimitDescription": "You have reached 85% of your {{limit}} monthly spending limit. Consider adjusting your limits or monitoring usage closely.",
+      "historyTitle": "Billing History",
+      "tabs": {
+        "overview": "Usage Breakdown",
+        "invoices": "Invoices & History"
+      },
+      "usageTypes": {
+        "llmApi": "LLM API",
+        "instance": "Instance"
+      },
+      "usageNames": {
+        "productionNode": "Production Node (aws-us-east-1)",
+        "devNode": "Dev Node (local)"
+      },
+      "usageMetrics": {
+        "tokens": "{{value}} tokens",
+        "hours": "{{value}}h"
+      },
+      "status": {
+        "paid": "Paid"
+      },
+      "table": {
+        "resource": "Resource",
+        "type": "Type",
+        "usage": "Usage",
+        "cost": "Cost",
+        "totalEstimatedCost": "Total Estimated Cost"
+      },
+      "invoiceTable": {
+        "invoice": "Invoice",
+        "date": "Date",
+        "amount": "Amount",
+        "status": "Status",
+        "action": "Action"
+      },
+      "downloadInvoice": "Download invoice"
+    },
+    "dataPrivacy": {
+      "title": "Data & Privacy",
+      "description": "Control your data, telemetry, and account deletion.",
+      "updatePreferenceFailed": "Failed to update preference",
+      "telemetry": {
+        "title": "Telemetry & Analytics",
+        "shareUsageData": "Share usage data",
+        "shareUsageDataDescription": "Help us improve Claw Studio by sharing anonymous usage statistics and crash reports.",
+        "personalizedRecommendations": "Personalized recommendations",
+        "personalizedRecommendationsDescription": "Allow us to suggest skills and packs based on your installed devices."
+      },
+      "export": {
+        "title": "Export Data",
+        "downloadTitle": "Download your data",
+        "description": "Get a copy of your Claw Studio data, including device configurations, installed skills, and task history in JSON format.",
+        "action": "Request Data Export",
+        "requested": "Data export requested. You will receive an email shortly."
+      },
+      "deleteAccount": {
+        "title": "Delete Account",
+        "heading": "Permanently delete account",
+        "description": "Once you delete your account, there is no going back. Please be certain. All your devices will be unlinked and data will be permanently erased.",
+        "action": "Delete Account",
+        "requested": "Account deletion initiated. Please check your email to confirm."
+      }
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Choose what updates you want to receive.",
+      "emailTitle": "Email Notifications",
+      "systemUpdates": "System Updates",
+      "systemUpdatesDescription": "Receive emails about Claw Studio updates and new features.",
+      "taskFailures": "Task Failures",
+      "taskFailuresDescription": "Get notified when a scheduled task fails to execute.",
+      "securityAlerts": "Security Alerts",
+      "securityAlertsDescription": "Receive alerts about unusual account activity.",
+      "desktopTitle": "Desktop Notifications",
+      "taskCompletions": "Task Completions",
+      "taskCompletionsDescription": "Show a desktop notification when a task finishes successfully.",
+      "newMessages": "New Messages",
+      "newMessagesDescription": "Notify me when I receive a new message in channels.",
+      "updatePreferenceFailed": "Failed to update preference"
+    },
+    "security": {
+      "title": "Security",
+      "description": "Manage your password and secure your account.",
+      "changePassword": "Change Password",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmNewPassword": "Confirm New Password",
+      "updating": "Updating...",
+      "updatePassword": "Update Password",
+      "twoFactor": {
+        "title": "Two-Factor Authentication",
+        "authenticatorApp": "Authenticator App",
+        "description": "Use an app like Google Authenticator or 1Password to generate one-time codes.",
+        "disable": "Disable 2FA",
+        "enable": "Enable 2FA",
+        "toggleDescription": "Toggle multi-factor protection for this account."
+      },
+      "alerts": {
+        "title": "Security Alerts",
+        "loginAlerts": "Login Alerts",
+        "loginAlertsDescription": "Get notified when anyone logs into your account from an unrecognized device."
+      },
+      "sessions": {
+        "title": "Active Sessions",
+        "currentDeviceName": "MacBook Pro - Safari",
+        "currentDeviceLocation": "San Francisco, CA ? Active now",
+        "mobileDeviceName": "iPhone 13 - Claw Studio App",
+        "mobileDeviceLocation": "San Francisco, CA ? Last active 2 hours ago",
+        "current": "Current",
+        "revoke": "Revoke"
+      },
+      "toasts": {
+        "fillAllFields": "Please fill in all password fields",
+        "passwordMismatch": "New passwords do not match",
+        "passwordUpdated": "Password updated successfully",
+        "passwordUpdateFailed": "Failed to update password",
+        "preferenceUpdateFailed": "Failed to update preference",
+        "sessionRevoked": "Session revoked successfully"
+      }
+    },
+    "llm": {
+      "title": "LLM Configuration",
+      "description": "Fine-tune your AI experience. Manage model providers, API keys, and global generation parameters for the ultimate control.",
+      "noInstanceTitle": "No Instance Selected",
+      "noInstanceDescription": "Please select an instance from the sidebar to configure LLM settings.",
+      "addChannel": "Add Channel",
+      "defaultsTitle": "Instance Defaults",
+      "defaultChannel": "Default Channel",
+      "selectChannel": "Select channel",
+      "defaultChannelDescription": "This channel will be selected by default in new chats.",
+      "defaultModel": "Default Model",
+      "selectModel": "Select model",
+      "defaultModelDescription": "The default model to use for the selected channel.",
+      "parametersTitle": "Instance Parameters",
+      "temperature": "Temperature",
+      "precise": "Precise",
+      "creative": "Creative",
+      "maxTokens": "Max Tokens",
+      "maxTokensDescription": "Maximum length of the generated response.",
+      "topP": "Top P",
+      "focused": "Focused",
+      "diverse": "Diverse",
+      "channelsTitle": "Model Channels",
+      "clickToSetDefault": "Click to set as default",
+      "editChannel": "Edit channel",
+      "deleteChannel": "Delete channel",
+      "form": {
+        "newChannelName": "New Channel",
+        "customModelName": "Custom Model",
+        "editTitle": "Edit Channel",
+        "createTitle": "Configure New Channel",
+        "channelName": "Channel Name",
+        "channelNamePlaceholder": "e.g., My Custom OpenAI",
+        "providerType": "Provider Type",
+        "providerTypePlaceholder": "e.g., openai, custom",
+        "baseUrl": "Base URL",
+        "apiKey": "API Key",
+        "apiKeyPlaceholder": "sk-... (Leave empty to use environment variable)",
+        "icon": "Icon (Emoji)",
+        "iconPlaceholder": "e.g. icon",
+        "models": "Models Configuration",
+        "modelsHint": "Click the star to set as default",
+        "setAsDefault": "Set as default",
+        "removeModel": "Remove model",
+        "noModels": "No models configured. Add one below.",
+        "modelIdPlaceholder": "Model ID (e.g., gpt-4o)",
+        "modelNamePlaceholder": "Display Name (e.g., GPT-4o)",
+        "save": "Save Configuration"
+      }
     }
   },
   "commandPalette": {
@@ -203,6 +478,107 @@
       "terminal": {
         "title": "Open Terminal",
         "subtitle": "Launch local CLI"
+      },
+      "guided": {
+        "title": "Guided install",
+        "heading": "Set up {{product}} step by step",
+        "subtitle": "Install, configure, and initialize {{product}} with the {{method}} path.",
+        "steps": {
+          "dependencies": {
+            "title": "Dependencies",
+            "description": "Review tools, blockers, and recommended fixes before installation."
+          },
+          "install": {
+            "title": "Install OpenClaw",
+            "description": "Run the selected installer and follow the live execution log."
+          },
+          "configure": {
+            "title": "Configure OpenClaw",
+            "description": "Choose the instance, model setup, and channels that OpenClaw should use."
+          },
+          "initialize": {
+            "title": "Initialize OpenClaw",
+            "description": "Install the default starter pack and any extra skills or packages you need."
+          },
+          "verify": {
+            "title": "Verify installation",
+            "description": "Confirm the install, provider, channels, and skills are ready."
+          }
+        },
+        "actions": {
+          "continue": "Continue",
+          "continueToConfig": "Continue to configuration",
+          "continueToInitialize": "Continue to initialization",
+          "continueToVerify": "Continue to verification",
+          "install": "Install OpenClaw",
+          "applyConfig": "Save configuration",
+          "initialize": "Initialize OpenClaw",
+          "verify": "Verify installation"
+        },
+        "dependencies": {
+          "ready": "Everything needed for installation is ready.",
+          "noIssues": "No blocking issues were detected."
+        },
+        "install": {
+          "existingInstall": "An existing installation was detected. You can continue with configuration or verification.",
+          "description": "Install OpenClaw with the selected method and keep the live log visible until it finishes.",
+          "logPlaceholder": "Installation output will appear here."
+        },
+        "config": {
+          "loading": "Loading configuration workspace...",
+          "instance": "Target instance",
+          "provider": "Model provider",
+          "defaultModel": "Default model",
+          "reasoningModel": "Reasoning model",
+          "embeddingModel": "Embedding model",
+          "channels": "Channels",
+          "channelsDescription": "Keep the currently connected channels or enable more channels for notifications and workflow delivery.",
+          "validation": {
+            "provider": "Select an instance, provider, and default model before saving configuration.",
+            "loading": "Configuration data is still loading.",
+            "channel": "Complete {{field}} for {{channel}} before saving."
+          }
+        },
+        "initialize": {
+          "defaultPack": "Default starter pack",
+          "defaultPackDescription": "The wizard preselects a recommended pack so OpenClaw is useful immediately after setup.",
+          "recommended": "Recommended",
+          "additionalSkills": "Additional skills",
+          "includedByPack": "Included by pack",
+          "summary": "Initialization summary",
+          "summaryValue": "{{packs}} packs and {{skills}} skills selected.",
+          "validation": {
+            "instance": "Select a target instance before initialization."
+          }
+        },
+        "verify": {
+          "running": "Verifying installation...",
+          "ready": "Ready to use",
+          "followUp": "Installed with follow-up needed",
+          "description": "OpenClaw has been installed. Review the readiness items below before closing the wizard.",
+          "items": {
+            "install": "Install execution",
+            "provider": "Model provider",
+            "channels": "Channels",
+            "skills": "Skills and packs"
+          },
+          "status": {
+            "success": "Ready",
+            "warning": "Needs follow-up",
+            "blocked": "Blocked"
+          }
+        },
+        "providerStatus": {
+          "active": "Active",
+          "warning": "Warning",
+          "expired": "Expired",
+          "disabled": "Disabled"
+        },
+        "channelStatus": {
+          "connected": "Connected",
+          "disconnected": "Disconnected",
+          "not_configured": "Needs setup"
+        }
       }
     },
     "switchInstanceTitle": "Switch Instance: {{name}}",
@@ -233,6 +609,100 @@
       "routeConfig": "Route Config",
       "modelMapping": "Model Mapping",
       "usageRecords": "Usage Records"
+    },
+    "routeConfig": {
+      "emptyTitle": "No routed channels are available yet",
+      "emptyDescription": "Keep the API Router control plane open while you connect router data or create upstream providers. Route configuration will appear here as soon as channels exist."
+    },
+    "admin": {
+      "title": "Admin Control Plane",
+      "heading": "sdkwork-api-router Admin",
+      "state": {
+        "authenticated": "Connected",
+        "needsLogin": "Sign-in required",
+        "unavailable": "Unavailable"
+      },
+        "authSource": {
+          "session": "Operator session",
+          "managedBootstrap": "Managed local bootstrap",
+          "configuredToken": "Configured token",
+          "none": "No credentials"
+        },
+      "fields": {
+        "authSource": "Auth Source",
+        "adminBaseUrl": "Admin Base URL",
+        "gatewayBaseUrl": "Gateway Base URL",
+        "operator": "Active Operator",
+        "email": "Admin Email",
+        "password": "Password"
+      },
+      "placeholders": {
+        "email": "admin@example.com",
+        "password": "Enter the admin password"
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "signIn": "Sign In",
+        "disconnect": "Disconnect"
+      },
+      "values": {
+        "autoResolved": "Auto-resolved from runtime",
+        "unknown": "Unknown"
+      },
+        "messages": {
+          "sessionConnected": "The API Router control plane is authenticated with the current operator session and can call router-native admin APIs directly.",
+          "managedBootstrapConnected": "Claw Studio silently authenticated the local managed sdkwork-api-router runtime and can call router-native admin APIs directly.",
+          "configuredTokenConnected": "The API Router control plane is authenticated with the configured admin token and can call router-native admin APIs directly.",
+          "signInRequired": "Sign in to the sdkwork-api-router admin API to use router-backed control-plane features instead of mock fallbacks.",
+          "reauthenticateRequired": "The saved router admin credentials are no longer valid. Sign in again to restore router-backed control-plane access."
+        },
+      "loginHint": "Use the router admin account for standalone deployments or for the local managed runtime you attached to.",
+      "toast": {
+        "connected": "Connected to sdkwork-api-router as {{email}}",
+        "connectionFailed": "Unable to connect to sdkwork-api-router admin",
+        "disconnected": "Router admin session cleared",
+        "disconnectFailed": "Unable to clear the router admin session"
+      }
+    },
+    "runtime": {
+      "title": "Router Runtime",
+      "reason": "Runtime decision",
+      "recommendation": "Recommended managed mode",
+      "conflictHint": "The configured router ports are already occupied, but the running process did not pass the router health check. Resolve the conflict before starting a managed runtime.",
+      "sharedRoot": "Shared Router Root",
+      "configFile": "Resolved Config File",
+      "bind": "Bind Address",
+    "mode": {
+      "attachedExternal": "Attached to external router",
+      "managedActive": "Managed by Claw Studio",
+      "needsManagedStart": "Managed startup is required",
+      "conflicted": "Router startup is blocked"
+    },
+    "summary": {
+      "attachedExternal": "External instance active",
+      "managedActive": "Managed instance active",
+      "needsManagedStart": "Ready to launch",
+      "conflicted": "Operator action required"
+    },
+      "managedMode": {
+        "inProcess": "Start sdkwork-api-router with the Claw app lifecycle in-process once the managed launcher is wired."
+      },
+      "configSource": {
+        "defaults": "Using default bind addresses because no shared router config file was found.",
+        "file": "Loaded from shared router config."
+      },
+      "endpoint": {
+        "admin": "Admin Endpoint",
+        "gateway": "Gateway Endpoint"
+      },
+      "health": {
+        "healthy": "Healthy",
+        "unhealthy": "Unhealthy"
+      },
+      "port": {
+        "available": "Port available",
+        "occupied": "Port occupied"
+      }
     },
     "unifiedApiKey": {
       "filters": {
@@ -286,15 +756,18 @@
         "baseUrl": "Base URL",
         "authHeader": "Authorization Header",
         "gatewayHint": "One-click setup maps each client to the matching unified gateway protocol. OpenAI-compatible clients use /v1, while Claude Code uses /anthropic.",
-        "geminiGatewayHint": "Unified API Key now supports Gemini CLI through the routed Gemini gateway. When environment setup is enabled, the installer writes GEMINI_API_KEY, GOOGLE_GEMINI_BASE_URL, and the matching auth mechanism."
+        "geminiGatewayHint": "Unified API Key now supports Gemini CLI through the routed Gemini gateway. When environment setup is enabled, the installer writes GEMINI_API_KEY, GOOGLE_GEMINI_BASE_URL, and the matching auth mechanism.",
+        "secretRevealHint": "This device does not currently have a managed plaintext copy of the key. Recreate or rotate it here to restore copy, local use, and one-click setup."
       },
       "fields": {
         "name": "Name",
         "nameHint": "Use a business-facing key name that operators and customer teams can recognize immediately.",
         "apiKey": "API Key",
-        "apiKeyHint": "Paste the full API key only when you intentionally want to manage a custom external key.",
+        "apiKeyHint": "Manual mode expects the full router key in `sk-...` format. Managed mode generates and stores a masked `sk-ar-v1-...` key for local use.",
         "group": "Group",
         "groupHint": "Group unified keys by tenant, traffic tier, customer segment, or operating boundary.",
+        "groupName": "First group name",
+        "groupNameHint": "No router tenants exist yet. Enter the name for the first tenant group and Claw Studio will create it before creating this key.",
         "keyMode": "Key Mode",
         "generateKey": "System generated",
         "generateKeyHint": "Recommended. The platform creates and manages a brand new outward-facing API key for this router.",
@@ -302,23 +775,27 @@
         "customKeyHint": "Use a manually supplied API key when you need to preserve an existing external credential.",
         "systemGeneratedTitle": "Managed unified key",
         "systemGeneratedCreateHint": "A new key in the format `sk-ar-v1-...` will be generated automatically after creation.",
-        "systemGeneratedExistingHint": "This key is managed by the platform. Editing metadata keeps the existing generated credential unless you switch to manual input.",
+        "systemGeneratedExistingHint": "This key is managed by the platform. Editing metadata keeps the existing generated credential, and the local plaintext copy stays available on this device for copy and quick setup.",
         "systemGeneratedPreview": "The system will create a fresh outward-facing API key for you after saving.",
+        "keyModeLockedTitle": "Secret rotation is handled separately",
+        "keyModeLockedHint": "This router-backed key can still update its tenant, name, expiry, and notes here, but the plaintext secret is intentionally hidden after creation.",
         "expiresAt": "Expires",
         "expiresAtHint": "Track planned rotation or contract deadlines with a date picker.",
         "notes": "Notes"
       },
       "placeholders": {
         "name": "Global Production Key",
+        "groupName": "Acme Workspace",
         "apiKey": "sk-ar-v1-...",
         "notes": "Describe the tenant, purpose, quota policy, or rotation context."
       },
       "toast": {
         "copySuccess": "Unified API key copied",
         "copyFailed": "Failed to copy unified API key",
+        "copyUnavailable": "This device does not have a managed plaintext copy of the key yet. Recreate or rotate it here before copying or using local quick setup.",
         "accessConfigCopied": "Usage snippet copied",
         "accessConfigCopyFailed": "Failed to copy usage snippet",
-        "validationFailed": "Please complete the name and group. Custom mode also requires an API key value.",
+        "validationFailed": "Please complete the name and choose or enter a group. Custom mode also requires an API key value.",
         "keyCreated": "Unified API key created",
         "groupUpdated": "Key group updated",
         "statusUpdated": "Key status updated",
@@ -331,7 +808,9 @@
         "mappedTo": "Mapped to {{name}}",
         "mappingUnavailable": "Unavailable mapping",
         "associationHint": "Choose one model mapping for this key. Clearing the selection removes the current association.",
-        "noModelMappings": "No model mappings match the current search."
+        "noModelMappings": "No model mappings match the current search.",
+        "hiddenAfterCreation": "Masked key",
+        "oneTimeSecretUnavailable": "This device does not have a managed plaintext copy of the key"
       }
     },
     "modelMapping": {
@@ -489,6 +968,9 @@
       "status": "Status",
       "createdAt": "Created",
       "actions": "Actions",
+      "oneTimeSecretHidden": "One-time secret hidden",
+      "groupLockedHint": "Re-enter the API key in Edit before moving this provider to another group.",
+      "statusManagedHint": "Status is derived from router health snapshots and cannot be toggled manually.",
       "emptyTitle": "No proxy providers matched this view",
       "emptyDescription": "Try another channel or relax the current filters."
     },
@@ -607,20 +1089,23 @@
         "requiresAnthropicCompatible": "Claude Code one-click setup requires an Anthropic-compatible route.",
         "requiresOpenAIOrAnthropicCompatible": "This client currently supports OpenAI-compatible or Anthropic-compatible routes only.",
         "requiresGeminiCompatible": "Gemini CLI one-click setup currently requires a Gemini-compatible Google route.",
-        "requiresGoogleIssuedGeminiKey": "Gemini CLI currently requires a direct Google-issued Gemini API key, so it cannot be installed from a unified API gateway key."
+        "requiresGoogleIssuedGeminiKey": "Gemini CLI currently requires a direct Google-issued Gemini API key, so it cannot be installed from a unified API gateway key.",
+        "requiresOneTimeKeyReveal": "This device does not have a managed plaintext copy of the key yet. Recreate or rotate it here before using one-click setup."
       }
     },
     "detail": {
       "baseUrl": "Base URL",
       "authHeader": "Auth Header",
       "models": "Models",
-      "notes": "Notes"
+      "notes": "Notes",
+      "secretUnavailable": "The plaintext secret is no longer available in Claw Studio. Re-enter or rotate the provider key before copying manual headers again."
     },
     "fields": {
       "name": "Name",
       "nameHint": "Use an operationally recognizable provider name for your team.",
       "apiKey": "API KEY",
       "apiKeyHint": "Paste the upstream key exactly as issued by the proxy provider.",
+      "apiKeyEditHint": "Leave this blank to keep the current router credential. Enter a new key to rotate it or move the provider to another group.",
       "group": "Group",
       "groupHint": "Use groups to separate traffic domains such as production, sandbox, or shared routing.",
       "baseUrl": "Base URL",
@@ -644,6 +1129,7 @@
     "toast": {
       "copySuccess": "API key copied",
       "copyFailed": "Unable to copy API key",
+      "copyUnavailable": "The plaintext provider key is no longer available. Re-enter or rotate it before copying again.",
       "accessConfigCopied": "Access configuration copied",
       "accessConfigCopyFailed": "Unable to copy access configuration",
       "instanceLoadFailed": "Unable to load instances",
@@ -656,11 +1142,17 @@
       "openClawSetupApplied": "Applied to {{count}} instance(s)",
       "openClawSetupFailed": "Unable to configure the selected OpenClaw instances",
       "validationFailed": "Complete the name, API key, group, base URL, and every model row with both ID and display name.",
+      "validationFailedEdit": "Complete the name, group, base URL, and every model row with both ID and display name. Re-enter the API key only when rotating the credential or moving groups.",
       "providerCreated": "Provider created",
+      "providerCreateFailed": "Unable to create provider",
       "groupUpdated": "Group updated",
+      "groupUpdateFailed": "Unable to update group",
       "statusUpdated": "Provider status updated",
+      "statusUpdateFailed": "Unable to update provider status",
       "providerUpdated": "Provider updated",
-      "providerDeleted": "Provider deleted"
+      "providerUpdateFailed": "Unable to update provider",
+      "providerDeleted": "Provider deleted",
+      "providerDeleteFailed": "Unable to delete provider"
     },
     "values": {
       "never": "Never",
@@ -968,27 +1460,141 @@
     },
     "detail": {
       "notFoundTitle": "App not found",
-      "pageTitle": "App Details",
+      "pageTitle": "App details",
       "installSuccess": "{{name}} installed successfully!",
       "rating": "Rating",
       "category": "Category",
       "age": "Age",
-      "installToLocal": "Install to Local",
+      "installToLocal": "Install to local",
       "downloading": "Downloading...",
       "installing": "Installing...",
-      "openApp": "Open App",
+      "openApp": "Open app",
       "screenshotAlt": "Screenshot {{index}}",
       "about": "About this app",
-      "whatsNew": "What's New",
+      "whatsNew": "What's new",
       "versionReleased": "Version {{version}} - {{date}}",
       "whatsNewBullets": {
-        "one": "Performance improvements and bug fixes.",
-        "two": "Added support for the latest OpenClaw Core APIs.",
-        "three": "UI enhancements for better accessibility."
+        "one": "Platform-aware install flow backed by the Rust hub installer.",
+        "two": "Dependency inspection runs before installation and supports per-item repair.",
+        "three": "Live progress streams directly from the desktop runtime."
       },
       "information": "Information",
       "size": "Size",
-      "compatibility": "Compatibility"
+      "compatibility": "Compatibility",
+      "hostValue": "Host: {{host}}",
+      "installProfilesCount": "{{count}} available",
+      "dependencyChecks": "{{count}} dependency checks",
+      "installStatusNote": "State comes from the Rust assessment record for this selected profile.",
+      "installBlockedFallback": "Install is currently blocked.",
+      "methodFallback": "Managed profile",
+      "installStatus": {
+        "uninstalled": "Uninstalled",
+        "notManaged": "Not managed yet"
+      },
+      "availability": {
+        "available": "Available",
+        "missing": "Missing"
+      },
+      "cards": {
+        "selectedProfile": "Selected profile",
+        "installationMethod": "Installation method",
+        "readiness": "Readiness",
+        "installStatus": "Install status"
+      },
+      "actions": {
+        "installAllDependencies": "Install all dependencies",
+        "installingDependencies": "Installing dependencies...",
+        "installVariant": "Install {{variant}}",
+        "docs": "Docs",
+        "openInstallationDocs": "Open installation docs",
+        "profileDocs": "Profile docs",
+        "selected": "Selected",
+        "useProfile": "Use profile",
+        "fixDependency": "Fix this dependency",
+        "share": "Share"
+      },
+      "sections": {
+        "installProfiles": "Install profiles",
+        "installProfilesDescription": "Choose the Rust-backed installation path that best matches this host and runtime.",
+        "installReadiness": "Install readiness",
+        "installReadinessDescription": "Dependency inspection comes directly from the Rust installer assessment.",
+        "installationBlueprint": "Installation blueprint",
+        "installationBlueprintDescription": "The selected profile exposes method, directory, and lifecycle metadata from Rust.",
+        "dataMigration": "Data and migration",
+        "dataMigrationDescription": "Data layout and migration guidance help preserve existing OpenClaw state safely.",
+        "summary": "Summary",
+        "runtimeDetection": "Runtime detection",
+        "guidance": "Guidance",
+        "liveProgress": "Live progress"
+      },
+      "summary": {
+        "blockingIssues": "Blocking issues",
+        "warnings": "Warnings",
+        "autoFixableDependencies": "Auto-fixable dependencies",
+        "elevatedSetup": "Elevated setup",
+        "required": "Required",
+        "notRequired": "Not required"
+      },
+      "runtime": {
+        "hostPlatform": "Host platform",
+        "effectiveRuntime": "Effective runtime",
+        "containerRuntime": "Container runtime",
+        "notApplicable": "Not applicable",
+        "wsl": "WSL: {{status}}",
+        "hostDocker": "Host Docker: {{status}}",
+        "wslDocker": "WSL Docker: {{status}}"
+      },
+      "progress": {
+        "dependencyChecking": "Checking {{target}}",
+        "dependencyReady": "{{target}}: already ready",
+        "dependencyCompleted": "{{target}}: ready",
+        "dependencyFailed": "{{target}}: failed",
+        "stepCompleted": "Step completed",
+        "stepFailed": "Step failed",
+        "artifactStarting": "Starting {{artifact}}",
+        "artifactCompleted": "{{artifact}}: completed",
+        "artifactFailed": "{{artifact}}: failed",
+        "stageStarted": "Stage: {{stage}}",
+        "stageCompleted": "Stage complete: {{stage}}",
+        "stage": "Stage",
+        "step": "Step",
+        "waiting": "Waiting",
+        "recentOutput": "Recent output"
+      },
+      "dependency": {
+        "manualSetupRequired": "Manual setup required",
+        "check": "Check: {{check}}"
+      },
+      "defaults": {
+        "unknown": "Unknown",
+        "compatibility": "Windows 11, macOS 13+, Ubuntu 22.04+",
+        "manifestSummary": "Profile metadata is available through the selected Rust manifest."
+      },
+      "values": {
+        "platforms": {
+          "windows": "Windows",
+          "macos": "macOS",
+          "ubuntu": "Ubuntu",
+          "host": "Host",
+          "wsl": "WSL"
+        },
+        "controlLevels": {
+          "managed": "Managed",
+          "partial": "Partial visibility",
+          "opaque": "Opaque"
+        },
+        "checkTypes": {
+          "command": "Command",
+          "file": "File",
+          "env": "Environment",
+          "platform": "Platform"
+        }
+      },
+      "toasts": {
+        "dependencyReady": "{{dependency}} is ready.",
+        "dependenciesReady": "Dependencies are ready for {{name}}.",
+        "uninstallSuccess": "{{name}} uninstall finished."
+      }
     }
   },
   "chat": {
@@ -1010,8 +1616,8 @@
       "searchSkillsPlaceholder": "Search skills...",
       "noneGeneralChat": "None (General Chat)",
       "emptyTitle": "How can I help you today?",
-      "emptyWithSkill": "I am equipped with the \"{{skill}}\" skill. I can help you with tasks related to {{category}} using {{model}}.",
-      "emptyDefault": "I can write code, answer questions, draft emails, or help you brainstorm ideas using {{model}}.",
+      "emptyWithSkill": "I have the \"{{skill}}\" skill ready and can help with {{category}} tasks in {{appName}}.",
+      "emptyDefault": "I can help you write code, answer questions, draft emails, or brainstorm ideas in {{appName}}.",
       "selectedModelFallback": "the selected model",
       "errorResponse": "Sorry, I encountered an error while processing your request. Please check your API key or internet connection.",
       "suggestions": {
@@ -1301,8 +1907,7 @@
         "marketing": "Marketing and growth",
         "translation": "Translation and localization",
         "operations": "Remote operations",
-        "training": "Training and enablement"
-        ,
+        "training": "Training and enablement",
         "consulting": "Consulting and strategy",
         "content": "Content and copywriting",
         "data": "Data and analytics",
@@ -1419,8 +2024,7 @@
           "marketing": "Marketing and growth",
           "translation": "Translation and localization",
           "operations": "Remote operations",
-          "training": "Training and enablement"
-          ,
+          "training": "Training and enablement",
           "consulting": "Consulting and strategy",
           "content": "Content and copywriting",
           "data": "Data and analytics",
@@ -1717,7 +2321,7 @@
       "scheduleModeHelp": {
         "interval": "Run every selected number of minutes, hours, or days.",
         "datetime": "Run on one specific date and time.",
-        "cron": "Use a raw 5-field cron expression for full control."
+        "cron": "Use a raw 5- or 6-field cron expression for full control."
       },
       "scheduleSummary": {
         "interval": "Every {{value}} {{unit}}",
@@ -1763,21 +2367,48 @@
         "executionContent": "Execution content",
         "cronExpression": "Cron expression",
         "cronExpressionPlaceholder": "0 9 * * *",
-        "cronExpressionHelp": "Use standard 5-field cron syntax.",
+        "cronExpressionHelp": "Use standard 5- or 6-field cron syntax.",
+        "cronTimezone": "Cron timezone",
+        "cronTimezonePlaceholder": "e.g. Asia/Shanghai",
+        "cronTimezoneHelp": "Optional IANA timezone. Leave empty to use the runtime default.",
+        "staggerMs": "Stagger window (ms)",
+        "staggerMsPlaceholder": "Optional",
+        "staggerMsHelp": "Optional deterministic spread window for recurring cron runs. Use 0 to keep exact timing.",
         "generatedSchedule": "Generated schedule",
         "schedulePreviewPending": "Complete the schedule inputs to generate a preview.",
         "cronPreview": "Cron preview",
         "cronPreviewPending": "A cron preview will appear here when available.",
+        "customSessionId": "Custom session ID",
+        "customSessionIdPlaceholder": "e.g. project-alpha-monitor",
+        "customSessionIdHelp": "Persistent custom sessions keep context between scheduled runs.",
+        "deleteAfterRun": "Delete after run",
+        "deleteAfterRunHelp": "One-shot jobs can remove themselves automatically after a successful run.",
         "deliveryChannel": "Delivery channel",
         "deliveryChannelPlaceholder": "Select a connected channel",
-        "deliveryChannelHelp": "Pick where summaries or outcomes should be delivered.",
+        "deliveryChannelHelp": "Optional. Pick where summaries should be announced, or leave empty to reuse the last route.",
         "noConnectedChannels": "No connected delivery channels are available yet.",
         "recipient": "Recipient",
-        "recipientPlaceholder": "e.g. ops-room",
-        "recipientHelp": "Optional routing target such as a room, group, or contact.",
+        "recipientPlaceholder": "e.g. channel:ops-room",
+        "recipientHelp": "Optional announce target such as a room, group, or contact.",
+        "webhookUrl": "Webhook URL",
+        "webhookUrlPlaceholder": "https://example.com/hooks/openclaw",
+        "webhookUrlHelp": "Use a valid HTTP(S) endpoint to receive finished cron event payloads.",
         "timeoutSeconds": "Timeout (seconds)",
         "timeoutSecondsPlaceholder": "Optional",
-        "timeoutSecondsHelp": "Stop overly long runs before they block later schedules."
+        "timeoutSecondsHelp": "Stop overly long runs before they block later schedules.",
+        "agentId": "Agent ID",
+        "agentIdPlaceholder": "Optional agent binding",
+        "agentIdHelp": "Pin this task to a specific OpenClaw agent when your runtime has multiple agents.",
+        "model": "Model override",
+        "modelPlaceholder": "e.g. openai/gpt-5.4",
+        "modelHelp": "Optional provider/model or alias override for agent-turn tasks.",
+        "thinking": "Thinking level",
+        "thinkingPlaceholder": "Use runtime default",
+        "thinkingHelp": "Override the reasoning depth for supported GPT-5 and Codex models.",
+        "lightContext": "Use light context",
+        "lightContextHelp": "Skip heavyweight workspace bootstrap when the task only needs lightweight context.",
+        "deliveryBestEffort": "Best-effort delivery",
+        "deliveryBestEffortHelp": "Avoid failing the whole cron run when downstream delivery has a transient issue."
       },
       "actions": {
         "refresh": "Refresh",
@@ -1838,6 +2469,14 @@
           "title": "Isolated session",
           "description": "Start a fresh execution context for safer, repeatable runs."
         },
+        "current": {
+          "title": "Current session",
+          "description": "Bind the task to the session that is active when you create it."
+        },
+        "custom": {
+          "title": "Custom session",
+          "description": "Run inside a named persistent session so context can accumulate across runs."
+        },
         "main": {
           "title": "Main session",
           "description": "Reuse the primary session when you want continuity with existing context."
@@ -1868,10 +2507,23 @@
           "title": "Publish summary",
           "description": "Deliver the outcome to a downstream channel after execution completes."
         },
+        "webhook": {
+          "title": "Webhook",
+          "description": "POST the finished cron payload to an external HTTP endpoint."
+        },
         "none": {
           "title": "No delivery",
           "description": "Run the task without publishing a summary externally."
         }
+      },
+      "thinkingLevels": {
+        "inherit": "Use runtime default",
+        "off": "Off",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high"
       },
       "history": {
         "title": "Execution history",
@@ -1884,6 +2536,7 @@
         "finishedAt": "Finished at",
         "details": "Details",
         "status": {
+          "installed": "Installed",
           "success": "Success",
           "failed": "Failed",
           "running": "Running"
@@ -1907,8 +2560,12 @@
         "scheduledDateRequired": "Date is required.",
         "scheduledTimeRequired": "Time is required.",
         "cronExpressionRequired": "Cron expression is required.",
-        "cronExpressionInvalid": "Enter a valid 5-field cron expression.",
-        "timeoutSecondsInvalid": "Enter a valid positive timeout in seconds."
+        "cronExpressionInvalid": "Enter a valid 5- or 6-field cron expression.",
+        "staggerMsInvalid": "Enter a valid non-negative stagger window in milliseconds.",
+        "customSessionIdRequired": "Custom session ID is required.",
+        "timeoutSecondsInvalid": "Enter a valid positive timeout in seconds.",
+        "recipientRequired": "Webhook URL is required.",
+        "recipientInvalid": "Enter a valid HTTP(S) webhook URL."
       },
       "toasts": {
         "failedToLoad": "Failed to load tasks",
@@ -2020,6 +2677,7 @@
       },
       "actions": {
         "setAsActive": "Set as Active",
+        "openOpenClawConsole": "Open OpenClaw Console",
         "restart": "Restart",
         "stop": "Stop",
         "start": "Start",
@@ -2038,7 +2696,8 @@
         "started": "Instance started successfully",
         "failedToStart": "Failed to start instance",
         "uninstalled": "Instance uninstalled successfully",
-        "failedToUninstall": "Failed to uninstall instance"
+        "failedToUninstall": "Failed to uninstall instance",
+        "failedToOpenOpenClawConsole": "Failed to open the OpenClaw console"
       },
       "confirmUninstall": "Are you sure you want to uninstall this instance? This action cannot be undone.",
       "instanceWorkbench": {
@@ -2075,12 +2734,12 @@
             "title": "Channels",
             "description": "Inspect delivery readiness, configuration depth, and connection state for this instance."
           },
-        "cronTasks": {
-          "title": "Cron Tasks",
-          "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime.",
-          "editorNotice": "OpenClaw runtime actions are live here, but task creation and editing still route through the legacy task editor. Use clone, run, pause, resume, delete, and history from this panel for now.",
-          "readonlyNotice": "OpenClaw cron jobs are currently exposed as a read-only runtime snapshot. Create, edit, run, pause, and delete actions will be enabled after native runtime commands are wired."
-        },
+          "cronTasks": {
+            "title": "Cron Tasks",
+            "description": "Monitor scheduled jobs, recent runs, and the operational rhythm of this runtime.",
+            "editorNotice": "OpenClaw runtime actions are live here, but task creation and editing still route through the legacy task editor. Use clone, run, pause, resume, delete, and history from this panel for now.",
+            "readonlyNotice": "OpenClaw cron jobs are currently exposed as a read-only runtime snapshot. Create, edit, run, pause, and delete actions will be enabled after native runtime commands are wired."
+          },
           "llmProviders": {
             "title": "LLM Providers",
             "description": "Inspect active providers, model routing, and the generation parameters shaping this instance."
@@ -2975,6 +3634,11 @@
         "selectedProduct": "Selected",
         "readyHint": "Ready to install",
         "states": {
+          "installed": "Installed",
+          "ready": "Ready",
+          "setupNeeded": "Needs setup",
+          "fixFirst": "Fix first",
+          "checking": "Checking",
           "comingSoon": "Coming soon"
         },
         "sections": {
@@ -3012,6 +3676,62 @@
           "requiresSetup": "{{method}} still looks like the best long-term fit, but this machine needs prerequisite fixes first.",
           "installed": "{{method}} already appears to be installed on this machine, so you can continue with setup and verification.",
           "singlePath": "This product currently exposes one supported install path, so we are using it as the default recommendation."
+        }
+      },
+      "experience": {
+        "heading": "Install {{product}} with {{method}}",
+        "steps": {
+          "method": {
+            "title": "Choose install method",
+            "description": "Review the selected path and why it is recommended on this device."
+          },
+          "prepare": {
+            "title": "Prepare environment",
+            "description": "Check dependencies, blockers, and auto-fix options before installation."
+          },
+          "install": {
+            "title": "Run installation",
+            "description": "Start the real installer and follow the live execution output."
+          },
+          "complete": {
+            "title": "Complete installation",
+            "description": "Review the result, paths, and the next action."
+          }
+        },
+        "actions": {
+          "continue": "Continue",
+          "continueToInstall": "Continue to install",
+          "autoFix": "Auto-fix",
+          "backToMethods": "Back to methods",
+          "retry": "Try again"
+        },
+        "prepare": {
+          "heading": "Prepare environment",
+          "description": "Make sure this method is ready, then continue to the real install.",
+          "issues": "Blocking issues",
+          "dependenciesTitle": "Dependencies and tools",
+          "dependenciesDescription": "Use auto-fix when the installer can remediate a missing dependency.",
+          "labels": {
+            "blockers": "Blockers",
+            "dependencies": "Dependencies",
+            "readiness": "Readiness"
+          }
+        },
+        "install": {
+          "heading": "Run installation",
+          "description": "This launches the real installer flow for the selected method.",
+          "labels": {
+            "status": "Status"
+          },
+          "status": {
+            "idle": "Ready to start"
+          }
+        },
+        "complete": {
+          "successTitle": "Installation complete",
+          "errorTitle": "Installation needs attention",
+          "successDescription": "{{method}} finished and the runtime paths are ready to review.",
+          "errorDescription": "{{method}} did not finish cleanly. Review the output and retry when ready."
         }
       },
       "systemRequirements": {
@@ -3124,7 +3844,7 @@
       },
       "modal": {
         "title": {
-          "install": "Install {{product}} via {{method}}",
+          "install": "Install {{product}} with {{method}}",
           "uninstall": "Uninstall {{product}} via {{method}}"
         },
         "subtitle": {
@@ -3188,27 +3908,31 @@
       "guided": {
         "title": "Guided install",
         "heading": "Set up {{product}} step by step",
-        "subtitle": "Install, configure, and initialize {{product}} with the {{method}} path.",
+        "subtitle": "Install {{product}} with {{method}}",
         "steps": {
           "dependencies": {
             "title": "Dependencies",
-            "description": "Review tools, blockers, and recommended fixes before installation."
+            "description": "Check required tools and install blockers before you continue."
           },
           "install": {
-            "title": "Install OpenClaw",
-            "description": "Run the selected installer and follow the live execution log."
+            "title": "Install",
+            "description": "Run the selected installation flow for the current product."
           },
           "configure": {
-            "title": "Configure OpenClaw",
-            "description": "Choose the instance, model setup, and channels that OpenClaw should use."
+            "title": "Configure",
+            "description": "Set the model channel, provider, and communication bindings."
           },
           "initialize": {
-            "title": "Initialize OpenClaw",
-            "description": "Install the default starter pack and any extra skills or packages you need."
+            "title": "Initialize",
+            "description": "Choose starter packages and skills from the market."
           },
           "verify": {
             "title": "Verify installation",
             "description": "Confirm the install, provider, channels, and skills are ready."
+          },
+          "success": {
+            "title": "Success",
+            "description": "Review the final setup and jump into chat."
           }
         },
         "actions": {
@@ -3218,52 +3942,92 @@
           "continueToVerify": "Continue to verification",
           "install": "Install OpenClaw",
           "applyConfig": "Save configuration",
-          "initialize": "Initialize OpenClaw",
-          "verify": "Verify installation"
+          "skipConfig": "Skip for now",
+          "initialize": "Initialize {{product}}",
+          "verify": "Verify installation",
+          "installNow": "Install now",
+          "applyConfiguration": "Save configuration",
+          "continueToConfigure": "Continue to configuration",
+          "continueToSuccess": "Continue to success",
+          "confirmAndChat": "Open chat"
         },
         "dependencies": {
           "ready": "Everything needed for installation is ready.",
           "noIssues": "No blocking issues were detected.",
           "autoRefresh": "Environment checks keep re-running until you continue.",
-          "lastChecked": "Last checked at {{time}}."
+          "lastChecked": "Last checked at {{time}}.",
+          "title": "Dependencies",
+          "description": "Install the required dependencies first, then continue with product installation.",
+          "install": "Install",
+          "installing": "Installing...",
+          "done": "Done",
+          "manual": "Manual setup",
+          "needsAttention": "Needs attention",
+          "readyShort": "Ready",
+          "pendingShort": "Pending",
+          "labels": {
+            "blockers": "Blockers",
+            "dependencies": "Dependencies",
+            "readiness": "Readiness"
+          }
         },
         "install": {
-          "description": "Install OpenClaw with the selected method and keep the live log visible until it finishes.",
+          "description": "Install {{product}} with {{method}} and keep the live log visible until it finishes.",
           "logPlaceholder": "Installation output will appear here.",
-          "existingInstall": "An existing installation was detected. You can continue with configuration or verification."
+          "existingInstall": "An existing {{product}} installation was detected. You can continue with configuration or finish setup.",
+          "title": "Install product",
+          "liveOutput": "Live output",
+          "waiting": "Waiting to start installation.",
+          "completed": "Installation completed.",
+          "failed": "Installation failed.",
+          "installRoot": "Install root",
+          "dataRoot": "Data root"
         },
         "config": {
           "loading": "Loading configuration workspace...",
           "instance": "Target instance",
+          "configPath": "Config file",
           "provider": "Model provider",
           "defaultModel": "Default model",
           "reasoningModel": "Reasoning model",
           "embeddingModel": "Embedding model",
           "channels": "Channels",
           "channelsDescription": "Keep the currently connected channels or enable more channels for notifications and workflow delivery.",
+          "editLater": "The selected model and channel settings will be written directly to the installed OpenClaw config file. You can skip this step now and adjust everything later from the instance detail page.",
+          "skippedNotice": "Configuration was skipped for now. OpenClaw will still finish installation, and you can update the model and channel settings later from the instance detail page.",
           "validation": {
-            "provider": "Select an instance, provider, and default model before saving configuration.",
+            "provider": "Select a provider and default model before saving configuration.",
             "loading": "Configuration data is still loading.",
             "channel": "Complete {{field}} for {{channel}} before saving."
           }
         },
         "initialize": {
           "defaultPack": "Default starter pack",
-          "defaultPackDescription": "The wizard preselects a recommended pack so OpenClaw is useful immediately after setup.",
+          "defaultPackDescription": "The wizard preselects a recommended pack so {{product}} is useful immediately after setup.",
           "recommended": "Recommended",
           "additionalSkills": "Additional skills",
+          "skillCount": "{{count}} skills",
           "includedByPack": "Included by pack",
           "summary": "Initialization summary",
           "summaryValue": "{{packs}} packs and {{skills}} skills selected.",
           "validation": {
-            "instance": "Select a target instance before initialization."
-          }
+            "instance": "Select a target instance before initialization.",
+            "target": "The installed OpenClaw target could not be resolved yet. Complete the install step first."
+          },
+          "title": "Initialize",
+          "description": "Choose packages or skills from the skill market to finish the first-run setup for {{product}}.",
+          "packages": "Packages",
+          "skills": "Skills",
+          "openSelector": "Choose packages and skills",
+          "selectorTitle": "Choose packages and skills",
+          "selectorConfirm": "Apply selection",
+          "noneSelected": "None selected"
         },
         "verify": {
           "running": "Verifying installation...",
           "ready": "Ready to use",
           "followUp": "Installed with follow-up needed",
-          "description": "OpenClaw has been installed. Review the readiness items below before closing the wizard.",
+          "description": "{{product}} has been installed. Review the readiness items below before closing the wizard.",
           "retryStatus": "Automatic verification pass {{attempt}} of {{max}}.",
           "lastChecked": "Last checked at {{time}}.",
           "items": {
@@ -3288,6 +4052,35 @@
           "connected": "Connected",
           "disconnected": "Disconnected",
           "not_configured": "Needs setup"
+        },
+        "configure": {
+          "title": "Configure",
+          "description": "Configure the model provider and bind the communication channels you want to use.",
+          "instance": "Target instance",
+          "modelChannel": "Model channel",
+          "providerTemplate": "Provider template",
+          "createNewProvider": "Create new provider",
+          "providerName": "Provider name",
+          "apiKey": "API key",
+          "baseUrl": "Base URL",
+          "model": "Model",
+          "communicationTitle": "Communication channels",
+          "communicationDescription": "Bind the channels that should be available right after installation.",
+          "validation": {
+            "provider": "Choose an instance, complete the provider settings, and select a model before continuing.",
+            "loading": "Configuration data is still loading.",
+            "channel": "Complete {{field}} for {{channel}} before continuing."
+          }
+        },
+        "success": {
+          "eyebrow": "Ready",
+          "title": "{{product}} is ready",
+          "description": "Installation, configuration, and initialization for {{product}} are complete. Confirm to jump into chat.",
+          "instance": "Instance",
+          "modelChannel": "Model channel",
+          "model": "Model",
+          "bindings": "Bound channels",
+          "bindingsValue": "{{count}} channels bound"
         }
       }
     },
@@ -3848,6 +4641,198 @@
         "includesModels": "Includes {{models}}",
         "channelNamed": "Channel: {{name}}",
         "channelDefault": "Channel: Hybrid Default routing"
+      }
+    },
+    "vendors": {
+      "default": {
+        "tagline": "Balanced routing for teams that want one commercial lane.",
+        "heroDescription": "Blend US and China routes into one shared quota pool.",
+        "audience": "Cross-border product teams",
+        "modelHighlights": [
+          "Smart routing",
+          "Unified quota",
+          "Fallback ready"
+        ]
+      },
+      "openai": {
+        "tagline": "Premium GPT packages for agents, chat, and reasoning.",
+        "heroDescription": "Ideal for premium assistants and operator copilots.",
+        "audience": "Product + agent teams",
+        "modelHighlights": [
+          "GPT-4.1",
+          "o4-mini",
+          "Realtime"
+        ]
+      },
+      "anthropic": {
+        "tagline": "Long-context procurement for writing and knowledge work.",
+        "heroDescription": "Designed for review, policy, and document-heavy use cases.",
+        "audience": "Research and writing workflows",
+        "modelHighlights": [
+          "Claude Sonnet",
+          "Claude Opus",
+          "Long context"
+        ]
+      },
+      "google": {
+        "tagline": "Multimodal packages for search, docs, and workspace AI.",
+        "heroDescription": "Great for image, document, and multimodal product flows.",
+        "audience": "Multimodal product teams",
+        "modelHighlights": [
+          "Gemini 2.5 Pro",
+          "Gemini Flash",
+          "Workspace"
+        ]
+      },
+      "xai": {
+        "tagline": "Fresh-response packages for trend-sensitive products.",
+        "heroDescription": "For media, social, and real-time assistant experiences.",
+        "audience": "Media and social apps",
+        "modelHighlights": [
+          "Grok reasoning",
+          "Freshness bias",
+          "Fast iteration"
+        ]
+      },
+      "meta": {
+        "tagline": "Open-weight aligned packages with routed governance.",
+        "heroDescription": "Good for builders mixing open-weight flexibility with managed routing.",
+        "audience": "Open model platform teams",
+        "modelHighlights": [
+          "Llama",
+          "Fine-tune ready",
+          "Self-host fit"
+        ]
+      },
+      "mistral": {
+        "tagline": "Efficient European packages for cost-aware copilots.",
+        "heroDescription": "Strong for automation and productivity without premium spend.",
+        "audience": "Automation teams",
+        "modelHighlights": [
+          "Mistral Large",
+          "Low latency",
+          "Cost efficient"
+        ]
+      },
+      "cohere": {
+        "tagline": "Search and RAG procurement with enterprise posture.",
+        "heroDescription": "Built for retrieval, embeddings, and business copilots.",
+        "audience": "Search and RAG platforms",
+        "modelHighlights": [
+          "Command",
+          "RAG",
+          "Search quality"
+        ]
+      },
+      "microsoft": {
+        "tagline": "Enterprise-oriented packages for Microsoft-heavy stacks.",
+        "heroDescription": "Best for workflow automation and corporate procurement.",
+        "audience": "Enterprise IT teams",
+        "modelHighlights": [
+          "Copilot",
+          "Workflow AI",
+          "Governance"
+        ]
+      },
+      "amazon-nova": {
+        "tagline": "AWS-centered packages for scalable routed procurement.",
+        "heroDescription": "A clean buying lane for AWS-native product teams.",
+        "audience": "AWS-native application teams",
+        "modelHighlights": [
+          "Nova",
+          "AWS alignment",
+          "Scalable throughput"
+        ]
+      },
+      "nvidia": {
+        "tagline": "Inference-heavy packages for GPU-first platform teams.",
+        "heroDescription": "Optimized for teams that care about throughput and hybrid deployment.",
+        "audience": "Inference platform teams",
+        "modelHighlights": [
+          "NIM",
+          "GPU throughput",
+          "Hybrid deploy"
+        ]
+      },
+      "deepseek": {
+        "tagline": "High value reasoning and coding packages.",
+        "heroDescription": "Excellent for engineering, analysis, and price-performance routing.",
+        "audience": "Engineering and reasoning workloads",
+        "modelHighlights": [
+          "DeepSeek reasoning",
+          "Coding",
+          "Value per token"
+        ]
+      },
+      "qwen": {
+        "tagline": "Balanced domestic packages for multilingual enterprise AI.",
+        "heroDescription": "A versatile lane for general domestic business applications.",
+        "audience": "General enterprise applications",
+        "modelHighlights": [
+          "Qwen reasoning",
+          "Multilingual",
+          "Enterprise ready"
+        ]
+      },
+      "zhipu": {
+        "tagline": "Domestic GLM packages with clean procurement structure.",
+        "heroDescription": "Well suited for enterprise deployments and regulated buyers.",
+        "audience": "Domestic enterprise teams",
+        "modelHighlights": [
+          "GLM",
+          "Domestic compliance",
+          "Developer flows"
+        ]
+      },
+      "baidu": {
+        "tagline": "Enterprise-friendly packages for search and knowledge systems.",
+        "heroDescription": "A practical buy for assistants, search, and knowledge workflows.",
+        "audience": "Search and knowledge teams",
+        "modelHighlights": [
+          "ERNIE",
+          "Search native",
+          "Enterprise support"
+        ]
+      },
+      "tencent-hunyuan": {
+        "tagline": "Tencent ecosystem packages for consumer-scale AI products.",
+        "heroDescription": "Best for broad service platforms and high-volume assistants.",
+        "audience": "Consumer and service platforms",
+        "modelHighlights": [
+          "Hunyuan",
+          "Tencent ecosystem",
+          "Large traffic"
+        ]
+      },
+      "doubao": {
+        "tagline": "Fast-growing consumer packages for creator-scale AI.",
+        "heroDescription": "Suited for high-volume user products and creator tooling.",
+        "audience": "Consumer AI teams",
+        "modelHighlights": [
+          "Doubao",
+          "Consumer scale",
+          "Creator workflows"
+        ]
+      },
+      "moonshot": {
+        "tagline": "Long-context packages for research and document copilots.",
+        "heroDescription": "Excellent when long documents are central to the user journey.",
+        "audience": "Research and document-heavy teams",
+        "modelHighlights": [
+          "Long context",
+          "Research",
+          "Document copilots"
+        ]
+      },
+      "minimax": {
+        "tagline": "Multimodal packages for expressive AI product experiences.",
+        "heroDescription": "Great for long sessions, multimodal apps, and media-rich use cases.",
+        "audience": "Multimodal product teams",
+        "modelHighlights": [
+          "Multimodal",
+          "Long context",
+          "Media generation"
+        ]
       }
     }
   }

@@ -5,4 +5,7 @@ export * from './mobileAppGuideService';
 export * from './openClawBootstrapService';
 export * from './openClawInstallWizardService';
 export * from './installRecommendationService';
+export * from './installBootstrapService';
+export * from './installGuidedWizardService';
 export * as openClawInstallWizardService from './openClawInstallWizardService';
+export * as installGuidedWizardService from './installGuidedWizardService';

@@ -36,8 +36,8 @@ const CodeBlock = memo(
     };
 
     return (
-      <div className="relative mb-6 mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-[#1E1E1E]">
-        <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-100 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/50">
+      <div className="relative mb-6 mt-4 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-[#1E1E1E]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-100 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/50">
           <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">{match[1]}</span>
           <button
             onClick={handleCopy}
@@ -105,12 +105,12 @@ export const ChatMessage = memo(function ChatMessage({
     <div
       className={cn(
         'group mx-auto flex w-full max-w-4xl transition-all duration-300',
-        isUser ? 'justify-end pl-12 sm:pl-24' : 'justify-start pr-12 sm:pr-24',
+        isUser ? 'justify-end pl-4 sm:pl-12 lg:pl-24' : 'justify-start pr-4 sm:pr-12 lg:pr-24',
       )}
     >
       <div
         className={cn(
-          'flex max-w-full gap-4 rounded-3xl p-4 sm:p-5',
+          'flex max-w-full gap-3 rounded-3xl p-4 sm:gap-4 sm:p-5',
           isUser
             ? 'rounded-br-md bg-zinc-100 text-zinc-900 sm:max-w-[85%] dark:bg-zinc-800 dark:text-zinc-100'
             : 'bg-transparent text-zinc-900 dark:text-zinc-100',
@@ -126,8 +126,8 @@ export const ChatMessage = memo(function ChatMessage({
 
         <div className="min-w-0 flex-1">
           {isUser ? (
-            <div className="mb-2 flex items-center justify-end">
-              <div className="mr-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:gap-1">
+            <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center gap-0.5 opacity-100 transition-opacity sm:mr-3 sm:opacity-0 sm:group-hover:opacity-100 sm:gap-1">
                 <button
                   onClick={handleCopy}
                   className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
@@ -145,9 +145,9 @@ export const ChatMessage = memo(function ChatMessage({
               </span>
             </div>
           ) : (
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <span className="text-[14px] font-semibold tracking-tight sm:text-[15px]">
+            <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-3">
+                <span className="max-w-full truncate text-[14px] font-semibold tracking-tight sm:text-[15px]">
                   {model || t('chat.message.assistant')}
                 </span>
                 <span className="text-[11px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500 sm:text-xs">
@@ -155,7 +155,7 @@ export const ChatMessage = memo(function ChatMessage({
                 </span>
               </div>
 
-              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:gap-1">
+              <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:gap-1">
                 <button
                   onClick={handleCopy}
                   className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
@@ -188,7 +188,7 @@ export const ChatMessage = memo(function ChatMessage({
 
           <div
             className={cn(
-              'prose prose-zinc prose-sm relative max-w-none dark:prose-invert sm:prose-base',
+              'prose prose-zinc prose-sm relative max-w-none break-words dark:prose-invert sm:prose-base',
               'prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-primary-500 hover:prose-a:text-primary-600',
               'prose-code:before:content-none prose-code:after:content-none prose-p:leading-relaxed prose-pre:bg-transparent prose-pre:p-0',
               isTyping &&

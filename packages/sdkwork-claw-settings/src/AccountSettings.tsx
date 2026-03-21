@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@sdkwork/claw-core';
-import { useLocalizedText } from '@sdkwork/claw-i18n';
 import { Button, Input, Label } from '@sdkwork/claw-ui';
 import { Section } from './Shared';
 import { settingsService, type UserProfile } from './services';
@@ -18,7 +18,7 @@ export function AccountSettings() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const { text } = useLocalizedText();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (user) {
@@ -41,7 +41,7 @@ export function AccountSettings() {
         const data = await settingsService.getProfile();
         setProfile(data);
       } catch {
-        toast.error(text('Failed to load profile', '\u52a0\u8f7d\u4e2a\u4eba\u8d44\u6599\u5931\u8d25'));
+        toast.error(t('settings.account.toasts.loadFailed'));
       } finally {
         setIsLoading(false);
       }
@@ -60,13 +60,9 @@ export function AccountSettings() {
     try {
       const updatedProfile = await settingsService.updateProfile(profile);
       syncUserProfile(updatedProfile);
-      toast.success(
-        text('Profile updated successfully', '\u4e2a\u4eba\u8d44\u6599\u5df2\u66f4\u65b0'),
-      );
+      toast.success(t('settings.account.toasts.updated'));
     } catch {
-      toast.error(
-        text('Failed to update profile', '\u66f4\u65b0\u4e2a\u4eba\u8d44\u6599\u5931\u8d25'),
-      );
+      toast.error(t('settings.account.toasts.updateFailed'));
     } finally {
       setIsSaving(false);
     }
@@ -79,12 +75,11 @@ export function AccountSettings() {
     }
 
     try {
-      await settingsService.signOut();
       await signOut();
-      toast.success(text('Signed out successfully', '\u5df2\u6210\u529f\u9000\u51fa\u767b\u5f55'));
+      toast.success(t('settings.account.toasts.signedOut'));
       navigate('/login', { replace: true });
     } catch {
-      toast.error(text('Failed to sign out', '\u9000\u51fa\u767b\u5f55\u5931\u8d25'));
+      toast.error(t('settings.account.toasts.signOutFailed'));
     }
   };
 
@@ -101,34 +96,28 @@ export function AccountSettings() {
       <div className="space-y-8">
         <div>
           <h2 className="mb-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {text('Account', '\u8d26\u6237')}
+            {t('settings.account.title')}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {text(
-              'Sign in to manage your profile and personal details.',
-              '\u767b\u5f55\u540e\u5373\u53ef\u7ba1\u7406\u4f60\u7684\u4e2a\u4eba\u8d44\u6599\u4e0e\u8d26\u6237\u8bbe\u7f6e\u3002',
-            )}
+            {t('settings.account.signedOutDescription')}
           </p>
         </div>
 
-        <Section title={text('Sign In Required', '\u9700\u8981\u767b\u5f55')}>
+        <Section title={t('settings.account.signInRequired')}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                {text('You are currently signed out.', '\u5f53\u524d\u5c1a\u672a\u767b\u5f55\u3002')}
+                {t('settings.account.signedOut')}
               </div>
               <div className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                {text(
-                  'Go to the login page to update your profile or sign in again.',
-                  '\u8bf7\u524d\u5f80\u767b\u5f55\u9875\u9762\u540e\u518d\u7f16\u8f91\u4e2a\u4eba\u8d44\u6599\u6216\u91cd\u65b0\u767b\u5f55\u3002',
-                )}
+                {t('settings.account.signInPrompt')}
               </div>
             </div>
             <Button
               onClick={() => navigate('/login?redirect=%2Fsettings%3Ftab%3Daccount')}
               className="min-w-[140px]"
             >
-              {text('Go to Login', '\u524d\u5f80\u767b\u5f55')}
+              {t('settings.account.goToLogin')}
             </Button>
           </div>
         </Section>
@@ -140,18 +129,15 @@ export function AccountSettings() {
     <div className="space-y-8">
       <div>
         <h2 className="mb-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          {text('Account', '\u8d26\u6237')}
+          {t('settings.account.title')}
         </h2>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {text(
-            'Update your profile and personal details.',
-            '\u66f4\u65b0\u4f60\u7684\u4e2a\u4eba\u8d44\u6599\u4e0e\u8be6\u7ec6\u4fe1\u606f\u3002',
-          )}
+          {t('settings.account.description')}
         </p>
       </div>
 
       <div className="space-y-6">
-        <Section title={text('Profile', '\u4e2a\u4eba\u8d44\u6599')}>
+        <Section title={t('settings.account.profileTitle')}>
           <div className="mb-6 flex items-center gap-6">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xl font-bold text-primary-600 dark:bg-primary-500/20 dark:text-primary-400">
               {profile.firstName.charAt(0)}
@@ -161,19 +147,14 @@ export function AccountSettings() {
               <Button
                 variant="outline"
                 onClick={() =>
-                  toast.success(
-                    text('Avatar update simulated', '\u5df2\u6a21\u62df\u5934\u50cf\u66f4\u65b0'),
-                  )
+                  toast.success(t('settings.account.toasts.avatarSimulated'))
                 }
                 className="mb-2"
               >
-                {text('Change Avatar', '\u66f4\u6362\u5934\u50cf')}
+                {t('settings.account.changeAvatar')}
               </Button>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {text(
-                  'JPG, GIF or PNG. Max size of 800K',
-                  '\u652f\u6301 JPG\u3001GIF \u6216 PNG\uff0c\u6700\u5927 800K',
-                )}
+                {t('settings.account.avatarHint')}
               </p>
             </div>
           </div>
@@ -181,7 +162,7 @@ export function AccountSettings() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
               <Label className="mb-2 block">
-                {text('First Name', '\u540d')}
+                {t('settings.account.firstName')}
               </Label>
               <Input
                 type="text"
@@ -193,7 +174,7 @@ export function AccountSettings() {
             </div>
             <div>
               <Label className="mb-2 block">
-                {text('Last Name', '\u59d3')}
+                {t('settings.account.lastName')}
               </Label>
               <Input
                 type="text"
@@ -205,7 +186,7 @@ export function AccountSettings() {
             </div>
             <div className="sm:col-span-2">
               <Label className="mb-2 block">
-                {text('Email Address', '\u90ae\u7bb1\u5730\u5740')}
+                {t('settings.account.email')}
               </Label>
               <Input
                 type="email"
@@ -223,23 +204,20 @@ export function AccountSettings() {
               disabled={isSaving}
             >
               {isSaving
-                ? text('Saving...', '\u4fdd\u5b58\u4e2d...')
-                : text('Save Changes', '\u4fdd\u5b58\u66f4\u6539')}
+                ? t('settings.account.saving')
+                : t('settings.account.saveChanges')}
             </Button>
           </div>
         </Section>
 
-        <Section title={text('Danger Zone', '\u5371\u9669\u64cd\u4f5c')}>
+        <Section title={t('settings.account.dangerZone')}>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                {text('Sign Out', '\u9000\u51fa\u767b\u5f55')}
+                {t('settings.account.signOut')}
               </div>
               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                {text(
-                  'Sign out of your Claw Studio account on this device.',
-                  '\u5728\u5f53\u524d\u8bbe\u5907\u4e0a\u9000\u51fa\u4f60\u7684 Claw Studio \u8d26\u6237\u3002',
-                )}
+                {t('settings.account.signOutDescription')}
               </div>
             </div>
             <Button
@@ -247,7 +225,7 @@ export function AccountSettings() {
               onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4" />
-              {text('Sign Out', '\u9000\u51fa\u767b\u5f55')}
+              {t('settings.account.signOut')}
             </Button>
           </div>
         </Section>

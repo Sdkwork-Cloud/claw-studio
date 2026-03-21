@@ -34,19 +34,28 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { CronTasksManager } from '@sdkwork/claw-commons';
 import { useInstanceStore } from '@sdkwork/claw-core';
 import { openExternalUrl } from '@sdkwork/claw-infrastructure';
 import {
   Button,
   ChannelCatalog,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   getTaskCatalogTone,
   getTaskExecutionBadgeTone,
   getTaskHistoryBadgeTone,
+  Input,
   getTaskPreview,
   getTaskStatusBadgeTone,
   getTaskToggleStatusTarget,
   TaskCatalog,
   TaskExecutionHistoryDrawer,
+  Textarea,
   type TaskCatalogItem,
 } from '@sdkwork/claw-ui';
 import { InstanceFileExplorer } from '../components/InstanceFileExplorer';
@@ -143,6 +152,12 @@ const workbenchSections: WorkbenchSectionDefinition[] = [
     sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.tools.description',
   },
 ];
+
+const embeddedCronTaskActionKeys = [
+  'tasks.page.actions.edit',
+  'tasks.page.actions.runNow',
+  'tasks.page.actions.history',
+] as const;
 
 const MonacoEditor = React.lazy(() => import('@monaco-editor/react'));
 
@@ -395,6 +410,10 @@ export function InstanceDetail() {
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, InstanceLLMProviderUpdate>>({});
   const [isSavingProviderConfig, setIsSavingProviderConfig] = useState(false);
+  const [selectedManagedChannelId, setSelectedManagedChannelId] = useState<string | null>(null);
+  const [managedChannelDrafts, setManagedChannelDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [managedChannelError, setManagedChannelError] = useState<string | null>(null);
+  const [isSavingManagedChannel, setIsSavingManagedChannel] = useState(false);
   const [taskExecutionsById, setTaskExecutionsById] = useState<Record<string, InstanceWorkbenchTaskExecution[]>>({});
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -484,6 +503,29 @@ export function InstanceDetail() {
   }, [workbench]);
 
   useEffect(() => {
+    const managedChannels = workbench?.managedChannels || [];
+
+    if (managedChannels.length === 0) {
+      setSelectedManagedChannelId(null);
+      setManagedChannelDrafts({});
+      setManagedChannelError(null);
+      return;
+    }
+
+    setSelectedManagedChannelId((current) =>
+      current && managedChannels.some((channel) => channel.id === current) ? current : null,
+    );
+    setManagedChannelDrafts(
+      Object.fromEntries(
+        managedChannels.map((channel) => [
+          channel.id,
+          { ...channel.values },
+        ]),
+      ),
+    );
+  }, [workbench]);
+
+  useEffect(() => {
     if (historyTaskId && !workbench?.tasks.some((task) => task.id === historyTaskId)) {
       setHistoryTaskId(null);
     }
@@ -502,8 +544,18 @@ export function InstanceDetail() {
 
   const instance = workbench?.instance || null;
   const detail = workbench?.detail || null;
+  const managedConfigPath = workbench?.managedConfigPath || null;
+  const managedChannels = workbench?.managedChannels || [];
+  const consoleAccess = detail?.consoleAccess || null;
   const isOpenClawWorkbench = detail?.instance.runtimeKind === 'openclaw' && Boolean(detail?.workbench);
-  const isOpenClawTaskEditorPending = isOpenClawWorkbench;
+  const isOpenClawConfigWritable =
+    detail?.instance.runtimeKind === 'openclaw' && Boolean(managedConfigPath);
+  const canEditManagedChannels = Boolean(id && managedConfigPath && managedChannels.length);
+  const isProviderConfigReadonly =
+    detail?.instance.runtimeKind === 'openclaw' ? !managedConfigPath : false;
+  const canOpenOpenClawConsole = Boolean(
+    consoleAccess?.available && (consoleAccess.autoLoginUrl || consoleAccess.url),
+  );
   const historyTask = historyTaskId ? workbench?.tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? taskExecutionsById[historyTaskId] || [] : [];
 
@@ -520,6 +572,10 @@ export function InstanceDetail() {
     () => workbench?.llmProviders.find((provider) => provider.id === selectedProviderId) || null,
     [selectedProviderId, workbench],
   );
+  const selectedManagedChannel = useMemo(
+    () => managedChannels.find((channel) => channel.id === selectedManagedChannelId) || null,
+    [managedChannels, selectedManagedChannelId],
+  );
 
   const selectedFileDraft = selectedFile ? fileDrafts[selectedFile.id] ?? selectedFile.content : '';
   const selectedProviderDraft = selectedProvider
@@ -531,6 +587,9 @@ export function InstanceDetail() {
         embeddingModelId: selectedProvider.embeddingModelId,
         config: { ...selectedProvider.config },
       }
+    : null;
+  const selectedManagedChannelDraft = selectedManagedChannel
+    ? managedChannelDrafts[selectedManagedChannel.id] || selectedManagedChannel.values
     : null;
   const hasPendingFileChanges = Boolean(
     selectedFile && !selectedFile.isReadonly && selectedFileDraft !== selectedFile.content,
@@ -598,7 +657,7 @@ export function InstanceDetail() {
     field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
     value: string,
   ) => {
-    if (isOpenClawWorkbench || !selectedProvider || !selectedProviderDraft) {
+    if (isProviderConfigReadonly || !selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -621,7 +680,7 @@ export function InstanceDetail() {
     field: keyof InstanceLLMProviderUpdate['config'],
     value: number | boolean,
   ) => {
-    if (isOpenClawWorkbench || !selectedProvider || !selectedProviderDraft) {
+    if (isProviderConfigReadonly || !selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -638,7 +697,7 @@ export function InstanceDetail() {
   };
 
   const handleResetProviderDraft = () => {
-    if (isOpenClawWorkbench || !selectedProvider) {
+    if (isProviderConfigReadonly || !selectedProvider) {
       return;
     }
 
@@ -656,7 +715,7 @@ export function InstanceDetail() {
   };
 
   const handleSaveProviderConfig = async () => {
-    if (isOpenClawWorkbench || !id || !selectedProvider || !selectedProviderDraft) {
+    if (isProviderConfigReadonly || !id || !selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -714,8 +773,89 @@ export function InstanceDetail() {
     }
   };
 
+  const handleOpenOpenClawConsole = async () => {
+    const targetUrl = consoleAccess?.autoLoginUrl || consoleAccess?.url;
+    if (!targetUrl) {
+      toast.error(t('instances.detail.toasts.failedToOpenOpenClawConsole'));
+      return;
+    }
+
+    try {
+      await openExternalUrl(targetUrl);
+      if (!consoleAccess?.autoLoginUrl && consoleAccess?.reason) {
+        toast.info(consoleAccess.reason);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || t('instances.detail.toasts.failedToOpenOpenClawConsole'));
+    }
+  };
+
   const openOfficialLink = async (href: string) => {
     await openExternalUrl(href);
+  };
+
+  const handleManagedChannelDraftChange = (fieldKey: string, value: string) => {
+    if (!selectedManagedChannel) {
+      return;
+    }
+
+    setManagedChannelError(null);
+    setManagedChannelDrafts((current) => ({
+      ...current,
+      [selectedManagedChannel.id]: {
+        ...(current[selectedManagedChannel.id] || selectedManagedChannel.values),
+        [fieldKey]: value,
+      },
+    }));
+  };
+
+  const handleToggleManagedChannel = async (
+    channel: NonNullable<InstanceWorkbenchSnapshot['managedChannels']>[number],
+    nextEnabled: boolean,
+  ) => {
+    if (!id) {
+      return;
+    }
+
+    try {
+      await instanceService.setOpenClawChannelEnabled(id, channel.id, nextEnabled);
+      toast.success(
+        nextEnabled ? `${channel.name} enabled.` : `${channel.name} disabled.`,
+      );
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(error?.message || `Failed to update ${channel.name}.`);
+    }
+  };
+
+  const handleSaveManagedChannel = async () => {
+    if (!id || !selectedManagedChannel || !selectedManagedChannelDraft) {
+      return;
+    }
+
+    for (const field of selectedManagedChannel.fields) {
+      if (field.required && !(selectedManagedChannelDraft[field.key] || '').trim()) {
+        setManagedChannelError(`${field.label} is required.`);
+        return;
+      }
+    }
+
+    setIsSavingManagedChannel(true);
+    setManagedChannelError(null);
+    try {
+      await instanceService.saveOpenClawChannelConfig(
+        id,
+        selectedManagedChannel.id,
+        selectedManagedChannelDraft,
+      );
+      toast.success(`${selectedManagedChannel.name} configuration saved.`);
+      setSelectedManagedChannelId(null);
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      setManagedChannelError(error?.message || `Failed to save ${selectedManagedChannel.name}.`);
+    } finally {
+      setIsSavingManagedChannel(false);
+    }
   };
 
   const openTaskWorkspace = (params?: Record<string, string>) => {
@@ -1272,27 +1412,183 @@ export function InstanceDetail() {
     }
 
     return (
-      <ChannelCatalog
-        items={workbench.channels}
-        variant="summary"
-        texts={{
-          statusActive: t('channels.page.status.active'),
-          statusConnected: t('dashboard.status.connected'),
-          statusDisconnected: t('dashboard.status.disconnected'),
-          statusNotConfigured: t('dashboard.status.not_configured'),
-          actionConnect: t('channels.page.actions.connect'),
-          actionConfigure: t('channels.page.actions.configure'),
-          actionOpenOfficialSite: t('channels.page.actions.openOfficialSite'),
-          actionEnableChannel: (name: string) => t('channels.page.actions.enableChannel', { name }),
-          metricConfiguredFields: t('instances.detail.instanceWorkbench.metrics.configuredFields'),
-          metricSetupSteps: t('instances.detail.instanceWorkbench.metrics.setupSteps'),
-          metricDeliveryState: t('instances.detail.instanceWorkbench.metrics.deliveryState'),
-          stateEnabled: t('instances.detail.instanceWorkbench.state.enabled'),
-          statePending: t('instances.detail.instanceWorkbench.state.pending'),
-          summaryFallback: t('instances.detail.instanceWorkbench.empty.channels'),
-        }}
-        onOpenOfficialLink={(_channel, link) => void openOfficialLink(link.href)}
-      />
+      <>
+        <div className="space-y-4">
+          {managedConfigPath ? (
+            <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/35 dark:text-zinc-300">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                {formatWorkbenchLabel('managedFile')}
+              </div>
+              <div className="mt-2 break-all font-mono text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                {managedConfigPath}
+              </div>
+            </div>
+          ) : null}
+
+          <ChannelCatalog
+            items={
+              canEditManagedChannels
+                ? managedChannels.map((channel) => {
+                    const draft = managedChannelDrafts[channel.id] || channel.values;
+                    const configuredFieldCount = channel.fields.filter((field) =>
+                      Boolean((draft[field.key] || '').trim()),
+                    ).length;
+
+                    return {
+                      id: channel.id,
+                      name: channel.name,
+                      description: channel.description,
+                      status:
+                        configuredFieldCount === 0
+                          ? 'not_configured'
+                          : channel.status === 'connected'
+                            ? 'connected'
+                            : 'disconnected',
+                      enabled: channel.enabled,
+                      fieldCount: channel.fieldCount,
+                      configuredFieldCount,
+                      setupSteps: channel.setupSteps,
+                    };
+                  })
+                : workbench.channels
+            }
+            variant={canEditManagedChannels ? 'management' : 'summary'}
+            texts={{
+              statusActive: t('channels.page.status.active'),
+              statusConnected: t('dashboard.status.connected'),
+              statusDisconnected: t('dashboard.status.disconnected'),
+              statusNotConfigured: t('dashboard.status.not_configured'),
+              actionConnect: t('channels.page.actions.connect'),
+              actionConfigure: t('channels.page.actions.configure'),
+              actionOpenOfficialSite: t('channels.page.actions.openOfficialSite'),
+              actionEnableChannel: (name: string) => t('channels.page.actions.enableChannel', { name }),
+              metricConfiguredFields: t('instances.detail.instanceWorkbench.metrics.configuredFields'),
+              metricSetupSteps: t('instances.detail.instanceWorkbench.metrics.setupSteps'),
+              metricDeliveryState: t('instances.detail.instanceWorkbench.metrics.deliveryState'),
+              stateEnabled: t('instances.detail.instanceWorkbench.state.enabled'),
+              statePending: t('instances.detail.instanceWorkbench.state.pending'),
+              summaryFallback: t('instances.detail.instanceWorkbench.empty.channels'),
+            }}
+            onOpenOfficialLink={(_channel, link) => void openOfficialLink(link.href)}
+            onConfigure={
+              canEditManagedChannels
+                ? (channel) => {
+                    setManagedChannelError(null);
+                    setSelectedManagedChannelId(channel.id);
+                  }
+                : undefined
+            }
+            onToggleEnabled={
+              canEditManagedChannels
+                ? (channel, nextEnabled) => {
+                    const managedChannel = managedChannels.find((item) => item.id === channel.id);
+                    if (managedChannel) {
+                      void handleToggleManagedChannel(managedChannel, nextEnabled);
+                    }
+                  }
+                : undefined
+            }
+          />
+        </div>
+
+        <Dialog
+          open={Boolean(selectedManagedChannel)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setManagedChannelError(null);
+              setSelectedManagedChannelId(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{selectedManagedChannel?.name || 'Channel configuration'}</DialogTitle>
+              <DialogDescription>
+                {selectedManagedChannel?.description || ''}
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedManagedChannel && selectedManagedChannelDraft ? (
+              <div className="space-y-4">
+                {selectedManagedChannel.fields.map((field) =>
+                  field.multiline ? (
+                    <label key={field.key} className="block">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                        {field.label}
+                        {field.required ? ' *' : ''}
+                      </div>
+                      <Textarea
+                        value={selectedManagedChannelDraft[field.key] || ''}
+                        onChange={(event) =>
+                          handleManagedChannelDraftChange(field.key, event.target.value)
+                        }
+                        placeholder={field.placeholder}
+                        rows={5}
+                        className="min-h-[7rem] w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-primary-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                      />
+                      {field.helpText ? (
+                        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                          {field.helpText}
+                        </p>
+                      ) : null}
+                    </label>
+                  ) : (
+                    <label key={field.key} className="block">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                        {field.label}
+                        {field.required ? ' *' : ''}
+                      </div>
+                      <Input
+                        type={
+                          field.sensitive
+                            ? 'password'
+                            : field.inputMode === 'numeric'
+                              ? 'number'
+                              : field.inputMode === 'url'
+                                ? 'url'
+                                : 'text'
+                        }
+                        value={selectedManagedChannelDraft[field.key] || ''}
+                        onChange={(event) =>
+                          handleManagedChannelDraftChange(field.key, event.target.value)
+                        }
+                        placeholder={field.placeholder}
+                        className="h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-primary-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                      />
+                      {field.helpText ? (
+                        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                          {field.helpText}
+                        </p>
+                      ) : null}
+                    </label>
+                  ),
+                )}
+
+                {managedChannelError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                    {managedChannelError}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setManagedChannelError(null);
+                  setSelectedManagedChannelId(null);
+                }}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={() => void handleSaveManagedChannel()} disabled={isSavingManagedChannel}>
+                {isSavingManagedChannel ? t('common.loading') : t('common.save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   };
 
@@ -1301,244 +1597,7 @@ export function InstanceDetail() {
       return null;
     }
 
-    const taskCatalogItems: TaskCatalogItem[] = workbench.tasks.map((task) => {
-      const latest = task.latestExecution;
-      const isBusy =
-        cloningTaskIds.includes(task.id) ||
-        runningTaskIds.includes(task.id) ||
-        statusTaskIds.includes(task.id) ||
-        deletingTaskIds.includes(task.id);
-      const deliveryTarget =
-        task.deliveryMode === 'none'
-          ? t('tasks.page.deliveryModes.none.title')
-          : task.deliveryLabel || task.deliveryChannel || t('common.none');
-      const promptPreview = getTaskPreview(task.prompt);
-      const description = getTaskPreview(task.description) || promptPreview;
-      const latestExecutionSummary = getTaskPreview(latest?.summary);
-
-      return {
-        id: task.id,
-        name: task.name,
-        tone: getTaskCatalogTone(task.status, latest?.status),
-        badges: [
-          {
-            id: 'status',
-            tone: getTaskStatusBadgeTone(task.status),
-            icon: <span className="h-2 w-2 rounded-full bg-current" />,
-            label: t(`tasks.page.status.${task.status}`),
-          },
-          {
-            id: 'execution-content',
-            tone: getTaskExecutionBadgeTone(task.executionContent),
-            icon:
-              task.executionContent === 'sendPromptMessage' ? (
-                <MessageSquare className="h-3.5 w-3.5" />
-              ) : (
-                <Zap className="h-3.5 w-3.5" />
-              ),
-            label: t(`tasks.page.executionContents.${task.executionContent}.title`),
-          },
-        ],
-        description: (
-          <div className="space-y-2">
-            <p>{description}</p>
-            {task.description?.trim() ? (
-              <div className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                <span className="font-semibold uppercase tracking-[0.16em]">
-                  {t('tasks.page.cards.prompt')}
-                </span>{' '}
-                {promptPreview}
-              </div>
-            ) : null}
-          </div>
-        ),
-        metrics: [
-          {
-            id: 'schedule',
-            label: t('tasks.page.cards.schedule'),
-            value: buildTaskScheduleSummary(t, task),
-          },
-          {
-            id: 'next-run',
-            label: t('tasks.page.cards.nextRun'),
-            value: task.nextRun || '-',
-          },
-          {
-            id: 'last-run',
-            label: t('tasks.page.cards.lastRun'),
-            value: task.lastRun || '-',
-          },
-        ],
-        summaryTitle: t('tasks.page.cards.latestExecution'),
-        summaryBadges: latest
-          ? [
-              {
-                id: 'execution-status',
-                tone: getTaskHistoryBadgeTone(latest.status),
-                icon: <span className="h-2 w-2 rounded-full bg-current" />,
-                label: t(`tasks.page.history.status.${latest.status}`),
-              },
-              {
-                id: 'execution-trigger',
-                tone: 'neutral',
-                label: t(`tasks.page.history.triggers.${latest.trigger}`),
-              },
-            ]
-          : undefined,
-        summaryContent: latestExecutionSummary || t('tasks.page.cards.noExecutionYet'),
-        summaryDetails: latest?.details || (!latest ? promptPreview : undefined),
-        summaryFooter: deliveryTarget ? (
-          <span>
-            {t('tasks.page.cards.delivery')}: {deliveryTarget}
-            {task.recipient ? ` / ${task.recipient}` : ''}
-          </span>
-        ) : undefined,
-        actions: (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => openTaskWorkspace({ taskMode: 'edit', taskId: task.id })}
-              disabled={isBusy || isOpenClawTaskEditorPending}
-            >
-              <Edit2 className="h-4 w-4" />
-              {t('tasks.page.actions.edit')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleCloneTask(task.id, task.name)}
-              disabled={isBusy}
-            >
-              {cloningTaskIds.includes(task.id) ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-              {t('tasks.page.actions.clone')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleToggleTaskStatus(task.id, task.status)}
-              disabled={isBusy || !getTaskToggleStatusTarget(task.status)}
-            >
-              {statusTaskIds.includes(task.id) ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : task.status === 'active' ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {task.status === 'active'
-                ? t('tasks.page.actions.disable')
-                : t('tasks.page.actions.enable')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleRunTaskNow(task.id)}
-              disabled={isBusy}
-            >
-              {runningTaskIds.includes(task.id) ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {t('tasks.page.actions.runNow')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void openTaskHistoryDrawer(task.id)}
-              disabled={isBusy}
-            >
-              <History className="h-4 w-4" />
-              {t('tasks.page.actions.history')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-              onClick={() => void handleDeleteTask(task.id, task.name)}
-              disabled={isBusy}
-            >
-              {deletingTaskIds.includes(task.id) ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-              {t('tasks.page.actions.delete')}
-            </Button>
-          </>
-        ),
-      };
-    });
-
-    return (
-      <div className="space-y-4">
-        {isOpenClawTaskEditorPending ? (
-          <div
-            data-slot="instance-openclaw-cron-editor-notice"
-            className="rounded-[1.5rem] border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
-          >
-            {t('instances.detail.instanceWorkbench.cronTasks.editorNotice')}
-          </div>
-        ) : null}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            {t('tasks.page.title')}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void refreshTasksSection()}
-              disabled={isRefreshingTasks}
-            >
-              {isRefreshingTasks ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {t('tasks.page.actions.refresh')}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => openTaskWorkspace({ taskMode: 'create' })}
-              disabled={isOpenClawTaskEditorPending}
-            >
-              <Plus className="h-4 w-4" />
-              {t('tasks.page.actions.newTask')}
-            </Button>
-          </div>
-        </div>
-
-        <TaskCatalog
-          className="bg-white/75 shadow-none dark:bg-zinc-950/35"
-          items={taskCatalogItems}
-          emptyState={
-            <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/75 px-6 py-12 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950/35">
-              <Zap className="mx-auto h-10 w-10 text-primary-500 dark:text-primary-300" />
-              <h3 className="mt-5 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-                {t('tasks.page.empty.title')}
-              </h3>
-              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                {t('tasks.page.empty.description')}
-              </p>
-              <Button
-                className="mt-6"
-                onClick={() => openTaskWorkspace({ taskMode: 'create' })}
-                disabled={isOpenClawTaskEditorPending}
-              >
-                <Plus className="h-4 w-4" />
-                {t('tasks.page.actions.newTask')}
-              </Button>
-            </div>
-          }
-        />
-      </div>
-    );
+    return <CronTasksManager instanceId={id} embedded />;
   };
 
   const renderAgentsSection = () => {
@@ -1640,6 +1699,16 @@ export function InstanceDetail() {
     return (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_24rem]">
         <div data-slot="instance-llm-provider-list" className="space-y-3">
+          {managedConfigPath ? (
+            <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/35 dark:text-zinc-300">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                {formatWorkbenchLabel('managedFile')}
+              </div>
+              <div className="mt-2 break-all font-mono text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                {managedConfigPath}
+              </div>
+            </div>
+          ) : null}
           {workbench.llmProviders.map((provider) => {
             const isActive = selectedProvider?.id === provider.id;
             const defaultModel = provider.models.find((model) => model.id === provider.defaultModelId);
@@ -1784,7 +1853,7 @@ export function InstanceDetail() {
           draft={selectedProviderDraft}
           hasPendingChanges={hasPendingProviderChanges}
           isSaving={isSavingProviderConfig}
-          isReadonly={isOpenClawWorkbench}
+          isReadonly={isProviderConfigReadonly}
           readonlyMessage={t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice')}
           onFieldChange={handleProviderFieldChange}
           onConfigChange={handleProviderConfigChange}
@@ -2212,6 +2281,16 @@ export function InstanceDetail() {
               >
                 <CheckCircle2 className="h-4 w-4" />
                 {t('instances.detail.actions.setAsActive')}
+              </button>
+            ) : null}
+            {canOpenOpenClawConsole ? (
+              <button
+                type="button"
+                onClick={handleOpenOpenClawConsole}
+                className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+              >
+                <Wrench className="h-4 w-4" />
+                {t('instances.detail.actions.openOpenClawConsole')}
               </button>
             ) : null}
             <button

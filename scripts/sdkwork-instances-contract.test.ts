@@ -12,6 +12,16 @@ function readJson<T>(relPath: string): T {
   return JSON.parse(read(relPath)) as T;
 }
 
+function getLocaleValue(locale: Record<string, unknown>, key: string) {
+  return key.split('.').reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== 'object' || !(segment in current)) {
+      return undefined;
+    }
+
+    return (current as Record<string, unknown>)[segment];
+  }, locale);
+}
+
 function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
 }
@@ -221,17 +231,25 @@ runTest('sdkwork-claw-instances prefers backend-authored openclaw workbench sect
   assert.match(serviceSource, /detail\.workbench\.[a-zA-Z]+/);
 });
 
-runTest('sdkwork-claw-instances routes openclaw cron actions through the studio bridge while keeping the task editor honest', () => {
+runTest('sdkwork-claw-instances reuses the shared cron manager and keeps OpenClaw cron CRUD fully editable', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
   const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
   const studioContract = read('packages/sdkwork-claw-infrastructure/src/platform/contracts/studio.ts');
+  const instancesPkg = readJson<{ dependencies?: Record<string, string> }>(
+    'packages/sdkwork-claw-instances/package.json',
+  );
   const panelSource = read('packages/sdkwork-claw-instances/src/components/InstanceLLMConfigPanel.tsx');
 
+  assert.equal(instancesPkg.dependencies?.['@sdkwork/claw-commons'], 'workspace:*');
+  assert.match(studioContract, /createInstanceTask/);
+  assert.match(studioContract, /updateInstanceTask/);
   assert.match(studioContract, /cloneInstanceTask/);
   assert.match(studioContract, /runInstanceTaskNow/);
   assert.match(studioContract, /listInstanceTaskExecutions/);
   assert.match(studioContract, /updateInstanceTaskStatus/);
   assert.match(studioContract, /deleteInstanceTask/);
+  assert.match(serviceSource, /studio\.createInstanceTask/);
+  assert.match(serviceSource, /studio\.updateInstanceTask/);
   assert.match(serviceSource, /studio\.cloneInstanceTask/);
   assert.match(serviceSource, /studio\.runInstanceTaskNow/);
   assert.match(serviceSource, /studio\.listInstanceTaskExecutions/);
@@ -239,10 +257,45 @@ runTest('sdkwork-claw-instances routes openclaw cron actions through the studio 
   assert.match(serviceSource, /studio\.deleteInstanceTask/);
   assert.doesNotMatch(serviceSource, /OpenClaw managed cron task mutations are not wired yet/);
   assert.match(detailSource, /detail\?\.instance\.runtimeKind === 'openclaw'/);
-  assert.match(detailSource, /data-slot="instance-openclaw-cron-editor-notice"/);
-  assert.match(detailSource, /instanceWorkbench\.cronTasks\.editorNotice/);
-  assert.match(detailSource, /isOpenClawTaskEditorPending/);
+  assert.match(detailSource, /CronTasksManager/);
+  assert.match(detailSource, /instanceId=\{id\}/);
+  assert.doesNotMatch(detailSource, /data-slot="instance-openclaw-cron-editor-notice"/);
+  assert.doesNotMatch(detailSource, /instanceWorkbench\.sections\.cronTasks\.editorNotice/);
+  assert.doesNotMatch(detailSource, /isOpenClawTaskEditorPending/);
   assert.match(panelSource, /isReadonly: boolean;/);
   assert.match(panelSource, /readonlyMessage\?: string;/);
   assert.match(panelSource, /disabled=\{isReadonly\}/);
+});
+
+runTest('sdkwork-claw-instances keeps local-external OpenClaw editable through the discovered config file instead of locking the workbench', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const instanceServiceSource = read('packages/sdkwork-claw-instances/src/services/instanceService.ts');
+  const workbenchSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
+
+  assert.match(detailSource, /Dialog(Content|Header|Footer|Title|Description)?/);
+  assert.match(detailSource, /ChannelCatalog/);
+  assert.match(detailSource, /managedFile/);
+  assert.doesNotMatch(detailSource, /isReadonly=\{isOpenClawWorkbench\}/);
+  assert.doesNotMatch(detailSource, /if \(isOpenClawWorkbench \|\| !selectedProvider/);
+
+  assert.match(instanceServiceSource, /openClawConfigService/);
+  assert.doesNotMatch(instanceServiceSource, /studioMockService\.updateInstanceLlmProviderConfig/);
+
+  assert.match(workbenchSource, /openClawConfigService/);
+  assert.match(workbenchSource, /resolveInstanceConfigPath/);
+  assert.match(workbenchSource, /detail\.dataAccess/);
+});
+
+runTest('sdkwork-claw-instances keeps direct InstanceDetail i18n keys mapped in both locale bundles', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const enLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const directKeys = [...detailSource.matchAll(/\bt\('([^']+)'\)/g)].map((match) => match[1]);
+  const uniqueKeys = [...new Set(directKeys)].sort();
+
+  const missingKeys = uniqueKeys.filter(
+    (key) => getLocaleValue(enLocale, key) === undefined || getLocaleValue(zhLocale, key) === undefined,
+  );
+
+  assert.deepEqual(missingKeys, []);
 });

@@ -32,6 +32,11 @@ export interface NormalizedProxyProviderFormState {
   notes: string;
 }
 
+export interface NormalizedProxyProviderEditFormState
+  extends Omit<NormalizedProxyProviderFormState, 'apiKey'> {
+  apiKey?: string;
+}
+
 export function createEmptyProviderFormModel(): ProxyProviderFormModelState {
   return {
     id: '',
@@ -116,8 +121,26 @@ export function removeProviderFormModel(
 export function normalizeProviderFormState(
   formState: ProxyProviderFormState,
 ): NormalizedProxyProviderFormState | null {
-  const name = formState.name.trim();
+  const normalizedSharedState = normalizeSharedProviderFormState(formState);
+  if (!normalizedSharedState) {
+    return null;
+  }
+
   const apiKey = formState.apiKey.trim();
+  if (!apiKey) {
+    return null;
+  }
+
+  return {
+    ...normalizedSharedState,
+    apiKey,
+  };
+}
+
+function normalizeSharedProviderFormState(
+  formState: ProxyProviderFormState,
+): Omit<NormalizedProxyProviderFormState, 'apiKey'> | null {
+  const name = formState.name.trim();
   const groupId = formState.groupId;
   const baseUrl = formState.baseUrl.trim();
   const notes = formState.notes.trim();
@@ -131,17 +154,32 @@ export function normalizeProviderFormState(
 
   const hasIncompleteModel = normalizedModels.some((model) => !model.id || !model.name);
 
-  if (!name || !apiKey || !groupId || !baseUrl || normalizedModels.length === 0 || hasIncompleteModel) {
+  if (!name || !groupId || !baseUrl || normalizedModels.length === 0 || hasIncompleteModel) {
     return null;
   }
 
   return {
     name,
-    apiKey,
     groupId,
     baseUrl,
     models: normalizedModels,
     expiresAt: normalizeDateInput(formState.expiresAt),
     notes,
+  };
+}
+
+export function normalizeProviderEditFormState(
+  formState: ProxyProviderFormState,
+): NormalizedProxyProviderEditFormState | null {
+  const normalizedSharedState = normalizeSharedProviderFormState(formState);
+  if (!normalizedSharedState) {
+    return null;
+  }
+
+  const apiKey = formState.apiKey.trim();
+
+  return {
+    ...normalizedSharedState,
+    apiKey: apiKey || undefined,
   };
 }

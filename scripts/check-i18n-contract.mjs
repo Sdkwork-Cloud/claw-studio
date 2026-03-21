@@ -292,6 +292,31 @@ function checkCorruptedLocaleValues() {
   }
 }
 
+function checkComponentPageLocaleBoundary() {
+  const uiFiles = listFiles(packagesDir, (filePath) => {
+    const normalized = filePath.replaceAll('/', '\\');
+    return (
+      filePath.endsWith('.tsx') &&
+      normalized.includes('\\src\\') &&
+      /\\(components|pages)\\/.test(normalized) &&
+      !normalized.includes('\\node_modules\\') &&
+      !normalized.includes('\\dist\\') &&
+      !normalized.includes('\\target\\') &&
+      !normalized.includes('.test.')
+    );
+  });
+
+  for (const filePath of uiFiles) {
+    const source = readFile(filePath);
+
+    if (/\buseLocalizedText\b/.test(source)) {
+      fail(
+        `${normalizePath(filePath)} must not use useLocalizedText in page/component UI; move copy into locale resources and use t(...).`,
+      );
+    }
+  }
+}
+
 function checkStaticUiCopy() {
   const sourceTsxFiles = listFiles(packagesDir, (filePath) => {
     const normalized = filePath.replaceAll('/', '\\');
@@ -318,6 +343,7 @@ checkSupportedLocales();
 checkRequestAwareRuntime();
 checkChineseOutsideLocales();
 checkCorruptedLocaleValues();
+checkComponentPageLocaleBoundary();
 checkStaticUiCopy();
 
 if (failures.length > 0) {

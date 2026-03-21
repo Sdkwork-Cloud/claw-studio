@@ -5,9 +5,7 @@ use crate::framework::{
     paths::AppPaths,
     services::{
         openclaw_runtime::ActivatedOpenClawRuntime,
-        supervisor::{
-            ManagedServiceLifecycle, SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY,
-        },
+        supervisor::{ManagedServiceLifecycle, SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY},
     },
     FrameworkError, Result,
 };
@@ -50,9 +48,9 @@ pub(super) fn clone_openclaw_task(
     name: Option<&str>,
 ) -> Result<()> {
     let mut params = read_openclaw_task_definition(paths, task_id)?;
-    let object = params
-        .as_object_mut()
-        .ok_or_else(|| FrameworkError::ValidationFailed("OpenClaw cron job must be an object".to_string()))?;
+    let object = params.as_object_mut().ok_or_else(|| {
+        FrameworkError::ValidationFailed("OpenClaw cron job must be an object".to_string())
+    })?;
     object.remove("id");
     object.remove("createdAtMs");
     object.remove("updatedAtMs");
@@ -62,6 +60,15 @@ pub(super) fn clone_openclaw_task(
     }
 
     let _ = run_openclaw_gateway_call(runtime, paths, "cron.add", &params)?;
+    Ok(())
+}
+
+pub(super) fn create_openclaw_task(
+    paths: &AppPaths,
+    runtime: &ActivatedOpenClawRuntime,
+    payload: &Value,
+) -> Result<()> {
+    let _ = run_openclaw_gateway_call(runtime, paths, "cron.add", payload)?;
     Ok(())
 }
 
@@ -138,6 +145,24 @@ pub(super) fn update_openclaw_task_status(
     Ok(())
 }
 
+pub(super) fn update_openclaw_task(
+    paths: &AppPaths,
+    runtime: &ActivatedOpenClawRuntime,
+    task_id: &str,
+    payload: &Value,
+) -> Result<()> {
+    let _ = run_openclaw_gateway_call(
+        runtime,
+        paths,
+        "cron.update",
+        &json!({
+            "id": task_id,
+            "patch": payload,
+        }),
+    )?;
+    Ok(())
+}
+
 pub(super) fn delete_openclaw_task(
     paths: &AppPaths,
     runtime: &ActivatedOpenClawRuntime,
@@ -161,15 +186,12 @@ pub(super) fn delete_openclaw_task(
 fn read_openclaw_task_definition(paths: &AppPaths, task_id: &str) -> Result<Value> {
     let store_path = resolve_openclaw_jobs_store_path(paths);
     let root = read_json_document(&store_path)?;
-    let jobs = root
-        .get("jobs")
-        .and_then(Value::as_array)
-        .ok_or_else(|| {
-            FrameworkError::ValidationFailed(format!(
-                "invalid OpenClaw cron store at {}: missing jobs array",
-                store_path.display()
-            ))
-        })?;
+    let jobs = root.get("jobs").and_then(Value::as_array).ok_or_else(|| {
+        FrameworkError::ValidationFailed(format!(
+            "invalid OpenClaw cron store at {}: missing jobs array",
+            store_path.display()
+        ))
+    })?;
 
     jobs.iter()
         .find(|job| {
@@ -308,8 +330,9 @@ fn format_timestamp_ms(timestamp_ms: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        clone_openclaw_task, delete_openclaw_task, require_running_openclaw_runtime,
-        run_openclaw_task_now, update_openclaw_task_status,
+        clone_openclaw_task, create_openclaw_task, delete_openclaw_task,
+        require_running_openclaw_runtime, run_openclaw_task_now, update_openclaw_task,
+        update_openclaw_task_status,
     };
     use crate::framework::{
         paths::resolve_paths_for_root,
@@ -383,10 +406,7 @@ mod tests {
         let captured = read_capture(&paths).expect("capture entry");
         assert_eq!(captured.method, "cron.add");
         assert_eq!(
-            captured
-                .params
-                .get("name")
-                .and_then(Value::as_str),
+            captured.params.get("name").and_then(Value::as_str),
             Some("Nightly Review Copy")
         );
         assert!(captured.params.get("id").is_none());
@@ -412,13 +432,94 @@ mod tests {
     }
 
     #[test]
+    fn create_and_update_forward_openclaw_upsert_payloads_without_rewriting_them() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let runtime = create_runtime_fixture(&paths);
+
+        create_openclaw_task(
+            &paths,
+            &runtime,
+            &serde_json::json!({
+                "name": "Morning brief",
+                "description": "Summarize overnight updates.",
+                "enabled": true,
+                "schedule": {
+                    "kind": "cron",
+                    "expr": "0 7 * * *"
+                },
+                "sessionTarget": "isolated",
+                "wakeMode": "now",
+                "payload": {
+                    "kind": "agentTurn",
+                    "message": "Summarize overnight updates.",
+                    "timeoutSeconds": 600
+                },
+                "delivery": {
+                    "mode": "announce",
+                    "channel": "telegram",
+                    "to": "channel:daily-brief"
+                }
+            }),
+        )
+        .expect("create task");
+        update_openclaw_task(
+            &paths,
+            &runtime,
+            "job-1",
+            &serde_json::json!({
+                "name": "Morning brief updated",
+                "enabled": false,
+                "payload": {
+                    "kind": "agentTurn",
+                    "message": "Summarize the last 12 hours."
+                }
+            }),
+        )
+        .expect("update task");
+
+        let captures = read_all_captures(&paths);
+        assert_eq!(captures.len(), 2);
+        assert_eq!(captures[0].method, "cron.add");
+        assert_eq!(
+            captures[0].params.get("name").and_then(Value::as_str),
+            Some("Morning brief")
+        );
+        assert_eq!(
+            captures[0]
+                .params
+                .pointer("/payload/timeoutSeconds")
+                .and_then(Value::as_i64),
+            Some(600)
+        );
+        assert_eq!(captures[1].method, "cron.update");
+        assert_eq!(
+            captures[1].params.get("id").and_then(Value::as_str),
+            Some("job-1")
+        );
+        assert_eq!(
+            captures[1]
+                .params
+                .pointer("/patch/name")
+                .and_then(Value::as_str),
+            Some("Morning brief updated")
+        );
+        assert_eq!(
+            captures[1]
+                .params
+                .pointer("/patch/enabled")
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+    }
+
+    #[test]
     fn update_run_and_delete_use_the_managed_gateway_call_surface() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let runtime = create_runtime_fixture(&paths);
 
-        update_openclaw_task_status(&paths, &runtime, "job-2", "paused")
-            .expect("pause task");
+        update_openclaw_task_status(&paths, &runtime, "job-2", "paused").expect("pause task");
         let queued = run_openclaw_task_now(&paths, &runtime, "job-2").expect("queue run");
         let deleted = delete_openclaw_task(&paths, &runtime, "job-2").expect("delete task");
 
@@ -434,10 +535,7 @@ mod tests {
         );
         assert_eq!(captures[1].method, "cron.run");
         assert_eq!(
-            captures[1]
-                .params
-                .get("mode")
-                .and_then(Value::as_str),
+            captures[1].params.get("mode").and_then(Value::as_str),
             Some("force")
         );
         assert_eq!(captures[2].method, "cron.remove");
@@ -465,8 +563,7 @@ mod tests {
         supervisor
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
-        let resolved = require_running_openclaw_runtime(&supervisor)
-            .expect("resolve runtime");
+        let resolved = require_running_openclaw_runtime(&supervisor).expect("resolve runtime");
         assert_eq!(resolved.gateway_port, runtime.gateway_port);
     }
 
@@ -476,7 +573,9 @@ mod tests {
         params: Value,
     }
 
-    fn create_runtime_fixture(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
+    fn create_runtime_fixture(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> ActivatedOpenClawRuntime {
         let install_dir = paths.openclaw_runtime_dir.join("test-runtime");
         let runtime_dir = install_dir.join("runtime");
         let cli_path = runtime_dir.join("package").join("openclaw.mjs");
@@ -550,9 +649,7 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
         read_all_captures(paths).into_iter().last()
     }
 
-    fn read_all_captures(
-        paths: &crate::framework::paths::AppPaths,
-    ) -> Vec<CapturedGatewayCall> {
+    fn read_all_captures(paths: &crate::framework::paths::AppPaths) -> Vec<CapturedGatewayCall> {
         let capture_path = paths.openclaw_state_dir.join("capture.jsonl");
         fs::read_to_string(capture_path)
             .unwrap_or_default()

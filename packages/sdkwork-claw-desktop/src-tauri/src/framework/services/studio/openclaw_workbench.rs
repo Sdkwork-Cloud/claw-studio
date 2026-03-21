@@ -6,6 +6,7 @@ use super::{
     StudioWorkbenchMemoryEntryRecord, StudioWorkbenchSkillRecord, StudioWorkbenchSnapshot,
     StudioWorkbenchTaskExecutionRecord, StudioWorkbenchTaskRecord,
     StudioWorkbenchTaskScheduleConfig, StudioWorkbenchToolRecord, DEFAULT_INSTANCE_ID,
+    StudioInstanceDeploymentMode,
 };
 use crate::framework::{paths::AppPaths, FrameworkError, Result};
 use serde_json::{Map, Value};
@@ -36,7 +37,9 @@ pub(super) fn build_openclaw_workbench_snapshot(
     paths: &AppPaths,
     instance: &StudioInstanceRecord,
 ) -> Result<Option<StudioWorkbenchSnapshot>> {
-    if instance.runtime_kind != StudioRuntimeKind::Openclaw {
+    if instance.runtime_kind != StudioRuntimeKind::Openclaw
+        || instance.deployment_mode != StudioInstanceDeploymentMode::LocalManaged
+    {
         return Ok(None);
     }
 
@@ -370,10 +373,7 @@ fn build_openclaw_skills(
             let skill_id = extract_frontmatter_value(&content, "name")
                 .unwrap_or_else(|| entry.file_name().to_string_lossy().into_owned());
             let skill_slug = skill_id.to_ascii_lowercase();
-            let directory_slug = entry
-                .file_name()
-                .to_string_lossy()
-                .to_ascii_lowercase();
+            let directory_slug = entry.file_name().to_string_lossy().to_ascii_lowercase();
             if author == "Bundled OpenClaw"
                 && !bundled_skill_allowlist.is_empty()
                 && !bundled_skill_allowlist.contains(&skill_slug)
@@ -1092,6 +1092,44 @@ fn map_openclaw_cron_task(
     let enabled = bool_at_path(job, &["enabled"]).unwrap_or(true);
     let last_run_status = string_at_path(job, &["state", "lastRunStatus"])
         .or_else(|| string_at_path(job, &["state", "lastStatus"]));
+    let session_target = string_at_path(job, &["sessionTarget"]);
+    let (session_mode, custom_session_id) = match session_target.as_deref() {
+        Some("main") => ("main".to_string(), None),
+        Some("current") => ("current".to_string(), None),
+        Some(value) if value.starts_with("session:") => (
+            "custom".to_string(),
+            Some(value.trim_start_matches("session:").to_string()),
+        ),
+        _ => ("isolated".to_string(), None),
+    };
+    let wake_up_mode = match string_at_path(job, &["wakeMode"]).as_deref() {
+        Some("next-heartbeat") => "nextCycle".to_string(),
+        _ => "immediate".to_string(),
+    };
+    let timeout_seconds = match job
+        .pointer("/payload/timeoutSeconds")
+        .and_then(Value::as_u64)
+    {
+        Some(value) => Some(value),
+        None => job
+            .pointer("/payload/timeoutSeconds")
+            .and_then(Value::as_i64)
+            .and_then(|value| u64::try_from(value).ok()),
+    };
+    let schedule_kind = string_at_path(job, &["schedule", "kind"]);
+    let raw_delivery_mode = string_at_path(job, &["delivery", "mode"]);
+    let delivery_mode = match raw_delivery_mode.as_deref() {
+        Some("none") => "none".to_string(),
+        Some("webhook") => "webhook".to_string(),
+        Some("announce") => "publishSummary".to_string(),
+        None if session_target.as_deref() == Some("main") => "none".to_string(),
+        _ => "publishSummary".to_string(),
+    };
+    let delete_after_run = match bool_at_path(job, &["deleteAfterRun"]) {
+        Some(value) => Some(value),
+        None if schedule_kind.as_deref() == Some("at") => Some(true),
+        None => None,
+    };
 
     StudioWorkbenchTaskRecord {
         id: job_id,
@@ -1109,6 +1147,8 @@ fn map_openclaw_cron_task(
             "skill".to_string()
         },
         status: map_openclaw_cron_task_status(enabled, last_run_status.as_deref()).to_string(),
+        session_mode,
+        wake_up_mode,
         execution_content: if string_at_path(job, &["payload", "kind"]).as_deref()
             == Some("systemEvent")
         {
@@ -1116,17 +1156,22 @@ fn map_openclaw_cron_task(
         } else {
             "runAssistantTask".to_string()
         },
-        delivery_mode: if string_at_path(job, &["delivery", "mode"]).as_deref() == Some("none") {
-            "none".to_string()
-        } else {
-            "publishSummary".to_string()
-        },
+        timeout_seconds,
+        delete_after_run,
+        agent_id: string_at_path(job, &["agentId"]),
+        model: string_at_path(job, &["payload", "model"]),
+        thinking: string_at_path(job, &["payload", "thinking"]),
+        light_context: bool_at_path(job, &["payload", "lightContext"]),
+        delivery_mode,
+        delivery_best_effort: bool_at_path(job, &["delivery", "bestEffort"]),
         delivery_channel,
         delivery_label,
         recipient: string_at_path(job, &["delivery", "to"]),
         last_run,
         next_run,
         latest_execution,
+        raw_definition: job.as_object().map(|_| job.clone()),
+        custom_session_id,
     }
 }
 
@@ -1153,6 +1198,8 @@ fn derive_openclaw_schedule(
                     scheduled_date: None,
                     scheduled_time: None,
                     cron_expression: None,
+                    cron_timezone: None,
+                    stagger_ms: None,
                 },
                 None,
             )
@@ -1169,6 +1216,8 @@ fn derive_openclaw_schedule(
                     scheduled_date,
                     scheduled_time,
                     cron_expression: None,
+                    cron_timezone: None,
+                    stagger_ms: None,
                 },
                 None,
             )
@@ -1185,6 +1234,8 @@ fn derive_openclaw_schedule(
                     scheduled_date: None,
                     scheduled_time: None,
                     cron_expression: Some(expr.clone()),
+                    cron_timezone: string_at_path(schedule, &["tz"]),
+                    stagger_ms: u64_at_path(schedule, &["staggerMs"]),
                 },
                 Some(expr),
             )
@@ -1198,6 +1249,8 @@ fn derive_openclaw_schedule(
                 scheduled_date: None,
                 scheduled_time: None,
                 cron_expression: None,
+                cron_timezone: None,
+                stagger_ms: None,
             },
             None,
         ),
@@ -1806,4 +1859,74 @@ fn tool_token_matches(
         || normalized == format!("tool:{tool_id}")
         || normalized == format!("group:{section}")
         || (include_in_openclaw_group && normalized == "group:openclaw")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::map_openclaw_cron_task;
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn map_openclaw_cron_task_surfaces_advanced_openclaw_fields() {
+        let task = map_openclaw_cron_task(
+            &json!({
+                "id": "job-1",
+                "name": "Project monitor",
+                "description": "Summarize overnight updates.",
+                "enabled": true,
+                "deleteAfterRun": true,
+                "agentId": "ops",
+                "schedule": {
+                    "kind": "cron",
+                    "expr": "0 7 * * *",
+                    "tz": "Asia/Shanghai",
+                    "staggerMs": 30000
+                },
+                "sessionTarget": "session:project-alpha-monitor",
+                "wakeMode": "next-heartbeat",
+                "payload": {
+                    "kind": "agentTurn",
+                    "message": "Summarize overnight updates.",
+                    "model": "openai/gpt-5.4",
+                    "thinking": "high",
+                    "timeoutSeconds": 600,
+                    "lightContext": true,
+                    "fallbacks": ["openai/gpt-5.3"]
+                },
+                "delivery": {
+                    "mode": "webhook",
+                    "to": "https://hooks.example.com/openclaw/cron",
+                    "bestEffort": true
+                },
+                "state": {
+                    "nextRunAtMs": 1700000000000
+                }
+            }),
+            &BTreeMap::new(),
+            None,
+        );
+
+        assert_eq!(task.session_mode, "custom");
+        assert_eq!(
+            task.custom_session_id.as_deref(),
+            Some("project-alpha-monitor")
+        );
+        assert_eq!(task.schedule_config.cron_timezone.as_deref(), Some("Asia/Shanghai"));
+        assert_eq!(task.schedule_config.stagger_ms, Some(30000));
+        assert_eq!(task.wake_up_mode, "nextCycle");
+        assert_eq!(task.timeout_seconds, Some(600));
+        assert_eq!(task.delete_after_run, Some(true));
+        assert_eq!(task.agent_id.as_deref(), Some("ops"));
+        assert_eq!(task.model.as_deref(), Some("openai/gpt-5.4"));
+        assert_eq!(task.thinking.as_deref(), Some("high"));
+        assert_eq!(task.light_context, Some(true));
+        assert_eq!(task.delivery_mode, "webhook");
+        assert_eq!(task.delivery_best_effort, Some(true));
+        assert_eq!(
+            task.recipient.as_deref(),
+            Some("https://hooks.example.com/openclaw/cron")
+        );
+        assert!(task.raw_definition.is_some());
+    }
 }

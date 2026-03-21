@@ -145,3 +145,35 @@ await runTest('proxyProviderFormService rejects partial model rows and keeps at 
     },
   ]);
 });
+
+await runTest('proxyProviderFormService accepts edit submissions without requiring the old secret to be re-entered', async () => {
+  const { normalizeProviderEditFormState } = await import('./proxyProviderFormService.ts');
+
+  const normalized = normalizeProviderEditFormState({
+    name: '  Router-backed OpenAI  ',
+    apiKey: '   ',
+    groupId: 'team-ops',
+    baseUrl: '  https://router.example.com/v1  ',
+    models: [
+      { id: ' gpt-5.4 ', name: ' GPT-5.4 ' },
+      { id: '', name: '' },
+    ],
+    expiresAt: '',
+    notes: '  ignored by backend  ',
+  });
+
+  assert.deepEqual(normalized, {
+    name: 'Router-backed OpenAI',
+    apiKey: undefined,
+    groupId: 'team-ops',
+    baseUrl: 'https://router.example.com/v1',
+    models: [
+      {
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+      },
+    ],
+    expiresAt: null,
+    notes: 'ignored by backend',
+  });
+});

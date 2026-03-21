@@ -32,6 +32,7 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
 
   assert.ok(exists('packages/sdkwork-claw-core/src/components/CommandPalette.tsx'));
   assert.ok(exists('packages/sdkwork-claw-core/src/components/Sidebar.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-core/src/sdk/useAppSdkClient.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/stores/useAppStore.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/stores/useInstanceStore.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/stores/useTaskStore.ts'));
@@ -44,15 +45,21 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.ok(exists('packages/sdkwork-claw-core/src/platform-impl/index.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/platform-impl/web.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/services/updateService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-core/src/services/openClawConfigService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-business']);
+  assert.ok(pkg.dependencies?.['@sdkwork/app-sdk']);
+  assert.ok(pkg.dependencies?.json5);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-business/);
   assert.match(indexSource, /\.\/platform/);
   assert.match(indexSource, /\.\/platform-impl/);
   assert.match(indexSource, /\.\/store/);
+  assert.match(indexSource, /\.\/sdk\/useAppSdkClient/);
   assert.match(indexSource, /\.\/components\/CommandPalette/);
   assert.match(indexSource, /\.\/components\/Sidebar/);
   assert.match(indexSource, /\.\/lib\/llmService/);
+  assert.match(indexSource, /openClawConfigService/);
+  assert.match(indexSource, /useAppSdkClient/);
   assert.match(indexSource, /useAppStore/);
   assert.match(indexSource, /useKeyboardShortcuts/);
 });
@@ -87,4 +94,22 @@ runTest('sdkwork-claw-core sidebar removes codebox while keeping api-router avai
 
   assert.doesNotMatch(sidebarSource, /id: 'codebox'/);
   assert.match(sidebarSource, /id: 'api-router'/);
+});
+
+runTest('claw host vite configs resolve @sdkwork/app-sdk from shared SDK source during development', () => {
+  const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
+  const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
+
+  for (const source of [webViteConfig, desktopViteConfig]) {
+    assert.match(source, /@sdkwork\/app-sdk/);
+    assert.match(source, /sdkwork-app-sdk-typescript/);
+    assert.match(source, /src\/index\.ts/);
+  }
+});
+
+runTest('claw workspace tsconfig maps @sdkwork/app-sdk to the shared SDK source entry', () => {
+  const tsconfigBase = read('tsconfig.base.json');
+
+  assert.match(tsconfigBase, /"baseUrl"\s*:\s*"\."/);
+  assert.match(tsconfigBase, /"@sdkwork\/app-sdk"\s*:\s*\[\s*"\.\.\/\.\.\/spring-ai-plus-app-api\/sdkwork-sdk-app\/sdkwork-app-sdk-typescript\/src\/index\.ts"\s*\]/);
 });

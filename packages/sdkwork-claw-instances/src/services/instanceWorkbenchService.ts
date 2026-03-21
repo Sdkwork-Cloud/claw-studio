@@ -6,6 +6,7 @@ import {
   type MockTaskExecutionHistoryEntry,
   type MockInstanceTool,
 } from '@sdkwork/claw-infrastructure';
+import { openClawConfigService } from '@sdkwork/claw-core';
 import type {
   Agent,
   Skill,
@@ -109,6 +110,54 @@ function mapLlmProvider(provider: MockInstanceLLMProvider): InstanceWorkbenchLLM
   };
 }
 
+function mapManagedChannel(
+  channel: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['channelSnapshots'][number],
+): InstanceWorkbenchChannel {
+  return {
+    id: channel.id,
+    name: channel.name,
+    description: channel.description,
+    status: channel.status,
+    enabled: channel.enabled,
+    fieldCount: channel.fieldCount,
+    configuredFieldCount: channel.configuredFieldCount,
+    setupSteps: [...channel.setupSteps],
+  };
+}
+
+function cloneManagedChannel(
+  channel: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['channelSnapshots'][number],
+) {
+  return {
+    ...channel,
+    setupSteps: [...channel.setupSteps],
+    values: { ...channel.values },
+    fields: channel.fields.map((field) => ({ ...field })),
+  };
+}
+
+function mapManagedProvider(
+  provider: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['providerSnapshots'][number],
+): InstanceWorkbenchLLMProvider {
+  return {
+    id: provider.id,
+    name: provider.name,
+    provider: provider.provider,
+    endpoint: provider.endpoint,
+    apiKeySource: provider.apiKeySource,
+    status: provider.status,
+    defaultModelId: provider.defaultModelId,
+    reasoningModelId: provider.reasoningModelId,
+    embeddingModelId: provider.embeddingModelId,
+    description: provider.description,
+    icon: provider.icon,
+    lastCheckedAt: provider.lastCheckedAt,
+    capabilities: [...provider.capabilities],
+    models: provider.models.map((model) => ({ ...model })),
+    config: { ...provider.config },
+  };
+}
+
 function cloneTaskExecution(
   execution: InstanceWorkbenchTaskExecution,
 ): InstanceWorkbenchTaskExecution {
@@ -120,10 +169,16 @@ function cloneWorkbenchTask(task: InstanceWorkbenchTask): InstanceWorkbenchTask 
     ...task,
     scheduleConfig: { ...task.scheduleConfig },
     latestExecution: task.latestExecution ? cloneTaskExecution(task.latestExecution) : task.latestExecution ?? null,
+    rawDefinition: task.rawDefinition
+      ? JSON.parse(JSON.stringify(task.rawDefinition)) as Record<string, unknown>
+      : undefined,
   };
 }
 
-function mapBackendWorkbench(detail: StudioInstanceDetailRecord): InstanceWorkbenchSnapshot {
+function mapBackendWorkbench(
+  detail: StudioInstanceDetailRecord,
+  managedConfigSnapshot?: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>> | null,
+): InstanceWorkbenchSnapshot {
   if (!detail.workbench) {
     throw new Error('Backend workbench payload is required.');
   }
@@ -171,6 +226,8 @@ function mapBackendWorkbench(detail: StudioInstanceDetailRecord): InstanceWorkbe
     token: detail.config.authToken || '',
     logs: detail.logs,
     detail,
+    managedConfigPath: openClawConfigService.resolveInstanceConfigPath(detail),
+    managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
     healthScore: detail.health.score,
     runtimeStatus: detail.health.status,
     connectedChannelCount,
@@ -309,10 +366,17 @@ class InstanceWorkbenchService {
 
   async getInstanceWorkbench(id: string): Promise<InstanceWorkbenchSnapshot | null> {
     const detail = await studio.getInstanceDetail(id);
+    const managedConfigPath =
+      detail?.instance.runtimeKind === 'openclaw'
+        ? openClawConfigService.resolveInstanceConfigPath(detail)
+        : null;
+    const managedConfigSnapshot = managedConfigPath
+      ? await openClawConfigService.readConfigSnapshot(managedConfigPath).catch(() => null)
+      : null;
 
     if (detail?.instance.runtimeKind === 'openclaw' && detail.workbench) {
       this.rememberBackendTaskExecutions(detail);
-      return mapBackendWorkbench(detail);
+      return mapBackendWorkbench(detail, managedConfigSnapshot);
     }
 
     const [
@@ -350,6 +414,8 @@ class InstanceWorkbenchService {
               ...channel,
               setupSteps: [...channel.setupSteps],
             }))
+          : managedConfigSnapshot
+            ? managedConfigSnapshot.channelSnapshots.map(mapManagedChannel)
           : channels.map((channel) => ({
               id: channel.id,
               name: channel.name,
@@ -412,6 +478,8 @@ class InstanceWorkbenchService {
               models: provider.models.map((model) => ({ ...model })),
               config: { ...provider.config },
             }))
+          : managedConfigSnapshot
+            ? managedConfigSnapshot.providerSnapshots.map(mapManagedProvider)
           : llmProviders.map(mapLlmProvider);
       const mappedMemories =
         detail.instance.runtimeKind === 'openclaw' && detail.workbench
@@ -460,6 +528,8 @@ class InstanceWorkbenchService {
         token: detail.config.authToken || '',
         logs: detail.logs,
         detail,
+        managedConfigPath,
+        managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
         healthScore: detail.health.score,
         runtimeStatus: detail.health.status,
         connectedChannelCount,
@@ -630,6 +700,8 @@ class InstanceWorkbenchService {
           ],
           officialRuntimeNotes: [],
         },
+        managedConfigPath: null,
+        managedChannels: undefined,
         healthScore: liveInstance.status === 'online' ? 80 : 35,
         runtimeStatus:
           liveInstance.status === 'online'
@@ -892,6 +964,8 @@ class InstanceWorkbenchService {
         ],
         officialRuntimeNotes: [],
       },
+      managedConfigPath: null,
+      managedChannels: undefined,
       healthScore,
       runtimeStatus: healthScore >= 80 ? 'healthy' : healthScore >= 55 ? 'attention' : 'degraded',
       connectedChannelCount,
@@ -980,6 +1054,18 @@ class InstanceWorkbenchService {
       memories: mappedMemories,
       tools: mappedTools,
     };
+  }
+
+  async createTask(instanceId: string, payload: Record<string, unknown>): Promise<void> {
+    await studio.createInstanceTask(instanceId, payload);
+  }
+
+  async updateTask(
+    instanceId: string,
+    id: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await studio.updateInstanceTask(instanceId, id, payload);
   }
 
   async cloneTask(id: string, name?: string): Promise<void> {

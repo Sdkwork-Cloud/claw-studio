@@ -9,11 +9,13 @@ use crate::framework::{
     },
     FrameworkError, Result,
 };
+use hub_installer_rs::{read_install_record, InstallRecord, InstallRecordStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
+    env, fs,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -21,8 +23,9 @@ mod openclaw_control;
 mod openclaw_workbench;
 
 use openclaw_control::{
-    clone_openclaw_task, delete_openclaw_task, list_openclaw_task_executions,
-    require_running_openclaw_runtime, run_openclaw_task_now, update_openclaw_task_status,
+    clone_openclaw_task, create_openclaw_task, delete_openclaw_task, list_openclaw_task_executions,
+    require_running_openclaw_runtime, run_openclaw_task_now, update_openclaw_task,
+    update_openclaw_task_status,
 };
 use openclaw_workbench::build_openclaw_workbench_snapshot;
 
@@ -31,6 +34,7 @@ const INSTANCE_REGISTRY_KEY: &str = "registry";
 const CHAT_NAMESPACE: &str = "studio.chat";
 const CONVERSATION_KEY_PREFIX: &str = "conversation:";
 const DEFAULT_INSTANCE_ID: &str = "local-built-in";
+const OPENCLAW_INSTALLER_SOFTWARE_NAME: &str = "openclaw";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -526,6 +530,70 @@ pub struct StudioInstanceRuntimeNote {
     pub source_url: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StudioInstanceConsoleKind {
+    OpenclawControlUi,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StudioInstanceConsoleAuthMode {
+    Token,
+    Password,
+    None,
+    External,
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StudioInstanceConsoleAuthSource {
+    ManagedConfig,
+    InstallRecord,
+    WorkspaceConfig,
+    SecretRef,
+    Unresolved,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StudioInstanceConsoleInstallMethod {
+    Bundled,
+    InstallerScript,
+    CliScript,
+    Npm,
+    Pnpm,
+    Source,
+    Git,
+    Wsl,
+    Docker,
+    Podman,
+    Bun,
+    Nix,
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioInstanceConsoleAccessRecord {
+    pub kind: StudioInstanceConsoleKind,
+    pub available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_login_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_url: Option<String>,
+    pub auth_mode: StudioInstanceConsoleAuthMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_source: Option<StudioInstanceConsoleAuthSource>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub install_method: Option<StudioInstanceConsoleInstallMethod>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StudioWorkbenchChannelRecord {
@@ -552,6 +620,10 @@ pub struct StudioWorkbenchTaskScheduleConfig {
     pub scheduled_time: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cron_expression: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cron_timezone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stagger_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -584,8 +656,26 @@ pub struct StudioWorkbenchTaskRecord {
     pub cron_expression: Option<String>,
     pub action_type: String,
     pub status: String,
+    pub session_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_session_id: Option<String>,
+    pub wake_up_mode: String,
     pub execution_content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_seconds: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete_after_run: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub light_context: Option<bool>,
     pub delivery_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_best_effort: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery_channel: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -598,6 +688,8 @@ pub struct StudioWorkbenchTaskRecord {
     pub next_run: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_execution: Option<StudioWorkbenchTaskExecutionRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_definition: Option<Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -761,6 +853,8 @@ pub struct StudioInstanceDetailRecord {
     pub capabilities: Vec<StudioInstanceCapabilitySnapshot>,
     pub official_runtime_notes: Vec<StudioInstanceRuntimeNote>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub console_access: Option<StudioInstanceConsoleAccessRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub workbench: Option<StudioWorkbenchSnapshot>,
 }
 
@@ -877,7 +971,9 @@ impl StudioService {
         config: &AppConfig,
         storage: &StorageService,
     ) -> Result<Vec<StudioInstanceRecord>> {
-        Ok(self.load_instance_registry(paths, config, storage)?.instances)
+        Ok(self
+            .load_instance_registry(paths, config, storage)?
+            .instances)
     }
 
     pub fn get_instance(
@@ -929,11 +1025,15 @@ impl StudioService {
             is_default: registry.instances.is_empty(),
             icon_type: input.icon_type.unwrap_or(StudioInstanceIconType::Server),
             version: input.version.unwrap_or_else(|| "custom".to_string()),
-            type_label: input.type_label.unwrap_or_else(|| "Managed Instance".to_string()),
+            type_label: input
+                .type_label
+                .unwrap_or_else(|| "Managed Instance".to_string()),
             host: input.host.unwrap_or_else(|| "127.0.0.1".to_string()),
             port,
             base_url: input.base_url.or(instance_config.base_url.clone()),
-            websocket_url: input.websocket_url.or(instance_config.websocket_url.clone()),
+            websocket_url: input
+                .websocket_url
+                .or(instance_config.websocket_url.clone()),
             cpu: 0,
             memory: 0,
             total_memory: "Unknown".to_string(),
@@ -1285,6 +1385,35 @@ impl StudioService {
         clone_openclaw_task(paths, &runtime, task_id, name)
     }
 
+    pub fn create_instance_task(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        supervisor: &SupervisorService,
+        instance_id: &str,
+        payload: &Value,
+    ) -> Result<()> {
+        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        let runtime = require_running_openclaw_runtime(supervisor)?;
+        create_openclaw_task(paths, &runtime, payload)
+    }
+
+    pub fn update_instance_task(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        supervisor: &SupervisorService,
+        instance_id: &str,
+        task_id: &str,
+        payload: &Value,
+    ) -> Result<()> {
+        self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
+        let runtime = require_running_openclaw_runtime(supervisor)?;
+        update_openclaw_task(paths, &runtime, task_id, payload)
+    }
+
     pub fn run_instance_task_now(
         &self,
         paths: &AppPaths,
@@ -1362,13 +1491,19 @@ impl StudioService {
             &connectivity,
             &observability,
         );
-        let artifacts =
-            build_artifacts(paths, &instance, &storage_snapshot, &connectivity, &observability);
+        let artifacts = build_artifacts(
+            paths,
+            &instance,
+            &storage_snapshot,
+            &connectivity,
+            &observability,
+        );
         let health =
             build_health_snapshot(&instance, &storage_snapshot, &connectivity, &observability)?;
         let lifecycle = build_lifecycle_snapshot(&instance);
         let capabilities = build_capability_snapshots(&instance, &storage_snapshot);
         let official_runtime_notes = build_official_runtime_notes(&instance);
+        let console_access = build_console_access(paths, &instance)?;
         let workbench = build_openclaw_workbench_snapshot(paths, &instance)?;
 
         Ok(Some(StudioInstanceDetailRecord {
@@ -1384,6 +1519,7 @@ impl StudioService {
             artifacts,
             capabilities,
             official_runtime_notes,
+            console_access,
             workbench,
         }))
     }
@@ -1600,7 +1736,11 @@ impl StudioService {
             &["gateway", "port"],
             config.port.parse::<u16>().unwrap_or(18_789),
         );
-        set_nested_string(&mut root, &["studio", "logLevel"], config.log_level.as_str());
+        set_nested_string(
+            &mut root,
+            &["studio", "logLevel"],
+            config.log_level.as_str(),
+        );
         set_nested_string(
             &mut root,
             &["studio", "corsOrigins"],
@@ -1618,7 +1758,11 @@ impl StudioService {
             set_nested_string(&mut root, &["gateway", "auth", "token"], auth_token);
         }
         if let Some(workspace_path) = config.workspace_path.as_deref() {
-            set_nested_string(&mut root, &["agents", "defaults", "workspace"], workspace_path);
+            set_nested_string(
+                &mut root,
+                &["agents", "defaults", "workspace"],
+                workspace_path,
+            );
         }
 
         fs::write(
@@ -1887,7 +2031,10 @@ fn build_connectivity_snapshot(
                 "openai-http-chat",
                 "OpenAI Chat Completions",
                 StudioInstanceEndpointKind::OpenaiChatCompletions,
-                Some(format!("{}/v1/chat/completions", base_url.trim_end_matches('/'))),
+                Some(format!(
+                    "{}/v1/chat/completions",
+                    base_url.trim_end_matches('/')
+                )),
                 StudioInstanceEndpointSource::Derived,
             )),
             StudioRuntimeKind::Zeroclaw => endpoints.push(connectivity_endpoint(
@@ -1962,6 +2109,550 @@ fn endpoint_auth_for_instance(instance: &StudioInstanceRecord) -> StudioInstance
     }
 }
 
+#[derive(Clone, Debug)]
+struct ResolvedOpenClawConsoleAuth {
+    mode: StudioInstanceConsoleAuthMode,
+    token: Option<String>,
+    source: Option<StudioInstanceConsoleAuthSource>,
+    reason: Option<String>,
+}
+
+fn build_console_access(
+    paths: &AppPaths,
+    instance: &StudioInstanceRecord,
+) -> Result<Option<StudioInstanceConsoleAccessRecord>> {
+    if instance.runtime_kind != StudioRuntimeKind::Openclaw {
+        return Ok(None);
+    }
+
+    if instance.id == DEFAULT_INSTANCE_ID {
+        let root = read_json5_object(&paths.openclaw_config_file)?;
+        return Ok(Some(build_openclaw_console_access(
+            instance,
+            Some(&root),
+            Some(StudioInstanceConsoleAuthSource::ManagedConfig),
+            Some(StudioInstanceConsoleInstallMethod::Bundled),
+            None,
+        )));
+    }
+
+    if instance.deployment_mode == StudioInstanceDeploymentMode::LocalExternal {
+        return Ok(Some(build_local_external_openclaw_console_access(
+            paths, instance,
+        )?));
+    }
+
+    Ok(Some(build_openclaw_console_access(
+        instance,
+        None,
+        Some(StudioInstanceConsoleAuthSource::WorkspaceConfig),
+        Some(StudioInstanceConsoleInstallMethod::Unknown),
+        Some(
+            "Automatic OpenClaw console authorization is only enabled for locally resolved literal tokens."
+                .to_string(),
+        ),
+    )))
+}
+
+fn build_local_external_openclaw_console_access(
+    paths: &AppPaths,
+    instance: &StudioInstanceRecord,
+) -> Result<StudioInstanceConsoleAccessRecord> {
+    let installer_home = paths.user_root.join("hub-installer");
+    let install_record = read_installed_openclaw_install_record(&installer_home)?;
+    let install_method = install_record
+        .as_ref()
+        .map(|record| console_install_method_from_manifest_name(&record.manifest_name))
+        .unwrap_or(StudioInstanceConsoleInstallMethod::Unknown);
+
+    if let Some(record) = install_record.as_ref() {
+        if let Some(config_path) =
+            discover_openclaw_config_path(paths, &installer_home, record, &install_method)
+        {
+            let root = read_json5_object(&config_path)?;
+            return Ok(build_openclaw_console_access(
+                instance,
+                Some(&root),
+                Some(StudioInstanceConsoleAuthSource::InstallRecord),
+                Some(install_method),
+                None,
+            ));
+        }
+    }
+
+    Ok(build_openclaw_console_access(
+        instance,
+        None,
+        Some(StudioInstanceConsoleAuthSource::WorkspaceConfig),
+        Some(install_method.clone()),
+        Some(missing_openclaw_console_config_reason(&install_method)),
+    ))
+}
+
+fn build_openclaw_console_access(
+    instance: &StudioInstanceRecord,
+    root: Option<&Value>,
+    default_auth_source: Option<StudioInstanceConsoleAuthSource>,
+    install_method: Option<StudioInstanceConsoleInstallMethod>,
+    fallback_reason: Option<String>,
+) -> StudioInstanceConsoleAccessRecord {
+    let url = build_openclaw_control_ui_url(instance, root);
+    let gateway_url = build_openclaw_gateway_ws_url(instance, root);
+    let auth = resolve_openclaw_console_auth(instance, root, default_auth_source);
+    let loopback_target = gateway_url
+        .as_deref()
+        .and_then(url_host)
+        .map(|host| is_loopback_host(&host))
+        .unwrap_or_else(|| is_loopback_host(&instance.host));
+    let auto_login_url = if let (
+        Some(url),
+        Some(gateway_url),
+        StudioInstanceConsoleAuthMode::Token,
+        Some(token),
+    ) = (
+        url.as_ref(),
+        gateway_url.as_ref(),
+        auth.mode.clone(),
+        auth.token.clone(),
+    ) {
+        if loopback_target {
+            Some(format!(
+                "{url}?gatewayUrl={}#token={}",
+                percent_encode_url_component(gateway_url),
+                percent_encode_url_component(&token)
+            ))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let reason = if url.is_none() {
+        Some(fallback_reason.unwrap_or_else(|| {
+            "No OpenClaw Control UI endpoint is configured for this instance.".to_string()
+        }))
+    } else if auto_login_url.is_none() {
+        auth.reason.or_else(|| {
+            if matches!(auth.mode, StudioInstanceConsoleAuthMode::Token) && !loopback_target {
+                Some(
+                    "Remote OpenClaw consoles require device pairing or manual authorization."
+                        .to_string(),
+                )
+            } else {
+                fallback_reason
+            }
+        })
+    } else {
+        None
+    };
+
+    StudioInstanceConsoleAccessRecord {
+        kind: StudioInstanceConsoleKind::OpenclawControlUi,
+        available: url.is_some(),
+        url,
+        auto_login_url,
+        gateway_url,
+        auth_mode: auth.mode,
+        auth_source: auth.source,
+        install_method,
+        reason,
+    }
+}
+
+fn resolve_openclaw_console_auth(
+    instance: &StudioInstanceRecord,
+    root: Option<&Value>,
+    default_auth_source: Option<StudioInstanceConsoleAuthSource>,
+) -> ResolvedOpenClawConsoleAuth {
+    let explicit_mode = root
+        .and_then(|value| get_nested_string(value, &["gateway", "auth", "mode"]))
+        .map(|value| value.trim().to_ascii_lowercase());
+    let config_token = root
+        .and_then(|value| get_nested_string(value, &["gateway", "auth", "token"]))
+        .filter(|value| !value.trim().is_empty());
+    let metadata_token = instance
+        .config
+        .auth_token
+        .clone()
+        .filter(|value| !value.trim().is_empty());
+    let token = config_token.clone().or(metadata_token.clone());
+    let token_is_secret_ref = token
+        .as_deref()
+        .map(token_looks_secret_ref)
+        .unwrap_or(false);
+    let mode = match explicit_mode.as_deref() {
+        Some("token") => StudioInstanceConsoleAuthMode::Token,
+        Some("password") => StudioInstanceConsoleAuthMode::Password,
+        Some("none") => StudioInstanceConsoleAuthMode::None,
+        Some("external") => StudioInstanceConsoleAuthMode::External,
+        Some(_) => StudioInstanceConsoleAuthMode::Unknown,
+        None if token.is_some() => StudioInstanceConsoleAuthMode::Token,
+        None if instance.deployment_mode == StudioInstanceDeploymentMode::Remote => {
+            StudioInstanceConsoleAuthMode::External
+        }
+        None => StudioInstanceConsoleAuthMode::Unknown,
+    };
+    let source = match token.as_ref() {
+        Some(_) if token_is_secret_ref => Some(StudioInstanceConsoleAuthSource::SecretRef),
+        Some(_) if config_token.is_some() => default_auth_source.clone(),
+        Some(_) if metadata_token.is_some() => {
+            Some(StudioInstanceConsoleAuthSource::WorkspaceConfig)
+        }
+        Some(_) => default_auth_source
+            .clone()
+            .or(Some(StudioInstanceConsoleAuthSource::WorkspaceConfig)),
+        None if mode == StudioInstanceConsoleAuthMode::Token => {
+            Some(StudioInstanceConsoleAuthSource::Unresolved)
+        }
+        None => None,
+    };
+    let reason = match mode {
+        StudioInstanceConsoleAuthMode::Token if token.is_none() => Some(
+            "OpenClaw token authentication is configured, but the token could not be resolved locally."
+                .to_string(),
+        ),
+        StudioInstanceConsoleAuthMode::Token if token_is_secret_ref => Some(
+            "This OpenClaw token is secret-managed; open the console and complete authorization manually."
+                .to_string(),
+        ),
+        StudioInstanceConsoleAuthMode::Password => Some(
+            "This OpenClaw console uses password authentication and requires manual sign-in."
+                .to_string(),
+        ),
+        StudioInstanceConsoleAuthMode::External => Some(
+            "This OpenClaw console relies on external authentication and must be opened manually."
+                .to_string(),
+        ),
+        StudioInstanceConsoleAuthMode::Unknown => Some(
+            "Claw Studio could not determine the OpenClaw console authentication mode."
+                .to_string(),
+        ),
+        _ => None,
+    };
+
+    ResolvedOpenClawConsoleAuth {
+        mode,
+        token: if token_is_secret_ref { None } else { token },
+        source,
+        reason,
+    }
+}
+
+fn build_openclaw_control_ui_url(
+    instance: &StudioInstanceRecord,
+    root: Option<&Value>,
+) -> Option<String> {
+    let base_path = normalize_control_ui_base_path(
+        root.and_then(|value| get_nested_string(value, &["gateway", "controlUi", "basePath"]))
+            .as_deref(),
+    );
+
+    if let Some(base_url) = instance.base_url.as_deref() {
+        if let Some(origin) = url_origin(base_url) {
+            return Some(format!("{}{}", origin.trim_end_matches('/'), base_path));
+        }
+        return Some(format!("{}{}", base_url.trim_end_matches('/'), base_path));
+    }
+
+    let port = resolved_openclaw_gateway_port(instance, root)?;
+    Some(format!(
+        "http://{}:{port}{}",
+        normalized_instance_host(instance),
+        base_path
+    ))
+}
+
+fn build_openclaw_gateway_ws_url(
+    instance: &StudioInstanceRecord,
+    root: Option<&Value>,
+) -> Option<String> {
+    if let Some(websocket_url) = instance.websocket_url.as_deref() {
+        if let Some(origin) = url_origin(websocket_url) {
+            return Some(origin);
+        }
+        return Some(websocket_url.trim_end_matches('/').to_string());
+    }
+
+    if let Some(base_url) = instance.base_url.as_deref() {
+        if let Some(origin) = url_origin(base_url) {
+            return Some(http_origin_to_ws_origin(&origin));
+        }
+    }
+
+    let port = resolved_openclaw_gateway_port(instance, root)?;
+    Some(format!(
+        "ws://{}:{port}",
+        normalized_instance_host(instance)
+    ))
+}
+
+fn resolved_openclaw_gateway_port(
+    instance: &StudioInstanceRecord,
+    root: Option<&Value>,
+) -> Option<u16> {
+    root.and_then(|value| get_nested_u16(value, &["gateway", "port"]))
+        .or(instance.port)
+        .or_else(|| {
+            instance
+                .config
+                .port
+                .parse::<u16>()
+                .ok()
+                .filter(|value| *value > 0)
+        })
+}
+
+fn normalize_control_ui_base_path(value: Option<&str>) -> String {
+    let trimmed = value.unwrap_or("/").trim();
+    if trimmed.is_empty() || trimmed == "/" {
+        return "/".to_string();
+    }
+
+    format!("/{}/", trimmed.trim_matches('/'))
+}
+
+fn normalized_instance_host(instance: &StudioInstanceRecord) -> &str {
+    let trimmed = instance.host.trim();
+    if trimmed.is_empty() {
+        "127.0.0.1"
+    } else {
+        trimmed
+    }
+}
+
+fn http_origin_to_ws_origin(origin: &str) -> String {
+    if let Some(rest) = origin.strip_prefix("https://") {
+        return format!("wss://{rest}");
+    }
+    if let Some(rest) = origin.strip_prefix("http://") {
+        return format!("ws://{rest}");
+    }
+    origin.to_string()
+}
+
+fn url_origin(value: &str) -> Option<String> {
+    let (scheme, rest) = value.split_once("://")?;
+    let authority = rest.split('/').next().unwrap_or(rest).trim();
+    if authority.is_empty() {
+        return None;
+    }
+    Some(format!("{scheme}://{authority}"))
+}
+
+fn url_host(value: &str) -> Option<String> {
+    let authority = value.split_once("://")?.1.split('/').next()?.trim();
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    if host_port.starts_with('[') {
+        let (host, _) = host_port.split_once(']')?;
+        return Some(host.trim_start_matches('[').to_string());
+    }
+    Some(host_port.split(':').next().unwrap_or(host_port).to_string())
+}
+
+fn is_loopback_host(value: &str) -> bool {
+    matches!(
+        value.trim().trim_matches(['[', ']']),
+        "127.0.0.1" | "localhost" | "::1"
+    )
+}
+
+fn percent_encode_url_component(value: &str) -> String {
+    let mut encoded = String::new();
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(*byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(*byte as char);
+        } else {
+            encoded.push_str(&format!("%{:02X}", byte));
+        }
+    }
+    encoded
+}
+
+fn token_looks_secret_ref(value: &str) -> bool {
+    let normalized = value.trim().to_ascii_lowercase();
+    normalized.contains("secretref")
+        || normalized.starts_with("secret:")
+        || normalized.starts_with("secret://")
+        || normalized.starts_with("${")
+        || normalized.starts_with("{{")
+        || normalized.starts_with("env:")
+}
+
+fn read_installed_openclaw_install_record(installer_home: &Path) -> Result<Option<InstallRecord>> {
+    let installer_home = installer_home.to_string_lossy();
+    let Some(record) =
+        read_install_record(installer_home.as_ref(), OPENCLAW_INSTALLER_SOFTWARE_NAME).map_err(
+            |error| {
+                FrameworkError::Internal(format!("failed to read OpenClaw install record: {error}"))
+            },
+        )?
+    else {
+        return Ok(None);
+    };
+
+    if record.status == InstallRecordStatus::Installed {
+        Ok(Some(record))
+    } else {
+        Ok(None)
+    }
+}
+
+fn console_install_method_from_manifest_name(
+    manifest_name: &str,
+) -> StudioInstanceConsoleInstallMethod {
+    match manifest_name {
+        "openclaw-npm" => StudioInstanceConsoleInstallMethod::Npm,
+        "openclaw-pnpm" => StudioInstanceConsoleInstallMethod::Pnpm,
+        "openclaw-source" => StudioInstanceConsoleInstallMethod::Source,
+        "openclaw-wsl" => StudioInstanceConsoleInstallMethod::Wsl,
+        "openclaw-docker" => StudioInstanceConsoleInstallMethod::Docker,
+        "openclaw-podman" => StudioInstanceConsoleInstallMethod::Podman,
+        "openclaw-git" | "openclaw-installer-script-git" => StudioInstanceConsoleInstallMethod::Git,
+        "openclaw-cli-script" | "openclaw-installer-cli-script" => {
+            StudioInstanceConsoleInstallMethod::CliScript
+        }
+        "openclaw-bun" => StudioInstanceConsoleInstallMethod::Bun,
+        "openclaw-nix" => StudioInstanceConsoleInstallMethod::Nix,
+        "openclaw" => StudioInstanceConsoleInstallMethod::InstallerScript,
+        _ => StudioInstanceConsoleInstallMethod::Unknown,
+    }
+}
+
+fn discover_openclaw_config_path(
+    paths: &AppPaths,
+    installer_home: &Path,
+    record: &InstallRecord,
+    install_method: &StudioInstanceConsoleInstallMethod,
+) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    match install_method {
+        StudioInstanceConsoleInstallMethod::Wsl => {}
+        StudioInstanceConsoleInstallMethod::Docker => {
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join("config")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root).join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+        }
+        StudioInstanceConsoleInstallMethod::Podman => {}
+        _ => {
+            for root in openclaw_home_root_candidates(paths, installer_home) {
+                push_unique_path(
+                    &mut candidates,
+                    root.join(".openclaw").join("openclaw.json"),
+                );
+            }
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.work_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.install_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join("config")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root).join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+        }
+    }
+
+    candidates.into_iter().find(|path| path.is_file())
+}
+
+fn discover_local_external_openclaw_config_path(
+    paths: &AppPaths,
+    instance: &StudioInstanceRecord,
+) -> Option<PathBuf> {
+    if instance.runtime_kind != StudioRuntimeKind::Openclaw
+        || instance.deployment_mode != StudioInstanceDeploymentMode::LocalExternal
+    {
+        return None;
+    }
+
+    let installer_home = paths.user_root.join("hub-installer");
+    let install_record = read_installed_openclaw_install_record(&installer_home)
+        .ok()
+        .flatten()?;
+    let install_method = console_install_method_from_manifest_name(&install_record.manifest_name);
+
+    discover_openclaw_config_path(paths, &installer_home, &install_record, &install_method)
+}
+
+fn openclaw_home_root_candidates(paths: &AppPaths, installer_home: &Path) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    push_unique_path(&mut candidates, paths.user_root.clone());
+
+    if let Some(home) = env::var_os("USERPROFILE")
+        .or_else(|| env::var_os("HOME"))
+        .map(PathBuf::from)
+    {
+        push_unique_path(&mut candidates, home);
+    }
+
+    let mut current = installer_home.parent();
+    while let Some(path) = current {
+        push_unique_path(&mut candidates, path.to_path_buf());
+        current = path.parent();
+    }
+
+    candidates
+}
+
+fn push_unique_path(target: &mut Vec<PathBuf>, value: PathBuf) {
+    if !target.iter().any(|existing| existing == &value) {
+        target.push(value);
+    }
+}
+
+fn missing_openclaw_console_config_reason(
+    install_method: &StudioInstanceConsoleInstallMethod,
+) -> String {
+    match install_method {
+        StudioInstanceConsoleInstallMethod::Wsl => {
+            "This OpenClaw WSL install keeps its runtime configuration inside WSL, so the console opens without automatic authorization."
+                .to_string()
+        }
+        StudioInstanceConsoleInstallMethod::Docker
+        | StudioInstanceConsoleInstallMethod::Podman => {
+            "This containerized OpenClaw install does not expose a host-readable literal token, so the console opens without automatic authorization."
+                .to_string()
+        }
+        _ => {
+            "Claw Studio could not locate a host-readable OpenClaw config file for this install, so the console opens without automatic authorization."
+                .to_string()
+        }
+    }
+}
+
 fn build_observability_snapshot(
     paths: &AppPaths,
     instance: &StudioInstanceRecord,
@@ -2016,6 +2707,9 @@ fn build_data_access_snapshot(
     let mut routes = Vec::new();
     let registry_target = Some("studio.instances registry metadata".to_string());
     let workspace_target = local_workspace_target(paths, instance);
+    let local_external_openclaw_config_target =
+        discover_local_external_openclaw_config_path(paths, instance)
+            .map(|path| path.to_string_lossy().into_owned());
     let primary_endpoint = primary_connectivity_target(connectivity);
     let openai_endpoint = connectivity
         .endpoints
@@ -2075,13 +2769,27 @@ fn build_data_access_snapshot(
                 "config",
                 "Configuration",
                 StudioInstanceDataAccessScope::Config,
-                StudioInstanceDataAccessMode::MetadataOnly,
+                if local_external_openclaw_config_target.is_some() {
+                    StudioInstanceDataAccessMode::ManagedFile
+                } else {
+                    StudioInstanceDataAccessMode::MetadataOnly
+                },
                 StudioInstanceDataAccessStatus::Ready,
-                registry_target.clone(),
+                local_external_openclaw_config_target
+                    .clone()
+                    .or_else(|| registry_target.clone()),
                 false,
-                false,
-                "Claw Studio stores operator metadata for this local-external runtime, but does not own its native config file.",
-                StudioInstanceDetailSource::Integration,
+                local_external_openclaw_config_target.is_some(),
+                if local_external_openclaw_config_target.is_some() {
+                    "Claw Studio discovered the installed OpenClaw config file and can edit it directly for this local-external runtime."
+                } else {
+                    "Claw Studio stores operator metadata for this local-external runtime, but does not own its native config file."
+                },
+                if local_external_openclaw_config_target.is_some() {
+                    StudioInstanceDetailSource::Config
+                } else {
+                    StudioInstanceDetailSource::Integration
+                },
             ));
             routes.push(data_access_entry(
                 "logs",
@@ -2179,13 +2887,14 @@ fn build_data_access_snapshot(
         StudioInstanceDetailSource::Storage,
     ));
 
-    let tasks_mode = if instance.runtime_kind == StudioRuntimeKind::Zeroclaw && primary_endpoint.is_some() {
-        StudioInstanceDataAccessMode::RemoteEndpoint
-    } else if storage.status == StudioInstanceStorageStatus::Ready {
-        StudioInstanceDataAccessMode::StorageBinding
-    } else {
-        StudioInstanceDataAccessMode::MetadataOnly
-    };
+    let tasks_mode =
+        if instance.runtime_kind == StudioRuntimeKind::Zeroclaw && primary_endpoint.is_some() {
+            StudioInstanceDataAccessMode::RemoteEndpoint
+        } else if storage.status == StudioInstanceStorageStatus::Ready {
+            StudioInstanceDataAccessMode::StorageBinding
+        } else {
+            StudioInstanceDataAccessMode::MetadataOnly
+        };
     let tasks_target = if tasks_mode == StudioInstanceDataAccessMode::RemoteEndpoint {
         primary_endpoint.clone()
     } else if tasks_mode == StudioInstanceDataAccessMode::StorageBinding {
@@ -2273,6 +2982,7 @@ fn build_artifacts(
     observability: &StudioInstanceObservabilitySnapshot,
 ) -> Vec<StudioInstanceArtifactRecord> {
     let mut artifacts = Vec::new();
+    let local_external_openclaw_config_path = discover_local_external_openclaw_config_path(paths, instance);
 
     if instance.id == DEFAULT_INSTANCE_ID {
         artifacts.push(artifact_record(
@@ -2294,6 +3004,17 @@ fn build_artifacts(
             true,
             "Bundled OpenClaw runtime directory managed by Claw Studio.",
             StudioInstanceDetailSource::Runtime,
+        ));
+    } else if let Some(config_path) = local_external_openclaw_config_path {
+        artifacts.push(artifact_record(
+            "config-file",
+            "Config File",
+            StudioInstanceArtifactKind::ConfigFile,
+            StudioInstanceArtifactStatus::Available,
+            Some(config_path.to_string_lossy().into_owned()),
+            false,
+            "Installed OpenClaw configuration file discovered for this local-external runtime.",
+            StudioInstanceDetailSource::Config,
         ));
     }
 
@@ -2466,10 +3187,7 @@ fn storage_target(storage: &StudioInstanceStorageSnapshot) -> Option<String> {
         .or_else(|| Some(storage.namespace.clone()))
 }
 
-fn local_workspace_target(
-    paths: &AppPaths,
-    instance: &StudioInstanceRecord,
-) -> Option<String> {
+fn local_workspace_target(paths: &AppPaths, instance: &StudioInstanceRecord) -> Option<String> {
     if instance.id == DEFAULT_INSTANCE_ID {
         return Some(paths.openclaw_workspace_dir.to_string_lossy().into_owned());
     }
@@ -2551,9 +3269,7 @@ fn build_capability_snapshots(
         .collect()
 }
 
-fn build_official_runtime_notes(
-    instance: &StudioInstanceRecord,
-) -> Vec<StudioInstanceRuntimeNote> {
+fn build_official_runtime_notes(instance: &StudioInstanceRecord) -> Vec<StudioInstanceRuntimeNote> {
     match instance.runtime_kind {
         StudioRuntimeKind::Openclaw => vec![StudioInstanceRuntimeNote {
             title: "Gateway-first transport".to_string(),
@@ -2926,22 +3642,25 @@ fn get_nested_u16(value: &Value, path: &[&str]) -> Option<u16> {
 mod tests {
     use super::{
         StudioConversationMessage, StudioConversationMessageStatus, StudioConversationRecord,
-        StudioConversationRole, StudioCreateInstanceInput, StudioInstanceAuthMode,
-        StudioInstanceArtifactKind, StudioInstanceCapability,
-        StudioInstanceCapabilityStatus, StudioInstanceDataAccessMode,
-        StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
-        StudioInstanceLifecycleOwner, StudioInstanceStorageStatus,
-        StudioInstanceTransportKind, StudioRuntimeKind, StudioService,
-        DEFAULT_INSTANCE_ID,
+        StudioConversationRole, StudioCreateInstanceInput, StudioInstanceArtifactKind,
+        StudioInstanceAuthMode, StudioInstanceCapability, StudioInstanceCapabilityStatus,
+        StudioInstanceDataAccessMode, StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
+        StudioInstanceLifecycleOwner, StudioInstanceStorageStatus, StudioInstanceTransportKind,
+        StudioRuntimeKind, StudioService, DEFAULT_INSTANCE_ID,
     };
     use crate::framework::{
         config::AppConfig,
         paths::resolve_paths_for_root,
         services::{
-            openclaw_runtime::ActivatedOpenClawRuntime, storage::StorageService,
+            openclaw_runtime::ActivatedOpenClawRuntime,
+            storage::StorageService,
             supervisor::{SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY},
         },
         storage::StorageProviderKind,
+    };
+    use hub_installer_rs::{
+        types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
+        write_install_record, InstallRecord, InstallRecordStatus,
     };
     use serde_json::Value;
     use std::fs;
@@ -2960,6 +3679,45 @@ mod tests {
         let service = StudioService::new();
 
         (root, paths, config, storage, service)
+    }
+
+    fn write_openclaw_install_record(
+        paths: &crate::framework::paths::AppPaths,
+        manifest_name: &str,
+        install_root: &std::path::Path,
+        work_root: &std::path::Path,
+        data_root: &std::path::Path,
+        effective_runtime_platform: EffectiveRuntimePlatform,
+        install_control_level: InstallControlLevel,
+    ) {
+        let installer_home = paths.user_root.join("hub-installer");
+        let record = InstallRecord {
+            schema_version: "1.0".to_string(),
+            software_name: "openclaw".to_string(),
+            manifest_name: manifest_name.to_string(),
+            manifest_path: format!("./manifests/{manifest_name}.hub.yaml"),
+            manifest_source_input: "bundled-registry".to_string(),
+            manifest_source_kind: "registry".to_string(),
+            platform: SupportedPlatform::Windows,
+            effective_runtime_platform,
+            installer_home: installer_home.to_string_lossy().into_owned(),
+            install_scope: InstallScope::User,
+            install_root: install_root.to_string_lossy().into_owned(),
+            work_root: work_root.to_string_lossy().into_owned(),
+            bin_dir: install_root.join("bin").to_string_lossy().into_owned(),
+            data_root: data_root.to_string_lossy().into_owned(),
+            install_control_level,
+            status: InstallRecordStatus::Installed,
+            installed_at: Some("2026-03-21T00:00:00Z".to_string()),
+            updated_at: "2026-03-21T00:00:00Z".to_string(),
+        };
+
+        write_install_record(
+            installer_home.to_string_lossy().as_ref(),
+            "openclaw",
+            &record,
+        )
+        .expect("write openclaw install record");
     }
 
     fn configured_openclaw_supervisor(
@@ -3050,9 +3808,7 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .expect("node should be available on PATH for OpenClaw studio tests")
     }
 
-    fn read_gateway_call_captures(
-        paths: &crate::framework::paths::AppPaths,
-    ) -> Vec<Value> {
+    fn read_gateway_call_captures(paths: &crate::framework::paths::AppPaths) -> Vec<Value> {
         let capture_path = paths.openclaw_state_dir.join("capture.jsonl");
         fs::read_to_string(capture_path)
             .unwrap_or_default()
@@ -3113,7 +3869,10 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .expect("built-in instance");
 
         assert_eq!(built_in.base_url.as_deref(), Some("http://127.0.0.1:19876"));
-        assert_eq!(built_in.config.base_url.as_deref(), Some("http://127.0.0.1:19876"));
+        assert_eq!(
+            built_in.config.base_url.as_deref(),
+            Some("http://127.0.0.1:19876")
+        );
         assert_eq!(built_in.config.auth_token.as_deref(), Some("studio-token"));
     }
 
@@ -3329,7 +4088,10 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             )
             .expect_err("missing participant should fail");
 
-        assert_eq!(error.to_string(), "not found: instance \"missing-instance\"");
+        assert_eq!(
+            error.to_string(),
+            "not found: instance \"missing-instance\""
+        );
     }
 
     #[test]
@@ -3372,7 +4134,10 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .expect("built-in detail");
 
         assert_eq!(detail.instance.runtime_kind, StudioRuntimeKind::Openclaw);
-        assert_eq!(detail.lifecycle.owner, StudioInstanceLifecycleOwner::AppManaged);
+        assert_eq!(
+            detail.lifecycle.owner,
+            StudioInstanceLifecycleOwner::AppManaged
+        );
         assert!(detail.lifecycle.start_stop_supported);
         assert_eq!(detail.storage.provider, StorageProviderKind::LocalFile);
         assert!(detail
@@ -3387,29 +4152,255 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .endpoints
             .iter()
             .any(|endpoint| endpoint.id == "openai-http-chat"
-                && endpoint.url.as_deref()
-                    == Some("http://127.0.0.1:19876/v1/chat/completions")));
+                && endpoint.url.as_deref() == Some("http://127.0.0.1:19876/v1/chat/completions")));
         assert!(detail.observability.log_available);
-        assert!(detail
-            .data_access
-            .routes
-            .iter()
-            .any(|route| route.scope == StudioInstanceDataAccessScope::Config
-                && route.mode == StudioInstanceDataAccessMode::ManagedFile
-                && route.authoritative
-                && route.target.as_deref()
-                    == Some(paths.openclaw_config_file.to_string_lossy().as_ref())));
-        assert!(detail
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.kind == StudioInstanceArtifactKind::WorkspaceDirectory
-                && artifact.location.as_deref()
-                    == Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())));
+        assert!(detail.data_access.routes.iter().any(|route| route.scope
+            == StudioInstanceDataAccessScope::Config
+            && route.mode == StudioInstanceDataAccessMode::ManagedFile
+            && route.authoritative
+            && route.target.as_deref()
+                == Some(paths.openclaw_config_file.to_string_lossy().as_ref())));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::WorkspaceDirectory
+            && artifact.location.as_deref()
+                == Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())));
         assert!(detail
             .capabilities
             .iter()
             .any(|capability| capability.id == StudioInstanceCapability::Chat
                 && capability.status == StudioInstanceCapabilityStatus::Ready));
+    }
+
+    #[test]
+    fn built_in_instance_detail_exposes_console_access_with_auto_login_url() {
+        let (_root, paths, config, storage, service) = studio_context();
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  gateway: {
+    port: 19876,
+    controlUi: {
+      basePath: "/openclaw",
+    },
+    auth: {
+      mode: "token",
+      token: "studio-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed managed config");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
+            .expect("load instance detail")
+            .expect("built-in detail");
+        let serialized = serde_json::to_value(&detail).expect("serialize detail");
+        let console_access = serialized
+            .get("consoleAccess")
+            .and_then(Value::as_object)
+            .expect("detail should include console access");
+
+        assert_eq!(
+            console_access.get("kind").and_then(Value::as_str),
+            Some("openclawControlUi")
+        );
+        assert_eq!(
+            console_access.get("available").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            console_access.get("url").and_then(Value::as_str),
+            Some("http://127.0.0.1:19876/openclaw/")
+        );
+        assert_eq!(
+            console_access.get("gatewayUrl").and_then(Value::as_str),
+            Some("ws://127.0.0.1:19876")
+        );
+        assert_eq!(
+            console_access.get("autoLoginUrl").and_then(Value::as_str),
+            Some(
+                "http://127.0.0.1:19876/openclaw/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A19876#token=studio-token"
+            )
+        );
+        assert_eq!(
+            console_access.get("authMode").and_then(Value::as_str),
+            Some("token")
+        );
+        assert_eq!(
+            console_access.get("authSource").and_then(Value::as_str),
+            Some("managedConfig")
+        );
+        assert_eq!(
+            console_access.get("installMethod").and_then(Value::as_str),
+            Some("bundled")
+        );
+    }
+
+    #[test]
+    fn built_in_instance_detail_hides_auto_login_for_secret_ref_tokens() {
+        let (_root, paths, config, storage, service) = studio_context();
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  gateway: {
+    port: 19876,
+    auth: {
+      mode: "token",
+      token: "secretRef://gateway-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed managed config");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
+            .expect("load instance detail")
+            .expect("built-in detail");
+        let serialized = serde_json::to_value(&detail).expect("serialize detail");
+        let console_access = serialized
+            .get("consoleAccess")
+            .and_then(Value::as_object)
+            .expect("detail should include console access");
+
+        assert_eq!(
+            console_access.get("url").and_then(Value::as_str),
+            Some("http://127.0.0.1:19876/")
+        );
+        assert_eq!(
+            console_access.get("authMode").and_then(Value::as_str),
+            Some("token")
+        );
+        assert_eq!(
+            console_access.get("authSource").and_then(Value::as_str),
+            Some("secretRef")
+        );
+        assert!(
+            console_access.get("autoLoginUrl").is_none(),
+            "secret-managed tokens must not be embedded into auto-login URLs"
+        );
+        assert!(console_access
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .contains("manual"));
+    }
+
+    #[test]
+    fn local_external_openclaw_detail_reads_install_record_for_console_auto_login() {
+        let (root, paths, config, storage, service) = studio_context();
+        let install_root = root.path().join("external-install");
+        let work_root = root.path().join("external-work");
+        let data_root = root.path().join("external-data");
+        let host_openclaw_home = paths.user_root.join(".openclaw");
+        fs::create_dir_all(&install_root).expect("create install root");
+        fs::create_dir_all(&work_root).expect("create work root");
+        fs::create_dir_all(&data_root).expect("create data root");
+        fs::create_dir_all(&host_openclaw_home).expect("create host openclaw home");
+        fs::write(
+            host_openclaw_home.join("openclaw.json"),
+            r#"{
+  gateway: {
+    port: 28789,
+    controlUi: {
+      basePath: "/console",
+    },
+    auth: {
+      mode: "token",
+      token: "external-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("write external config");
+        write_openclaw_install_record(
+            &paths,
+            "openclaw-npm",
+            &install_root,
+            &work_root,
+            &data_root,
+            EffectiveRuntimePlatform::Windows,
+            InstallControlLevel::Partial,
+        );
+
+        let instance = service
+            .create_instance(
+                &paths,
+                &config,
+                &storage,
+                StudioCreateInstanceInput {
+                    name: "External OpenClaw".to_string(),
+                    description: Some("Host-managed OpenClaw runtime".to_string()),
+                    runtime_kind: StudioRuntimeKind::Openclaw,
+                    deployment_mode: StudioInstanceDeploymentMode::LocalExternal,
+                    transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
+                    icon_type: None,
+                    version: Some("1.0.0".to_string()),
+                    type_label: Some("OpenClaw External".to_string()),
+                    host: Some("127.0.0.1".to_string()),
+                    port: Some(28789),
+                    base_url: Some("http://127.0.0.1:28789".to_string()),
+                    websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                    storage: None,
+                    config: Some(super::PartialStudioInstanceConfig {
+                        base_url: Some("http://127.0.0.1:28789".to_string()),
+                        websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                        port: Some("28789".to_string()),
+                        ..super::PartialStudioInstanceConfig::default()
+                    }),
+                },
+            )
+            .expect("create local external openclaw");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, &instance.id)
+            .expect("load instance detail")
+            .expect("local external detail");
+        let serialized = serde_json::to_value(&detail).expect("serialize detail");
+        let console_access = serialized
+            .get("consoleAccess")
+            .and_then(Value::as_object)
+            .expect("detail should include console access");
+
+        assert_eq!(
+            console_access.get("url").and_then(Value::as_str),
+            Some("http://127.0.0.1:28789/console/")
+        );
+        assert_eq!(
+            console_access.get("gatewayUrl").and_then(Value::as_str),
+            Some("ws://127.0.0.1:28789")
+        );
+        assert_eq!(
+            console_access.get("autoLoginUrl").and_then(Value::as_str),
+            Some(
+                "http://127.0.0.1:28789/console/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A28789#token=external-token"
+            )
+        );
+        assert_eq!(
+            console_access.get("authSource").and_then(Value::as_str),
+            Some("installRecord")
+        );
+        assert_eq!(
+            console_access.get("installMethod").and_then(Value::as_str),
+            Some("npm")
+        );
+        assert!(detail.workbench.is_none());
+        assert!(detail.data_access.routes.iter().any(|route| route.scope
+            == StudioInstanceDataAccessScope::Config
+            && route.mode == StudioInstanceDataAccessMode::ManagedFile
+            && route.authoritative
+            && !route.readonly
+            && route.target.as_deref()
+                == Some(host_openclaw_home.join("openclaw.json").to_string_lossy().as_ref())));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::ConfigFile
+            && !artifact.readonly
+            && artifact.location.as_deref()
+                == Some(host_openclaw_home.join("openclaw.json").to_string_lossy().as_ref())));
     }
 
     #[test]
@@ -3596,6 +4587,54 @@ Reads runtime diagnostics and summarizes them.
         .expect("run log");
 
         service
+            .create_instance_task(
+                &paths,
+                &config,
+                &storage,
+                &supervisor,
+                DEFAULT_INSTANCE_ID,
+                &serde_json::json!({
+                    "name": "Morning brief",
+                    "description": "Summarize overnight updates.",
+                    "enabled": true,
+                    "schedule": {
+                        "kind": "cron",
+                        "expr": "0 7 * * *"
+                    },
+                    "sessionTarget": "isolated",
+                    "wakeMode": "now",
+                    "payload": {
+                        "kind": "agentTurn",
+                        "message": "Summarize overnight updates.",
+                        "timeoutSeconds": 600
+                    },
+                    "delivery": {
+                        "mode": "announce",
+                        "channel": "telegram",
+                        "to": "channel:daily-brief"
+                    }
+                }),
+            )
+            .expect("create task");
+        service
+            .update_instance_task(
+                &paths,
+                &config,
+                &storage,
+                &supervisor,
+                DEFAULT_INSTANCE_ID,
+                "job-1",
+                &serde_json::json!({
+                    "name": "Nightly Review Updated",
+                    "enabled": false,
+                    "payload": {
+                        "kind": "agentTurn",
+                        "message": "Summarize the last 12 hours."
+                    }
+                }),
+            )
+            .expect("update task");
+        service
             .clone_instance_task(
                 &paths,
                 &config,
@@ -3617,13 +4656,7 @@ Reads runtime diagnostics and summarizes them.
             )
             .expect("queue run");
         let executions = service
-            .list_instance_task_executions(
-                &paths,
-                &config,
-                &storage,
-                DEFAULT_INSTANCE_ID,
-                "job-1",
-            )
+            .list_instance_task_executions(&paths, &config, &storage, DEFAULT_INSTANCE_ID, "job-1")
             .expect("list executions");
         service
             .update_instance_task_status(
@@ -3648,21 +4681,29 @@ Reads runtime diagnostics and summarizes them.
             .expect("delete task");
 
         let captures = read_gateway_call_captures(&paths);
-        assert_eq!(captures.len(), 4);
+        assert_eq!(captures.len(), 6);
         assert_eq!(
             captures[0].get("method").and_then(Value::as_str),
             Some("cron.add")
         );
         assert_eq!(
             captures[1].get("method").and_then(Value::as_str),
-            Some("cron.run")
-        );
-        assert_eq!(
-            captures[2].get("method").and_then(Value::as_str),
             Some("cron.update")
         );
         assert_eq!(
+            captures[2].get("method").and_then(Value::as_str),
+            Some("cron.add")
+        );
+        assert_eq!(
             captures[3].get("method").and_then(Value::as_str),
+            Some("cron.run")
+        );
+        assert_eq!(
+            captures[4].get("method").and_then(Value::as_str),
+            Some("cron.update")
+        );
+        assert_eq!(
+            captures[5].get("method").and_then(Value::as_str),
             Some("cron.remove")
         );
         assert_eq!(queued.details.as_deref(), Some("runId=run-123"));
@@ -3761,13 +4802,13 @@ Reads runtime diagnostics and summarizes them.
             .expect("zeroclaw detail");
 
         assert_eq!(detail.instance.runtime_kind, StudioRuntimeKind::Zeroclaw);
-        assert_eq!(detail.lifecycle.owner, StudioInstanceLifecycleOwner::RemoteService);
+        assert_eq!(
+            detail.lifecycle.owner,
+            StudioInstanceLifecycleOwner::RemoteService
+        );
         assert!(!detail.lifecycle.start_stop_supported);
         assert_eq!(detail.storage.provider, StorageProviderKind::Postgres);
-        assert_eq!(
-            detail.storage.status,
-            StudioInstanceStorageStatus::Ready
-        );
+        assert_eq!(detail.storage.status, StudioInstanceStorageStatus::Ready);
         assert!(detail
             .data_access
             .routes
@@ -3780,11 +4821,9 @@ Reads runtime diagnostics and summarizes them.
             .iter()
             .any(|endpoint| endpoint.id == "gateway-http"
                 && endpoint.url.as_deref() == Some("https://zeroclaw.example.com")));
-        assert!(detail
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.kind == StudioInstanceArtifactKind::Dashboard
-                && artifact.location.as_deref() == Some("https://zeroclaw.example.com")));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::Dashboard
+            && artifact.location.as_deref() == Some("https://zeroclaw.example.com")));
         assert!(detail
             .official_runtime_notes
             .iter()
@@ -3836,24 +4875,20 @@ Reads runtime diagnostics and summarizes them.
             .expect("ironclaw detail");
 
         assert_eq!(detail.instance.runtime_kind, StudioRuntimeKind::Ironclaw);
-        assert_eq!(detail.lifecycle.owner, StudioInstanceLifecycleOwner::RemoteService);
+        assert_eq!(
+            detail.lifecycle.owner,
+            StudioInstanceLifecycleOwner::RemoteService
+        );
         assert!(detail.storage.queryable);
         assert!(detail.storage.transactional);
-        assert!(detail
-            .data_access
-            .routes
-            .iter()
-            .any(|route| route.scope == StudioInstanceDataAccessScope::Memory
-                && route.mode == StudioInstanceDataAccessMode::StorageBinding
-                && route.authoritative
-                && route.target.as_deref()
-                    == Some("postgresql://ironclaw.example.com")));
-        assert!(detail
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.kind == StudioInstanceArtifactKind::StorageBinding
-                && artifact.location.as_deref()
-                    == Some("postgresql://ironclaw.example.com")));
+        assert!(detail.data_access.routes.iter().any(|route| route.scope
+            == StudioInstanceDataAccessScope::Memory
+            && route.mode == StudioInstanceDataAccessMode::StorageBinding
+            && route.authoritative
+            && route.target.as_deref() == Some("postgresql://ironclaw.example.com")));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::StorageBinding
+            && artifact.location.as_deref() == Some("postgresql://ironclaw.example.com")));
         assert!(detail
             .capabilities
             .iter()

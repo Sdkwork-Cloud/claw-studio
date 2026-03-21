@@ -50,7 +50,7 @@ export function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, signIn, register } = useAuthStore();
+  const { isAuthenticated, signIn, register, sendPasswordReset } = useAuthStore();
   const mode = resolveAuthMode(location.pathname);
   const redirectTarget = resolveRedirectTarget(searchParams.get('redirect'));
   const [email, setEmail] = useState('');
@@ -66,13 +66,14 @@ export function AuthPage() {
   }, [searchParams]);
 
   const withRedirect = (pathname: string) => {
-    const params = new URLSearchParams();
+    const [basePath, rawQuery = ''] = pathname.split('?');
+    const params = new URLSearchParams(rawQuery);
     if (redirectTarget !== '/dashboard') {
       params.set('redirect', redirectTarget);
     }
 
     const queryString = params.toString();
-    return queryString ? `${pathname}?${queryString}` : pathname;
+    return queryString ? `${basePath}?${queryString}` : basePath;
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -97,7 +98,8 @@ export function AuthPage() {
         return;
       }
 
-      navigate(withRedirect('/login'), { replace: true });
+      await sendPasswordReset(email);
+      navigate(withRedirect(`/login?email=${encodeURIComponent(email.trim())}`), { replace: true });
     } finally {
       setIsSubmitting(false);
     }

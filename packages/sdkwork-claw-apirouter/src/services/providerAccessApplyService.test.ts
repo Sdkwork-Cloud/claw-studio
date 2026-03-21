@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { ProxyProvider } from '@sdkwork/claw-types';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -10,13 +11,52 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
   }
 }
 
+function createProxyProvider(channelId: string): ProxyProvider {
+  const baseModelByChannelId: Record<string, { id: string; name: string }> = {
+    moonshot: {
+      id: 'moonshot-v1-128k',
+      name: 'Moonshot v1 128K',
+    },
+    openai: {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+    },
+    google: {
+      id: 'gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
+    },
+  };
+  const model = baseModelByChannelId[channelId] || {
+    id: `${channelId}-default-model`,
+    name: `${channelId} Default Model`,
+  };
+
+  return {
+    id: `provider-${channelId}-primary`,
+    channelId,
+    name: `${channelId} Provider`,
+    apiKey: `sk-${channelId}-router-token`,
+    groupId: 'tenant-local',
+    usage: {
+      requestCount: 0,
+      tokenCount: 0,
+      spendUsd: 0,
+      period: '30d',
+    },
+    expiresAt: null,
+    status: 'active',
+    createdAt: new Date('2026-03-21T00:00:00.000Z').toISOString(),
+    baseUrl: `https://router.${channelId}.example.com/v1`,
+    models: [model],
+    canCopyApiKey: true,
+    tenantId: 'tenant-local',
+  };
+}
+
 await runTest('providerAccessApplyService can configure OpenClaw target instances with API Router routes', async () => {
-  const { apiRouterService } = await import('./apiRouterService.ts');
   const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
   const { installerService, studioMockService } = await import('@sdkwork/claw-infrastructure');
-
-  const providers = await apiRouterService.getProxyProviders({ channelId: 'moonshot' });
-  const provider = providers[0];
+  const provider = createProxyProvider('moonshot');
 
   assert.ok(provider);
 
@@ -77,13 +117,10 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
 });
 
 await runTest('providerAccessApplyService performs one-click Codex setup through the installer platform instead of dialog saves', async () => {
-  const { apiRouterService } = await import('./apiRouterService.ts');
   const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const { installerService } = await import('@sdkwork/claw-infrastructure');
-
-  const providers = await apiRouterService.getProxyProviders({ channelId: 'openai' });
-  const provider = providers[0];
+  const provider = createProxyProvider('openai');
 
   assert.ok(provider);
 
@@ -171,13 +208,10 @@ await runTest('providerAccessApplyService performs one-click Codex setup through
 });
 
 await runTest('providerAccessApplyService performs one-click Gemini CLI setup through the installer platform', async () => {
-  const { apiRouterService } = await import('./apiRouterService.ts');
   const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const { installerService } = await import('@sdkwork/claw-infrastructure');
-
-  const providers = await apiRouterService.getProxyProviders({ channelId: 'google' });
-  const provider = providers[0];
+  const provider = createProxyProvider('google');
 
   assert.ok(provider);
 
@@ -265,13 +299,10 @@ await runTest('providerAccessApplyService performs one-click Gemini CLI setup th
 });
 
 await runTest('providerAccessApplyService uses local file configuration by default for supported desktop clients', async () => {
-  const { apiRouterService } = await import('./apiRouterService.ts');
   const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const { installerService } = await import('@sdkwork/claw-infrastructure');
-
-  const providers = await apiRouterService.getProxyProviders({ channelId: 'openai' });
-  const provider = providers[0];
+  const provider = createProxyProvider('openai');
 
   assert.ok(provider);
 
@@ -331,13 +362,10 @@ await runTest('providerAccessApplyService uses local file configuration by defau
 });
 
 await runTest('providerAccessApplyService can configure only environment variables for Codex when requested', async () => {
-  const { apiRouterService } = await import('./apiRouterService.ts');
   const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const { installerService } = await import('@sdkwork/claw-infrastructure');
-
-  const providers = await apiRouterService.getProxyProviders({ channelId: 'openai' });
-  const provider = providers[0];
+  const provider = createProxyProvider('openai');
 
   assert.ok(provider);
 

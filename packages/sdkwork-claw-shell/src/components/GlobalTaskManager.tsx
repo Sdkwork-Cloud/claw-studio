@@ -10,9 +10,15 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { type Task, useTaskStore } from '@sdkwork/claw-core';
+import { type GlobalTask, useTaskStore } from '@sdkwork/claw-core';
 
-function TaskIcon({ type, status }: { type: Task['type']; status: Task['status'] }) {
+function TaskIcon({
+  type,
+  status,
+}: {
+  type: GlobalTask['type'];
+  status: GlobalTask['status'];
+}) {
   if (status === 'success') {
     return <CheckCircle2 className="h-5 w-5 text-emerald-500" />;
   }

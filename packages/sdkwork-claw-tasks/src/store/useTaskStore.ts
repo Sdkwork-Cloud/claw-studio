@@ -1,2 +1,6 @@
 export { useTaskStore } from '@sdkwork/claw-core';
-export type { Task as GlobalTask, TaskStatus, TaskType } from '@sdkwork/claw-core';
+export type {
+  GlobalTask,
+  GlobalTaskStatus,
+  GlobalTaskType,
+} from '@sdkwork/claw-core';

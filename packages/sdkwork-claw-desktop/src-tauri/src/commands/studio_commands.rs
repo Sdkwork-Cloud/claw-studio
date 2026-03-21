@@ -9,14 +9,15 @@ use crate::{
     },
     state::AppState,
 };
+use serde_json::Value;
 
 fn list_instances_from_state(state: &AppState) -> FrameworkResult<Vec<StudioInstanceRecord>> {
     let config = state.config_snapshot();
-    state
-        .context
-        .services
-        .studio
-        .list_instances(&state.paths, &config, &state.context.services.storage)
+    state.context.services.studio.list_instances(
+        &state.paths,
+        &config,
+        &state.context.services.storage,
+    )
 }
 
 #[tauri::command]
@@ -36,7 +37,12 @@ pub fn studio_get_instance(
         .context
         .services
         .studio
-        .get_instance(&state.paths, &config, &state.context.services.storage, id.as_str())
+        .get_instance(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            id.as_str(),
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -50,7 +56,12 @@ pub fn studio_get_instance_detail(
         .context
         .services
         .studio
-        .get_instance_detail(&state.paths, &config, &state.context.services.storage, id.as_str())
+        .get_instance_detail(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            id.as_str(),
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -64,7 +75,12 @@ pub fn studio_create_instance(
         .context
         .services
         .studio
-        .create_instance(&state.paths, &config, &state.context.services.storage, input)
+        .create_instance(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            input,
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -99,7 +115,12 @@ pub fn studio_delete_instance(
         .context
         .services
         .studio
-        .delete_instance(&state.paths, &config, &state.context.services.storage, id.as_str())
+        .delete_instance(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            id.as_str(),
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -173,7 +194,12 @@ pub fn studio_get_instance_config(
         .context
         .services
         .studio
-        .get_instance_config(&state.paths, &config, &state.context.services.storage, id.as_str())
+        .get_instance_config(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            id.as_str(),
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -208,7 +234,58 @@ pub fn studio_get_instance_logs(
         .context
         .services
         .studio
-        .get_instance_logs(&state.paths, &config, &state.context.services.storage, id.as_str())
+        .get_instance_logs(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            id.as_str(),
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn studio_create_instance_task(
+    state: tauri::State<'_, AppState>,
+    instance_id: String,
+    payload: Value,
+) -> Result<(), String> {
+    let config = state.config_snapshot();
+    state
+        .context
+        .services
+        .studio
+        .create_instance_task(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            &state.context.services.supervisor,
+            instance_id.as_str(),
+            &payload,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn studio_update_instance_task(
+    state: tauri::State<'_, AppState>,
+    instance_id: String,
+    task_id: String,
+    payload: Value,
+) -> Result<(), String> {
+    let config = state.config_snapshot();
+    state
+        .context
+        .services
+        .studio
+        .update_instance_task(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            &state.context.services.supervisor,
+            instance_id.as_str(),
+            task_id.as_str(),
+            &payload,
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -354,7 +431,12 @@ pub fn studio_put_conversation(
         .context
         .services
         .studio
-        .put_conversation(&state.paths, &config, &state.context.services.storage, record)
+        .put_conversation(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            record,
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -368,6 +450,11 @@ pub fn studio_delete_conversation(
         .context
         .services
         .studio
-        .delete_conversation(&state.paths, &config, &state.context.services.storage, id.as_str())
+        .delete_conversation(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            id.as_str(),
+        )
         .map_err(|error| error.to_string())
 }

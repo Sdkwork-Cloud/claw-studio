@@ -7,6 +7,7 @@ use crate::{
         },
         context::FrameworkContext,
         events,
+        services::api_router_runtime::ApiRouterRuntimeMode,
         services::openclaw_runtime::ActivatedOpenClawRuntime,
         services::studio::StudioInstanceStatus,
         services::supervisor::{
@@ -122,6 +123,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             let app_handle = app.handle().clone();
             let context = Arc::new(FrameworkContext::bootstrap(&app_handle)?);
             activate_bundled_openclaw(&app_handle, context.as_ref())?;
+            inspect_api_router_runtime_on_startup(&app_handle, context.as_ref())?;
             context.logger.info("managed desktop state initialized")?;
             let package_info = app.package_info();
             let metadata = AppMetadata::new(
@@ -163,6 +165,8 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::studio_commands::studio_get_instance_config,
             commands::studio_commands::studio_update_instance_config,
             commands::studio_commands::studio_get_instance_logs,
+            commands::studio_commands::studio_create_instance_task,
+            commands::studio_commands::studio_update_instance_task,
             commands::studio_commands::studio_clone_instance_task,
             commands::studio_commands::studio_run_instance_task_now,
             commands::studio_commands::studio_list_instance_task_executions,
@@ -189,6 +193,8 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::run_hub_install::run_hub_install,
             commands::run_hub_uninstall::run_hub_uninstall,
             commands::install_api_router_client_setup::install_api_router_client_setup,
+            commands::api_router_runtime::get_api_router_admin_bootstrap_session,
+            commands::api_router_runtime::get_api_router_runtime_status,
             commands::read_binary_file::read_binary_file,
             commands::write_binary_file::write_binary_file,
             commands::open_external::open_external,
@@ -490,15 +496,26 @@ fn restart_background_services<R: Runtime>(app: &AppHandle<R>) -> FrameworkResul
         .supervisor
         .restart_openclaw_gateway(&state.paths)?;
     let mut planned_services = vec![SERVICE_ID_OPENCLAW_GATEWAY.to_string()];
-    planned_services.extend(
-        [SERVICE_ID_WEB_SERVER, SERVICE_ID_API_ROUTER]
-            .into_iter()
-            .map(|service_id| {
-                state.context.services.supervisor.request_restart(service_id)?;
-                Ok(service_id.to_string())
-            })
-            .collect::<FrameworkResult<Vec<_>>>()?,
-    );
+    planned_services.push(SERVICE_ID_WEB_SERVER.to_string());
+    state
+        .context
+        .services
+        .supervisor
+        .restart_web_server(&state.paths)?;
+    if state
+        .context
+        .services
+        .supervisor
+        .configured_api_router_runtime()?
+        .is_some()
+    {
+        state
+            .context
+            .services
+            .supervisor
+            .restart_api_router(&state.paths)?;
+        planned_services.push(SERVICE_ID_API_ROUTER.to_string());
+    }
     state.context.logger.info(&format!(
         "tray requested background service restart plan: {}",
         planned_services.join(", ")
@@ -523,6 +540,18 @@ fn restart_managed_service<R: Runtime>(
             .services
             .supervisor
             .restart_openclaw_gateway(&state.paths)?;
+    } else if service_id == SERVICE_ID_WEB_SERVER {
+        state
+            .context
+            .services
+            .supervisor
+            .restart_web_server(&state.paths)?;
+    } else if service_id == SERVICE_ID_API_ROUTER {
+        state
+            .context
+            .services
+            .supervisor
+            .restart_api_router(&state.paths)?;
     } else {
         state
             .context
@@ -654,6 +683,95 @@ fn finalize_openclaw_activation(
     Ok(())
 }
 
+fn activate_bundled_api_router<R: Runtime>(
+    app: &AppHandle<R>,
+    context: &FrameworkContext,
+) -> FrameworkResult<bool> {
+    let runtime = match context
+        .services
+        .api_router_managed_runtime
+        .ensure_bundled_runtime(app, &context.paths)
+    {
+        Ok(runtime) => runtime,
+        Err(FrameworkError::NotFound(_)) => return Ok(false),
+        Err(error) => return Err(error),
+    };
+
+    context
+        .services
+        .supervisor
+        .configure_api_router_runtime(&runtime)?;
+    context
+        .services
+        .supervisor
+        .start_api_router(&context.paths)?;
+    Ok(true)
+}
+
+fn resolve_api_router_runtime_status(
+    context: &FrameworkContext,
+) -> FrameworkResult<crate::framework::services::api_router_runtime::ApiRouterRuntimeStatus> {
+    let managed_active = context
+        .services
+        .supervisor
+        .is_service_running(SERVICE_ID_API_ROUTER)?;
+
+    context
+        .services
+        .api_router_runtime
+        .inspect(&context.paths)
+        .map(|status| status.with_managed_active(managed_active))
+}
+
+fn inspect_api_router_runtime_on_startup<R: Runtime>(
+    app: &AppHandle<R>,
+    context: &FrameworkContext,
+) -> FrameworkResult<()> {
+    let status = resolve_api_router_runtime_status(context)?;
+    let message = format!(
+        "api router startup inspection: mode={} configSource={} adminBind={} gatewayBind={} reason={}",
+        api_router_runtime_mode_label(&status.mode),
+        api_router_config_source_label(&status.config_source),
+        status.admin.bind_addr,
+        status.gateway.bind_addr,
+        status.reason,
+    );
+    if status.mode != ApiRouterRuntimeMode::Conflicted {
+        if let Err(error) = context.services.supervisor.start_web_server(&context.paths) {
+            context.logger.warn(&format!(
+                "{message}; attempted built-in sdkwork-api-router web server start but it failed: {error}"
+            ))?;
+        }
+    }
+
+    match status.mode {
+        ApiRouterRuntimeMode::AttachedExternal => context.logger.info(&message)?,
+        ApiRouterRuntimeMode::ManagedActive => context.logger.info(&message)?,
+        ApiRouterRuntimeMode::NeedsManagedStart => match activate_bundled_api_router(app, context) {
+            Ok(true) => {
+                let managed_status = resolve_api_router_runtime_status(context)?;
+                context.logger.info(&format!(
+                    "api router managed startup activated: mode={} configSource={} adminBind={} gatewayBind={} reason={}",
+                    api_router_runtime_mode_label(&managed_status.mode),
+                    api_router_config_source_label(&managed_status.config_source),
+                    managed_status.admin.bind_addr,
+                    managed_status.gateway.bind_addr,
+                    managed_status.reason,
+                ))?;
+            }
+            Ok(false) => context.logger.warn(&format!(
+                "{message}; independent sdkwork-api-router was not detected, and no bundled managed runtime is available yet."
+            ))?,
+            Err(error) => context.logger.warn(&format!(
+                "{message}; attempted bundled managed startup but it failed: {error}"
+            ))?,
+        },
+        ApiRouterRuntimeMode::Conflicted => context.logger.warn(&message)?,
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 fn activate_bundled_openclaw_from_resource_root(
     context: &FrameworkContext,
@@ -664,6 +782,26 @@ fn activate_bundled_openclaw_from_resource_root(
         .openclaw_runtime
         .ensure_bundled_runtime_from_root(&context.paths, resource_root)?;
     finalize_openclaw_activation(context, runtime)
+}
+
+#[cfg(test)]
+fn activate_bundled_api_router_from_resource_root(
+    context: &FrameworkContext,
+    resource_root: &std::path::Path,
+) -> FrameworkResult<()> {
+    let runtime = context
+        .services
+        .api_router_managed_runtime
+        .ensure_bundled_runtime_from_root(&context.paths, resource_root)?;
+    context
+        .services
+        .supervisor
+        .configure_api_router_runtime(&runtime)?;
+    context
+        .services
+        .supervisor
+        .start_api_router(&context.paths)?;
+    Ok(())
 }
 
 fn perform_explicit_shutdown<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
@@ -724,6 +862,27 @@ fn system_locale_to_tray_language(locale: Option<&str>) -> TrayLanguage {
     TrayLanguage::En
 }
 
+fn api_router_runtime_mode_label(mode: &ApiRouterRuntimeMode) -> &'static str {
+    match mode {
+        ApiRouterRuntimeMode::AttachedExternal => "attached_external",
+        ApiRouterRuntimeMode::ManagedActive => "managed_active",
+        ApiRouterRuntimeMode::NeedsManagedStart => "needs_managed_start",
+        ApiRouterRuntimeMode::Conflicted => "conflicted",
+    }
+}
+
+fn api_router_config_source_label(
+    source: &crate::framework::services::api_router_runtime::ApiRouterConfigSource,
+) -> &'static str {
+    match source {
+        crate::framework::services::api_router_runtime::ApiRouterConfigSource::Defaults => {
+            "defaults"
+        }
+        crate::framework::services::api_router_runtime::ApiRouterConfigSource::File => "file",
+        crate::framework::services::api_router_runtime::ApiRouterConfigSource::Env => "env",
+    }
+}
+
 fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
     match language {
         TrayLanguage::En => TrayLabels {
@@ -749,26 +908,27 @@ fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
             quit_app: "Quit Claw Studio",
         },
         TrayLanguage::Zh => TrayLabels {
-            open_window: "打开窗口",
-            navigate: "导航",
-            dashboard: "工作台",
-            install: "安装",
-            apps: "应用",
-            instances: "实例",
-            tasks: "任务",
-            api_router: "API 路由",
-            settings: "设置",
-            services: "服务",
-            restart_openclaw_gateway: "重启 OpenClaw Gateway",
-            restart_web_server: "重启 Web Server",
-            restart_api_router: "重启 API-Router",
-            restart_all_background_services: "重启全部后台服务",
-            diagnostics: "诊断",
-            open_logs_directory: "打开日志目录",
-            reveal_main_log: "定位主日志",
-            open_integrations_directory: "打开集成目录",
-            open_plugins_directory: "打开插件目录",
-            quit_app: "退出 Claw Studio",
+            open_window: "\u{6253}\u{5f00}\u{7a97}\u{53e3}",
+            navigate: "\u{5bfc}\u{822a}",
+            dashboard: "\u{5de5}\u{4f5c}\u{53f0}",
+            install: "\u{5b89}\u{88c5}",
+            apps: "\u{5e94}\u{7528}",
+            instances: "\u{5b9e}\u{4f8b}",
+            tasks: "\u{4efb}\u{52a1}",
+            api_router: "API \u{8def}\u{7531}",
+            settings: "\u{8bbe}\u{7f6e}",
+            services: "\u{670d}\u{52a1}",
+            restart_openclaw_gateway: "\u{91cd}\u{542f} OpenClaw Gateway",
+            restart_web_server: "\u{91cd}\u{542f} Web Server",
+            restart_api_router: "\u{91cd}\u{542f} API-Router",
+            restart_all_background_services:
+                "\u{91cd}\u{542f}\u{5168}\u{90e8}\u{540e}\u{53f0}\u{670d}\u{52a1}",
+            diagnostics: "\u{8bca}\u{65ad}",
+            open_logs_directory: "\u{6253}\u{5f00}\u{65e5}\u{5fd7}\u{76ee}\u{5f55}",
+            reveal_main_log: "\u{5b9a}\u{4f4d}\u{4e3b}\u{65e5}\u{5fd7}",
+            open_integrations_directory: "\u{6253}\u{5f00}\u{96c6}\u{6210}\u{76ee}\u{5f55}",
+            open_plugins_directory: "\u{6253}\u{5f00}\u{63d2}\u{4ef6}\u{76ee}\u{5f55}",
+            quit_app: "\u{9000}\u{51fa} Claw Studio",
         },
     }
 }
@@ -828,8 +988,9 @@ fn build_tray_menu<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::{
-        activate_bundled_openclaw_from_resource_root,
-        build_tray_menu_spec, resolve_tray_language, should_prevent_main_window_close,
+        activate_bundled_api_router_from_resource_root,
+        activate_bundled_openclaw_from_resource_root, build_tray_menu_spec,
+        resolve_api_router_runtime_status, resolve_tray_language, should_prevent_main_window_close,
         tray_action_for_menu_id, TrayAction, TrayLanguage, TrayMenuEntry, TRAY_MENU_ID_QUIT_APP,
         TRAY_MENU_ID_RESTART_API_ROUTER, TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES,
         TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY, TRAY_MENU_ID_RESTART_WEB_SERVER,
@@ -842,8 +1003,12 @@ mod tests {
         logging::init_logger,
         paths::resolve_paths_for_root,
         services::{
+            api_router_managed_runtime::BundledApiRouterManifest,
+            api_router_runtime::ApiRouterRuntimeMode,
             openclaw_runtime::BundledOpenClawManifest,
-            supervisor::{ManagedServiceLifecycle, SERVICE_ID_OPENCLAW_GATEWAY},
+            supervisor::{
+                ManagedServiceLifecycle, SERVICE_ID_API_ROUTER, SERVICE_ID_OPENCLAW_GATEWAY,
+            },
         },
     };
     use std::fs;
@@ -921,43 +1086,44 @@ mod tests {
             spec.first(),
             Some(&TrayMenuEntry::Item {
                 id: TRAY_MENU_ID_SHOW_WINDOW,
-                label: "打开窗口".to_string(),
+                label: "\u{6253}\u{5f00}\u{7a97}\u{53e3}".to_string(),
             })
         );
         assert!(spec.iter().any(|entry| {
             matches!(
                 entry,
-                TrayMenuEntry::Submenu { label, .. } if label == "导航"
+                TrayMenuEntry::Submenu { label, .. } if label == "\u{5bfc}\u{822a}"
             )
         }));
         assert!(spec.iter().any(|entry| {
             matches!(
                 entry,
                 TrayMenuEntry::Submenu { label, items }
-                    if label == "服务"
+                    if label == "\u{670d}\u{52a1}"
                         && items.iter().any(|item| matches!(
                             item,
                             TrayMenuEntry::Item { id, label }
                                 if *id == TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY
-                                    && label == "重启 OpenClaw Gateway"
+                                    && label == "\u{91cd}\u{542f} OpenClaw Gateway"
                         ))
                         && items.iter().any(|item| matches!(
                             item,
                             TrayMenuEntry::Item { id, label }
                                 if *id == TRAY_MENU_ID_RESTART_WEB_SERVER
-                                    && label == "重启 Web Server"
+                                    && label == "\u{91cd}\u{542f} Web Server"
                         ))
                         && items.iter().any(|item| matches!(
                             item,
                             TrayMenuEntry::Item { id, label }
                                 if *id == TRAY_MENU_ID_RESTART_API_ROUTER
-                                    && label == "重启 API-Router"
+                                    && label == "\u{91cd}\u{542f} API-Router"
                         ))
                         && items.iter().any(|item| matches!(
                             item,
                             TrayMenuEntry::Item { id, label }
                                 if *id == TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES
-                                    && label == "重启全部后台服务"
+                                    && label
+                                        == "\u{91cd}\u{542f}\u{5168}\u{90e8}\u{540e}\u{53f0}\u{670d}\u{52a1}"
                         ))
             )
         }));
@@ -965,7 +1131,8 @@ mod tests {
             matches!(
                 entry,
                 TrayMenuEntry::Item { id, label }
-                    if *id == TRAY_MENU_ID_QUIT_APP && label == "退出 Claw Studio"
+                    if *id == TRAY_MENU_ID_QUIT_APP
+                        && label == "\u{9000}\u{51fa} Claw Studio"
             )
         }));
     }
@@ -1086,7 +1253,48 @@ mod tests {
         assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Running);
         assert!(openclaw.pid.is_some());
 
-        context.services.supervisor.begin_shutdown().expect("shutdown");
+        context
+            .services
+            .supervisor
+            .begin_shutdown()
+            .expect("shutdown");
+        context
+            .services
+            .supervisor
+            .complete_shutdown()
+            .expect("complete shutdown");
+    }
+
+    #[test]
+    fn bundled_api_router_activation_starts_managed_process_group_and_reports_managed_active() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let logger = init_logger(&paths).expect("logger");
+        let context = FrameworkContext::from_parts(paths.clone(), AppConfig::default(), logger);
+        let resource_root = create_bundled_api_router_fixture(root.path());
+
+        activate_bundled_api_router_from_resource_root(&context, &resource_root)
+            .expect("activate bundled api router");
+
+        let snapshot = context.services.supervisor.snapshot().expect("snapshot");
+        let api_router = snapshot
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_API_ROUTER)
+            .expect("api router service");
+        assert_eq!(api_router.lifecycle, ManagedServiceLifecycle::Running);
+        assert!(api_router.pid.is_some());
+
+        let status = resolve_api_router_runtime_status(&context).expect("runtime status");
+        assert_eq!(status.mode, ApiRouterRuntimeMode::ManagedActive);
+        assert!(status.admin.healthy);
+        assert!(status.gateway.healthy);
+
+        context
+            .services
+            .supervisor
+            .begin_shutdown()
+            .expect("shutdown");
         context
             .services
             .supervisor
@@ -1150,7 +1358,9 @@ mod tests {
         fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(&node_path, "#!/bin/sh\nexec node \"$@\"\n").expect("node shim");
-        let mut permissions = fs::metadata(&node_path).expect("node metadata").permissions();
+        let mut permissions = fs::metadata(&node_path)
+            .expect("node metadata")
+            .permissions();
         permissions.set_mode(0o755);
         fs::set_permissions(&node_path, permissions).expect("node permissions");
         fs::write(
@@ -1175,6 +1385,163 @@ mod tests {
             serde_json::to_string_pretty(&manifest).expect("manifest json"),
         )
         .expect("manifest file");
+
+        resource_root
+    }
+
+    #[cfg(windows)]
+    fn create_bundled_api_router_fixture(root: &std::path::Path) -> std::path::PathBuf {
+        let resource_root = root.join("bundled-api-router");
+        let runtime_root = resource_root.join("runtime");
+        let gateway_cmd_path = runtime_root.join("gateway-service.cmd");
+        let admin_cmd_path = runtime_root.join("admin-api-service.cmd");
+        let portal_cmd_path = runtime_root.join("portal-api-service.cmd");
+        let gateway_script_path = runtime_root.join("gateway-service.mjs");
+        let admin_script_path = runtime_root.join("admin-api-service.mjs");
+        let portal_script_path = runtime_root.join("portal-api-service.mjs");
+        let router_root = root.join("router");
+
+        fs::create_dir_all(gateway_cmd_path.parent().expect("gateway parent"))
+            .expect("gateway dir");
+        fs::create_dir_all(admin_cmd_path.parent().expect("admin parent")).expect("admin dir");
+        fs::create_dir_all(portal_cmd_path.parent().expect("portal parent")).expect("portal dir");
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::write(
+            &gateway_script_path,
+            "import net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst fs = await import('node:fs');\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.gateway_bind ?? '127.0.0.1:12100';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("gateway script");
+        fs::write(
+            &admin_script_path,
+            "import net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst fs = await import('node:fs');\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.admin_bind ?? '127.0.0.1:12101';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("admin script");
+        fs::write(
+            &portal_script_path,
+            "import net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst fs = await import('node:fs');\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.portal_bind ?? '127.0.0.1:12102';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("portal script");
+        fs::write(
+            &gateway_cmd_path,
+            "@echo off\r\nnode \"%~dp0gateway-service.mjs\"\r\n",
+        )
+        .expect("gateway cmd");
+        fs::write(
+            &admin_cmd_path,
+            "@echo off\r\nnode \"%~dp0admin-api-service.mjs\"\r\n",
+        )
+        .expect("admin cmd");
+        fs::write(
+            &portal_cmd_path,
+            "@echo off\r\nnode \"%~dp0portal-api-service.mjs\"\r\n",
+        )
+        .expect("portal cmd");
+        fs::write(
+            router_root.join("config.json"),
+            "{\"gateway_bind\":\"127.0.0.1:29080\",\"admin_bind\":\"127.0.0.1:29081\",\"portal_bind\":\"127.0.0.1:29082\",\"web_bind\":\"127.0.0.1:29083\"}\n",
+        )
+        .expect("router config");
+
+        let manifest = BundledApiRouterManifest {
+            schema_version: 1,
+            runtime_id: "sdkwork-api-router".to_string(),
+            router_version: "2026.3.20".to_string(),
+            platform: normalized_openclaw_platform().to_string(),
+            arch: normalized_openclaw_arch().to_string(),
+            gateway_relative_path: "runtime/gateway-service.cmd".to_string(),
+            admin_relative_path: "runtime/admin-api-service.cmd".to_string(),
+            portal_relative_path: "runtime/portal-api-service.cmd".to_string(),
+        };
+        fs::write(
+            resource_root.join("manifest.json"),
+            serde_json::to_string_pretty(&manifest).expect("manifest json"),
+        )
+        .expect("manifest");
+        resource_root
+    }
+
+    #[cfg(not(windows))]
+    fn create_bundled_api_router_fixture(root: &std::path::Path) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let resource_root = root.join("bundled-api-router");
+        let runtime_root = resource_root.join("runtime");
+        let gateway_path = runtime_root.join("gateway-service");
+        let admin_path = runtime_root.join("admin-api-service");
+        let portal_path = runtime_root.join("portal-api-service");
+        let router_root = root.join("router");
+
+        fs::create_dir_all(gateway_path.parent().expect("gateway parent")).expect("gateway dir");
+        fs::create_dir_all(admin_path.parent().expect("admin parent")).expect("admin dir");
+        fs::create_dir_all(portal_path.parent().expect("portal parent")).expect("portal dir");
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::write(
+            &gateway_path,
+            "#!/bin/sh\nexec node \"$(dirname \"$0\")/gateway-service.mjs\"\n",
+        )
+        .expect("gateway shim");
+        fs::write(
+            &admin_path,
+            "#!/bin/sh\nexec node \"$(dirname \"$0\")/admin-api-service.mjs\"\n",
+        )
+        .expect("admin shim");
+        fs::write(
+            &portal_path,
+            "#!/bin/sh\nexec node \"$(dirname \"$0\")/portal-api-service.mjs\"\n",
+        )
+        .expect("portal shim");
+        let mut gateway_permissions = fs::metadata(&gateway_path)
+            .expect("gateway metadata")
+            .permissions();
+        gateway_permissions.set_mode(0o755);
+        fs::set_permissions(&gateway_path, gateway_permissions).expect("gateway permissions");
+        let mut admin_permissions = fs::metadata(&admin_path)
+            .expect("admin metadata")
+            .permissions();
+        admin_permissions.set_mode(0o755);
+        fs::set_permissions(&admin_path, admin_permissions).expect("admin permissions");
+        let mut portal_permissions = fs::metadata(&portal_path)
+            .expect("portal metadata")
+            .permissions();
+        portal_permissions.set_mode(0o755);
+        fs::set_permissions(&portal_path, portal_permissions).expect("portal permissions");
+        fs::write(
+            runtime_root.join("gateway-service.mjs"),
+            "import fs from 'node:fs';\nimport net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.gateway_bind ?? '127.0.0.1:12100';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("gateway script");
+        fs::write(
+            runtime_root.join("admin-api-service.mjs"),
+            "import fs from 'node:fs';\nimport net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.admin_bind ?? '127.0.0.1:12101';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("admin script");
+        fs::write(
+            runtime_root.join("portal-api-service.mjs"),
+            "import fs from 'node:fs';\nimport net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.portal_bind ?? '127.0.0.1:12102';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
+        )
+        .expect("portal script");
+
+        let manifest = BundledApiRouterManifest {
+            schema_version: 1,
+            runtime_id: "sdkwork-api-router".to_string(),
+            router_version: "2026.3.20".to_string(),
+            platform: normalized_openclaw_platform().to_string(),
+            arch: normalized_openclaw_arch().to_string(),
+            gateway_relative_path: "runtime/gateway-service".to_string(),
+            admin_relative_path: "runtime/admin-api-service".to_string(),
+            portal_relative_path: "runtime/portal-api-service".to_string(),
+        };
+        fs::write(
+            router_root.join("config.json"),
+            "{\"gateway_bind\":\"127.0.0.1:29080\",\"admin_bind\":\"127.0.0.1:29081\",\"portal_bind\":\"127.0.0.1:29082\",\"web_bind\":\"127.0.0.1:29083\"}\n",
+        )
+        .expect("router config");
+
+        fs::write(
+            resource_root.join("manifest.json"),
+            serde_json::to_string_pretty(&manifest).expect("manifest json"),
+        )
+        .expect("manifest");
 
         resource_root
     }
