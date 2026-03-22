@@ -16,6 +16,26 @@ function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
 }
 
+function resolveCurrentRouterTarget() {
+  if (process.platform === 'win32' && process.arch === 'x64') {
+    return 'windows-x64';
+  }
+
+  if (process.platform === 'win32' && process.arch === 'arm64') {
+    return 'windows-arm64';
+  }
+
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    return 'linux-x64';
+  }
+
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    return 'macos-aarch64';
+  }
+
+  return null;
+}
+
 function runTest(name: string, fn: () => void) {
   try {
     fn();
@@ -44,6 +64,57 @@ runTest('sdkwork-claw-install keeps the install feature package local to the wor
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-install/);
   assert.match(indexSource, /MobileAppDownloadDialog/);
 });
+
+runTest(
+  'sdkwork-claw-install declares sdkwork api router prebuilt artifacts and explicit preparation scripts',
+  () => {
+    const workspacePackage = readJson<{ scripts?: Record<string, string> }>('package.json');
+    const desktopPackage = readJson<{ scripts?: Record<string, string> }>(
+      'packages/sdkwork-claw-desktop/package.json',
+    );
+    const manifest = readJson<{
+      source: { commit: string };
+      archives: Record<string, { path: string; sha256: string }>;
+    }>('packages/sdkwork-claw-desktop/src-tauri/vendor/sdkwork-api-router-artifacts/manifest.json');
+    const currentTarget = resolveCurrentRouterTarget();
+
+    assert.ok(
+      exists('packages/sdkwork-claw-desktop/src-tauri/vendor/sdkwork-api-router-artifacts/manifest.json'),
+    );
+    assert.ok(exists('scripts/prepare-sdkwork-api-router-artifacts.mjs'));
+    assert.match(
+      read('packages/sdkwork-claw-desktop/src-tauri/vendor/sdkwork-api-router-artifacts/manifest.json'),
+      /"version"\s*:/,
+    );
+    assert.match(
+      read('packages/sdkwork-claw-desktop/src-tauri/vendor/sdkwork-api-router-artifacts/manifest.json'),
+      /"archives"\s*:/,
+    );
+    assert.notEqual(manifest.source.commit, 'UNPINNED');
+    assert.equal(
+      workspacePackage.scripts?.['router:prepare'],
+      'node scripts/prepare-sdkwork-api-router-artifacts.mjs prepare',
+    );
+    assert.equal(
+      workspacePackage.scripts?.['router:verify'],
+      'node scripts/prepare-sdkwork-api-router-artifacts.mjs verify',
+    );
+    assert.equal(
+      desktopPackage.scripts?.['router:verify'],
+      'node ../../scripts/prepare-sdkwork-api-router-artifacts.mjs verify',
+    );
+
+    if (currentTarget) {
+      const currentArchive = manifest.archives[currentTarget];
+      assert.ok(currentArchive, `Expected manifest entry for current router target ${currentTarget}`);
+      assert.ok(currentArchive.sha256.trim().length > 0, 'Current router target sha256 must be pinned');
+      assert.ok(
+        exists(`packages/sdkwork-claw-desktop/src-tauri/vendor/sdkwork-api-router-artifacts/${currentArchive.path}`),
+        `Expected packaged archive for current router target ${currentTarget}`,
+      );
+    }
+  },
+);
 
 runTest(
   'sdkwork-claw-install turns the install page into install, uninstall, and migrate claw workflows',
@@ -135,6 +206,112 @@ runTest('sdkwork-claw-install routes installation through the shared hub-install
   assert.match(bridgeSource, /subscribeHubInstallProgress/);
   assert.match(webInstallerSource, /inspectHubInstall/);
   assert.doesNotMatch(bridgeSource, /executeInstallScript/);
+});
+
+runTest(
+  'sdkwork api router feature services route through the shared platform contract instead of direct mocks',
+  () => {
+    assert.ok(exists('packages/sdkwork-claw-infrastructure/src/platform/contracts/apiRouter.ts'));
+    assert.ok(exists('packages/sdkwork-claw-infrastructure/src/platform/webApiRouter.ts'));
+    const apiRouterServiceSource = read('packages/sdkwork-claw-apirouter/src/services/apiRouterService.ts');
+    const unifiedApiKeyServiceSource = read(
+      'packages/sdkwork-claw-apirouter/src/services/unifiedApiKeyService.ts',
+    );
+    const modelMappingServiceSource = read(
+      'packages/sdkwork-claw-apirouter/src/services/modelMappingService.ts',
+    );
+    const infraIndexSource = read('packages/sdkwork-claw-infrastructure/src/index.ts');
+    const platformIndexSource = read('packages/sdkwork-claw-infrastructure/src/platform/index.ts');
+    const platformRegistrySource = read('packages/sdkwork-claw-infrastructure/src/platform/registry.ts');
+    const platformContractSource = read(
+      'packages/sdkwork-claw-infrastructure/src/platform/contracts/apiRouter.ts',
+    );
+    const webApiRouterSource = read('packages/sdkwork-claw-infrastructure/src/platform/webApiRouter.ts');
+
+    assert.match(apiRouterServiceSource, /@sdkwork\/claw-infrastructure/);
+    assert.match(apiRouterServiceSource, /getApiRouterPlatform/);
+    assert.doesNotMatch(apiRouterServiceSource, /studioMockService/);
+
+    assert.match(unifiedApiKeyServiceSource, /@sdkwork\/claw-infrastructure/);
+    assert.match(unifiedApiKeyServiceSource, /getApiRouterPlatform/);
+    assert.doesNotMatch(unifiedApiKeyServiceSource, /studioMockService/);
+
+    assert.match(modelMappingServiceSource, /@sdkwork\/claw-infrastructure/);
+    assert.match(modelMappingServiceSource, /getApiRouterPlatform/);
+    assert.doesNotMatch(modelMappingServiceSource, /studioMockService/);
+
+    assert.match(infraIndexSource, /getApiRouterPlatform/);
+    assert.match(platformIndexSource, /ApiRouterPlatformAPI/);
+    assert.match(platformIndexSource, /getApiRouterPlatform/);
+    assert.match(platformRegistrySource, /apiRouter:\s*ApiRouterPlatformAPI/);
+    assert.match(platformRegistrySource, /getApiRouterPlatform/);
+    assert.match(platformContractSource, /export interface ApiRouterPlatformAPI/);
+    assert.match(platformContractSource, /getRuntimeStatus/);
+    assert.match(webApiRouterSource, /class WebApiRouterPlatform/);
+  },
+);
+
+runTest(
+  'openclaw installer contract exposes api key strategy and resolved router bindings',
+  () => {
+    const installerContractSource = read(
+      'packages/sdkwork-claw-infrastructure/src/platform/contracts/installer.ts',
+    );
+    const rustInstallerSource = read(
+      'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/api_router.rs',
+    );
+    const installCommandSource = read(
+      'packages/sdkwork-claw-desktop/src-tauri/src/commands/install_api_router_client_setup.rs',
+    );
+    const providerAccessApplySource = read(
+      'packages/sdkwork-claw-apirouter/src/services/providerAccessApplyService.ts',
+    );
+
+    assert.match(installerContractSource, /ApiRouterInstallerOpenClawApiKeyStrategy/);
+    assert.match(installerContractSource, /apiKeyStrategy/);
+    assert.match(installerContractSource, /routerProviderId\?: string \| null/);
+    assert.match(installerContractSource, /modelMappingId\?: string \| null/);
+    assert.match(installerContractSource, /interface ApiRouterInstalledOpenClawInstance/);
+    assert.match(installerContractSource, /apiKeyProjectId: string/);
+    assert.match(installerContractSource, /openClawInstances: ApiRouterInstalledOpenClawInstance\[]/);
+
+    assert.match(rustInstallerSource, /ApiRouterInstallerOpenClawApiKeyStrategy/);
+    assert.match(rustInstallerSource, /ApiRouterInstalledOpenClawInstance/);
+    assert.match(rustInstallerSource, /router_config/i);
+
+    assert.match(installCommandSource, /provision_openclaw_instances/);
+    assert.match(providerAccessApplySource, /result\.openClawInstances/);
+  },
+);
+
+runTest('desktop runtime exposes explicit api router bridge surface for the integrated router', () => {
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/framework/services/api_router_control.rs'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/src/commands/api_router_control.rs'));
+  const catalogSource = read('packages/sdkwork-claw-desktop/src/desktop/catalog.ts');
+  const bridgeSource = read('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
+  const desktopIndexSource = read('packages/sdkwork-claw-desktop/src/index.ts');
+  const appBootstrapSource = read('packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs');
+  const servicesSource = read('packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs');
+
+  assert.match(catalogSource, /getApiRouterRuntimeStatus:\s*'get_api_router_runtime_status'/);
+  assert.match(catalogSource, /getApiRouterChannels:\s*'get_api_router_channels'/);
+  assert.match(catalogSource, /getApiRouterUnifiedApiKeys:\s*'get_api_router_unified_api_keys'/);
+  assert.match(catalogSource, /getApiRouterModelMappings:\s*'get_api_router_model_mappings'/);
+
+  assert.match(bridgeSource, /export async function getApiRouterRuntimeStatus/);
+  assert.match(bridgeSource, /export async function getApiRouterChannels/);
+  assert.match(bridgeSource, /export async function getApiRouterProxyProviders/);
+  assert.match(bridgeSource, /export async function getApiRouterUnifiedApiKeys/);
+  assert.match(bridgeSource, /export async function getApiRouterModelMappings/);
+  assert.match(bridgeSource, /apiRouter:/);
+
+  assert.match(desktopIndexSource, /getApiRouterRuntimeStatus/);
+  assert.match(desktopIndexSource, /getApiRouterChannels/);
+  assert.match(appBootstrapSource, /commands::api_router_control::get_api_router_runtime_status/);
+  assert.match(appBootstrapSource, /commands::api_router_control::get_api_router_channels/);
+  assert.match(appBootstrapSource, /commands::api_router_control::get_api_router_unified_api_keys/);
+  assert.match(servicesSource, /pub mod api_router_control;/);
+  assert.match(servicesSource, /ApiRouterControlService/);
 });
 
 runTest('sdkwork-claw-install vendors hub-installer registry assets for the desktop runtime', () => {

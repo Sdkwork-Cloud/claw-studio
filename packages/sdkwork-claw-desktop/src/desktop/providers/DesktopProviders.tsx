@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import type { DistributionId } from '@sdkwork/claw-distribution';
 import { getDistributionManifest } from '@sdkwork/claw-distribution';
+import { DesktopAuthSessionBridge } from './DesktopAuthSessionBridge';
 
 function resolveDistributionId(): DistributionId {
   const distribution = import.meta.env.VITE_DISTRIBUTION_ID;
@@ -15,5 +16,10 @@ export function DesktopProviders({ children }: { children: ReactNode }) {
     document.title = manifest.appName;
   }, [manifest.appName, manifest.id]);
 
-  return <>{children}</>;
+  return (
+    <>
+      <DesktopAuthSessionBridge />
+      {children}
+    </>
+  );
 }

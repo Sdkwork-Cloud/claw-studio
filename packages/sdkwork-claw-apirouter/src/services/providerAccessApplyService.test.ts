@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './apiRouterTestSetup.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -41,6 +42,15 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
       })) || [],
       updatedEnvironments: [],
       updatedInstanceIds: request.openClaw?.instanceIds || [],
+      openClawInstances: (request.openClaw?.instanceIds || []).map((instanceId) => ({
+        instanceId,
+        endpoint: provider.baseUrl,
+        apiKey: provider.apiKey,
+        apiKeyProjectId: `project-${instanceId}`,
+        apiKeyStrategy: request.openClaw?.apiKeyStrategy || 'shared',
+        selectedProviderId: request.openClaw?.routerProviderId,
+        modelMappingId: request.openClaw?.modelMappingId,
+      })),
     };
   };
 
@@ -56,6 +66,9 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
         clientId: 'openclaw',
         openClaw: {
           instanceIds: ['local-built-in', 'home-nas'],
+          apiKeyStrategy: 'shared',
+          routerProviderId: undefined,
+          modelMappingId: undefined,
         },
       },
     ]);
@@ -70,11 +83,90 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
     assert.equal(localRoute?.provider, 'api-router');
     assert.equal(localRoute?.endpoint, provider.baseUrl);
     assert.equal(localRoute?.apiKeySource, provider.apiKey);
+    assert.equal(localRoute?.routerConfig?.apiKeyStrategy, 'shared');
     assert.equal(homeRoute?.defaultModelId, provider.models[0]?.id);
   } finally {
     installerService.installApiRouterClientSetup = originalInstall;
   }
 });
+
+await runTest(
+  'providerAccessApplyService persists explicit OpenClaw API key strategy and model mapping selections',
+  async () => {
+    const { apiRouterService } = await import('./apiRouterService.ts');
+    const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
+    const { installerService, studioMockService } = await import('@sdkwork/claw-infrastructure');
+
+    const providers = await apiRouterService.getProxyProviders({ channelId: 'openai' });
+    const provider = providers[0];
+
+    assert.ok(provider);
+
+    const installCalls: Array<{
+      clientId: string;
+      openClaw?: {
+        instanceIds: string[];
+        apiKeyStrategy?: string;
+        routerProviderId?: string;
+        modelMappingId?: string;
+      };
+    }> = [];
+    const originalInstall = installerService.installApiRouterClientSetup;
+    installerService.installApiRouterClientSetup = async (request) => {
+      installCalls.push({
+        clientId: request.clientId,
+        openClaw: request.openClaw,
+      });
+
+      return {
+        clientId: request.clientId,
+        writtenFiles: [],
+        updatedEnvironments: [],
+        updatedInstanceIds: request.openClaw?.instanceIds || [],
+        openClawInstances: (request.openClaw?.instanceIds || []).map((instanceId) => ({
+          instanceId,
+          endpoint: provider.baseUrl,
+          apiKey: provider.apiKey,
+          apiKeyProjectId: `project-${instanceId}`,
+          apiKeyStrategy: request.openClaw?.apiKeyStrategy || 'shared',
+          selectedProviderId: request.openClaw?.routerProviderId,
+          modelMappingId: request.openClaw?.modelMappingId,
+        })),
+      };
+    };
+
+    try {
+      const result = await providerAccessApplyService.applyOpenClawSetup(provider, ['edge-prod'], {
+        apiKeyStrategy: 'per-instance',
+        routerProviderId: provider.id,
+        modelMappingId: 'mapping-edge-reasoning',
+      });
+
+      assert.deepEqual(result.updatedInstanceIds, ['edge-prod']);
+      assert.deepEqual(installCalls, [
+        {
+          clientId: 'openclaw',
+          openClaw: {
+            instanceIds: ['edge-prod'],
+            apiKeyStrategy: 'per-instance',
+            routerProviderId: provider.id,
+            modelMappingId: 'mapping-edge-reasoning',
+          },
+        },
+      ]);
+
+      const edgeProviders = await studioMockService.listInstanceLlmProviders('edge-prod');
+      const route = edgeProviders.find((item) => item.id === `provider-api-router-${provider.id}`);
+
+      assert.ok(route);
+      assert.equal(route?.routerConfig?.apiKeyStrategy, 'per-instance');
+      assert.equal(route?.routerConfig?.selectedProviderId, provider.id);
+      assert.equal(route?.routerConfig?.modelMappingId, 'mapping-edge-reasoning');
+    } finally {
+      installerService.installApiRouterClientSetup = originalInstall;
+    }
+  },
+);
 
 await runTest('providerAccessApplyService performs one-click Codex setup through the installer platform instead of dialog saves', async () => {
   const { apiRouterService } = await import('./apiRouterService.ts');

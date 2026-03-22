@@ -240,6 +240,7 @@ export type ApiRouterInstallerCompatibility = 'openai' | 'anthropic' | 'gemini';
 export type ApiRouterInstallerInstallMode = 'standard' | 'env' | 'both';
 export type ApiRouterInstallerEnvScope = 'user' | 'system';
 export type ApiRouterInstalledEnvironmentShell = 'powershell' | 'sh';
+export type ApiRouterInstallerOpenClawApiKeyStrategy = 'shared' | 'per-instance';
 
 export interface ApiRouterInstallerModel {
   id: string;
@@ -258,6 +259,9 @@ export interface ApiRouterInstallerProvider {
 
 export interface ApiRouterInstallerOpenClawOptions {
   instanceIds: string[];
+  apiKeyStrategy: ApiRouterInstallerOpenClawApiKeyStrategy;
+  routerProviderId?: string | null;
+  modelMappingId?: string | null;
 }
 
 export interface ApiRouterClientInstallRequest {
@@ -280,11 +284,22 @@ export interface ApiRouterInstalledEnvironment {
   variables: string[];
 }
 
+export interface ApiRouterInstalledOpenClawInstance {
+  instanceId: string;
+  endpoint: string;
+  apiKey: string;
+  apiKeyProjectId: string;
+  apiKeyStrategy: ApiRouterInstallerOpenClawApiKeyStrategy;
+  selectedProviderId?: string | null;
+  modelMappingId?: string | null;
+}
+
 export interface ApiRouterClientInstallResult {
   clientId: ApiRouterInstallerClientId;
   writtenFiles: ApiRouterInstalledFile[];
   updatedEnvironments: ApiRouterInstalledEnvironment[];
   updatedInstanceIds: string[];
+  openClawInstances: ApiRouterInstalledOpenClawInstance[];
 }
 
 export interface InstallerPlatformAPI {

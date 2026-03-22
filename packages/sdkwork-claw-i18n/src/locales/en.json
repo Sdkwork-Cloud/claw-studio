@@ -228,6 +228,56 @@
       "description": "Manage model vendors, proxy providers, and key lifecycle from one operational surface.",
       "descriptionWithChannel": "Operate {{channel}} routes and monitor the active {{modelFamily}} provider pool from one control plane."
     },
+    "runtime": {
+      "title": "Local Router Runtime",
+      "description": "Inspect the active local API Router binding, health, shared ownership mode, and desktop login bridge before distributing client access.",
+      "ownership": {
+        "values": {
+          "managed": "Managed by Claw Studio",
+          "attached": "Attached to shared router",
+          "uninitialized": "Waiting for startup",
+          "stopped": "Stopped"
+        },
+        "descriptions": {
+          "managed": "Claw Studio started this local router runtime and will stop only the child processes it owns when the app exits.",
+          "attached": "A healthy shared router was already running, so Claw Studio attached to it and will not stop that external process on exit.",
+          "uninitialized": "The local router control plane is still initializing and has not published a healthy gateway and admin surface yet.",
+          "stopped": "The managed router is not serving traffic right now. Restart the runtime to restore local API access."
+        }
+      },
+      "signals": {
+        "gateway": "Gateway",
+        "admin": "Admin API",
+        "authSession": "App Session",
+        "adminAuth": "Admin Token Bridge",
+        "ready": "Ready",
+        "notReady": "Not Ready"
+      },
+      "endpoints": {
+        "gateway": "Gateway Base URL",
+        "admin": "Admin Base URL",
+        "binding": "Bound Address",
+        "path": "Path"
+      },
+      "processes": {
+        "title": "Managed Processes",
+        "gatewayPid": "Gateway PID",
+        "adminPid": "Admin PID",
+        "unavailable": "Not managed"
+      },
+      "paths": {
+        "title": "Shared Storage",
+        "routerHomeDir": "Router Home",
+        "metadataDir": "Claw Metadata",
+        "databasePath": "Database",
+        "extractionDir": "Prebuilt Runtime"
+      },
+      "values": {
+        "unavailable": "Unavailable"
+      },
+      "emptyStateTitle": "Router catalog not ready yet",
+      "emptyStateDescription": "Wait for the local gateway and admin endpoints to become healthy, or refresh after Claw Studio attaches to the shared router."
+    },
     "pageTabs": {
       "unifiedApiKey": "Unified API Key",
       "routeConfig": "Route Config",
@@ -561,6 +611,20 @@
       "emptyInstancesTitle": "No OpenClaw instances available",
       "emptyInstancesDescription": "Create or connect an instance before applying one-click setup.",
       "openclawSummary": "One-click setup writes this provider into the selected OpenClaw instances while keeping the manual command below as a fallback.",
+      "openclawApiKeyStrategy": {
+        "title": "OpenClaw API key strategy",
+        "description": "Choose whether selected OpenClaw instances share one router-managed API key or receive their own dedicated key and project binding.",
+        "options": {
+          "shared": "Shared key",
+          "per-instance": "Per-instance key"
+        }
+      },
+      "modelMapping": {
+        "title": "Model routing mapping",
+        "description": "Optionally pin these OpenClaw instances to a saved model mapping when the router writes their managed provider manifest.",
+        "none": "No model mapping",
+        "empty": "No saved model mappings are available yet. Continue without one, or create a mapping first."
+      },
       "tabs": {
         "default": "Default",
         "codex": "Codex",

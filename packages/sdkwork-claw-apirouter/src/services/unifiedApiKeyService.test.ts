@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './apiRouterTestSetup.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {

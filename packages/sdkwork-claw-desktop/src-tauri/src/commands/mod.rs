@@ -1,3 +1,5 @@
+pub mod api_router_auth;
+pub mod api_router_control;
 pub mod app_info;
 pub mod copy_path;
 pub mod create_directory;

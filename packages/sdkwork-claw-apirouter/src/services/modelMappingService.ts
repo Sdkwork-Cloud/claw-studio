@@ -1,4 +1,4 @@
-import { studioMockService } from '@sdkwork/claw-infrastructure';
+import { getApiRouterPlatform } from '@sdkwork/claw-infrastructure';
 import type {
   ModelMapping,
   ModelMappingCatalogChannel,
@@ -20,78 +20,29 @@ export interface ModelMappingService {
   deleteModelMapping(id: string): Promise<boolean>;
 }
 
-function matchesKeyword(item: ModelMapping, keyword: string) {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  if (!normalizedKeyword) {
-    return true;
-  }
-
-  return [
-    item.name,
-    item.description,
-    ...item.rules.flatMap((rule) => [
-      rule.source.channelName,
-      rule.source.modelId,
-      rule.source.modelName,
-      rule.target.channelName,
-      rule.target.modelId,
-      rule.target.modelName,
-    ]),
-  ]
-    .join(' ')
-    .toLowerCase()
-    .includes(normalizedKeyword);
-}
-
-async function requireModelMapping(
-  item: Promise<ModelMapping | undefined>,
-  errorMessage: string,
-) {
-  const resolvedItem = await item;
-  if (!resolvedItem) {
-    throw new Error(errorMessage);
-  }
-
-  return resolvedItem;
-}
-
 class DefaultModelMappingService implements ModelMappingService {
   async getModelCatalog() {
-    return studioMockService.listModelMappingCatalog();
+    return getApiRouterPlatform().getModelCatalog();
   }
 
   async getModelMappings(params: GetModelMappingsParams = {}) {
-    const items = await studioMockService.listModelMappings();
-
-    return items.filter((item) => {
-      if (params.keyword && !matchesKeyword(item, params.keyword)) {
-        return false;
-      }
-
-      return true;
-    });
+    return getApiRouterPlatform().getModelMappings(params);
   }
 
   async createModelMapping(input: ModelMappingCreate) {
-    return studioMockService.createModelMapping(input);
+    return getApiRouterPlatform().createModelMapping(input);
   }
 
   async updateModelMapping(id: string, update: ModelMappingUpdate) {
-    return requireModelMapping(
-      studioMockService.updateModelMapping(id, update),
-      'Model mapping not found',
-    );
+    return getApiRouterPlatform().updateModelMapping(id, update);
   }
 
   async updateStatus(id: string, status: ModelMappingStatus) {
-    return requireModelMapping(
-      studioMockService.updateModelMappingStatus(id, status),
-      'Model mapping not found',
-    );
+    return getApiRouterPlatform().updateModelMappingStatus(id, status);
   }
 
   async deleteModelMapping(id: string) {
-    return studioMockService.deleteModelMapping(id);
+    return getApiRouterPlatform().deleteModelMapping(id);
   }
 }
 

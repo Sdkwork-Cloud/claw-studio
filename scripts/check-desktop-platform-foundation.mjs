@@ -73,6 +73,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src/desktop/runtime.ts', 'desktop runtime bridge module'],
   ['packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts', 'desktop bridge'],
   ['packages/sdkwork-claw-infrastructure/src/config/env.ts', 'desktop env config module'],
+  ['packages/sdkwork-claw-infrastructure/src/platform/contracts/apiRouter.ts', 'api router platform contract module'],
+  ['packages/sdkwork-claw-infrastructure/src/platform/webApiRouter.ts', 'api router web platform module'],
   ['packages/sdkwork-claw-infrastructure/src/updates/contracts.ts', 'desktop update contracts module'],
   ['packages/sdkwork-claw-infrastructure/src/updates/updateClient.ts', 'desktop update client module'],
   ['packages/sdkwork-claw-core/src/services/updateService.ts', 'desktop update business service'],
@@ -92,6 +94,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/runtime.rs', 'desktop framework runtime module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/storage.rs', 'desktop framework storage contract module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs', 'desktop framework services module'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/api_router_control.rs', 'desktop api router control service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/system.rs', 'desktop system service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/kernel.rs', 'desktop kernel assembler service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/security.rs', 'desktop security service module'],
@@ -106,6 +109,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/services/storage.rs', 'desktop storage service module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/plugins/mod.rs', 'desktop plugin registration module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/app_info.rs', 'desktop app info command'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/api_router_control.rs', 'desktop api router control command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/desktop_kernel.rs', 'desktop kernel command module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_paths.rs', 'desktop app paths command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/get_app_config.rs', 'desktop app config command'],
@@ -151,6 +155,46 @@ assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
 assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/contracts/apiRouter.ts',
+  'export interface ApiRouterPlatformAPI',
+  'api router platform contract export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/contracts/apiRouter.ts',
+  'export interface ApiRouterRuntimeStatus',
+  'api router runtime status contract export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/webApiRouter.ts',
+  'export class WebApiRouterPlatform',
+  'api router web platform export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/index.ts',
+  'ApiRouterPlatformAPI',
+  'api router platform type export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/index.ts',
+  'getApiRouterPlatform',
+  'api router platform registry export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/registry.ts',
+  'ApiRouterPlatformAPI',
+  'api router platform bridge dependency',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/registry.ts',
+  'apiRouter: ApiRouterPlatformAPI',
+  'api router bridge slot',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/registry.ts',
+  'getApiRouterPlatform',
+  'api router registry accessor',
+);
+assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
   'export const DESKTOP_COMMANDS',
   'desktop command catalog export',
@@ -159,6 +203,26 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
   'installApiRouterClientSetup',
   'desktop api router installer command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  "getApiRouterRuntimeStatus: 'get_api_router_runtime_status'",
+  'desktop api router runtime status command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  "getApiRouterChannels: 'get_api_router_channels'",
+  'desktop api router channel command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  "getApiRouterUnifiedApiKeys: 'get_api_router_unified_api_keys'",
+  'desktop api router unified key command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  "getApiRouterModelMappings: 'get_api_router_model_mappings'",
+  'desktop api router model mapping command catalog entry',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
@@ -332,6 +396,11 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'apiRouter:',
+  'desktop template API api router grouping',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'runtime:',
   'desktop template API runtime grouping',
 );
@@ -349,6 +418,16 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/index.ts',
   'desktopTemplateApi',
   'desktop package template API export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
+  'getApiRouterRuntimeStatus',
+  'desktop package api router runtime bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
+  'getApiRouterChannels',
+  'desktop package api router channel bridge export',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/index.ts',
@@ -392,6 +471,31 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function getApiRouterRuntimeStatus',
+  'desktop api router runtime bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function getApiRouterChannels',
+  'desktop api router channel bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function getApiRouterProxyProviders',
+  'desktop api router provider bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function getApiRouterUnifiedApiKeys',
+  'desktop api router unified key bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function getApiRouterModelMappings',
+  'desktop api router model mapping bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'listenDesktopEvent',
   'desktop event listener wiring',
 );
@@ -409,6 +513,46 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
   'tauri-plugin-opener',
   'opener plugin dependency',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  '[build-dependencies]',
+  'desktop build dependency section',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  'serde_json = "1"',
+  'router artifact manifest build dependency',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  'serde = { version = "1", features = ["derive"] }',
+  'router artifact manifest serde build dependency',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  'vendor/sdkwork-api-router-artifacts/manifest.json',
+  'router artifact manifest resource',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  'vendor/sdkwork-api-router-artifacts/**/*',
+  'router artifact archive resources',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/build.rs',
+  'sdkwork-api-router-artifacts',
+  'router artifact manifest build wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/build.rs',
+  'SDKWORK_API_ROUTER_ARCHIVE_RELATIVE_PATH',
+  'router artifact archive env export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/build.rs',
+  'SDKWORK_API_ROUTER_TARGET_KEY',
+  'router artifact target env export',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
@@ -441,6 +585,21 @@ assertIncludes(
   'desktop api router installer command registration',
 );
 assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::api_router_control::get_api_router_runtime_status',
+  'desktop api router runtime command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::api_router_control::get_api_router_channels',
+  'desktop api router channel command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::api_router_control::get_api_router_unified_api_keys',
+  'desktop api router unified key command registration',
+);
+assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs',
   'pub mod runtime;',
   'desktop runtime export',
@@ -449,6 +608,16 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs',
   'pub mod services;',
   'desktop services export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'pub mod api_router_control;',
+  'desktop api router control service export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
+  'api_router_control::ApiRouterControlService',
+  'desktop api router control service wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/context.rs',

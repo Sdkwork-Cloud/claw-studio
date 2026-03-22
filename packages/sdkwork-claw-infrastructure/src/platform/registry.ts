@@ -1,14 +1,17 @@
+import type { ApiRouterPlatformAPI } from './contracts/apiRouter.ts';
 import type { InstallerPlatformAPI } from './contracts/installer.ts';
 import type { StoragePlatformAPI } from './contracts/storage.ts';
 import type { RuntimePlatformAPI } from './contracts/runtime.ts';
 import type { PlatformAPI } from './types.ts';
 import { WebInstallerPlatform } from './webInstaller.ts';
+import { WebApiRouterPlatform } from './webApiRouter.ts';
 import { WebPlatform } from './web.ts';
 import { WebRuntimePlatform } from './webRuntime.ts';
 import { WebStoragePlatform } from './webStorage.ts';
 
 export interface PlatformBridge {
   platform: PlatformAPI;
+  apiRouter: ApiRouterPlatformAPI;
   installer: InstallerPlatformAPI;
   runtime: RuntimePlatformAPI;
   storage: StoragePlatformAPI;
@@ -16,6 +19,7 @@ export interface PlatformBridge {
 
 let platformBridge: PlatformBridge = {
   platform: new WebPlatform(),
+  apiRouter: new WebApiRouterPlatform(),
   installer: new WebInstallerPlatform(),
   runtime: new WebRuntimePlatform(),
   storage: new WebStoragePlatform(),
@@ -34,6 +38,10 @@ export function getPlatformBridge(): PlatformBridge {
 
 export function getInstallerPlatform(): InstallerPlatformAPI {
   return platformBridge.installer;
+}
+
+export function getApiRouterPlatform(): ApiRouterPlatformAPI {
+  return platformBridge.apiRouter;
 }
 
 export function getRuntimePlatform(): RuntimePlatformAPI {

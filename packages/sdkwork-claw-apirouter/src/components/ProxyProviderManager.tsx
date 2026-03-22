@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { platform } from '@sdkwork/claw-infrastructure';
 import type {
   ApiRouterChannel,
+  ModelMapping,
   ProxyProvider,
   ProxyProviderCreate,
   ProxyProviderGroup,
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from '@sdkwork/claw-ui';
 import type { ProxyProviderCreateSeed } from '../services';
-import { apiRouterService } from '../services';
+import { apiRouterService, modelMappingService } from '../services';
 import { ProxyProviderDialogs } from './ProxyProviderDialogs';
 import { ProxyProviderTable } from './ProxyProviderTable';
 
@@ -58,6 +59,10 @@ export function ProxyProviderManager({
   const normalizedKeyword = deferredSearchQuery.trim();
   const canQueryProviders = allowAllChannels || Boolean(selectedChannelId);
   const canCreateProvider = Boolean(selectedChannelId) && groups.length > 0;
+  const { data: modelMappings = [] } = useQuery<ModelMapping[]>({
+    queryKey: ['api-router', 'model-mappings', '__provider-openclaw__'],
+    queryFn: () => modelMappingService.getModelMappings(),
+  });
 
   const { data: providers = [] } = useQuery({
     queryKey: [
@@ -81,6 +86,7 @@ export function ProxyProviderManager({
       queryClient.invalidateQueries({ queryKey: ['api-router', 'providers'] }),
       queryClient.invalidateQueries({ queryKey: channelQueryKey }),
       queryClient.invalidateQueries({ queryKey: groupQueryKey }),
+      queryClient.invalidateQueries({ queryKey: ['api-router', 'model-mappings'] }),
       queryClient.invalidateQueries({ queryKey: ['api-router', 'model-mapping-catalog'] }),
     ]);
   }
@@ -282,6 +288,7 @@ export function ProxyProviderManager({
         createSeed={createSeed}
         editingProvider={editingProvider}
         groups={groups}
+        modelMappings={modelMappings}
         onCloseUsage={() => setUsageProvider(null)}
         onCloseCreate={() => setCreateSeed(null)}
         onCloseEdit={() => setEditingProvider(null)}

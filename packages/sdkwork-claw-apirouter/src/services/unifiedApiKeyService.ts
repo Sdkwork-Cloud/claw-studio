@@ -1,4 +1,4 @@
-import { studioMockService } from '@sdkwork/claw-infrastructure';
+import { getApiRouterPlatform } from '@sdkwork/claw-infrastructure';
 import type {
   ProxyProviderGroup,
   ProxyProviderStatus,
@@ -23,86 +23,37 @@ export interface UnifiedApiKeyService {
   deleteUnifiedApiKey(id: string): Promise<boolean>;
 }
 
-function matchesKeyword(item: UnifiedApiKey, keyword: string) {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  if (!normalizedKeyword) {
-    return true;
-  }
-
-  return (
-    item.name.toLowerCase().includes(normalizedKeyword) ||
-    item.apiKey.toLowerCase().includes(normalizedKeyword) ||
-    item.notes?.toLowerCase().includes(normalizedKeyword) === true
-  );
-}
-
-async function requireUnifiedApiKey(
-  item: Promise<UnifiedApiKey | undefined>,
-  errorMessage: string,
-) {
-  const resolvedItem = await item;
-  if (!resolvedItem) {
-    throw new Error(errorMessage);
-  }
-
-  return resolvedItem;
-}
-
 class DefaultUnifiedApiKeyService implements UnifiedApiKeyService {
   async getGroups() {
-    return studioMockService.listProxyProviderGroups();
+    return getApiRouterPlatform().getGroups();
   }
 
   async getUnifiedApiKeys(params: GetUnifiedApiKeysParams = {}) {
-    const items = await studioMockService.listUnifiedApiKeys();
-
-    return items.filter((item) => {
-      if (params.groupId && params.groupId !== 'all' && item.groupId !== params.groupId) {
-        return false;
-      }
-
-      if (params.keyword && !matchesKeyword(item, params.keyword)) {
-        return false;
-      }
-
-      return true;
-    });
+    return getApiRouterPlatform().getUnifiedApiKeys(params);
   }
 
   async createUnifiedApiKey(input: UnifiedApiKeyCreate) {
-    return studioMockService.createUnifiedApiKey(input);
+    return getApiRouterPlatform().createUnifiedApiKey(input);
   }
 
   async updateGroup(id: string, groupId: string) {
-    return requireUnifiedApiKey(
-      studioMockService.updateUnifiedApiKeyGroup(id, groupId),
-      'Unified API key not found',
-    );
+    return getApiRouterPlatform().updateUnifiedApiKeyGroup(id, groupId);
   }
 
   async updateStatus(id: string, status: ProxyProviderStatus) {
-    return requireUnifiedApiKey(
-      studioMockService.updateUnifiedApiKeyStatus(id, status),
-      'Unified API key not found',
-    );
+    return getApiRouterPlatform().updateUnifiedApiKeyStatus(id, status);
   }
 
   async assignModelMapping(id: string, modelMappingId: string | null) {
-    return requireUnifiedApiKey(
-      studioMockService.assignUnifiedApiKeyModelMapping(id, modelMappingId),
-      'Unified API key not found',
-    );
+    return getApiRouterPlatform().assignUnifiedApiKeyModelMapping(id, modelMappingId);
   }
 
   async updateUnifiedApiKey(id: string, update: UnifiedApiKeyUpdate) {
-    return requireUnifiedApiKey(
-      studioMockService.updateUnifiedApiKey(id, update),
-      'Unified API key not found',
-    );
+    return getApiRouterPlatform().updateUnifiedApiKey(id, update);
   }
 
   async deleteUnifiedApiKey(id: string) {
-    return studioMockService.deleteUnifiedApiKey(id);
+    return getApiRouterPlatform().deleteUnifiedApiKey(id);
   }
 }
 

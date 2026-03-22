@@ -8,15 +8,25 @@ export type {
   PlatformWindowStateUnsubscribe,
 } from './types.ts';
 export type {
+  ApiRouterModelMappingQuery,
+  ApiRouterOwnershipMode,
+  ApiRouterPlatformAPI,
+  ApiRouterProviderQuery,
+  ApiRouterRuntimeStatus,
+  ApiRouterUnifiedApiKeyQuery,
+} from './contracts/apiRouter.ts';
+export type {
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
   ApiRouterInstalledEnvironment,
   ApiRouterInstalledFile,
+  ApiRouterInstalledOpenClawInstance,
   ApiRouterInstallerClientId,
   ApiRouterInstallerCompatibility,
   ApiRouterInstallerEnvScope,
   ApiRouterInstallerInstallMode,
   ApiRouterInstallerModel,
+  ApiRouterInstallerOpenClawApiKeyStrategy,
   ApiRouterInstallerOpenClawOptions,
   ApiRouterInstallerProvider,
   HubInstallAssessmentCheckType,
@@ -91,6 +101,7 @@ export type {
 } from './contracts/storage.ts';
 export {
   configurePlatformBridge,
+  getApiRouterPlatform,
   getInstallerPlatform,
   getPlatformBridge,
   getRuntimePlatform,
@@ -99,5 +110,6 @@ export {
   storage,
 } from './registry.ts';
 export { openExternalUrl } from './openExternalUrl.ts';
+export { WebApiRouterPlatform } from './webApiRouter.ts';
 export { WebPlatform } from './web.ts';
 export { WebStoragePlatform } from './webStorage.ts';

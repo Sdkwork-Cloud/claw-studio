@@ -12,6 +12,7 @@ import {
 } from '@sdkwork/claw-core';
 import { platform } from '@sdkwork/claw-infrastructure';
 import type {
+  ModelMapping,
   ProxyProvider,
   ProxyProviderCreate,
   ProxyProviderGroup,
@@ -56,6 +57,7 @@ import {
   getProviderAccessClientKey,
   sortInstancesForSelection,
   type ApiRouterUsageTabId,
+  type OpenClawApiKeyStrategy,
   type ProviderAccessClientInstallSelection,
 } from './ApiRouterAccessMethodShared';
 
@@ -64,6 +66,7 @@ interface ProxyProviderDialogsProps {
   createSeed: ProxyProviderCreateSeed | null;
   editingProvider: ProxyProvider | null;
   groups: ProxyProviderGroup[];
+  modelMappings: ModelMapping[];
   onCloseUsage: () => void;
   onCloseCreate: () => void;
   onCloseEdit: () => void;
@@ -425,6 +428,7 @@ export function ProxyProviderDialogs({
   createSeed,
   editingProvider,
   groups,
+  modelMappings,
   onCloseUsage,
   onCloseCreate,
   onCloseEdit,
@@ -448,6 +452,11 @@ export function ProxyProviderDialogs({
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [isInstanceSelectorOpen, setIsInstanceSelectorOpen] = useState(false);
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
+  const [openClawApiKeyStrategy, setOpenClawApiKeyStrategy] =
+    useState<OpenClawApiKeyStrategy>('shared');
+  const [selectedOpenClawModelMappingId, setSelectedOpenClawModelMappingId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!createSeed) {
@@ -473,7 +482,18 @@ export function ProxyProviderDialogs({
     setIsLoadingInstances(false);
     setIsInstanceSelectorOpen(false);
     setSelectedInstanceIds([]);
+    setOpenClawApiKeyStrategy('shared');
+    setSelectedOpenClawModelMappingId(null);
   }, [usageProvider?.id]);
+
+  useEffect(() => {
+    if (
+      selectedOpenClawModelMappingId &&
+      !modelMappings.some((item) => item.id === selectedOpenClawModelMappingId)
+    ) {
+      setSelectedOpenClawModelMappingId(null);
+    }
+  }, [modelMappings, selectedOpenClawModelMappingId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -643,6 +663,11 @@ export function ProxyProviderDialogs({
       const result = await providerAccessApplyService.applyOpenClawSetup(
         usageProvider,
         selectedInstanceIds,
+        {
+          apiKeyStrategy: openClawApiKeyStrategy,
+          routerProviderId: usageProvider.id,
+          modelMappingId: selectedOpenClawModelMappingId,
+        },
       );
       toast.success(
         t('apiRouterPage.toast.openClawSetupApplied', {
@@ -807,10 +832,15 @@ export function ProxyProviderDialogs({
             description={t('apiRouterPage.dialogs.instanceSelectorDescription', {
               provider: usageProvider.name,
             })}
+            apiKeyStrategy={openClawApiKeyStrategy}
+            modelMappings={modelMappings}
+            selectedModelMappingId={selectedOpenClawModelMappingId}
             availableInstances={availableInstances}
             selectedInstanceIds={selectedInstanceIds}
             isLoading={isLoadingInstances}
             isApplying={applyingClientId === 'openclaw'}
+            onApiKeyStrategyChange={setOpenClawApiKeyStrategy}
+            onModelMappingChange={setSelectedOpenClawModelMappingId}
             onRefresh={() => {
               void refreshAvailableInstances();
             }}

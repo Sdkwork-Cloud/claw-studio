@@ -1,21 +1,41 @@
 import {
+  WebApiRouterPlatform,
   WebPlatform,
   WebStoragePlatform,
   configurePlatformBridge,
 } from '@sdkwork/claw-infrastructure';
 import type {
+  ApiRouterChannel,
+  ApiRouterModelMappingQuery,
+  ApiRouterProviderQuery,
+  ApiRouterRuntimeStatus,
+  ApiRouterUnifiedApiKeyQuery,
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
+  ApiRouterUsageRecordApiKeyOption,
+  ApiRouterUsageRecordSummary,
+  ApiRouterUsageRecordsQuery,
+  ApiRouterUsageRecordsResult,
   HubInstallAssessmentResult,
   HubInstallProgressEvent,
   HubInstallRequest,
   HubInstallResult,
   HubUninstallRequest,
   HubUninstallResult,
+  ModelMapping,
+  ModelMappingCatalogChannel,
+  ModelMappingCreate,
+  ModelMappingStatus,
+  ModelMappingUpdate,
   PlatformFileEntry,
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
+  ProxyProvider,
+  ProxyProviderCreate,
+  ProxyProviderGroup,
+  ProxyProviderStatus,
+  ProxyProviderUpdate,
   RuntimeAppInfo,
   RuntimeConfigInfo,
   RuntimeDesktopKernelInfo,
@@ -35,6 +55,9 @@ import type {
   StorageListKeysResult,
   StoragePutTextRequest,
   StoragePutTextResult,
+  UnifiedApiKey,
+  UnifiedApiKeyCreate,
+  UnifiedApiKeyUpdate,
 } from '@sdkwork/claw-infrastructure';
 import { DESKTOP_COMMANDS, DESKTOP_EVENTS } from './catalog';
 import {
@@ -47,6 +70,7 @@ import {
 } from './runtime';
 
 const webPlatform = new WebPlatform();
+const webApiRouterPlatform = new WebApiRouterPlatform();
 const webStoragePlatform = new WebStoragePlatform();
 
 export interface DesktopAppInfo extends RuntimeAppInfo {}
@@ -59,8 +83,427 @@ export interface DesktopJobUpdateEvent extends RuntimeJobUpdateEvent {}
 export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
 export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo {}
 export interface DesktopStorageInfo extends RuntimeStorageInfo {}
+export interface DesktopAuthSessionPayload {
+  userId: string;
+  email: string;
+  displayName: string;
+}
+export interface DesktopApiRouterAdminToken {
+  token: string;
+  subject: string;
+  expiresAtEpochSeconds: number;
+}
 
 const noopUnsubscribe: RuntimeEventUnsubscribe = () => {};
+
+export async function syncDesktopAuthSession(
+  session: DesktopAuthSessionPayload,
+): Promise<void> {
+  await runDesktopOrFallback(
+    'auth.syncDesktopSession',
+    () =>
+      invokeDesktopCommand<void>(
+        DESKTOP_COMMANDS.syncAuthSession,
+        { session },
+        { operation: 'auth.syncDesktopSession' },
+      ),
+    async () => {},
+  );
+}
+
+export async function clearDesktopAuthSession(): Promise<void> {
+  await runDesktopOrFallback(
+    'auth.clearDesktopSession',
+    () =>
+      invokeDesktopCommand<void>(DESKTOP_COMMANDS.clearAuthSession, undefined, {
+        operation: 'auth.clearDesktopSession',
+      }),
+    async () => {},
+  );
+}
+
+export async function getApiRouterAdminToken(): Promise<DesktopApiRouterAdminToken | null> {
+  return runDesktopOrFallback(
+    'auth.getApiRouterAdminToken',
+    () =>
+      invokeDesktopCommand<DesktopApiRouterAdminToken>(
+        DESKTOP_COMMANDS.getApiRouterAdminToken,
+        undefined,
+        { operation: 'auth.getApiRouterAdminToken' },
+      ),
+    async () => null,
+  );
+}
+
+export async function getApiRouterRuntimeStatus(): Promise<ApiRouterRuntimeStatus> {
+  return runDesktopOrFallback(
+    'apiRouter.getRuntimeStatus',
+    () =>
+      invokeDesktopCommand<ApiRouterRuntimeStatus>(
+        DESKTOP_COMMANDS.getApiRouterRuntimeStatus,
+        undefined,
+        { operation: 'apiRouter.getRuntimeStatus' },
+      ),
+    () => webApiRouterPlatform.getRuntimeStatus(),
+  );
+}
+
+export async function getApiRouterChannels(): Promise<ApiRouterChannel[]> {
+  return runDesktopOrFallback(
+    'apiRouter.getChannels',
+    () =>
+      invokeDesktopCommand<ApiRouterChannel[]>(
+        DESKTOP_COMMANDS.getApiRouterChannels,
+        undefined,
+        { operation: 'apiRouter.getChannels' },
+      ),
+    () => webApiRouterPlatform.getChannels(),
+  );
+}
+
+export async function getApiRouterGroups(): Promise<ProxyProviderGroup[]> {
+  return runDesktopOrFallback(
+    'apiRouter.getGroups',
+    () =>
+      invokeDesktopCommand<ProxyProviderGroup[]>(
+        DESKTOP_COMMANDS.getApiRouterGroups,
+        undefined,
+        { operation: 'apiRouter.getGroups' },
+      ),
+    () => webApiRouterPlatform.getGroups(),
+  );
+}
+
+export async function getApiRouterProxyProviders(
+  query: ApiRouterProviderQuery = {},
+): Promise<ProxyProvider[]> {
+  return runDesktopOrFallback(
+    'apiRouter.getProxyProviders',
+    () =>
+      invokeDesktopCommand<ProxyProvider[]>(
+        DESKTOP_COMMANDS.getApiRouterProxyProviders,
+        { query },
+        { operation: 'apiRouter.getProxyProviders' },
+      ),
+    () => webApiRouterPlatform.getProxyProviders(query),
+  );
+}
+
+export async function createApiRouterProxyProvider(
+  input: ProxyProviderCreate,
+): Promise<ProxyProvider> {
+  return runDesktopOrFallback(
+    'apiRouter.createProxyProvider',
+    () =>
+      invokeDesktopCommand<ProxyProvider>(
+        DESKTOP_COMMANDS.createApiRouterProxyProvider,
+        { input },
+        { operation: 'apiRouter.createProxyProvider' },
+      ),
+    () => webApiRouterPlatform.createProxyProvider(input),
+  );
+}
+
+export async function updateApiRouterProxyProviderGroup(
+  id: string,
+  groupId: string,
+): Promise<ProxyProvider> {
+  return runDesktopOrFallback(
+    'apiRouter.updateProxyProviderGroup',
+    () =>
+      invokeDesktopCommand<ProxyProvider>(
+        DESKTOP_COMMANDS.updateApiRouterProxyProviderGroup,
+        { id, groupId },
+        { operation: 'apiRouter.updateProxyProviderGroup' },
+      ),
+    () => webApiRouterPlatform.updateProxyProviderGroup(id, groupId),
+  );
+}
+
+export async function updateApiRouterProxyProviderStatus(
+  id: string,
+  status: ProxyProviderStatus,
+): Promise<ProxyProvider> {
+  return runDesktopOrFallback(
+    'apiRouter.updateProxyProviderStatus',
+    () =>
+      invokeDesktopCommand<ProxyProvider>(
+        DESKTOP_COMMANDS.updateApiRouterProxyProviderStatus,
+        { id, status },
+        { operation: 'apiRouter.updateProxyProviderStatus' },
+      ),
+    () => webApiRouterPlatform.updateProxyProviderStatus(id, status),
+  );
+}
+
+export async function updateApiRouterProxyProvider(
+  id: string,
+  update: ProxyProviderUpdate,
+): Promise<ProxyProvider> {
+  return runDesktopOrFallback(
+    'apiRouter.updateProxyProvider',
+    () =>
+      invokeDesktopCommand<ProxyProvider>(
+        DESKTOP_COMMANDS.updateApiRouterProxyProvider,
+        { id, update },
+        { operation: 'apiRouter.updateProxyProvider' },
+      ),
+    () => webApiRouterPlatform.updateProxyProvider(id, update),
+  );
+}
+
+export async function deleteApiRouterProxyProvider(id: string): Promise<boolean> {
+  return runDesktopOrFallback(
+    'apiRouter.deleteProxyProvider',
+    () =>
+      invokeDesktopCommand<boolean>(
+        DESKTOP_COMMANDS.deleteApiRouterProxyProvider,
+        { id },
+        { operation: 'apiRouter.deleteProxyProvider' },
+      ),
+    () => webApiRouterPlatform.deleteProxyProvider(id),
+  );
+}
+
+export async function getApiRouterUsageRecordApiKeys(): Promise<
+  ApiRouterUsageRecordApiKeyOption[]
+> {
+  return runDesktopOrFallback(
+    'apiRouter.getUsageRecordApiKeys',
+    () =>
+      invokeDesktopCommand<ApiRouterUsageRecordApiKeyOption[]>(
+        DESKTOP_COMMANDS.getApiRouterUsageRecordApiKeys,
+        undefined,
+        { operation: 'apiRouter.getUsageRecordApiKeys' },
+      ),
+    () => webApiRouterPlatform.getUsageRecordApiKeys(),
+  );
+}
+
+export async function getApiRouterUsageRecordSummary(
+  query: ApiRouterUsageRecordsQuery = {},
+): Promise<ApiRouterUsageRecordSummary> {
+  return runDesktopOrFallback(
+    'apiRouter.getUsageRecordSummary',
+    () =>
+      invokeDesktopCommand<ApiRouterUsageRecordSummary>(
+        DESKTOP_COMMANDS.getApiRouterUsageRecordSummary,
+        { query },
+        { operation: 'apiRouter.getUsageRecordSummary' },
+      ),
+    () => webApiRouterPlatform.getUsageRecordSummary(query),
+  );
+}
+
+export async function getApiRouterUsageRecords(
+  query: ApiRouterUsageRecordsQuery = {},
+): Promise<ApiRouterUsageRecordsResult> {
+  return runDesktopOrFallback(
+    'apiRouter.getUsageRecords',
+    () =>
+      invokeDesktopCommand<ApiRouterUsageRecordsResult>(
+        DESKTOP_COMMANDS.getApiRouterUsageRecords,
+        { query },
+        { operation: 'apiRouter.getUsageRecords' },
+      ),
+    () => webApiRouterPlatform.getUsageRecords(query),
+  );
+}
+
+export async function getApiRouterUnifiedApiKeys(
+  query: ApiRouterUnifiedApiKeyQuery = {},
+): Promise<UnifiedApiKey[]> {
+  return runDesktopOrFallback(
+    'apiRouter.getUnifiedApiKeys',
+    () =>
+      invokeDesktopCommand<UnifiedApiKey[]>(
+        DESKTOP_COMMANDS.getApiRouterUnifiedApiKeys,
+        { query },
+        { operation: 'apiRouter.getUnifiedApiKeys' },
+      ),
+    () => webApiRouterPlatform.getUnifiedApiKeys(query),
+  );
+}
+
+export async function createApiRouterUnifiedApiKey(
+  input: UnifiedApiKeyCreate,
+): Promise<UnifiedApiKey> {
+  return runDesktopOrFallback(
+    'apiRouter.createUnifiedApiKey',
+    () =>
+      invokeDesktopCommand<UnifiedApiKey>(
+        DESKTOP_COMMANDS.createApiRouterUnifiedApiKey,
+        { input },
+        { operation: 'apiRouter.createUnifiedApiKey' },
+      ),
+    () => webApiRouterPlatform.createUnifiedApiKey(input),
+  );
+}
+
+export async function updateApiRouterUnifiedApiKeyGroup(
+  id: string,
+  groupId: string,
+): Promise<UnifiedApiKey> {
+  return runDesktopOrFallback(
+    'apiRouter.updateUnifiedApiKeyGroup',
+    () =>
+      invokeDesktopCommand<UnifiedApiKey>(
+        DESKTOP_COMMANDS.updateApiRouterUnifiedApiKeyGroup,
+        { id, groupId },
+        { operation: 'apiRouter.updateUnifiedApiKeyGroup' },
+      ),
+    () => webApiRouterPlatform.updateUnifiedApiKeyGroup(id, groupId),
+  );
+}
+
+export async function updateApiRouterUnifiedApiKeyStatus(
+  id: string,
+  status: ProxyProviderStatus,
+): Promise<UnifiedApiKey> {
+  return runDesktopOrFallback(
+    'apiRouter.updateUnifiedApiKeyStatus',
+    () =>
+      invokeDesktopCommand<UnifiedApiKey>(
+        DESKTOP_COMMANDS.updateApiRouterUnifiedApiKeyStatus,
+        { id, status },
+        { operation: 'apiRouter.updateUnifiedApiKeyStatus' },
+      ),
+    () => webApiRouterPlatform.updateUnifiedApiKeyStatus(id, status),
+  );
+}
+
+export async function assignApiRouterUnifiedApiKeyModelMapping(
+  id: string,
+  modelMappingId: string | null,
+): Promise<UnifiedApiKey> {
+  return runDesktopOrFallback(
+    'apiRouter.assignUnifiedApiKeyModelMapping',
+    () =>
+      invokeDesktopCommand<UnifiedApiKey>(
+        DESKTOP_COMMANDS.assignApiRouterUnifiedApiKeyModelMapping,
+        { id, modelMappingId },
+        { operation: 'apiRouter.assignUnifiedApiKeyModelMapping' },
+      ),
+    () => webApiRouterPlatform.assignUnifiedApiKeyModelMapping(id, modelMappingId),
+  );
+}
+
+export async function updateApiRouterUnifiedApiKey(
+  id: string,
+  update: UnifiedApiKeyUpdate,
+): Promise<UnifiedApiKey> {
+  return runDesktopOrFallback(
+    'apiRouter.updateUnifiedApiKey',
+    () =>
+      invokeDesktopCommand<UnifiedApiKey>(
+        DESKTOP_COMMANDS.updateApiRouterUnifiedApiKey,
+        { id, update },
+        { operation: 'apiRouter.updateUnifiedApiKey' },
+      ),
+    () => webApiRouterPlatform.updateUnifiedApiKey(id, update),
+  );
+}
+
+export async function deleteApiRouterUnifiedApiKey(id: string): Promise<boolean> {
+  return runDesktopOrFallback(
+    'apiRouter.deleteUnifiedApiKey',
+    () =>
+      invokeDesktopCommand<boolean>(
+        DESKTOP_COMMANDS.deleteApiRouterUnifiedApiKey,
+        { id },
+        { operation: 'apiRouter.deleteUnifiedApiKey' },
+      ),
+    () => webApiRouterPlatform.deleteUnifiedApiKey(id),
+  );
+}
+
+export async function getApiRouterModelCatalog(): Promise<ModelMappingCatalogChannel[]> {
+  return runDesktopOrFallback(
+    'apiRouter.getModelCatalog',
+    () =>
+      invokeDesktopCommand<ModelMappingCatalogChannel[]>(
+        DESKTOP_COMMANDS.getApiRouterModelCatalog,
+        undefined,
+        { operation: 'apiRouter.getModelCatalog' },
+      ),
+    () => webApiRouterPlatform.getModelCatalog(),
+  );
+}
+
+export async function getApiRouterModelMappings(
+  query: ApiRouterModelMappingQuery = {},
+): Promise<ModelMapping[]> {
+  return runDesktopOrFallback(
+    'apiRouter.getModelMappings',
+    () =>
+      invokeDesktopCommand<ModelMapping[]>(
+        DESKTOP_COMMANDS.getApiRouterModelMappings,
+        { query },
+        { operation: 'apiRouter.getModelMappings' },
+      ),
+    () => webApiRouterPlatform.getModelMappings(query),
+  );
+}
+
+export async function createApiRouterModelMapping(
+  input: ModelMappingCreate,
+): Promise<ModelMapping> {
+  return runDesktopOrFallback(
+    'apiRouter.createModelMapping',
+    () =>
+      invokeDesktopCommand<ModelMapping>(
+        DESKTOP_COMMANDS.createApiRouterModelMapping,
+        { input },
+        { operation: 'apiRouter.createModelMapping' },
+      ),
+    () => webApiRouterPlatform.createModelMapping(input),
+  );
+}
+
+export async function updateApiRouterModelMapping(
+  id: string,
+  update: ModelMappingUpdate,
+): Promise<ModelMapping> {
+  return runDesktopOrFallback(
+    'apiRouter.updateModelMapping',
+    () =>
+      invokeDesktopCommand<ModelMapping>(
+        DESKTOP_COMMANDS.updateApiRouterModelMapping,
+        { id, update },
+        { operation: 'apiRouter.updateModelMapping' },
+      ),
+    () => webApiRouterPlatform.updateModelMapping(id, update),
+  );
+}
+
+export async function updateApiRouterModelMappingStatus(
+  id: string,
+  status: ModelMappingStatus,
+): Promise<ModelMapping> {
+  return runDesktopOrFallback(
+    'apiRouter.updateModelMappingStatus',
+    () =>
+      invokeDesktopCommand<ModelMapping>(
+        DESKTOP_COMMANDS.updateApiRouterModelMappingStatus,
+        { id, status },
+        { operation: 'apiRouter.updateModelMappingStatus' },
+      ),
+    () => webApiRouterPlatform.updateModelMappingStatus(id, status),
+  );
+}
+
+export async function deleteApiRouterModelMapping(id: string): Promise<boolean> {
+  return runDesktopOrFallback(
+    'apiRouter.deleteModelMapping',
+    () =>
+      invokeDesktopCommand<boolean>(
+        DESKTOP_COMMANDS.deleteApiRouterModelMapping,
+        { id },
+        { operation: 'apiRouter.deleteModelMapping' },
+      ),
+    () => webApiRouterPlatform.deleteModelMapping(id),
+  );
+}
 
 export async function getAppInfo(): Promise<DesktopAppInfo | null> {
   return runDesktopOrFallback(
@@ -721,9 +1164,41 @@ export const desktopTemplateApi = {
     subscribeHubInstallProgress,
     installApiRouterClientSetup,
   },
+  apiRouter: {
+    getRuntimeStatus: getApiRouterRuntimeStatus,
+    getChannels: getApiRouterChannels,
+    getGroups: getApiRouterGroups,
+    getProxyProviders: getApiRouterProxyProviders,
+    createProxyProvider: createApiRouterProxyProvider,
+    updateProxyProviderGroup: updateApiRouterProxyProviderGroup,
+    updateProxyProviderStatus: updateApiRouterProxyProviderStatus,
+    updateProxyProvider: updateApiRouterProxyProvider,
+    deleteProxyProvider: deleteApiRouterProxyProvider,
+    getUsageRecordApiKeys: getApiRouterUsageRecordApiKeys,
+    getUsageRecordSummary: getApiRouterUsageRecordSummary,
+    getUsageRecords: getApiRouterUsageRecords,
+    getUnifiedApiKeys: getApiRouterUnifiedApiKeys,
+    createUnifiedApiKey: createApiRouterUnifiedApiKey,
+    updateUnifiedApiKeyGroup: updateApiRouterUnifiedApiKeyGroup,
+    updateUnifiedApiKeyStatus: updateApiRouterUnifiedApiKeyStatus,
+    assignUnifiedApiKeyModelMapping: assignApiRouterUnifiedApiKeyModelMapping,
+    updateUnifiedApiKey: updateApiRouterUnifiedApiKey,
+    deleteUnifiedApiKey: deleteApiRouterUnifiedApiKey,
+    getModelCatalog: getApiRouterModelCatalog,
+    getModelMappings: getApiRouterModelMappings,
+    createModelMapping: createApiRouterModelMapping,
+    updateModelMapping: updateApiRouterModelMapping,
+    updateModelMappingStatus: updateApiRouterModelMappingStatus,
+    deleteModelMapping: deleteApiRouterModelMapping,
+  },
   runtime: {
     getInfo: getRuntimeInfo,
     setAppLanguage,
+  },
+  auth: {
+    syncDesktopSession: syncDesktopAuthSession,
+    clearDesktopSession: clearDesktopAuthSession,
+    getApiRouterAdminToken,
   },
 };
 
@@ -764,6 +1239,39 @@ export function configureDesktopPlatformBridge() {
       runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
       installApiRouterClientSetup: (request) => installApiRouterClientSetup(request),
+    },
+    apiRouter: {
+      getRuntimeStatus: () => getApiRouterRuntimeStatus(),
+      getChannels: () => getApiRouterChannels(),
+      getGroups: () => getApiRouterGroups(),
+      getProxyProviders: (query) => getApiRouterProxyProviders(query),
+      createProxyProvider: (input) => createApiRouterProxyProvider(input),
+      updateProxyProviderGroup: (id, groupId) =>
+        updateApiRouterProxyProviderGroup(id, groupId),
+      updateProxyProviderStatus: (id, status) =>
+        updateApiRouterProxyProviderStatus(id, status),
+      updateProxyProvider: (id, update) => updateApiRouterProxyProvider(id, update),
+      deleteProxyProvider: (id) => deleteApiRouterProxyProvider(id),
+      getUsageRecordApiKeys: () => getApiRouterUsageRecordApiKeys(),
+      getUsageRecordSummary: (query) => getApiRouterUsageRecordSummary(query),
+      getUsageRecords: (query) => getApiRouterUsageRecords(query),
+      getUnifiedApiKeys: (query) => getApiRouterUnifiedApiKeys(query),
+      createUnifiedApiKey: (input) => createApiRouterUnifiedApiKey(input),
+      updateUnifiedApiKeyGroup: (id, groupId) =>
+        updateApiRouterUnifiedApiKeyGroup(id, groupId),
+      updateUnifiedApiKeyStatus: (id, status) =>
+        updateApiRouterUnifiedApiKeyStatus(id, status),
+      assignUnifiedApiKeyModelMapping: (id, modelMappingId) =>
+        assignApiRouterUnifiedApiKeyModelMapping(id, modelMappingId),
+      updateUnifiedApiKey: (id, update) => updateApiRouterUnifiedApiKey(id, update),
+      deleteUnifiedApiKey: (id) => deleteApiRouterUnifiedApiKey(id),
+      getModelCatalog: () => getApiRouterModelCatalog(),
+      getModelMappings: (query) => getApiRouterModelMappings(query),
+      createModelMapping: (input) => createApiRouterModelMapping(input),
+      updateModelMapping: (id, update) => updateApiRouterModelMapping(id, update),
+      updateModelMappingStatus: (id, status) =>
+        updateApiRouterModelMappingStatus(id, status),
+      deleteModelMapping: (id) => deleteApiRouterModelMapping(id),
     },
     storage: {
       async getStorageInfo() {

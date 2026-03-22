@@ -1,4 +1,7 @@
-import { studioMockService } from '@sdkwork/claw-infrastructure';
+import {
+  getApiRouterPlatform,
+  type ApiRouterRuntimeStatus,
+} from '@sdkwork/claw-infrastructure';
 import type {
   ApiRouterChannel,
   ApiRouterUsageRecordApiKeyOption,
@@ -19,6 +22,7 @@ export interface GetProxyProvidersParams {
 }
 
 export interface ApiRouterService {
+  getRuntimeStatus(): Promise<ApiRouterRuntimeStatus>;
   getChannels(): Promise<ApiRouterChannel[]>;
   getGroups(): Promise<ProxyProviderGroup[]>;
   getProxyProviders(params?: GetProxyProvidersParams): Promise<ProxyProvider[]>;
@@ -32,99 +36,53 @@ export interface ApiRouterService {
   getUsageRecords(query?: ApiRouterUsageRecordsQuery): Promise<ApiRouterUsageRecordsResult>;
 }
 
-function matchesKeyword(provider: ProxyProvider, keyword: string) {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  if (!normalizedKeyword) {
-    return true;
-  }
-
-  return (
-    provider.name.toLowerCase().includes(normalizedKeyword) ||
-    provider.baseUrl.toLowerCase().includes(normalizedKeyword) ||
-    provider.models.some(
-      (model) =>
-        model.id.toLowerCase().includes(normalizedKeyword) ||
-        model.name.toLowerCase().includes(normalizedKeyword),
-    )
-  );
-}
-
-async function requireProvider(
-  provider: Promise<ProxyProvider | undefined>,
-  errorMessage: string,
-) {
-  const resolvedProvider = await provider;
-  if (!resolvedProvider) {
-    throw new Error(errorMessage);
-  }
-
-  return resolvedProvider;
-}
-
 class DefaultApiRouterService implements ApiRouterService {
+  async getRuntimeStatus() {
+    return getApiRouterPlatform().getRuntimeStatus();
+  }
+
   async getChannels() {
-    return studioMockService.listApiRouterChannels();
+    return getApiRouterPlatform().getChannels();
   }
 
   async getGroups() {
-    return studioMockService.listProxyProviderGroups();
+    return getApiRouterPlatform().getGroups();
   }
 
   async getProxyProviders(params: GetProxyProvidersParams = {}) {
-    const providers = await studioMockService.listProxyProviders(params.channelId);
-
-    return providers.filter((provider) => {
-      if (params.groupId && params.groupId !== 'all' && provider.groupId !== params.groupId) {
-        return false;
-      }
-
-      if (params.keyword && !matchesKeyword(provider, params.keyword)) {
-        return false;
-      }
-
-      return true;
-    });
+    return getApiRouterPlatform().getProxyProviders(params);
   }
 
   async createProvider(input: ProxyProviderCreate) {
-    return studioMockService.createProxyProvider(input);
+    return getApiRouterPlatform().createProxyProvider(input);
   }
 
   async updateGroup(id: string, groupId: string) {
-    return requireProvider(
-      studioMockService.updateProxyProviderGroup(id, groupId),
-      'Proxy provider not found',
-    );
+    return getApiRouterPlatform().updateProxyProviderGroup(id, groupId);
   }
 
   async updateStatus(id: string, status: ProxyProviderStatus) {
-    return requireProvider(
-      studioMockService.updateProxyProviderStatus(id, status),
-      'Proxy provider not found',
-    );
+    return getApiRouterPlatform().updateProxyProviderStatus(id, status);
   }
 
   async updateProvider(id: string, update: ProxyProviderUpdate) {
-    return requireProvider(
-      studioMockService.updateProxyProvider(id, update),
-      'Proxy provider not found',
-    );
+    return getApiRouterPlatform().updateProxyProvider(id, update);
   }
 
   async deleteProvider(id: string) {
-    return studioMockService.deleteProxyProvider(id);
+    return getApiRouterPlatform().deleteProxyProvider(id);
   }
 
   async getUsageRecordApiKeys() {
-    return studioMockService.listApiRouterUsageRecordApiKeys();
+    return getApiRouterPlatform().getUsageRecordApiKeys();
   }
 
   async getUsageRecordSummary(query: ApiRouterUsageRecordsQuery = {}) {
-    return studioMockService.getApiRouterUsageRecordSummary(query);
+    return getApiRouterPlatform().getUsageRecordSummary(query);
   }
 
   async getUsageRecords(query: ApiRouterUsageRecordsQuery = {}) {
-    return studioMockService.listApiRouterUsageRecords(query);
+    return getApiRouterPlatform().getUsageRecords(query);
   }
 }
 

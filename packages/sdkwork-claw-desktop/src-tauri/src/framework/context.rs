@@ -21,7 +21,7 @@ impl FrameworkContext {
         let config = load_or_create_config(&paths)?;
         let logger = init_logger(&paths)?;
         logger.info("framework context bootstrapped")?;
-        let services = FrameworkServices::new(&paths, &config)?;
+        let services = FrameworkServices::new(app, &paths, &config)?;
 
         Ok(Self {
             paths,
@@ -33,7 +33,7 @@ impl FrameworkContext {
 
     #[cfg(test)]
     pub fn from_parts(paths: AppPaths, config: AppConfig, logger: AppLogger) -> Self {
-        let services = FrameworkServices::new(&paths, &config).expect("framework services");
+        let services = FrameworkServices::new_for_test(&paths, &config).expect("framework services");
 
         Self {
             paths,
