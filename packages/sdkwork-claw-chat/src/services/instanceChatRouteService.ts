@@ -2,6 +2,7 @@ import type { StudioInstanceRecord } from '@sdkwork/claw-types';
 
 export type InstanceChatRouteMode =
   | 'directLlm'
+  | 'instanceOpenClawGatewayWs'
   | 'instanceOpenAiHttp'
   | 'instanceSseHttp'
   | 'instanceWebSocket'
@@ -47,6 +48,49 @@ function buildEndpoint(
   return `${normalizedBaseUrl}${suffix}`;
 }
 
+function buildWebsocketUrl(
+  baseUrl: string | null,
+  websocketUrl: string | null,
+  suffixesToTrim: string[] = ['/v1/chat/completions', '/chat/completions'],
+) {
+  const normalizedCandidate = normalizeUrl(websocketUrl ?? baseUrl);
+  if (!normalizedCandidate) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(normalizedCandidate);
+    if (suffixesToTrim.some((suffix) => url.pathname.endsWith(suffix))) {
+      const matchedSuffix = suffixesToTrim.find((suffix) => url.pathname.endsWith(suffix));
+      url.pathname = matchedSuffix
+        ? url.pathname.slice(0, -matchedSuffix.length) || '/'
+        : url.pathname;
+      url.search = '';
+      url.hash = '';
+    }
+
+    if (url.protocol === 'http:' || url.protocol === 'ws:') {
+      url.protocol = 'ws:';
+    } else if (url.protocol === 'https:' || url.protocol === 'wss:') {
+      url.protocol = 'wss:';
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return undefined;
+  }
+}
+
+function buildOpenClawGatewayWebsocketUrl(
+  baseUrl: string | null,
+  websocketUrl: string | null,
+) {
+  return buildWebsocketUrl(baseUrl, websocketUrl, [
+    '/ws',
+    '/v1/chat/completions',
+    '/chat/completions',
+  ]);
+}
+
 export function resolveInstanceChatRoute(
   instance: StudioInstanceRecord | null | undefined,
 ): InstanceChatRoute {
@@ -65,26 +109,37 @@ export function resolveInstanceChatRoute(
     deploymentMode: instance.deploymentMode,
   } as const;
 
+  if (instance.runtimeKind === 'openclaw') {
+    if (websocketUrl || baseUrl) {
+      return {
+        ...shared,
+        mode: 'instanceOpenClawGatewayWs',
+        endpoint: buildEndpoint(baseUrl, '/v1/chat/completions', [
+          '/v1/chat/completions',
+          '/chat/completions',
+        ]),
+        websocketUrl: buildOpenClawGatewayWebsocketUrl(baseUrl, websocketUrl),
+      };
+    }
+
+    return {
+      ...shared,
+      mode: 'unsupported',
+      reason: 'OpenClaw instances must publish a gateway HTTP or WebSocket endpoint.',
+    };
+  }
+
   switch (instance.transportKind) {
     case 'openclawGatewayWs':
-      if (baseUrl) {
+      if (websocketUrl || baseUrl) {
         return {
           ...shared,
-          mode: 'instanceOpenAiHttp',
+          mode: 'instanceOpenClawGatewayWs',
           endpoint: buildEndpoint(baseUrl, '/v1/chat/completions', [
             '/v1/chat/completions',
             '/chat/completions',
           ]),
-          websocketUrl: websocketUrl ?? undefined,
-        };
-      }
-
-      if (websocketUrl) {
-        return {
-          ...shared,
-          mode: 'instanceWebSocket',
-          websocketUrl,
-          reason: 'OpenClaw gateway currently exposes only a websocket endpoint.',
+          websocketUrl: buildOpenClawGatewayWebsocketUrl(baseUrl, websocketUrl),
         };
       }
 

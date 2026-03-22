@@ -23,22 +23,32 @@ import { ChatInput } from '../components/ChatInput';
 import { ChatMessage } from '../components/ChatMessage';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { agentService, chatService } from '../services';
+import { resolveChatBootstrapAction } from '../services/chatSessionBootstrap.ts';
 import { useChatStore } from '../store/useChatStore';
 
 const EMPTY_SKILLS: Skill[] = [];
 const EMPTY_AGENTS: Agent[] = [];
 
+function getScopeKey(instanceId: string | null | undefined) {
+  return instanceId ?? '__direct__';
+}
+
 export function Chat() {
   const { activeInstanceId } = useInstanceStore();
   const {
     sessions,
-    activeSessionId,
-    syncState,
+    activeSessionIdByInstance,
+    syncStateByInstance,
+    lastErrorByInstance,
+    instanceRouteModeById,
     hydrateInstance,
     createSession,
     addMessage,
     updateMessage,
     flushSession,
+    setActiveSession,
+    sendGatewayMessage,
+    abortSession,
   } = useChatStore();
   const { channels, setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
   const { t } = useTranslation();
@@ -77,6 +87,12 @@ export function Chat() {
   const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
   const activeChannelId = instanceConfig?.activeChannelId || '';
   const activeModelId = instanceConfig?.activeModelId || '';
+  const scopeKey = getScopeKey(activeInstanceId);
+  const activeSessionId = activeSessionIdByInstance[scopeKey] ?? null;
+  const syncState = syncStateByInstance[scopeKey] ?? 'idle';
+  const lastError = lastErrorByInstance[scopeKey];
+  const routeMode = activeInstanceId ? instanceRouteModeById[activeInstanceId] : 'directLlm';
+  const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';
 
   const instanceSessions = sessions.filter(
     (session) =>
@@ -84,6 +100,8 @@ export function Chat() {
   );
   const activeSession = instanceSessions.find((session) => session.id === activeSessionId);
   const activeMessages = Array.isArray(activeSession?.messages) ? activeSession.messages : [];
+  const gatewayStreaming = isOpenClawGateway ? Boolean(activeSession?.runId) : false;
+  const isBusy = isTyping || gatewayStreaming;
 
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) || channels[0];
   const activeModel =
@@ -118,43 +136,40 @@ export function Chat() {
   }, [agents, agentSearchQuery]);
 
   useEffect(() => {
+    if (isOpenClawGateway) {
+      chatRef.current = null;
+      return;
+    }
+
     if (activeChannel?.provider === 'google' && activeModel) {
       chatRef.current = chatService.createChatSession(activeModel.id, activeSkill, activeAgent);
       return;
     }
 
     chatRef.current = null;
-  }, [activeAgent, activeChannel, activeModel, activeSkill]);
+  }, [activeAgent, activeChannel, activeModel, activeSkill, isOpenClawGateway]);
 
   useEffect(() => {
     void hydrateInstance(activeInstanceId);
   }, [activeInstanceId, hydrateInstance]);
 
   useEffect(() => {
-    if (!activeInstanceId) {
+    const bootstrapAction = resolveChatBootstrapAction({
+      activeInstanceId,
+      routeMode,
+      syncState,
+      hasActiveModel: Boolean(activeModel),
+      activeSessionId,
+      sessionIds: instanceSessions.map((session) => session.id),
+    });
+
+    if (bootstrapAction.type === 'create' && activeModel) {
+      void createSession(activeModel.name, activeInstanceId ?? undefined);
       return;
     }
 
-    if (syncState === 'loading') {
-      return;
-    }
-
-    if (!activeSessionId && instanceSessions.length === 0 && activeModel) {
-      createSession(activeModel.name, activeInstanceId);
-      return;
-    }
-
-    if (!activeSessionId && instanceSessions.length > 0) {
-      useChatStore.getState().setActiveSession(instanceSessions[0].id);
-      return;
-    }
-
-    if (activeSessionId && !instanceSessions.find((session) => session.id === activeSessionId)) {
-      if (instanceSessions.length > 0) {
-        useChatStore.getState().setActiveSession(instanceSessions[0].id);
-      } else if (activeModel) {
-        createSession(activeModel.name, activeInstanceId);
-      }
+    if (bootstrapAction.type === 'select') {
+      void setActiveSession(bootstrapAction.sessionId, activeInstanceId ?? undefined);
     }
   }, [
     activeInstanceId,
@@ -162,12 +177,14 @@ export function Chat() {
     activeSessionId,
     createSession,
     instanceSessions,
+    routeMode,
+    setActiveSession,
     syncState,
   ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeMessages, isTyping]);
+  }, [activeMessages, isBusy]);
 
   const handleChannelChange = (channelId: string) => {
     if (!activeInstanceId) {
@@ -199,16 +216,41 @@ export function Chat() {
   };
 
   const handleSend = async (content: string) => {
-    if (!activeSessionId || !activeModel || !activeChannel || isTyping) {
+    if (!activeModel || !activeChannel || isBusy || (activeInstanceId && !routeMode)) {
       return;
     }
 
-    const sessionId = activeSessionId;
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      sessionId = await createSession(activeModel.name, activeInstanceId ?? undefined);
+    }
+
+    if (!sessionId) {
+      return;
+    }
+
     const requestModel = activeModel;
     const requestChannel = activeChannel;
     const requestSkill = activeSkill;
     const requestAgent = activeAgent;
     const requestChatSession = chatRef.current;
+
+    if (isOpenClawGateway && activeInstanceId) {
+      setIsTyping(true);
+      try {
+        await sendGatewayMessage({
+          instanceId: activeInstanceId,
+          sessionId,
+          content,
+          model: requestModel.name,
+        });
+      } catch (error) {
+        console.error('OpenClaw gateway chat error:', error);
+      } finally {
+        setIsTyping(false);
+      }
+      return;
+    }
 
     addMessage(sessionId, {
       role: 'user',
@@ -285,6 +327,14 @@ export function Chat() {
   };
 
   const handleStop = () => {
+    if (isOpenClawGateway && activeInstanceId && activeSessionId) {
+      void abortSession({
+        instanceId: activeInstanceId,
+        sessionId: activeSessionId,
+      });
+      return;
+    }
+
     abortControllerRef.current?.abort();
   };
 
@@ -516,6 +566,12 @@ export function Chat() {
           </div>
         </header>
 
+        {lastError ? (
+          <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+            {lastError}
+          </div>
+        ) : null}
+
         <div className="relative flex flex-1 flex-col overflow-y-auto scrollbar-hide scroll-smooth">
           {activeMessages.length === 0 ? (
             <div className="flex min-h-full flex-1 items-center justify-center px-3 pb-[calc(9.5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-[calc(10.5rem+env(safe-area-inset-bottom))] sm:pt-8 lg:px-8 lg:pb-[calc(11rem+env(safe-area-inset-bottom))] lg:pt-10">
@@ -586,7 +642,7 @@ export function Chat() {
             <div className="flex-1 space-y-5 px-3 py-6 pb-36 sm:space-y-6 sm:px-4 sm:py-8 sm:pb-40">
               {activeMessages.map((message, index) => {
                 const isLastMessage = index === activeMessages.length - 1;
-                const showTyping = isTyping && isLastMessage && message.role === 'assistant';
+                const showTyping = isBusy && isLastMessage && message.role === 'assistant';
 
                 return (
                   <ChatMessage
@@ -608,7 +664,7 @@ export function Chat() {
           <div className="pointer-events-auto mx-auto w-full max-w-4xl">
             <ChatInput
               onSend={handleSend}
-              isLoading={isTyping}
+              isLoading={isBusy}
               onStop={handleStop}
               channels={channels}
               activeChannel={activeChannel}

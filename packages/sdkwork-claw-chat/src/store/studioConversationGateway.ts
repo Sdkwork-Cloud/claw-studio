@@ -8,6 +8,10 @@ export async function listInstanceConversations(instanceId: string) {
 }
 
 export async function putInstanceConversation(session: ChatSession) {
+  if (session.transport === 'openclawGateway') {
+    throw new Error('OpenClaw Gateway sessions are synchronized from Gateway and are not persisted locally.');
+  }
+
   const record = await studio.putConversation(mapChatSession(session));
   return mapStudioConversation(record);
 }

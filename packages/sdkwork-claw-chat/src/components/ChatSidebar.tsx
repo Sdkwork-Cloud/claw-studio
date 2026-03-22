@@ -5,6 +5,10 @@ import { useInstanceStore } from '@sdkwork/claw-core';
 import { cn } from '@sdkwork/claw-ui';
 import { useChatStore } from '../store/useChatStore';
 
+function getScopeKey(instanceId: string | null | undefined) {
+  return instanceId ?? '__direct__';
+}
+
 export function ChatSidebar({
   className,
   onSessionSelect,
@@ -14,14 +18,20 @@ export function ChatSidebar({
   onSessionSelect?: () => void;
   onClose?: () => void;
 }) {
-  const { sessions, activeSessionId, createSession, setActiveSession, deleteSession } =
-    useChatStore();
+  const {
+    sessions,
+    activeSessionIdByInstance,
+    createSession,
+    setActiveSession,
+    deleteSession,
+  } = useChatStore();
   const { activeInstanceId } = useInstanceStore();
   const { t } = useTranslation();
+  const activeSessionId = activeSessionIdByInstance[getScopeKey(activeInstanceId)] ?? null;
 
   const handleNewChat = () => {
     if (activeInstanceId) {
-      createSession(undefined, activeInstanceId);
+      void createSession(undefined, activeInstanceId);
       onSessionSelect?.();
     }
   };
@@ -60,7 +70,7 @@ export function ChatSidebar({
                   : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800/50',
               )}
               onClick={() => {
-                setActiveSession(session.id);
+                void setActiveSession(session.id, activeInstanceId ?? undefined);
                 onSessionSelect?.();
               }}
             >
@@ -80,7 +90,7 @@ export function ChatSidebar({
                 className="ml-2 shrink-0 rounded-md p-1.5 opacity-100 transition-opacity hover:bg-zinc-200 md:opacity-0 md:group-hover:opacity-100 dark:hover:bg-zinc-700"
                 onClick={(event) => {
                   event.stopPropagation();
-                  deleteSession(session.id);
+                  void deleteSession(session.id, activeInstanceId ?? undefined);
                 }}
                 title={t('chat.sidebar.deleteChat')}
               >
