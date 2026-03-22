@@ -151,6 +151,10 @@ export const studio: StudioPlatformAPI = {
     getPlatformBridge().studio.createInstanceTask(instanceId, payload),
   updateInstanceTask: (instanceId, taskId, payload) =>
     getPlatformBridge().studio.updateInstanceTask(instanceId, taskId, payload),
+  updateInstanceFileContent: (instanceId, fileId, content) =>
+    getPlatformBridge().studio.updateInstanceFileContent(instanceId, fileId, content),
+  updateInstanceLlmProviderConfig: (instanceId, providerId, update) =>
+    getPlatformBridge().studio.updateInstanceLlmProviderConfig(instanceId, providerId, update),
   cloneInstanceTask: (instanceId, taskId, name) =>
     getPlatformBridge().studio.cloneInstanceTask(instanceId, taskId, name),
   runInstanceTaskNow: (instanceId, taskId) =>

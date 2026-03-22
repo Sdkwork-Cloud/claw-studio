@@ -916,6 +916,19 @@ pub struct StudioUpdateInstanceInput {
     pub config: Option<PartialStudioInstanceConfig>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioUpdateInstanceLlmProviderConfigInput {
+    pub endpoint: String,
+    pub api_key_source: String,
+    pub default_model_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_model_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model_id: Option<String>,
+    pub config: StudioWorkbenchLLMProviderConfigRecord,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PartialStudioStorageBinding {
@@ -1370,6 +1383,119 @@ impl StudioService {
         Ok(String::new())
     }
 
+    pub fn update_instance_file_content(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        instance_id: &str,
+        file_id: &str,
+        content: &str,
+    ) -> Result<bool> {
+        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)?;
+        let file_path = Path::new(file_id);
+        let instance = self
+            .get_instance(paths, config, storage, instance_id)?
+            .ok_or_else(|| FrameworkError::NotFound(format!("instance \"{instance_id}\"")))?;
+        let workbench = build_openclaw_workbench_snapshot(paths, &instance)?
+            .ok_or_else(|| FrameworkError::Conflict("workbench snapshot unavailable".to_string()))?;
+        let is_writable = workbench
+            .files
+            .iter()
+            .any(|file| file.path == file_id && !file.is_readonly);
+
+        if !is_writable {
+            return Err(FrameworkError::Conflict(format!(
+                "workbench file \"{file_id}\" is read-only"
+            )));
+        }
+
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(file_path, content)?;
+        Ok(true)
+    }
+
+    pub fn update_instance_llm_provider_config(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        instance_id: &str,
+        provider_id: &str,
+        update: StudioUpdateInstanceLlmProviderConfigInput,
+    ) -> Result<bool> {
+        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)?;
+
+        let mut root = read_json5_object(&paths.openclaw_config_file)?;
+        let provider_path = ["models", "providers", provider_id];
+
+        if !update.endpoint.trim().is_empty() {
+            set_nested_string(&mut root, &["models", "providers", provider_id, "baseUrl"], update.endpoint.trim());
+        }
+        set_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "apiKey"],
+            if update.api_key_source.trim().is_empty() {
+                Value::Null
+            } else {
+                Value::String(update.api_key_source.trim().to_string())
+            },
+        );
+        set_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "temperature"],
+            Number::from_f64(update.config.temperature)
+                .map(Value::Number)
+                .unwrap_or(Value::Number(Number::from(0))),
+        );
+        set_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "topP"],
+            Number::from_f64(update.config.top_p)
+                .map(Value::Number)
+                .unwrap_or(Value::Number(Number::from(1))),
+        );
+        set_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "maxTokens"],
+            Value::Number(Number::from(update.config.max_tokens)),
+        );
+        set_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "timeoutMs"],
+            Value::Number(Number::from(update.config.timeout_ms)),
+        );
+        set_nested_bool(
+            &mut root,
+            &["models", "providers", provider_id, "streaming"],
+            update.config.streaming,
+        );
+
+        let existing_models = get_nested_value(
+            &root,
+            &[provider_path[0], provider_path[1], provider_path[2], "models"],
+        )
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let next_models = upsert_openclaw_provider_models(
+            existing_models,
+            update.default_model_id.as_str(),
+            update.reasoning_model_id.as_deref(),
+            update.embedding_model_id.as_deref(),
+        );
+        set_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "models"],
+            Value::Array(next_models),
+        );
+
+        write_openclaw_config_file(paths, &root)?;
+        Ok(true)
+    }
+
     pub fn clone_instance_task(
         &self,
         paths: &AppPaths,
@@ -1504,7 +1630,15 @@ impl StudioService {
         let capabilities = build_capability_snapshots(&instance, &storage_snapshot);
         let official_runtime_notes = build_official_runtime_notes(&instance);
         let console_access = build_console_access(paths, &instance)?;
-        let workbench = build_openclaw_workbench_snapshot(paths, &instance)?;
+        let workbench = if instance.id == DEFAULT_INSTANCE_ID
+            && instance.is_built_in
+            && instance.runtime_kind == StudioRuntimeKind::Openclaw
+            && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
+        {
+            build_openclaw_workbench_snapshot(paths, &instance)?
+        } else {
+            None
+        };
 
         Ok(Some(StudioInstanceDetailRecord {
             instance,
@@ -1765,14 +1899,11 @@ impl StudioService {
             );
         }
 
-        fs::write(
-            &paths.openclaw_config_file,
-            format!("{}\n", serde_json::to_string_pretty(&root)?),
-        )?;
+        write_openclaw_config_file(paths, &root)?;
         Ok(())
     }
 
-    fn require_managed_openclaw_task_instance(
+    fn require_built_in_managed_openclaw_instance(
         &self,
         paths: &AppPaths,
         config: &AppConfig,
@@ -1789,12 +1920,29 @@ impl StudioService {
             || instance.deployment_mode != StudioInstanceDeploymentMode::LocalManaged
         {
             return Err(FrameworkError::Conflict(
-                "runtime-backed task operations are only available for the built-in managed OpenClaw instance"
+                "runtime-backed OpenClaw workspace operations are only available for the built-in managed OpenClaw instance"
                     .to_string(),
             ));
         }
 
         Ok(instance)
+    }
+
+    fn require_managed_openclaw_task_instance(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        instance_id: &str,
+    ) -> Result<StudioInstanceRecord> {
+        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)
+            .map_err(|error| match error {
+                FrameworkError::Conflict(_) => FrameworkError::Conflict(
+                    "runtime-backed task operations are only available for the built-in managed OpenClaw instance"
+                        .to_string(),
+                ),
+                other => other,
+            })
     }
 }
 
@@ -3611,6 +3759,95 @@ fn set_nested_value(value: &mut Value, path: &[&str], next: Value) {
         .insert(path[path.len() - 1].to_string(), next);
 }
 
+fn write_openclaw_config_file(paths: &AppPaths, root: &Value) -> Result<()> {
+    fs::write(
+        &paths.openclaw_config_file,
+        format!("{}\n", serde_json::to_string_pretty(root)?),
+    )?;
+    Ok(())
+}
+
+fn build_openclaw_provider_model_value(id: &str, role: &str, existing: Option<&Value>) -> Value {
+    let mut next = existing
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    next.insert("id".to_string(), Value::String(id.to_string()));
+    if !next.contains_key("name") {
+        next.insert("name".to_string(), Value::String(id.to_string()));
+    }
+    next.insert("role".to_string(), Value::String(role.to_string()));
+    Value::Object(next)
+}
+
+fn upsert_openclaw_provider_models(
+    existing_models: Vec<Value>,
+    default_model_id: &str,
+    reasoning_model_id: Option<&str>,
+    embedding_model_id: Option<&str>,
+) -> Vec<Value> {
+    let mut existing_by_id = BTreeMap::new();
+    let mut passthrough = Vec::new();
+
+    for item in existing_models {
+        let Some(item_id) = item
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            passthrough.push(item);
+            continue;
+        };
+
+        existing_by_id.insert(item_id.to_string(), item);
+    }
+
+    let default_model_id = default_model_id.trim();
+    let reasoning_model_id = reasoning_model_id.map(str::trim);
+    let embedding_model_id = embedding_model_id.map(str::trim);
+    let mut next = Vec::new();
+
+    if !default_model_id.is_empty() {
+        next.push(build_openclaw_provider_model_value(
+            default_model_id,
+            "primary",
+            existing_by_id.get(default_model_id),
+        ));
+    }
+    if let Some(reasoning_model_id) = reasoning_model_id.filter(|value| !value.is_empty()) {
+        if reasoning_model_id != default_model_id {
+            next.push(build_openclaw_provider_model_value(
+                reasoning_model_id,
+                "reasoning",
+                existing_by_id.get(reasoning_model_id),
+            ));
+        }
+    }
+    if let Some(embedding_model_id) = embedding_model_id.filter(|value| !value.is_empty()) {
+        if embedding_model_id != default_model_id && Some(embedding_model_id) != reasoning_model_id
+        {
+            next.push(build_openclaw_provider_model_value(
+                embedding_model_id,
+                "embedding",
+                existing_by_id.get(embedding_model_id),
+            ));
+        }
+    }
+
+    for (id, item) in existing_by_id {
+        if id == default_model_id
+            || reasoning_model_id == Some(id.as_str())
+            || embedding_model_id == Some(id.as_str())
+        {
+            continue;
+        }
+        next.push(item);
+    }
+    next.extend(passthrough);
+    next
+}
+
 fn get_nested_string(value: &Value, path: &[&str]) -> Option<String> {
     let mut current = value;
     for segment in path {
@@ -3636,6 +3873,15 @@ fn get_nested_u16(value: &Value, path: &[&str]) -> Option<u16> {
     }
 
     current.as_u64().and_then(|item| u16::try_from(item).ok())
+}
+
+fn get_nested_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
+    let mut current = value;
+    for segment in path {
+        current = current.as_object()?.get(*segment)?;
+    }
+
+    Some(current)
 }
 
 #[cfg(test)]
@@ -4521,6 +4767,81 @@ Reads runtime diagnostics and summarizes them.
     }
 
     #[test]
+    fn built_in_openclaw_allows_writing_bootstrap_files_in_configured_agent_workspaces() {
+        let (root, paths, config, storage, service) = studio_context();
+        let reviewer_workspace = root.path().join("reviewer-workspace");
+        fs::create_dir_all(&reviewer_workspace).expect("create reviewer workspace");
+
+        let reviewer_agents_file = reviewer_workspace.join("AGENTS.md");
+        fs::write(&reviewer_agents_file, "# reviewer\n").expect("seed reviewer bootstrap");
+
+        let reviewer_workspace_path = reviewer_workspace.to_string_lossy().replace('\\', "\\\\");
+        fs::write(
+            &paths.openclaw_config_file,
+            format!(
+                r#"{{
+  gateway: {{
+    port: 19876,
+    auth: {{
+      mode: "token",
+      token: "studio-token",
+    }},
+  }},
+  agents: {{
+    list: [
+      {{
+        id: "main",
+        default: true,
+      }},
+      {{
+        id: "reviewer",
+        name: "Reviewer",
+        workspace: "{}",
+      }},
+    ],
+  }},
+}}
+"#,
+                reviewer_workspace_path
+            ),
+        )
+        .expect("seed managed config");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
+            .expect("load instance detail")
+            .expect("built-in detail");
+        let workbench = detail.workbench.expect("detail workbench");
+        let reviewer_agents_path = reviewer_agents_file.to_string_lossy().into_owned();
+        let reviewer_file = workbench
+            .files
+            .iter()
+            .find(|file| file.path == reviewer_agents_path)
+            .expect("reviewer workspace file");
+
+        assert!(
+            !reviewer_file.is_readonly,
+            "configured agent workspace bootstrap files should be writable"
+        );
+
+        service
+            .update_instance_file_content(
+                &paths,
+                &config,
+                &storage,
+                DEFAULT_INSTANCE_ID,
+                &reviewer_agents_path,
+                "# reviewer updated\n",
+            )
+            .expect("update reviewer workspace bootstrap");
+
+        assert_eq!(
+            fs::read_to_string(&reviewer_agents_file).expect("read updated bootstrap"),
+            "# reviewer updated\n"
+        );
+    }
+
+    #[test]
     fn built_in_openclaw_task_controls_delegate_to_the_runtime_bridge() {
         let (_root, paths, config, storage, service) = studio_context();
         let supervisor = configured_openclaw_supervisor(&paths);
@@ -4755,6 +5076,70 @@ Reads runtime diagnostics and summarizes them.
         assert!(error
             .to_string()
             .contains("built-in managed OpenClaw instance"));
+    }
+
+    #[test]
+    fn remote_openclaw_instance_detail_does_not_reuse_built_in_local_workbench() {
+        let (_root, paths, config, storage, service) = studio_context();
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  gateway: {
+    port: 19876,
+    auth: {
+      mode: "token",
+      token: "studio-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed managed config");
+
+        let remote = service
+            .create_instance(
+                &paths,
+                &config,
+                &storage,
+                StudioCreateInstanceInput {
+                    name: "OpenClaw Remote".to_string(),
+                    description: Some("Remote OpenClaw gateway".to_string()),
+                    runtime_kind: StudioRuntimeKind::Openclaw,
+                    deployment_mode: StudioInstanceDeploymentMode::Remote,
+                    transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
+                    icon_type: None,
+                    version: Some("2026.3.13".to_string()),
+                    type_label: Some("Remote OpenClaw".to_string()),
+                    host: Some("openclaw.example.com".to_string()),
+                    port: Some(18789),
+                    base_url: Some("https://openclaw.example.com".to_string()),
+                    websocket_url: Some("wss://openclaw.example.com/ws".to_string()),
+                    storage: None,
+                    config: Some(super::PartialStudioInstanceConfig {
+                        base_url: Some("https://openclaw.example.com".to_string()),
+                        websocket_url: Some("wss://openclaw.example.com/ws".to_string()),
+                        port: Some("18789".to_string()),
+                        auth_token: Some("remote-token".to_string()),
+                        ..super::PartialStudioInstanceConfig::default()
+                    }),
+                },
+            )
+            .expect("create remote openclaw");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, &remote.id)
+            .expect("load instance detail")
+            .expect("remote openclaw detail");
+
+        assert_eq!(detail.instance.runtime_kind, StudioRuntimeKind::Openclaw);
+        assert_eq!(
+            detail.instance.deployment_mode,
+            StudioInstanceDeploymentMode::Remote
+        );
+        assert!(
+            detail.workbench.is_none(),
+            "remote OpenClaw detail should not reuse the built-in local workbench snapshot"
+        );
     }
 
     #[test]

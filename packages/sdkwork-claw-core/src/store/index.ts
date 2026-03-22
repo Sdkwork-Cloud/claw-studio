@@ -1,10 +1,10 @@
-export * from './useAppStore';
-export * from '../stores/useAuthStore';
-export * from '../stores/useInstanceStore';
-export { useTaskStore } from '../stores/useTaskStore';
+export * from './useAppStore.ts';
+export * from '../stores/useAuthStore.ts';
+export * from '../stores/useInstanceStore.ts';
+export { useTaskStore } from '../stores/useTaskStore.ts';
 export type {
   Task as GlobalTask,
   TaskStatus as GlobalTaskStatus,
   TaskType as GlobalTaskType,
-} from '../stores/useTaskStore';
-export * from '../stores/useUpdateStore';
+} from '../stores/useTaskStore.ts';
+export * from '../stores/useUpdateStore.ts';

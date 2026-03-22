@@ -32,6 +32,7 @@ import type {
 import type {
   StudioCreateInstanceInput,
   StudioInstanceTaskMutationPayload,
+  StudioUpdateInstanceLlmProviderConfigInput,
   StudioPlatformAPI,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
@@ -1190,6 +1191,30 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     if (!updated) {
       throw new Error(`Task "${taskId}" not found`);
     }
+  }
+
+  async updateInstanceFileContent(
+    instanceId: string,
+    fileId: string,
+    content: string,
+  ): Promise<boolean> {
+    const studioMockService = await getStudioMockService();
+    const updated = await studioMockService.updateInstanceFileContent(instanceId, fileId, content);
+    return Boolean(updated);
+  }
+
+  async updateInstanceLlmProviderConfig(
+    instanceId: string,
+    providerId: string,
+    update: StudioUpdateInstanceLlmProviderConfigInput,
+  ): Promise<boolean> {
+    const studioMockService = await getStudioMockService();
+    const updated = await studioMockService.updateInstanceLlmProviderConfig(
+      instanceId,
+      providerId,
+      update,
+    );
+    return Boolean(updated);
   }
 
   async cloneInstanceTask(

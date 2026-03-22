@@ -7,4 +7,5 @@ export * from './clawChatService.ts';
 export * from './instanceEffectiveModelCatalogService.ts';
 export * from './instanceChatRouteService.ts';
 export * from './openclaw/index.ts';
+export * from './openClawConversationGateway.ts';
 export * from './studioConversationService.ts';

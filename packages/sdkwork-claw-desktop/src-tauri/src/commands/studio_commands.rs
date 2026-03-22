@@ -2,7 +2,8 @@ use crate::{
     framework::{
         services::studio::{
             StudioConversationRecord, StudioCreateInstanceInput, StudioInstanceConfig,
-            StudioInstanceDetailRecord, StudioInstanceRecord, StudioUpdateInstanceInput,
+            StudioInstanceDetailRecord, StudioInstanceRecord,
+            StudioUpdateInstanceLlmProviderConfigInput, StudioUpdateInstanceInput,
             StudioWorkbenchTaskExecutionRecord,
         },
         Result as FrameworkResult,
@@ -285,6 +286,52 @@ pub fn studio_update_instance_task(
             instance_id.as_str(),
             task_id.as_str(),
             &payload,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn studio_update_instance_file_content(
+    state: tauri::State<'_, AppState>,
+    instance_id: String,
+    file_id: String,
+    content: String,
+) -> Result<bool, String> {
+    let config = state.config_snapshot();
+    state
+        .context
+        .services
+        .studio
+        .update_instance_file_content(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            instance_id.as_str(),
+            file_id.as_str(),
+            content.as_str(),
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn studio_update_instance_llm_provider_config(
+    state: tauri::State<'_, AppState>,
+    instance_id: String,
+    provider_id: String,
+    update: StudioUpdateInstanceLlmProviderConfigInput,
+) -> Result<bool, String> {
+    let config = state.config_snapshot();
+    state
+        .context
+        .services
+        .studio
+        .update_instance_llm_provider_config(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            instance_id.as_str(),
+            provider_id.as_str(),
+            update,
         )
         .map_err(|error| error.to_string())
 }

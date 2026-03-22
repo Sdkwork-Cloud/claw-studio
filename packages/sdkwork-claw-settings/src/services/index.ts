@@ -1,2 +1,2 @@
-export * from './apiKeyService';
-export * from './settingsService';
+export * from './apiKeyService.ts';
+export * from './settingsService.ts';

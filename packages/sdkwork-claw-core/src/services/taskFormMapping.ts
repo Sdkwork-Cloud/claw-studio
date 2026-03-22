@@ -1,8 +1,8 @@
-import type { Task } from './taskService';
+import type { Task } from './taskService.ts';
 import {
   createDefaultTaskFormValues,
   type TaskFormValues,
-} from './taskSchedule';
+} from './taskSchedule.ts';
 
 export function buildTaskFormValuesFromTask(task: Task): TaskFormValues {
   const defaults = createDefaultTaskFormValues();

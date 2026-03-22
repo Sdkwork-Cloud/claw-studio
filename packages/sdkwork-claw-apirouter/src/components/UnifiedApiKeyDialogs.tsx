@@ -59,6 +59,7 @@ import {
   getProviderAccessClientKey,
   sortInstancesForSelection,
   type ApiRouterUsageTabId,
+  type OpenClawApiKeyStrategy,
   type ProviderAccessClientInstallSelection,
 } from './ApiRouterAccessMethodShared';
 import { ProxyProviderStatusBadge } from './ProxyProviderStatusBadge';
@@ -496,6 +497,8 @@ export function UnifiedApiKeyDialogs({
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [isInstanceSelectorOpen, setIsInstanceSelectorOpen] = useState(false);
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
+  const [openClawApiKeyStrategy, setOpenClawApiKeyStrategy] =
+    useState<OpenClawApiKeyStrategy>('shared');
   const [modelMappingSearchQuery, setModelMappingSearchQuery] = useState('');
   const [selectedModelMappingId, setSelectedModelMappingId] = useState<string | null>(null);
   const [accessGateways, setAccessGateways] = useState(UNIFIED_API_ACCESS_GATEWAYS);
@@ -538,6 +541,7 @@ export function UnifiedApiKeyDialogs({
     setIsLoadingInstances(false);
     setIsInstanceSelectorOpen(false);
     setSelectedInstanceIds([]);
+    setOpenClawApiKeyStrategy('shared');
   }, [usageKey?.id]);
 
   useEffect(() => {
@@ -726,7 +730,13 @@ export function UnifiedApiKeyDialogs({
     setApplyingClientId('openclaw');
 
     try {
-      const result = await unifiedApiKeyAccessService.applyOpenClawSetup(usageKey, selectedInstanceIds);
+      const result = await unifiedApiKeyAccessService.applyOpenClawSetup(
+        usageKey,
+        selectedInstanceIds,
+        {
+          apiKeyStrategy: openClawApiKeyStrategy,
+        },
+      );
       toast.success(
         t('apiRouterPage.toast.openClawSetupApplied', {
           count: result.updatedInstanceIds.length,
@@ -1029,10 +1039,12 @@ export function UnifiedApiKeyDialogs({
             description={t('apiRouterPage.dialogs.instanceSelectorDescription', {
               provider: usageKey.name,
             })}
+            apiKeyStrategy={openClawApiKeyStrategy}
             availableInstances={availableInstances}
             selectedInstanceIds={selectedInstanceIds}
             isLoading={isLoadingInstances}
             isApplying={applyingClientId === 'openclaw'}
+            onApiKeyStrategyChange={setOpenClawApiKeyStrategy}
             onRefresh={() => {
               void refreshAvailableInstances();
             }}

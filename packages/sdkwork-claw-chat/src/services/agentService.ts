@@ -1,5 +1,5 @@
 import { studioMockService } from '@sdkwork/claw-infrastructure';
-import { Agent, ListParams, PaginatedResult } from '@sdkwork/claw-types';
+import type { Agent, ListParams, PaginatedResult } from '@sdkwork/claw-types';
 
 export interface CreateAgentDTO {
   name: string;

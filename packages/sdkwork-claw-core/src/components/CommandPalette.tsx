@@ -15,8 +15,8 @@ import {
   Terminal,
 } from 'lucide-react';
 import Fuse from 'fuse.js';
-import { instanceDirectoryService } from '../services';
-import { useInstanceStore } from '../stores/useInstanceStore';
+import { instanceDirectoryService } from '../services/index.ts';
+import { useInstanceStore } from '../stores/useInstanceStore.ts';
 
 interface InstanceSummary {
   id: string;

@@ -169,6 +169,8 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::studio_commands::studio_get_instance_logs,
             commands::studio_commands::studio_create_instance_task,
             commands::studio_commands::studio_update_instance_task,
+            commands::studio_commands::studio_update_instance_file_content,
+            commands::studio_commands::studio_update_instance_llm_provider_config,
             commands::studio_commands::studio_clone_instance_task,
             commands::studio_commands::studio_run_instance_task_now,
             commands::studio_commands::studio_list_instance_task_executions,

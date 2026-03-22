@@ -1,4 +1,9 @@
-import type { TaskFormErrorKey, TaskFormErrors, TaskFormValues, TaskScheduleMode } from './taskSchedule';
+import type {
+  TaskFormErrorKey,
+  TaskFormErrors,
+  TaskFormValues,
+  TaskScheduleMode,
+} from './taskSchedule.ts';
 
 export type TaskCreateSectionId = 'basicInfo' | 'execution';
 export type TaskCreateSectionStatus = 'pending' | 'attention' | 'complete';

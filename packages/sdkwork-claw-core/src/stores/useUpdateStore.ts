@@ -5,7 +5,7 @@ import {
   updateService,
   type PreferredUpdateAction,
   type UpdateCapability,
-} from '../services';
+} from '../services/index.ts';
 
 export type UpdateStatus = 'idle' | 'checking' | 'ready' | 'unavailable' | 'error';
 

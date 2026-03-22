@@ -90,6 +90,17 @@ await runTest('sdkwork-claw-chat routes model configuration entry points to api-
   assert.doesNotMatch(chatPageSource, /navigate\('\/settings\/llm'\)/);
 });
 
+await runTest('sdkwork-claw-chat chat service loads under Node without Vite env injection', async () => {
+  const chatServiceModuleUrl = pathToFileURL(
+    path.join(root, 'packages/sdkwork-claw-chat/src/services/chatService.ts'),
+  ).href;
+  const chatServiceModule =
+    (await import(chatServiceModuleUrl)) as typeof import('../packages/sdkwork-claw-chat/src/services/chatService');
+
+  assert.ok(chatServiceModule.chatService);
+  assert.equal(typeof chatServiceModule.buildSystemInstruction, 'function');
+});
+
 await runTest('sdkwork-claw-chat store tolerates migrated sessions without messages arrays', async () => {
   const storeModuleUrl = pathToFileURL(
     path.join(root, 'packages/sdkwork-claw-chat/src/store/useChatStore.ts'),
