@@ -1,9 +1,5 @@
 use crate::{
-    framework::{
-        layout::set_active_runtime_version,
-        paths::AppPaths,
-        FrameworkError, Result,
-    },
+    framework::{layout::set_active_runtime_version, paths::AppPaths, FrameworkError, Result},
     platform,
 };
 use serde_json::{Map, Number, Value};
@@ -170,6 +166,38 @@ impl OpenClawRuntimeService {
             gateway_auth_token: managed_state.gateway_auth_token,
         })
     }
+
+    pub fn refresh_configured_runtime(
+        &self,
+        paths: &AppPaths,
+        runtime: &ActivatedOpenClawRuntime,
+    ) -> Result<ActivatedOpenClawRuntime> {
+        if !runtime.node_path.exists()
+            || !runtime.cli_path.exists()
+            || !runtime.runtime_dir.exists()
+        {
+            return Err(FrameworkError::NotFound(format!(
+                "configured openclaw runtime is incomplete under {}",
+                runtime.install_dir.display()
+            )));
+        }
+
+        let managed_state = ensure_managed_openclaw_state(paths)?;
+
+        Ok(ActivatedOpenClawRuntime {
+            install_key: runtime.install_key.clone(),
+            install_dir: runtime.install_dir.clone(),
+            runtime_dir: runtime.runtime_dir.clone(),
+            node_path: runtime.node_path.clone(),
+            cli_path: runtime.cli_path.clone(),
+            home_dir: managed_state.home_dir,
+            state_dir: managed_state.state_dir,
+            workspace_dir: managed_state.workspace_dir,
+            config_path: managed_state.config_path,
+            gateway_port: managed_state.gateway_port,
+            gateway_auth_token: managed_state.gateway_auth_token,
+        })
+    }
 }
 
 fn resolve_bundled_resource_root(resource_dir: &Path) -> Result<PathBuf> {
@@ -288,8 +316,9 @@ fn read_managed_config(path: &Path) -> Result<Value> {
     }
 
     let content = fs::read_to_string(path)?;
-    let parsed = json5::from_str::<Value>(&content)
-        .map_err(|error| FrameworkError::ValidationFailed(format!("invalid managed openclaw config: {error}")))?;
+    let parsed = json5::from_str::<Value>(&content).map_err(|error| {
+        FrameworkError::ValidationFailed(format!("invalid managed openclaw config: {error}"))
+    })?;
 
     if parsed.is_object() {
         return Ok(parsed);
@@ -398,7 +427,9 @@ fn get_nested_u16(value: &Value, path: &[&str]) -> Option<u16> {
     for segment in path {
         current = current.as_object()?.get(*segment)?;
     }
-    current.as_u64().and_then(|number| u16::try_from(number).ok())
+    current
+        .as_u64()
+        .and_then(|number| u16::try_from(number).ok())
 }
 
 fn get_nested_string(value: &Value, path: &[&str]) -> Option<String> {
@@ -442,8 +473,7 @@ fn is_loopback_port_available(port: u16) -> bool {
 mod tests {
     use super::{
         normalized_target_arch, normalized_target_platform, resolve_bundled_resource_root,
-        BundledOpenClawManifest, OpenClawRuntimeService, DEFAULT_GATEWAY_PORT,
-        OPENCLAW_RUNTIME_ID,
+        BundledOpenClawManifest, OpenClawRuntimeService, DEFAULT_GATEWAY_PORT, OPENCLAW_RUNTIME_ID,
     };
     use crate::framework::{layout::ActiveState, paths::resolve_paths_for_root};
     use serde_json::Value;
@@ -577,14 +607,12 @@ mod tests {
         let service = OpenClawRuntimeService::new();
         let busy_port = super::find_available_gateway_port(DEFAULT_GATEWAY_PORT)
             .expect("available busy-port candidate");
-        let busy_listener =
-            std::net::TcpListener::bind(("127.0.0.1", busy_port)).expect("busy gateway port listener");
+        let busy_listener = std::net::TcpListener::bind(("127.0.0.1", busy_port))
+            .expect("busy gateway port listener");
 
         fs::write(
             &paths.openclaw_config_file,
-            format!(
-                "{{\n  \"gateway\": {{\n    \"port\": {busy_port}\n  }}\n}}\n"
-            ),
+            format!("{{\n  \"gateway\": {{\n    \"port\": {busy_port}\n  }}\n}}\n"),
         )
         .expect("seed config file");
 
@@ -607,13 +635,75 @@ mod tests {
     }
 
     #[test]
+    fn refresh_configured_runtime_uses_the_saved_gateway_port_when_available() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let service = OpenClawRuntimeService::new();
+        let configured_port = 28_789;
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {configured_port}\n  }}\n}}\n"),
+        )
+        .expect("seed config file");
+
+        let refreshed = service
+            .refresh_configured_runtime(&paths, &activated)
+            .expect("refreshed runtime");
+
+        assert_eq!(refreshed.gateway_port, configured_port);
+    }
+
+    #[test]
+    fn refresh_configured_runtime_rewrites_busy_gateway_ports() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let service = OpenClawRuntimeService::new();
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+        let busy_port = super::find_available_gateway_port(DEFAULT_GATEWAY_PORT)
+            .expect("available busy-port candidate");
+        let busy_listener = std::net::TcpListener::bind(("127.0.0.1", busy_port))
+            .expect("busy gateway port listener");
+
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {busy_port}\n  }}\n}}\n"),
+        )
+        .expect("seed config file");
+
+        let refreshed = service
+            .refresh_configured_runtime(&paths, &activated)
+            .expect("refreshed runtime");
+
+        drop(busy_listener);
+
+        assert_ne!(refreshed.gateway_port, busy_port);
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+        )
+        .expect("config json");
+        assert_eq!(
+            config.pointer("/gateway/port").and_then(Value::as_u64),
+            Some(u64::from(refreshed.gateway_port))
+        );
+    }
+
+    #[test]
     fn resolves_bundled_runtime_from_nested_resources_directory() {
         let temp = tempfile::tempdir().expect("temp dir");
         let resource_dir = temp.path().join("target").join("debug");
         let nested_resource_root = resource_dir.join("resources").join("openclaw-runtime");
         fs::create_dir_all(&nested_resource_root).expect("nested resource root");
 
-        let resolved = resolve_bundled_resource_root(&resource_dir).expect("resolved resource root");
+        let resolved =
+            resolve_bundled_resource_root(&resource_dir).expect("resolved resource root");
 
         assert_eq!(resolved, nested_resource_root);
     }

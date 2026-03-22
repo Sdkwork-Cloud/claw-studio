@@ -494,7 +494,11 @@ fn restart_background_services<R: Runtime>(app: &AppHandle<R>) -> FrameworkResul
         [SERVICE_ID_WEB_SERVER, SERVICE_ID_API_ROUTER]
             .into_iter()
             .map(|service_id| {
-                state.context.services.supervisor.request_restart(service_id)?;
+                state
+                    .context
+                    .services
+                    .supervisor
+                    .request_restart(service_id)?;
                 Ok(service_id.to_string())
             })
             .collect::<FrameworkResult<Vec<_>>>()?,
@@ -828,12 +832,11 @@ fn build_tray_menu<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::{
-        activate_bundled_openclaw_from_resource_root,
-        build_tray_menu_spec, resolve_tray_language, should_prevent_main_window_close,
-        tray_action_for_menu_id, TrayAction, TrayLanguage, TrayMenuEntry, TRAY_MENU_ID_QUIT_APP,
-        TRAY_MENU_ID_RESTART_API_ROUTER, TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES,
-        TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY, TRAY_MENU_ID_RESTART_WEB_SERVER,
-        TRAY_MENU_ID_SHOW_WINDOW,
+        activate_bundled_openclaw_from_resource_root, build_tray_menu_spec, resolve_tray_language,
+        should_prevent_main_window_close, tray_action_for_menu_id, TrayAction, TrayLanguage,
+        TrayMenuEntry, TRAY_MENU_ID_QUIT_APP, TRAY_MENU_ID_RESTART_API_ROUTER,
+        TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES, TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY,
+        TRAY_MENU_ID_RESTART_WEB_SERVER, TRAY_MENU_ID_SHOW_WINDOW,
     };
     use crate::framework::{
         config::AppConfig,
@@ -1086,7 +1089,11 @@ mod tests {
         assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Running);
         assert!(openclaw.pid.is_some());
 
-        context.services.supervisor.begin_shutdown().expect("shutdown");
+        context
+            .services
+            .supervisor
+            .begin_shutdown()
+            .expect("shutdown");
         context
             .services
             .supervisor
@@ -1150,7 +1157,9 @@ mod tests {
         fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(&node_path, "#!/bin/sh\nexec node \"$@\"\n").expect("node shim");
-        let mut permissions = fs::metadata(&node_path).expect("node metadata").permissions();
+        let mut permissions = fs::metadata(&node_path)
+            .expect("node metadata")
+            .permissions();
         permissions.set_mode(0o755);
         fs::set_permissions(&node_path, permissions).expect("node permissions");
         fs::write(

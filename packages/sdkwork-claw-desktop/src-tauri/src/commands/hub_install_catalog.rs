@@ -7,7 +7,9 @@ use crate::{
 };
 use hub_installer_rs::{
     manifest::load_manifest,
-    registry::{load_registry, resolve_software_entry, LoadedSoftwareRegistry, SoftwareRegistryEntry},
+    registry::{
+        load_registry, resolve_software_entry, LoadedSoftwareRegistry, SoftwareRegistryEntry,
+    },
     types::SupportedPlatform,
 };
 use std::{collections::BTreeMap, path::Path};
@@ -407,11 +409,7 @@ fn build_catalog_variant(
     loaded_registry: &LoadedSoftwareRegistry,
     seed: &CatalogVariantSeed,
 ) -> FrameworkResult<HubInstallCatalogVariant> {
-    let manifest_platform = seed
-        .host_platforms
-        .first()
-        .copied()
-        .unwrap_or("windows");
+    let manifest_platform = seed.host_platforms.first().copied().unwrap_or("windows");
     let resolved = resolve_software_entry(
         loaded_registry,
         seed.software_name,
@@ -421,25 +419,26 @@ fn build_catalog_variant(
     let loaded_manifest = load_manifest(&resolved.manifest_source)
         .map_err(|error| FrameworkError::Internal(error.to_string()))?;
     let manifest = loaded_manifest.manifest;
-    let installation_method = manifest
-        .installation
-        .as_ref()
-        .map(|installation| {
-            HubInstallAssessmentInstallationMethod::from(installation.method.clone())
-        });
+    let installation_method = manifest.installation.as_ref().map(|installation| {
+        HubInstallAssessmentInstallationMethod::from(installation.method.clone())
+    });
     let label = seed
         .label_override
         .map(|value| value.to_string())
-        .or_else(|| installation_method
-            .as_ref()
-            .map(|method| method.label.clone()))
+        .or_else(|| {
+            installation_method
+                .as_ref()
+                .map(|method| method.label.clone())
+        })
         .unwrap_or_else(|| manifest.metadata.name.clone());
     let summary = seed
         .summary_override
         .map(|value| value.to_string())
-        .or_else(|| installation_method
-            .as_ref()
-            .map(|method| method.summary.clone()))
+        .or_else(|| {
+            installation_method
+                .as_ref()
+                .map(|method| method.summary.clone())
+        })
         .or_else(|| manifest.metadata.description.clone())
         .unwrap_or_else(|| format!("Install {} through hub-installer.", seed.software_name));
 
@@ -448,7 +447,11 @@ fn build_catalog_variant(
         label,
         summary,
         software_name: seed.software_name.to_string(),
-        host_platforms: seed.host_platforms.iter().map(|value| value.to_string()).collect(),
+        host_platforms: seed
+            .host_platforms
+            .iter()
+            .map(|value| value.to_string())
+            .collect(),
         runtime_platform: seed.runtime_platform.to_string(),
         manifest_name: Some(manifest.metadata.name),
         manifest_description: manifest.metadata.description,
@@ -564,7 +567,10 @@ mod tests {
         assert_eq!(openclaw.default_software_name, "openclaw-wsl");
         assert_eq!(default_variant.runtime_platform, "wsl");
         assert_eq!(
-            default_variant.installation_method.as_ref().map(|method| method.id.as_str()),
+            default_variant
+                .installation_method
+                .as_ref()
+                .map(|method| method.id.as_str()),
             Some("wsl")
         );
     }
@@ -585,9 +591,7 @@ mod tests {
         assert!(brew.tags.iter().any(|tag| tag == "package-manager"));
         assert_eq!(brew.variants.len(), 3);
         assert_eq!(
-            brew.variants[0]
-                .manifest_homepage
-                .as_deref(),
+            brew.variants[0].manifest_homepage.as_deref(),
             Some("https://brew.sh/")
         );
         assert_eq!(npm.default_software_name, "npm");

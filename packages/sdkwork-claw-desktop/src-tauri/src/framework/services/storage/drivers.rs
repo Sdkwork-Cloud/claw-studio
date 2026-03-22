@@ -244,9 +244,8 @@ impl StorageDriver for SqliteStorageDriver {
 
     fn list_keys(&self, scope: &StorageDriverScope) -> Result<Vec<String>> {
         self.with_connection(scope, |connection| {
-            let mut statement = connection.prepare(
-                "SELECT key FROM storage_entries WHERE namespace = ?1 ORDER BY key ASC",
-            )?;
+            let mut statement = connection
+                .prepare("SELECT key FROM storage_entries WHERE namespace = ?1 ORDER BY key ASC")?;
             let rows = statement.query_map(params![scope.namespace.as_str()], |row| {
                 row.get::<_, String>(0)
             })?;
@@ -258,9 +257,9 @@ impl StorageDriver for SqliteStorageDriver {
 
 impl SqliteStorageDriver {
     fn lock(&self) -> Result<MutexGuard<'_, ()>> {
-        self.lock
-            .lock()
-            .map_err(|_| FrameworkError::Internal("sqlite storage driver lock poisoned".to_string()))
+        self.lock.lock().map_err(|_| {
+            FrameworkError::Internal("sqlite storage driver lock poisoned".to_string())
+        })
     }
 
     fn with_connection<T, F>(&self, scope: &StorageDriverScope, operation: F) -> Result<T>

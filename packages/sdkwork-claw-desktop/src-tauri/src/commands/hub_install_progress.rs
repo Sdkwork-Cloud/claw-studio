@@ -89,10 +89,9 @@ pub enum HubInstallProgressEventPayload {
 impl From<ProgressEvent> for HubInstallProgressEventPayload {
     fn from(event: ProgressEvent) -> Self {
         match event {
-            ProgressEvent::StageStarted { stage, total_steps } => Self::StageStarted {
-                stage,
-                total_steps,
-            },
+            ProgressEvent::StageStarted { stage, total_steps } => {
+                Self::StageStarted { stage, total_steps }
+            }
             ProgressEvent::StageCompleted {
                 stage,
                 success,

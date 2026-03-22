@@ -877,7 +877,9 @@ impl StudioService {
         config: &AppConfig,
         storage: &StorageService,
     ) -> Result<Vec<StudioInstanceRecord>> {
-        Ok(self.load_instance_registry(paths, config, storage)?.instances)
+        Ok(self
+            .load_instance_registry(paths, config, storage)?
+            .instances)
     }
 
     pub fn get_instance(
@@ -929,11 +931,15 @@ impl StudioService {
             is_default: registry.instances.is_empty(),
             icon_type: input.icon_type.unwrap_or(StudioInstanceIconType::Server),
             version: input.version.unwrap_or_else(|| "custom".to_string()),
-            type_label: input.type_label.unwrap_or_else(|| "Managed Instance".to_string()),
+            type_label: input
+                .type_label
+                .unwrap_or_else(|| "Managed Instance".to_string()),
             host: input.host.unwrap_or_else(|| "127.0.0.1".to_string()),
             port,
             base_url: input.base_url.or(instance_config.base_url.clone()),
-            websocket_url: input.websocket_url.or(instance_config.websocket_url.clone()),
+            websocket_url: input
+                .websocket_url
+                .or(instance_config.websocket_url.clone()),
             cpu: 0,
             memory: 0,
             total_memory: "Unknown".to_string(),
@@ -1362,8 +1368,13 @@ impl StudioService {
             &connectivity,
             &observability,
         );
-        let artifacts =
-            build_artifacts(paths, &instance, &storage_snapshot, &connectivity, &observability);
+        let artifacts = build_artifacts(
+            paths,
+            &instance,
+            &storage_snapshot,
+            &connectivity,
+            &observability,
+        );
         let health =
             build_health_snapshot(&instance, &storage_snapshot, &connectivity, &observability)?;
         let lifecycle = build_lifecycle_snapshot(&instance);
@@ -1600,7 +1611,11 @@ impl StudioService {
             &["gateway", "port"],
             config.port.parse::<u16>().unwrap_or(18_789),
         );
-        set_nested_string(&mut root, &["studio", "logLevel"], config.log_level.as_str());
+        set_nested_string(
+            &mut root,
+            &["studio", "logLevel"],
+            config.log_level.as_str(),
+        );
         set_nested_string(
             &mut root,
             &["studio", "corsOrigins"],
@@ -1618,7 +1633,11 @@ impl StudioService {
             set_nested_string(&mut root, &["gateway", "auth", "token"], auth_token);
         }
         if let Some(workspace_path) = config.workspace_path.as_deref() {
-            set_nested_string(&mut root, &["agents", "defaults", "workspace"], workspace_path);
+            set_nested_string(
+                &mut root,
+                &["agents", "defaults", "workspace"],
+                workspace_path,
+            );
         }
 
         fs::write(
@@ -1887,7 +1906,10 @@ fn build_connectivity_snapshot(
                 "openai-http-chat",
                 "OpenAI Chat Completions",
                 StudioInstanceEndpointKind::OpenaiChatCompletions,
-                Some(format!("{}/v1/chat/completions", base_url.trim_end_matches('/'))),
+                Some(format!(
+                    "{}/v1/chat/completions",
+                    base_url.trim_end_matches('/')
+                )),
                 StudioInstanceEndpointSource::Derived,
             )),
             StudioRuntimeKind::Zeroclaw => endpoints.push(connectivity_endpoint(
@@ -2179,13 +2201,14 @@ fn build_data_access_snapshot(
         StudioInstanceDetailSource::Storage,
     ));
 
-    let tasks_mode = if instance.runtime_kind == StudioRuntimeKind::Zeroclaw && primary_endpoint.is_some() {
-        StudioInstanceDataAccessMode::RemoteEndpoint
-    } else if storage.status == StudioInstanceStorageStatus::Ready {
-        StudioInstanceDataAccessMode::StorageBinding
-    } else {
-        StudioInstanceDataAccessMode::MetadataOnly
-    };
+    let tasks_mode =
+        if instance.runtime_kind == StudioRuntimeKind::Zeroclaw && primary_endpoint.is_some() {
+            StudioInstanceDataAccessMode::RemoteEndpoint
+        } else if storage.status == StudioInstanceStorageStatus::Ready {
+            StudioInstanceDataAccessMode::StorageBinding
+        } else {
+            StudioInstanceDataAccessMode::MetadataOnly
+        };
     let tasks_target = if tasks_mode == StudioInstanceDataAccessMode::RemoteEndpoint {
         primary_endpoint.clone()
     } else if tasks_mode == StudioInstanceDataAccessMode::StorageBinding {
@@ -2466,10 +2489,7 @@ fn storage_target(storage: &StudioInstanceStorageSnapshot) -> Option<String> {
         .or_else(|| Some(storage.namespace.clone()))
 }
 
-fn local_workspace_target(
-    paths: &AppPaths,
-    instance: &StudioInstanceRecord,
-) -> Option<String> {
+fn local_workspace_target(paths: &AppPaths, instance: &StudioInstanceRecord) -> Option<String> {
     if instance.id == DEFAULT_INSTANCE_ID {
         return Some(paths.openclaw_workspace_dir.to_string_lossy().into_owned());
     }
@@ -2551,9 +2571,7 @@ fn build_capability_snapshots(
         .collect()
 }
 
-fn build_official_runtime_notes(
-    instance: &StudioInstanceRecord,
-) -> Vec<StudioInstanceRuntimeNote> {
+fn build_official_runtime_notes(instance: &StudioInstanceRecord) -> Vec<StudioInstanceRuntimeNote> {
     match instance.runtime_kind {
         StudioRuntimeKind::Openclaw => vec![StudioInstanceRuntimeNote {
             title: "Gateway-first transport".to_string(),
@@ -2926,19 +2944,18 @@ fn get_nested_u16(value: &Value, path: &[&str]) -> Option<u16> {
 mod tests {
     use super::{
         StudioConversationMessage, StudioConversationMessageStatus, StudioConversationRecord,
-        StudioConversationRole, StudioCreateInstanceInput, StudioInstanceAuthMode,
-        StudioInstanceArtifactKind, StudioInstanceCapability,
-        StudioInstanceCapabilityStatus, StudioInstanceDataAccessMode,
-        StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
-        StudioInstanceLifecycleOwner, StudioInstanceStorageStatus,
-        StudioInstanceTransportKind, StudioRuntimeKind, StudioService,
-        DEFAULT_INSTANCE_ID,
+        StudioConversationRole, StudioCreateInstanceInput, StudioInstanceArtifactKind,
+        StudioInstanceAuthMode, StudioInstanceCapability, StudioInstanceCapabilityStatus,
+        StudioInstanceDataAccessMode, StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
+        StudioInstanceLifecycleOwner, StudioInstanceStorageStatus, StudioInstanceTransportKind,
+        StudioRuntimeKind, StudioService, DEFAULT_INSTANCE_ID,
     };
     use crate::framework::{
         config::AppConfig,
         paths::resolve_paths_for_root,
         services::{
-            openclaw_runtime::ActivatedOpenClawRuntime, storage::StorageService,
+            openclaw_runtime::ActivatedOpenClawRuntime,
+            storage::StorageService,
             supervisor::{SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY},
         },
         storage::StorageProviderKind,
@@ -3050,9 +3067,7 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .expect("node should be available on PATH for OpenClaw studio tests")
     }
 
-    fn read_gateway_call_captures(
-        paths: &crate::framework::paths::AppPaths,
-    ) -> Vec<Value> {
+    fn read_gateway_call_captures(paths: &crate::framework::paths::AppPaths) -> Vec<Value> {
         let capture_path = paths.openclaw_state_dir.join("capture.jsonl");
         fs::read_to_string(capture_path)
             .unwrap_or_default()
@@ -3113,7 +3128,10 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .expect("built-in instance");
 
         assert_eq!(built_in.base_url.as_deref(), Some("http://127.0.0.1:19876"));
-        assert_eq!(built_in.config.base_url.as_deref(), Some("http://127.0.0.1:19876"));
+        assert_eq!(
+            built_in.config.base_url.as_deref(),
+            Some("http://127.0.0.1:19876")
+        );
         assert_eq!(built_in.config.auth_token.as_deref(), Some("studio-token"));
     }
 
@@ -3329,7 +3347,10 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             )
             .expect_err("missing participant should fail");
 
-        assert_eq!(error.to_string(), "not found: instance \"missing-instance\"");
+        assert_eq!(
+            error.to_string(),
+            "not found: instance \"missing-instance\""
+        );
     }
 
     #[test]
@@ -3372,7 +3393,10 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .expect("built-in detail");
 
         assert_eq!(detail.instance.runtime_kind, StudioRuntimeKind::Openclaw);
-        assert_eq!(detail.lifecycle.owner, StudioInstanceLifecycleOwner::AppManaged);
+        assert_eq!(
+            detail.lifecycle.owner,
+            StudioInstanceLifecycleOwner::AppManaged
+        );
         assert!(detail.lifecycle.start_stop_supported);
         assert_eq!(detail.storage.provider, StorageProviderKind::LocalFile);
         assert!(detail
@@ -3387,24 +3411,18 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .endpoints
             .iter()
             .any(|endpoint| endpoint.id == "openai-http-chat"
-                && endpoint.url.as_deref()
-                    == Some("http://127.0.0.1:19876/v1/chat/completions")));
+                && endpoint.url.as_deref() == Some("http://127.0.0.1:19876/v1/chat/completions")));
         assert!(detail.observability.log_available);
-        assert!(detail
-            .data_access
-            .routes
-            .iter()
-            .any(|route| route.scope == StudioInstanceDataAccessScope::Config
-                && route.mode == StudioInstanceDataAccessMode::ManagedFile
-                && route.authoritative
-                && route.target.as_deref()
-                    == Some(paths.openclaw_config_file.to_string_lossy().as_ref())));
-        assert!(detail
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.kind == StudioInstanceArtifactKind::WorkspaceDirectory
-                && artifact.location.as_deref()
-                    == Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())));
+        assert!(detail.data_access.routes.iter().any(|route| route.scope
+            == StudioInstanceDataAccessScope::Config
+            && route.mode == StudioInstanceDataAccessMode::ManagedFile
+            && route.authoritative
+            && route.target.as_deref()
+                == Some(paths.openclaw_config_file.to_string_lossy().as_ref())));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::WorkspaceDirectory
+            && artifact.location.as_deref()
+                == Some(paths.openclaw_workspace_dir.to_string_lossy().as_ref())));
         assert!(detail
             .capabilities
             .iter()
@@ -3617,13 +3635,7 @@ Reads runtime diagnostics and summarizes them.
             )
             .expect("queue run");
         let executions = service
-            .list_instance_task_executions(
-                &paths,
-                &config,
-                &storage,
-                DEFAULT_INSTANCE_ID,
-                "job-1",
-            )
+            .list_instance_task_executions(&paths, &config, &storage, DEFAULT_INSTANCE_ID, "job-1")
             .expect("list executions");
         service
             .update_instance_task_status(
@@ -3761,13 +3773,13 @@ Reads runtime diagnostics and summarizes them.
             .expect("zeroclaw detail");
 
         assert_eq!(detail.instance.runtime_kind, StudioRuntimeKind::Zeroclaw);
-        assert_eq!(detail.lifecycle.owner, StudioInstanceLifecycleOwner::RemoteService);
+        assert_eq!(
+            detail.lifecycle.owner,
+            StudioInstanceLifecycleOwner::RemoteService
+        );
         assert!(!detail.lifecycle.start_stop_supported);
         assert_eq!(detail.storage.provider, StorageProviderKind::Postgres);
-        assert_eq!(
-            detail.storage.status,
-            StudioInstanceStorageStatus::Ready
-        );
+        assert_eq!(detail.storage.status, StudioInstanceStorageStatus::Ready);
         assert!(detail
             .data_access
             .routes
@@ -3780,11 +3792,9 @@ Reads runtime diagnostics and summarizes them.
             .iter()
             .any(|endpoint| endpoint.id == "gateway-http"
                 && endpoint.url.as_deref() == Some("https://zeroclaw.example.com")));
-        assert!(detail
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.kind == StudioInstanceArtifactKind::Dashboard
-                && artifact.location.as_deref() == Some("https://zeroclaw.example.com")));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::Dashboard
+            && artifact.location.as_deref() == Some("https://zeroclaw.example.com")));
         assert!(detail
             .official_runtime_notes
             .iter()
@@ -3836,24 +3846,20 @@ Reads runtime diagnostics and summarizes them.
             .expect("ironclaw detail");
 
         assert_eq!(detail.instance.runtime_kind, StudioRuntimeKind::Ironclaw);
-        assert_eq!(detail.lifecycle.owner, StudioInstanceLifecycleOwner::RemoteService);
+        assert_eq!(
+            detail.lifecycle.owner,
+            StudioInstanceLifecycleOwner::RemoteService
+        );
         assert!(detail.storage.queryable);
         assert!(detail.storage.transactional);
-        assert!(detail
-            .data_access
-            .routes
-            .iter()
-            .any(|route| route.scope == StudioInstanceDataAccessScope::Memory
-                && route.mode == StudioInstanceDataAccessMode::StorageBinding
-                && route.authoritative
-                && route.target.as_deref()
-                    == Some("postgresql://ironclaw.example.com")));
-        assert!(detail
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.kind == StudioInstanceArtifactKind::StorageBinding
-                && artifact.location.as_deref()
-                    == Some("postgresql://ironclaw.example.com")));
+        assert!(detail.data_access.routes.iter().any(|route| route.scope
+            == StudioInstanceDataAccessScope::Memory
+            && route.mode == StudioInstanceDataAccessMode::StorageBinding
+            && route.authoritative
+            && route.target.as_deref() == Some("postgresql://ironclaw.example.com")));
+        assert!(detail.artifacts.iter().any(|artifact| artifact.kind
+            == StudioInstanceArtifactKind::StorageBinding
+            && artifact.location.as_deref() == Some("postgresql://ironclaw.example.com")));
         assert!(detail
             .capabilities
             .iter()

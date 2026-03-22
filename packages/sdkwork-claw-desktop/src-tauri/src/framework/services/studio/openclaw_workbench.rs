@@ -370,10 +370,7 @@ fn build_openclaw_skills(
             let skill_id = extract_frontmatter_value(&content, "name")
                 .unwrap_or_else(|| entry.file_name().to_string_lossy().into_owned());
             let skill_slug = skill_id.to_ascii_lowercase();
-            let directory_slug = entry
-                .file_name()
-                .to_string_lossy()
-                .to_ascii_lowercase();
+            let directory_slug = entry.file_name().to_string_lossy().to_ascii_lowercase();
             if author == "Bundled OpenClaw"
                 && !bundled_skill_allowlist.is_empty()
                 && !bundled_skill_allowlist.contains(&skill_slug)

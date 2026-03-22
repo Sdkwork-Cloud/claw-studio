@@ -1,28 +1,26 @@
 use crate::{
-    commands::hub_install_progress::{
-        emit_hub_install_progress, HubInstallProgressOperationKind,
-    },
+    commands::hub_install_progress::{emit_hub_install_progress, HubInstallProgressOperationKind},
     framework::{FrameworkError, Result as FrameworkResult},
     state::AppState,
 };
 use hub_installer_rs::{
-    DependencyInstallOptions, DependencyInstallReport, ManifestDataItem,
-    ManifestInstallationDescriptor, ManifestInstallationDirectories,
-    ManifestInstallationDirectory, ManifestInstallationMethod, ManifestMigrationStrategy,
-    ProgressEvent, RegistryDependencyInstallOptions, RegistryDependencyInstallResult,
-    RegistryInstallAssessmentResult, RegistryInstallOptions, RegistryInstallResult,
     manifest::{ManifestCommand, ManifestShell},
     types::{
         ContainerRuntimePreference, EffectiveRuntimePlatform, InstallControlLevel, InstallScope,
     },
-    ApplyManifestOptions, InstallEngine,
+    ApplyManifestOptions, DependencyInstallOptions, DependencyInstallReport, InstallEngine,
+    ManifestDataItem, ManifestInstallationDescriptor, ManifestInstallationDirectories,
+    ManifestInstallationDirectory, ManifestInstallationMethod, ManifestMigrationStrategy,
+    ProgressEvent, RegistryDependencyInstallOptions, RegistryDependencyInstallResult,
+    RegistryInstallAssessmentResult, RegistryInstallOptions, RegistryInstallResult,
 };
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
 use tauri::{path::BaseDirectory, AppHandle, Manager, Runtime};
-pub(crate) const BUNDLED_REGISTRY_RELATIVE_PATH: &str = "hub-installer/registry/software-registry.yaml";
+pub(crate) const BUNDLED_REGISTRY_RELATIVE_PATH: &str =
+    "hub-installer/registry/software-registry.yaml";
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -975,13 +973,15 @@ mod tests {
         HubInstallAssessmentMigrationStrategy, HubInstallAssessmentResult,
     };
     use hub_installer_rs::{
-        engine::{InstallAssessmentResult, InstallAssessmentRuntime, RegistryInstallAssessmentResult},
+        engine::{
+            InstallAssessmentResult, InstallAssessmentRuntime, RegistryInstallAssessmentResult,
+        },
         manifest::{ManifestCommand, ManifestShell},
+        state::InstallRecordStatus,
+        types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
         ManifestDataItem, ManifestInstallationDescriptor, ManifestInstallationDirectories,
         ManifestInstallationDirectory, ManifestInstallationMethod, ManifestMigrationStrategy,
         ProgressEvent,
-        state::InstallRecordStatus,
-        types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
     };
     use std::{collections::BTreeMap, path::PathBuf};
 
