@@ -10,8 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "node ../../scripts/run-workspace-tsc.mjs --noEmit",
-    "tauri:dev": "node ../../scripts/ensure-tauri-target-clean.mjs src-tauri && node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420 && tauri dev",
-    "tauri:build": "node ../../scripts/ensure-tauri-target-clean.mjs src-tauri && tauri build",
+    "tauri:dev": "node ../../scripts/sync-bundled-components.mjs --dev --no-fetch && node ../../scripts/ensure-tauri-target-clean.mjs src-tauri && node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420 && tauri dev",
+    "tauri:build": "node ../../scripts/sync-bundled-components.mjs --no-fetch && node ../../scripts/ensure-tauri-target-clean.mjs src-tauri && tauri build",
     "tauri:icon": "tauri icon src-tauri/app-icon.svg",
     "tauri:info": "tauri info"
   },

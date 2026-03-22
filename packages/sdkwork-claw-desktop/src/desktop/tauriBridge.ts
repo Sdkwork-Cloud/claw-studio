@@ -1,5 +1,7 @@
 import {
+  type RuntimeDesktopComponentControlRequest,
   WebPlatform,
+  type RuntimeDesktopComponentControlAction,
   WebStoragePlatform,
   configurePlatformBridge,
 } from '@sdkwork/claw-infrastructure';
@@ -38,6 +40,11 @@ import type {
 } from '@sdkwork/claw-infrastructure';
 import { DESKTOP_COMMANDS, DESKTOP_EVENTS } from './catalog';
 import {
+  desktopComponentsApi,
+  listDesktopComponents,
+  controlDesktopComponent,
+} from './componentsBridge';
+import {
   DesktopBridgeError,
   getDesktopWindow,
   invokeDesktopCommand,
@@ -45,6 +52,14 @@ import {
   listenDesktopEvent,
   runDesktopOrFallback,
 } from './runtime';
+
+export {
+  controlDesktopComponent,
+  listDesktopComponents,
+  restartDesktopComponent,
+  startDesktopComponent,
+  stopDesktopComponent,
+} from './componentsBridge';
 
 const webPlatform = new WebPlatform();
 const webStoragePlatform = new WebStoragePlatform();
@@ -674,6 +689,7 @@ export const desktopTemplateApi = {
     getInfo: getDesktopKernelInfo,
     getStorageInfo: getDesktopStorageInfo,
   },
+  components: desktopComponentsApi,
   storage: {
     getInfo: getDesktopStorageInfo,
     getText: storageGetText,
@@ -764,6 +780,11 @@ export function configureDesktopPlatformBridge() {
       runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
       installApiRouterClientSetup: (request) => installApiRouterClientSetup(request),
+    },
+    components: {
+      listComponents: () => listDesktopComponents(),
+      controlComponent: (request: RuntimeDesktopComponentControlRequest) =>
+        controlDesktopComponent(request.componentId, request.action),
     },
     storage: {
       async getStorageInfo() {

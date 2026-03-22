@@ -1,7 +1,9 @@
+import type { ComponentPlatformAPI } from './contracts/components.ts';
 import type { InstallerPlatformAPI } from './contracts/installer.ts';
 import type { StoragePlatformAPI } from './contracts/storage.ts';
 import type { RuntimePlatformAPI } from './contracts/runtime.ts';
 import type { PlatformAPI } from './types.ts';
+import { WebComponentPlatform } from './webComponents.ts';
 import { WebInstallerPlatform } from './webInstaller.ts';
 import { WebPlatform } from './web.ts';
 import { WebRuntimePlatform } from './webRuntime.ts';
@@ -9,6 +11,7 @@ import { WebStoragePlatform } from './webStorage.ts';
 
 export interface PlatformBridge {
   platform: PlatformAPI;
+  components: ComponentPlatformAPI;
   installer: InstallerPlatformAPI;
   runtime: RuntimePlatformAPI;
   storage: StoragePlatformAPI;
@@ -16,6 +19,7 @@ export interface PlatformBridge {
 
 let platformBridge: PlatformBridge = {
   platform: new WebPlatform(),
+  components: new WebComponentPlatform(),
   installer: new WebInstallerPlatform(),
   runtime: new WebRuntimePlatform(),
   storage: new WebStoragePlatform(),
@@ -34,6 +38,10 @@ export function getPlatformBridge(): PlatformBridge {
 
 export function getInstallerPlatform(): InstallerPlatformAPI {
   return platformBridge.installer;
+}
+
+export function getComponentPlatform(): ComponentPlatformAPI {
+  return platformBridge.components;
 }
 
 export function getRuntimePlatform(): RuntimePlatformAPI {
@@ -79,4 +87,9 @@ export const storage: StoragePlatformAPI = {
   putText: (request) => platformBridge.storage.putText(request),
   delete: (request) => platformBridge.storage.delete(request),
   listKeys: (request) => platformBridge.storage.listKeys(request),
+};
+
+export const components: ComponentPlatformAPI = {
+  listComponents: () => platformBridge.components.listComponents(),
+  controlComponent: (request) => platformBridge.components.controlComponent(request),
 };

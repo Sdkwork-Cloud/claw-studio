@@ -7,8 +7,9 @@ use crate::{
         },
         context::FrameworkContext,
         events,
-        services::supervisor::{
-            SERVICE_ID_API_ROUTER, SERVICE_ID_OPENCLAW_GATEWAY, SERVICE_ID_WEB_SERVER,
+        services::{
+            component_host::ComponentControlAction,
+            supervisor::SERVICE_ID_WEB_SERVER,
         },
         FrameworkError, Result as FrameworkResult,
     },
@@ -51,10 +52,14 @@ pub(crate) const TRAY_MENU_ID_OPEN_INTEGRATIONS_DIRECTORY: &str = "open_integrat
 pub(crate) const TRAY_MENU_ID_OPEN_PLUGINS_DIRECTORY: &str = "open_plugins_directory";
 pub(crate) const TRAY_MENU_ID_QUIT_APP: &str = "quit_app";
 
+const COMPONENT_ID_OPENCLAW: &str = "openclaw";
+const COMPONENT_ID_API_ROUTER: &str = "sdkwork-api-router";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TrayAction {
     ShowWindow,
     OpenRoute(&'static str),
+    RestartManagedComponent(&'static str),
     RestartManagedService(&'static str),
     RestartBackgroundServices,
     OpenLogsDirectory,
@@ -134,6 +139,8 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
         .on_window_event(handle_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::app_info::app_info,
+            commands::component_commands::desktop_component_catalog,
+            commands::component_commands::desktop_component_control,
             commands::desktop_kernel::desktop_kernel_info,
             commands::desktop_kernel::desktop_storage_info,
             commands::get_app_paths::get_app_paths,
@@ -198,13 +205,13 @@ pub(crate) fn tray_action_for_menu_id(id: &str) -> Option<TrayAction> {
         TRAY_MENU_ID_OPEN_API_ROUTER => Some(TrayAction::OpenRoute(ROUTE_API_ROUTER)),
         TRAY_MENU_ID_OPEN_SETTINGS => Some(TrayAction::OpenRoute(ROUTE_SETTINGS)),
         TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY => {
-            Some(TrayAction::RestartManagedService(SERVICE_ID_OPENCLAW_GATEWAY))
+            Some(TrayAction::RestartManagedComponent(COMPONENT_ID_OPENCLAW))
         }
         TRAY_MENU_ID_RESTART_WEB_SERVER => {
             Some(TrayAction::RestartManagedService(SERVICE_ID_WEB_SERVER))
         }
         TRAY_MENU_ID_RESTART_API_ROUTER => {
-            Some(TrayAction::RestartManagedService(SERVICE_ID_API_ROUTER))
+            Some(TrayAction::RestartManagedComponent(COMPONENT_ID_API_ROUTER))
         }
         TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES => Some(TrayAction::RestartBackgroundServices),
         TRAY_MENU_ID_OPEN_LOGS_DIRECTORY => Some(TrayAction::OpenLogsDirectory),
@@ -385,6 +392,14 @@ fn handle_tray_menu_event<R: Runtime>(app: &AppHandle<R>, menu_id: &str) {
                 log_runtime_error(app, &format!("failed to open route from tray: {error}"));
             }
         }
+        TrayAction::RestartManagedComponent(component_id) => {
+            if let Err(error) = restart_managed_component(app, component_id) {
+                log_runtime_error(
+                    app,
+                    &format!("failed to restart managed component from tray: {error}"),
+                );
+            }
+        }
         TrayAction::RestartManagedService(service_id) => {
             if let Err(error) = restart_managed_service(app, service_id) {
                 log_runtime_error(
@@ -459,6 +474,30 @@ fn restart_background_services<R: Runtime>(app: &AppHandle<R>) -> FrameworkResul
         "tray requested background service restart plan: {}",
         planned_services.join(", ")
     ))?;
+    Ok(())
+}
+
+fn restart_managed_component<R: Runtime>(
+    app: &AppHandle<R>,
+    component_id: &'static str,
+) -> FrameworkResult<()> {
+    let state = app.state::<AppState>();
+    if state.shutdown_intent.is_requested() {
+        return Err(FrameworkError::Conflict(
+            "application shutdown has already been requested".to_string(),
+        ));
+    }
+
+    state.context.services.component_host.control_component(
+        &state.paths,
+        &state.context.services.supervisor,
+        component_id,
+        ComponentControlAction::Restart,
+    )?;
+    state
+        .context
+        .logger
+        .info(&format!("tray requested managed component restart: {component_id}"))?;
     Ok(())
 }
 
@@ -704,7 +743,8 @@ fn build_tray_menu<R: Runtime>(
 mod tests {
     use super::{
         build_tray_menu_spec, resolve_tray_language, should_prevent_main_window_close,
-        tray_action_for_menu_id, TrayAction, TrayLanguage, TrayMenuEntry, TRAY_MENU_ID_QUIT_APP,
+        tray_action_for_menu_id, TrayAction, TrayLanguage, TrayMenuEntry,
+        COMPONENT_ID_API_ROUTER, COMPONENT_ID_OPENCLAW, TRAY_MENU_ID_QUIT_APP,
         TRAY_MENU_ID_RESTART_API_ROUTER, TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES,
         TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY, TRAY_MENU_ID_RESTART_WEB_SERVER,
         TRAY_MENU_ID_SHOW_WINDOW,
@@ -865,15 +905,15 @@ mod tests {
         );
         assert_eq!(
             tray_action_for_menu_id("restart_openclaw_gateway"),
-            Some(TrayAction::RestartManagedService("openclaw_gateway"))
+            Some(TrayAction::RestartManagedComponent(COMPONENT_ID_OPENCLAW))
         );
         assert_eq!(
             tray_action_for_menu_id("restart_web_server"),
-            Some(TrayAction::RestartManagedService("web_server"))
+            Some(TrayAction::RestartManagedService("sdkwork_api_router_web_server"))
         );
         assert_eq!(
             tray_action_for_menu_id("restart_api_router"),
-            Some(TrayAction::RestartManagedService("api_router"))
+            Some(TrayAction::RestartManagedComponent(COMPONENT_ID_API_ROUTER))
         );
         assert_eq!(
             tray_action_for_menu_id(TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES),

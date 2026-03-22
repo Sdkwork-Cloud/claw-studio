@@ -1,4 +1,5 @@
 pub mod app_info;
+pub mod component_commands;
 pub mod copy_path;
 pub mod create_directory;
 pub mod desktop_kernel;

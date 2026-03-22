@@ -5,6 +5,8 @@ use crate::framework::{
 
 pub mod api_router;
 pub mod browser;
+pub mod component_host;
+pub mod components;
 pub mod dialog;
 pub mod filesystem;
 pub mod integrations;
@@ -19,10 +21,13 @@ pub mod security;
 pub mod storage;
 pub mod supervisor;
 pub mod system;
+pub mod upgrades;
 
 use self::{
     api_router::ApiRouterInstallerService,
     browser::BrowserService,
+    component_host::ComponentHostService,
+    components::ComponentRegistryService,
     dialog::DialogService,
     filesystem::FileSystemService,
     integrations::IntegrationService,
@@ -37,6 +42,7 @@ use self::{
     storage::StorageService,
     supervisor::SupervisorService,
     system::SystemService,
+    upgrades::ComponentUpgradeService,
 };
 
 #[derive(Clone, Debug)]
@@ -44,6 +50,8 @@ pub struct FrameworkServices {
     pub api_router: ApiRouterInstallerService,
     pub system: SystemService,
     pub browser: BrowserService,
+    pub component_host: ComponentHostService,
+    pub components: ComponentRegistryService,
     pub dialog: DialogService,
     pub filesystem: FileSystemService,
     pub security: SecurityService,
@@ -58,6 +66,8 @@ pub struct FrameworkServices {
     pub storage: StorageService,
     pub kernel: KernelService,
     pub supervisor: SupervisorService,
+    #[allow(dead_code)]
+    pub upgrades: ComponentUpgradeService,
 }
 
 impl FrameworkServices {
@@ -68,6 +78,8 @@ impl FrameworkServices {
             api_router: ApiRouterInstallerService::new(),
             system: SystemService::new(),
             browser: BrowserService::with_security(&config.security),
+            component_host: ComponentHostService::new(),
+            components: ComponentRegistryService::new(),
             dialog: DialogService::new(),
             filesystem: FileSystemService::new(),
             security: SecurityService::new(),
@@ -80,7 +92,8 @@ impl FrameworkServices {
             retention: RetentionService::new(),
             storage: StorageService::new(),
             kernel: KernelService::new(),
-            supervisor: SupervisorService::new(),
+            supervisor: SupervisorService::for_paths(paths),
+            upgrades: ComponentUpgradeService::new(),
         })
     }
 
@@ -119,6 +132,7 @@ impl FrameworkServices {
                 payments: self.payments.kernel_info(&normalized),
                 integrations: self.integrations.kernel_info(paths, &normalized)?,
                 supervisor: self.supervisor.kernel_info()?,
+                bundled_components: self.components.kernel_info(paths)?,
                 storage: self.storage.storage_info(paths, &normalized),
             },
         ))

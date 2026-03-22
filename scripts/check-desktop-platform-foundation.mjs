@@ -79,6 +79,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-core/src/stores/useUpdateStore.ts', 'desktop update state store'],
   ['packages/sdkwork-claw-desktop/src-tauri/Cargo.toml', 'desktop Cargo manifest'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json', 'desktop Tauri config'],
+  ['packages/sdkwork-claw-desktop/src-tauri/generated', 'desktop generated bundled resource root'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs', 'desktop framework module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/error.rs', 'desktop framework error module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/context.rs', 'desktop framework context module'],
@@ -131,6 +132,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-distribution/src/index.ts', 'distribution entry'],
   ['packages/sdkwork-claw-distribution/src/manifests/cn/index.ts', 'cn distribution manifest'],
   ['packages/sdkwork-claw-distribution/src/manifests/global/index.ts', 'global distribution manifest'],
+  ['scripts/sync-bundled-components.mjs', 'bundled component sync script'],
 ];
 
 for (const [relativePath, label] of requiredPaths) {
@@ -147,6 +149,7 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
   assertScript(desktopPackage, desktopPackagePath, scriptName);
 }
 
+assertScript(rootPackage, rootPackagePath, 'sync:bundled-components');
 assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
@@ -409,6 +412,26 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
   'tauri-plugin-opener',
   'opener plugin dependency',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  'foundation/components/**/*',
+  'bundled component metadata resource packaging',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  'generated/bundled/**/*',
+  'generated bundled asset resource packaging',
+);
+assertIncludes(
+  'package.json',
+  'sync:bundled-components',
+  'root bundled component sync script registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/package.json',
+  'sync-bundled-components.mjs',
+  'desktop bundled component sync invocation',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',

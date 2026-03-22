@@ -285,6 +285,16 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  'export interface RuntimeDesktopBundledComponentInfo',
+  'desktop bundled component runtime contract type',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  'export interface RuntimeDesktopBundledComponentsInfo',
+  'desktop bundled components runtime contract type',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
   'availableAdapters: RuntimeDesktopIntegrationAdapterInfo[];',
   'desktop integration adapter payload',
 );
@@ -327,6 +337,11 @@ assertIncludes(
   'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
   'integrations: RuntimeDesktopIntegrationInfo;',
   'desktop kernel integrations payload',
+);
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  'bundledComponents: RuntimeDesktopBundledComponentsInfo;',
+  'desktop kernel bundled components payload',
 );
 
 if (failures.length > 0) {
