@@ -13,7 +13,7 @@ import type {
   StudioWorkbenchTaskRecord,
   StudioWorkbenchToolRecord,
 } from '@sdkwork/claw-types';
-import type { OpenClawChannelSnapshot } from '@sdkwork/claw-core';
+import type { OpenClawAgentParamValue, OpenClawChannelSnapshot } from '@sdkwork/claw-core';
 
 export interface Instance {
   id: string;
@@ -51,7 +51,17 @@ export type InstanceWorkbenchSectionId =
 export type InstanceWorkbenchChannel = StudioWorkbenchChannelRecord;
 export type InstanceWorkbenchTask = StudioWorkbenchTaskRecord;
 export type InstanceWorkbenchTaskExecution = StudioWorkbenchTaskExecutionRecord;
-export type InstanceWorkbenchAgent = StudioWorkbenchAgentRecord;
+export interface InstanceWorkbenchAgent extends StudioWorkbenchAgentRecord {
+  workspace?: string;
+  agentDir?: string;
+  isDefault?: boolean;
+  model?: {
+    primary?: string;
+    fallbacks: string[];
+  };
+  params?: Record<string, OpenClawAgentParamValue>;
+  configSource?: 'managedConfig' | 'runtime';
+}
 export type InstanceWorkbenchFile = StudioWorkbenchFileRecord;
 export type InstanceWorkbenchLLMProviderConfig = StudioWorkbenchLLMProviderConfigRecord;
 export type InstanceWorkbenchLLMProvider = StudioWorkbenchLLMProviderRecord;

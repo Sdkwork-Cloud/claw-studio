@@ -3,7 +3,6 @@ export * from './ApiKeysSettings';
 export * from './BillingSettings';
 export * from './DataPrivacySettings';
 export * from './GeneralSettings';
-export * from './LLMSettings';
 export * from './NotificationSettings';
 export * from './SecuritySettings';
 export * from './Settings';

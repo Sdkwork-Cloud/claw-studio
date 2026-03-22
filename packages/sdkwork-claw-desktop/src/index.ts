@@ -9,11 +9,13 @@ export {
   runDesktopOrFallback,
 } from './desktop/runtime';
 export {
+  captureScreenshot,
   closeWindow,
   configureDesktopPlatformBridge,
   copyPath,
   createDirectory,
   desktopTemplateApi,
+  fetchRemoteUrl,
   getApiRouterAdminBootstrapSession,
   installApiRouterClientSetup,
   getApiRouterRuntimeStatus,
@@ -44,6 +46,7 @@ export {
   removePath,
   saveFile,
   selectFiles,
+  supportsNativeScreenshot,
   storageDelete,
   storageGetText,
   storageListKeys,

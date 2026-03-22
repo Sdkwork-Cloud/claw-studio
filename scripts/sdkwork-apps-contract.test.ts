@@ -29,6 +29,8 @@ function runTest(name: string, fn: () => void) {
 runTest('sdkwork-claw-apps keeps the app-store surface local while routing installs through hub-installer', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-apps/package.json');
   const indexSource = read('packages/sdkwork-claw-apps/src/index.ts');
+  const appStoreEntrySource = read('packages/sdkwork-claw-apps/src/AppStore.tsx');
+  const appDetailEntrySource = read('packages/sdkwork-claw-apps/src/AppDetail.tsx');
   const serviceSource = read('packages/sdkwork-claw-apps/src/services/appStoreService.ts');
   const detailSource = read('packages/sdkwork-claw-apps/src/pages/apps/AppDetail.tsx');
   const storeSource = read('packages/sdkwork-claw-apps/src/pages/apps/AppStore.tsx');
@@ -42,8 +44,12 @@ runTest('sdkwork-claw-apps keeps the app-store surface local while routing insta
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.equal(pkg.dependencies?.['@sdkwork/claw-infrastructure'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-apps/);
+  assert.match(appStoreEntrySource, /lazy\(\(\) =>/);
+  assert.match(appStoreEntrySource, /\.\/pages\/apps\/AppStore/);
+  assert.match(appDetailEntrySource, /lazy\(\(\) =>/);
+  assert.match(appDetailEntrySource, /\.\/pages\/apps\/AppDetail/);
 
-  assert.match(serviceSource, /studioMockService/);
+  assert.doesNotMatch(serviceSource, /studioMockService/);
   assert.match(serviceSource, /installerService/);
   assert.match(serviceSource, /listHubInstallCatalog/);
   assert.match(serviceSource, /inspectInstall\(/);
@@ -51,7 +57,12 @@ runTest('sdkwork-claw-apps keeps the app-store surface local while routing insta
   assert.match(serviceSource, /getGuidedInstallNavigation\(/);
   assert.match(serviceSource, /installDependencies\(/);
   assert.match(serviceSource, /resolveAppInstallTarget/);
+  assert.match(serviceSource, /catalogPresentationCache/);
+  assert.match(serviceSource, /installSurfaceSummaryCache/);
+  assert.match(serviceSource, /createCatalogPresentation/);
   assert.doesNotMatch(serviceSource, /const appInstallCatalog\s*=/);
+  assert.doesNotMatch(serviceSource, /getFeaturedApp\(/);
+  assert.doesNotMatch(serviceSource, /getTopCharts\(/);
   assert.match(serviceSource, /installerService\.inspectHubInstall\(/);
   assert.match(serviceSource, /installerService[\s\S]*listHubInstallCatalog\(/);
   assert.match(serviceSource, /installerService\.runHubDependencyInstall\(/);
@@ -73,14 +84,23 @@ runTest('sdkwork-claw-apps keeps the app-store surface local while routing insta
   assert.match(detailSource, /dependencyIds:/);
   assert.match(detailSource, /currentProgressRequestIdRef/);
   assert.match(detailSource, /event\.requestId/);
+  assert.match(detailSource, /requestAnimationFrame/);
+  assert.match(detailSource, /scheduleProgressFlush/);
   assert.match(detailSource, /getGuidedInstallNavigation\(/);
   assert.match(detailSource, /navigate\(guidedInstallNavigation\)/);
   assert.doesNotMatch(detailSource, /installedTargets/);
   assert.doesNotMatch(detailSource, /setInterval\(/);
   assert.doesNotMatch(detailSource, /Math\.random\(/);
 
-  assert.match(storeSource, /navigate\(`\/apps\/\$\{featuredApp\.id\}`\)/);
+  assert.match(storeSource, /useDeferredValue/);
+  assert.match(storeSource, /createStoreOverview/);
+  assert.match(storeSource, /collectPriorityInstallableAppIds/);
+  assert.match(storeSource, /getCategories\(/);
   assert.match(storeSource, /getInstallSurfaceSummaries\(/);
+  assert.match(storeSource, /IntersectionObserver/);
+  assert.match(storeSource, /contentVisibility:\s*'auto'/);
+  assert.doesNotMatch(storeSource, /featuredApp/);
+  assert.doesNotMatch(storeSource, /topCharts?/i);
 });
 
 runTest('the app install helper remains a thin shell over installer-provided catalog descriptors', () => {

@@ -135,6 +135,15 @@ const packageContracts = [
     ],
     requiredExports: ["export * from './ModelPurchase';", "export * from './services';"],
   },
+  {
+    pkg: 'points',
+    files: [
+      'packages/sdkwork-claw-points/src/Points.tsx',
+      'packages/sdkwork-claw-points/src/pages/Points.tsx',
+      'packages/sdkwork-claw-points/src/services/pointsService.ts',
+    ],
+    requiredExports: ["export * from './Points';", "export * from './services';"],
+  },
 ] as const;
 
 runTest('remaining sdkwork feature packages are implemented locally instead of bridge re-exports', () => {

@@ -303,6 +303,11 @@ class ChatService implements IChatService {
 
     const { activeInstance, route } = await resolveActiveInstanceRoute();
 
+    if (activeInstance && route.mode === 'instanceOpenClawGatewayWs') {
+      yield `\n\n**${activeInstance.name}** uses the native OpenClaw Gateway WebSocket flow. Claw Studio now drives that route through the chat session store instead of the generic HTTP stream service.`;
+      return;
+    }
+
     if (activeInstance && route.endpoint) {
       try {
         yield* streamOpenAiCompatibleRequest(

@@ -7,7 +7,6 @@ import {
   Receipt,
   Search,
   Shield,
-  Sparkles,
   User,
   Wallet,
 } from 'lucide-react';
@@ -21,7 +20,6 @@ import { ApiKeysSettings } from './ApiKeysSettings';
 import { BillingSettings } from './BillingSettings';
 import { DataPrivacySettings } from './DataPrivacySettings';
 import { GeneralSettings } from './GeneralSettings';
-import { LLMSettings } from './LLMSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { SecuritySettings } from './SecuritySettings';
 
@@ -32,7 +30,6 @@ export function Settings() {
 
   const settingsTabs = [
     { id: 'general', label: t('settings.tabs.general'), icon: Monitor },
-    { id: 'llm', label: t('settings.tabs.llm'), icon: Sparkles },
     { id: 'billing', label: t('settings.tabs.billing'), icon: Receipt },
     { id: 'wallet', label: t('settings.tabs.wallet'), icon: Wallet },
     { id: 'account', label: t('settings.tabs.account'), icon: User },
@@ -119,7 +116,6 @@ export function Settings() {
             className="w-full"
           >
             {activeTab === 'general' && <GeneralSettings />}
-            {activeTab === 'llm' && <LLMSettings />}
             {activeTab === 'billing' && <BillingSettings />}
             {activeTab === 'wallet' && <Account />}
             {activeTab === 'account' && <AccountSettings />}

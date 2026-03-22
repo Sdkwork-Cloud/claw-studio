@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 axum = "0.8"
 hub-installer-rs = { path = "vendor/hub-installer/rust" }
+image = { version = "0.25", default-features = false, features = ["png"] }
 jsonwebtoken = "9.3"
 json5 = "0.4"
 postgres = "0.19.12"
@@ -30,6 +31,7 @@ time = { version = "0.3", features = ["formatting"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "net", "time"] }
 toml_edit = "0.22"
 uuid = { version = "1", features = ["v4"] }
+xcap = "0.9.3"
 
 [dev-dependencies]
 tempfile = "3"

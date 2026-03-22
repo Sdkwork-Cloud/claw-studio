@@ -1,26 +1,168 @@
-import type { ReactNode } from 'react';
+import { Suspense, lazy, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { AppDetail, AppStore } from '@sdkwork/claw-apps';
-import { ApiRouter } from '@sdkwork/claw-apirouter';
-import { AuthPage } from '@sdkwork/claw-auth';
-import { ClawCenter, ClawDetail, ClawUpload } from '@sdkwork/claw-center';
-import { Channels } from '@sdkwork/claw-channels';
-import { Chat } from '@sdkwork/claw-chat';
-import { Community, CommunityPostDetail, NewPost } from '@sdkwork/claw-community';
-import { Devices } from '@sdkwork/claw-devices';
-import { Dashboard } from '@sdkwork/claw-dashboard';
-import { Docs } from '@sdkwork/claw-docs';
-import { Extensions } from '@sdkwork/claw-extensions';
-import { GitHubRepoDetail, GitHubRepos } from '@sdkwork/claw-github';
-import { HuggingFaceModelDetail, HuggingFaceModels } from '@sdkwork/claw-huggingface';
-import { Install, InstallDetail } from '@sdkwork/claw-install';
-import { InstanceDetail, Instances } from '@sdkwork/claw-instances';
-import { Market, SkillDetail, SkillPackDetail } from '@sdkwork/claw-market';
-import { ModelPurchase } from '@sdkwork/claw-model-purchase';
-import { Settings } from '@sdkwork/claw-settings';
-import { Tasks } from '@sdkwork/claw-tasks';
+
+const AuthPage = lazy(() =>
+  import('@sdkwork/claw-auth').then((module) => ({
+    default: module.AuthPage,
+  })),
+);
+const ApiRouter = lazy(() =>
+  import('@sdkwork/claw-apirouter').then((module) => ({
+    default: module.ApiRouter,
+  })),
+);
+const AgentMarket = lazy(() =>
+  import('@sdkwork/claw-agent').then((module) => ({
+    default: module.AgentMarket,
+  })),
+);
+const AppStore = lazy(() =>
+  import('@sdkwork/claw-apps').then((module) => ({
+    default: module.AppStore,
+  })),
+);
+const AppDetail = lazy(() =>
+  import('@sdkwork/claw-apps').then((module) => ({
+    default: module.AppDetail,
+  })),
+);
+const ClawCenter = lazy(() =>
+  import('@sdkwork/claw-center').then((module) => ({
+    default: module.ClawCenter,
+  })),
+);
+const ClawDetail = lazy(() =>
+  import('@sdkwork/claw-center').then((module) => ({
+    default: module.ClawDetail,
+  })),
+);
+const ClawUpload = lazy(() =>
+  import('@sdkwork/claw-center').then((module) => ({
+    default: module.ClawUpload,
+  })),
+);
+const Channels = lazy(() =>
+  import('@sdkwork/claw-channels').then((module) => ({
+    default: module.Channels,
+  })),
+);
+const Chat = lazy(() =>
+  import('@sdkwork/claw-chat').then((module) => ({
+    default: module.Chat,
+  })),
+);
+const Community = lazy(() =>
+  import('@sdkwork/claw-community').then((module) => ({
+    default: module.Community,
+  })),
+);
+const CommunityPostDetail = lazy(() =>
+  import('@sdkwork/claw-community').then((module) => ({
+    default: module.CommunityPostDetail,
+  })),
+);
+const NewPost = lazy(() =>
+  import('@sdkwork/claw-community').then((module) => ({
+    default: module.NewPost,
+  })),
+);
+const Devices = lazy(() =>
+  import('@sdkwork/claw-devices').then((module) => ({
+    default: module.Devices,
+  })),
+);
+const Dashboard = lazy(() =>
+  import('@sdkwork/claw-dashboard').then((module) => ({
+    default: module.Dashboard,
+  })),
+);
+const Docs = lazy(() =>
+  import('@sdkwork/claw-docs').then((module) => ({
+    default: module.Docs,
+  })),
+);
+const Extensions = lazy(() =>
+  import('@sdkwork/claw-extensions').then((module) => ({
+    default: module.Extensions,
+  })),
+);
+const GitHubRepoDetail = lazy(() =>
+  import('@sdkwork/claw-github').then((module) => ({
+    default: module.GitHubRepoDetail,
+  })),
+);
+const GitHubRepos = lazy(() =>
+  import('@sdkwork/claw-github').then((module) => ({
+    default: module.GitHubRepos,
+  })),
+);
+const HuggingFaceModelDetail = lazy(() =>
+  import('@sdkwork/claw-huggingface').then((module) => ({
+    default: module.HuggingFaceModelDetail,
+  })),
+);
+const HuggingFaceModels = lazy(() =>
+  import('@sdkwork/claw-huggingface').then((module) => ({
+    default: module.HuggingFaceModels,
+  })),
+);
+const Install = lazy(() =>
+  import('@sdkwork/claw-install').then((module) => ({
+    default: module.Install,
+  })),
+);
+const InstallDetail = lazy(() =>
+  import('@sdkwork/claw-install').then((module) => ({
+    default: module.InstallDetail,
+  })),
+);
+const InstanceDetail = lazy(() =>
+  import('@sdkwork/claw-instances').then((module) => ({
+    default: module.InstanceDetail,
+  })),
+);
+const Instances = lazy(() =>
+  import('@sdkwork/claw-instances').then((module) => ({
+    default: module.Instances,
+  })),
+);
+const Market = lazy(() =>
+  import('@sdkwork/claw-market').then((module) => ({
+    default: module.Market,
+  })),
+);
+const SkillDetail = lazy(() =>
+  import('@sdkwork/claw-market').then((module) => ({
+    default: module.SkillDetail,
+  })),
+);
+const SkillPackDetail = lazy(() =>
+  import('@sdkwork/claw-market').then((module) => ({
+    default: module.SkillPackDetail,
+  })),
+);
+const ModelPurchase = lazy(() =>
+  import('@sdkwork/claw-model-purchase').then((module) => ({
+    default: module.ModelPurchase,
+  })),
+);
+const Points = lazy(() =>
+  import('@sdkwork/claw-points').then((module) => ({
+    default: module.Points,
+  })),
+);
+const Settings = lazy(() =>
+  import('@sdkwork/claw-settings').then((module) => ({
+    default: module.Settings,
+  })),
+);
+const Tasks = lazy(() =>
+  import('@sdkwork/claw-tasks').then((module) => ({
+    default: module.Tasks,
+  })),
+);
 
 function PageWrapper({ children }: { children: ReactNode }) {
   return (
@@ -33,6 +175,14 @@ function PageWrapper({ children }: { children: ReactNode }) {
     >
       {children}
     </motion.div>
+  );
+}
+
+function RouteFallback() {
+  return (
+    <div className="flex h-full items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+    </div>
   );
 }
 
@@ -51,52 +201,345 @@ export function AppRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<AuthPage />} />
-        <Route path="/register" element={<AuthPage />} />
-        <Route path="/forgot-password" element={<AuthPage />} />
-        <Route path="/dashboard" element={<PageWrapper><Dashboard /></PageWrapper>} />
-        <Route path="/install" element={<PageWrapper><Install /></PageWrapper>} />
-        <Route path="/install/:method" element={<PageWrapper><InstallDetail /></PageWrapper>} />
-        <Route path="/instances" element={<PageWrapper><Instances /></PageWrapper>} />
-        <Route path="/instances/:id" element={<PageWrapper><InstanceDetail /></PageWrapper>} />
-        <Route path="/devices" element={<PageWrapper><Devices /></PageWrapper>} />
-        <Route path="/claw-center" element={<PageWrapper><ClawCenter /></PageWrapper>} />
-        <Route path="/claw-center/:id" element={<PageWrapper><ClawDetail /></PageWrapper>} />
-        <Route path="/claw-upload" element={<PageWrapper><ClawUpload /></PageWrapper>} />
-        <Route path="/market" element={<PageWrapper><Market /></PageWrapper>} />
-        <Route path="/market/:id" element={<PageWrapper><SkillDetail /></PageWrapper>} />
-        <Route path="/market/packs/:id" element={<PageWrapper><SkillPackDetail /></PageWrapper>} />
-        <Route path="/apps" element={<PageWrapper><AppStore /></PageWrapper>} />
-        <Route path="/apps/:id" element={<PageWrapper><AppDetail /></PageWrapper>} />
-        <Route path="/extensions" element={<PageWrapper><Extensions /></PageWrapper>} />
-        <Route path="/community" element={<PageWrapper><Community /></PageWrapper>} />
-        <Route path="/community/new" element={<PageWrapper><NewPost /></PageWrapper>} />
-        <Route path="/community/:id" element={<PageWrapper><CommunityPostDetail /></PageWrapper>} />
-        <Route path="/github" element={<PageWrapper><GitHubRepos /></PageWrapper>} />
-        <Route path="/github/:id" element={<PageWrapper><GitHubRepoDetail /></PageWrapper>} />
-        <Route path="/huggingface" element={<PageWrapper><HuggingFaceModels /></PageWrapper>} />
+        <Route
+          path="/login"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AuthPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AuthPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AuthPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Dashboard />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/install"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Install />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/install/:method"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <InstallDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/instances"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Instances />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/instances/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <InstanceDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/devices"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Devices />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/claw-center"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <ClawCenter />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/claw-center/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <ClawDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/claw-upload"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <ClawUpload />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/market"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Market />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/agents"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <AgentMarket />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/market/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <SkillDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/market/packs/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <SkillPackDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/apps"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <AppStore />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/apps/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <AppDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/extensions"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Extensions />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/community"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Community />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/community/new"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <NewPost />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/community/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <CommunityPostDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/github"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <GitHubRepos />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/github/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <GitHubRepoDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/huggingface"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <HuggingFaceModels />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
         <Route
           path="/huggingface/:id"
-          element={<PageWrapper><HuggingFaceModelDetail /></PageWrapper>}
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <HuggingFaceModelDetail />
+              </Suspense>
+            </PageWrapper>
+          }
         />
-        <Route path="/channels" element={<PageWrapper><Channels /></PageWrapper>} />
-        <Route path="/tasks" element={<PageWrapper><Tasks /></PageWrapper>} />
-        <Route path="/chat" element={<PageWrapper><Chat /></PageWrapper>} />
-        <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
-        <Route path="/docs" element={<PageWrapper><Docs /></PageWrapper>} />
+        <Route
+          path="/channels"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Channels />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/tasks"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Tasks />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/chat"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Chat />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Settings />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/docs"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Docs />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
         <Route
           path="/codebox"
           element={<ComingSoonRoute message={t('routes.codeboxComingSoon')} />}
         />
         <Route
           path="/api-router"
-          element={<PageWrapper><ApiRouter /></PageWrapper>}
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <ApiRouter />
+              </Suspense>
+            </PageWrapper>
+          }
         />
         <Route
           path="/model-purchase"
-          element={<PageWrapper><ModelPurchase /></PageWrapper>}
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <ModelPurchase />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/points"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Points />
+              </Suspense>
+            </PageWrapper>
+          }
         />
       </Routes>
     </AnimatePresence>

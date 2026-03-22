@@ -14,6 +14,7 @@ export const ROUTE_PATHS = {
   CLAW_DETAIL: '/claw-center/:id',
   CLAW_UPLOAD: '/claw-upload',
   MARKET: '/market',
+  AGENTS: '/agents',
   SKILL_DETAIL: '/market/:id',
   SKILL_PACK_DETAIL: '/market/packs/:id',
   APPS: '/apps',
@@ -34,4 +35,5 @@ export const ROUTE_PATHS = {
   CODEBOX: '/codebox',
   API_ROUTER: '/api-router',
   MODEL_PURCHASE: '/model-purchase',
+  POINTS: '/points',
 } as const;

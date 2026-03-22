@@ -90,6 +90,7 @@ function mapAgent(agent: Agent, tasks: InstanceWorkbenchTask[], skills: Skill[])
     agent,
     focusAreas,
     automationFitScore,
+    configSource: 'runtime',
   };
 }
 
@@ -158,10 +159,63 @@ function mapManagedProvider(
   };
 }
 
+function mapManagedAgent(
+  agentSnapshot: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['agentSnapshots'][number],
+  tasks: InstanceWorkbenchTask[],
+  skills: Skill[],
+  runtimeRecord?: InstanceWorkbenchAgent,
+): InstanceWorkbenchAgent {
+  const agentProfile = {
+    id: agentSnapshot.id,
+    name: agentSnapshot.name,
+    description: agentSnapshot.description,
+    avatar: agentSnapshot.avatar,
+    systemPrompt: runtimeRecord?.agent.systemPrompt || '',
+    creator: runtimeRecord?.agent.creator || 'OpenClaw',
+  };
+  const focusAreas =
+    runtimeRecord?.focusAreas && runtimeRecord.focusAreas.length > 0
+      ? [...runtimeRecord.focusAreas]
+      : deriveFocusAreas(agentProfile, skills);
+  const automationFitScore =
+    runtimeRecord?.automationFitScore ??
+    clampScore(focusAreas.length * 15 + tasks.filter((task) => task.status === 'active').length * 12);
+
+  return {
+    agent: agentProfile,
+    focusAreas,
+    automationFitScore,
+    workspace: agentSnapshot.workspace,
+    agentDir: agentSnapshot.agentDir,
+    isDefault: agentSnapshot.isDefault,
+    model: {
+      primary: agentSnapshot.model.primary,
+      fallbacks: [...agentSnapshot.model.fallbacks],
+    },
+    params: { ...agentSnapshot.params },
+    configSource: 'managedConfig',
+  };
+}
+
 function cloneTaskExecution(
   execution: InstanceWorkbenchTaskExecution,
 ): InstanceWorkbenchTaskExecution {
   return { ...execution };
+}
+
+function cloneWorkbenchAgent(agent: InstanceWorkbenchAgent): InstanceWorkbenchAgent {
+  return {
+    ...agent,
+    agent: { ...agent.agent },
+    focusAreas: [...agent.focusAreas],
+    model: agent.model
+      ? {
+          primary: agent.model.primary,
+          fallbacks: [...agent.model.fallbacks],
+        }
+      : undefined,
+    params: agent.params ? { ...agent.params } : undefined,
+  };
 }
 
 function cloneWorkbenchTask(task: InstanceWorkbenchTask): InstanceWorkbenchTask {
@@ -189,12 +243,35 @@ function mapBackendWorkbench(
     setupSteps: [...channel.setupSteps],
   }));
   const mappedTasks = workbench.cronTasks.tasks.map(cloneWorkbenchTask);
-  const mappedAgents = workbench.agents.map(({ agent, focusAreas, automationFitScore }) => ({
-    agent: { ...agent },
-    focusAreas: [...focusAreas],
-    automationFitScore,
-  }));
   const mappedSkills = workbench.skills.map((skill) => ({ ...skill }));
+  const runtimeAgents: InstanceWorkbenchAgent[] = workbench.agents.map(
+    ({ agent, focusAreas, automationFitScore }) => ({
+      agent: { ...agent },
+      focusAreas: [...focusAreas],
+      automationFitScore,
+      configSource: 'runtime' as const,
+    }),
+  );
+  const managedAgents: InstanceWorkbenchAgent[] =
+    managedConfigSnapshot?.agentSnapshots.map((agentSnapshot) =>
+      mapManagedAgent(
+        agentSnapshot,
+        mappedTasks,
+        mappedSkills,
+        runtimeAgents.find((record) => record.agent.id === agentSnapshot.id),
+      ),
+    ) || [];
+  const mappedAgents: InstanceWorkbenchAgent[] =
+    managedAgents.length > 0
+      ? [
+          ...managedAgents,
+          ...runtimeAgents
+            .filter(
+              (record) => !managedAgents.some((managedAgent) => managedAgent.agent.id === record.agent.id),
+            )
+            .map(cloneWorkbenchAgent),
+        ]
+      : runtimeAgents.map(cloneWorkbenchAgent);
   const mappedFiles = workbench.files.map((file) => ({ ...file }));
   const mappedLlmProviders = workbench.llmProviders.map(mapLlmProvider);
   const mappedMemories = workbench.memory.map((entry) => ({ ...entry }));
@@ -238,7 +315,7 @@ function mapBackendWorkbench(
     sectionAvailability: buildSectionAvailability(detail, sectionCounts),
     channels: mappedChannels,
     tasks: mappedTasks,
-    agents: mappedAgents,
+    agents: mappedAgents.map(cloneWorkbenchAgent),
     skills: mappedSkills,
     files: mappedFiles,
     llmProviders: mappedLlmProviders,
@@ -493,14 +570,40 @@ class InstanceWorkbenchService {
         detail.instance.runtimeKind === 'openclaw' && detail.workbench
           ? detail.workbench.skills.map((skill) => ({ ...skill }))
           : skills;
-      const mappedAgents =
+      const mappedAgents: InstanceWorkbenchAgent[] =
         detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.agents.map((agent) => ({
-              ...agent,
-              agent: { ...agent.agent },
-              focusAreas: [...agent.focusAreas],
-            }))
-          : agents.map((agent) => mapAgent(agent, mappedTasks, mappedSkills));
+          ? (() => {
+              const runtimeAgents: InstanceWorkbenchAgent[] = detail.workbench.agents.map((agent) => ({
+                ...agent,
+                agent: { ...agent.agent },
+                focusAreas: [...agent.focusAreas],
+                configSource: 'runtime' as const,
+              }));
+              const managedAgents: InstanceWorkbenchAgent[] =
+                managedConfigSnapshot?.agentSnapshots.map((agentSnapshot) =>
+                  mapManagedAgent(
+                    agentSnapshot,
+                    mappedTasks,
+                    mappedSkills,
+                    runtimeAgents.find((record) => record.agent.id === agentSnapshot.id),
+                  ),
+                ) || [];
+
+              return managedAgents.length > 0
+                ? [
+                    ...managedAgents,
+                    ...runtimeAgents.filter(
+                      (record) =>
+                        !managedAgents.some((managedAgent) => managedAgent.agent.id === record.agent.id),
+                    ),
+                  ]
+                : runtimeAgents.map(cloneWorkbenchAgent);
+            })()
+          : managedConfigSnapshot?.agentSnapshots.length
+            ? managedConfigSnapshot.agentSnapshots.map((agentSnapshot) =>
+                mapManagedAgent(agentSnapshot, mappedTasks, mappedSkills),
+              )
+            : agents.map((agent) => mapAgent(agent, mappedTasks, mappedSkills));
       const connectedChannelCount = mappedChannels.filter(
         (channel) => channel.status === 'connected' && channel.enabled,
       ).length;

@@ -53,14 +53,8 @@ runTest('sdkwork-claw-apirouter is implemented as a real feature package', () =>
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/UnifiedApiKeyDialogs.tsx'), true);
 });
 
-runTest('sdkwork-claw-apirouter page exposes top tabs and composes dedicated route-config and unified-key building blocks', () => {
+runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access status before unlocking management panels', () => {
   const pageSource = read('packages/sdkwork-claw-apirouter/src/pages/ApiRouter.tsx');
-  const runtimeServiceSource = read(
-    'packages/sdkwork-claw-apirouter/src/services/apiRouterRuntimeService.ts',
-  );
-  const runtimeCardSource = read(
-    'packages/sdkwork-claw-apirouter/src/components/ApiRouterRuntimeStatusCard.tsx',
-  );
   const usageRecordsPageSource = read(
     'packages/sdkwork-claw-apirouter/src/pages/ApiRouterUsageRecordsPage.tsx',
   );
@@ -83,6 +77,14 @@ runTest('sdkwork-claw-apirouter page exposes top tabs and composes dedicated rou
   const usagePaginationSource = read(
     'packages/sdkwork-claw-apirouter/src/components/ApiRouterUsagePagination.tsx',
   );
+  const adminStatusCardSource = read(
+    'packages/sdkwork-claw-apirouter/src/components/ApiRouterAdminStatusCard.tsx',
+  );
+  const adminStatusServiceSource = read(
+    'packages/sdkwork-claw-apirouter/src/services/apiRouterAdminService.ts',
+  );
+  const enLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
   const modelMappingTableSource = read(
     'packages/sdkwork-claw-apirouter/src/components/ModelMappingTable.tsx',
   );
@@ -105,23 +107,35 @@ runTest('sdkwork-claw-apirouter page exposes top tabs and composes dedicated rou
 
   assert.match(pageSource, /data-slot="api-router-page"/);
   assert.match(pageSource, /data-slot="api-router-page-tabs"/);
-  assert.match(pageSource, /ApiRouterRuntimeStatusCard/);
-  assert.match(pageSource, /apiRouterRuntimeService\.getStatus/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.unifiedApiKey/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.routeConfig/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.modelMapping/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.usageRecords/);
+  assert.match(pageSource, /<ApiRouterAdminStatusCard/);
+  assert.match(pageSource, /<ApiRouterRuntimeStatusCard/);
   assert.match(pageSource, /<UnifiedApiKeyManager/);
   assert.match(pageSource, /<ModelMappingManager/);
   assert.match(pageSource, /<ApiRouterUsageRecordsPage/);
-  assert.match(runtimeServiceSource, /getRuntimePlatform\(\)\.getApiRouterRuntimeStatus\(\)/);
-  assert.match(runtimeServiceSource, /describeApiRouterRuntimeStatus/);
-  assert.match(runtimeCardSource, /data-slot="api-router-runtime-status-card"/);
-  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.title/);
-  assert.match(runtimeCardSource, /description\.modeKey|apiRouterPage\.runtime\.mode\./);
-  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.endpoint\.admin/);
-  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.endpoint\.gateway/);
-  assert.match(runtimeCardSource, /apiRouterPage\.runtime\.reason/);
+  assert.match(pageSource, /apiRouterAdminService\.getStatus/);
+  assert.match(pageSource, /apiRouterRuntimeService\.getStatus/);
+  assert.match(pageSource, /signInMutation/);
+  assert.match(pageSource, /signOutMutation/);
+  assert.match(pageSource, /runtimeStatusQuery/);
+  assert.match(pageSource, /adminStatusQuery/);
+  assert.match(pageSource, /showManagementPanels = Boolean\(adminStatusQuery\.data\?\.authenticated\)/);
+  assert.match(pageSource, /showManagementPanels/);
+  assert.match(adminStatusCardSource, /needsConfiguration/);
+  assert.match(adminStatusCardSource, /configuredTokenConfigurationRequired/);
+  assert.match(adminStatusCardSource, /status\.allowsManualDisconnect/);
+  assert.match(adminStatusCardSource, /status\.allowsManualLogin/);
+  assert.match(adminStatusServiceSource, /allowsManualLogin/);
+  assert.match(adminStatusServiceSource, /allowsManualDisconnect/);
+  assert.match(adminStatusServiceSource, /'needsConfiguration'/);
+  assert.match(adminStatusServiceSource, /Manual sign-in is disabled while that token is configured/);
+  assert.match(enLocaleSource, /"needsConfiguration": "Configuration required"/);
+  assert.match(enLocaleSource, /"configuredTokenConfigurationRequired": "The configured sdkwork-api-router admin token was rejected\./);
+  assert.match(zhLocaleSource, /"needsConfiguration": "需要修正配置"/);
+  assert.match(zhLocaleSource, /"configuredTokenConfigurationRequired": "预配置的 sdkwork-api-router 管理员令牌已被服务端拒绝。/);
   assert.match(usageRecordsPageSource, /data-slot="api-router-usage-records-page"/);
   assert.match(usageRecordsPageSource, /getUsageRecordApiKeys/);
   assert.match(usageRecordsPageSource, /getUsageRecordSummary/);

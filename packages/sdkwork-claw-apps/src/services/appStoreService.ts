@@ -1,13 +1,13 @@
 import {
   getRuntimePlatform,
   installerService,
-  studioMockService,
   type HubInstallAssessmentResult,
   type HubInstallCatalogEntry,
   type HubInstallDependencyResult,
   type HubInstallRecordStatus,
   type HubInstallResult,
   type HubUninstallResult,
+  type RuntimeInfo,
 } from '@sdkwork/claw-infrastructure';
 import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
 import {
@@ -23,7 +23,7 @@ import {
 
 export interface AppCategory {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   apps: AppItem[];
 }
 
@@ -33,17 +33,7 @@ export interface AppItem {
   developer: string;
   category: string;
   description?: string;
-  banner?: string;
   icon: string;
-  rating: number;
-  rank?: number;
-  reviewsCount?: string;
-  screenshots?: string[];
-  version?: string;
-  size?: string;
-  releaseDate?: string;
-  compatibility?: string;
-  ageRating?: string;
   installable?: boolean;
   installSummary?: string;
   installHomepage?: string;
@@ -98,6 +88,15 @@ export interface AppUninstallOptions extends AppInstallContext {
 type GuidedInstallProductId = 'openclaw' | 'zeroclaw' | 'ironclaw';
 type GuidedInstallMethodId = 'wsl' | 'docker' | 'npm' | 'pnpm' | 'source' | 'cloud';
 
+const APP_STORE_INSPECTION_CONCURRENCY = 2;
+const INSTALL_SURFACE_SUMMARY_CACHE_TTL_MS = 30_000;
+
+interface AppCatalogPresentation {
+  items: AppItem[];
+  itemsById: Map<string, AppItem>;
+  categories: AppCategory[];
+}
+
 export interface IAppStoreService {
   getList(params?: ListParams): Promise<PaginatedResult<AppItem>>;
   getById(id: string): Promise<AppItem | null>;
@@ -118,9 +117,6 @@ export interface IAppStoreService {
     id: string,
     options?: AppInstallDependencyOptions,
   ): Promise<HubInstallDependencyResult>;
-
-  getFeaturedApp(): Promise<AppItem>;
-  getTopCharts(): Promise<AppItem[]>;
   getCategories(): Promise<AppCategory[]>;
   getApp(id: string): Promise<AppItem>;
 
@@ -133,7 +129,26 @@ function uniqStrings(values: Array<string | undefined | null>) {
 }
 
 function fallbackCatalogIcon(appId: string) {
-  return `https://picsum.photos/seed/${appId}-icon/256/256`;
+  const hash = Math.abs(
+    Array.from(appId).reduce((current, character) => current * 31 + character.charCodeAt(0), 7),
+  );
+  const palettes = [
+    ['#0f172a', '#38bdf8'],
+    ['#1f2937', '#34d399'],
+    ['#3f3f46', '#f59e0b'],
+    ['#1d4ed8', '#93c5fd'],
+    ['#065f46', '#6ee7b7'],
+  ] as const;
+  const [backgroundColor, accentColor] = palettes[hash % palettes.length] as readonly [string, string];
+  const initials = appId
+    .replace(/^app-/, '')
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((token) => token[0]?.toUpperCase() ?? '')
+    .join('') || 'AP';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="${initials}"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${backgroundColor}" /><stop offset="100%" stop-color="${accentColor}" /></linearGradient></defs><rect width="128" height="128" rx="28" fill="url(#g)" /><text x="50%" y="50%" fill="#f8fafc" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700" text-anchor="middle" dominant-baseline="central">${initials}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 function mergeAppWithInstallMetadata(
@@ -173,10 +188,56 @@ function createCatalogBackedApp(definition: HubInstallCatalogEntry): AppItem {
       category: definition.category,
       description: definition.description || definition.summary,
       icon: fallbackCatalogIcon(definition.appId),
-      rating: 4.6,
     },
     definition,
   );
+}
+
+function sortApps(items: AppItem[]) {
+  return [...items].sort(
+    (left, right) =>
+      left.category.localeCompare(right.category) ||
+      left.name.localeCompare(right.name) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
+function createCatalogCategories(catalog: AppInstallDefinition[]): AppCategory[] {
+  const categoryMap = new Map<string, AppItem[]>();
+
+  catalog.forEach((definition) => {
+    const apps = categoryMap.get(definition.category) ?? [];
+    apps.push(createCatalogBackedApp(definition));
+    categoryMap.set(definition.category, apps);
+  });
+
+  return [...categoryMap.entries()]
+    .sort(([leftTitle], [rightTitle]) => leftTitle.localeCompare(rightTitle))
+    .map(([title, apps]) => ({
+      title,
+      apps: sortApps(apps),
+    }));
+}
+
+function createCatalogPresentation(catalog: AppInstallDefinition[]): AppCatalogPresentation {
+  const items = sortApps(catalog.map(createCatalogBackedApp));
+  const itemsById = new Map(items.map((item) => [item.id, item] as const));
+  const categoryMap = new Map<string, AppItem[]>();
+
+  items.forEach((item) => {
+    const apps = categoryMap.get(item.category) ?? [];
+    apps.push(item);
+    categoryMap.set(item.category, apps);
+  });
+
+  return {
+    items,
+    itemsById,
+    categories: [...categoryMap.entries()].map(([title, apps]) => ({
+      title,
+      apps,
+    })),
+  };
 }
 
 function createInstallSurfaceSummary(
@@ -339,6 +400,46 @@ function createGuidedInstallNavigationFromFallback(
   return `/install?${searchParams.toString()}`;
 }
 
+function normalizeRequestVariables(variables?: Record<string, string>) {
+  if (!variables) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(variables).sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey)),
+  );
+}
+
+function createInstallSurfaceSummaryCacheKey(
+  appId: string,
+  target: AppResolvedInstallTarget,
+): string {
+  return `${appId}:${JSON.stringify({
+    hostPlatform: target.hostPlatform,
+    runtimePlatform: target.runtimePlatform,
+    variantId: target.variant.id,
+    request: {
+      softwareName: target.request.softwareName,
+      effectiveRuntimePlatform: target.request.effectiveRuntimePlatform ?? null,
+      installScope: target.request.installScope ?? null,
+      containerRuntimePreference: target.request.containerRuntimePreference ?? null,
+      wslDistribution: target.request.wslDistribution ?? null,
+      dockerContext: target.request.dockerContext ?? null,
+      dockerHost: target.request.dockerHost ?? null,
+      dryRun: target.request.dryRun ?? null,
+      verbose: target.request.verbose ?? null,
+      sudo: target.request.sudo ?? null,
+      timeoutMs: target.request.timeoutMs ?? null,
+      installerHome: target.request.installerHome ?? null,
+      installRoot: target.request.installRoot ?? null,
+      workRoot: target.request.workRoot ?? null,
+      binDir: target.request.binDir ?? null,
+      dataRoot: target.request.dataRoot ?? null,
+      variables: normalizeRequestVariables(target.request.variables),
+    },
+  })}`;
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -367,6 +468,70 @@ async function mapWithConcurrency<T, R>(
 
 class AppStoreServiceImpl implements IAppStoreService {
   private installCatalogCache = new Map<string, Promise<AppInstallDefinition[]>>();
+  private catalogPresentationCache = new Map<string, Promise<AppCatalogPresentation>>();
+  private runtimeInfoPromise: Promise<RuntimeInfo | null> | null = null;
+  private installSurfaceSummaryCache = new Map<
+    string,
+    {
+      expiresAt: number;
+      summary: AppInstallSurfaceSummary;
+    }
+  >();
+  private installSurfaceSummaryPending = new Map<string, Promise<AppInstallSurfaceSummary | null>>();
+
+  private async loadRuntimeInfo(): Promise<RuntimeInfo | null> {
+    if (!this.runtimeInfoPromise) {
+      this.runtimeInfoPromise = getRuntimePlatform()
+        .getRuntimeInfo()
+        .catch(() => {
+          this.runtimeInfoPromise = null;
+          return null;
+        });
+    }
+
+    return this.runtimeInfoPromise;
+  }
+
+  private getCachedInstallSurfaceSummary(cacheKey: string): AppInstallSurfaceSummary | null {
+    const cached = this.installSurfaceSummaryCache.get(cacheKey);
+    if (!cached) {
+      return null;
+    }
+
+    if (cached.expiresAt <= Date.now()) {
+      this.installSurfaceSummaryCache.delete(cacheKey);
+      return null;
+    }
+
+    return cached.summary;
+  }
+
+  private cacheInstallSurfaceSummary(cacheKey: string, summary: AppInstallSurfaceSummary) {
+    this.installSurfaceSummaryCache.set(cacheKey, {
+      summary,
+      expiresAt: Date.now() + INSTALL_SURFACE_SUMMARY_CACHE_TTL_MS,
+    });
+  }
+
+  private invalidateInstallSurfaceSummaryCache(appId?: string) {
+    if (!appId) {
+      this.installSurfaceSummaryCache.clear();
+      this.installSurfaceSummaryPending.clear();
+      return;
+    }
+
+    const cacheKeyPrefix = `${appId}:`;
+    for (const cacheKey of this.installSurfaceSummaryCache.keys()) {
+      if (cacheKey.startsWith(cacheKeyPrefix)) {
+        this.installSurfaceSummaryCache.delete(cacheKey);
+      }
+    }
+    for (const cacheKey of this.installSurfaceSummaryPending.keys()) {
+      if (cacheKey.startsWith(cacheKeyPrefix)) {
+        this.installSurfaceSummaryPending.delete(cacheKey);
+      }
+    }
+  }
 
   private async resolveRuntimeAwareInstallContext(
     context: AppInstallContext = {},
@@ -376,7 +541,11 @@ class AppStoreServiceImpl implements IAppStoreService {
     }
 
     try {
-      const runtimeInfo = await getRuntimePlatform().getRuntimeInfo();
+      const runtimeInfo = await this.loadRuntimeInfo();
+      if (!runtimeInfo) {
+        return context;
+      }
+
       return {
         ...context,
         runtimeInfo,
@@ -415,6 +584,7 @@ class AppStoreServiceImpl implements IAppStoreService {
 
     const pending = installerService.listHubInstallCatalog({ hostPlatform }).catch((error) => {
       this.installCatalogCache.delete(cacheKey);
+      this.catalogPresentationCache.delete(cacheKey);
       throw error;
     });
 
@@ -439,6 +609,35 @@ class AppStoreServiceImpl implements IAppStoreService {
         definition,
       ]),
     );
+  }
+
+  private async loadCatalogPresentation(
+    context: AppInstallContext = {},
+  ): Promise<AppCatalogPresentation> {
+    const { resolvedContext, hostPlatform } = await this.resolveCatalogContext(context);
+    const cacheKey = this.getCatalogCacheKey(hostPlatform);
+    const cached = this.catalogPresentationCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const pending = this.loadInstallCatalog(resolvedContext)
+      .then((catalog) => createCatalogPresentation(catalog))
+      .catch((error) => {
+        this.catalogPresentationCache.delete(cacheKey);
+        throw error;
+      });
+
+    this.catalogPresentationCache.set(cacheKey, pending);
+    return pending;
+  }
+
+  private async loadCatalogPresentationSafely(context: AppInstallContext = {}) {
+    try {
+      return await this.loadCatalogPresentation(context);
+    } catch {
+      return createCatalogPresentation([]);
+    }
   }
 
   async getInstallCatalog(context: AppInstallContext = {}): Promise<AppInstallDefinition[]> {
@@ -482,6 +681,39 @@ class AppStoreServiceImpl implements IAppStoreService {
     };
   }
 
+  private async getInstallSurfaceSummary(
+    appId: string,
+    definition: AppInstallDefinition,
+    resolvedContext: AppInstallContext,
+  ): Promise<AppInstallSurfaceSummary | null> {
+    const target = resolveAppInstallTarget(definition, resolvedContext);
+    const cacheKey = createInstallSurfaceSummaryCacheKey(appId, target);
+    const cached = this.getCachedInstallSurfaceSummary(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const pending = this.installSurfaceSummaryPending.get(cacheKey);
+    if (pending) {
+      return pending;
+    }
+
+    const nextPending = installerService
+      .inspectHubInstall(target.request)
+      .then((assessment) => {
+        const summary = createInstallSurfaceSummary(appId, target, assessment);
+        this.cacheInstallSurfaceSummary(cacheKey, summary);
+        return summary;
+      })
+      .catch(() => null)
+      .finally(() => {
+        this.installSurfaceSummaryPending.delete(cacheKey);
+      });
+
+    this.installSurfaceSummaryPending.set(cacheKey, nextPending);
+    return nextPending;
+  }
+
   async inspectInstall(
     id: string,
     context: AppInstallContext = {},
@@ -514,11 +746,16 @@ class AppStoreServiceImpl implements IAppStoreService {
 
     const entries = await mapWithConcurrency(
       inspectableIds,
-      3,
+      APP_STORE_INSPECTION_CONCURRENCY,
       async (appId): Promise<readonly [string, AppInstallSurfaceSummary] | null> => {
         try {
-          const inspection = await this.inspectInstallTarget(appId, resolvedContext);
-          return [appId, createInstallSurfaceSummary(appId, inspection.target, inspection.assessment)] as const;
+          const definition = catalogMap.get(appId);
+          if (!definition) {
+            return null;
+          }
+
+          const summary = await this.getInstallSurfaceSummary(appId, definition, resolvedContext);
+          return summary ? ([appId, summary] as const) : null;
         } catch {
           return null;
         }
@@ -554,6 +791,7 @@ class AppStoreServiceImpl implements IAppStoreService {
     options: AppInstallDependencyOptions = {},
   ): Promise<HubInstallDependencyResult> {
     const target = await this.resolveInstallTarget(id, options);
+    this.invalidateInstallSurfaceSummaryCache(id);
 
     return installerService.runHubDependencyInstall({
       ...target.request,
@@ -564,6 +802,7 @@ class AppStoreServiceImpl implements IAppStoreService {
 
   async installApp(id: string, context: AppInstallContext = {}): Promise<HubInstallResult> {
     const target = await this.resolveInstallTarget(id, context);
+    this.invalidateInstallSurfaceSummaryCache(id);
     return installerService.runHubInstall(target.request);
   }
 
@@ -572,6 +811,7 @@ class AppStoreServiceImpl implements IAppStoreService {
     options: AppUninstallOptions = {},
   ): Promise<HubUninstallResult> {
     const target = await this.resolveInstallTarget(id, options);
+    this.invalidateInstallSurfaceSummaryCache(id);
     return installerService.runHubUninstall({
       ...target.request,
       purgeData: options.purgeData,
@@ -580,19 +820,7 @@ class AppStoreServiceImpl implements IAppStoreService {
   }
 
   async getList(params: ListParams = {}): Promise<PaginatedResult<AppItem>> {
-    const [catalog, topChartApps] = await Promise.all([
-      this.loadInstallCatalogSafely(),
-      studioMockService.getTopChartApps(),
-    ]);
-    const catalogMap = new Map(catalog.map((definition) => [definition.appId, definition]));
-    const rankedApps = topChartApps.map((app) =>
-      mergeAppWithInstallMetadata(app, catalogMap.get(app.id)),
-    );
-    const rankedIds = new Set(rankedApps.map((item) => item.id));
-    const catalogOnlyApps = catalog
-      .filter((definition) => !rankedIds.has(definition.appId))
-      .map(createCatalogBackedApp);
-    const items = [...rankedApps, ...catalogOnlyApps];
+    const items = (await this.loadCatalogPresentationSafely()).items;
 
     let filtered = items;
     if (params.keyword) {
@@ -643,69 +871,16 @@ class AppStoreServiceImpl implements IAppStoreService {
     throw new Error('Method not implemented.');
   }
 
-  async getFeaturedApp(): Promise<AppItem> {
-    const [app, catalogMap] = await Promise.all([
-      studioMockService.getFeaturedApp(),
-      this.getInstallCatalogMap(),
-    ]);
-    if (!app) {
-      throw new Error('Failed to fetch featured app');
-    }
-
-    return mergeAppWithInstallMetadata(app, catalogMap.get(app.id));
-  }
-
-  async getTopCharts(): Promise<AppItem[]> {
-    const [apps, catalogMap] = await Promise.all([
-      studioMockService.getTopChartApps(),
-      this.getInstallCatalogMap(),
-    ]);
-
-    return apps.map((app) => mergeAppWithInstallMetadata(app, catalogMap.get(app.id)));
-  }
-
   async getCategories(): Promise<AppCategory[]> {
-    const [categories, catalog] = await Promise.all([
-      studioMockService.getAppCategories(),
-      this.loadInstallCatalogSafely(),
-    ]);
-    const catalogMap = new Map(catalog.map((definition) => [definition.appId, definition]));
-    const categorizedIds = new Set<string>();
-    const nextCategories = categories.map((category) => ({
-      ...category,
-      apps: category.apps.map((app) => {
-        categorizedIds.add(app.id);
-        return mergeAppWithInstallMetadata(app, catalogMap.get(app.id));
-      }),
-    }));
-    const uncategorizedCatalogApps = catalog
-      .filter((definition) => !categorizedIds.has(definition.appId))
-      .map(createCatalogBackedApp);
-
-    if (uncategorizedCatalogApps.length > 0) {
-      nextCategories.push({
-        title: 'Hub Installer Catalog',
-        subtitle: 'Additional installable products resolved directly from the Rust registry.',
-        apps: uncategorizedCatalogApps,
-      });
-    }
-
-    return nextCategories;
+    return (await this.loadCatalogPresentationSafely()).categories;
   }
 
   async getApp(id: string): Promise<AppItem> {
-    const [catalogMap, app] = await Promise.all([
-      this.getInstallCatalogMap(),
-      studioMockService.getApp(id),
-    ]);
-    const definition = catalogMap.get(id);
+    const catalogPresentation = await this.loadCatalogPresentationSafely();
+    const app = catalogPresentation.itemsById.get(id);
 
     if (app) {
-      return mergeAppWithInstallMetadata(app, definition);
-    }
-
-    if (definition) {
-      return createCatalogBackedApp(definition);
+      return app;
     }
 
     throw new Error('Failed to fetch app');

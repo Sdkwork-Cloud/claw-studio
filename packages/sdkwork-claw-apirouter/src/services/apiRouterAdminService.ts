@@ -16,6 +16,7 @@ import {
 export type ApiRouterAdminConnectionState =
   | 'authenticated'
   | 'needsLogin'
+  | 'needsConfiguration'
   | 'unavailable';
 
 export type ApiRouterAdminAuthSource =
@@ -28,6 +29,8 @@ export interface ApiRouterAdminStatus {
   state: ApiRouterAdminConnectionState;
   authSource: ApiRouterAdminAuthSource;
   authenticated: boolean;
+  allowsManualLogin: boolean;
+  allowsManualDisconnect: boolean;
   adminBaseUrl: string;
   gatewayBaseUrl: string;
   sessionUser: ApiRouterAdminSessionUser | null;
@@ -43,6 +46,10 @@ function normalizeErrorMessage(error: unknown) {
   return 'sdkwork-api-router admin is unavailable.';
 }
 
+function getConfiguredTokenRejectedMessage() {
+  return 'The configured sdkwork-api-router admin token was rejected. Update or remove VITE_API_ROUTER_ADMIN_TOKEN before retrying. Manual sign-in is disabled while that token is configured.';
+}
+
 function isAuthFailure(message: string) {
   const normalized = message.toLowerCase();
   return (
@@ -51,6 +58,50 @@ function isAuthFailure(message: string) {
     normalized.includes('unauthorized') ||
     normalized.includes('forbidden')
   );
+}
+
+function resolveAuthSource(
+  session: ApiRouterAdminSession | null,
+  configuredToken: string,
+): ApiRouterAdminAuthSource {
+  if (configuredToken) {
+    return 'configuredToken';
+  }
+
+  if (session?.token) {
+    return session.source === 'managedBootstrap'
+      ? 'managedBootstrap'
+      : 'session';
+  }
+
+  return 'none';
+}
+
+function resolveInteractionPolicy(
+  state: ApiRouterAdminConnectionState,
+  authSource: ApiRouterAdminAuthSource,
+  authenticated: boolean,
+) {
+  return {
+    allowsManualLogin:
+      !authenticated &&
+      state === 'needsLogin' &&
+      (authSource === 'none' || authSource === 'session'),
+    allowsManualDisconnect: authenticated && authSource === 'session',
+  };
+}
+
+function createStatus(
+  input: Omit<ApiRouterAdminStatus, 'allowsManualLogin' | 'allowsManualDisconnect'>,
+): ApiRouterAdminStatus {
+  return {
+    ...input,
+    ...resolveInteractionPolicy(
+      input.state,
+      input.authSource,
+      input.authenticated,
+    ),
+  };
 }
 
 async function resolveAdminEndpoints() {
@@ -84,19 +135,15 @@ function mapSessionUserToOperator(
 class DefaultApiRouterAdminService {
   async getStatus(): Promise<ApiRouterAdminStatus> {
     const endpoints = await resolveAdminEndpoints();
-    const bootstrapSession = await ensureApiRouterAdminSession();
+    const bootstrapSession = await ensureApiRouterAdminSession({
+      forceBootstrap: readApiRouterAdminSession()?.source === 'managedBootstrap',
+    });
     const session = bootstrapSession || readApiRouterAdminSession();
     const configuredToken = readApiRouterAdminToken();
-    const authSource: ApiRouterAdminAuthSource = session?.token
-      ? session.source === 'managedBootstrap'
-        ? 'managedBootstrap'
-        : 'session'
-      : configuredToken
-        ? 'configuredToken'
-        : 'none';
+    const authSource = resolveAuthSource(session, configuredToken);
 
     if (authSource === 'none') {
-      return {
+      return createStatus({
         ...endpoints,
         state: 'needsLogin',
         authSource,
@@ -104,23 +151,21 @@ class DefaultApiRouterAdminService {
         sessionUser: null,
         operator: null,
         message: 'Sign in to the sdkwork-api-router admin API to use router-backed control-plane features.',
-      };
+      });
     }
 
     if (authSource === 'managedBootstrap') {
       const runtimeStatus = await getRuntimePlatform()
         .getApiRouterRuntimeStatus()
         .catch(() => null);
-      const managedRuntimeHealthy =
-        runtimeStatus?.mode === 'managedActive'
-        && runtimeStatus.admin.healthy
-        && runtimeStatus.gateway.healthy;
+      const trustedLocalRuntimeHealthy =
+        !runtimeStatus || (runtimeStatus.admin.healthy && runtimeStatus.gateway.healthy);
 
-      if (!managedRuntimeHealthy) {
+      if (!trustedLocalRuntimeHealthy) {
         clearApiRouterAdminSession();
 
         if (runtimeStatus?.mode === 'attachedExternal') {
-          return {
+          return createStatus({
             ...endpoints,
             state: 'needsLogin',
             authSource: 'none',
@@ -129,10 +174,10 @@ class DefaultApiRouterAdminService {
             operator: null,
             message:
               'Sign in to the sdkwork-api-router admin API to use router-backed control-plane features.',
-          };
+          });
         }
 
-        return {
+        return createStatus({
           ...endpoints,
           state: 'unavailable',
           authSource: 'none',
@@ -141,10 +186,10 @@ class DefaultApiRouterAdminService {
           operator: null,
           message:
             runtimeStatus?.reason || 'sdkwork-api-router admin is unavailable.',
-        };
+        });
       }
 
-      return {
+      return createStatus({
         ...endpoints,
         state: 'authenticated',
         authSource,
@@ -152,14 +197,14 @@ class DefaultApiRouterAdminService {
         sessionUser: session?.user || null,
         operator: mapSessionUserToOperator(session?.user || null),
         message:
-          'Connected to the local managed sdkwork-api-router admin API through Claw Studio bootstrap auth.',
-      };
+          'Connected to the local sdkwork-api-router admin API through Claw Studio bootstrap auth.',
+      });
     }
 
     try {
       const operator = await sdkworkApiRouterAdminClient.getMe();
 
-      return {
+      return createStatus({
         ...endpoints,
         state: 'authenticated',
         authSource,
@@ -170,22 +215,30 @@ class DefaultApiRouterAdminService {
           authSource === 'configuredToken'
             ? 'Connected to the sdkwork-api-router admin API through the configured admin token.'
             : 'Connected to the sdkwork-api-router admin API with the current operator session.',
-      };
+      });
     } catch (error) {
       const message = normalizeErrorMessage(error);
-      if (session && isAuthFailure(message)) {
+      const authFailure = isAuthFailure(message);
+      if (session && authFailure) {
         clearApiRouterAdminSession();
       }
 
-      return {
+      return createStatus({
         ...endpoints,
-        state: isAuthFailure(message) ? 'needsLogin' : 'unavailable',
-        authSource: session?.token ? 'session' : authSource,
+        state: authFailure
+          ? authSource === 'configuredToken'
+            ? 'needsConfiguration'
+            : 'needsLogin'
+          : 'unavailable',
+        authSource,
         authenticated: false,
         sessionUser: session?.user || null,
         operator: null,
-        message,
-      };
+        message:
+          authFailure && authSource === 'configuredToken'
+            ? getConfiguredTokenRejectedMessage()
+            : message,
+      });
     }
   }
 

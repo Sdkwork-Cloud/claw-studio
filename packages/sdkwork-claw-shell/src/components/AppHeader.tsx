@@ -1,9 +1,37 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Suspense, lazy, startTransition, useEffect, useState, type ReactNode } from 'react';
 import { Minus, Search, Smartphone, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { platform, useAppStore } from '@sdkwork/claw-core';
-import { InstanceSwitcher } from './InstanceSwitcher';
 import { OPEN_COMMAND_PALETTE_EVENT } from './commandPaletteEvents';
+
+const InstanceSwitcher = lazy(() =>
+  import('./InstanceSwitcher').then((module) => ({
+    default: module.InstanceSwitcher,
+  })),
+);
+const PointsHeaderEntry = lazy(() =>
+  import('@sdkwork/claw-points').then((module) => ({
+    default: module.PointsHeaderEntry,
+  })),
+);
+
+function InstanceSwitcherFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex h-9 w-full items-center justify-between rounded-2xl bg-zinc-950/[0.045] px-3 dark:bg-white/[0.06]"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+        <div className="space-y-1.5">
+          <div className="h-2.5 w-24 rounded-full bg-zinc-300/80 dark:bg-zinc-700/80" />
+          <div className="h-2 w-20 rounded-full bg-zinc-200/90 dark:bg-zinc-800/90" />
+        </div>
+      </div>
+      <div className="h-4 w-4 rounded-full bg-zinc-300/80 dark:bg-zinc-700/80" />
+    </div>
+  );
+}
 
 function BrandMark() {
   return (
@@ -161,6 +189,28 @@ export function AppHeader() {
   const { t } = useTranslation();
   const isDesktop = platform.getPlatform() === 'desktop';
   const openMobileAppDialog = useAppStore((state) => state.openMobileAppDialog);
+  const [shouldRenderInstanceSwitcher, setShouldRenderInstanceSwitcher] = useState(false);
+  const [shouldRenderPointsEntry, setShouldRenderPointsEntry] = useState(false);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      startTransition(() => {
+        setShouldRenderInstanceSwitcher(true);
+      });
+    }, 90);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      startTransition(() => {
+        setShouldRenderPointsEntry(true);
+      });
+    }, 180);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   return (
     <div className="relative z-30 bg-white/72 backdrop-blur-xl dark:bg-zinc-950/78">
@@ -212,7 +262,13 @@ export function AppHeader() {
             {t('sidebar.workspace')}
           </span>
           <div className="pointer-events-auto w-full max-w-[24rem]">
-            <InstanceSwitcher />
+            {shouldRenderInstanceSwitcher ? (
+              <Suspense fallback={<InstanceSwitcherFallback />}>
+                <InstanceSwitcher />
+              </Suspense>
+            ) : (
+              <InstanceSwitcherFallback />
+            )}
           </div>
         </div>
 
@@ -231,6 +287,11 @@ export function AppHeader() {
               {t('install.mobileGuide.headerAction')}
             </span>
           </HeaderActionButton>
+          {shouldRenderPointsEntry ? (
+            <Suspense fallback={null}>
+              <PointsHeaderEntry />
+            </Suspense>
+          ) : null}
           {isDesktop ? <DesktopWindowControls /> : null}
         </div>
       </header>

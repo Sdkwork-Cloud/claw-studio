@@ -15,6 +15,7 @@ const requiredPackages = [
   ['packages/sdkwork-claw-types', '@sdkwork/claw-types'],
   ['packages/sdkwork-claw-distribution', '@sdkwork/claw-distribution'],
   ['packages/sdkwork-claw-account', '@sdkwork/claw-account'],
+  ['packages/sdkwork-claw-agent', '@sdkwork/claw-agent'],
   ['packages/sdkwork-claw-apirouter', '@sdkwork/claw-apirouter'],
   ['packages/sdkwork-claw-apps', '@sdkwork/claw-apps'],
   ['packages/sdkwork-claw-auth', '@sdkwork/claw-auth'],
@@ -32,6 +33,7 @@ const requiredPackages = [
   ['packages/sdkwork-claw-instances', '@sdkwork/claw-instances'],
   ['packages/sdkwork-claw-market', '@sdkwork/claw-market'],
   ['packages/sdkwork-claw-model-purchase', '@sdkwork/claw-model-purchase'],
+  ['packages/sdkwork-claw-points', '@sdkwork/claw-points'],
   ['packages/sdkwork-claw-settings', '@sdkwork/claw-settings'],
   ['packages/sdkwork-claw-tasks', '@sdkwork/claw-tasks'],
 ];

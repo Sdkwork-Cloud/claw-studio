@@ -1,8 +1,10 @@
 pub mod api_router_runtime;
 pub mod app_info;
+pub mod capture_screenshot;
 pub mod copy_path;
 pub mod create_directory;
 pub mod desktop_kernel;
+pub mod fetch_remote_url;
 pub mod get_app_config;
 pub mod get_app_paths;
 pub mod get_device_id;

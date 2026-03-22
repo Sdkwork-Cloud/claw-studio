@@ -10,6 +10,7 @@ import type {
 interface ModelPurchasePlanGridProps {
   vendor: ModelPurchaseVendor;
   cycle: ModelPurchaseBillingCycle;
+  onPurchasePlan: (plan: ModelPurchasePlan) => void;
 }
 
 type ModelPurchaseDisplayCard =
@@ -68,7 +69,11 @@ function buildFreeMembershipCard(
   };
 }
 
-export function ModelPurchasePlanGrid({ vendor, cycle }: ModelPurchasePlanGridProps) {
+export function ModelPurchasePlanGrid({
+  vendor,
+  cycle,
+  onPurchasePlan,
+}: ModelPurchasePlanGridProps) {
   const { t, i18n } = useTranslation();
   const periodKey =
     cycle.id === 'monthly' ? 'month' : cycle.id === 'quarterly' ? 'quarter' : 'year';
@@ -200,7 +205,11 @@ export function ModelPurchasePlanGrid({ vendor, cycle }: ModelPurchasePlanGridPr
               </div>
             )}
 
-            <Button type="button" className="mt-4 w-full">
+            <Button
+              type="button"
+              className="mt-4 w-full"
+              onClick={() => onPurchasePlan(plan)}
+            >
               {t('modelPurchase.planGrid.startPlan', { planName: plan.name })}
             </Button>
 

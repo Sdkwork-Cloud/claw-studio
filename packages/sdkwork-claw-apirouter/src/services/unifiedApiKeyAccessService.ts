@@ -43,7 +43,7 @@ export const UNIFIED_API_ACCESS_GATEWAYS: UnifiedApiAccessGatewayCatalog = {
   },
   anthropic: {
     channelId: 'anthropic',
-    baseUrl: '/anthropic',
+    baseUrl: '/v1',
     defaultModel: {
       id: 'claude-sonnet-4',
       name: 'Claude Sonnet 4',
@@ -51,7 +51,7 @@ export const UNIFIED_API_ACCESS_GATEWAYS: UnifiedApiAccessGatewayCatalog = {
   },
   gemini: {
     channelId: 'google',
-    baseUrl: '/gemini',
+    baseUrl: '/v1',
     defaultModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
@@ -97,11 +97,11 @@ export async function resolveUnifiedApiAccessGateways(
     },
     anthropic: {
       ...UNIFIED_API_ACCESS_GATEWAYS.anthropic,
-      baseUrl: joinUrl(gatewayBaseUrl, '/anthropic'),
+      baseUrl: joinUrl(gatewayBaseUrl, '/v1'),
     },
     gemini: {
       ...UNIFIED_API_ACCESS_GATEWAYS.gemini,
-      baseUrl: joinUrl(gatewayBaseUrl, '/gemini'),
+      baseUrl: joinUrl(gatewayBaseUrl, '/v1'),
     },
   };
 }
@@ -112,13 +112,11 @@ function getUnifiedApiClientGateway(
 ) {
   switch (clientId) {
     case 'codex':
+    case 'claude-code':
     case 'opencode':
     case 'openclaw':
-      return gateways.openai;
-    case 'claude-code':
-      return gateways.anthropic;
     case 'gemini':
-      return gateways.gemini;
+      return gateways.openai;
   }
 }
 

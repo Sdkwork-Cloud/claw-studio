@@ -55,8 +55,8 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.match(indexSource, /\.\/platform-impl/);
   assert.match(indexSource, /\.\/store/);
   assert.match(indexSource, /\.\/sdk\/useAppSdkClient/);
-  assert.match(indexSource, /\.\/components\/CommandPalette/);
-  assert.match(indexSource, /\.\/components\/Sidebar/);
+  assert.doesNotMatch(indexSource, /\.\/components\/CommandPalette\.tsx/);
+  assert.doesNotMatch(indexSource, /\.\/components\/Sidebar\.tsx/);
   assert.match(indexSource, /\.\/lib\/llmService/);
   assert.match(indexSource, /openClawConfigService/);
   assert.match(indexSource, /useAppSdkClient/);

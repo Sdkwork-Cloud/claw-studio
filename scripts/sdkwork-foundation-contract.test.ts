@@ -57,3 +57,51 @@ runTest('sdkwork-claw-distribution is implemented locally instead of re-exportin
   assert.doesNotMatch(source, /@sdkwork\/claw-studio-distribution/);
   assert.match(source, /getDistributionManifest/);
 });
+
+runTest('sdkwork-claw-web pins stable build chunks for infrastructure and mock-heavy dependencies', () => {
+  const viteConfigSource = read('packages/sdkwork-claw-web/vite.config.ts');
+
+  assert.match(viteConfigSource, /manualChunks/);
+  assert.match(viteConfigSource, /app-vendor/);
+  assert.match(viteConfigSource, /react-router-dom/);
+  assert.match(viteConfigSource, /@tanstack\/react-query/);
+  assert.match(viteConfigSource, /sonner/);
+  assert.match(viteConfigSource, /studioMockService/);
+  assert.match(viteConfigSource, /sdkwork-claw-infrastructure/);
+  assert.doesNotMatch(viteConfigSource, /sdkwork-claw-community\/src\/NewPost\.tsx/);
+  assert.doesNotMatch(viteConfigSource, /sdkwork-claw-community\/src\/pages\/community\/NewPost\.tsx/);
+  assert.doesNotMatch(viteConfigSource, /sdkwork-claw-community\/src\/CommunityPostDetail\.tsx/);
+  assert.doesNotMatch(
+    viteConfigSource,
+    /sdkwork-claw-community\/src\/pages\/community\/CommunityPostDetail\.tsx/,
+  );
+  assert.doesNotMatch(viteConfigSource, /sdkwork-claw-chat\/src\/components\/ChatMessage\.tsx/);
+  assert.doesNotMatch(viteConfigSource, /@sdkwork\/claw-studio-infrastructure/);
+  assert.match(viteConfigSource, /dedupe:\s*\[[^\]]*'react'[^\]]*'react-dom'[^\]]*\]/s);
+});
+
+runTest('web studio defers mock task service loading instead of pinning it to infrastructure startup', () => {
+  const webStudioSource = read('packages/sdkwork-claw-infrastructure/src/platform/webStudio.ts');
+
+  assert.doesNotMatch(
+    webStudioSource,
+    /import\s+\{\s*studioMockService\s*\}\s+from\s+'..\/services\/index\.ts'/,
+  );
+  assert.doesNotMatch(
+    webStudioSource,
+    /import\s+\{\s*studioMockService\s*\}\s+from\s+'..\/services\/studioMockService\.ts'/,
+  );
+  assert.doesNotMatch(webStudioSource, /import\('..\/services\/studioMockService\.ts'\)/);
+  assert.doesNotMatch(webStudioSource, /import\('..\/services\/studioMockServiceProxy\.ts'\)/);
+  assert.match(webStudioSource, /import\('..\/services\/index\.ts'\)/);
+});
+
+runTest('infrastructure root exports a lightweight mock-service proxy instead of the heavy mock implementation', () => {
+  const infrastructureIndexSource = read('packages/sdkwork-claw-infrastructure/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-infrastructure/src/services/index.ts');
+
+  assert.doesNotMatch(infrastructureIndexSource, /export \* from '.\/services\/studioMockService\.ts'/);
+  assert.doesNotMatch(servicesIndexSource, /export \* from '.\/studioMockService\.ts'/);
+  assert.match(infrastructureIndexSource, /export \* from '.\/services\/studioMockServiceProxy\.ts'/);
+  assert.match(servicesIndexSource, /export \* from '.\/studioMockServiceProxy\.ts'/);
+});

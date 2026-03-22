@@ -1,10 +1,39 @@
 import type {
   PlatformAPI,
+  PlatformFetchedRemoteUrl,
   PlatformFileEntry,
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
 } from './types.ts';
+
+function deriveFileNameFromUrl(url: string) {
+  try {
+    const pathname = new URL(url).pathname;
+    const segment = pathname.split('/').filter(Boolean).pop();
+    return segment ? decodeURIComponent(segment) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function deriveFileNameFromContentDisposition(header: string | null) {
+  if (!header) {
+    return undefined;
+  }
+
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+
+  const asciiMatch = header.match(/filename="?([^";]+)"?/i);
+  return asciiMatch?.[1]?.trim() || undefined;
+}
 
 export class WebPlatform implements PlatformAPI {
   getPlatform(): 'web' | 'desktop' {
@@ -34,6 +63,36 @@ export class WebPlatform implements PlatformAPI {
 
   async openExternal(url: string): Promise<void> {
     window.open(url, '_blank');
+  }
+
+  supportsNativeScreenshot(): boolean {
+    return false;
+  }
+
+  async captureScreenshot() {
+    return null;
+  }
+
+  async fetchRemoteUrl(url: string): Promise<PlatformFetchedRemoteUrl> {
+    const response = await fetch(url, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`.trim());
+    }
+
+    const resolvedUrl = response.url || url;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+
+    return {
+      url: resolvedUrl,
+      bytes,
+      contentType: response.headers.get('content-type')?.trim() || undefined,
+      fileName:
+        deriveFileNameFromContentDisposition(response.headers.get('content-disposition')) ||
+        deriveFileNameFromUrl(resolvedUrl),
+    };
   }
 
   async selectFile(options?: PlatformSelectFileOptions): Promise<string[]> {

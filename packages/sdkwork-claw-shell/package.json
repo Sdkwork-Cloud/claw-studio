@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@sdkwork/claw-account": "workspace:*",
+    "@sdkwork/claw-agent": "workspace:*",
     "@sdkwork/claw-apirouter": "workspace:*",
     "@sdkwork/claw-apps": "workspace:*",
     "@sdkwork/claw-auth": "workspace:*",
@@ -24,6 +25,7 @@
     "@sdkwork/claw-instances": "workspace:*",
     "@sdkwork/claw-market": "workspace:*",
     "@sdkwork/claw-model-purchase": "workspace:*",
+    "@sdkwork/claw-points": "workspace:*",
     "@sdkwork/claw-settings": "workspace:*",
     "@sdkwork/claw-tasks": "workspace:*",
     "@sdkwork/claw-ui": "workspace:*",

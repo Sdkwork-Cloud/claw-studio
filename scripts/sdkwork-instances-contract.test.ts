@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const root = process.cwd();
+const instanceDetailBadgeDescriptorsModuleUrl = pathToFileURL(
+  path.join(root, 'packages/sdkwork-claw-instances/src/pages/instanceDetailBadgeDescriptors.ts'),
+).href;
+const { buildInstanceDetailBadgeDescriptors } =
+  (await import(instanceDetailBadgeDescriptorsModuleUrl)) as typeof import('../packages/sdkwork-claw-instances/src/pages/instanceDetailBadgeDescriptors');
 
 function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
@@ -223,6 +229,24 @@ runTest('sdkwork-claw-instances renders backend-authored data access and artifac
   assert.match(serviceSource, /artifacts/);
 });
 
+runTest('sdkwork-claw-instances keeps metadata badge keys unique when different fields share the same value', () => {
+  const badges = buildInstanceDetailBadgeDescriptors('config', [
+    { slot: 'scope', value: 'config' },
+    { slot: 'mode', value: 'metadataOnly' },
+    { slot: 'source', value: 'config' },
+  ]);
+
+  assert.deepEqual(
+    badges.map((badge) => badge.value),
+    ['config', 'metadataOnly', 'config'],
+  );
+  assert.deepEqual(
+    badges.map((badge) => badge.key),
+    ['config-scope-config', 'config-mode-metadataOnly', 'config-source-config'],
+  );
+  assert.equal(new Set(badges.map((badge) => badge.key)).size, badges.length);
+});
+
 runTest('sdkwork-claw-instances prefers backend-authored openclaw workbench sections when available', () => {
   const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
 
@@ -280,10 +304,59 @@ runTest('sdkwork-claw-instances keeps local-external OpenClaw editable through t
 
   assert.match(instanceServiceSource, /openClawConfigService/);
   assert.doesNotMatch(instanceServiceSource, /studioMockService\.updateInstanceLlmProviderConfig/);
+  assert.match(instanceServiceSource, /detail\.lifecycle\.configWritable/);
 
   assert.match(workbenchSource, /openClawConfigService/);
   assert.match(workbenchSource, /resolveInstanceConfigPath/);
   assert.match(workbenchSource, /detail\.dataAccess/);
+});
+
+runTest('sdkwork-claw-instances exposes real OpenClaw provider and agent CRUD controls inside instance detail', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const instanceServiceSource = read('packages/sdkwork-claw-instances/src/services/instanceService.ts');
+  const workbenchSource = read('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts');
+
+  assert.match(detailSource, /openCreateProviderDialog/);
+  assert.match(detailSource, /openCreateProviderModelDialog/);
+  assert.match(detailSource, /handleSubmitProviderDialog/);
+  assert.match(detailSource, /handleSubmitProviderModelDialog/);
+  assert.match(detailSource, /handleDeleteProviderModel/);
+  assert.match(detailSource, /handleDeleteProvider/);
+  assert.match(detailSource, /New Provider/);
+  assert.match(detailSource, /Provider Models/);
+  assert.match(detailSource, /Delete OpenClaw Provider/);
+  assert.match(detailSource, /Delete Provider Model/);
+  assert.match(detailSource, /Delete OpenClaw Agent/);
+  assert.match(detailSource, /openEditAgentDialog\(agentRecord\)/);
+  assert.match(instanceServiceSource, /createInstanceLlmProvider/);
+  assert.match(instanceServiceSource, /updateInstanceLlmProviderModel/);
+  assert.match(instanceServiceSource, /deleteInstanceLlmProviderModel/);
+  assert.match(instanceServiceSource, /createOpenClawAgent/);
+  assert.match(instanceServiceSource, /updateOpenClawAgent/);
+  assert.match(instanceServiceSource, /deleteOpenClawAgent/);
+  assert.match(workbenchSource, /configSource: 'managedConfig'/);
+  assert.match(workbenchSource, /managedConfigSnapshot\?\.agentSnapshots/);
+});
+
+runTest('sdkwork-claw-instances keeps the OpenClaw workbench file explorer aligned with the standard bootstrap file set', () => {
+  const rustWorkbenchSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio/openclaw_workbench.rs',
+  );
+
+  assert.match(rustWorkbenchSource, /"AGENTS\.md"/);
+  assert.match(rustWorkbenchSource, /"HEARTBEAT\.md"/);
+  assert.match(rustWorkbenchSource, /"BOOT\.md"/);
+  assert.match(rustWorkbenchSource, /"BOOTSTRAP\.md"/);
+  assert.match(rustWorkbenchSource, /"MEMORY\.md"/);
+});
+
+runTest('sdkwork-claw-instances links the agents workbench to the agent marketplace for the current instance', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+
+  assert.match(detailSource, /\/agents\?instanceId=/);
+  assert.match(detailSource, /sidebar\.agentMarket/);
+  assert.match(detailSource, /disabled=\{!isOpenClawConfigWritable\}/);
+  assert.match(detailSource, /instances\.detail\.instanceWorkbench\.agents\.marketReadonlyNotice/);
 });
 
 runTest('sdkwork-claw-instances keeps direct InstanceDetail i18n keys mapped in both locale bundles', () => {

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
+  Bot,
   ChevronUp,
   Clock,
-  Cpu,
   CircleUserRound,
   Download,
   Gauge,
@@ -24,13 +24,13 @@ import {
   Puzzle,
   Router,
   Server,
-  ShoppingCart,
   Settings2,
   Users,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore, useAuthStore } from '@sdkwork/claw-core';
+import { prefetchSidebarRoute } from '../application/router/routePrefetch';
 
 const COLLAPSED_SIDEBAR_WIDTH = 72;
 const MIN_SIDEBAR_WIDTH = 220;
@@ -159,10 +159,10 @@ export function Sidebar() {
     {
       section: t('sidebar.workspace'),
       items: [
-        { id: 'dashboard', to: '/dashboard', icon: Gauge, label: t('sidebar.dashboard') },
         { id: 'chat', to: '/chat', icon: MessageCircle, label: t('sidebar.aiChat') },
         { id: 'channels', to: '/channels', icon: Hash, label: t('sidebar.channels') },
         { id: 'tasks', to: '/tasks', icon: Clock, label: t('sidebar.cronTasks') },
+        { id: 'dashboard', to: '/dashboard', icon: Gauge, label: t('sidebar.dashboard') },
       ],
     },
     {
@@ -174,6 +174,12 @@ export function Sidebar() {
           icon: Package,
           label: t('sidebar.market'),
           badge: t('sidebar.hotBadge'),
+        },
+        {
+          id: 'agents',
+          to: '/agents',
+          icon: Bot,
+          label: t('sidebar.agentMarket'),
         },
         {
           id: 'apps',
@@ -194,14 +200,7 @@ export function Sidebar() {
       items: [
         { id: 'install', to: '/install', icon: Download, label: t('sidebar.install') },
         { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
-        { id: 'devices', to: '/devices', icon: Cpu, label: t('sidebar.devices') },
         { id: 'api-router', to: '/api-router', icon: Router, label: t('sidebar.apiRouter') },
-        {
-          id: 'model-purchase',
-          to: '/model-purchase',
-          icon: ShoppingCart,
-          label: t('sidebar.modelPurchase'),
-        },
       ],
     },
   ]
@@ -277,6 +276,9 @@ export function Sidebar() {
                     key={item.to}
                     to={item.to}
                     title={isSidebarCollapsed ? item.label : undefined}
+                    onMouseEnter={() => prefetchSidebarRoute(item.to)}
+                    onFocus={() => prefetchSidebarRoute(item.to)}
+                    onPointerDown={() => prefetchSidebarRoute(item.to)}
                     className={({ isActive }) =>
                       `group relative flex items-center rounded-2xl transition-all duration-200 ${
                         isSidebarCollapsed

@@ -475,6 +475,7 @@ fn build_openclaw_files(
             "IDENTITY.md",
             "USER.md",
             "HEARTBEAT.md",
+            "BOOT.md",
             "BOOTSTRAP.md",
             "MEMORY.md",
             "memory.md",
@@ -1900,7 +1901,7 @@ mod tests {
                     "bestEffort": true
                 },
                 "state": {
-                    "nextRunAtMs": 1700000000000
+                    "nextRunAtMs": 1700000000000_i64
                 }
             }),
             &BTreeMap::new(),

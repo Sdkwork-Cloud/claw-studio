@@ -18,6 +18,7 @@ interface AppState {
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidth: (width: number) => void;
+  sidebarVisibilityVersion: number;
   hiddenSidebarItems: string[];
   toggleSidebarItem: (id: string) => void;
   themeMode: ThemeMode;
@@ -38,6 +39,7 @@ type PersistedAppState = Pick<
   AppState,
   | 'isSidebarCollapsed'
   | 'sidebarWidth'
+  | 'sidebarVisibilityVersion'
   | 'hiddenSidebarItems'
   | 'themeMode'
   | 'themeColor'
@@ -45,6 +47,26 @@ type PersistedAppState = Pick<
   | 'languagePreference'
   | 'hasSeenMobileAppPrompt'
 >;
+
+const SIDEBAR_VISIBILITY_VERSION = 3;
+const DEFAULT_HIDDEN_SIDEBAR_ITEMS = [
+  'apps',
+  'extensions',
+  'claw-center',
+  'github',
+  'huggingface',
+] as const;
+
+function dedupeSidebarItems(items: readonly string[]) {
+  return Array.from(new Set(items));
+}
+
+function migrateHiddenSidebarItems(hiddenSidebarItems?: string[]) {
+  return dedupeSidebarItems([
+    ...(hiddenSidebarItems || []).filter((item) => item !== 'market' && item !== 'apps'),
+    ...DEFAULT_HIDDEN_SIDEBAR_ITEMS,
+  ]);
+}
 
 const getDefaultLanguage = (): Language => {
   return resolveInitialLanguage();
@@ -74,7 +96,8 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
       setSidebarCollapsed: (collapsed) => set({ isSidebarCollapsed: collapsed }),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
-      hiddenSidebarItems: [],
+      sidebarVisibilityVersion: SIDEBAR_VISIBILITY_VERSION,
+      hiddenSidebarItems: [...DEFAULT_HIDDEN_SIDEBAR_ITEMS],
       toggleSidebarItem: (id) =>
         set((state) => ({
           hiddenSidebarItems: state.hiddenSidebarItems.includes(id)
@@ -105,6 +128,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state): PersistedAppState => ({
         isSidebarCollapsed: state.isSidebarCollapsed,
         sidebarWidth: state.sidebarWidth,
+        sidebarVisibilityVersion: state.sidebarVisibilityVersion,
         hiddenSidebarItems: state.hiddenSidebarItems,
         themeMode: state.themeMode,
         themeColor: state.themeColor,
@@ -117,10 +141,16 @@ export const useAppStore = create<AppState>()(
         const languagePreference = normalizeLanguagePreference(
           nextState.languagePreference ?? nextState.language ?? 'system',
         );
+        const hiddenSidebarItems =
+          nextState.sidebarVisibilityVersion === SIDEBAR_VISIBILITY_VERSION
+            ? dedupeSidebarItems(nextState.hiddenSidebarItems ?? currentState.hiddenSidebarItems)
+            : migrateHiddenSidebarItems(nextState.hiddenSidebarItems);
 
         return {
           ...currentState,
           ...nextState,
+          sidebarVisibilityVersion: SIDEBAR_VISIBILITY_VERSION,
+          hiddenSidebarItems,
           languagePreference,
           language: resolveLanguageFromPreference(languagePreference ?? defaultLanguage),
           isMobileAppDialogOpen: false,

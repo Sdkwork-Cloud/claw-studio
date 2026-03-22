@@ -112,8 +112,27 @@ await runTest('unifiedApiKeyAccessService resolves client gateway URLs from the 
   const gateways = await resolveUnifiedApiAccessGateways();
 
   assert.equal(gateways.openai.baseUrl, 'http://127.0.0.1:13003/api/v1');
-  assert.equal(gateways.anthropic.baseUrl, 'http://127.0.0.1:13003/api/anthropic');
-  assert.equal(gateways.gemini.baseUrl, 'http://127.0.0.1:13003/api/gemini');
+  assert.equal(gateways.anthropic.baseUrl, 'http://127.0.0.1:13003/api/v1');
+  assert.equal(gateways.gemini.baseUrl, 'http://127.0.0.1:13003/api/v1');
+});
+
+await runTest('unifiedApiKeyAccessService only exposes working quick setup clients for the current router surface', async () => {
+  const { buildUnifiedApiKeyAccessClientConfigs } = await import('./unifiedApiKeyAccessService.ts');
+
+  const configs = buildUnifiedApiKeyAccessClientConfigs(createUnifiedApiKey());
+  const codex = configs.find((config) => config.id === 'codex');
+  const opencode = configs.find((config) => config.id === 'opencode');
+  const openclaw = configs.find((config) => config.id === 'openclaw');
+  const claudeCode = configs.find((config) => config.id === 'claude-code');
+  const gemini = configs.find((config) => config.id === 'gemini');
+
+  assert.equal(codex?.available, true);
+  assert.equal(opencode?.available, true);
+  assert.equal(openclaw?.available, true);
+  assert.equal(claudeCode?.available, false);
+  assert.equal(claudeCode?.reason, 'requiresAnthropicCompatible');
+  assert.equal(gemini?.available, false);
+  assert.equal(gemini?.reason, 'requiresGeminiCompatible');
 });
 
 await runTest('unifiedApiKeyAccessService makes quick setup unavailable when the local plaintext copy is missing', async () => {

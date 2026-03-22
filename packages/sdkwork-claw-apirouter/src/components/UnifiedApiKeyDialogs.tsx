@@ -90,32 +90,21 @@ function UnifiedApiKeyUsageDefaultPanel({
 }) {
   const { t } = useTranslation();
   const hasVisibleSecret = item.canCopyApiKey !== false && !!item.apiKey;
-  const routedClientModels = [
-    {
-      id: 'codex',
-      model: gateways.openai.defaultModel.name,
-    },
-    {
-      id: 'claude-code',
-      model: gateways.anthropic.defaultModel.name,
-    },
-    {
-      id: 'opencode',
-      model: gateways.openai.defaultModel.name,
-    },
-    {
-      id: 'openclaw',
-      model: gateways.openai.defaultModel.name,
-    },
-    {
-      id: 'gemini',
-      model: gateways.gemini.defaultModel.name,
-    },
-  ] as const;
+  const routedClientModels = buildUnifiedApiKeyAccessClientConfigs(item, gateways)
+    .filter((client) => client.available)
+    .map((client) => ({
+      id: client.id,
+      model:
+        client.id === 'claude-code'
+          ? gateways.anthropic.defaultModel.name
+          : client.id === 'gemini'
+            ? gateways.gemini.defaultModel.name
+            : gateways.openai.defaultModel.name,
+    }));
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 xl:grid-cols-3">
+      <div className="grid gap-5 xl:grid-cols-2">
         <div className="rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             <Link2 className="h-4 w-4 text-primary-500" />
@@ -123,16 +112,6 @@ function UnifiedApiKeyUsageDefaultPanel({
           </div>
           <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
             {gateways.openai.baseUrl}
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            <Link2 className="h-4 w-4 text-primary-500" />
-            {t('apiRouterPage.unifiedApiKey.detail.anthropicBaseUrl')}
-          </div>
-          <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
-            {gateways.anthropic.baseUrl}
           </div>
         </div>
 

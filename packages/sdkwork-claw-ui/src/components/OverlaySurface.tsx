@@ -1,19 +1,24 @@
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import {
   APP_HEADER_HEIGHT_PX,
+  getOverlayContainerClassName,
   getOverlayContainerStyle,
   getOverlaySurfaceStyle,
+  type OverlayModalAlignment,
+  type OverlayVariant,
 } from './overlayLayout';
 
-export type OverlayVariant = 'modal' | 'drawer';
+export type { OverlayModalAlignment, OverlayVariant } from './overlayLayout';
 
 export interface OverlaySurfaceProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
   variant?: OverlayVariant;
+  modalAlignment?: OverlayModalAlignment;
   closeOnBackdrop?: boolean;
   className?: string;
   backdropClassName?: string;
@@ -40,16 +45,21 @@ export function OverlaySurface({
   onClose,
   children,
   variant = 'modal',
+  modalAlignment = 'center',
   closeOnBackdrop = true,
   className,
   backdropClassName,
 }: OverlaySurfaceProps) {
   const surfaceMotion = getSurfaceMotion(variant);
 
-  return (
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
     <AnimatePresence>
       {isOpen ? (
-        <div className="fixed inset-0 z-[60]">
+        <div className="fixed inset-0 z-[120]">
           <div
             className="absolute inset-x-0 top-0"
             style={{ height: `${APP_HEADER_HEIGHT_PX}px` }}
@@ -68,9 +78,7 @@ export function OverlaySurface({
           <div
             className={cn(
               'relative flex h-full',
-              variant === 'drawer'
-                ? 'items-stretch justify-end'
-                : 'items-start justify-center lg:items-center',
+              getOverlayContainerClassName(variant, modalAlignment),
             )}
             style={getOverlayContainerStyle()}
           >
@@ -96,6 +104,7 @@ export function OverlaySurface({
           </div>
         </div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

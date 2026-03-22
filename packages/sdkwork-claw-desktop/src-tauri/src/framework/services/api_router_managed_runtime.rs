@@ -179,7 +179,14 @@ impl ApiRouterManagedRuntimeService {
         let gateway_path = install_dir.join(&manifest.gateway_relative_path);
         let admin_path = install_dir.join(&manifest.admin_relative_path);
         let portal_path = install_dir.join(&manifest.portal_relative_path);
-        if !gateway_path.exists() || !admin_path.exists() || !portal_path.exists() {
+        let admin_site_index_path = runtime_site_index_path(&install_dir, "admin");
+        let portal_site_index_path = runtime_site_index_path(&install_dir, "portal");
+        if !gateway_path.exists()
+            || !admin_path.exists()
+            || !portal_path.exists()
+            || !admin_site_index_path.exists()
+            || !portal_site_index_path.exists()
+        {
             return Err(FrameworkError::NotFound(format!(
                 "bundled sdkwork-api-router runtime is incomplete under {}",
                 install_dir.display()
@@ -244,10 +251,14 @@ fn ensure_runtime_installation(
     let gateway_path = install_dir.join(&manifest.gateway_relative_path);
     let admin_path = install_dir.join(&manifest.admin_relative_path);
     let portal_path = install_dir.join(&manifest.portal_relative_path);
+    let admin_site_index_path = runtime_site_index_path(install_dir, "admin");
+    let portal_site_index_path = runtime_site_index_path(install_dir, "portal");
     if install_dir.exists()
         && gateway_path.exists()
         && admin_path.exists()
         && portal_path.exists()
+        && admin_site_index_path.exists()
+        && portal_site_index_path.exists()
         && manifest_path.exists()
     {
         return Ok(());
@@ -279,6 +290,14 @@ fn ensure_runtime_installation(
     }
 
     Ok(())
+}
+
+fn runtime_site_index_path(install_dir: &Path, site_label: &str) -> PathBuf {
+    install_dir
+        .join("runtime")
+        .join("sites")
+        .join(site_label)
+        .join("index.html")
 }
 
 fn ensure_managed_router_config(
@@ -478,6 +497,20 @@ mod tests {
         assert!(activated.gateway.command_path.exists());
         assert!(activated.admin.command_path.exists());
         assert!(activated.portal.command_path.exists());
+        assert!(activated
+            .install_dir
+            .join("runtime")
+            .join("sites")
+            .join("admin")
+            .join("index.html")
+            .exists());
+        assert!(activated
+            .install_dir
+            .join("runtime")
+            .join("sites")
+            .join("portal")
+            .join("index.html")
+            .exists());
         assert_eq!(
             activated.shared_root_dir,
             paths
@@ -645,6 +678,39 @@ mod tests {
     }
 
     #[test]
+    fn reinstalls_bundled_runtime_when_existing_install_is_missing_site_bundle() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.20");
+        let service = ApiRouterManagedRuntimeService::new();
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("first activation");
+        let missing_admin_site_dir = activated.install_dir.join("runtime").join("sites").join("admin");
+        fs::remove_dir_all(&missing_admin_site_dir).expect("remove admin site");
+
+        let reactivated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("reactivated runtime");
+
+        assert!(reactivated
+            .install_dir
+            .join("runtime")
+            .join("sites")
+            .join("admin")
+            .join("index.html")
+            .exists());
+        assert!(reactivated
+            .install_dir
+            .join("runtime")
+            .join("sites")
+            .join("portal")
+            .join("index.html")
+            .exists());
+    }
+
+    #[test]
     fn writes_host_managed_router_config_from_host_base_port_override() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
@@ -778,9 +844,21 @@ mod tests {
         fs::create_dir_all(gateway_path.parent().expect("gateway parent")).expect("gateway dir");
         fs::create_dir_all(admin_path.parent().expect("admin parent")).expect("admin dir");
         fs::create_dir_all(portal_path.parent().expect("portal parent")).expect("portal dir");
+        fs::create_dir_all(runtime_root.join("sites").join("admin")).expect("admin site dir");
+        fs::create_dir_all(runtime_root.join("sites").join("portal")).expect("portal site dir");
         fs::write(&gateway_path, "gateway").expect("gateway file");
         fs::write(&admin_path, "admin").expect("admin file");
         fs::write(&portal_path, "portal").expect("portal file");
+        fs::write(
+            runtime_root.join("sites").join("admin").join("index.html"),
+            "<!doctype html><title>admin</title>",
+        )
+        .expect("admin site");
+        fs::write(
+            runtime_root.join("sites").join("portal").join("index.html"),
+            "<!doctype html><title>portal</title>",
+        )
+        .expect("portal site");
         assert!(runtime_root.exists());
 
         let manifest = BundledApiRouterManifest {

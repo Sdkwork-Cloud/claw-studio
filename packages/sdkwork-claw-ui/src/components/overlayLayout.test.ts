@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   APP_HEADER_HEIGHT_PX,
   OVERLAY_FRAME_GAP_PX,
+  getOverlayContainerClassName,
   getOverlayContainerStyle,
   getOverlaySurfaceStyle,
 } from './overlayLayout.ts';
@@ -34,4 +35,16 @@ runTest('overlay surface height matches the header-safe viewport', () => {
   assert.deepEqual(getOverlaySurfaceStyle(24), {
     maxHeight: 'calc(100dvh - 104px)',
   });
+});
+
+runTest('overlay container alignment supports top-aligned large modals without affecting defaults', () => {
+  assert.equal(getOverlayContainerClassName('drawer'), 'items-stretch justify-end');
+  assert.equal(
+    getOverlayContainerClassName('modal'),
+    'items-start justify-center lg:items-center',
+  );
+  assert.equal(
+    getOverlayContainerClassName('modal', 'top'),
+    'items-start justify-center',
+  );
 });

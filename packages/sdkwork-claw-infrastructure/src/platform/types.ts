@@ -35,6 +35,22 @@ export interface PlatformSaveFileOptions {
   filters?: PlatformDialogFilter[];
 }
 
+export interface PlatformCapturedScreenshot {
+  bytes: Uint8Array;
+  fileName: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  displayName?: string;
+}
+
+export interface PlatformFetchedRemoteUrl {
+  url: string;
+  bytes: Uint8Array;
+  contentType?: string;
+  fileName?: string;
+}
+
 export type PlatformWindowStateUnsubscribe = () => void | Promise<void>;
 
 export interface PlatformAPI {
@@ -47,6 +63,9 @@ export interface PlatformAPI {
 
   copy(text: string): Promise<void>;
   openExternal(url: string): Promise<void>;
+  supportsNativeScreenshot(): boolean;
+  captureScreenshot(): Promise<PlatformCapturedScreenshot | null>;
+  fetchRemoteUrl(url: string): Promise<PlatformFetchedRemoteUrl>;
 
   selectFile(options?: PlatformSelectFileOptions): Promise<string[]>;
   saveFile(data: Blob, filename: string, options?: PlatformSaveFileOptions): Promise<void>;

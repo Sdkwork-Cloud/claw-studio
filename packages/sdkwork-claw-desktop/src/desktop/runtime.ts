@@ -57,8 +57,68 @@ export class DesktopBridgeError extends Error {
   }
 }
 
+interface TauriInternalsLike {
+  invoke?: unknown;
+}
+
+const TAURI_RUNTIME_WAIT_TIMEOUT_MS = 600;
+const TAURI_RUNTIME_WAIT_POLL_MS = 20;
+
+function resolveTauriInternals() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const runtimeWindow = window as Window & {
+    __TAURI_INTERNALS__?: TauriInternalsLike;
+  };
+
+  return runtimeWindow.__TAURI_INTERNALS__ ?? null;
+}
+
 export function isTauriRuntime() {
-  return typeof window !== 'undefined' && isTauri();
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  if (isTauri()) {
+    return true;
+  }
+
+  const tauriInternals = resolveTauriInternals();
+  return Boolean(tauriInternals && typeof tauriInternals.invoke === 'function');
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export async function waitForTauriRuntime(options?: {
+  timeoutMs?: number;
+  pollMs?: number;
+}): Promise<boolean> {
+  if (isTauriRuntime()) {
+    return true;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const timeoutMs = Math.max(0, options?.timeoutMs ?? TAURI_RUNTIME_WAIT_TIMEOUT_MS);
+  const pollMs = Math.max(1, options?.pollMs ?? TAURI_RUNTIME_WAIT_POLL_MS);
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await sleep(pollMs);
+    if (isTauriRuntime()) {
+      return true;
+    }
+  }
+
+  return isTauriRuntime();
 }
 
 export function getDesktopWindow() {
@@ -75,7 +135,7 @@ export async function invokeDesktopCommand<T>(
   options?: { operation?: string },
 ): Promise<T> {
   const operation = options?.operation ?? command;
-  if (!isTauriRuntime()) {
+  if (!(await waitForTauriRuntime())) {
     throw new DesktopBridgeError({
       operation,
       runtime: 'web',
@@ -101,7 +161,7 @@ export async function listenDesktopEvent<T>(
   listener: (payload: T) => void,
   options?: { operation?: string },
 ): Promise<RuntimeEventUnsubscribe> {
-  if (!isTauriRuntime()) {
+  if (!(await waitForTauriRuntime())) {
     return () => {};
   }
 
@@ -124,7 +184,7 @@ export async function runDesktopOrFallback<T>(
   desktopCall: () => Promise<T>,
   webFallback: () => Promise<T>,
 ): Promise<T> {
-  if (!isTauriRuntime()) {
+  if (!(await waitForTauriRuntime())) {
     return webFallback();
   }
 

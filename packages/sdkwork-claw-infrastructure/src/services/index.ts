@@ -6,4 +6,4 @@ export * from './accountClient.ts';
 export * from './notificationClient.ts';
 export * from './sdkworkApiRouterAccess.ts';
 export * from './sdkworkApiRouterAdminClient.ts';
-export * from './studioMockService.ts';
+export * from './studioMockServiceProxy.ts';

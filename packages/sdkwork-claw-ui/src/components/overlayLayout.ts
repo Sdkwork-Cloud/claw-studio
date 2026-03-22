@@ -1,9 +1,25 @@
 import type { CSSProperties } from 'react';
 
+export type OverlayVariant = 'modal' | 'drawer';
+export type OverlayModalAlignment = 'top' | 'center';
+
 export const APP_HEADER_HEIGHT_PX = 48;
 export const OVERLAY_FRAME_GAP_PX = 16;
 export const OVERLAY_SAFE_TOP_PX = APP_HEADER_HEIGHT_PX + OVERLAY_FRAME_GAP_PX;
 export const OVERLAY_SAFE_BOTTOM_PX = OVERLAY_FRAME_GAP_PX;
+
+export function getOverlayContainerClassName(
+  variant: OverlayVariant,
+  modalAlignment: OverlayModalAlignment = 'center',
+) {
+  if (variant === 'drawer') {
+    return 'items-stretch justify-end';
+  }
+
+  return modalAlignment === 'top'
+    ? 'items-start justify-center'
+    : 'items-start justify-center lg:items-center';
+}
 
 export function getOverlayContainerStyle(): CSSProperties {
   return {

@@ -1,8 +1,8 @@
 import {
-  platform,
   type PlatformSaveFileOptions,
   type PlatformSelectFileOptions,
-} from '../platform/index.ts';
+} from '../platform/types.ts';
+import { platform } from '../platform/registry.ts';
 
 export type FileDialogSelectOptions = PlatformSelectFileOptions;
 export type FileDialogSaveOptions = PlatformSaveFileOptions;

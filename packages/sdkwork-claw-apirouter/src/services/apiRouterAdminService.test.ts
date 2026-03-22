@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  APP_ENV,
   clearApiRouterAdminSession,
   configurePlatformBridge,
   readApiRouterAdminSession,
@@ -154,6 +155,8 @@ await runTest('apiRouterAdminService reports an authenticated router admin sessi
   assert.equal(status.state, 'authenticated');
   assert.equal(status.authenticated, true);
   assert.equal(status.authSource, 'session');
+  assert.equal(status.allowsManualLogin, false);
+  assert.equal(status.allowsManualDisconnect, true);
   assert.equal(status.operator?.email, 'admin@sdkwork.local');
   assert.equal(status.adminBaseUrl, 'http://127.0.0.1:13003/api/admin');
   assert.equal(status.gatewayBaseUrl, 'http://127.0.0.1:13003/api');
@@ -213,6 +216,97 @@ await runTest('apiRouterAdminService silently authenticates when Claw manages a 
   assert.equal(status.state, 'authenticated');
   assert.equal(status.authenticated, true);
   assert.equal(status.authSource, 'managedBootstrap');
+  assert.equal(status.allowsManualLogin, false);
+  assert.equal(status.allowsManualDisconnect, false);
+  assert.equal(status.sessionUser?.email, 'admin@sdkwork.local');
+  assert.equal(status.operator?.email, 'admin@sdkwork.local');
+  assert.equal(fetchCount, 0);
+});
+
+await runTest('apiRouterAdminService silently authenticates when a trusted local router is attached on the standard local ports', async () => {
+  configurePlatformBridge({
+    runtime: {
+      getRuntimeInfo: async () => ({ platform: 'desktop' }),
+      getApiRouterRuntimeStatus: async () =>
+        createRuntimeStatus({
+          mode: 'attachedExternal',
+          configSource: 'file',
+          resolvedConfigFile: 'C:/Users/admin/.sdkwork/router/config.json',
+          admin: {
+            bindAddr: '127.0.0.1:12101',
+            healthUrl: 'http://127.0.0.1:12101/admin/health',
+            enabled: true,
+            publicBaseUrl: 'http://127.0.0.1:12103/api/admin',
+            healthy: true,
+            portAvailable: false,
+          },
+          portal: {
+            bindAddr: '127.0.0.1:12102',
+            healthUrl: 'http://127.0.0.1:12102/portal/health',
+            enabled: true,
+            publicBaseUrl: 'http://127.0.0.1:12103/api/portal',
+            healthy: true,
+            portAvailable: false,
+          },
+          gateway: {
+            bindAddr: '127.0.0.1:12100',
+            healthUrl: 'http://127.0.0.1:12100/health',
+            enabled: true,
+            publicBaseUrl: 'http://127.0.0.1:12103/api',
+            healthy: true,
+            portAvailable: false,
+          },
+          adminSiteBaseUrl: 'http://127.0.0.1:12103/admin',
+          portalSiteBaseUrl: 'http://127.0.0.1:12103/portal',
+          reason: 'Detected a healthy independently started sdkwork-api-router runtime.',
+        }),
+      getApiRouterAdminBootstrapSession: async () => ({
+        token: 'trusted-local-bootstrap-token',
+        source: 'managedLocalJwt',
+        user: {
+          id: 'admin_local_default',
+          email: 'admin@sdkwork.local',
+          displayName: 'Admin Operator',
+          active: true,
+          createdAtMs: 1_700_000_000_000,
+        },
+      }),
+      setAppLanguage: async () => {},
+      submitProcessJob: async () => 'job-api-router-admin-attached-bootstrap',
+      getJob: async () => ({
+        id: 'job-api-router-admin-attached-bootstrap',
+        kind: 'process',
+        state: 'queued',
+        stage: 'queued',
+      }),
+      listJobs: async () => [],
+      cancelJob: async () => ({
+        id: 'job-api-router-admin-attached-bootstrap',
+        kind: 'process',
+        state: 'cancelled',
+        stage: 'cancelled',
+      }),
+      subscribeJobUpdates: async () => () => {},
+      subscribeProcessOutput: async () => () => {},
+    },
+  });
+  clearApiRouterAdminSession();
+
+  let fetchCount = 0;
+  globalThis.fetch = (async () => {
+    fetchCount += 1;
+    return new Response('Unauthorized', { status: 401 });
+  }) as typeof fetch;
+
+  const { apiRouterAdminService } = await import('./apiRouterAdminService.ts');
+
+  const status = await apiRouterAdminService.getStatus();
+
+  assert.equal(status.state, 'authenticated');
+  assert.equal(status.authenticated, true);
+  assert.equal(status.authSource, 'managedBootstrap');
+  assert.equal(status.allowsManualLogin, false);
+  assert.equal(status.allowsManualDisconnect, false);
   assert.equal(status.sessionUser?.email, 'admin@sdkwork.local');
   assert.equal(status.operator?.email, 'admin@sdkwork.local');
   assert.equal(fetchCount, 0);
@@ -264,6 +358,8 @@ await runTest('apiRouterAdminService drops a stored managed bootstrap session wh
   assert.equal(status.state, 'needsLogin');
   assert.equal(status.authenticated, false);
   assert.equal(status.authSource, 'none');
+  assert.equal(status.allowsManualLogin, true);
+  assert.equal(status.allowsManualDisconnect, false);
   assert.equal(readApiRouterAdminSession(), null);
 });
 
@@ -279,6 +375,8 @@ await runTest('apiRouterAdminService asks for login when no router admin credent
   assert.equal(status.state, 'needsLogin');
   assert.equal(status.authenticated, false);
   assert.equal(status.authSource, 'none');
+  assert.equal(status.allowsManualLogin, true);
+  assert.equal(status.allowsManualDisconnect, false);
 });
 
 await runTest('apiRouterAdminService clears a stale local session when the router rejects it', async () => {
@@ -314,5 +412,111 @@ await runTest('apiRouterAdminService clears a stale local session when the route
   const status = await apiRouterAdminService.getStatus();
 
   assert.equal(status.state, 'needsLogin');
+  assert.equal(status.allowsManualLogin, true);
+  assert.equal(status.allowsManualDisconnect, false);
   assert.equal(readApiRouterAdminSession(), null);
+});
+
+await runTest('apiRouterAdminService reports configuredToken when an explicit admin token overrides a stale stored session', async () => {
+  configureRouterRuntime();
+  const previousAdminToken = APP_ENV.apiRouter.adminToken;
+  APP_ENV.apiRouter.adminToken = 'configured-admin-token';
+
+  try {
+    writeApiRouterAdminSession({
+      token: 'stale-router-admin-token',
+      user: {
+        id: 'admin_local_default',
+        email: 'admin@sdkwork.local',
+        displayName: 'Admin Operator',
+        active: true,
+        createdAtMs: 1_700_000_000_000,
+      },
+    });
+
+    let authorizationHeader: string | null = null;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      authorizationHeader = new Headers(init?.headers).get('authorization');
+      return new Response(
+        JSON.stringify({
+          id: 'admin_local_default',
+          email: 'admin@sdkwork.local',
+          display_name: 'Configured Token Operator',
+          active: true,
+          created_at_ms: 1_700_000_000_000,
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+          },
+        },
+      );
+    }) as typeof fetch;
+
+    const { apiRouterAdminService } = await import('./apiRouterAdminService.ts');
+
+    const status = await apiRouterAdminService.getStatus();
+
+    assert.equal(status.state, 'authenticated');
+    assert.equal(status.authSource, 'configuredToken');
+    assert.equal(status.allowsManualLogin, false);
+    assert.equal(status.allowsManualDisconnect, false);
+    assert.equal(status.operator?.displayName, 'Configured Token Operator');
+    assert.equal(authorizationHeader, 'Bearer configured-admin-token');
+  } finally {
+    APP_ENV.apiRouter.adminToken = previousAdminToken;
+    clearApiRouterAdminSession();
+  }
+});
+
+await runTest('apiRouterAdminService keeps configuredToken as the auth source when the configured admin token is rejected', async () => {
+  configureRouterRuntime();
+  const previousAdminToken = APP_ENV.apiRouter.adminToken;
+  APP_ENV.apiRouter.adminToken = 'configured-admin-token';
+
+  try {
+    writeApiRouterAdminSession({
+      token: 'stale-router-admin-token',
+      user: {
+        id: 'admin_local_default',
+        email: 'admin@sdkwork.local',
+        displayName: 'Admin Operator',
+        active: true,
+        createdAtMs: 1_700_000_000_000,
+      },
+    });
+
+    let authorizationHeader: string | null = null;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      authorizationHeader = new Headers(init?.headers).get('authorization');
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: 'Unauthorized',
+          },
+        }),
+        {
+          status: 401,
+          headers: {
+            'content-type': 'application/json',
+          },
+        },
+      );
+    }) as typeof fetch;
+
+    const { apiRouterAdminService } = await import('./apiRouterAdminService.ts');
+
+    const status = await apiRouterAdminService.getStatus();
+
+    assert.equal(status.state, 'needsConfiguration');
+    assert.equal(status.authSource, 'configuredToken');
+    assert.equal(status.authenticated, false);
+    assert.equal(status.allowsManualLogin, false);
+    assert.equal(status.allowsManualDisconnect, false);
+    assert.equal(authorizationHeader, 'Bearer configured-admin-token');
+  } finally {
+    APP_ENV.apiRouter.adminToken = previousAdminToken;
+    clearApiRouterAdminSession();
+  }
 });
