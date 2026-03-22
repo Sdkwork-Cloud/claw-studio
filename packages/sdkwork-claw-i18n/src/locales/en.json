@@ -2641,6 +2641,7 @@
       },
       "header": {
         "eyebrow": "Task-focused setup",
+        "taskTitle": "Choose a task",
         "badges": {
           "detectedInstall": "Detected runtime",
           "currentProduct": "Current product",
@@ -2790,14 +2791,41 @@
           "comingSoon": "In development"
         }
       },
+      "productShelf": {
+        "eyebrow": "Choose a product for this task",
+        "title": "Lifecycle workspace",
+        "description": "Switch the active product for {{mode}} while keeping environment context and execution in one focused workspace.",
+        "status": {
+          "installReady": "{{count}} install paths ready",
+          "uninstallReady": "{{count}} uninstall paths ready",
+          "migrationReady": "{{count}} migration sources found",
+          "detectedInstall": "Detected install",
+          "reviewRequired": "Review required",
+          "manualImport": "Manual import"
+        }
+      },
+      "contextRail": {
+        "title": "Environment and product context",
+        "heading": "Environment and product context",
+        "description": "Keep the current {{product}} status and {{mode}} readiness visible while you work.",
+        "selectedPath": "Selected path"
+      },
       "install": {
-        "sectionTitle": "Choose a product",
-        "sectionHeading": "Ready to install on this device",
-        "sectionDescription": "Pick a product, compare the paths that fit this machine, and start with the option that gets you running fastest.",
+        "sectionTitle": "Install workspace",
+        "sectionHeading": "Choose the best path for {{product}}",
+        "sectionDescription": "Review the recommended path first, compare other install paths only when needed, and start setup from one focused workspace.",
         "supportTitle": "Quick system note",
         "supportDescription": "Keep a modern CPU, stable network access, and enough free disk space available for {{product}} before you begin.",
         "selectedProduct": "Selected",
-        "readyHint": "Ready to install"
+        "readyHint": "Ready to install",
+        "recommendedTitle": "Recommended path",
+        "recommendedAction": "Use recommended path",
+        "detailTitle": "Method details",
+        "alternateTitle": "Other install paths",
+        "alternateHeading": "Other install paths",
+        "alternateDescription": "Use another path only when it better matches your host, toolchain, or operating constraints.",
+        "pendingAssessment": "Assessment details will appear after the environment check completes.",
+        "noSupportedPath": "No supported install path is available for this product on the current device."
       },
       "systemRequirements": {
         "title": "System requirements",
@@ -2809,7 +2837,7 @@
         "detectedTitle": "Detected OpenClaw runtime",
         "reviewTitle": "Review first",
         "reviewHeading": "Confirm the runtime before you remove it",
-        "reviewDescription": "Review the current {{product}} runtime before removing it.",
+        "reviewDescription": "Review the current {{product}} installation before removing it.",
         "detected": {
           "installMode": "Detected install mode",
           "installRoot": "Install root",

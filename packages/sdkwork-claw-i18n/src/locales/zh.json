@@ -1297,8 +1297,7 @@
         "marketing": "营销与增长",
         "translation": "翻译与本地化",
         "operations": "远程运营",
-        "training": "培训与赋能"
-        ,
+        "training": "培训与赋能",
         "consulting": "咨询与策略顾问",
         "content": "内容与代写",
         "data": "数据与分析",
@@ -1415,8 +1414,7 @@
           "marketing": "营销与增长",
           "translation": "翻译与本地化",
           "operations": "远程运营",
-          "training": "培训与赋能"
-          ,
+          "training": "培训与赋能",
           "consulting": "咨询与策略顾问",
           "content": "内容与代写",
           "data": "数据与分析",
@@ -2361,6 +2359,26 @@
           "uptime": "Uptime: 3 days 04h"
         }
       },
+      "productShelf": {
+        "eyebrow": "为当前任务选择产品",
+        "title": "生命周期工作台",
+        "description": "在不离开当前工作区的情况下切换 {{mode}} 对应的产品，并持续查看环境与执行上下文。",
+        "status": {
+          "installReady": "{{count}} 条安装路径可用",
+          "uninstallReady": "{{count}} 条卸载路径可用",
+          "migrationReady": "发现 {{count}} 个迁移来源",
+          "detectedInstall": "已检测到安装",
+          "reviewRequired": "需要人工确认",
+          "manualImport": "手动导入"
+        }
+      },
+      "contextRail": {
+        "reviewDescriptionTaskFirst": "先确认当前 {{product}} 安装情况，再执行移除。",
+        "title": "环境与产品上下文",
+        "heading": "环境与产品上下文",
+        "description": "在处理 {{product}} 的{{mode}}任务时，持续查看环境状态、产品状态与执行上下文。",
+        "selectedPath": "当前路径"
+      },
       "install": {
         "description": "Installs a skill by id from the active repository."
       },
@@ -2640,6 +2658,7 @@
         "title": "安装 Claw"
       },
       "header": {
+        "taskTitle": "选择任务",
         "eyebrow": "聚焦任务的安装工作台",
         "badges": {
           "detectedInstall": "已检测运行环境",
@@ -2669,6 +2688,9 @@
         }
       },
       "runtime": {
+        "actions": {
+          "rescan": "重新检查环境"
+        },
         "label": "已检测平台",
         "detectedInstall": "已检测到 OpenClaw",
         "values": {
@@ -2788,13 +2810,21 @@
         }
       },
       "install": {
-        "sectionTitle": "选择产品",
-        "sectionHeading": "当前设备已准备好安装",
-        "sectionDescription": "先选择产品，再比较适合当前机器的安装方式，直接从最合适的路径开始。",
+        "sectionTitle": "安装工作区",
+        "sectionHeading": "为 {{product}} 选择最合适的路径",
+        "sectionDescription": "优先查看推荐路径，只在确有需要时比较其他安装方式，并在同一个聚焦工作区里完成安装。",
         "supportTitle": "快速环境提示",
-        "supportDescription": "开始前请确认 {{product}} 所需的 CPU、网络连接与可用磁盘空间已经准备好。",
+        "supportDescription": "开始前请确认 {{product}} 所需的 CPU、网络连接和可用磁盘空间已经准备好。",
         "selectedProduct": "已选择",
-        "readyHint": "可以安装"
+        "readyHint": "可以安装",
+        "recommendedTitle": "推荐路径",
+        "recommendedAction": "使用推荐路径",
+        "detailTitle": "方式详情",
+        "alternateTitle": "其他安装路径",
+        "alternateHeading": "其他安装路径",
+        "alternateDescription": "只有当宿主机、工具链或运行限制不匹配时，再切换到其他路径。",
+        "pendingAssessment": "环境检查完成后，这里会显示详细结果。",
+        "noSupportedPath": "当前设备上没有适用于该产品的安装路径。"
       },
       "systemRequirements": {
         "title": "系统要求",
@@ -2806,7 +2836,7 @@
         "detectedTitle": "已检测到 OpenClaw 运行环境",
         "reviewTitle": "卸载前确认",
         "reviewHeading": "确认当前运行环境后再移除",
-        "reviewDescription": "先确认当前 {{product}} 运行环境，再执行移除。",
+        "reviewDescription": "先确认当前 {{product}} 安装情况，再执行移除。",
         "detected": {
           "installMode": "已检测安装方式",
           "installRoot": "安装目录",
@@ -2885,7 +2915,7 @@
           "copying": "正在导入 {{title}}...",
           "completedSection": "当前内容导入完成。",
           "missing": "未找到源目录。",
-          "partial": "迁移完成，但有部分内容需要关注。",
+          "partial": "迁移已完成，但仍有部分内容需要关注。",
           "completed": "迁移已成功完成。"
         }
       },
@@ -2944,6 +2974,25 @@
           "startInstall": "开始安装",
           "startUninstall": "开始卸载"
         }
+      },
+      "productShelf": {
+        "eyebrow": "为当前任务选择产品",
+        "title": "生命周期工作台",
+        "description": "在同一个聚焦工作台里切换 {{mode}} 对应产品，同时保持环境上下文和执行状态连续。",
+        "status": {
+          "installReady": "{{count}} 条安装路径可用",
+          "uninstallReady": "{{count}} 条卸载路径可用",
+          "migrationReady": "发现 {{count}} 个迁移来源",
+          "detectedInstall": "已检测安装",
+          "reviewRequired": "需要确认",
+          "manualImport": "手动导入"
+        }
+      },
+      "contextRail": {
+        "title": "环境与产品上下文",
+        "heading": "环境与产品上下文",
+        "description": "处理 {{product}} 的 {{mode}} 任务时，持续查看当前环境、产品状态和执行上下文。",
+        "selectedPath": "当前路径"
       }
     },
     "mobileGuide": {
