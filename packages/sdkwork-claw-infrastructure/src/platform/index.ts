@@ -112,6 +112,7 @@ export type {
 export type {
   StudioCreateInstanceInput,
   StudioPlatformAPI,
+  StudioUpdateInstanceLlmProviderConfigInput,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
 export type {

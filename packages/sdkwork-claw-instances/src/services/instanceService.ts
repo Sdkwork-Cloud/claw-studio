@@ -1,11 +1,24 @@
 import {
+  openClawGatewayClient,
   studio,
   studioMockService,
   type StudioCreateInstanceInput,
   type StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
-import { ListParams, PaginatedResult, type StudioInstanceRecord } from '@sdkwork/claw-types';
-import { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types';
+import type {
+  ListParams,
+  PaginatedResult,
+  StudioInstanceDetailRecord,
+  StudioInstanceRecord,
+} from '@sdkwork/claw-types';
+import type { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types/index.ts';
+import {
+  buildOpenClawAgentFileId,
+  getArrayValue,
+  getObjectValue,
+  parseOpenClawAgentFileId,
+  upsertOpenClawProviderModels,
+} from './openClawSupport.ts';
 
 export interface CreateInstanceDTO {
   name: string;
@@ -29,6 +42,81 @@ export interface CreateInstanceDTO {
 
 export interface UpdateInstanceDTO extends Partial<CreateInstanceDTO> {
   status?: 'online' | 'offline' | 'starting' | 'error';
+}
+
+interface InstanceServiceDependencies {
+  studioApi: {
+    listInstances(): Promise<StudioInstanceRecord[]>;
+    getInstance(id: string): Promise<StudioInstanceRecord | null>;
+    getInstanceDetail(id: string): Promise<StudioInstanceDetailRecord | null>;
+    createInstance(input: StudioCreateInstanceInput): Promise<StudioInstanceRecord>;
+    updateInstance(id: string, input: StudioUpdateInstanceInput): Promise<StudioInstanceRecord>;
+    deleteInstance(id: string): Promise<boolean>;
+    startInstance(id: string): Promise<StudioInstanceRecord | null>;
+    stopInstance(id: string): Promise<StudioInstanceRecord | null>;
+    restartInstance(id: string): Promise<StudioInstanceRecord | null>;
+    getInstanceConfig(id: string): Promise<{
+      port: string;
+      sandbox: boolean;
+      autoUpdate: boolean;
+      logLevel: string;
+      corsOrigins: string;
+      authToken?: string | null;
+    } | null>;
+    updateInstanceConfig(
+      id: string,
+      config: {
+        port: string;
+        sandbox: boolean;
+        autoUpdate: boolean;
+        logLevel: string;
+        corsOrigins: string;
+        authToken?: string | null;
+      },
+    ): Promise<{
+      port: string;
+      sandbox: boolean;
+      autoUpdate: boolean;
+      logLevel: string;
+      corsOrigins: string;
+      authToken?: string | null;
+    } | null>;
+    getInstanceLogs(id: string): Promise<string>;
+    updateInstanceFileContent(instanceId: string, fileId: string, content: string): Promise<boolean>;
+    updateInstanceLlmProviderConfig(
+      instanceId: string,
+      providerId: string,
+      update: InstanceLLMProviderUpdate,
+    ): Promise<boolean>;
+  };
+  studioMockService: {
+    updateInstanceFileContent(id: string, fileId: string, content: string): Promise<unknown>;
+    updateInstanceLlmProviderConfig(
+      id: string,
+      providerId: string,
+      update: InstanceLLMProviderUpdate,
+    ): Promise<unknown>;
+  };
+  openClawGatewayClient: {
+    setAgentFile(
+      instanceId: string,
+      args: { agentId: string; name: string; content: string },
+    ): Promise<unknown>;
+    getConfig(instanceId: string): Promise<{
+      baseHash?: string;
+      config?: Record<string, unknown>;
+    }>;
+    patchConfig(
+      instanceId: string,
+      args: { raw: string; baseHash?: string },
+    ): Promise<{ ok?: boolean }>;
+  };
+}
+
+export interface InstanceServiceDependencyOverrides {
+  studioApi?: Partial<InstanceServiceDependencies['studioApi']>;
+  studioMockService?: Partial<InstanceServiceDependencies['studioMockService']>;
+  openClawGatewayClient?: Partial<InstanceServiceDependencies['openClawGatewayClient']>;
 }
 
 function mapStudioInstance(instance: StudioInstanceRecord): Instance {
@@ -85,6 +173,52 @@ function mapUpdateInput(data: UpdateInstanceDTO): StudioUpdateInstanceInput {
   };
 }
 
+function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
+  return detail?.instance.runtimeKind === 'openclaw';
+}
+
+function isBuiltInManagedOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
+  return (
+    detail?.instance.runtimeKind === 'openclaw' &&
+    detail.instance.isBuiltIn &&
+    detail.instance.deploymentMode === 'local-managed'
+  );
+}
+
+function createDefaultDependencies(): InstanceServiceDependencies {
+  return {
+    studioApi: {
+      listInstances: () => studio.listInstances(),
+      getInstance: (id) => studio.getInstance(id),
+      getInstanceDetail: (id) => studio.getInstanceDetail(id),
+      createInstance: (input) => studio.createInstance(input),
+      updateInstance: (id, input) => studio.updateInstance(id, input),
+      deleteInstance: (id) => studio.deleteInstance(id),
+      startInstance: (id) => studio.startInstance(id),
+      stopInstance: (id) => studio.stopInstance(id),
+      restartInstance: (id) => studio.restartInstance(id),
+      getInstanceConfig: (id) => studio.getInstanceConfig(id),
+      updateInstanceConfig: (id, config) => studio.updateInstanceConfig(id, config),
+      getInstanceLogs: (id) => studio.getInstanceLogs(id),
+      updateInstanceFileContent: (instanceId, fileId, content) =>
+        studio.updateInstanceFileContent(instanceId, fileId, content),
+      updateInstanceLlmProviderConfig: (instanceId, providerId, update) =>
+        studio.updateInstanceLlmProviderConfig(instanceId, providerId, update),
+    },
+    studioMockService: {
+      updateInstanceFileContent: (id, fileId, content) =>
+        studioMockService.updateInstanceFileContent(id, fileId, content),
+      updateInstanceLlmProviderConfig: (id, providerId, update) =>
+        studioMockService.updateInstanceLlmProviderConfig(id, providerId, update),
+    },
+    openClawGatewayClient: {
+      setAgentFile: (instanceId, args) => openClawGatewayClient.setAgentFile(instanceId, args),
+      getConfig: (instanceId) => openClawGatewayClient.getConfig(instanceId),
+      patchConfig: (instanceId, args) => openClawGatewayClient.patchConfig(instanceId, args),
+    },
+  };
+}
+
 export interface IInstanceService {
   getList(params?: ListParams): Promise<PaginatedResult<Instance>>;
   getById(id: string): Promise<Instance | null>;
@@ -110,6 +244,12 @@ export interface IInstanceService {
 }
 
 class InstanceService implements IInstanceService {
+  private readonly dependencies: InstanceServiceDependencies;
+
+  constructor(dependencies: InstanceServiceDependencies) {
+    this.dependencies = dependencies;
+  }
+
   async getList(params: ListParams = {}): Promise<PaginatedResult<Instance>> {
     const instances = await this.getInstances();
 
@@ -144,12 +284,12 @@ class InstanceService implements IInstanceService {
   }
 
   async create(data: CreateInstanceDTO): Promise<Instance> {
-    const created = await studio.createInstance(mapCreateInput(data));
+    const created = await this.dependencies.studioApi.createInstance(mapCreateInput(data));
     return mapStudioInstance(created);
   }
 
   async update(id: string, data: UpdateInstanceDTO): Promise<Instance> {
-    const updated = await studio.updateInstance(id, mapUpdateInput(data));
+    const updated = await this.dependencies.studioApi.updateInstance(id, mapUpdateInput(data));
     return mapStudioInstance(updated);
   }
 
@@ -159,38 +299,38 @@ class InstanceService implements IInstanceService {
   }
 
   async getInstances(): Promise<Instance[]> {
-    const instances = await studio.listInstances();
+    const instances = await this.dependencies.studioApi.listInstances();
     return instances.map((instance) => mapStudioInstance(instance));
   }
 
   async getInstanceById(id: string): Promise<Instance | undefined> {
-    const instance = await studio.getInstance(id);
+    const instance = await this.dependencies.studioApi.getInstance(id);
     return instance ? mapStudioInstance(instance) : undefined;
   }
 
   async startInstance(id: string): Promise<void> {
-    const updated = await studio.startInstance(id);
+    const updated = await this.dependencies.studioApi.startInstance(id);
     if (!updated) {
       throw new Error('Failed to start instance');
     }
   }
 
   async stopInstance(id: string): Promise<void> {
-    const updated = await studio.stopInstance(id);
+    const updated = await this.dependencies.studioApi.stopInstance(id);
     if (!updated) {
       throw new Error('Failed to stop instance');
     }
   }
 
   async restartInstance(id: string): Promise<void> {
-    const updated = await studio.restartInstance(id);
+    const updated = await this.dependencies.studioApi.restartInstance(id);
     if (!updated) {
       throw new Error('Failed to restart instance');
     }
   }
 
   async getInstanceConfig(id: string): Promise<InstanceConfig | undefined> {
-    const config = await studio.getInstanceConfig(id);
+    const config = await this.dependencies.studioApi.getInstanceConfig(id);
     if (!config) {
       return undefined;
     }
@@ -205,8 +345,8 @@ class InstanceService implements IInstanceService {
   }
 
   async updateInstanceConfig(id: string, config: InstanceConfig): Promise<void> {
-    const current = await studio.getInstanceConfig(id);
-    const updated = await studio.updateInstanceConfig(id, {
+    const current = await this.dependencies.studioApi.getInstanceConfig(id);
+    const updated = await this.dependencies.studioApi.updateInstanceConfig(id, {
       ...(current || {
         port: config.port,
         sandbox: config.sandbox,
@@ -226,23 +366,47 @@ class InstanceService implements IInstanceService {
   }
 
   async getInstanceToken(id: string): Promise<string | undefined> {
-    const config = await studio.getInstanceConfig(id);
+    const config = await this.dependencies.studioApi.getInstanceConfig(id);
     return config?.authToken || undefined;
   }
 
   async deleteInstance(id: string): Promise<void> {
-    const deleted = await studio.deleteInstance(id);
+    const deleted = await this.dependencies.studioApi.deleteInstance(id);
     if (!deleted) {
       throw new Error('Failed to delete instance');
     }
   }
 
   async getInstanceLogs(id: string): Promise<string> {
-    return studio.getInstanceLogs(id);
+    return this.dependencies.studioApi.getInstanceLogs(id);
   }
 
   async updateInstanceFileContent(id: string, fileId: string, content: string): Promise<void> {
-    const updated = await studioMockService.updateInstanceFileContent(id, fileId, content);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+
+    if (isBuiltInManagedOpenClawDetail(detail)) {
+      const updated = await this.dependencies.studioApi.updateInstanceFileContent(id, fileId, content);
+      if (!updated) {
+        throw new Error('Failed to update instance file');
+      }
+      return;
+    }
+
+    if (isOpenClawDetail(detail)) {
+      const target = parseOpenClawAgentFileId(fileId);
+      if (!target) {
+        throw new Error('The selected OpenClaw file is not writable through the gateway.');
+      }
+
+      await this.dependencies.openClawGatewayClient.setAgentFile(id, {
+        agentId: target.agentId,
+        name: target.name,
+        content,
+      });
+      return;
+    }
+
+    const updated = await this.dependencies.studioMockService.updateInstanceFileContent(id, fileId, content);
     if (!updated) {
       throw new Error('Failed to update instance file');
     }
@@ -253,11 +417,90 @@ class InstanceService implements IInstanceService {
     providerId: string,
     update: InstanceLLMProviderUpdate,
   ): Promise<void> {
-    const updated = await studioMockService.updateInstanceLlmProviderConfig(id, providerId, update);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+
+    if (isBuiltInManagedOpenClawDetail(detail)) {
+      const updated = await this.dependencies.studioApi.updateInstanceLlmProviderConfig(
+        id,
+        providerId,
+        update,
+      );
+      if (!updated) {
+        throw new Error('Failed to update LLM provider config');
+      }
+      return;
+    }
+
+    if (isOpenClawDetail(detail)) {
+      const snapshot = await this.dependencies.openClawGatewayClient.getConfig(id);
+      const providerConfig =
+        getObjectValue(snapshot.config, ['models', 'providers', providerId]) || {};
+      const existingModels = getArrayValue(providerConfig, ['models']) || [];
+      const nextModels = upsertOpenClawProviderModels(
+        existingModels,
+        update.defaultModelId,
+        update.reasoningModelId,
+        update.embeddingModelId,
+      );
+      const patch = {
+        models: {
+          providers: {
+            [providerId]: {
+              baseUrl: update.endpoint.trim(),
+              apiKey: update.apiKeySource.trim() || null,
+              temperature: update.config.temperature,
+              topP: update.config.topP,
+              maxTokens: update.config.maxTokens,
+              timeoutMs: update.config.timeoutMs,
+              streaming: update.config.streaming,
+              models: nextModels,
+            },
+          },
+        },
+      };
+
+      const result = await this.dependencies.openClawGatewayClient.patchConfig(id, {
+        raw: JSON.stringify(patch, null, 2),
+        baseHash: snapshot.baseHash,
+      });
+      if (result.ok === false) {
+        throw new Error('Failed to update LLM provider config');
+      }
+      return;
+    }
+
+    const updated = await this.dependencies.studioMockService.updateInstanceLlmProviderConfig(
+      id,
+      providerId,
+      update,
+    );
     if (!updated) {
       throw new Error('Failed to update LLM provider config');
     }
   }
 }
 
-export const instanceService = new InstanceService();
+export function createInstanceService(
+  overrides: InstanceServiceDependencyOverrides = {},
+) {
+  const defaults = createDefaultDependencies();
+
+  return new InstanceService({
+    studioApi: {
+      ...defaults.studioApi,
+      ...(overrides.studioApi || {}),
+    },
+    studioMockService: {
+      ...defaults.studioMockService,
+      ...(overrides.studioMockService || {}),
+    },
+    openClawGatewayClient: {
+      ...defaults.openClawGatewayClient,
+      ...(overrides.openClawGatewayClient || {}),
+    },
+  });
+}
+
+export { buildOpenClawAgentFileId };
+
+export const instanceService = createInstanceService();

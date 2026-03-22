@@ -4,6 +4,8 @@ import { studio } from '@sdkwork/claw-infrastructure';
 import { useLLMStore } from '@sdkwork/claw-settings';
 import { Agent, Skill, type StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
+import { openClawConversationGateway } from './openClawConversationGateway.ts';
+import type { ChatSession } from '../store/useChatStore.ts';
 import { ChatModel } from '../types/index.ts';
 
 const API_KEY_MAP: Record<string, string> = {
@@ -25,6 +27,11 @@ const DEFAULT_LLM_CONFIG = {
   topP: 1,
 };
 
+export interface ChatServiceRequestContext {
+  instanceId?: string | null;
+  session?: ChatSession | null;
+}
+
 export interface IChatService {
   createChatSession(modelId: string, skill?: Skill, agent?: Agent): any;
   sendMessageStream(
@@ -34,6 +41,7 @@ export interface IChatService {
     skill?: Skill,
     agent?: Agent,
     abortSignal?: AbortSignal,
+    context?: ChatServiceRequestContext,
   ): AsyncGenerator<string, void, unknown>;
 }
 
@@ -288,6 +296,7 @@ class ChatService implements IChatService {
     skill?: Skill,
     agent?: Agent,
     abortSignal?: AbortSignal,
+    context?: ChatServiceRequestContext,
   ): AsyncGenerator<string, void, unknown> {
     const { channels, getInstanceConfig } = useLLMStore.getState();
     const { activeInstanceId } = useInstanceStore.getState();
@@ -302,6 +311,27 @@ class ChatService implements IChatService {
       model.provider === 'google' ? message : buildContextualMessage(message, skill, agent);
 
     const { activeInstance, route } = await resolveActiveInstanceRoute();
+    const openClawMessage = buildContextualMessage(message, skill, agent);
+
+    if (activeInstance?.runtimeKind === 'openclaw' && context?.session) {
+      try {
+        yield* openClawConversationGateway.sendMessageStream({
+          instanceId: context.instanceId || activeInstance.id,
+          session: context.session,
+          message: openClawMessage,
+          model,
+          abortSignal,
+        });
+        return;
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          throw error;
+        }
+
+        yield `\n\n**Error connecting to ${activeInstance.name}:** ${error.message}`;
+        return;
+      }
+    }
 
     if (activeInstance && route.endpoint) {
       try {

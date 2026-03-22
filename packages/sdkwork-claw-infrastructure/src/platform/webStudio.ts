@@ -31,6 +31,7 @@ import type {
 } from '@sdkwork/claw-types';
 import type {
   StudioCreateInstanceInput,
+  StudioUpdateInstanceLlmProviderConfigInput,
   StudioPlatformAPI,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
@@ -976,6 +977,28 @@ export class WebStudioPlatform implements StudioPlatformAPI {
       `[${new Date(instance.updatedAt).toISOString()}] instance=${instance.id} status=${instance.status}`,
       `[${new Date().toISOString()}] transport=${instance.transportKind} baseUrl=${instance.baseUrl || '-'}`,
     ].join('\n');
+  }
+
+  async updateInstanceFileContent(
+    instanceId: string,
+    fileId: string,
+    content: string,
+  ): Promise<boolean> {
+    const updated = await studioMockService.updateInstanceFileContent(instanceId, fileId, content);
+    return Boolean(updated);
+  }
+
+  async updateInstanceLlmProviderConfig(
+    instanceId: string,
+    providerId: string,
+    update: StudioUpdateInstanceLlmProviderConfigInput,
+  ): Promise<boolean> {
+    const updated = await studioMockService.updateInstanceLlmProviderConfig(
+      instanceId,
+      providerId,
+      update,
+    );
+    return Boolean(updated);
   }
 
   async cloneInstanceTask(

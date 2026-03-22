@@ -34,6 +34,7 @@ export function Chat() {
     activeSessionId,
     syncState,
     hydrateInstance,
+    loadSession,
     createSession,
     addMessage,
     updateMessage,
@@ -163,6 +164,19 @@ export function Chat() {
   ]);
 
   useEffect(() => {
+    if (!activeInstanceId || !activeSessionId || !activeSession) {
+      return;
+    }
+
+    if (
+      activeSession.messagesHydrated === false ||
+      (activeSession.source === 'openclaw' && activeSession.messages.length === 0)
+    ) {
+      void loadSession(activeSessionId);
+    }
+  }, [activeInstanceId, activeSession, activeSessionId, loadSession]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeMessages, isTyping]);
 
@@ -196,7 +210,7 @@ export function Chat() {
   };
 
   const handleSend = async (content: string) => {
-    if (!activeSessionId || !activeModel || !activeChannel || isTyping) {
+    if (!activeSessionId || !activeSession || !activeModel || !activeChannel || isTyping) {
       return;
     }
 
@@ -235,6 +249,10 @@ export function Chat() {
         requestSkill,
         requestAgent,
         abortControllerRef.current.signal,
+        {
+          instanceId: activeInstanceId,
+          session: activeSession,
+        },
       );
 
       for await (const chunk of stream) {
