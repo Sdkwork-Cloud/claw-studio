@@ -155,6 +155,14 @@ export interface MockInstanceLLMProviderConfig {
   streaming: boolean;
 }
 
+export interface MockInstanceLLMProviderRouterConfig {
+  gatewayBaseUrl: string;
+  apiKeyProjectId: string;
+  apiKeyStrategy: 'shared' | 'per-instance';
+  selectedProviderId?: string;
+  modelMappingId?: string;
+}
+
 export interface MockInstanceLLMProvider {
   id: string;
   instanceId: string;
@@ -172,6 +180,7 @@ export interface MockInstanceLLMProvider {
   capabilities: string[];
   models: MockInstanceLLMProviderModel[];
   config: MockInstanceLLMProviderConfig;
+  routerConfig?: MockInstanceLLMProviderRouterConfig;
 }
 
 export interface MockInstanceLLMProviderUpdate {
@@ -181,6 +190,7 @@ export interface MockInstanceLLMProviderUpdate {
   reasoningModelId?: string;
   embeddingModelId?: string;
   config?: Partial<MockInstanceLLMProviderConfig>;
+  routerConfig?: Partial<MockInstanceLLMProviderRouterConfig>;
 }
 
 export interface MockInstanceLLMProviderCreate {
@@ -199,6 +209,7 @@ export interface MockInstanceLLMProviderCreate {
   capabilities: string[];
   models: MockInstanceLLMProviderModel[];
   config: MockInstanceLLMProviderConfig;
+  routerConfig?: MockInstanceLLMProviderRouterConfig;
 }
 
 export interface MockInstanceMemoryEntry {
@@ -451,12 +462,21 @@ function cloneInstanceLLMProviderConfig(
   return { ...config };
 }
 
+function cloneInstanceLLMProviderRouterConfig(
+  config: MockInstanceLLMProviderRouterConfig,
+): MockInstanceLLMProviderRouterConfig {
+  return { ...config };
+}
+
 function cloneInstanceLLMProvider(provider: MockInstanceLLMProvider): MockInstanceLLMProvider {
   return {
     ...provider,
     capabilities: [...provider.capabilities],
     models: provider.models.map(cloneInstanceLLMProviderModel),
     config: cloneInstanceLLMProviderConfig(provider.config),
+    routerConfig: provider.routerConfig
+      ? cloneInstanceLLMProviderRouterConfig(provider.routerConfig)
+      : undefined,
   };
 }
 
@@ -4077,6 +4097,12 @@ export function createStudioMockService(options: StudioMockServiceOptions = {}) 
         ...provider.config,
         ...(update.config || {}),
       };
+      provider.routerConfig = update.routerConfig
+        ? {
+            ...provider.routerConfig,
+            ...update.routerConfig,
+          }
+        : provider.routerConfig;
       provider.lastCheckedAt = 'just now';
 
       if (!provider.apiKeySource.trim()) {
@@ -4119,6 +4145,9 @@ export function createStudioMockService(options: StudioMockServiceOptions = {}) 
         capabilities: [...input.capabilities],
         models: input.models.map(cloneInstanceLLMProviderModel),
         config: cloneInstanceLLMProviderConfig(input.config),
+        routerConfig: input.routerConfig
+          ? cloneInstanceLLMProviderRouterConfig(input.routerConfig)
+          : undefined,
       };
 
       const existingIndex = providerList.findIndex((provider) => provider.id === input.id);

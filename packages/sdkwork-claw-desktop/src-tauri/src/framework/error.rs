@@ -85,6 +85,12 @@ impl From<tauri::Error> for FrameworkError {
     }
 }
 
+impl From<rusqlite::Error> for FrameworkError {
+    fn from(value: rusqlite::Error) -> Self {
+        Self::Internal(format!("sqlite error: {value}"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::FrameworkError;

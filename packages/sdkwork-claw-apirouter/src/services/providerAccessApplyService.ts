@@ -1,7 +1,9 @@
 import {
+  type ApiRouterInstalledOpenClawInstance,
   installerService,
   studioMockService,
   type ApiRouterInstallerCompatibility,
+  type ApiRouterInstallerOpenClawApiKeyStrategy,
 } from '@sdkwork/claw-infrastructure';
 import type { ProxyProvider } from '@sdkwork/claw-types';
 import {
@@ -20,11 +22,18 @@ export interface ApplyClientSetupResult {
 
 export interface ApplyOpenClawSetupResult {
   updatedInstanceIds: string[];
+  openClawInstances: ApiRouterInstalledOpenClawInstance[];
 }
 
 export interface ApplyClientSetupOptions {
   installMode?: ProviderAccessInstallMode;
   envScope?: ProviderAccessEnvScope;
+}
+
+export interface ApplyOpenClawSetupOptions {
+  apiKeyStrategy: ApiRouterInstallerOpenClawApiKeyStrategy;
+  routerProviderId?: string | null;
+  modelMappingId?: string | null;
 }
 
 function resolveInstallerCompatibility(
@@ -112,6 +121,9 @@ class ProviderAccessApplyService {
   async applyOpenClawSetup(
     provider: ProxyProvider,
     instanceIds: string[],
+    options: ApplyOpenClawSetupOptions = {
+      apiKeyStrategy: 'shared',
+    },
   ): Promise<ApplyOpenClawSetupResult> {
     if (instanceIds.length === 0) {
       throw new Error('At least one instance must be selected.');
@@ -127,12 +139,15 @@ class ProviderAccessApplyService {
       ...buildStandardInstallerRequest(provider, client),
       openClaw: {
         instanceIds,
+        apiKeyStrategy: options.apiKeyStrategy,
+        routerProviderId: options.routerProviderId ?? undefined,
+        modelMappingId: options.modelMappingId ?? undefined,
       },
     });
 
-    for (const instanceId of result.updatedInstanceIds) {
-      const draft = buildOpenClawInstanceProviderDraft(provider, instanceId);
-      await studioMockService.upsertInstanceLlmProvider(instanceId, {
+    for (const openClawInstance of result.openClawInstances || []) {
+      const draft = buildOpenClawInstanceProviderDraft(provider, openClawInstance);
+      await studioMockService.upsertInstanceLlmProvider(openClawInstance.instanceId, {
         id: draft.id,
         name: draft.name,
         provider: draft.provider,
@@ -148,11 +163,13 @@ class ProviderAccessApplyService {
         capabilities: draft.capabilities,
         models: draft.models,
         config: draft.config,
+        routerConfig: draft.routerConfig,
       });
     }
 
     return {
       updatedInstanceIds: result.updatedInstanceIds,
+      openClawInstances: result.openClawInstances,
     };
   }
 }
