@@ -17,6 +17,9 @@ import {
   fileDialogService,
   getRuntimePlatform,
   platform,
+  type HubInstallCatalogQuery,
+  type HubInstallRequest,
+  type HubUninstallRequest,
   type HubUninstallResult,
   type RuntimeEventUnsubscribe,
   type RuntimeInfo,
@@ -27,14 +30,16 @@ import { useSearchParams } from 'react-router-dom';
 import { GuidedInstallWizard, OpenClawGuidedInstallWizard } from '../../components';
 import {
   buildInstallRecommendationSummary,
+  detectOpenClawCatalogChoice,
   formatHubInstallProgressEvent,
   installerService,
+  resolveOpenClawCatalogPresentation,
+  type OpenClawCatalogChoice,
   type InstallChoiceAssessmentState,
 } from '../../services';
 import {
   PAGE_MODE_TABS,
   PRODUCTS,
-  getDetectedMethodId,
   getHostOs,
   getInstallGridClassName,
   getRecommendedMethodId,
@@ -45,7 +50,6 @@ import {
   type HostOs,
   type IconId,
   type LegacyInstallRecord,
-  type MethodId,
   type MigrationCandidate,
   type MigrationId,
   type PageMode,
@@ -58,13 +62,27 @@ type ActionState =
   | {
       kind: 'uninstall';
       product: ProductConfig;
-      methodId: Exclude<MethodId, 'cloud'>;
-      methodTitleKey: string;
-      request: ProductConfig['uninstallMethods'][number]['request'];
+      methodId: string;
+      methodLabel: string;
+      request: HubUninstallRequest;
     };
 
 type RuntimePaths = NonNullable<RuntimeInfo['paths']>;
-type AssessmentStateMap = Partial<Record<MethodId, InstallChoiceAssessmentState>>;
+type AssessmentStateMap = Partial<Record<string, InstallChoiceAssessmentState>>;
+
+interface InstallSurfaceChoice {
+  id: string;
+  label: string;
+  description: string;
+  uninstallDescription: string;
+  iconId: IconId;
+  tags: string[];
+  request: HubInstallRequest;
+  uninstallRequest: HubUninstallRequest;
+  supportedHosts: HostOs[];
+  softwareName: string;
+  runtimePlatform: 'host' | 'wsl';
+}
 
 function renderMethodIcon(iconId: IconId) {
   if (iconId === 'sparkles') return <Sparkles className="h-4 w-4" />;
@@ -128,6 +146,87 @@ function appendTerminalOutput(previous: string, line: string) {
   }
 
   return `${previous}${previous.endsWith('\n') || !previous ? '' : '\n'}${normalized}\n`;
+}
+
+function humanizeChoiceTag(value: string) {
+  return value
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function toRuntimePlatform(value: string | null | undefined): 'host' | 'wsl' {
+  return value === 'wsl' ? 'wsl' : 'host';
+}
+
+function toCatalogQuery(hostOs: HostOs): HubInstallCatalogQuery | undefined {
+  if (hostOs === 'windows' || hostOs === 'macos') {
+    return { hostPlatform: hostOs };
+  }
+
+  if (hostOs === 'linux') {
+    return { hostPlatform: 'ubuntu' };
+  }
+
+  return undefined;
+}
+
+function buildStaticInstallChoices(
+  product: ProductConfig,
+  hostOs: HostOs,
+  t: (key: string) => string,
+): InstallSurfaceChoice[] {
+  const uninstallById = new Map(
+    getVisibleUninstallChoices(product, hostOs).map((choice) => [choice.id, choice]),
+  );
+
+  return getVisibleInstallChoices(product, hostOs).map((choice) => {
+    const uninstallChoice = uninstallById.get(choice.id);
+
+    return {
+      id: choice.id,
+      label: t(choice.titleKey),
+      description: t(choice.descriptionKey),
+      uninstallDescription: uninstallChoice ? t(uninstallChoice.descriptionKey) : t(choice.descriptionKey),
+      iconId: choice.iconId,
+      tags: [...choice.tags],
+      request: choice.request,
+      uninstallRequest: uninstallChoice?.request ?? {
+        ...choice.request,
+        purgeData: false,
+      },
+      supportedHosts: [...choice.supportedHosts],
+      softwareName: choice.request.softwareName,
+      runtimePlatform: toRuntimePlatform(choice.request.effectiveRuntimePlatform),
+    };
+  });
+}
+
+function buildStaticUninstallChoices(
+  product: ProductConfig,
+  hostOs: HostOs,
+  t: (key: string) => string,
+): InstallSurfaceChoice[] {
+  const installById = new Map(product.methods.map((choice) => [choice.id, choice]));
+
+  return getVisibleUninstallChoices(product, hostOs).map((choice) => {
+    const installChoice = installById.get(choice.id);
+
+    return {
+      id: choice.id,
+      label: t(choice.titleKey),
+      description: installChoice ? t(installChoice.descriptionKey) : t(choice.descriptionKey),
+      uninstallDescription: t(choice.descriptionKey),
+      iconId: choice.iconId,
+      tags: [...choice.tags],
+      request: installChoice?.request ?? choice.request,
+      uninstallRequest: choice.request,
+      supportedHosts: [...choice.supportedHosts],
+      softwareName: choice.request.softwareName,
+      runtimePlatform: toRuntimePlatform(choice.request.effectiveRuntimePlatform),
+    };
+  });
 }
 
 async function refreshInstallRecord(
@@ -239,7 +338,13 @@ export function Install() {
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
   const [installRecord, setInstallRecord] = useState<LegacyInstallRecord | null>(null);
   const [installAssessments, setInstallAssessments] = useState<AssessmentStateMap>({});
-  const [installWizardMethodId, setInstallWizardMethodId] = useState<MethodId | null>(null);
+  const [installWizardMethodId, setInstallWizardMethodId] = useState<string | null>(null);
+  const [openClawCatalogChoices, setOpenClawCatalogChoices] = useState<OpenClawCatalogChoice[] | null>(
+    null,
+  );
+  const [openClawRecommendedChoiceId, setOpenClawRecommendedChoiceId] = useState<string | null>(
+    null,
+  );
   const [customMigrationSource, setCustomMigrationSource] = useState<string | null>(null);
   const [migrationCandidates, setMigrationCandidates] = useState<MigrationCandidate[]>([]);
   const [selectedMigrationIds, setSelectedMigrationIds] = useState<MigrationId[]>([]);
@@ -256,10 +361,27 @@ export function Install() {
     [productId],
   );
   const hostOs = useMemo(() => getHostOs(runtimeInfo), [runtimeInfo]);
-  const installChoices = useMemo(() => getVisibleInstallChoices(product, hostOs), [product, hostOs]);
+  const staticInstallChoices = useMemo(
+    () => buildStaticInstallChoices(product, hostOs, t as (key: string) => string),
+    [hostOs, product, t],
+  );
+  const staticUninstallChoices = useMemo(
+    () => buildStaticUninstallChoices(product, hostOs, t as (key: string) => string),
+    [hostOs, product, t],
+  );
+  const installChoices = useMemo(
+    () =>
+      product.id === 'openclaw' && openClawCatalogChoices?.length
+        ? openClawCatalogChoices
+        : staticInstallChoices,
+    [openClawCatalogChoices, product.id, staticInstallChoices],
+  );
   const uninstallChoices = useMemo(
-    () => getVisibleUninstallChoices(product, hostOs),
-    [product, hostOs],
+    () =>
+      product.id === 'openclaw' && openClawCatalogChoices?.length
+        ? openClawCatalogChoices
+        : staticUninstallChoices,
+    [openClawCatalogChoices, product.id, staticUninstallChoices],
   );
   const selectedMigrationCandidates = useMemo(
     () =>
@@ -269,10 +391,16 @@ export function Install() {
     [migrationCandidates, selectedMigrationIds],
   );
   const recommendedMethodId = useMemo(
-    () => getRecommendedMethodId(product, hostOs),
-    [product, hostOs],
+    () =>
+      product.id === 'openclaw' && openClawCatalogChoices?.length
+        ? openClawRecommendedChoiceId ?? openClawCatalogChoices[0]?.id ?? null
+        : getRecommendedMethodId(product, hostOs),
+    [hostOs, openClawCatalogChoices, openClawRecommendedChoiceId, product],
   );
-  const detectedMethodId = useMemo(() => getDetectedMethodId(installRecord), [installRecord]);
+  const detectedInstallChoice = useMemo(
+    () => detectOpenClawCatalogChoice(installRecord, installChoices),
+    [installChoices, installRecord],
+  );
   const activeInstallChoice = useMemo(
     () => installChoices.find((choice) => choice.id === installWizardMethodId) ?? null,
     [installChoices, installWizardMethodId],
@@ -282,11 +410,10 @@ export function Install() {
       buildInstallRecommendationSummary({
         hostOs,
         arch: runtimeInfo?.system?.arch ?? null,
-        productPreferredChoiceId: recommendedMethodId,
+        productPreferredChoiceId: recommendedMethodId ?? installChoices[0]?.id ?? '',
         choices: installChoices.map((choice) => ({
           id: choice.id,
           softwareName: choice.request.softwareName,
-          disabled: choice.disabled,
           assessment: installAssessments[choice.id],
         })),
       }),
@@ -342,6 +469,45 @@ export function Install() {
   useEffect(() => {
     void refreshInstallRecord(runtimeInfo, product, hostOs, setInstallRecord);
   }, [runtimeInfo, product, hostOs]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (product.id !== 'openclaw' || hostOs === 'unknown') {
+      setOpenClawCatalogChoices(null);
+      setOpenClawRecommendedChoiceId(null);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const entries = await installerService.listHubInstallCatalog(toCatalogQuery(hostOs));
+        const entry =
+          entries.find((item) => item.appId === 'app-openclaw') ??
+          entries.find((item) => item.defaultSoftwareName === 'openclaw') ??
+          null;
+        const presentation = resolveOpenClawCatalogPresentation(entry, hostOs);
+
+        if (cancelled) {
+          return;
+        }
+
+        setOpenClawCatalogChoices(presentation.installChoices.length ? presentation.installChoices : null);
+        setOpenClawRecommendedChoiceId(presentation.recommendedChoiceId);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setOpenClawCatalogChoices(null);
+        setOpenClawRecommendedChoiceId(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hostOs, product.id]);
 
   useEffect(() => {
     void refreshMigrationCandidates(
@@ -417,7 +583,7 @@ export function Install() {
     }
   }
 
-  async function refreshSelectedInstallAssessment(methodId: MethodId) {
+  async function refreshSelectedInstallAssessment(methodId: string) {
     const choice = installChoices.find((item) => item.id === methodId);
     if (!choice) {
       return;
@@ -445,7 +611,7 @@ export function Install() {
     }
   }
 
-  async function handleInstallFinished(methodId: MethodId) {
+  async function handleInstallFinished(methodId: string) {
     await refreshInstallRecord(runtimeInfo, product, hostOs, setInstallRecord);
     await refreshSelectedInstallAssessment(methodId);
   }
@@ -462,7 +628,7 @@ export function Install() {
     setOutput(
       `${t('install.page.modal.output.preparingUninstall', {
         product: t(action.product.nameKey),
-        method: t(action.methodTitleKey),
+        method: action.methodLabel,
       })}\n${t('install.page.modal.output.starting')}\n`,
     );
 
@@ -625,7 +791,7 @@ export function Install() {
                   const issueText =
                     recommendation?.primaryIssue ||
                     assessment?.result?.recommendations?.[0] ||
-                    t(choice.descriptionKey);
+                    choice.description;
                   const stateLabelKey =
                     recommendation?.state === 'installed'
                       ? 'install.page.install.states.installed'
@@ -651,10 +817,10 @@ export function Install() {
                           </div>
                           <div>
                             <div className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                              {t(choice.titleKey)}
+                              {choice.label}
                             </div>
                             <div className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                              {t(choice.descriptionKey)}
+                              {choice.description}
                             </div>
                           </div>
                         </div>
@@ -678,7 +844,11 @@ export function Install() {
                             key={tag}
                             className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
                           >
-                            {t(`install.page.tags.${tag}`)}
+                            {(() => {
+                              const key = `install.page.tags.${tag}`;
+                              const label = t(key);
+                              return label === key ? humanizeChoiceTag(tag) : label;
+                            })()}
                           </span>
                         ))}
                       </div>
@@ -690,7 +860,7 @@ export function Install() {
                               recommendation?.recommendationReason ?? 'platformPreferred'
                             }`,
                             {
-                              method: t(choice.titleKey),
+                              method: choice.label,
                             },
                           )}
                         </div>
@@ -719,7 +889,7 @@ export function Install() {
                 )}`}
               >
                 {uninstallChoices.map((choice) => {
-                  const matched = installRecord?.manifestName === choice.request.softwareName;
+                  const matched = detectedInstallChoice?.id === choice.id;
                   const instanceLabel = matched
                     ? installRecord?.installRoot ?? t('install.page.uninstall.detected.notFound')
                     : t('install.page.uninstall.detected.notFound');
@@ -736,10 +906,10 @@ export function Install() {
                           </div>
                           <div>
                             <div className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                              {t(choice.titleKey)}
+                              {choice.label}
                             </div>
                             <div className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                              {t(choice.descriptionKey)}
+                              {choice.uninstallDescription}
                             </div>
                           </div>
                         </div>
@@ -766,8 +936,8 @@ export function Install() {
                             kind: 'uninstall',
                             product,
                             methodId: choice.id,
-                            methodTitleKey: choice.titleKey,
-                            request: choice.request,
+                            methodLabel: choice.label,
+                            request: choice.uninstallRequest,
                           })
                         }
                         className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
@@ -785,11 +955,11 @@ export function Install() {
                 <div className="flex flex-wrap items-center gap-3">
                   <span
                     className={`rounded-full border px-3 py-1 text-xs font-semibold ${getChipTone(
-                      detectedMethodId !== null,
+                      detectedInstallChoice !== null,
                     )}`}
                   >
-                    {detectedMethodId
-                      ? t(`install.page.methods.${detectedMethodId}.title`)
+                    {detectedInstallChoice
+                      ? detectedInstallChoice.label
                       : t('install.page.uninstall.detected.notFound')}
                   </span>
 
@@ -949,7 +1119,7 @@ export function Install() {
           <OpenClawGuidedInstallWizard
             isOpen={Boolean(activeInstallChoice)}
             productName={t(product.nameKey)}
-            methodLabel={t(activeInstallChoice.titleKey)}
+            methodLabel={activeInstallChoice.label}
             methodIcon={renderMethodIcon(activeInstallChoice.iconId)}
             request={activeInstallChoice.request}
             onClose={() => setInstallWizardMethodId(null)}
@@ -961,7 +1131,7 @@ export function Install() {
           <GuidedInstallWizard
             isOpen={Boolean(activeInstallChoice)}
             productName={t(product.nameKey)}
-            methodLabel={t(activeInstallChoice.titleKey)}
+            methodLabel={activeInstallChoice.label}
             methodIcon={renderMethodIcon(activeInstallChoice.iconId)}
             request={activeInstallChoice.request}
             onClose={() => setInstallWizardMethodId(null)}
@@ -977,7 +1147,7 @@ export function Install() {
             <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
               <div>
                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {t(action.product.nameKey)} / {t(action.methodTitleKey)}
+                  {t(action.product.nameKey)} / {action.methodLabel}
                 </div>
                 <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('install.page.method.actions.uninstall')}

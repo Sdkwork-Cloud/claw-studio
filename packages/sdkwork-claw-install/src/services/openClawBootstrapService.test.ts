@@ -284,3 +284,68 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
     configurePlatformBridge(originalBridge);
   }
 });
+
+await runTest('openClawBootstrapService includes a real gateway validation snapshot instead of assuming the runtime is ready', async () => {
+  const { configurePlatformBridge, getPlatformBridge, openClawGatewayClient } = await import(
+    '@sdkwork/claw-infrastructure'
+  );
+  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+
+  const originalBridge = getPlatformBridge();
+  const originalValidateAccess = openClawGatewayClient.validateAccess;
+  const fileSystem: Record<string, string> = {
+    'D:/Users/admin/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {
+    telegram: {
+      enabled: true,
+      botToken: "bot-token"
+    }
+  },
+  models: {
+    providers: {
+      primary: {
+        status: "ready"
+      }
+    }
+  },
+  agents: { defaults: {} }
+}`,
+  };
+  const instanceState = {
+    instances: [],
+    created: [] as Array<Record<string, unknown>>,
+    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
+  };
+
+  configurePlatformBridge({
+    platform: createPlatformStub(fileSystem),
+    studio: createStudioStub(originalBridge.studio, instanceState),
+  });
+  openClawGatewayClient.validateAccess = async () => ({
+    status: 'unreachable',
+    message: 'Gateway is still starting.',
+    endpoint: 'http://127.0.0.1:28789',
+  });
+
+  try {
+    const data = await openClawBootstrapService.loadBootstrapData({
+      assessment: createAssessmentResult(),
+      installResult: createInstallResult(),
+    });
+    const snapshot = await openClawBootstrapService.loadVerificationSnapshot({
+      instanceId: data.syncedInstanceId,
+      configPath: data.configPath,
+      selectedChannelIds: ['telegram'],
+      packIds: [],
+      skillIds: [],
+    });
+
+    assert.equal(snapshot.installSucceeded, true);
+    assert.equal(snapshot.gatewayReachable, false);
+    assert.equal(snapshot.gatewayStatus, 'unreachable');
+  } finally {
+    openClawGatewayClient.validateAccess = originalValidateAccess;
+    configurePlatformBridge(originalBridge);
+  }
+});

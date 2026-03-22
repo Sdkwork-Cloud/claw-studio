@@ -1,9 +1,11 @@
 import {
   getRuntimePlatform,
+  openClawGatewayClient,
   studio,
   studioMockService,
   type HubInstallAssessmentResult,
   type HubInstallResult,
+  type OpenClawGatewayValidationStatus,
 } from '@sdkwork/claw-infrastructure';
 import {
   openClawConfigService,
@@ -69,6 +71,8 @@ export interface InitializeOpenClawInstanceResult {
 export interface OpenClawVerificationSnapshot {
   instanceId: string;
   installSucceeded: boolean;
+  gatewayReachable: boolean;
+  gatewayStatus: OpenClawGatewayValidationStatus;
   hasReadyProvider: boolean;
   selectedChannelCount: number;
   configuredChannelCount: number;
@@ -380,9 +384,14 @@ class OpenClawBootstrapService {
     packIds: string[];
     skillIds: string[];
   }): Promise<OpenClawVerificationSnapshot> {
-    const [configSnapshot, installedSkills] = await Promise.all([
+    const [configSnapshot, installedSkills, gatewayValidation] = await Promise.all([
       openClawConfigService.readConfigSnapshot(input.configPath),
       studioMockService.listInstalledSkills(input.instanceId),
+      openClawGatewayClient.validateAccess(input.instanceId).catch(() => ({
+        status: 'unreachable' as const,
+        message: 'Unable to reach the OpenClaw Gateway.',
+        endpoint: null,
+      })),
     ]);
 
     const selectedSkillIds = await resolveSelectedSkillIds(input.packIds, input.skillIds);
@@ -391,6 +400,8 @@ class OpenClawBootstrapService {
     return {
       instanceId: input.instanceId,
       installSucceeded: true,
+      gatewayReachable: gatewayValidation.status === 'ok',
+      gatewayStatus: gatewayValidation.status,
       hasReadyProvider: configSnapshot.providerSnapshots.some((provider) => provider.status === 'ready'),
       selectedChannelCount: input.selectedChannelIds.length,
       configuredChannelCount: configSnapshot.channelSnapshots.filter(

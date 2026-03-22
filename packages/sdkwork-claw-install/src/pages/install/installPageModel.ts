@@ -32,7 +32,9 @@ export type GuidedInstallStepId =
   | 'success';
 
 export type LegacyInstallRecord = {
+  softwareName?: string;
   manifestName: string;
+  effectiveRuntimePlatform?: string;
   installRoot?: string;
   workRoot?: string;
   dataRoot?: string;

@@ -240,6 +240,14 @@ function appendTerminalOutput(previous: string, line: string) {
   return `${previous}${previous.endsWith('\n') || !previous ? '' : '\n'}${normalized}\n`;
 }
 
+function humanizeVerificationItem(id: string) {
+  return id
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
 export function OpenClawGuidedInstallWizard({
   isOpen,
   productName,
@@ -1477,12 +1485,17 @@ export function OpenClawGuidedInstallWizard({
                   name: channel.name,
                   description: channel.description,
                   status:
-                    configuredFieldCount === 0
-                      ? 'not_configured'
-                      : selectedChannelSet.has(channel.id)
+                    channel.configurationMode === 'none'
+                      ? selectedChannelSet.has(channel.id)
                         ? 'connected'
-                        : 'disconnected',
+                        : 'disconnected'
+                      : configuredFieldCount === 0
+                        ? 'not_configured'
+                        : selectedChannelSet.has(channel.id)
+                          ? 'connected'
+                          : 'disconnected',
                   enabled: selectedChannelSet.has(channel.id),
+                  configurationMode: channel.configurationMode,
                   fieldCount: channel.fieldCount,
                   configuredFieldCount,
                   setupSteps: channel.setupSteps,
@@ -1496,6 +1509,7 @@ export function OpenClawGuidedInstallWizard({
                 statusNotConfigured: t('dashboard.status.not_configured'),
                 actionConnect: t('channels.page.actions.connect'),
                 actionConfigure: t('channels.page.actions.configure'),
+                actionDownloadApp: t('channels.page.actions.downloadApp'),
                 actionOpenOfficialSite: t('channels.page.actions.openOfficialSite'),
                 actionEnableChannel: (name: string) =>
                   t('channels.page.actions.enableChannel', { name }),
@@ -1773,7 +1787,11 @@ export function OpenClawGuidedInstallWizard({
                   className={`rounded-[1.5rem] border p-4 ${getVerificationTone(item.status)}`}
                 >
                   <div className="text-xs font-semibold uppercase tracking-[0.14em]">
-                    {t(`install.page.guided.verify.items.${item.id}`)}
+                    {(() => {
+                      const key = `install.page.guided.verify.items.${item.id}`;
+                      const label = t(key);
+                      return label === key ? humanizeVerificationItem(item.id) : label;
+                    })()}
                   </div>
                   <div className="mt-2 text-sm font-medium">
                     {t(`install.page.guided.verify.status.${item.status}`)}
