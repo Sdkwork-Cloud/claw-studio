@@ -121,16 +121,26 @@ mod tests {
             .available_adapters
             .iter()
             .any(|adapter| adapter.id == "plugin-host"));
-        assert_eq!(info.supervisor.service_count, 3);
+        assert_eq!(info.supervisor.service_count, 8);
         assert_eq!(
             info.supervisor.managed_service_ids,
             vec![
-                "openclaw_gateway".to_string(),
-                "web_server".to_string(),
-                "api_router".to_string(),
+                "codex".to_string(),
+                "openclaw".to_string(),
+                "zeroclaw".to_string(),
+                "ironclaw".to_string(),
+                "sdkwork_api_router_gateway".to_string(),
+                "sdkwork_api_router_admin_api".to_string(),
+                "sdkwork_api_router_portal_api".to_string(),
+                "sdkwork_api_router_web_server".to_string(),
             ]
         );
         assert_eq!(info.supervisor.lifecycle, "running");
+        assert_eq!(info.bundled_components.component_count, 6);
+        assert_eq!(
+            info.bundled_components.default_startup_component_ids,
+            vec!["codex".to_string(), "sdkwork-api-router".to_string()]
+        );
     }
 
     #[test]

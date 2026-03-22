@@ -3,7 +3,7 @@ use crate::framework::{
         DesktopCapabilityInfo, DesktopCapabilityStatus, DesktopFileSystemInfo,
         DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
         DesktopNotificationInfo, DesktopPaymentInfo, DesktopPermissionsInfo, DesktopProcessInfo,
-        DesktopSecurityInfo, DesktopSupervisorInfo,
+        DesktopSecurityInfo, DesktopSupervisorInfo, DesktopBundledComponentsInfo,
     },
     paths::AppPaths,
     storage::StorageInfo,
@@ -21,6 +21,7 @@ pub struct KernelDomainSnapshots {
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
+    pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
 }
 
@@ -131,6 +132,15 @@ impl KernelService {
                     domains.supervisor.service_count, domains.supervisor.lifecycle
                 ),
             },
+            DesktopCapabilityInfo {
+                key: "bundled-components".to_string(),
+                status: DesktopCapabilityStatus::Ready,
+                detail: format!(
+                    "{} bundled components are registered with {} default startup components.",
+                    domains.bundled_components.component_count,
+                    domains.bundled_components.default_startup_component_ids.len()
+                ),
+            },
         ];
 
         DesktopKernelInfo {
@@ -158,6 +168,7 @@ impl KernelService {
             payments: domains.payments,
             integrations: domains.integrations,
             supervisor: domains.supervisor,
+            bundled_components: domains.bundled_components,
             storage: domains.storage,
         }
     }

@@ -4,6 +4,8 @@ export const DESKTOP_COMMANDS = {
   appConfig: 'get_app_config',
   setAppLanguage: 'set_app_language',
   systemInfo: 'get_system_info',
+  desktopComponentCatalog: 'desktop_component_catalog',
+  desktopComponentControl: 'desktop_component_control',
   desktopKernelInfo: 'desktop_kernel_info',
   desktopStorageInfo: 'desktop_storage_info',
   studioListInstances: 'studio_list_instances',

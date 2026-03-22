@@ -1,4 +1,11 @@
-use crate::framework::{paths::AppPaths, Result};
+use crate::framework::{
+    components::{
+        bundled_component_defaults, PackagedComponentDefinition, PackagedComponentKind,
+        PackagedComponentStartupMode,
+    },
+    paths::AppPaths,
+    Result,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
@@ -183,6 +190,123 @@ impl Default for ServiceState {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+pub struct ComponentStateEntry {
+    pub display_name: String,
+    pub kind: String,
+    pub bundled_version: String,
+    pub active_version: Option<String>,
+    pub fallback_version: Option<String>,
+    pub startup_mode: String,
+    pub enabled_by_default: bool,
+}
+
+impl Default for ComponentStateEntry {
+    fn default() -> Self {
+        Self {
+            display_name: String::new(),
+            kind: "binary".to_string(),
+            bundled_version: "bundled".to_string(),
+            active_version: None,
+            fallback_version: None,
+            startup_mode: "manual".to_string(),
+            enabled_by_default: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ComponentsState {
+    pub layout_version: u32,
+    pub entries: BTreeMap<String, ComponentStateEntry>,
+}
+
+impl Default for ComponentsState {
+    fn default() -> Self {
+        Self {
+            layout_version: LAYOUT_VERSION,
+            entries: bundled_component_defaults()
+                .into_iter()
+                .map(|definition| {
+                    (
+                        definition.id.clone(),
+                        ComponentStateEntry::from_definition(&definition),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+impl ComponentStateEntry {
+    fn from_definition(definition: &PackagedComponentDefinition) -> Self {
+        Self {
+            display_name: definition.display_name.clone(),
+            kind: component_kind_label(&definition.kind).to_string(),
+            bundled_version: definition.bundled_version.clone(),
+            active_version: Some(definition.bundled_version.clone()),
+            fallback_version: None,
+            startup_mode: startup_mode_label(&definition.startup_mode).to_string(),
+            enabled_by_default: definition.startup_mode == PackagedComponentStartupMode::AutoStart,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct UpgradeStateEntry {
+    pub channel: String,
+    pub auto_upgrade_enabled: bool,
+    pub last_attempted_version: Option<String>,
+    pub last_applied_version: Option<String>,
+    pub last_attempted_at: Option<String>,
+    pub last_error: Option<String>,
+}
+
+impl Default for UpgradeStateEntry {
+    fn default() -> Self {
+        Self {
+            channel: "stable".to_string(),
+            auto_upgrade_enabled: false,
+            last_attempted_version: None,
+            last_applied_version: None,
+            last_attempted_at: None,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct UpgradesState {
+    pub layout_version: u32,
+    pub components: BTreeMap<String, UpgradeStateEntry>,
+}
+
+impl Default for UpgradesState {
+    fn default() -> Self {
+        Self {
+            layout_version: LAYOUT_VERSION,
+            components: bundled_component_defaults()
+                .into_iter()
+                .filter(|definition| definition.id != "hub-installer")
+                .map(|definition| {
+                    (
+                        definition.id,
+                        UpgradeStateEntry {
+                            channel: definition.upgrade_channel,
+                            auto_upgrade_enabled: false,
+                            ..UpgradeStateEntry::default()
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct RetentionBucket {
     pub active_slots: u32,
     pub fallback_slots: u32,
@@ -233,6 +357,8 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     write_json_if_missing(&paths.policies_file, &PolicyState::default())?;
     write_json_if_missing(&paths.sources_file, &SourceState::default())?;
     write_json_if_missing(&paths.service_file, &ServiceState::default())?;
+    write_json_if_missing(&paths.components_file, &ComponentsState::default())?;
+    write_json_if_missing(&paths.upgrades_file, &UpgradesState::default())?;
     Ok(())
 }
 
@@ -246,6 +372,23 @@ pub fn set_active_runtime_version(paths: &AppPaths, runtime_id: &str, version: &
     }
 
     write_json_file(&paths.active_file, &active)
+}
+
+fn component_kind_label(kind: &PackagedComponentKind) -> &'static str {
+    match kind {
+        PackagedComponentKind::Binary => "binary",
+        PackagedComponentKind::NodeApp => "nodeApp",
+        PackagedComponentKind::ServiceGroup => "serviceGroup",
+        PackagedComponentKind::EmbeddedLibrary => "embeddedLibrary",
+    }
+}
+
+fn startup_mode_label(mode: &PackagedComponentStartupMode) -> &'static str {
+    match mode {
+        PackagedComponentStartupMode::AutoStart => "autoStart",
+        PackagedComponentStartupMode::Manual => "manual",
+        PackagedComponentStartupMode::Embedded => "embedded",
+    }
 }
 
 fn write_json_if_missing<T>(path: &Path, value: &T) -> Result<()>
@@ -283,7 +426,7 @@ where
 mod tests {
     use super::{
         initialize_machine_state, set_active_runtime_version, ActiveState, InventoryState,
-        LayoutState, PinnedState, RetentionState,
+        LayoutState, PinnedState, RetentionState, UpgradesState,
     };
     use crate::framework::paths::resolve_paths_for_root;
     use serde_json::Value;
@@ -331,6 +474,14 @@ mod tests {
             &std::fs::read_to_string(&paths.service_file).expect("service file"),
         )
         .expect("service json");
+        let components = serde_json::from_str::<Value>(
+            &std::fs::read_to_string(&paths.components_file).expect("components file"),
+        )
+        .expect("components json");
+        let upgrades = serde_json::from_str::<UpgradesState>(
+            &std::fs::read_to_string(&paths.upgrades_file).expect("upgrades file"),
+        )
+        .expect("upgrades json");
 
         assert_eq!(layout.layout_version, 1);
         assert!(layout.install_root.replace('\\', "/").ends_with("install"));
@@ -408,6 +559,27 @@ mod tests {
             service.get("maintenanceMode").and_then(Value::as_bool),
             Some(false)
         );
+        assert_eq!(
+            components
+                .pointer("/entries/codex/enabledByDefault")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            components
+                .pointer("/entries/sdkwork-api-router/enabledByDefault")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            components
+                .pointer("/entries/zeroclaw/enabledByDefault")
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert!(upgrades.components.contains_key("codex"));
+        assert!(upgrades.components.contains_key("sdkwork-api-router"));
+        assert!(!upgrades.components.contains_key("hub-installer"));
     }
 
     #[test]

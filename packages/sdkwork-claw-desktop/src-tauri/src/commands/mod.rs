@@ -1,6 +1,7 @@
 pub mod api_router_runtime;
 pub mod app_info;
 pub mod capture_screenshot;
+pub mod component_commands;
 pub mod copy_path;
 pub mod create_directory;
 pub mod desktop_kernel;
