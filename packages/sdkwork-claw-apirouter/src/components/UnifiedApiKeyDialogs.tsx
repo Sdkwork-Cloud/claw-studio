@@ -42,9 +42,11 @@ import {
   buildUnifiedApiKeyCurlExample,
   createEmptyUnifiedApiKeyFormState,
   normalizeUnifiedApiKeyFormState,
+  resolveUnifiedApiAccessGateways,
   type ProviderAccessClientConfig,
   type ProviderAccessClientId,
   type ProviderAccessInstallMode,
+  type UnifiedApiAccessGatewayCatalog,
   type UnifiedApiKeyFormState,
   unifiedApiKeyAccessService,
   UNIFIED_API_ACCESS_GATEWAYS,
@@ -58,6 +60,7 @@ import {
   getProviderAccessClientKey,
   sortInstancesForSelection,
   type ApiRouterUsageTabId,
+  type OpenClawApiKeyStrategy,
   type ProviderAccessClientInstallSelection,
 } from './ApiRouterAccessMethodShared';
 import { ProxyProviderStatusBadge } from './ProxyProviderStatusBadge';
@@ -80,7 +83,13 @@ interface UnifiedApiKeyDialogsProps {
   onCopyApiKey: (item: UnifiedApiKey) => void;
 }
 
-function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
+function UnifiedApiKeyUsageDefaultPanel({
+  item,
+  gateways,
+}: {
+  item: UnifiedApiKey;
+  gateways: UnifiedApiAccessGatewayCatalog;
+}) {
   const { t } = useTranslation();
   const routedClientModels = [
     {
@@ -114,7 +123,7 @@ function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
             {t('apiRouterPage.unifiedApiKey.detail.openaiBaseUrl')}
           </div>
           <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
-            {UNIFIED_API_ACCESS_GATEWAYS.openai.baseUrl}
+            {gateways.openai.baseUrl}
           </div>
         </div>
 
@@ -124,7 +133,7 @@ function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
             {t('apiRouterPage.unifiedApiKey.detail.anthropicBaseUrl')}
           </div>
           <div className="mt-3 break-all text-sm text-zinc-600 dark:text-zinc-300">
-            {UNIFIED_API_ACCESS_GATEWAYS.anthropic.baseUrl}
+            {gateways.anthropic.baseUrl}
           </div>
         </div>
 
@@ -167,7 +176,7 @@ function UnifiedApiKeyUsageDefaultPanel({ item }: { item: UnifiedApiKey }) {
           {t('apiRouterPage.dialogs.exampleRequest')}
         </div>
         <pre className="mt-4 overflow-x-auto text-sm leading-6 text-zinc-300">
-          <code>{buildUnifiedApiKeyCurlExample(item)}</code>
+          <code>{buildUnifiedApiKeyCurlExample(item, gateways)}</code>
         </pre>
       </div>
 
@@ -462,6 +471,14 @@ export function UnifiedApiKeyDialogs({
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [isInstanceSelectorOpen, setIsInstanceSelectorOpen] = useState(false);
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
+  const [openClawApiKeyStrategy, setOpenClawApiKeyStrategy] =
+    useState<OpenClawApiKeyStrategy>('shared');
+  const [selectedOpenClawModelMappingId, setSelectedOpenClawModelMappingId] = useState<
+    string | null
+  >(null);
+  const [gatewayCatalog, setGatewayCatalog] = useState<UnifiedApiAccessGatewayCatalog>(
+    UNIFIED_API_ACCESS_GATEWAYS,
+  );
   const [modelMappingSearchQuery, setModelMappingSearchQuery] = useState('');
   const [selectedModelMappingId, setSelectedModelMappingId] = useState<string | null>(null);
 
@@ -503,6 +520,39 @@ export function UnifiedApiKeyDialogs({
     setIsLoadingInstances(false);
     setIsInstanceSelectorOpen(false);
     setSelectedInstanceIds([]);
+    setOpenClawApiKeyStrategy('shared');
+  }, [usageKey?.id]);
+
+  useEffect(() => {
+    setSelectedOpenClawModelMappingId(usageKey?.modelMappingId || null);
+  }, [usageKey?.id, usageKey?.modelMappingId]);
+
+  useEffect(() => {
+    if (
+      selectedOpenClawModelMappingId &&
+      !modelMappings.some((item) => item.id === selectedOpenClawModelMappingId)
+    ) {
+      setSelectedOpenClawModelMappingId(null);
+    }
+  }, [modelMappings, selectedOpenClawModelMappingId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setGatewayCatalog(UNIFIED_API_ACCESS_GATEWAYS);
+
+    if (!usageKey) {
+      return;
+    }
+
+    void resolveUnifiedApiAccessGateways().then((nextGateways) => {
+      if (!cancelled) {
+        setGatewayCatalog(nextGateways);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [usageKey?.id]);
 
   useEffect(() => {
@@ -570,7 +620,9 @@ export function UnifiedApiKeyDialogs({
     }
   }
 
-  const accessClients = usageKey ? buildUnifiedApiKeyAccessClientConfigs(usageKey) : [];
+  const accessClients = usageKey
+    ? buildUnifiedApiKeyAccessClientConfigs(usageKey, gatewayCatalog)
+    : [];
   const activeAccessClient =
     activeUsageTab === 'default'
       ? null
@@ -666,7 +718,14 @@ export function UnifiedApiKeyDialogs({
     setApplyingClientId('openclaw');
 
     try {
-      const result = await unifiedApiKeyAccessService.applyOpenClawSetup(usageKey, selectedInstanceIds);
+      const result = await unifiedApiKeyAccessService.applyOpenClawSetup(
+        usageKey,
+        selectedInstanceIds,
+        {
+          apiKeyStrategy: openClawApiKeyStrategy,
+          modelMappingId: selectedOpenClawModelMappingId,
+        },
+      );
       toast.success(
         t('apiRouterPage.toast.openClawSetupApplied', {
           count: result.updatedInstanceIds.length,
@@ -729,7 +788,7 @@ export function UnifiedApiKeyDialogs({
                 aria-labelledby={`unified-api-key-usage-tab-${activeUsageTab}`}
               >
                 {activeUsageTab === 'default' ? (
-                  <UnifiedApiKeyUsageDefaultPanel item={usageKey} />
+                  <UnifiedApiKeyUsageDefaultPanel item={usageKey} gateways={gatewayCatalog} />
                 ) : activeAccessClient ? (
                   <div className="space-y-4">
                     <div>
@@ -959,10 +1018,15 @@ export function UnifiedApiKeyDialogs({
             description={t('apiRouterPage.dialogs.instanceSelectorDescription', {
               provider: usageKey.name,
             })}
+            apiKeyStrategy={openClawApiKeyStrategy}
+            modelMappings={modelMappings}
+            selectedModelMappingId={selectedOpenClawModelMappingId}
             availableInstances={availableInstances}
             selectedInstanceIds={selectedInstanceIds}
             isLoading={isLoadingInstances}
             isApplying={applyingClientId === 'openclaw'}
+            onApiKeyStrategyChange={setOpenClawApiKeyStrategy}
+            onModelMappingChange={setSelectedOpenClawModelMappingId}
             onRefresh={() => {
               void refreshAvailableInstances();
             }}

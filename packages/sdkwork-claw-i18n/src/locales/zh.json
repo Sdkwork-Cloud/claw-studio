@@ -228,6 +228,56 @@
       "description": "Manage model vendors, proxy providers, and key lifecycle from one operational surface.",
       "descriptionWithChannel": "Operate {{channel}} routes and monitor the active {{modelFamily}} provider pool from one control plane."
     },
+    "runtime": {
+      "title": "本地 Router 运行时",
+      "description": "在分发客户端接入配置前，先检查当前本地 API Router 的绑定地址、健康状态、共享实例归属方式，以及桌面登录打通状态。",
+      "ownership": {
+        "values": {
+          "managed": "由 Claw Studio 托管",
+          "attached": "已连接共享 Router",
+          "uninitialized": "等待启动完成",
+          "stopped": "已停止"
+        },
+        "descriptions": {
+          "managed": "当前本地 router 由 Claw Studio 拉起，应用退出时只会停止本实例自己创建的子进程。",
+          "attached": "系统里已经存在健康的共享 router，Claw Studio 只是附着使用，退出时不会干预外部进程。",
+          "uninitialized": "本地 router 控制面仍在初始化，网关和管理接口还没有完全进入健康状态。",
+          "stopped": "当前托管 router 没有对外提供流量服务，重启运行时后可恢复本地 API 访问能力。"
+        }
+      },
+      "signals": {
+        "gateway": "网关服务",
+        "admin": "管理接口",
+        "authSession": "应用登录态",
+        "adminAuth": "管理鉴权桥接",
+        "ready": "已就绪",
+        "notReady": "未就绪"
+      },
+      "endpoints": {
+        "gateway": "网关 Base URL",
+        "admin": "管理 Base URL",
+        "binding": "绑定地址",
+        "path": "路径"
+      },
+      "processes": {
+        "title": "托管进程",
+        "gatewayPid": "网关 PID",
+        "adminPid": "管理 PID",
+        "unavailable": "非托管实例"
+      },
+      "paths": {
+        "title": "共享存储",
+        "routerHomeDir": "Router 根目录",
+        "metadataDir": "Claw 元数据目录",
+        "databasePath": "数据库文件",
+        "extractionDir": "预编译运行时"
+      },
+      "values": {
+        "unavailable": "不可用"
+      },
+      "emptyStateTitle": "Router 目录还未就绪",
+      "emptyStateDescription": "请等待本地网关和管理接口变为健康状态，或在 Claw Studio 连接到共享 router 后手动刷新。"
+    },
     "pageTabs": {
       "unifiedApiKey": "Unified API Key",
       "routeConfig": "Route Config",
@@ -561,6 +611,20 @@
       "emptyInstancesTitle": "No OpenClaw instances available",
       "emptyInstancesDescription": "Create or connect an instance before applying one-click setup.",
       "openclawSummary": "One-click setup writes this provider into the selected OpenClaw instances while keeping the manual command below as a fallback.",
+      "openclawApiKeyStrategy": {
+        "title": "\u0050\u0043 \u5b9e\u4f8b API Key \u7b56\u7565",
+        "description": "\u9009\u62e9\u5df2\u9009 OpenClaw \u5b9e\u4f8b\u662f\u5171\u7528\u4e00\u4e2a\u7531 API Router \u6258\u7ba1\u7684 API Key\uff0c\u8fd8\u662f\u4e3a\u6bcf\u4e2a\u5b9e\u4f8b\u5206\u914d\u72ec\u7acb\u7684 API Key \u4e0e\u9879\u76ee\u7ed1\u5b9a\u3002",
+        "options": {
+          "shared": "\u5171\u7528 Key",
+          "per-instance": "\u6bcf\u5b9e\u4f8b\u72ec\u7acb Key"
+        }
+      },
+      "modelMapping": {
+        "title": "\u6a21\u578b\u8def\u7531\u6620\u5c04",
+        "description": "\u4e3a\u672c\u6b21\u5199\u5165\u7684 OpenClaw \u5b9e\u4f8b\u9009\u62e9\u4e00\u4e2a\u5df2\u4fdd\u5b58\u7684\u6a21\u578b\u6620\u5c04\uff0c\u672a\u9009\u62e9\u65f6\u5c06\u4f7f\u7528\u9ed8\u8ba4\u8def\u7531\u3002",
+        "none": "\u4e0d\u4f7f\u7528\u6a21\u578b\u6620\u5c04",
+        "empty": "\u5f53\u524d\u8fd8\u6ca1\u6709\u53ef\u7528\u7684\u6a21\u578b\u6620\u5c04\uff0c\u53ef\u5148\u76f4\u63a5\u7ee7\u7eed\uff0c\u6216\u7a0d\u540e\u5728\u6a21\u578b\u6620\u5c04\u9875\u521b\u5efa\u3002"
+      },
       "tabs": {
         "default": "Default",
         "codex": "Codex",

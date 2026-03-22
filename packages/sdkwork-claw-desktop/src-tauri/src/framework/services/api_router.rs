@@ -51,6 +51,13 @@ pub enum ApiRouterInstallerEnvScope {
     System,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ApiRouterInstallerOpenClawApiKeyStrategy {
+    Shared,
+    PerInstance,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiRouterInstallerModel {
@@ -70,10 +77,16 @@ pub struct ApiRouterInstallerProvider {
     pub models: Vec<ApiRouterInstallerModel>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiRouterInstallerOpenClawOptions {
     pub instance_ids: Vec<String>,
+    #[serde(default = "default_openclaw_api_key_strategy")]
+    pub api_key_strategy: ApiRouterInstallerOpenClawApiKeyStrategy,
+    #[serde(default)]
+    pub router_provider_id: Option<String>,
+    #[serde(default)]
+    pub model_mapping_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -123,6 +136,19 @@ pub struct ApiRouterClientInstallResult {
     pub written_files: Vec<ApiRouterInstalledFile>,
     pub updated_environments: Vec<ApiRouterInstalledEnvironment>,
     pub updated_instance_ids: Vec<String>,
+    pub open_claw_instances: Vec<ApiRouterInstalledOpenClawInstance>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiRouterInstalledOpenClawInstance {
+    pub instance_id: String,
+    pub endpoint: String,
+    pub api_key: String,
+    pub api_key_project_id: String,
+    pub api_key_strategy: ApiRouterInstallerOpenClawApiKeyStrategy,
+    pub selected_provider_id: Option<String>,
+    pub model_mapping_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -149,6 +175,24 @@ impl ApiRouterInstallerService {
         self.install_client_setup_with_runtime(paths, request, &runtime)
     }
 
+    pub fn install_openclaw_instances(
+        &self,
+        paths: &AppPaths,
+        request: ApiRouterClientInstallRequest,
+        open_claw_instances: Vec<ApiRouterInstalledOpenClawInstance>,
+    ) -> Result<ApiRouterClientInstallResult> {
+        validate_request(&request)?;
+
+        if request.client_id != ApiRouterInstallerClientId::Openclaw {
+            return Err(FrameworkError::ValidationFailed(
+                "resolved OpenClaw bindings can only be installed for the OpenClaw client"
+                    .to_string(),
+            ));
+        }
+
+        install_openclaw(&request, paths, open_claw_instances)
+    }
+
     fn install_client_setup_with_runtime(
         &self,
         paths: &AppPaths,
@@ -161,9 +205,21 @@ impl ApiRouterInstallerService {
             ApiRouterInstallerClientId::Codex => install_codex(&request, runtime),
             ApiRouterInstallerClientId::ClaudeCode => install_claude_code(&request, runtime),
             ApiRouterInstallerClientId::Opencode => install_opencode(&request, runtime),
-            ApiRouterInstallerClientId::Openclaw => install_openclaw(&request, paths),
+            ApiRouterInstallerClientId::Openclaw => {
+                install_openclaw(&request, paths, build_default_openclaw_instances(&request)?)
+            }
             ApiRouterInstallerClientId::Gemini => install_gemini(&request, runtime),
         }
+    }
+}
+
+fn default_openclaw_api_key_strategy() -> ApiRouterInstallerOpenClawApiKeyStrategy {
+    ApiRouterInstallerOpenClawApiKeyStrategy::Shared
+}
+
+impl Default for ApiRouterInstallerOpenClawApiKeyStrategy {
+    fn default() -> Self {
+        default_openclaw_api_key_strategy()
     }
 }
 
@@ -215,6 +271,7 @@ struct OpenClawProviderManifest {
     capabilities: Vec<String>,
     models: Vec<OpenClawProviderModel>,
     config: OpenClawProviderConfig,
+    router_config: OpenClawRouterConfig,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -234,6 +291,18 @@ struct OpenClawProviderConfig {
     max_tokens: u64,
     timeout_ms: u64,
     streaming: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenClawRouterConfig {
+    gateway_base_url: String,
+    api_key_project_id: String,
+    api_key_strategy: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    selected_provider_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_mapping_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -408,6 +477,26 @@ fn validate_request(request: &ApiRouterClientInstallRequest) -> Result<()> {
                         "OpenClaw instance identifiers must not be empty".to_string(),
                     ));
                 }
+            }
+
+            if open_claw
+                .router_provider_id
+                .as_deref()
+                .is_some_and(|value| value.trim().is_empty())
+            {
+                return Err(FrameworkError::ValidationFailed(
+                    "OpenClaw router provider id must not be blank".to_string(),
+                ));
+            }
+
+            if open_claw
+                .model_mapping_id
+                .as_deref()
+                .is_some_and(|value| value.trim().is_empty())
+            {
+                return Err(FrameworkError::ValidationFailed(
+                    "OpenClaw model mapping id must not be blank".to_string(),
+                ));
             }
         }
         ApiRouterInstallerClientId::Gemini => {
@@ -612,6 +701,7 @@ fn install_codex(
         written_files,
         updated_environments,
         updated_instance_ids: Vec::new(),
+        open_claw_instances: Vec::new(),
     })
 }
 
@@ -665,6 +755,7 @@ fn install_claude_code(
         written_files,
         updated_environments,
         updated_instance_ids: Vec::new(),
+        open_claw_instances: Vec::new(),
     })
 }
 
@@ -778,6 +869,7 @@ fn install_opencode(
         written_files,
         updated_environments,
         updated_instance_ids: Vec::new(),
+        open_claw_instances: Vec::new(),
     })
 }
 
@@ -830,27 +922,30 @@ fn install_gemini(
         written_files,
         updated_environments,
         updated_instance_ids: Vec::new(),
+        open_claw_instances: Vec::new(),
     })
 }
 
 fn install_openclaw(
     request: &ApiRouterClientInstallRequest,
     paths: &AppPaths,
+    open_claw_instances: Vec<ApiRouterInstalledOpenClawInstance>,
 ) -> Result<ApiRouterClientInstallResult> {
     let open_claw = request.open_claw.as_ref().ok_or_else(|| {
         FrameworkError::ValidationFailed("OpenClaw installation requires instances".to_string())
     })?;
+    validate_openclaw_instances(open_claw, &open_claw_instances)?;
     let mut written_files = Vec::new();
 
-    for instance_id in &open_claw.instance_ids {
+    for open_claw_instance in &open_claw_instances {
         let path = paths
             .integrations_dir
             .join("openclaw")
             .join("instances")
-            .join(instance_id)
+            .join(open_claw_instance.instance_id.as_str())
             .join("providers")
             .join(format!("provider-api-router-{}.json", request.provider.id));
-        let manifest = build_openclaw_provider_manifest(&request.provider, instance_id)?;
+        let manifest = build_openclaw_provider_manifest(&request.provider, open_claw_instance)?;
         let content = serialize_json_value(&serde_json::to_value(manifest)?)?;
         written_files.push(write_text_file(&path, &content)?);
     }
@@ -860,12 +955,13 @@ fn install_openclaw(
         written_files,
         updated_environments: Vec::new(),
         updated_instance_ids: open_claw.instance_ids.clone(),
+        open_claw_instances,
     })
 }
 
 fn build_openclaw_provider_manifest(
     provider: &ApiRouterInstallerProvider,
-    instance_id: &str,
+    open_claw_instance: &ApiRouterInstalledOpenClawInstance,
 ) -> Result<OpenClawProviderManifest> {
     let primary_model = primary_model(provider)?;
     let reasoning_model_id = infer_reasoning_model_id(&provider.models);
@@ -893,11 +989,11 @@ fn build_openclaw_provider_manifest(
 
     Ok(OpenClawProviderManifest {
         id: format!("provider-api-router-{}", provider.id),
-        instance_id: instance_id.to_string(),
+        instance_id: open_claw_instance.instance_id.clone(),
         name: provider.name.clone(),
         provider: "api-router".to_string(),
-        endpoint: provider.base_url.clone(),
-        api_key_source: provider.api_key.clone(),
+        endpoint: open_claw_instance.endpoint.clone(),
+        api_key_source: open_claw_instance.api_key.clone(),
         status: "ready".to_string(),
         default_model_id: primary_model.id.clone(),
         reasoning_model_id,
@@ -918,7 +1014,147 @@ fn build_openclaw_provider_manifest(
             timeout_ms: 60_000,
             streaming: true,
         },
+        router_config: OpenClawRouterConfig {
+            gateway_base_url: open_claw_instance.endpoint.clone(),
+            api_key_project_id: open_claw_instance.api_key_project_id.clone(),
+            api_key_strategy: openclaw_api_key_strategy_to_string(
+                open_claw_instance.api_key_strategy,
+            )
+            .to_string(),
+            selected_provider_id: open_claw_instance.selected_provider_id.clone(),
+            model_mapping_id: open_claw_instance.model_mapping_id.clone(),
+        },
     })
+}
+
+fn build_default_openclaw_instances(
+    request: &ApiRouterClientInstallRequest,
+) -> Result<Vec<ApiRouterInstalledOpenClawInstance>> {
+    let open_claw = request.open_claw.as_ref().ok_or_else(|| {
+        FrameworkError::ValidationFailed("OpenClaw installation requires instances".to_string())
+    })?;
+    let selected_provider_id =
+        normalize_optional_string_value(open_claw.router_provider_id.as_deref());
+    let model_mapping_id =
+        normalize_optional_string_value(open_claw.model_mapping_id.as_deref());
+    let shared_project_id = build_openclaw_project_id(None, open_claw.api_key_strategy);
+
+    Ok(open_claw
+        .instance_ids
+        .iter()
+        .map(|instance_id| ApiRouterInstalledOpenClawInstance {
+            instance_id: instance_id.clone(),
+            endpoint: request.provider.base_url.clone(),
+            api_key: request.provider.api_key.clone(),
+            api_key_project_id: match open_claw.api_key_strategy {
+                ApiRouterInstallerOpenClawApiKeyStrategy::Shared => shared_project_id.clone(),
+                ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance => {
+                    build_openclaw_project_id(
+                        Some(instance_id.as_str()),
+                        ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance,
+                    )
+                }
+            },
+            api_key_strategy: open_claw.api_key_strategy,
+            selected_provider_id: selected_provider_id.clone(),
+            model_mapping_id: model_mapping_id.clone(),
+        })
+        .collect())
+}
+
+fn validate_openclaw_instances(
+    options: &ApiRouterInstallerOpenClawOptions,
+    open_claw_instances: &[ApiRouterInstalledOpenClawInstance],
+) -> Result<()> {
+    use std::collections::BTreeSet;
+
+    let expected = options
+        .instance_ids
+        .iter()
+        .map(|value| value.trim().to_string())
+        .collect::<BTreeSet<_>>();
+    let actual = open_claw_instances
+        .iter()
+        .map(|value| value.instance_id.trim().to_string())
+        .collect::<BTreeSet<_>>();
+
+    if expected != actual {
+        return Err(FrameworkError::ValidationFailed(
+            "OpenClaw instance bindings must match the selected instance ids".to_string(),
+        ));
+    }
+
+    for instance in open_claw_instances {
+        if instance.endpoint.trim().is_empty() {
+            return Err(FrameworkError::ValidationFailed(
+                "OpenClaw instance endpoint must not be empty".to_string(),
+            ));
+        }
+        if instance.api_key.trim().is_empty() {
+            return Err(FrameworkError::ValidationFailed(
+                "OpenClaw instance api key must not be empty".to_string(),
+            ));
+        }
+        if instance.api_key_project_id.trim().is_empty() {
+            return Err(FrameworkError::ValidationFailed(
+                "OpenClaw instance api key project id must not be empty".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn build_openclaw_project_id(
+    instance_id: Option<&str>,
+    strategy: ApiRouterInstallerOpenClawApiKeyStrategy,
+) -> String {
+    match strategy {
+        ApiRouterInstallerOpenClawApiKeyStrategy::Shared => "project-openclaw-shared".to_string(),
+        ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance => format!(
+            "project-openclaw-{}",
+            sanitize_identifier(instance_id.unwrap_or("instance"))
+        ),
+    }
+}
+
+fn sanitize_identifier(value: &str) -> String {
+    let mut normalized = value
+        .chars()
+        .map(|char| {
+            if char.is_ascii_alphanumeric() {
+                char.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    normalized = normalized.trim_matches('-').to_string();
+    while normalized.contains("--") {
+        normalized = normalized.replace("--", "-");
+    }
+
+    if normalized.is_empty() {
+        "instance".to_string()
+    } else {
+        normalized
+    }
+}
+
+fn normalize_optional_string_value(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn openclaw_api_key_strategy_to_string(
+    strategy: ApiRouterInstallerOpenClawApiKeyStrategy,
+) -> &'static str {
+    match strategy {
+        ApiRouterInstallerOpenClawApiKeyStrategy::Shared => "shared",
+        ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance => "per-instance",
+    }
 }
 
 fn resolve_home_dir() -> Result<PathBuf> {
@@ -1621,9 +1857,10 @@ fn get_openclaw_icon(channel_id: &str) -> &'static str {
 mod tests {
     use super::{
         ApiRouterClientInstallRequest, ApiRouterInstallerClientId, ApiRouterInstallerCompatibility,
-        ApiRouterInstallerEnvScope, ApiRouterInstallerInstallMode, ApiRouterInstallerModel,
-        ApiRouterInstallerOpenClawOptions, ApiRouterInstallerProvider, ApiRouterInstallerService,
-        InstallPlatform, InstallerRuntime,
+        ApiRouterInstalledOpenClawInstance, ApiRouterInstallerEnvScope,
+        ApiRouterInstallerInstallMode, ApiRouterInstallerModel,
+        ApiRouterInstallerOpenClawApiKeyStrategy, ApiRouterInstallerOpenClawOptions,
+        ApiRouterInstallerProvider, ApiRouterInstallerService, InstallPlatform, InstallerRuntime,
         resolve_unix_system_env_path, resolve_unix_user_env_path, resolve_windows_user_env_path,
         resolve_windows_user_profile_path,
         resolve_opencode_auth_path, resolve_opencode_auth_path_for_platform,
@@ -2365,6 +2602,7 @@ env_key = "OPENAI_API_KEY"
         request.install_mode = Some(ApiRouterInstallerInstallMode::Env);
         request.open_claw = Some(ApiRouterInstallerOpenClawOptions {
             instance_ids: vec!["local-built-in".to_string()],
+            ..Default::default()
         });
 
         let error = service
@@ -2392,6 +2630,7 @@ env_key = "OPENAI_API_KEY"
         );
         request.open_claw = Some(ApiRouterInstallerOpenClawOptions {
             instance_ids: vec!["local-built-in".to_string(), "home-nas".to_string()],
+            ..Default::default()
         });
 
         let result = service
@@ -2418,5 +2657,70 @@ env_key = "OPENAI_API_KEY"
         assert_eq!(manifest["provider"], "api-router");
         assert_eq!(manifest["endpoint"], "https://api-router.example.com/v1");
         assert_eq!(manifest["defaultModelId"], "gpt-4.1-mini");
+    }
+
+    #[test]
+    fn installs_resolved_openclaw_provider_manifests_with_router_config_metadata() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let service = ApiRouterInstallerService::new();
+        let mut request = build_request(
+            ApiRouterInstallerClientId::Openclaw,
+            ApiRouterInstallerCompatibility::Openai,
+        );
+        request.open_claw = Some(ApiRouterInstallerOpenClawOptions {
+            instance_ids: vec!["local-built-in".to_string(), "home-nas".to_string()],
+            api_key_strategy: ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance,
+            router_provider_id: Some("provider-openai-1".to_string()),
+            model_mapping_id: Some("model-mapping-openclaw".to_string()),
+        });
+
+        let result = service
+            .install_openclaw_instances(
+                &paths,
+                request,
+                vec![
+                    ApiRouterInstalledOpenClawInstance {
+                        instance_id: "local-built-in".to_string(),
+                        endpoint: "http://127.0.0.1:8080/v1".to_string(),
+                        api_key: "sk-ar-v1-local".to_string(),
+                        api_key_project_id: "project-openclaw-local".to_string(),
+                        api_key_strategy: ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance,
+                        selected_provider_id: Some("provider-openai-1".to_string()),
+                        model_mapping_id: Some("model-mapping-openclaw".to_string()),
+                    },
+                    ApiRouterInstalledOpenClawInstance {
+                        instance_id: "home-nas".to_string(),
+                        endpoint: "http://127.0.0.1:8080/v1".to_string(),
+                        api_key: "sk-ar-v1-home".to_string(),
+                        api_key_project_id: "project-openclaw-home".to_string(),
+                        api_key_strategy: ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance,
+                        selected_provider_id: Some("provider-openai-1".to_string()),
+                        model_mapping_id: Some("model-mapping-openclaw".to_string()),
+                    },
+                ],
+            )
+            .expect("resolved openclaw install");
+
+        assert_eq!(result.updated_instance_ids, vec!["local-built-in", "home-nas"]);
+        assert_eq!(result.open_claw_instances.len(), 2);
+
+        let provider_path = paths
+            .integrations_dir
+            .join("openclaw")
+            .join("instances")
+            .join("local-built-in")
+            .join("providers")
+            .join("provider-api-router-provider-openai-1.json");
+        let manifest: Value =
+            serde_json::from_str(&fs::read_to_string(provider_path).expect("manifest content"))
+                .expect("manifest json");
+
+        assert_eq!(manifest["endpoint"], "http://127.0.0.1:8080/v1");
+        assert_eq!(manifest["apiKeySource"], "sk-ar-v1-local");
+        assert_eq!(manifest["routerConfig"]["apiKeyProjectId"], "project-openclaw-local");
+        assert_eq!(manifest["routerConfig"]["apiKeyStrategy"], "per-instance");
+        assert_eq!(manifest["routerConfig"]["selectedProviderId"], "provider-openai-1");
+        assert_eq!(manifest["routerConfig"]["modelMappingId"], "model-mapping-openclaw");
     }
 }

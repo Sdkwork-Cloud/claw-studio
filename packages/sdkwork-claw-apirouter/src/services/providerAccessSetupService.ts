@@ -1,4 +1,5 @@
 import type {
+  ApiRouterInstalledOpenClawInstance,
   MockInstanceLLMProvider,
   MockInstanceLLMProviderModel,
 } from '@sdkwork/claw-infrastructure';
@@ -164,7 +165,7 @@ function getOpenClawDraftIcon(channelId: string) {
 
 export function buildOpenClawInstanceProviderDraft(
   provider: ProxyProvider,
-  instanceId: string,
+  openClawInstance: ApiRouterInstalledOpenClawInstance,
 ): OpenClawInstanceProviderDraft {
   const primaryModelId = provider.models[0]?.id || 'model-id';
   const reasoningModelId = inferReasoningModelId(provider);
@@ -182,11 +183,11 @@ export function buildOpenClawInstanceProviderDraft(
 
   return {
     id: `provider-api-router-${provider.id}`,
-    instanceId,
+    instanceId: openClawInstance.instanceId,
     name: provider.name,
     provider: 'api-router',
-    endpoint: provider.baseUrl,
-    apiKeySource: provider.apiKey,
+    endpoint: openClawInstance.endpoint,
+    apiKeySource: openClawInstance.apiKey,
     status: 'ready',
     defaultModelId: primaryModelId,
     reasoningModelId,
@@ -202,6 +203,13 @@ export function buildOpenClawInstanceProviderDraft(
       maxTokens: 8192,
       timeoutMs: 60000,
       streaming: true,
+    },
+    routerConfig: {
+      gatewayBaseUrl: openClawInstance.endpoint,
+      apiKeyProjectId: openClawInstance.apiKeyProjectId,
+      apiKeyStrategy: openClawInstance.apiKeyStrategy,
+      selectedProviderId: openClawInstance.selectedProviderId || undefined,
+      modelMappingId: openClawInstance.modelMappingId || undefined,
     },
   };
 }

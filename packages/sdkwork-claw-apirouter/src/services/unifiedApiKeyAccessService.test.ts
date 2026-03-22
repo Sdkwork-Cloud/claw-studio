@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './apiRouterTestSetup.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -15,65 +16,89 @@ await runTest('unifiedApiKeyAccessService builds protocol-aware quick setup conf
   const {
     buildUnifiedApiKeyAccessClientConfigs,
     buildUnifiedApiKeyCurlExample,
-    UNIFIED_API_ACCESS_GATEWAYS,
+    resolveUnifiedApiAccessGateways,
   } = await import('./unifiedApiKeyAccessService.ts');
+  const { getApiRouterPlatform } = await import('@sdkwork/claw-infrastructure');
   const usageKey = (await unifiedApiKeyService.getUnifiedApiKeys())[0];
 
   assert.ok(usageKey);
 
-  const configs = buildUnifiedApiKeyAccessClientConfigs(usageKey);
-  assert.deepEqual(configs.map((config) => config.id), [
-    'codex',
-    'claude-code',
-    'opencode',
-    'openclaw',
-    'gemini',
-  ]);
+  const apiRouterPlatform = getApiRouterPlatform();
+  const originalGetRuntimeStatus = apiRouterPlatform.getRuntimeStatus;
+  apiRouterPlatform.getRuntimeStatus = async () => ({
+    ownership: 'managed',
+    routerHomeDir: 'C:/Users/test/.sdkwork/router',
+    metadataDir: 'C:/Users/test/.sdkwork/router/claw-studio',
+    databasePath: 'C:/Users/test/.sdkwork/router/sdkwork-api-server.db',
+    extractionDir: 'C:/Users/test/AppData/Local/Claw/router/1.0.0/windows-x64',
+    adminBaseUrl: 'http://127.0.0.1:18081/admin',
+    gatewayBaseUrl: 'http://127.0.0.1:18080/v1',
+    adminHealthy: true,
+    gatewayHealthy: true,
+    authSessionReady: true,
+    adminAuthReady: true,
+    adminPid: 18081,
+    gatewayPid: 18080,
+  });
 
-  const codex = configs.find((config) => config.id === 'codex');
-  assert.ok(codex);
-  assert.equal(codex.available, true);
-  assert.match(codex.snippets[1]?.content || '', /base_url = "https:\/\/api-router\.example\.com\/v1"/);
-  assert.match(codex.snippets[1]?.content || '', /model = "gpt-5\.4"/);
+  try {
+    const gateways = await resolveUnifiedApiAccessGateways();
+    const configs = buildUnifiedApiKeyAccessClientConfigs(usageKey, gateways);
+    assert.deepEqual(configs.map((config) => config.id), [
+      'codex',
+      'claude-code',
+      'opencode',
+      'openclaw',
+      'gemini',
+    ]);
 
-  const claudeCode = configs.find((config) => config.id === 'claude-code');
-  assert.ok(claudeCode);
-  assert.equal(claudeCode.available, true);
-  assert.match(
-    claudeCode.snippets[0]?.content || '',
-    /"ANTHROPIC_BASE_URL": "https:\/\/api-router\.example\.com\/anthropic"/,
-  );
-  assert.match(claudeCode.snippets[0]?.content || '', /"model": "claude-sonnet-4"/);
+    const codex = configs.find((config) => config.id === 'codex');
+    assert.ok(codex);
+    assert.equal(codex.available, true);
+    assert.match(codex.snippets[1]?.content || '', /base_url = "http:\/\/127\.0\.0\.1:18080\/v1"/);
+    assert.match(codex.snippets[1]?.content || '', /model = "gpt-5\.4"/);
 
-  const opencode = configs.find((config) => config.id === 'opencode');
-  assert.ok(opencode);
-  assert.equal(opencode.available, true);
-  assert.match(opencode.snippets[0]?.content || '', /"baseURL": "https:\/\/api-router\.example\.com\/v1"/);
-  assert.match(opencode.snippets[1]?.content || '', new RegExp(usageKey.apiKey));
+    const claudeCode = configs.find((config) => config.id === 'claude-code');
+    assert.ok(claudeCode);
+    assert.equal(claudeCode.available, true);
+    assert.match(
+      claudeCode.snippets[0]?.content || '',
+      /"ANTHROPIC_BASE_URL": "http:\/\/127\.0\.0\.1:18080\/anthropic"/,
+    );
+    assert.match(claudeCode.snippets[0]?.content || '', /"model": "claude-sonnet-4"/);
 
-  const openclaw = configs.find((config) => config.id === 'openclaw');
-  assert.ok(openclaw);
-  assert.equal(openclaw.available, true);
-  assert.match(openclaw.snippets[0]?.content || '', /--custom-base-url "https:\/\/api-router\.example\.com\/v1"/);
-  assert.match(openclaw.snippets[0]?.content || '', /--custom-model-id "gpt-5\.4"/);
+    const opencode = configs.find((config) => config.id === 'opencode');
+    assert.ok(opencode);
+    assert.equal(opencode.available, true);
+    assert.match(opencode.snippets[0]?.content || '', /"baseURL": "http:\/\/127\.0\.0\.1:18080\/v1"/);
+    assert.match(opencode.snippets[1]?.content || '', new RegExp(usageKey.apiKey));
 
-  const gemini = configs.find((config) => config.id === 'gemini');
-  assert.ok(gemini);
-  assert.equal(gemini.available, true);
-  assert.equal(gemini.compatibility, 'gemini');
-  assert.deepEqual(gemini.install.supportedModes, ['standard', 'env', 'both']);
-  assert.match(
-    gemini.snippets[1]?.content || '',
-    /GOOGLE_GEMINI_BASE_URL="https:\/\/api-router\.example\.com\/gemini"/,
-  );
-  assert.match(
-    gemini.snippets[1]?.content || '',
-    /GEMINI_API_KEY_AUTH_MECHANISM="bearer"/,
-  );
+    const openclaw = configs.find((config) => config.id === 'openclaw');
+    assert.ok(openclaw);
+    assert.equal(openclaw.available, true);
+    assert.match(openclaw.snippets[0]?.content || '', /--custom-base-url "http:\/\/127\.0\.0\.1:18080\/v1"/);
+    assert.match(openclaw.snippets[0]?.content || '', /--custom-model-id "gpt-5\.4"/);
 
-  const curlExample = buildUnifiedApiKeyCurlExample(usageKey);
-  assert.match(curlExample, new RegExp(`${UNIFIED_API_ACCESS_GATEWAYS.openai.baseUrl}/chat/completions`));
-  assert.match(curlExample, new RegExp(usageKey.apiKey));
+    const gemini = configs.find((config) => config.id === 'gemini');
+    assert.ok(gemini);
+    assert.equal(gemini.available, true);
+    assert.equal(gemini.compatibility, 'gemini');
+    assert.deepEqual(gemini.install.supportedModes, ['standard', 'env', 'both']);
+    assert.match(
+      gemini.snippets[1]?.content || '',
+      /GOOGLE_GEMINI_BASE_URL="http:\/\/127\.0\.0\.1:18080\/gemini"/,
+    );
+    assert.match(
+      gemini.snippets[1]?.content || '',
+      /GEMINI_API_KEY_AUTH_MECHANISM="bearer"/,
+    );
+
+    const curlExample = buildUnifiedApiKeyCurlExample(usageKey, gateways);
+    assert.match(curlExample, /http:\/\/127\.0\.0\.1:18080\/v1\/chat\/completions/);
+    assert.match(curlExample, new RegExp(usageKey.apiKey));
+  } finally {
+    apiRouterPlatform.getRuntimeStatus = originalGetRuntimeStatus;
+  }
 });
 
 await runTest('unifiedApiKeyAccessService performs one-click Gemini setup through the installer platform', async () => {
@@ -82,7 +107,7 @@ await runTest('unifiedApiKeyAccessService performs one-click Gemini setup throug
     buildUnifiedApiKeyAccessClientConfigs,
     unifiedApiKeyAccessService,
   } = await import('./unifiedApiKeyAccessService.ts');
-  const { installerService } = await import('@sdkwork/claw-infrastructure');
+  const { getApiRouterPlatform, installerService } = await import('@sdkwork/claw-infrastructure');
   const usageKey = (await unifiedApiKeyService.getUnifiedApiKeys())[0];
 
   assert.ok(usageKey);
@@ -105,6 +130,23 @@ await runTest('unifiedApiKeyAccessService performs one-click Gemini setup throug
     };
   }> = [];
   const originalInstall = installerService.installApiRouterClientSetup;
+  const apiRouterPlatform = getApiRouterPlatform();
+  const originalGetRuntimeStatus = apiRouterPlatform.getRuntimeStatus;
+  apiRouterPlatform.getRuntimeStatus = async () => ({
+    ownership: 'managed',
+    routerHomeDir: 'C:/Users/test/.sdkwork/router',
+    metadataDir: 'C:/Users/test/.sdkwork/router/claw-studio',
+    databasePath: 'C:/Users/test/.sdkwork/router/sdkwork-api-server.db',
+    extractionDir: 'C:/Users/test/AppData/Local/Claw/router/1.0.0/windows-x64',
+    adminBaseUrl: 'http://127.0.0.1:18081/admin',
+    gatewayBaseUrl: 'http://127.0.0.1:18080/v1',
+    adminHealthy: true,
+    gatewayHealthy: true,
+    authSessionReady: true,
+    adminAuthReady: true,
+    adminPid: 18081,
+    gatewayPid: 18080,
+  });
   installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
@@ -163,7 +205,7 @@ await runTest('unifiedApiKeyAccessService performs one-click Gemini setup throug
           id: `unified-api-key-${usageKey.id}-gemini`,
           channelId: 'google',
           compatibility: 'gemini',
-          baseUrl: 'https://api-router.example.com/gemini',
+          baseUrl: 'http://127.0.0.1:18080/gemini',
           models: [
             {
               id: 'gemini-2.5-pro',
@@ -175,6 +217,7 @@ await runTest('unifiedApiKeyAccessService performs one-click Gemini setup throug
     ]);
   } finally {
     installerService.installApiRouterClientSetup = originalInstall;
+    apiRouterPlatform.getRuntimeStatus = originalGetRuntimeStatus;
   }
 });
 
@@ -184,7 +227,7 @@ await runTest('unifiedApiKeyAccessService performs one-click Codex setup through
     buildUnifiedApiKeyAccessClientConfigs,
     unifiedApiKeyAccessService,
   } = await import('./unifiedApiKeyAccessService.ts');
-  const { installerService } = await import('@sdkwork/claw-infrastructure');
+  const { getApiRouterPlatform, installerService } = await import('@sdkwork/claw-infrastructure');
   const usageKey = (await unifiedApiKeyService.getUnifiedApiKeys())[0];
 
   assert.ok(usageKey);
@@ -207,6 +250,23 @@ await runTest('unifiedApiKeyAccessService performs one-click Codex setup through
     };
   }> = [];
   const originalInstall = installerService.installApiRouterClientSetup;
+  const apiRouterPlatform = getApiRouterPlatform();
+  const originalGetRuntimeStatus = apiRouterPlatform.getRuntimeStatus;
+  apiRouterPlatform.getRuntimeStatus = async () => ({
+    ownership: 'managed',
+    routerHomeDir: 'C:/Users/test/.sdkwork/router',
+    metadataDir: 'C:/Users/test/.sdkwork/router/claw-studio',
+    databasePath: 'C:/Users/test/.sdkwork/router/sdkwork-api-server.db',
+    extractionDir: 'C:/Users/test/AppData/Local/Claw/router/1.0.0/windows-x64',
+    adminBaseUrl: 'http://127.0.0.1:18081/admin',
+    gatewayBaseUrl: 'http://127.0.0.1:18080/v1',
+    adminHealthy: true,
+    gatewayHealthy: true,
+    authSessionReady: true,
+    adminAuthReady: true,
+    adminPid: 18081,
+    gatewayPid: 18080,
+  });
   installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
@@ -255,7 +315,7 @@ await runTest('unifiedApiKeyAccessService performs one-click Codex setup through
           id: `unified-api-key-${usageKey.id}-codex`,
           channelId: 'openai',
           compatibility: 'openai',
-          baseUrl: 'https://api-router.example.com/v1',
+          baseUrl: 'http://127.0.0.1:18080/v1',
           models: [
             {
               id: 'gpt-5.4',
@@ -267,13 +327,18 @@ await runTest('unifiedApiKeyAccessService performs one-click Codex setup through
     ]);
   } finally {
     installerService.installApiRouterClientSetup = originalInstall;
+    apiRouterPlatform.getRuntimeStatus = originalGetRuntimeStatus;
   }
 });
 
 await runTest('unifiedApiKeyAccessService can project a unified API key into selected OpenClaw instances', async () => {
   const { unifiedApiKeyService } = await import('./unifiedApiKeyService.ts');
   const { unifiedApiKeyAccessService } = await import('./unifiedApiKeyAccessService.ts');
-  const { installerService, studioMockService } = await import('@sdkwork/claw-infrastructure');
+  const {
+    getApiRouterPlatform,
+    installerService,
+    studioMockService,
+  } = await import('@sdkwork/claw-infrastructure');
   const usageKey = (await unifiedApiKeyService.getUnifiedApiKeys())[0];
 
   assert.ok(usageKey);
@@ -285,6 +350,23 @@ await runTest('unifiedApiKeyAccessService can project a unified API key into sel
     };
   }> = [];
   const originalInstall = installerService.installApiRouterClientSetup;
+  const apiRouterPlatform = getApiRouterPlatform();
+  const originalGetRuntimeStatus = apiRouterPlatform.getRuntimeStatus;
+  apiRouterPlatform.getRuntimeStatus = async () => ({
+    ownership: 'managed',
+    routerHomeDir: 'C:/Users/test/.sdkwork/router',
+    metadataDir: 'C:/Users/test/.sdkwork/router/claw-studio',
+    databasePath: 'C:/Users/test/.sdkwork/router/sdkwork-api-server.db',
+    extractionDir: 'C:/Users/test/AppData/Local/Claw/router/1.0.0/windows-x64',
+    adminBaseUrl: 'http://127.0.0.1:18081/admin',
+    gatewayBaseUrl: 'http://127.0.0.1:18080/v1',
+    adminHealthy: true,
+    gatewayHealthy: true,
+    authSessionReady: true,
+    adminAuthReady: true,
+    adminPid: 18081,
+    gatewayPid: 18080,
+  });
   installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
@@ -299,6 +381,14 @@ await runTest('unifiedApiKeyAccessService can project a unified API key into sel
       })) || [],
       updatedEnvironments: [],
       updatedInstanceIds: request.openClaw?.instanceIds || [],
+      openClawInstances: (request.openClaw?.instanceIds || []).map((instanceId) => ({
+        instanceId,
+        endpoint: 'http://127.0.0.1:18080/v1',
+        apiKey: usageKey.apiKey,
+        apiKeyProjectId: `project-${instanceId}`,
+        apiKeyStrategy: request.openClaw?.apiKeyStrategy || 'shared',
+        modelMappingId: request.openClaw?.modelMappingId,
+      })),
     };
   };
 
@@ -311,6 +401,9 @@ await runTest('unifiedApiKeyAccessService can project a unified API key into sel
         clientId: 'openclaw',
         openClaw: {
           instanceIds: ['local-built-in'],
+          apiKeyStrategy: 'shared',
+          routerProviderId: undefined,
+          modelMappingId: usageKey.modelMappingId,
         },
       },
     ]);
@@ -321,10 +414,114 @@ await runTest('unifiedApiKeyAccessService can project a unified API key into sel
     );
 
     assert.ok(route);
-    assert.equal(route?.endpoint, 'https://api-router.example.com/v1');
+    assert.equal(route?.endpoint, 'http://127.0.0.1:18080/v1');
     assert.equal(route?.apiKeySource, usageKey.apiKey);
     assert.equal(route?.defaultModelId, 'gpt-5.4');
+    assert.equal(route?.routerConfig?.gatewayBaseUrl, 'http://127.0.0.1:18080/v1');
   } finally {
     installerService.installApiRouterClientSetup = originalInstall;
+    apiRouterPlatform.getRuntimeStatus = originalGetRuntimeStatus;
   }
 });
+
+await runTest(
+  'unifiedApiKeyAccessService lets OpenClaw final setup override or clear the inherited model mapping',
+  async () => {
+    const { unifiedApiKeyService } = await import('./unifiedApiKeyService.ts');
+    const { modelMappingService } = await import('./modelMappingService.ts');
+    const { unifiedApiKeyAccessService } = await import('./unifiedApiKeyAccessService.ts');
+    const { getApiRouterPlatform, installerService } = await import('@sdkwork/claw-infrastructure');
+    const usageKey = (await unifiedApiKeyService.getUnifiedApiKeys())[0];
+
+    assert.ok(usageKey);
+    assert.ok(usageKey.modelMappingId);
+
+    const modelMappings = await modelMappingService.getModelMappings();
+    const overrideModelMappingId =
+      modelMappings.find((item) => item.id !== usageKey.modelMappingId)?.id || usageKey.modelMappingId;
+
+    const installCalls: Array<{
+      clientId: string;
+      openClaw?: {
+        instanceIds: string[];
+        apiKeyStrategy?: string;
+        modelMappingId?: string;
+      };
+    }> = [];
+    const originalInstall = installerService.installApiRouterClientSetup;
+    const apiRouterPlatform = getApiRouterPlatform();
+    const originalGetRuntimeStatus = apiRouterPlatform.getRuntimeStatus;
+    apiRouterPlatform.getRuntimeStatus = async () => ({
+      ownership: 'managed',
+      routerHomeDir: 'C:/Users/test/.sdkwork/router',
+      metadataDir: 'C:/Users/test/.sdkwork/router/claw-studio',
+      databasePath: 'C:/Users/test/.sdkwork/router/sdkwork-api-server.db',
+      extractionDir: 'C:/Users/test/AppData/Local/Claw/router/1.0.0/windows-x64',
+      adminBaseUrl: 'http://127.0.0.1:18081/admin',
+      gatewayBaseUrl: 'http://127.0.0.1:18080/v1',
+      adminHealthy: true,
+      gatewayHealthy: true,
+      authSessionReady: true,
+      adminAuthReady: true,
+      adminPid: 18081,
+      gatewayPid: 18080,
+    });
+    installerService.installApiRouterClientSetup = async (request) => {
+      installCalls.push({
+        clientId: request.clientId,
+        openClaw: request.openClaw,
+      });
+
+      return {
+        clientId: request.clientId,
+        writtenFiles: [],
+        updatedEnvironments: [],
+        updatedInstanceIds: request.openClaw?.instanceIds || [],
+        openClawInstances: (request.openClaw?.instanceIds || []).map((instanceId) => ({
+          instanceId,
+          endpoint: 'http://127.0.0.1:18080/v1',
+          apiKey: usageKey.apiKey,
+          apiKeyProjectId: `project-${instanceId}`,
+          apiKeyStrategy: request.openClaw?.apiKeyStrategy || 'shared',
+          modelMappingId: request.openClaw?.modelMappingId,
+        })),
+      };
+    };
+
+    try {
+      await unifiedApiKeyAccessService.applyOpenClawSetup(usageKey, ['local-built-in'], {
+        apiKeyStrategy: 'per-instance',
+        modelMappingId: overrideModelMappingId,
+      });
+
+      await unifiedApiKeyAccessService.applyOpenClawSetup(usageKey, ['home-nas'], {
+        apiKeyStrategy: 'shared',
+        modelMappingId: null,
+      });
+
+      assert.deepEqual(installCalls, [
+        {
+          clientId: 'openclaw',
+          openClaw: {
+            instanceIds: ['local-built-in'],
+            apiKeyStrategy: 'per-instance',
+            routerProviderId: undefined,
+            modelMappingId: overrideModelMappingId,
+          },
+        },
+        {
+          clientId: 'openclaw',
+          openClaw: {
+            instanceIds: ['home-nas'],
+            apiKeyStrategy: 'shared',
+            routerProviderId: undefined,
+            modelMappingId: undefined,
+          },
+        },
+      ]);
+    } finally {
+      installerService.installApiRouterClientSetup = originalInstall;
+      apiRouterPlatform.getRuntimeStatus = originalGetRuntimeStatus;
+    }
+  },
+);

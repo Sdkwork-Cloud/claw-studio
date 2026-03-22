@@ -58,7 +58,24 @@ export class DesktopBridgeError extends Error {
 }
 
 export function isTauriRuntime() {
-  return typeof window !== 'undefined' && isTauri();
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const tauriWindow = window as Window & {
+    __TAURI_INTERNALS__?: unknown;
+    isTauri?: boolean;
+  };
+
+  if (typeof tauriWindow.__TAURI_INTERNALS__ !== 'undefined') {
+    return true;
+  }
+
+  if (tauriWindow.isTauri === true) {
+    return true;
+  }
+
+  return isTauri();
 }
 
 export function getDesktopWindow() {

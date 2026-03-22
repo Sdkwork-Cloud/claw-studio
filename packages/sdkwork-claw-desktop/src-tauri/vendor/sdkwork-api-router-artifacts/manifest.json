@@ -1,0 +1,42 @@
+{
+  "version": "0.1.0-prebuilt",
+  "source": {
+    "repository": "https://github.com/Sdkwork-Cloud/sdkwork-api-router.git",
+    "ref": "main",
+    "commit": "3bd86733d2f8604194496c6978d70c30e0d0a14e"
+  },
+  "archives": {
+    "windows-x64": {
+      "path": "windows-x64/sdkwork-api-router-0.1.0-prebuilt.zip",
+      "sha256": "d1ab84b9439b0a18a36f4ad7192e8c3369e74e9f35a65b9c632cf23b6dbb8586",
+      "binaries": [
+        "admin-api-service.exe",
+        "gateway-service.exe"
+      ]
+    },
+    "windows-arm64": {
+      "path": "windows-arm64/sdkwork-api-router-0.1.0-prebuilt.zip",
+      "sha256": "",
+      "binaries": [
+        "admin-api-service.exe",
+        "gateway-service.exe"
+      ]
+    },
+    "linux-x64": {
+      "path": "linux-x64/sdkwork-api-router-0.1.0-prebuilt.tar.gz",
+      "sha256": "",
+      "binaries": [
+        "admin-api-service",
+        "gateway-service"
+      ]
+    },
+    "macos-aarch64": {
+      "path": "macos-aarch64/sdkwork-api-router-0.1.0-prebuilt.tar.gz",
+      "sha256": "",
+      "binaries": [
+        "admin-api-service",
+        "gateway-service"
+      ]
+    }
+  }
+}

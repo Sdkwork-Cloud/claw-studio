@@ -27,7 +27,9 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "vendor/hub-installer/registry/**/*"
+      "vendor/hub-installer/registry/**/*",
+      "vendor/sdkwork-api-router-artifacts/manifest.json",
+      "vendor/sdkwork-api-router-artifacts/**/*"
     ],
     "icon": [
       "icons/32x32.png",

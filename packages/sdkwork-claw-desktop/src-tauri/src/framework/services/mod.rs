@@ -2,8 +2,11 @@ use crate::framework::{
     config::AppConfig, kernel::DesktopKernelInfo, paths::AppPaths, policy::ExecutionPolicy,
     storage::StorageInfo, Result,
 };
+use tauri::{AppHandle, Runtime};
 
 pub mod api_router;
+pub mod api_router_control;
+pub mod api_router_runtime;
 pub mod browser;
 pub mod dialog;
 pub mod filesystem;
@@ -22,6 +25,8 @@ pub mod system;
 
 use self::{
     api_router::ApiRouterInstallerService,
+    api_router_control::ApiRouterControlService,
+    api_router_runtime::ApiRouterRuntimeService,
     browser::BrowserService,
     dialog::DialogService,
     filesystem::FileSystemService,
@@ -42,6 +47,8 @@ use self::{
 #[derive(Clone, Debug)]
 pub struct FrameworkServices {
     pub api_router: ApiRouterInstallerService,
+    pub api_router_control: ApiRouterControlService,
+    pub api_router_runtime: ApiRouterRuntimeService,
     pub system: SystemService,
     pub browser: BrowserService,
     pub dialog: DialogService,
@@ -61,11 +68,43 @@ pub struct FrameworkServices {
 }
 
 impl FrameworkServices {
-    pub fn new(paths: &AppPaths, config: &AppConfig) -> Result<Self> {
+    pub fn new<R: Runtime>(app: &AppHandle<R>, paths: &AppPaths, config: &AppConfig) -> Result<Self> {
         let policy = ExecutionPolicy::for_paths_with_security(paths, &config.security)?;
+        let api_router_runtime = ApiRouterRuntimeService::from_app(app, paths)?;
+        let api_router_control = ApiRouterControlService::new(api_router_runtime.clone());
 
         Ok(Self {
             api_router: ApiRouterInstallerService::new(),
+            api_router_control,
+            api_router_runtime,
+            system: SystemService::new(),
+            browser: BrowserService::with_security(&config.security),
+            dialog: DialogService::new(),
+            filesystem: FileSystemService::new(),
+            security: SecurityService::new(),
+            notifications: NotificationService::new(),
+            payments: PaymentService::new(),
+            integrations: IntegrationService::new(),
+            permissions: PermissionService::new(),
+            process: ProcessService::new(policy),
+            jobs: JobService::with_max_concurrent_process_jobs(config.process.max_concurrent_jobs),
+            retention: RetentionService::new(),
+            storage: StorageService::new(),
+            kernel: KernelService::new(),
+            supervisor: SupervisorService::new(),
+        })
+    }
+
+    #[cfg(test)]
+    pub fn new_for_test(paths: &AppPaths, config: &AppConfig) -> Result<Self> {
+        let policy = ExecutionPolicy::for_paths_with_security(paths, &config.security)?;
+        let api_router_runtime = ApiRouterRuntimeService::for_test(paths);
+        let api_router_control = ApiRouterControlService::new(api_router_runtime.clone());
+
+        Ok(Self {
+            api_router: ApiRouterInstallerService::new(),
+            api_router_control,
+            api_router_runtime,
             system: SystemService::new(),
             browser: BrowserService::with_security(&config.security),
             dialog: DialogService::new(),

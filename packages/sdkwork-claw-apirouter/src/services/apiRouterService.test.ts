@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './apiRouterTestSetup.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -21,6 +22,7 @@ await runTest('apiRouterService exposes the channel and proxy provider service s
 
   assert.equal(typeof module.apiRouterService.getChannels, 'function');
   assert.equal(typeof module.apiRouterService.getGroups, 'function');
+  assert.equal(typeof module.apiRouterService.getRuntimeStatus, 'function');
   assert.equal(typeof module.apiRouterService.getProxyProviders, 'function');
   assert.equal(typeof module.apiRouterService.createProvider, 'function');
   assert.equal(typeof module.apiRouterService.updateGroup, 'function');
@@ -30,6 +32,19 @@ await runTest('apiRouterService exposes the channel and proxy provider service s
   assert.equal(typeof module.apiRouterService.getUsageRecordApiKeys, 'function');
   assert.equal(typeof module.apiRouterService.getUsageRecordSummary, 'function');
   assert.equal(typeof module.apiRouterService.getUsageRecords, 'function');
+});
+
+await runTest('apiRouterService exposes runtime binding and health status for the managed router', async () => {
+  const { apiRouterService } = await import('./apiRouterService.ts');
+  const runtimeStatus = await apiRouterService.getRuntimeStatus();
+
+  assert.equal(typeof runtimeStatus.ownership, 'string');
+  assert.equal(typeof runtimeStatus.adminHealthy, 'boolean');
+  assert.equal(typeof runtimeStatus.gatewayHealthy, 'boolean');
+  assert.equal(typeof runtimeStatus.authSessionReady, 'boolean');
+  assert.equal(typeof runtimeStatus.adminAuthReady, 'boolean');
+  assert.equal(typeof runtimeStatus.gatewayBaseUrl, 'string');
+  assert.equal(typeof runtimeStatus.adminBaseUrl, 'string');
 });
 
 await runTest('apiRouterService can list and mutate proxy providers', async () => {

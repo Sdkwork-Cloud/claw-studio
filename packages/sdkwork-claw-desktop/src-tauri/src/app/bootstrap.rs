@@ -117,6 +117,11 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             let app_handle = app.handle().clone();
             let context = Arc::new(FrameworkContext::bootstrap(&app_handle)?);
             context.logger.info("managed desktop state initialized")?;
+            if let Err(error) = ensure_api_router_runtime(context.as_ref()) {
+                let _ = context
+                    .logger
+                    .error(&format!("failed to initialize sdkwork-api-router runtime: {error}"));
+            }
             let package_info = app.package_info();
             let metadata = AppMetadata::new(
                 package_info.name.clone(),
@@ -133,6 +138,34 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
         })
         .on_window_event(handle_window_event)
         .invoke_handler(tauri::generate_handler![
+            commands::api_router_auth::sync_auth_session,
+            commands::api_router_auth::clear_auth_session,
+            commands::api_router_auth::get_api_router_admin_token,
+            commands::api_router_control::get_api_router_runtime_status,
+            commands::api_router_control::get_api_router_channels,
+            commands::api_router_control::get_api_router_groups,
+            commands::api_router_control::get_api_router_proxy_providers,
+            commands::api_router_control::create_api_router_proxy_provider,
+            commands::api_router_control::update_api_router_proxy_provider_group,
+            commands::api_router_control::update_api_router_proxy_provider_status,
+            commands::api_router_control::update_api_router_proxy_provider,
+            commands::api_router_control::delete_api_router_proxy_provider,
+            commands::api_router_control::get_api_router_usage_record_api_keys,
+            commands::api_router_control::get_api_router_usage_record_summary,
+            commands::api_router_control::get_api_router_usage_records,
+            commands::api_router_control::get_api_router_unified_api_keys,
+            commands::api_router_control::create_api_router_unified_api_key,
+            commands::api_router_control::update_api_router_unified_api_key_group,
+            commands::api_router_control::update_api_router_unified_api_key_status,
+            commands::api_router_control::assign_api_router_unified_api_key_model_mapping,
+            commands::api_router_control::update_api_router_unified_api_key,
+            commands::api_router_control::delete_api_router_unified_api_key,
+            commands::api_router_control::get_api_router_model_catalog,
+            commands::api_router_control::get_api_router_model_mappings,
+            commands::api_router_control::create_api_router_model_mapping,
+            commands::api_router_control::update_api_router_model_mapping,
+            commands::api_router_control::update_api_router_model_mapping_status,
+            commands::api_router_control::delete_api_router_model_mapping,
             commands::app_info::app_info,
             commands::desktop_kernel::desktop_kernel_info,
             commands::desktop_kernel::desktop_storage_info,
@@ -459,6 +492,10 @@ fn restart_background_services<R: Runtime>(app: &AppHandle<R>) -> FrameworkResul
         "tray requested background service restart plan: {}",
         planned_services.join(", ")
     ))?;
+
+    if planned_services.iter().any(|service_id| service_id == SERVICE_ID_API_ROUTER) {
+        restart_api_router_runtime(state.context.as_ref())?;
+    }
     Ok(())
 }
 
@@ -471,6 +508,15 @@ fn restart_managed_service<R: Runtime>(
         return Err(FrameworkError::Conflict(
             "application shutdown has already been requested".to_string(),
         ));
+    }
+
+    if service_id == SERVICE_ID_API_ROUTER {
+        restart_api_router_runtime(state.context.as_ref())?;
+        state
+            .context
+            .logger
+            .info("tray requested managed service restart: api_router")?;
+        return Ok(());
     }
 
     state.context.services.supervisor.request_restart(service_id)?;
@@ -560,6 +606,18 @@ fn perform_explicit_shutdown<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<
 
     state.context.services.supervisor.begin_shutdown()?;
 
+    if let Err(error) = state.context.services.api_router_runtime.stop_managed() {
+        let _ = state.context.logger.warn(&format!(
+            "failed to stop managed sdkwork-api-router children during shutdown: {error}"
+        ));
+    } else {
+        let _ = state
+            .context
+            .services
+            .supervisor
+            .record_stopped(SERVICE_ID_API_ROUTER, None, None);
+    }
+
     if let Err(error) = state.context.services.process.cancel_all() {
         let _ = state.context.logger.warn(&format!(
             "failed to terminate all active child processes during shutdown: {error}"
@@ -573,6 +631,62 @@ fn perform_explicit_shutdown<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<
     }
 
     Ok(())
+}
+
+fn ensure_api_router_runtime(context: &FrameworkContext) -> FrameworkResult<()> {
+    match context.services.api_router_runtime.ensure_started_or_attached() {
+        Ok(snapshot) => {
+            sync_api_router_supervisor(context, &snapshot)?;
+            context.logger.info(&format!(
+                "sdkwork-api-router runtime ready with ownership {:?}",
+                snapshot.ownership
+            ))?;
+            Ok(())
+        }
+        Err(error) => {
+            let _ = context.services.supervisor.record_stopped(
+                SERVICE_ID_API_ROUTER,
+                None,
+                Some(error.to_string()),
+            );
+            Err(error)
+        }
+    }
+}
+
+fn restart_api_router_runtime(context: &FrameworkContext) -> FrameworkResult<()> {
+    if let Err(error) = context.services.api_router_runtime.stop_managed() {
+        let _ = context.logger.warn(&format!(
+            "failed to stop managed sdkwork-api-router children before restart: {error}"
+        ));
+    }
+
+    ensure_api_router_runtime(context)
+}
+
+fn sync_api_router_supervisor(
+    context: &FrameworkContext,
+    snapshot: &crate::framework::services::api_router_runtime::ApiRouterRuntimeSnapshot,
+) -> FrameworkResult<()> {
+    match snapshot.ownership {
+        crate::framework::services::api_router_runtime::ApiRouterOwnershipMode::Attached => {
+            context
+                .services
+                .supervisor
+                .record_running(SERVICE_ID_API_ROUTER, None)
+        }
+        crate::framework::services::api_router_runtime::ApiRouterOwnershipMode::Managed => context
+            .services
+            .supervisor
+            .record_running(SERVICE_ID_API_ROUTER, snapshot.gateway_pid.or(snapshot.admin_pid)),
+        crate::framework::services::api_router_runtime::ApiRouterOwnershipMode::Stopped
+        | crate::framework::services::api_router_runtime::ApiRouterOwnershipMode::Uninitialized => {
+            context
+                .services
+                .supervisor
+                .record_stopped(SERVICE_ID_API_ROUTER, None, None)
+        }
+    }
 }
 
 fn log_runtime_error<R: Runtime>(app: &AppHandle<R>, message: &str) {
