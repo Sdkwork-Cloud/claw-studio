@@ -45,6 +45,20 @@ await runTest('installPageModel detects the active install method from install r
 
   assert.equal(getDetectedMethodId({ manifestName: 'openclaw-pnpm' }), 'pnpm');
   assert.equal(getDetectedMethodId({ manifestName: 'openclaw-wsl' }), 'wsl');
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-pnpm',
+      manifestName: 'OpenClaw Install (pnpm)',
+    }),
+    'pnpm',
+  );
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-docker',
+      manifestName: 'OpenClaw Install (Docker)',
+    }),
+    'docker',
+  );
   assert.equal(getDetectedMethodId({ manifestName: 'zeroclaw-source' }), 'source');
   assert.equal(getDetectedMethodId({ manifestName: 'unknown-manifest' }), null);
 });

@@ -39,6 +39,8 @@ export type LegacyInstallRecord = {
   workRoot?: string;
   dataRoot?: string;
   status?: string;
+  installedAt?: string;
+  updatedAt?: string;
 };
 
 export type InstallChoice = {
@@ -423,14 +425,24 @@ export function getRecommendedMethodId(product: ProductConfig, hostOs: HostOs) {
 }
 
 export function getDetectedMethodId(
-  record: Pick<LegacyInstallRecord, 'manifestName'> | null | undefined,
+  record: Pick<LegacyInstallRecord, 'softwareName' | 'manifestName'> | null | undefined,
 ): MethodId | null {
-  const manifestName = record?.manifestName ?? '';
-  if (manifestName.endsWith('-wsl')) return 'wsl';
-  if (manifestName.endsWith('-docker')) return 'docker';
-  if (manifestName.endsWith('-npm')) return 'npm';
-  if (manifestName.endsWith('-pnpm')) return 'pnpm';
-  if (manifestName.endsWith('-source')) return 'source';
-  if (manifestName.endsWith('-cloud')) return 'cloud';
+  const candidates = [record?.softwareName ?? '', record?.manifestName ?? ''].map((value) =>
+    value.trim().toLowerCase(),
+  );
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    if (candidate.endsWith('-wsl') || candidate.includes('wsl')) return 'wsl';
+    if (candidate.endsWith('-docker') || candidate.includes('docker')) return 'docker';
+    if (candidate.endsWith('-pnpm') || candidate.includes('pnpm')) return 'pnpm';
+    if (candidate.endsWith('-npm') || candidate.includes('npm')) return 'npm';
+    if (candidate.endsWith('-source') || candidate.includes('source')) return 'source';
+    if (candidate.endsWith('-cloud') || candidate.includes('cloud')) return 'cloud';
+  }
+
   return null;
 }
