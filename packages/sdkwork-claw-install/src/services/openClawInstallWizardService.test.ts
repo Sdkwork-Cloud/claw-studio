@@ -147,6 +147,7 @@ await runTest('openClawInstallWizardService marks the flow ready to use when ins
   });
   const summary = buildOpenClawVerificationSummary({
     installSucceeded: true,
+    gatewayReachable: true,
     hasReadyProvider: true,
     selectedChannelCount: 2,
     configuredChannelCount: 2,
@@ -173,6 +174,7 @@ await runTest('openClawInstallWizardService reports follow-up needed when instal
 
   const summary = buildOpenClawVerificationSummary({
     installSucceeded: true,
+    gatewayReachable: true,
     hasReadyProvider: false,
     selectedChannelCount: 1,
     configuredChannelCount: 1,
@@ -183,4 +185,22 @@ await runTest('openClawInstallWizardService reports follow-up needed when instal
   assert.equal(summary.status, 'warning');
   assert.equal(summary.isReadyToUse, false);
   assert.equal(summary.items.find((item) => item.id === 'provider')?.status, 'warning');
+});
+
+await runTest('openClawInstallWizardService blocks the ready state until the synchronized gateway is reachable', async () => {
+  const { buildOpenClawVerificationSummary } = await import('./openClawInstallWizardService.ts');
+
+  const summary = buildOpenClawVerificationSummary({
+    installSucceeded: true,
+    gatewayReachable: false,
+    hasReadyProvider: true,
+    selectedChannelCount: 2,
+    configuredChannelCount: 2,
+    selectedSkillCount: 3,
+    initializedSkillCount: 3,
+  });
+
+  assert.equal(summary.status, 'warning');
+  assert.equal(summary.isReadyToUse, false);
+  assert.equal(summary.items.find((item) => item.id === 'gateway')?.status, 'warning');
 });

@@ -43,7 +43,7 @@ export interface BuildOpenClawWizardStepsInput {
 }
 
 export interface OpenClawVerificationItem {
-  id: 'install' | 'provider' | 'channels' | 'skills';
+  id: 'install' | 'gateway' | 'provider' | 'channels' | 'skills';
   status: OpenClawVerificationStatus;
 }
 
@@ -165,6 +165,7 @@ export function buildOpenClawWizardSteps(
 
 export function buildOpenClawVerificationSummary(input: {
   installSucceeded: boolean;
+  gatewayReachable: boolean;
   hasReadyProvider: boolean;
   selectedChannelCount: number;
   configuredChannelCount: number;
@@ -172,6 +173,7 @@ export function buildOpenClawVerificationSummary(input: {
   initializedSkillCount: number;
 }): OpenClawVerificationSummary {
   const installStatus: OpenClawVerificationStatus = input.installSucceeded ? 'success' : 'blocked';
+  const gatewayStatus: OpenClawVerificationStatus = input.gatewayReachable ? 'success' : 'warning';
   const providerStatus: OpenClawVerificationStatus = input.hasReadyProvider ? 'success' : 'warning';
   const channelsStatus: OpenClawVerificationStatus =
     input.selectedChannelCount === 0 || input.configuredChannelCount >= input.selectedChannelCount
@@ -186,6 +188,10 @@ export function buildOpenClawVerificationSummary(input: {
     {
       id: 'install',
       status: installStatus,
+    },
+    {
+      id: 'gateway',
+      status: gatewayStatus,
     },
     {
       id: 'provider',
@@ -203,6 +209,7 @@ export function buildOpenClawVerificationSummary(input: {
 
   const isReadyToUse =
     installStatus === 'success' &&
+    gatewayStatus === 'success' &&
     providerStatus === 'success' &&
     channelsStatus === 'success' &&
     skillsStatus === 'success';

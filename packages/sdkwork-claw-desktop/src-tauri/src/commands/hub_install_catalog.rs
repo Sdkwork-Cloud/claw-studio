@@ -200,6 +200,39 @@ const CATALOG_SEEDS: &[CatalogSeed] = &[
                 ),
                 ..DEFAULT_VARIANT_SEED
             },
+            CatalogVariantSeed {
+                id: "unix-bun",
+                software_name: "openclaw-bun",
+                runtime_platform: "host",
+                host_platforms: UNIX_HOST_PLATFORMS,
+                label_override: Some("Bun experimental workflow"),
+                summary_override: Some(
+                    "Build OpenClaw from source with the documented Bun runtime workflow on the current Unix host.",
+                ),
+                ..DEFAULT_VARIANT_SEED
+            },
+            CatalogVariantSeed {
+                id: "unix-ansible",
+                software_name: "openclaw-ansible",
+                runtime_platform: "host",
+                host_platforms: UNIX_HOST_PLATFORMS,
+                label_override: Some("Ansible workflow"),
+                summary_override: Some(
+                    "Install OpenClaw through the documented openclaw-ansible automation repository on the current Unix host.",
+                ),
+                ..DEFAULT_VARIANT_SEED
+            },
+            CatalogVariantSeed {
+                id: "unix-nix",
+                software_name: "openclaw-nix",
+                runtime_platform: "host",
+                host_platforms: UNIX_HOST_PLATFORMS,
+                label_override: Some("Nix workflow"),
+                summary_override: Some(
+                    "Install OpenClaw with the documented nix-openclaw flake workflows on the current Unix host.",
+                ),
+                ..DEFAULT_VARIANT_SEED
+            },
         ],
     },
     CatalogSeed {
@@ -629,5 +662,38 @@ mod tests {
         assert!(variant_ids.contains(&"shared-source-build"));
         assert!(variant_ids.contains(&"windows-docker-host"));
         assert!(variant_ids.contains(&"windows-docker-wsl"));
+    }
+
+    #[test]
+    fn hub_catalog_surfaces_openclaw_extended_unix_profiles() {
+        let entries = catalog_from_registry_source(
+            Some(super::HubInstallCatalogQuery {
+                host_platform: Some("macos".to_string()),
+            }),
+            &registry_source(),
+        )
+        .expect("catalog");
+
+        let openclaw = entries
+            .iter()
+            .find(|entry| entry.app_id == "app-openclaw")
+            .expect("openclaw entry");
+        let variant_ids: Vec<&str> = openclaw
+            .variants
+            .iter()
+            .map(|variant| variant.id.as_str())
+            .collect();
+
+        assert!(variant_ids.contains(&"shared-installer-script"));
+        assert!(variant_ids.contains(&"unix-installer-cli"));
+        assert!(variant_ids.contains(&"shared-installer-git"));
+        assert!(variant_ids.contains(&"shared-npm"));
+        assert!(variant_ids.contains(&"shared-pnpm"));
+        assert!(variant_ids.contains(&"shared-source-build"));
+        assert!(variant_ids.contains(&"unix-docker"));
+        assert!(variant_ids.contains(&"unix-podman"));
+        assert!(variant_ids.contains(&"unix-bun"));
+        assert!(variant_ids.contains(&"unix-ansible"));
+        assert!(variant_ids.contains(&"unix-nix"));
     }
 }

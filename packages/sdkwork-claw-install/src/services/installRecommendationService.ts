@@ -142,27 +142,37 @@ function resolveChoiceState(choice: InstallChoiceCandidate) {
   return 'ready' as const;
 }
 
-function getHostAffinityScore(hostOs: InstallRecommendationHostOs, choiceId: string) {
+function getHostAffinityScore(
+  hostOs: InstallRecommendationHostOs,
+  choiceId: string,
+  softwareName: string,
+) {
   if (hostOs === 'windows') {
-    if (choiceId === 'wsl') return 45;
-    if (choiceId === 'docker') return 30;
-    if (choiceId === 'npm') return 18;
-    if (choiceId === 'pnpm') return 16;
-    if (choiceId === 'source') return 10;
+    if (softwareName === 'openclaw-wsl' || choiceId === 'wsl') return 45;
+    if (softwareName === 'openclaw') return 34;
+    if (softwareName === 'openclaw-docker') return 30;
+    if (softwareName === 'openclaw-git') return 24;
+    if (softwareName === 'openclaw-npm') return 18;
+    if (softwareName === 'openclaw-pnpm') return 16;
+    if (softwareName === 'openclaw-source') return 10;
   }
 
   if (hostOs === 'macos' || hostOs === 'linux') {
-    if (choiceId === 'npm') return 34;
-    if (choiceId === 'pnpm') return 32;
-    if (choiceId === 'docker') return 24;
-    if (choiceId === 'source') return 18;
+    if (softwareName === 'openclaw') return 38;
+    if (softwareName === 'openclaw-cli-script') return 35;
+    if (softwareName === 'openclaw-npm') return 34;
+    if (softwareName === 'openclaw-pnpm') return 32;
+    if (softwareName === 'openclaw-git') return 28;
+    if (softwareName === 'openclaw-podman') return 26;
+    if (softwareName === 'openclaw-docker') return 24;
+    if (softwareName === 'openclaw-source') return 18;
   }
 
   return 8;
 }
 
 function getCapabilityScore(
-  choiceId: string,
+  choice: InstallChoiceCandidate,
   result: HubInstallAssessmentResult | undefined,
   hostOs: InstallRecommendationHostOs,
 ) {
@@ -170,27 +180,39 @@ function getCapabilityScore(
     return 0;
   }
 
-  if (choiceId === 'wsl') {
+  if (choice.softwareName === 'openclaw-wsl' || choice.id === 'wsl') {
     return result.runtime.wslAvailable ? 24 : hostOs === 'windows' ? -28 : -12;
   }
 
-  if (choiceId === 'docker') {
+  if (choice.softwareName === 'openclaw-docker' || choice.id === 'docker') {
     return hasDockerRuntime(result) ? 18 : -16;
   }
 
-  if (choiceId === 'npm') {
+  if (choice.softwareName === 'openclaw-podman') {
+    return hasCommand(result, 'podman') ? 18 : -16;
+  }
+
+  if (choice.softwareName === 'openclaw-npm' || choice.id === 'npm') {
     let score = hasCommand(result, 'node') ? 16 : -18;
     score += hasCommand(result, 'npm') ? 6 : -4;
     return score;
   }
 
-  if (choiceId === 'pnpm') {
+  if (choice.softwareName === 'openclaw-pnpm' || choice.id === 'pnpm') {
     let score = hasCommand(result, 'node') ? 16 : -18;
     score += hasCommand(result, 'pnpm') ? 8 : -6;
     return score;
   }
 
-  if (choiceId === 'source') {
+  if (choice.softwareName === 'openclaw-git') {
+    return hasCommand(result, 'git') ? 16 : -10;
+  }
+
+  if (choice.softwareName === 'openclaw' || choice.softwareName === 'openclaw-cli-script') {
+    return 12;
+  }
+
+  if (choice.softwareName.endsWith('-source') || choice.id === 'source') {
     let score = hasCommand(result, 'git') ? 8 : 0;
     score += hasCommand(result, 'cargo') ? 6 : 0;
     return score;
@@ -220,8 +242,8 @@ function buildChoiceRecommendation<TId extends string>(
   const autoFixes = countAutoFixes(result);
   const score =
     getStateScore(state) +
-    getHostAffinityScore(hostOs, choice.id) +
-    getCapabilityScore(choice.id, result, hostOs) +
+    getHostAffinityScore(hostOs, choice.id, choice.softwareName) +
+    getCapabilityScore(choice, result, hostOs) +
     (choice.id === productPreferredChoiceId ? 32 : 0) -
     blockers * 18 -
     warnings * 4;
