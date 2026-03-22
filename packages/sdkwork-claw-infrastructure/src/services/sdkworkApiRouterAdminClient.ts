@@ -627,11 +627,11 @@ class SdkworkApiRouterAdminClient {
   }
 
   async listUsageRecords(options: ApiRouterAdminClientRequestOptions = {}) {
-    return requestApiRouterAdmin<ApiRouterUsageRecordDto[]>('/usage/records', options);
+    return requestApiRouterAdmin<ApiRouterUsageRecordDto[]>('/admin/usage/records', options);
   }
 
   async getUsageSummary(options: ApiRouterAdminClientRequestOptions = {}) {
-    return requestApiRouterAdmin<ApiRouterUsageSummaryDto>('/usage/summary', options);
+    return requestApiRouterAdmin<ApiRouterUsageSummaryDto>('/admin/usage/summary', options);
   }
 }
 
