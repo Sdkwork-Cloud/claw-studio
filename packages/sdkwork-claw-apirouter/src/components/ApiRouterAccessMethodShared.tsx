@@ -11,8 +11,21 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { InstanceDirectoryItem } from '@sdkwork/claw-core';
-import { getRuntimePlatform } from '@sdkwork/claw-infrastructure';
-import { Button, Checkbox, cn } from '@sdkwork/claw-ui';
+import {
+  getRuntimePlatform,
+  type ApiRouterInstallerOpenClawApiKeyStrategy,
+} from '@sdkwork/claw-infrastructure';
+import type { ModelMapping } from '@sdkwork/claw-types';
+import {
+  Button,
+  Checkbox,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  cn,
+} from '@sdkwork/claw-ui';
 import type {
   ProviderAccessClientConfig,
   ProviderAccessClientId,
@@ -33,6 +46,10 @@ export interface ProviderAccessClientInstallSelection {
   installMode: ProviderAccessInstallMode;
   envScope: ProviderAccessEnvScope;
 }
+
+export type OpenClawApiKeyStrategy = ApiRouterInstallerOpenClawApiKeyStrategy;
+
+const OPENCLAW_MODEL_MAPPING_NONE_VALUE = '__none__';
 
 const API_ROUTER_USAGE_TAB_IDS: ApiRouterUsageTabId[] = [
   'default',
@@ -70,6 +87,10 @@ function getProviderAccessReasonKey(reason: ProviderAccessUnavailableReason) {
 
 function getEnvScopeLabelKey(scope: ProviderAccessEnvScope) {
   return `apiRouterPage.quickSetup.envScope.options.${scope}`;
+}
+
+function getOpenClawApiKeyStrategyLabelKey(strategy: OpenClawApiKeyStrategy) {
+  return `apiRouterPage.quickSetup.openclawApiKeyStrategy.options.${strategy}`;
 }
 
 function getInstanceStatusClassName(status: InstanceDirectoryItem['status']) {
@@ -459,10 +480,15 @@ export function ApiRouterAccessClientCard({
 export function ApiRouterInstanceSelectorPanel({
   title,
   description,
+  apiKeyStrategy,
+  modelMappings = [],
+  selectedModelMappingId = null,
   availableInstances,
   selectedInstanceIds,
   isLoading,
   isApplying,
+  onApiKeyStrategyChange,
+  onModelMappingChange,
   onRefresh,
   onCancel,
   onApply,
@@ -472,10 +498,15 @@ export function ApiRouterInstanceSelectorPanel({
 }: {
   title: string;
   description: string;
+  apiKeyStrategy: OpenClawApiKeyStrategy;
+  modelMappings?: ModelMapping[];
+  selectedModelMappingId?: string | null;
   availableInstances: InstanceDirectoryItem[];
   selectedInstanceIds: string[];
   isLoading: boolean;
   isApplying: boolean;
+  onApiKeyStrategyChange: (strategy: OpenClawApiKeyStrategy) => void;
+  onModelMappingChange?: (modelMappingId: string | null) => void;
   onRefresh: () => void;
   onCancel: () => void;
   onApply: () => void;
@@ -484,6 +515,13 @@ export function ApiRouterInstanceSelectorPanel({
   onToggleInstance: (instanceId: string, isSelected: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const selectedModelMapping =
+    selectedModelMappingId &&
+    modelMappings.some((item) => item.id === selectedModelMappingId)
+      ? modelMappings.find((item) => item.id === selectedModelMappingId) || null
+      : null;
+  const modelMappingSelectionValue = selectedModelMapping?.id || OPENCLAW_MODEL_MAPPING_NONE_VALUE;
+  const showModelMappingSection = Boolean(onModelMappingChange);
 
   return (
     <div className="space-y-5">
@@ -503,6 +541,79 @@ export function ApiRouterInstanceSelectorPanel({
           </span>
         </div>
       </div>
+
+      <div className="rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+          {t('apiRouterPage.quickSetup.openclawApiKeyStrategy.title')}
+        </div>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+          {t('apiRouterPage.quickSetup.openclawApiKeyStrategy.description')}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(['shared', 'per-instance'] as const).map((strategy) => (
+            <Button
+              key={strategy}
+              type="button"
+              size="sm"
+              variant={apiKeyStrategy === strategy ? 'default' : 'outline'}
+              onClick={() => onApiKeyStrategyChange(strategy)}
+            >
+              {t(getOpenClawApiKeyStrategyLabelKey(strategy))}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {showModelMappingSection ? (
+        <div className="rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+            {t('apiRouterPage.quickSetup.modelMapping.title')}
+          </div>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            {t('apiRouterPage.quickSetup.modelMapping.description')}
+          </p>
+
+          {modelMappings.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              <Select
+                value={modelMappingSelectionValue}
+                onValueChange={(value) =>
+                  onModelMappingChange?.(
+                    value === OPENCLAW_MODEL_MAPPING_NONE_VALUE ? null : value,
+                  )
+                }
+              >
+                <SelectTrigger className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={OPENCLAW_MODEL_MAPPING_NONE_VALUE}>
+                    {t('apiRouterPage.quickSetup.modelMapping.none')}
+                  </SelectItem>
+                  {modelMappings.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {`${item.name} (${t('apiRouterPage.modelMapping.values.ruleCount', {
+                        count: item.rules.length,
+                      })})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                {selectedModelMapping
+                  ? selectedModelMapping.description ||
+                    t('apiRouterPage.modelMapping.values.noDescription')
+                  : t('apiRouterPage.quickSetup.modelMapping.none')}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-[20px] border border-dashed border-zinc-300 bg-zinc-50/80 px-4 py-3 text-sm leading-6 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              {t('apiRouterPage.quickSetup.modelMapping.empty')}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">

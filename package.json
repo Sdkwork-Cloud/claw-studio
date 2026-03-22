@@ -14,6 +14,8 @@
     "check:i18n": "node scripts/check-i18n-contract.mjs",
     "clean": "pnpm --filter @sdkwork/claw-web clean",
     "clean:package-modules": "node scripts/clean-package-node-modules.mjs",
+    "router:prepare": "node scripts/prepare-sdkwork-api-router-artifacts.mjs prepare",
+    "router:verify": "node scripts/prepare-sdkwork-api-router-artifacts.mjs verify",
     "check:arch": "node scripts/check-arch-boundaries.mjs",
     "check:parity": "pnpm check:sdkwork-structure && pnpm check:sdkwork-routes && pnpm check:sdkwork-hosts && pnpm check:sdkwork-foundation && pnpm check:sdkwork-core && pnpm check:sdkwork-ui && pnpm check:sdkwork-auth && pnpm check:sdkwork-settings && pnpm check:sdkwork-account && pnpm check:sdkwork-agent && pnpm check:sdkwork-apirouter && pnpm check:sdkwork-apps && pnpm check:sdkwork-center && pnpm check:sdkwork-channels && pnpm check:sdkwork-chat && pnpm check:sdkwork-community && pnpm check:sdkwork-dashboard && pnpm check:sdkwork-devices && pnpm check:sdkwork-docs && pnpm check:sdkwork-extensions && pnpm check:sdkwork-feature-bridges && pnpm check:sdkwork-github && pnpm check:sdkwork-host-runtime && pnpm check:sdkwork-huggingface && pnpm check:sdkwork-install && pnpm check:sdkwork-instances && pnpm check:sdkwork-market && pnpm check:sdkwork-model-purchase && pnpm check:sdkwork-points && pnpm check:sdkwork-shell && pnpm check:sdkwork-tasks && pnpm check:v5",
     "check:sdkwork-structure": "node scripts/check-sdkwork-claw-structure.mjs",

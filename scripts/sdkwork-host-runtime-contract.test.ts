@@ -14,7 +14,7 @@ function readJson<T>(relPath: string): T {
 }
 
 function extractDesktopLockImporter() {
-  const lockSource = read('pnpm-lock.yaml');
+  const lockSource = read('pnpm-lock.yaml').replace(/\r\n/g, '\n');
   const match = lockSource.match(
     /packages\/sdkwork-claw-desktop:\r?\n([\s\S]*?)(?:\r?\n  packages\/|\r?\npackages:|\r?\nimporters:|$)/,
   );
