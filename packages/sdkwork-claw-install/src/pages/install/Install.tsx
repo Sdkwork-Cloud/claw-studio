@@ -34,6 +34,8 @@ import {
   formatHubInstallProgressEvent,
   installerService,
   resolveOpenClawCatalogPresentation,
+  selectProductInstallRecord,
+  shouldReadProductInstallRecordEntry,
   type OpenClawCatalogChoice,
   type InstallChoiceAssessmentState,
 } from '../../services';
@@ -241,23 +243,43 @@ async function refreshInstallRecord(
     return;
   }
 
-  const recordPath = pathJoin(
+  const installRecordsDir = pathJoin(
     hostOs,
     userRoot,
     'hub-installer',
     'state',
     'install-records',
-    product.legacyRecordFileName,
   );
 
   try {
-    if (!(await platform.pathExists(recordPath))) {
+    if (!(await platform.pathExists(installRecordsDir))) {
       setInstallRecord(null);
       return;
     }
 
-    const parsed = JSON.parse(await platform.readFile(recordPath)) as LegacyInstallRecord;
-    setInstallRecord(parsed.status === 'uninstalled' ? null : parsed);
+    const entries = await platform.listDirectory(installRecordsDir);
+    const candidateEntries = entries.filter(
+      (entry) =>
+        entry.kind === 'file' &&
+        shouldReadProductInstallRecordEntry(product.id, entry.name),
+    );
+
+    if (!candidateEntries.length) {
+      setInstallRecord(null);
+      return;
+    }
+
+    const records = await Promise.all(
+      candidateEntries.map(async (entry) => {
+        try {
+          return JSON.parse(await platform.readFile(entry.path)) as LegacyInstallRecord;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    setInstallRecord(selectProductInstallRecord(product.id, records));
   } catch {
     setInstallRecord(null);
   }
