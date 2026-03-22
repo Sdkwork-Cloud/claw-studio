@@ -26,7 +26,6 @@ import type {
 
 const surfaceClass =
   'rounded-[2rem] border border-white/70 bg-white/78 p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/6 dark:bg-zinc-900/82';
-const monthOptions = ['2026-01', '2026-02', '2026-03', '2026-04'];
 const chartPalette = [
   { dotClassName: 'bg-primary-500', sliceClassName: 'text-primary-500' },
   { dotClassName: 'bg-sky-500', sliceClassName: 'text-sky-500' },
@@ -38,6 +37,39 @@ const chartPalette = [
 
 type WorkbenchTab = 'api' | 'revenue' | 'products' | 'alerts';
 type ApiStatusFilter = 'all' | 'success' | 'failed';
+
+function formatMonthKey(date: Date) {
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+  return `${date.getUTCFullYear()}-${month}`;
+}
+
+function parseMonthKey(value: string) {
+  const [yearText, monthText] = value.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return null;
+  }
+
+  return new Date(Date.UTC(year, month - 1, 1));
+}
+
+function buildMonthOptions(anchorMonthKey: string, selectedMonthKey: string, count = 12) {
+  const anchorDate = parseMonthKey(anchorMonthKey) ?? new Date();
+  const options = Array.from({ length: count }, (_, index) => {
+    const offset = count - index - 1;
+    return formatMonthKey(
+      new Date(Date.UTC(anchorDate.getUTCFullYear(), anchorDate.getUTCMonth() - offset, 1)),
+    );
+  });
+
+  if (selectedMonthKey && !options.includes(selectedMonthKey)) {
+    options.push(selectedMonthKey);
+  }
+
+  return [...new Set(options)].sort();
+}
 
 function getDeltaTone(delta: number) {
   if (delta > 0) return 'text-emerald-700 dark:text-emerald-200';
@@ -141,6 +173,13 @@ export function DashboardPage() {
   const tokenAnalytics = snapshot?.tokenAnalytics;
   const revenueAnalytics = snapshot?.revenueAnalytics;
   const activityFeed = snapshot?.activityFeed;
+  const latestApiTimestamp = activityFeed?.recentApiCalls[0]?.timestamp;
+  const latestAvailableMonthKey = useMemo(() => {
+    return formatMonthKey(latestApiTimestamp ? new Date(latestApiTimestamp) : new Date());
+  }, [latestApiTimestamp]);
+  const monthOptions = useMemo(() => {
+    return buildMonthOptions(latestAvailableMonthKey, monthKey);
+  }, [latestAvailableMonthKey, monthKey]);
 
   const selectedRangeLabel =
     rangeMode === 'month'
@@ -163,6 +202,10 @@ export function DashboardPage() {
     return rows.filter((row) => row.status === apiStatusFilter);
   }, [activityFeed?.recentApiCalls, apiStatusFilter]);
 
+  const shouldShowCacheSeries = Boolean(
+    tokenAnalytics &&
+      (tokenAnalytics.cacheCreationTokens > 0 || tokenAnalytics.cacheReadTokens > 0),
+  );
   const chartSeries = [
     {
       key: 'totalTokens' as const,
@@ -182,18 +225,22 @@ export function DashboardPage() {
       dotClassName: 'bg-emerald-500',
       strokeClassName: 'text-emerald-500',
     },
-    {
-      key: 'cacheCreationTokens' as const,
-      label: t('dashboard.series.cacheCreation'),
-      dotClassName: 'bg-amber-500',
-      strokeClassName: 'text-amber-500',
-    },
-    {
-      key: 'cacheReadTokens' as const,
-      label: t('dashboard.series.cacheRead'),
-      dotClassName: 'bg-violet-500',
-      strokeClassName: 'text-violet-500',
-    },
+    ...(shouldShowCacheSeries
+      ? [
+          {
+            key: 'cacheCreationTokens' as const,
+            label: t('dashboard.series.cacheCreation'),
+            dotClassName: 'bg-amber-500',
+            strokeClassName: 'text-amber-500',
+          },
+          {
+            key: 'cacheReadTokens' as const,
+            label: t('dashboard.series.cacheRead'),
+            dotClassName: 'bg-violet-500',
+            strokeClassName: 'text-violet-500',
+          },
+        ]
+      : []),
   ];
 
   if (error && !snapshot) {
