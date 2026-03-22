@@ -27,7 +27,11 @@ export function isBundledComponentId(value: string): value is RuntimeBundledComp
 }
 
 export class DesktopComponentLibrary {
-  constructor(private readonly api: ComponentPlatformAPI = getComponentPlatform()) {}
+  private readonly api: ComponentPlatformAPI;
+
+  constructor(api: ComponentPlatformAPI = getComponentPlatform()) {
+    this.api = api;
+  }
 
   list(): Promise<RuntimeDesktopComponentCatalogInfo> {
     return this.api.listComponents();
