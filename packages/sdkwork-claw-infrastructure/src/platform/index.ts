@@ -31,11 +31,13 @@ export type {
   ApiRouterClientInstallResult,
   ApiRouterInstalledEnvironment,
   ApiRouterInstalledFile,
+  ApiRouterInstalledOpenClawInstance,
   ApiRouterInstallerClientId,
   ApiRouterInstallerCompatibility,
   ApiRouterInstallerEnvScope,
   ApiRouterInstallerInstallMode,
   ApiRouterInstallerModel,
+  ApiRouterInstallerOpenClawApiKeyStrategy,
   ApiRouterInstallerOpenClawOptions,
   ApiRouterInstallerProvider,
   HubInstallAssessmentCheckType,
@@ -140,6 +142,7 @@ export type {
   StudioCreateInstanceInput,
   StudioInstanceTaskMutationPayload,
   StudioPlatformAPI,
+  StudioUpdateInstanceLlmProviderConfigInput,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
 export type {

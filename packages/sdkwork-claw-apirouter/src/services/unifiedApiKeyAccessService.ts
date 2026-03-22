@@ -12,6 +12,7 @@ import {
   providerAccessApplyService,
   type ApplyClientSetupResult,
   type ApplyClientSetupOptions,
+  type ApplyOpenClawSetupOptions,
   type ApplyOpenClawSetupResult,
 } from './providerAccessApplyService.ts';
 
@@ -227,11 +228,14 @@ class UnifiedApiKeyAccessService {
   async applyOpenClawSetup(
     item: UnifiedApiKey,
     instanceIds: string[],
+    options: ApplyOpenClawSetupOptions = {
+      apiKeyStrategy: 'shared',
+    },
   ): Promise<ApplyOpenClawSetupResult> {
     const gateways = await resolveUnifiedApiAccessGateways();
     const syntheticProvider = buildUnifiedApiKeySyntheticProvider(item, 'openclaw', gateways);
 
-    return providerAccessApplyService.applyOpenClawSetup(syntheticProvider, instanceIds);
+    return providerAccessApplyService.applyOpenClawSetup(syntheticProvider, instanceIds, options);
   }
 }
 

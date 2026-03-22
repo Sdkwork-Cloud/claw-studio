@@ -1,4 +1,4 @@
-import type { Task, TaskExecutionHistoryEntry } from './taskService';
+import type { Task, TaskExecutionHistoryEntry } from './taskService.ts';
 
 export type TaskCardTone = 'healthy' | 'paused' | 'danger';
 

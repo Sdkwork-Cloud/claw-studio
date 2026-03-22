@@ -50,6 +50,8 @@ export const DESKTOP_COMMANDS = {
   studioGetInstanceLogs: 'studio_get_instance_logs',
   studioCreateInstanceTask: 'studio_create_instance_task',
   studioUpdateInstanceTask: 'studio_update_instance_task',
+  studioUpdateInstanceFileContent: 'studio_update_instance_file_content',
+  studioUpdateInstanceLlmProviderConfig: 'studio_update_instance_llm_provider_config',
   studioCloneInstanceTask: 'studio_clone_instance_task',
   studioRunInstanceTaskNow: 'studio_run_instance_task_now',
   studioListInstanceTaskExecutions: 'studio_list_instance_task_executions',

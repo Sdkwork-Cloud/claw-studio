@@ -36,6 +36,9 @@ export interface ChatSession {
   isDraft?: boolean;
   runId?: string | null;
   thinkingLevel?: string | null;
+  source?: 'studio' | 'openclaw';
+  messagesHydrated?: boolean;
+  lastMessagePreview?: string;
 }
 
 type ScopeMap<T> = Record<string, T>;
@@ -48,6 +51,7 @@ export interface ChatState {
   instanceRouteModeById: Record<string, InstanceChatRouteMode | undefined>;
   hydrateInstance: (instanceId: string | null | undefined) => Promise<void>;
   connectGatewayInstances: (instanceIds: string[]) => Promise<void>;
+  loadSession: (id: string) => Promise<void>;
   createSession: (model?: string, instanceId?: string) => Promise<string>;
   deleteSession: (id: string, instanceId?: string) => Promise<void>;
   setActiveSession: (id: string | null, instanceId?: string) => Promise<void>;
@@ -81,6 +85,14 @@ function createId(prefix: string) {
 
 function getScopeKey(instanceId: string | null | undefined) {
   return instanceId ?? DIRECT_SCOPE_KEY;
+}
+
+function createSessionId(instanceId?: string) {
+  if (instanceId) {
+    return `thread:claw-studio:${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  }
+
+  return createId('session');
 }
 
 function normalizeMessages(messages: Message[] | undefined) {
@@ -134,7 +146,16 @@ async function persistSession(session: ChatSession) {
   }
 
   const gateway = await getStudioConversationGateway();
-  await gateway.putInstanceConversation(normalizeSession(session));
+  return gateway.putInstanceConversation(normalizeSession(session));
+}
+
+function upsertSessionCollection(sessions: ChatSession[], nextSession: ChatSession) {
+  return sortSessions([
+    normalizeSession(nextSession),
+    ...sessions
+      .filter((session) => session.id !== nextSession.id)
+      .map(normalizeSession),
+  ]);
 }
 
 async function resolveInstanceRouteMode(instanceId: string | null | undefined) {
@@ -317,6 +338,61 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       },
     });
   },
+  async loadSession(id) {
+    const session = get().sessions.find((item) => item.id === id);
+    if (!session?.instanceId) {
+      return;
+    }
+
+    const scopeKey = getScopeKey(session.instanceId);
+    if (session.messagesHydrated && session.messages.length > 0) {
+      return;
+    }
+
+    set((state) => ({
+      syncStateByInstance: {
+        ...state.syncStateByInstance,
+        [scopeKey]: 'loading',
+      },
+      lastErrorByInstance: {
+        ...state.lastErrorByInstance,
+        [scopeKey]: undefined,
+      },
+    }));
+
+    try {
+      const gateway = await getStudioConversationGateway();
+      const hydrated = await gateway.getInstanceConversation(
+        session.instanceId,
+        session.id,
+        normalizeSession(session),
+      );
+
+      set((state) => ({
+        sessions: upsertSessionCollection(state.sessions, hydrated),
+        syncStateByInstance: {
+          ...state.syncStateByInstance,
+          [scopeKey]: 'idle',
+        },
+        lastErrorByInstance: {
+          ...state.lastErrorByInstance,
+          [scopeKey]: undefined,
+        },
+      }));
+    } catch (error: any) {
+      console.error('Failed to load conversation:', error);
+      set((state) => ({
+        syncStateByInstance: {
+          ...state.syncStateByInstance,
+          [scopeKey]: 'error',
+        },
+        lastErrorByInstance: {
+          ...state.lastErrorByInstance,
+          [scopeKey]: error?.message || 'Failed to load conversation',
+        },
+      }));
+    }
+  },
   async createSession(model = DEFAULT_MODEL, instanceId) {
     if (instanceId) {
       const routeMode =
@@ -337,7 +413,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
     const timestamp = Date.now();
     const session: ChatSession = {
-      id: createId('session'),
+      id: createSessionId(instanceId),
       title: DEFAULT_TITLE,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -359,15 +435,28 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       },
     }));
 
-    void persistSession(session).catch((error: any) => {
-      console.error('Failed to persist session:', error);
-      set((state) => ({
-        lastErrorByInstance: {
-          ...state.lastErrorByInstance,
-          [getScopeKey(instanceId)]: error?.message || 'Failed to persist conversation',
-        },
-      }));
-    });
+    void persistSession(session)
+      .then((savedSession) => {
+        if (!savedSession) {
+          return;
+        }
+        set((state) => ({
+          sessions: upsertSessionCollection(state.sessions, savedSession),
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [getScopeKey(instanceId)]: undefined,
+          },
+        }));
+      })
+      .catch((error: any) => {
+        console.error('Failed to persist session:', error);
+        set((state) => ({
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [getScopeKey(instanceId)]: error?.message || 'Failed to persist conversation',
+          },
+        }));
+      });
 
     return session.id;
   },
@@ -403,7 +492,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
 
     void getStudioConversationGateway()
-      .then((gateway) => gateway.deleteInstanceConversation(id))
+      .then((gateway) => gateway.deleteInstanceConversation(id, session.instanceId))
       .catch((error: any) => {
         console.error('Failed to delete conversation:', error);
         set((state) => ({
@@ -484,15 +573,28 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       return;
     }
 
-    void persistSession(nextSession).catch((error: any) => {
-      console.error('Failed to persist message:', error);
-      set((state) => ({
-        lastErrorByInstance: {
-          ...state.lastErrorByInstance,
-          [getScopeKey(nextSession?.instanceId)]: error?.message || 'Failed to persist conversation',
-        },
-      }));
-    });
+    void persistSession(nextSession)
+      .then((savedSession) => {
+        if (!savedSession) {
+          return;
+        }
+        set((state) => ({
+          sessions: upsertSessionCollection(state.sessions, savedSession),
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [getScopeKey(nextSession.instanceId)]: undefined,
+          },
+        }));
+      })
+      .catch((error: any) => {
+        console.error('Failed to persist message:', error);
+        set((state) => ({
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [getScopeKey(nextSession.instanceId)]: error?.message || 'Failed to persist conversation',
+          },
+        }));
+      });
   },
   updateMessage(sessionId, messageId, content) {
     set((state) => {
@@ -524,7 +626,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       });
       return;
     }
-
+    let targetSession: ChatSession | undefined;
     let cleared: ChatSession | undefined;
 
     set((state) => ({
@@ -533,10 +635,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           return normalizeSession(currentSession);
         }
 
+        targetSession = normalizeSession(currentSession);
         cleared = {
           ...normalizeSession(currentSession),
           messages: [],
           updatedAt: Date.now(),
+          lastMessagePreview: undefined,
         };
         return cleared;
       }),
@@ -546,15 +650,54 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       return;
     }
 
-    void persistSession(cleared).catch((error: any) => {
-      console.error('Failed to clear conversation:', error);
-      set((state) => ({
-        lastErrorByInstance: {
-          ...state.lastErrorByInstance,
-          [getScopeKey(resolvedInstanceId)]: error?.message || 'Failed to persist conversation',
-        },
-      }));
-    });
+    const scopeKey = getScopeKey(resolvedInstanceId);
+
+    if (targetSession?.source === 'openclaw') {
+      void getStudioConversationGateway()
+        .then((gateway) => gateway.resetInstanceConversation(cleared!))
+        .then((savedSession) => {
+          set((state) => ({
+            sessions: upsertSessionCollection(state.sessions, savedSession),
+            lastErrorByInstance: {
+              ...state.lastErrorByInstance,
+              [scopeKey]: undefined,
+            },
+          }));
+        })
+        .catch((error: any) => {
+          console.error('Failed to clear conversation:', error);
+          set((state) => ({
+            lastErrorByInstance: {
+              ...state.lastErrorByInstance,
+              [scopeKey]: error?.message || 'Failed to persist conversation',
+            },
+          }));
+        });
+      return;
+    }
+
+    void persistSession(cleared)
+      .then((savedSession) => {
+        if (!savedSession) {
+          return;
+        }
+        set((state) => ({
+          sessions: upsertSessionCollection(state.sessions, savedSession),
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [scopeKey]: undefined,
+          },
+        }));
+      })
+      .catch((error: any) => {
+        console.error('Failed to clear conversation:', error);
+        set((state) => ({
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [scopeKey]: error?.message || 'Failed to persist conversation',
+          },
+        }));
+      });
   },
   async flushSession(id) {
     const session = get().sessions.find((item) => item.id === id);
@@ -565,7 +708,35 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const scopeKey = getScopeKey(session.instanceId);
 
     try {
-      await persistSession(session);
+      const savedSession = await persistSession(session);
+      if (savedSession) {
+        set((state) => ({
+          sessions: upsertSessionCollection(state.sessions, savedSession),
+        }));
+      }
+
+      if (savedSession?.instanceId) {
+        const gateway = await getStudioConversationGateway();
+        const hydrated = await gateway.getInstanceConversation(
+          savedSession.instanceId,
+          savedSession.id,
+          savedSession,
+        );
+
+        set((state) => ({
+          sessions: upsertSessionCollection(state.sessions, hydrated),
+          syncStateByInstance: {
+            ...state.syncStateByInstance,
+            [scopeKey]: 'idle',
+          },
+          lastErrorByInstance: {
+            ...state.lastErrorByInstance,
+            [scopeKey]: undefined,
+          },
+        }));
+        return;
+      }
+
       set((state) => ({
         syncStateByInstance: {
           ...state.syncStateByInstance,

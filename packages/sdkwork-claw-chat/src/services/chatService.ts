@@ -2,18 +2,23 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { useInstanceStore } from '@sdkwork/claw-core';
 import { studio } from '@sdkwork/claw-infrastructure';
 import { useLLMStore } from '@sdkwork/claw-settings';
-import { Agent, Skill, type StudioInstanceRecord } from '@sdkwork/claw-types';
+import type { Agent, Skill, StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
-import { ChatModel } from '../types/index.ts';
+import { openClawConversationGateway } from './openClawConversationGateway.ts';
+import type { ChatSession } from '../store/useChatStore.ts';
+import type { ChatModel } from '../types/index.ts';
+
+const VITE_ENV = ((import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ??
+  {}) as Record<string, string | undefined>;
 
 const API_KEY_MAP: Record<string, string> = {
-  anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || '',
-  azure: import.meta.env.VITE_AZURE_API_KEY || '',
-  deepseek: import.meta.env.VITE_DEEPSEEK_API_KEY || '',
-  google: import.meta.env.VITE_GEMINI_API_KEY || '',
-  moonshot: import.meta.env.VITE_MOONSHOT_API_KEY || '',
-  openai: import.meta.env.VITE_OPENAI_API_KEY || '',
-  qwen: import.meta.env.VITE_QWEN_API_KEY || '',
+  anthropic: VITE_ENV.VITE_ANTHROPIC_API_KEY || '',
+  azure: VITE_ENV.VITE_AZURE_API_KEY || '',
+  deepseek: VITE_ENV.VITE_DEEPSEEK_API_KEY || '',
+  google: VITE_ENV.VITE_GEMINI_API_KEY || '',
+  moonshot: VITE_ENV.VITE_MOONSHOT_API_KEY || '',
+  openai: VITE_ENV.VITE_OPENAI_API_KEY || '',
+  qwen: VITE_ENV.VITE_QWEN_API_KEY || '',
 };
 
 const DEFAULT_SYSTEM_INSTRUCTION =
@@ -25,6 +30,11 @@ const DEFAULT_LLM_CONFIG = {
   topP: 1,
 };
 
+export interface ChatServiceRequestContext {
+  instanceId?: string | null;
+  session?: ChatSession | null;
+}
+
 export interface IChatService {
   createChatSession(modelId: string, skill?: Skill, agent?: Agent): any;
   sendMessageStream(
@@ -34,6 +44,7 @@ export interface IChatService {
     skill?: Skill,
     agent?: Agent,
     abortSignal?: AbortSignal,
+    context?: ChatServiceRequestContext,
   ): AsyncGenerator<string, void, unknown>;
 }
 
@@ -288,6 +299,7 @@ class ChatService implements IChatService {
     skill?: Skill,
     agent?: Agent,
     abortSignal?: AbortSignal,
+    context?: ChatServiceRequestContext,
   ): AsyncGenerator<string, void, unknown> {
     const { channels, getInstanceConfig } = useLLMStore.getState();
     const { activeInstanceId } = useInstanceStore.getState();
@@ -302,6 +314,27 @@ class ChatService implements IChatService {
       model.provider === 'google' ? message : buildContextualMessage(message, skill, agent);
 
     const { activeInstance, route } = await resolveActiveInstanceRoute();
+    const openClawMessage = buildContextualMessage(message, skill, agent);
+
+    if (activeInstance?.runtimeKind === 'openclaw' && context?.session) {
+      try {
+        yield* openClawConversationGateway.sendMessageStream({
+          instanceId: context.instanceId || activeInstance.id,
+          session: context.session,
+          message: openClawMessage,
+          model,
+          abortSignal,
+        });
+        return;
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          throw error;
+        }
+
+        yield `\n\n**Error connecting to ${activeInstance.name}:** ${error.message}`;
+        return;
+      }
+    }
 
     if (activeInstance && route.mode === 'instanceOpenClawGatewayWs') {
       yield `\n\n**${activeInstance.name}** uses the native OpenClaw Gateway WebSocket flow. Claw Studio now drives that route through the chat session store instead of the generic HTTP stream service.`;

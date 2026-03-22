@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppStore } from '../stores/useAppStore';
+import { useAppStore } from '../stores/useAppStore.ts';
 
 export function useKeyboardShortcuts() {
   const navigate = useNavigate();

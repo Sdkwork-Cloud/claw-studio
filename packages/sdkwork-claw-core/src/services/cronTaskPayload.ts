@@ -1,4 +1,4 @@
-import type { TaskCreateInput, TaskExecutionContent, TaskIntervalUnit } from './taskSchedule';
+import type { TaskCreateInput, TaskExecutionContent, TaskIntervalUnit } from './taskSchedule.ts';
 
 export type CronTaskCreateInput = TaskCreateInput;
 export type OpenClawCronTaskPayload = Record<string, unknown>;

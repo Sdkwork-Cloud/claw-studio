@@ -10,7 +10,7 @@ import {
   cloneOpenClawCronTaskPayload,
   type CronTaskCreateInput,
   type OpenClawCronTaskPayload,
-} from './cronTaskPayload';
+} from './cronTaskPayload.ts';
 import type {
   TaskActionType,
   TaskDeliveryMode,
@@ -21,7 +21,7 @@ import type {
   TaskStatus,
   TaskThinkingLevel,
   TaskWakeUpMode,
-} from './taskSchedule';
+} from './taskSchedule.ts';
 
 export interface Task extends CronTaskCreateInput {
   id: string;

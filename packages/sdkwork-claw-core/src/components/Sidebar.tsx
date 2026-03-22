@@ -24,9 +24,9 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { instanceDirectoryService } from '../services';
-import { useAppStore } from '../stores/useAppStore';
-import { useInstanceStore } from '../stores/useInstanceStore';
+import { instanceDirectoryService } from '../services/index.ts';
+import { useAppStore } from '../stores/useAppStore.ts';
+import { useInstanceStore } from '../stores/useInstanceStore.ts';
 
 interface InstanceSummary {
   id: string;

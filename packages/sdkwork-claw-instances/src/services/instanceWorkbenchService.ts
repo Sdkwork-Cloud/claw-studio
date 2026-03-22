@@ -1,6 +1,15 @@
 import {
+  openClawGatewayClient,
   studio,
   studioMockService,
+  type OpenClawAgentFileResult,
+  type OpenClawAgentFilesListResult,
+  type OpenClawAgentsListResult,
+  type OpenClawChannelStatusResult,
+  type OpenClawConfigSnapshot,
+  type OpenClawModelRecord,
+  type OpenClawSkillsStatusResult,
+  type OpenClawToolsCatalogResult,
   type MockInstanceLLMProvider,
   type MockInstanceMemoryEntry,
   type MockTaskExecutionHistoryEntry,
@@ -26,8 +35,29 @@ import type {
   InstanceWorkbenchTask,
   InstanceWorkbenchTaskExecution,
   InstanceWorkbenchTool,
-} from '../types';
-import { instanceService } from './instanceService';
+} from '../types/index.ts';
+import {
+  buildOpenClawAgentFileId,
+  describeSecretSource,
+  formatSize,
+  getArrayValue,
+  getBooleanValue,
+  getNumberValue,
+  getObjectValue,
+  getRecordValue,
+  getStringValue,
+  inferLanguageFromPath,
+  inferProviderCapabilities,
+  isNonEmptyString,
+  isRecord,
+  mapOpenClawProviderModels,
+  parseOpenClawAgentFileId,
+  summarizeMarkdown,
+  titleCaseIdentifier,
+  tokenEstimate,
+  toIsoStringFromMs,
+} from './openClawSupport.ts';
+import { instanceService } from './instanceService.ts';
 
 function clampScore(score: number) {
   return Math.max(0, Math.min(100, Math.round(score)));
@@ -414,10 +444,775 @@ function buildSectionAvailability(
   };
 }
 
+interface InstanceWorkbenchServiceDependencies {
+  studioApi: {
+    getInstanceDetail(id: string): Promise<StudioInstanceDetailRecord | null>;
+    cloneInstanceTask(instanceId: string, taskId: string, name?: string): Promise<void>;
+    runInstanceTaskNow(
+      instanceId: string,
+      taskId: string,
+    ): Promise<InstanceWorkbenchTaskExecution>;
+    listInstanceTaskExecutions(
+      instanceId: string,
+      taskId: string,
+    ): Promise<InstanceWorkbenchTaskExecution[]>;
+    updateInstanceTaskStatus(
+      instanceId: string,
+      taskId: string,
+      status: 'active' | 'paused',
+    ): Promise<void>;
+    deleteInstanceTask(instanceId: string, taskId: string): Promise<boolean>;
+  };
+  studioMockService: {
+    getInstance(id: string): Promise<any>;
+    getInstanceConfig(id: string): Promise<any>;
+    getInstanceToken(id: string): Promise<string>;
+    getInstanceLogs(id: string): Promise<string>;
+    listChannels(id: string): Promise<any[]>;
+    listTasks(id: string): Promise<any[]>;
+    listInstalledSkills(id: string): Promise<Skill[]>;
+    listAgents(): Promise<Agent[]>;
+    listInstanceFiles(id: string): Promise<MockInstanceTool[] | any[]>;
+    listInstanceLlmProviders(id: string): Promise<MockInstanceLLMProvider[]>;
+    listInstanceMemories(id: string): Promise<MockInstanceMemoryEntry[]>;
+    listInstanceTools(id: string): Promise<MockInstanceTool[]>;
+    listTaskExecutions(id: string): Promise<MockTaskExecutionHistoryEntry[]>;
+    cloneTask(id: string, overrides?: { name?: string }): Promise<any>;
+    runTaskNow(id: string): Promise<any>;
+    updateTaskStatus(id: string, status: 'active' | 'paused'): Promise<boolean>;
+    deleteTask(id: string): Promise<boolean>;
+  };
+  instanceService: {
+    getInstanceById(id: string): Promise<any>;
+    getInstanceConfig(id: string): Promise<any>;
+    getInstanceToken(id: string): Promise<string | undefined>;
+    getInstanceLogs(id: string): Promise<string>;
+  };
+  openClawGatewayClient: {
+    getConfig(instanceId: string): Promise<OpenClawConfigSnapshot>;
+    listModels(instanceId: string): Promise<OpenClawModelRecord[]>;
+    getChannelStatus(
+      instanceId: string,
+      args?: Record<string, unknown>,
+    ): Promise<OpenClawChannelStatusResult>;
+    getSkillsStatus(
+      instanceId: string,
+      args?: Record<string, unknown>,
+    ): Promise<OpenClawSkillsStatusResult>;
+    getToolsCatalog(
+      instanceId: string,
+      args?: Record<string, unknown>,
+    ): Promise<OpenClawToolsCatalogResult>;
+    listAgents(instanceId: string): Promise<OpenClawAgentsListResult>;
+    listAgentFiles(
+      instanceId: string,
+      args: { agentId: string },
+    ): Promise<OpenClawAgentFilesListResult>;
+    getAgentFile(
+      instanceId: string,
+      args: { agentId: string; name: string },
+    ): Promise<OpenClawAgentFileResult>;
+    listWorkbenchCronJobs(instanceId: string): Promise<InstanceWorkbenchTask[]>;
+    listWorkbenchCronRuns(
+      instanceId: string,
+      taskId: string,
+    ): Promise<InstanceWorkbenchTaskExecution[]>;
+  };
+}
+
+export interface InstanceWorkbenchServiceDependencyOverrides {
+  studioApi?: Partial<InstanceWorkbenchServiceDependencies['studioApi']>;
+  studioMockService?: Partial<InstanceWorkbenchServiceDependencies['studioMockService']>;
+  instanceService?: Partial<InstanceWorkbenchServiceDependencies['instanceService']>;
+  openClawGatewayClient?: Partial<InstanceWorkbenchServiceDependencies['openClawGatewayClient']>;
+}
+
+function createDefaultDependencies(): InstanceWorkbenchServiceDependencies {
+  return {
+    studioApi: {
+      getInstanceDetail: (id) => studio.getInstanceDetail(id),
+      cloneInstanceTask: (instanceId, taskId, name) => studio.cloneInstanceTask(instanceId, taskId, name),
+      runInstanceTaskNow: (instanceId, taskId) => studio.runInstanceTaskNow(instanceId, taskId),
+      listInstanceTaskExecutions: (instanceId, taskId) => studio.listInstanceTaskExecutions(instanceId, taskId),
+      updateInstanceTaskStatus: (instanceId, taskId, status) =>
+        studio.updateInstanceTaskStatus(instanceId, taskId, status),
+      deleteInstanceTask: (instanceId, taskId) => studio.deleteInstanceTask(instanceId, taskId),
+    },
+    studioMockService: {
+      getInstance: (id) => studioMockService.getInstance(id),
+      getInstanceConfig: (id) => studioMockService.getInstanceConfig(id),
+      getInstanceToken: (id) => studioMockService.getInstanceToken(id),
+      getInstanceLogs: (id) => studioMockService.getInstanceLogs(id),
+      listChannels: (id) => studioMockService.listChannels(id),
+      listTasks: (id) => studioMockService.listTasks(id),
+      listInstalledSkills: (id) => studioMockService.listInstalledSkills(id),
+      listAgents: () => studioMockService.listAgents(),
+      listInstanceFiles: (id) => studioMockService.listInstanceFiles(id),
+      listInstanceLlmProviders: (id) => studioMockService.listInstanceLlmProviders(id),
+      listInstanceMemories: (id) => studioMockService.listInstanceMemories(id),
+      listInstanceTools: (id) => studioMockService.listInstanceTools(id),
+      listTaskExecutions: (id) => studioMockService.listTaskExecutions(id),
+      cloneTask: (id, overrides) => studioMockService.cloneTask(id, overrides),
+      runTaskNow: (id) => studioMockService.runTaskNow(id),
+      updateTaskStatus: (id, status) => studioMockService.updateTaskStatus(id, status).then(Boolean),
+      deleteTask: (id) => studioMockService.deleteTask(id),
+    },
+    instanceService: {
+      getInstanceById: (id) => instanceService.getInstanceById(id),
+      getInstanceConfig: (id) => instanceService.getInstanceConfig(id),
+      getInstanceToken: (id) => instanceService.getInstanceToken(id),
+      getInstanceLogs: (id) => instanceService.getInstanceLogs(id),
+    },
+    openClawGatewayClient: {
+      getConfig: (instanceId) => openClawGatewayClient.getConfig(instanceId),
+      listModels: (instanceId) => openClawGatewayClient.listModels(instanceId),
+      getChannelStatus: (instanceId, args) => openClawGatewayClient.getChannelStatus(instanceId, args),
+      getSkillsStatus: (instanceId, args) => openClawGatewayClient.getSkillsStatus(instanceId, args),
+      getToolsCatalog: (instanceId, args) => openClawGatewayClient.getToolsCatalog(instanceId, args),
+      listAgents: (instanceId) => openClawGatewayClient.listAgents(instanceId),
+      listAgentFiles: (instanceId, args) => openClawGatewayClient.listAgentFiles(instanceId, args),
+      getAgentFile: (instanceId, args) => openClawGatewayClient.getAgentFile(instanceId, args),
+      listWorkbenchCronJobs: (instanceId) => openClawGatewayClient.listWorkbenchCronJobs(instanceId),
+      listWorkbenchCronRuns: (instanceId, taskId) =>
+        openClawGatewayClient.listWorkbenchCronRuns(instanceId, taskId),
+    },
+  };
+}
+
+interface OpenClawGatewaySections {
+  channels: InstanceWorkbenchChannel[];
+  tasks: InstanceWorkbenchTask[];
+  agents: InstanceWorkbenchAgent[];
+  skills: Skill[];
+  files: InstanceWorkbenchFile[];
+  llmProviders: InstanceWorkbenchLLMProvider[];
+  memories: InstanceWorkbenchMemoryEntry[];
+  tools: InstanceWorkbenchTool[];
+}
+
+function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
+  return detail?.instance.runtimeKind === 'openclaw';
+}
+
+function countOverviewEntries(detail: StudioInstanceDetailRecord) {
+  return (
+    detail.connectivity.endpoints.length +
+    detail.capabilities.length +
+    detail.dataAccess.routes.length +
+    detail.artifacts.length
+  );
+}
+
+function isConfiguredValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value);
+  }
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (isRecord(value)) {
+    return Object.keys(value).length > 0;
+  }
+  return false;
+}
+
+function buildOpenClawSectionCounts(
+  detail: StudioInstanceDetailRecord,
+  sections: OpenClawGatewaySections,
+): Record<InstanceWorkbenchSectionId, number> {
+  return {
+    overview: countOverviewEntries(detail),
+    channels: sections.channels.length,
+    cronTasks: sections.tasks.length,
+    llmProviders: sections.llmProviders.length,
+    agents: sections.agents.length,
+    skills: sections.skills.length,
+    files: sections.files.length,
+    memory: sections.memories.length,
+    tools: sections.tools.length,
+  };
+}
+
+function buildOpenClawSnapshotFromSections(
+  detail: StudioInstanceDetailRecord,
+  sections: OpenClawGatewaySections,
+): InstanceWorkbenchSnapshot {
+  const connectedChannelCount = sections.channels.filter(
+    (channel) => channel.status === 'connected' && channel.enabled,
+  ).length;
+  const activeTaskCount = sections.tasks.filter((task) => task.status === 'active').length;
+  const readyToolCount = sections.tools.filter((tool) => tool.status === 'ready').length;
+  const sectionCounts = buildOpenClawSectionCounts(detail, sections);
+
+  return {
+    instance: mapStudioInstance(detail.instance),
+    config: mapStudioConfig(detail),
+    token: detail.config.authToken || '',
+    logs: detail.logs,
+    detail,
+    healthScore: detail.health.score,
+    runtimeStatus: detail.health.status,
+    connectedChannelCount,
+    activeTaskCount,
+    installedSkillCount: sections.skills.length,
+    readyToolCount,
+    sectionCounts,
+    sectionAvailability: buildSectionAvailability(detail, {
+      channels: sections.channels.length,
+      cronTasks: sections.tasks.length,
+      llmProviders: sections.llmProviders.length,
+      agents: sections.agents.length,
+      skills: sections.skills.length,
+      files: sections.files.length,
+      memory: sections.memories.length,
+      tools: sections.tools.length,
+    }),
+    channels: sections.channels,
+    tasks: sections.tasks.map(cloneWorkbenchTask),
+    agents: sections.agents.map((agent) => ({
+      ...agent,
+      agent: { ...agent.agent },
+      focusAreas: [...agent.focusAreas],
+    })),
+    skills: sections.skills.map((skill) => ({ ...skill })),
+    files: sections.files.map((file) => ({ ...file })),
+    llmProviders: sections.llmProviders.map((provider) => ({
+      ...provider,
+      capabilities: [...provider.capabilities],
+      models: provider.models.map((model) => ({ ...model })),
+      config: { ...provider.config },
+    })),
+    memories: sections.memories.map((entry) => ({ ...entry })),
+    tools: sections.tools.map((tool) => ({ ...tool })),
+  };
+}
+
+function mergeOpenClawSnapshots(
+  base: InstanceWorkbenchSnapshot,
+  live: InstanceWorkbenchSnapshot,
+): InstanceWorkbenchSnapshot {
+  return buildOpenClawSnapshotFromSections(base.detail, {
+    channels: live.channels.length > 0 ? live.channels : base.channels,
+    tasks: live.tasks.length > 0 ? live.tasks : base.tasks,
+    llmProviders: live.llmProviders.length > 0 ? live.llmProviders : base.llmProviders,
+    agents: live.agents.length > 0 ? live.agents : base.agents,
+    skills: live.skills.length > 0 ? live.skills : base.skills,
+    files: base.files.length > 0 ? base.files : live.files,
+    memories: base.memories.length > 0 ? base.memories : live.memories,
+    tools: live.tools.length > 0 ? live.tools : base.tools,
+  });
+}
+
+function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWorkbenchChannel[] {
+  const rawChannels = isRecord(status.channels) ? status.channels : {};
+  const orderedIds = Array.from(
+    new Set([
+      ...(Array.isArray(status.channelOrder) ? status.channelOrder.filter(isNonEmptyString) : []),
+      ...Object.keys(rawChannels),
+    ]),
+  );
+
+  return orderedIds
+    .map((channelId) => {
+      const rawChannel = rawChannels[channelId];
+      if (!isRecord(rawChannel)) {
+        return null;
+      }
+
+      const rawFields = getObjectValue(rawChannel, ['fields']) || {};
+      const rawAccounts = getObjectValue(rawChannel, ['accounts']) || {};
+      const fieldCount = Object.keys(rawFields).length;
+      const accountCount = Object.keys(rawAccounts).length;
+      const configuredFieldCount = Object.values(rawFields).filter((value) => isConfiguredValue(value)).length;
+      const enabled = getBooleanValue(rawChannel, ['enabled']) ?? false;
+      const configured =
+        (getBooleanValue(rawChannel, ['configured']) ?? false) ||
+        configuredFieldCount > 0 ||
+        accountCount > 0;
+      const setupSteps = configured
+        ? [
+            `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} channel is configured for the gateway runtime.`,
+            enabled
+              ? 'Channel is enabled for runtime delivery.'
+              : 'Enable the channel after validating connectivity.',
+          ]
+        : [
+            `Configure credentials or routing for ${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)}.`,
+            'Add at least one account or destination target.',
+          ];
+
+      return {
+        id: channelId,
+        name: status.channelLabels?.[channelId] || titleCaseIdentifier(channelId),
+        description:
+          status.channelDetailLabels?.[channelId] ||
+          `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} integration managed by the OpenClaw gateway.`,
+        status: configured ? (enabled ? 'connected' : 'disconnected') : 'not_configured',
+        enabled,
+        fieldCount: Math.max(fieldCount, accountCount, configured ? 1 : 0),
+        configuredFieldCount: configured ? Math.max(configuredFieldCount, accountCount, 1) : 0,
+        setupSteps,
+      } satisfies InstanceWorkbenchChannel;
+    })
+    .filter(Boolean) as InstanceWorkbenchChannel[];
+}
+
+function providerMatchesId(model: OpenClawModelRecord, providerId: string) {
+  const candidates = [
+    typeof model.provider === 'string' ? model.provider : undefined,
+    typeof model.providerId === 'string' ? model.providerId : undefined,
+  ]
+    .filter(Boolean)
+    .map((value) => value!.toLowerCase());
+
+  return candidates.includes(providerId.toLowerCase());
+}
+
+function buildOpenClawLlmProviders(
+  configSnapshot: OpenClawConfigSnapshot | null,
+  liveModels: OpenClawModelRecord[],
+  detail: StudioInstanceDetailRecord,
+): InstanceWorkbenchLLMProvider[] {
+  const providers = getObjectValue(configSnapshot?.config, ['models', 'providers']) || {};
+  const lastCheckedAt =
+    getStringValue(configSnapshot?.config, ['meta', 'lastTouchedAt']) ||
+    (detail.observability.lastSeenAt ? new Date(detail.observability.lastSeenAt).toISOString() : 'Unknown');
+
+  return Object.entries(providers)
+    .filter(([, providerValue]) => isRecord(providerValue))
+    .map(([providerId, providerValue]) => {
+      const configModels = getArrayValue(providerValue, ['models']) || [];
+      const providerModels = liveModels.filter((model) => providerMatchesId(model, providerId));
+      const modelSource = providerModels.length > 0 ? providerModels : configModels;
+      const models = mapOpenClawProviderModels(modelSource);
+      const defaultModelId =
+        models.find((model) => model.role === 'primary')?.id || models[0]?.id || '';
+
+      return {
+        id: providerId,
+        name: titleCaseIdentifier(providerId),
+        provider: providerId,
+        endpoint:
+          getStringValue(providerValue, ['baseUrl']) ||
+          getStringValue(providerValue, ['endpoint']) ||
+          '',
+        apiKeySource: describeSecretSource(getRecordValue(providerValue, ['apiKey'])),
+        status: defaultModelId ? 'ready' : 'configurationRequired',
+        defaultModelId,
+        reasoningModelId: models.find((model) => model.role === 'reasoning')?.id,
+        embeddingModelId: models.find((model) => model.role === 'embedding')?.id,
+        description: `${titleCaseIdentifier(providerId)} provider configured through the OpenClaw gateway.`,
+        icon: providerId.charAt(0).toUpperCase() || 'O',
+        lastCheckedAt,
+        capabilities: inferProviderCapabilities(modelSource),
+        models,
+        config: {
+          temperature: getNumberValue(providerValue, ['temperature']) ?? 0.2,
+          topP: getNumberValue(providerValue, ['topP']) ?? 1,
+          maxTokens: getNumberValue(providerValue, ['maxTokens']) ?? 4096,
+          timeoutMs: getNumberValue(providerValue, ['timeoutMs']) ?? 60000,
+          streaming: getBooleanValue(providerValue, ['streaming']) ?? true,
+        },
+      } satisfies InstanceWorkbenchLLMProvider;
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function inferSkillCategory(skillName: string, content: string) {
+  const source = `${skillName} ${content}`.toLowerCase();
+
+  if (source.includes('browser') || source.includes('web')) {
+    return 'Integration';
+  }
+  if (source.includes('image') || source.includes('audio')) {
+    return 'Media';
+  }
+  if (source.includes('cron') || source.includes('automation')) {
+    return 'Automation';
+  }
+  if (source.includes('code') || source.includes('patch') || source.includes('git')) {
+    return 'Code';
+  }
+
+  return 'General';
+}
+
+function buildOpenClawSkills(status: OpenClawSkillsStatusResult): Skill[] {
+  const entries =
+    (Array.isArray(status.skills) ? status.skills : Array.isArray(status.entries) ? status.entries : [])
+      .filter(isRecord);
+
+  return entries.map((entry) => {
+    const name =
+      (typeof entry.name === 'string' && entry.name.trim()) ||
+      (typeof entry.id === 'string' && entry.id.trim()) ||
+      'Unnamed Skill';
+    const readme = typeof entry.readme === 'string' ? entry.readme : undefined;
+    const description =
+      (typeof entry.description === 'string' && entry.description.trim()) ||
+      (readme ? summarizeMarkdown(readme, 220) : 'Installed OpenClaw skill.');
+
+    return {
+      id: (typeof entry.id === 'string' && entry.id.trim()) || name,
+      name,
+      description,
+      author:
+        (typeof entry.author === 'string' && entry.author.trim()) || 'OpenClaw',
+      rating: 5,
+      downloads: 1,
+      category: inferSkillCategory(name, `${description} ${readme || ''}`),
+      icon: undefined,
+      version: typeof entry.version === 'string' ? entry.version : undefined,
+      size: typeof entry.size === 'string' ? entry.size : undefined,
+      updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : undefined,
+      readme,
+    };
+  });
+}
+
+function inferToolCategory(
+  toolId: string,
+  groupId: string,
+  groupLabel: string,
+): InstanceWorkbenchTool['category'] {
+  const source = `${toolId} ${groupId} ${groupLabel}`.toLowerCase();
+
+  if (
+    source.includes('file') ||
+    source.includes('read') ||
+    source.includes('write') ||
+    source.includes('patch')
+  ) {
+    return 'filesystem';
+  }
+  if (
+    source.includes('cron') ||
+    source.includes('update') ||
+    source.includes('automation')
+  ) {
+    return 'automation';
+  }
+  if (
+    source.includes('log') ||
+    source.includes('status') ||
+    source.includes('usage') ||
+    source.includes('secret')
+  ) {
+    return 'observability';
+  }
+  if (
+    source.includes('session') ||
+    source.includes('memory') ||
+    source.includes('agent') ||
+    source.includes('model')
+  ) {
+    return 'reasoning';
+  }
+
+  return 'integration';
+}
+
+function inferToolAccess(toolId: string): InstanceWorkbenchTool['access'] {
+  const normalized = toolId.toLowerCase();
+
+  if (
+    normalized.includes('read') ||
+    normalized.includes('get') ||
+    normalized.includes('list') ||
+    normalized.includes('status') ||
+    normalized.includes('search') ||
+    normalized.includes('tail') ||
+    normalized.includes('catalog') ||
+    normalized.includes('resolve')
+  ) {
+    return 'read';
+  }
+  if (
+    normalized.includes('set') ||
+    normalized.includes('update') ||
+    normalized.includes('patch') ||
+    normalized.includes('install') ||
+    normalized.includes('create') ||
+    normalized.includes('delete') ||
+    normalized.includes('logout')
+  ) {
+    return 'write';
+  }
+
+  return 'execute';
+}
+
+function buildOpenClawTools(catalog: OpenClawToolsCatalogResult): InstanceWorkbenchTool[] {
+  const toolMap = new Map<string, InstanceWorkbenchTool>();
+
+  (Array.isArray(catalog.groups) ? catalog.groups : []).forEach((group) => {
+    const tools = Array.isArray(group.tools) ? group.tools : [];
+    tools.forEach((tool) => {
+      const id = typeof tool.id === 'string' ? tool.id : '';
+      if (!id || toolMap.has(id)) {
+        return;
+      }
+
+      toolMap.set(id, {
+        id,
+        name:
+          (typeof tool.label === 'string' && tool.label.trim()) ||
+          titleCaseIdentifier(id),
+        description:
+          (typeof tool.description === 'string' && tool.description.trim()) ||
+          `${titleCaseIdentifier(id)} tool exposed by the OpenClaw gateway.`,
+        category: inferToolCategory(
+          id,
+          typeof group.id === 'string' ? group.id : '',
+          typeof group.label === 'string' ? group.label : '',
+        ),
+        status: tool.optional ? 'beta' : 'ready',
+        access: inferToolAccess(id),
+        command: `tool:${id}`,
+        lastUsedAt: undefined,
+      });
+    });
+  });
+
+  return [...toolMap.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function inferOpenClawFileCategory(
+  name: string,
+  path: string,
+): InstanceWorkbenchFile['category'] {
+  const normalized = `${name} ${path}`.toLowerCase();
+
+  if (normalized.includes('memory.md')) {
+    return 'memory';
+  }
+  if (normalized.endsWith('.log')) {
+    return 'log';
+  }
+  if (
+    normalized.endsWith('.json') ||
+    normalized.endsWith('.json5') ||
+    normalized.includes('config')
+  ) {
+    return 'config';
+  }
+  if (normalized.endsWith('.md')) {
+    return 'prompt';
+  }
+
+  return 'artifact';
+}
+
+function buildOpenClawAgents(
+  agentsResult: OpenClawAgentsListResult | null,
+  configSnapshot: OpenClawConfigSnapshot | null,
+  tasks: InstanceWorkbenchTask[],
+  skills: Skill[],
+): InstanceWorkbenchAgent[] {
+  const configuredAgents =
+    (getArrayValue(configSnapshot?.config, ['agents', 'list']) || []).filter(isRecord);
+  const configuredById = new Map(
+    configuredAgents
+      .map((entry) => {
+        const id = getStringValue(entry, ['id']);
+        return id ? [id, entry] as const : null;
+      })
+      .filter(Boolean) as Array<readonly [string, Record<string, unknown>]>,
+  );
+  const sourceAgents =
+    (Array.isArray(agentsResult?.agents) ? agentsResult?.agents : configuredAgents).filter(isRecord);
+
+  return sourceAgents.map((entry) => {
+    const agentId = getStringValue(entry, ['id']) || 'main';
+    const configured = configuredById.get(agentId);
+    const name =
+      getStringValue(entry, ['name']) ||
+      getStringValue(configured, ['name']) ||
+      titleCaseIdentifier(agentId);
+    const description =
+      getStringValue(entry, ['description']) ||
+      `${name} agent exposed by the OpenClaw gateway.`;
+    const avatar =
+      getStringValue(entry, ['avatar']) ||
+      getStringValue(entry, ['identity', 'emoji']) ||
+      getStringValue(configured, ['identity', 'emoji']) ||
+      name.charAt(0).toUpperCase() ||
+      'O';
+    const systemPrompt =
+      getStringValue(entry, ['systemPrompt']) ||
+      getStringValue(entry, ['prompt']) ||
+      description;
+
+    return mapAgent(
+      {
+        id: agentId,
+        name,
+        description,
+        avatar,
+        systemPrompt,
+        creator: getStringValue(entry, ['creator']) || 'OpenClaw',
+      },
+      tasks,
+      skills,
+    );
+  });
+}
+
+async function buildOpenClawFiles(
+  instanceId: string,
+  agents: InstanceWorkbenchAgent[],
+  dependencies: InstanceWorkbenchServiceDependencies,
+): Promise<InstanceWorkbenchFile[]> {
+  const files = await Promise.all(
+    agents.map(async (agent) => {
+      const listed = await dependencies.openClawGatewayClient
+        .listAgentFiles(instanceId, {
+          agentId: agent.agent.id,
+        })
+        .catch(() => ({ files: [] }) as OpenClawAgentFilesListResult);
+      const workspace = listed.workspace || '';
+
+      return Promise.all(
+        listed.files
+          .filter((entry) => isRecord(entry) && isNonEmptyString(entry.name))
+          .map(async (entry) => {
+            const name = entry.name.trim();
+            const fetched = await dependencies.openClawGatewayClient
+              .getAgentFile(instanceId, {
+                agentId: agent.agent.id,
+                name,
+              })
+              .catch(() => null);
+            const fileRecord = isRecord(fetched?.file) ? fetched.file : entry;
+            const path =
+              (typeof fileRecord.path === 'string' && fileRecord.path.trim()) ||
+              (workspace ? `${workspace.replace(/\/+$/, '')}/${name}` : `/${agent.agent.id}/${name}`);
+            const content =
+              typeof fileRecord.content === 'string' ? fileRecord.content : '';
+
+            return {
+              id: buildOpenClawAgentFileId(agent.agent.id, name),
+              name,
+              path,
+              category: inferOpenClawFileCategory(name, path),
+              language: inferLanguageFromPath(path),
+              size: formatSize(
+                typeof fileRecord.size === 'number' ? fileRecord.size : undefined,
+              ),
+              updatedAt: toIsoStringFromMs(
+                typeof fileRecord.updatedAtMs === 'number' ? fileRecord.updatedAtMs : undefined,
+              ) || 'Unknown',
+              status:
+                fileRecord.missing === true ? 'missing' : 'synced',
+              description: `${name} bootstrap file for ${agent.agent.name}.`,
+              content,
+              isReadonly: false,
+            } satisfies InstanceWorkbenchFile;
+          }),
+      );
+    }),
+  );
+
+  return files.flat().sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function buildOpenClawMemories(
+  configSnapshot: OpenClawConfigSnapshot | null,
+  files: InstanceWorkbenchFile[],
+  agents: InstanceWorkbenchAgent[],
+): InstanceWorkbenchMemoryEntry[] {
+  const agentNameById = new Map(agents.map((agent) => [agent.agent.id, agent.agent.name]));
+  const backend = getStringValue(configSnapshot?.config, ['memory', 'backend']) || 'builtin';
+  const citations = getStringValue(configSnapshot?.config, ['memory', 'citations']) || 'auto';
+  const entries: InstanceWorkbenchMemoryEntry[] = [
+    {
+      id: 'memory-backend',
+      title: 'Memory Backend',
+      type: 'fact',
+      summary: `Backend=${backend}, citations=${citations}.`,
+      source: 'system',
+      updatedAt:
+        getStringValue(configSnapshot?.config, ['meta', 'lastTouchedAt']) || 'Unknown',
+      retention: 'rolling',
+      tokens: 32,
+    },
+  ];
+
+  files.forEach((file) => {
+    if (file.category !== 'memory' || !file.content.trim()) {
+      return;
+    }
+
+    const parsed = parseOpenClawAgentFileId(file.id);
+    const agentName = parsed ? agentNameById.get(parsed.agentId) || titleCaseIdentifier(parsed.agentId) : file.name;
+
+    entries.push({
+      id: `memory-${file.id}`,
+      title: `${agentName} Memory`,
+      type: 'conversation',
+      summary: summarizeMarkdown(file.content, 220),
+      source: parsed && parsed.agentId !== 'main' ? 'agent' : 'system',
+      updatedAt: file.updatedAt,
+      retention: 'pinned',
+      tokens: tokenEstimate(file.content),
+    });
+  });
+
+  (getArrayValue(configSnapshot?.config, ['memory', 'qmd', 'paths']) || [])
+    .filter(isRecord)
+    .forEach((entry, index) => {
+      const path = getStringValue(entry, ['path']);
+      if (!path) {
+        return;
+      }
+
+      entries.push({
+        id: `qmd-${index}`,
+        title: getStringValue(entry, ['name']) || path,
+        type: 'artifact',
+        summary: `QMD index path ${path}${
+          getStringValue(entry, ['pattern'])
+            ? ` (pattern: ${getStringValue(entry, ['pattern'])})`
+            : ''
+        }`,
+        source: 'system',
+        updatedAt: 'Configured',
+        retention: 'rolling',
+        tokens: 16,
+      });
+    });
+
+  return entries;
+}
+
 class InstanceWorkbenchService {
   private readonly backendTaskExecutionsById = new Map<string, InstanceWorkbenchTaskExecution[]>();
 
   private readonly openClawTaskInstanceById = new Map<string, string>();
+
+  private readonly dependencies: InstanceWorkbenchServiceDependencies;
+
+  constructor(dependencies: InstanceWorkbenchServiceDependencies) {
+    this.dependencies = dependencies;
+  }
+
+  private clearOpenClawTasksForInstance(instanceId: string) {
+    for (const [taskId, currentInstanceId] of [...this.openClawTaskInstanceById.entries()]) {
+      if (currentInstanceId === instanceId) {
+        this.openClawTaskInstanceById.delete(taskId);
+        this.backendTaskExecutionsById.delete(taskId);
+      }
+    }
+  }
 
   private rememberBackendTaskExecutions(detail: StudioInstanceDetailRecord) {
     const workbench = detail.workbench;
@@ -441,19 +1236,162 @@ class InstanceWorkbenchService {
     });
   }
 
+  private rememberOpenClawTasks(
+    instanceId: string,
+    tasks: InstanceWorkbenchTask[],
+    fallbackExecutionsById: Record<string, InstanceWorkbenchTaskExecution[]> = {},
+  ) {
+    this.clearOpenClawTasksForInstance(instanceId);
+
+    tasks.forEach((task) => {
+      this.openClawTaskInstanceById.set(task.id, instanceId);
+
+      const executions =
+        fallbackExecutionsById[task.id] ||
+        (task.latestExecution ? [cloneTaskExecution(task.latestExecution)] : []);
+      if (executions.length > 0) {
+        this.backendTaskExecutionsById.set(
+          task.id,
+          executions.map(cloneTaskExecution),
+        );
+      }
+    });
+  }
+
+  private async buildGatewayOpenClawSnapshot(
+    instanceId: string,
+    detail: StudioInstanceDetailRecord,
+  ): Promise<InstanceWorkbenchSnapshot | null> {
+    const [
+      configResult,
+      modelsResult,
+      channelsResult,
+      skillsResult,
+      toolsResult,
+      agentsResult,
+      tasksResult,
+    ] = await Promise.allSettled([
+      this.dependencies.openClawGatewayClient.getConfig(instanceId),
+      this.dependencies.openClawGatewayClient.listModels(instanceId),
+      this.dependencies.openClawGatewayClient.getChannelStatus(instanceId, {}),
+      this.dependencies.openClawGatewayClient.getSkillsStatus(instanceId, {}),
+      this.dependencies.openClawGatewayClient.getToolsCatalog(instanceId, {}),
+      this.dependencies.openClawGatewayClient.listAgents(instanceId),
+      this.dependencies.openClawGatewayClient.listWorkbenchCronJobs(instanceId),
+    ]);
+
+    const tasks = tasksResult.status === 'fulfilled' ? tasksResult.value : [];
+    const skills = skillsResult.status === 'fulfilled' ? buildOpenClawSkills(skillsResult.value) : [];
+    const llmProviders =
+      configResult.status === 'fulfilled'
+        ? buildOpenClawLlmProviders(
+            configResult.value,
+            modelsResult.status === 'fulfilled' ? modelsResult.value : [],
+            detail,
+          )
+        : [];
+    const channels =
+      channelsResult.status === 'fulfilled' ? buildOpenClawChannels(channelsResult.value) : [];
+    const agents = buildOpenClawAgents(
+      agentsResult.status === 'fulfilled' ? agentsResult.value : null,
+      configResult.status === 'fulfilled' ? configResult.value : null,
+      tasks,
+      skills,
+    );
+    const tools =
+      toolsResult.status === 'fulfilled' ? buildOpenClawTools(toolsResult.value) : [];
+    const files = await buildOpenClawFiles(instanceId, agents, this.dependencies).catch(() => []);
+    const memories = buildOpenClawMemories(
+      configResult.status === 'fulfilled' ? configResult.value : null,
+      files,
+      agents,
+    );
+
+    const hasGatewayData =
+      channels.length > 0 ||
+      tasks.length > 0 ||
+      llmProviders.length > 0 ||
+      agents.length > 0 ||
+      skills.length > 0 ||
+      files.length > 0 ||
+      memories.length > 1 ||
+      tools.length > 0;
+
+    if (!hasGatewayData) {
+      return null;
+    }
+
+    return buildOpenClawSnapshotFromSections(detail, {
+      channels,
+      tasks,
+      agents,
+      skills,
+      files,
+      llmProviders,
+      memories,
+      tools,
+    });
+  }
+
+  private async getOpenClawWorkbench(
+    instanceId: string,
+    detail: StudioInstanceDetailRecord,
+    managedConfigSnapshot: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>> | null,
+  ): Promise<InstanceWorkbenchSnapshot> {
+    const backendSnapshot = detail.workbench ? mapBackendWorkbench(detail, managedConfigSnapshot) : null;
+    if (detail.workbench) {
+      this.rememberBackendTaskExecutions(detail);
+    }
+
+    const liveSnapshot = await this.buildGatewayOpenClawSnapshot(instanceId, detail).catch(
+      () => null,
+    );
+
+    const snapshot =
+      backendSnapshot && liveSnapshot
+        ? mergeOpenClawSnapshots(backendSnapshot, liveSnapshot)
+        : backendSnapshot || liveSnapshot;
+
+    if (snapshot) {
+      this.rememberOpenClawTasks(
+        instanceId,
+        snapshot.tasks,
+        detail.workbench?.cronTasks.taskExecutionsById || {},
+      );
+      return snapshot;
+    }
+
+    if (backendSnapshot) {
+      this.rememberOpenClawTasks(
+        instanceId,
+        backendSnapshot.tasks,
+        detail.workbench?.cronTasks.taskExecutionsById || {},
+      );
+      return backendSnapshot;
+    }
+
+    return buildOpenClawSnapshotFromSections(detail, {
+      channels: [],
+      tasks: [],
+      agents: [],
+      skills: [],
+      files: [],
+      llmProviders: [],
+      memories: [],
+      tools: [],
+    });
+  }
+
   async getInstanceWorkbench(id: string): Promise<InstanceWorkbenchSnapshot | null> {
-    const detail = await studio.getInstanceDetail(id);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id);
     const managedConfigPath =
-      detail?.instance.runtimeKind === 'openclaw'
-        ? openClawConfigService.resolveInstanceConfigPath(detail)
-        : null;
+      isOpenClawDetail(detail) ? openClawConfigService.resolveInstanceConfigPath(detail) : null;
     const managedConfigSnapshot = managedConfigPath
       ? await openClawConfigService.readConfigSnapshot(managedConfigPath).catch(() => null)
       : null;
 
-    if (detail?.instance.runtimeKind === 'openclaw' && detail.workbench) {
-      this.rememberBackendTaskExecutions(detail);
-      return mapBackendWorkbench(detail, managedConfigSnapshot);
+    if (isOpenClawDetail(detail)) {
+      return this.getOpenClawWorkbench(id, detail, managedConfigSnapshot);
     }
 
     const [
@@ -470,18 +1408,18 @@ class InstanceWorkbenchService {
       memories,
       tools,
     ] = await Promise.all([
-      studioMockService.getInstance(id),
-      studioMockService.getInstanceConfig(id),
-      studioMockService.getInstanceToken(id),
-      studioMockService.getInstanceLogs(id),
-      studioMockService.listChannels(id),
-      studioMockService.listTasks(id),
-      studioMockService.listInstalledSkills(id),
-      studioMockService.listAgents(),
-      studioMockService.listInstanceFiles(id),
-      studioMockService.listInstanceLlmProviders(id),
-      studioMockService.listInstanceMemories(id),
-      studioMockService.listInstanceTools(id),
+      this.dependencies.studioMockService.getInstance(id),
+      this.dependencies.studioMockService.getInstanceConfig(id),
+      this.dependencies.studioMockService.getInstanceToken(id),
+      this.dependencies.studioMockService.getInstanceLogs(id),
+      this.dependencies.studioMockService.listChannels(id),
+      this.dependencies.studioMockService.listTasks(id),
+      this.dependencies.studioMockService.listInstalledSkills(id),
+      this.dependencies.studioMockService.listAgents(),
+      this.dependencies.studioMockService.listInstanceFiles(id),
+      this.dependencies.studioMockService.listInstanceLlmProviders(id),
+      this.dependencies.studioMockService.listInstanceMemories(id),
+      this.dependencies.studioMockService.listInstanceTools(id),
     ]);
 
     if (detail) {
@@ -520,7 +1458,7 @@ class InstanceWorkbenchService {
           : (Object.fromEntries(
               await Promise.all(
                 rawTasks.map(async (task) => {
-                  const executions = await studioMockService.listTaskExecutions(task.id);
+                  const executions = await this.dependencies.studioMockService.listTaskExecutions(task.id);
                   return [task.id, executions] as const;
                 }),
               ),
@@ -654,10 +1592,10 @@ class InstanceWorkbenchService {
 
     if (!instance || !config) {
       const [liveInstance, liveConfig, liveToken, liveLogs] = await Promise.all([
-        instanceService.getInstanceById(id),
-        instanceService.getInstanceConfig(id),
-        instanceService.getInstanceToken(id),
-        instanceService.getInstanceLogs(id),
+        this.dependencies.instanceService.getInstanceById(id),
+        this.dependencies.instanceService.getInstanceConfig(id),
+        this.dependencies.instanceService.getInstanceToken(id),
+        this.dependencies.instanceService.getInstanceLogs(id),
       ]);
 
       if (!liveInstance || !liveConfig) {
@@ -892,7 +1830,7 @@ class InstanceWorkbenchService {
     ) as Record<string, string>;
     const taskExecutions = await Promise.all(
       rawTasks.map(async (task) => {
-        const executions = await studioMockService.listTaskExecutions(task.id);
+        const executions = await this.dependencies.studioMockService.listTaskExecutions(task.id);
         return [task.id, executions] as const;
       }),
     );
@@ -1174,10 +2112,10 @@ class InstanceWorkbenchService {
   async cloneTask(id: string, name?: string): Promise<void> {
     const instanceId = this.openClawTaskInstanceById.get(id);
     if (instanceId) {
-      await studio.cloneInstanceTask(instanceId, id, name);
+      await this.dependencies.studioApi.cloneInstanceTask(instanceId, id, name);
       return;
     }
-    const cloned = await studioMockService.cloneTask(id, name ? { name } : {});
+    const cloned = await this.dependencies.studioMockService.cloneTask(id, name ? { name } : {});
     if (!cloned) {
       throw new Error('Failed to clone task');
     }
@@ -1186,12 +2124,12 @@ class InstanceWorkbenchService {
   async runTaskNow(id: string): Promise<InstanceWorkbenchTaskExecution> {
     const instanceId = this.openClawTaskInstanceById.get(id);
     if (instanceId) {
-      const execution = await studio.runInstanceTaskNow(instanceId, id);
+      const execution = await this.dependencies.studioApi.runInstanceTaskNow(instanceId, id);
       const current = this.backendTaskExecutionsById.get(id) || [];
       this.backendTaskExecutionsById.set(id, [cloneTaskExecution(execution), ...current]);
       return execution;
     }
-    const execution = await studioMockService.runTaskNow(id);
+    const execution = await this.dependencies.studioMockService.runTaskNow(id);
     if (!execution) {
       throw new Error('Failed to run task');
     }
@@ -1201,23 +2139,32 @@ class InstanceWorkbenchService {
   async listTaskExecutions(id: string): Promise<InstanceWorkbenchTaskExecution[]> {
     const instanceId = this.openClawTaskInstanceById.get(id);
     if (instanceId) {
-      const executions = await studio.listInstanceTaskExecutions(instanceId, id);
-      this.backendTaskExecutionsById.set(
-        id,
-        executions.map(cloneTaskExecution),
-      );
-      return executions;
+      try {
+        const executions = await this.dependencies.openClawGatewayClient.listWorkbenchCronRuns(
+          instanceId,
+          id,
+        );
+        this.backendTaskExecutionsById.set(id, executions.map(cloneTaskExecution));
+        return executions;
+      } catch {
+        const executions = await this.dependencies.studioApi.listInstanceTaskExecutions(instanceId, id);
+        this.backendTaskExecutionsById.set(
+          id,
+          executions.map(cloneTaskExecution),
+        );
+        return executions;
+      }
     }
-    return studioMockService.listTaskExecutions(id);
+    return this.dependencies.studioMockService.listTaskExecutions(id);
   }
 
   async updateTaskStatus(id: string, status: 'active' | 'paused'): Promise<void> {
     const instanceId = this.openClawTaskInstanceById.get(id);
     if (instanceId) {
-      await studio.updateInstanceTaskStatus(instanceId, id, status);
+      await this.dependencies.studioApi.updateInstanceTaskStatus(instanceId, id, status);
       return;
     }
-    const updated = await studioMockService.updateTaskStatus(id, status);
+    const updated = await this.dependencies.studioMockService.updateTaskStatus(id, status);
     if (!updated) {
       throw new Error('Failed to update task status');
     }
@@ -1226,7 +2173,7 @@ class InstanceWorkbenchService {
   async deleteTask(id: string): Promise<void> {
     const instanceId = this.openClawTaskInstanceById.get(id);
     if (instanceId) {
-      const deleted = await studio.deleteInstanceTask(instanceId, id);
+      const deleted = await this.dependencies.studioApi.deleteInstanceTask(instanceId, id);
       if (!deleted) {
         throw new Error('Failed to delete task');
       }
@@ -1234,11 +2181,35 @@ class InstanceWorkbenchService {
       this.backendTaskExecutionsById.delete(id);
       return;
     }
-    const deleted = await studioMockService.deleteTask(id);
+    const deleted = await this.dependencies.studioMockService.deleteTask(id);
     if (!deleted) {
       throw new Error('Failed to delete task');
     }
   }
 }
 
-export const instanceWorkbenchService = new InstanceWorkbenchService();
+export function createInstanceWorkbenchService(
+  overrides: InstanceWorkbenchServiceDependencyOverrides = {},
+) {
+  const defaults = createDefaultDependencies();
+  return new InstanceWorkbenchService({
+    studioApi: {
+      ...defaults.studioApi,
+      ...(overrides.studioApi || {}),
+    },
+    studioMockService: {
+      ...defaults.studioMockService,
+      ...(overrides.studioMockService || {}),
+    },
+    instanceService: {
+      ...defaults.instanceService,
+      ...(overrides.instanceService || {}),
+    },
+    openClawGatewayClient: {
+      ...defaults.openClawGatewayClient,
+      ...(overrides.openClawGatewayClient || {}),
+    },
+  });
+}
+
+export const instanceWorkbenchService = createInstanceWorkbenchService();
