@@ -1,11 +1,19 @@
 #![allow(dead_code)]
 
+use crate::framework::services::openclaw_runtime::{
+    ActivatedOpenClawRuntime, OpenClawRuntimeService,
+};
 use crate::framework::{
-    paths::AppPaths,
     kernel::{DesktopSupervisorInfo, DesktopSupervisorServiceInfo},
+    paths::AppPaths,
     FrameworkError, Result,
 };
-use crate::framework::services::openclaw_runtime::ActivatedOpenClawRuntime;
+#[cfg(unix)]
+use std::io;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     collections::{BTreeMap, HashMap},
     env, fs,
@@ -16,12 +24,6 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime},
 };
-#[cfg(unix)]
-use std::io;
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 const DEFAULT_RESTART_WINDOW_MS: u64 = 60_000;
 const DEFAULT_RESTART_BACKOFF_MS: u64 = 5_000;
@@ -273,6 +275,8 @@ impl SupervisorService {
             .lock_openclaw_runtime()?
             .clone()
             .ok_or_else(|| FrameworkError::NotFound("configured openclaw runtime".to_string()))?;
+        let runtime = OpenClawRuntimeService::new().refresh_configured_runtime(paths, &runtime)?;
+        *self.lock_openclaw_runtime()? = Some(runtime.clone());
 
         self.request_restart(SERVICE_ID_OPENCLAW_GATEWAY)?;
 
@@ -479,8 +483,9 @@ impl SupervisorService {
     }
 
     fn stop_service_process(&self, service_id: &str) -> Result<()> {
-        let graceful_shutdown_timeout_ms =
-            self.require_definition(service_id)?.graceful_shutdown_timeout_ms;
+        let graceful_shutdown_timeout_ms = self
+            .require_definition(service_id)?
+            .graceful_shutdown_timeout_ms;
 
         {
             let mut runtime = self.lock_runtime()?;
@@ -730,8 +735,13 @@ mod tests {
         ManagedServiceLifecycle, SupervisorService, SERVICE_ID_API_ROUTER,
         SERVICE_ID_OPENCLAW_GATEWAY, SERVICE_ID_WEB_SERVER,
     };
-    use crate::framework::{paths::resolve_paths_for_root, services::openclaw_runtime::ActivatedOpenClawRuntime};
-    use std::{fs, time::{Duration, UNIX_EPOCH}};
+    use crate::framework::{
+        paths::resolve_paths_for_root, services::openclaw_runtime::ActivatedOpenClawRuntime,
+    };
+    use std::{
+        fs,
+        time::{Duration, UNIX_EPOCH},
+    };
 
     #[test]
     fn supervisor_registers_default_background_services() {
@@ -898,20 +908,53 @@ mod tests {
         assert_eq!(openclaw.pid, None);
     }
 
+    #[test]
+    fn supervisor_start_refreshes_openclaw_runtime_from_managed_config() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime(&paths);
+        let configured_port = 28_789;
+
+        service
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {configured_port}\n  }}\n}}\n"),
+        )
+        .expect("seed updated config");
+
+        service
+            .start_openclaw_gateway(&paths)
+            .expect("start gateway with refreshed port");
+
+        let refreshed = service
+            .configured_openclaw_runtime()
+            .expect("configured runtime")
+            .expect("runtime");
+        assert_eq!(refreshed.gateway_port, configured_port);
+
+        service.begin_shutdown().expect("shutdown");
+    }
+
     #[cfg(windows)]
     fn fake_gateway_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
         let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
         let runtime_dir = install_dir.join("runtime");
-        let node_path = std::path::PathBuf::from("node");
+        let node_path = resolve_test_node_executable();
         let cli_path = runtime_dir.join("package").join("openclaw.mjs");
         let gateway_port = 18_789;
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
+        )
+        .expect("config file");
+        fs::write(
             &cli_path,
-            format!(
-                "import net from 'node:net';\nconst server = net.createServer();\nserver.listen({gateway_port}, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n"
-            ),
+            "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst server = net.createServer();\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
         )
         .expect("cli file");
 
@@ -934,16 +977,19 @@ mod tests {
     fn fake_gateway_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
         let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
         let runtime_dir = install_dir.join("runtime");
-        let node_path = std::path::PathBuf::from("node");
+        let node_path = resolve_test_node_executable();
         let cli_path = runtime_dir.join("package").join("openclaw.mjs");
         let gateway_port = 18_789;
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
+        )
+        .expect("config file");
+        fs::write(
             &cli_path,
-            format!(
-                "import net from 'node:net';\nconst server = net.createServer();\nserver.listen({gateway_port}, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n"
-            ),
+            "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst server = net.createServer();\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
         )
         .expect("cli file");
 
@@ -960,5 +1006,25 @@ mod tests {
             gateway_port,
             gateway_auth_token: "test-token".to_string(),
         }
+    }
+
+    #[cfg(windows)]
+    fn resolve_test_node_executable() -> std::path::PathBuf {
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+            .map(|entry| entry.join("node.exe"))
+            .find(|candidate| candidate.exists())
+            .expect("node.exe should be available on PATH for OpenClaw supervisor tests")
+    }
+
+    #[cfg(not(windows))]
+    fn resolve_test_node_executable() -> std::path::PathBuf {
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+            .map(|entry| entry.join("node"))
+            .find(|candidate| candidate.exists())
+            .expect("node should be available on PATH for OpenClaw supervisor tests")
     }
 }
