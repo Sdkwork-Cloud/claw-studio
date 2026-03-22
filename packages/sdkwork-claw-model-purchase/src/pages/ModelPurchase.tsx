@@ -1,19 +1,39 @@
+import { CheckCircle2 } from 'lucide-react';
 import { startTransition, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@sdkwork/claw-ui';
 import {
   ModelPurchaseBillingSwitch,
+  ModelPurchasePaymentView,
   ModelPurchasePlanGrid,
   ModelPurchaseSidebar,
 } from '../components';
-import type { ModelPurchaseBillingCycleId } from '../services';
+import type { ModelPurchasePaymentMethod } from '../components';
+import type { ModelPurchaseBillingCycleId, ModelPurchasePlan } from '../services';
 import { modelPurchaseCatalogService } from '../services';
+
+interface ModelPurchaseCheckoutSelection {
+  vendorId: string;
+  cycleId: ModelPurchaseBillingCycleId;
+  planId: string;
+}
 
 export function ModelPurchase() {
   const { t, i18n } = useTranslation();
   const [selectedVendorId, setSelectedVendorId] = useState('default');
   const [activeCycle, setActiveCycle] = useState<ModelPurchaseBillingCycleId>('monthly');
+  const [view, setView] = useState<'plans' | 'payment'>('plans');
+  const [checkoutSelection, setCheckoutSelection] = useState<ModelPurchaseCheckoutSelection | null>(
+    null,
+  );
+  const [paymentMethod, setPaymentMethod] = useState<ModelPurchasePaymentMethod>('wechat');
+  const [lastCompletedPurchase, setLastCompletedPurchase] = useState<{
+    vendorName: string;
+    planName: string;
+    cycleLabel: string;
+    priceCny: number;
+  } | null>(null);
   const {
     data: vendors = [],
     isLoading,
@@ -32,6 +52,18 @@ export function ModelPurchase() {
   const selectedCycle = selectedVendor?.billingCycles.find((cycle) => cycle.id === activeCycle) ??
     selectedVendor?.billingCycles[0] ??
     null;
+  const checkoutVendor =
+    checkoutSelection
+      ? vendors.find((vendor) => vendor.id === checkoutSelection.vendorId) ?? null
+      : null;
+  const checkoutCycle =
+    checkoutVendor && checkoutSelection
+      ? checkoutVendor.billingCycles.find((cycle) => cycle.id === checkoutSelection.cycleId) ?? null
+      : null;
+  const checkoutPlan =
+    checkoutCycle && checkoutSelection
+      ? checkoutCycle.plans.find((plan) => plan.id === checkoutSelection.planId) ?? null
+      : null;
 
   const vendorGroups = useMemo(
     () =>
@@ -107,44 +139,139 @@ export function ModelPurchase() {
     );
   }
 
+  const handleStartPlan = (plan: ModelPurchasePlan) => {
+    startTransition(() => {
+      setCheckoutSelection({
+        vendorId: selectedVendor.id,
+        cycleId: selectedCycle.id,
+        planId: plan.id,
+      });
+      setPaymentMethod('wechat');
+      setView('payment');
+    });
+  };
+
+  const handleBackToPlans = () => {
+    startTransition(() => {
+      setView('plans');
+    });
+  };
+
+  const handleConfirmPayment = () => {
+    if (!checkoutVendor || !checkoutCycle || !checkoutPlan) {
+      return;
+    }
+
+    startTransition(() => {
+      setLastCompletedPurchase({
+        vendorName: checkoutVendor.name,
+        planName: checkoutPlan.name,
+        cycleLabel: checkoutCycle.label,
+        priceCny: checkoutPlan.priceCny,
+      });
+      setView('plans');
+    });
+  };
+
+  const paymentViewModel =
+    view === 'payment' && checkoutVendor && checkoutCycle && checkoutPlan
+      ? {
+          vendor: checkoutVendor,
+          cycle: checkoutCycle,
+          plan: checkoutPlan,
+        }
+      : null;
+  const priceFormatter = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language);
+
   return (
     <div
       data-slot="model-purchase-page"
       className="h-full min-h-0 px-4 py-4 sm:px-4 sm:py-5 xl:overflow-hidden"
     >
-      <div className="flex h-full min-h-0 flex-col gap-4 xl:flex-row xl:items-stretch">
-        <ModelPurchaseSidebar
-          groups={vendorGroups}
-          selectedVendorId={selectedVendorId}
-          onSelect={(vendorId) =>
-            startTransition(() => {
-              setSelectedVendorId(vendorId);
-            })
-          }
-        />
-
-        <section
-          data-slot="model-purchase-main-panel"
-          className="min-w-0 flex-1 rounded-[32px] border border-zinc-200/80 bg-white/86 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/58 xl:min-h-0"
-        >
-          <div className="flex h-full min-h-0 flex-col gap-3 p-4 sm:p-5">
-            <div className="shrink-0">
-              <ModelPurchaseBillingSwitch
-                vendor={selectedVendor}
-                cycles={selectedVendor.billingCycles}
-                activeCycle={activeCycle}
-                onChange={(cycle) =>
-                  startTransition(() => {
-                    setActiveCycle(cycle);
-                  })
-                }
-              />
-            </div>
-            <div className="flex-1 xl:min-h-0">
-              <ModelPurchasePlanGrid vendor={selectedVendor} cycle={selectedCycle} />
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        {lastCompletedPurchase ? (
+          <div className="rounded-[28px] border border-emerald-200/80 bg-emerald-50/85 px-5 py-4 text-sm text-emerald-700 shadow-[0_18px_48px_rgba(16,185,129,0.12)] dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+            <div className="flex flex-wrap items-start gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/90 text-emerald-600 dark:bg-zinc-950/80 dark:text-emerald-300">
+                <CheckCircle2 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold">
+                  {t('modelPurchase.payment.successBanner', {
+                    vendor: lastCompletedPurchase.vendorName,
+                    plan: lastCompletedPurchase.planName,
+                    cycle: lastCompletedPurchase.cycleLabel,
+                  })}
+                </div>
+                <div className="mt-1 text-emerald-700/80 dark:text-emerald-300/80">
+                  {t('modelPurchase.payment.successDescription', {
+                    price: `${t('modelPurchase.currency.cny')} ${priceFormatter.format(lastCompletedPurchase.priceCny)}`,
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        </section>
+        ) : null}
+
+        {paymentViewModel ? (
+          <section
+            data-slot="model-purchase-main-panel"
+            className="min-h-0 flex-1 rounded-[32px] border border-zinc-200/80 bg-white/86 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/58 sm:p-5"
+          >
+            <ModelPurchasePaymentView
+              vendor={paymentViewModel.vendor}
+              cycle={paymentViewModel.cycle}
+              plan={paymentViewModel.plan}
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={(method) =>
+                startTransition(() => {
+                  setPaymentMethod(method);
+                })
+              }
+              onBack={handleBackToPlans}
+              onConfirmPayment={handleConfirmPayment}
+            />
+          </section>
+        ) : (
+          <div className="flex h-full min-h-0 flex-col gap-4 xl:flex-row xl:items-stretch">
+            <ModelPurchaseSidebar
+              groups={vendorGroups}
+              selectedVendorId={selectedVendorId}
+              onSelect={(vendorId) =>
+                startTransition(() => {
+                  setSelectedVendorId(vendorId);
+                })
+              }
+            />
+
+            <section
+              data-slot="model-purchase-main-panel"
+              className="min-w-0 flex-1 rounded-[32px] border border-zinc-200/80 bg-white/86 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/58 xl:min-h-0"
+            >
+              <div className="flex h-full min-h-0 flex-col gap-3 p-4 sm:p-5">
+                <div className="shrink-0">
+                  <ModelPurchaseBillingSwitch
+                    vendor={selectedVendor}
+                    cycles={selectedVendor.billingCycles}
+                    activeCycle={activeCycle}
+                    onChange={(cycle) =>
+                      startTransition(() => {
+                        setActiveCycle(cycle);
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex-1 xl:min-h-0">
+                  <ModelPurchasePlanGrid
+                    vendor={selectedVendor}
+                    cycle={selectedCycle}
+                    onPurchasePlan={handleStartPlan}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );

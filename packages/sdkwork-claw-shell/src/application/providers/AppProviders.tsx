@@ -2,11 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import {
-  useAppStore,
-  useUpdateStore,
-  type LanguagePreference,
-} from '@sdkwork/claw-core';
+import { useAppStore, type LanguagePreference } from '@sdkwork/claw-core';
 import { ensureI18n } from '@sdkwork/claw-i18n';
 import { LanguageManager } from './LanguageManager';
 import { ThemeManager } from './ThemeManager';
@@ -32,7 +28,6 @@ export function AppProviders({
 }: AppProvidersProps) {
   const themeMode = useAppStore((state) => state.themeMode);
   const startupCheckStartedRef = useRef(false);
-  const runStartupCheck = useUpdateStore((state) => state.runStartupCheck);
 
   useEffect(() => {
     void ensureI18n();
@@ -41,9 +36,61 @@ export function AppProviders({
   useEffect(() => {
     if (!startupCheckStartedRef.current) {
       startupCheckStartedRef.current = true;
-      void runStartupCheck();
     }
-  }, [runStartupCheck]);
+
+    let cancelled = false;
+    let idleCallbackId: number | null = null;
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+    const runDeferredStartupCheck = async () => {
+      try {
+        const { apiRouterStartupService, useUpdateStore } = await import('@sdkwork/claw-core');
+        if (cancelled) {
+          return;
+        }
+
+        const [routerWarmupResult, updateCheckResult] = await Promise.allSettled([
+          apiRouterStartupService.warmBootstrapSession(),
+          useUpdateStore.getState().runStartupCheck(),
+        ]);
+
+        if (routerWarmupResult.status === 'rejected') {
+          console.warn('Failed to warm sdkwork-api-router bootstrap session:', routerWarmupResult.reason);
+        }
+
+        if (updateCheckResult.status === 'rejected') {
+          throw updateCheckResult.reason;
+        }
+      } catch (error) {
+        console.error('Failed to run deferred startup update check:', error);
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleCallbackId = window.requestIdleCallback(
+        () => {
+          void runDeferredStartupCheck();
+        },
+        { timeout: 1500 },
+      );
+    } else {
+      timeoutId = globalThis.setTimeout(() => {
+        void runDeferredStartupCheck();
+      }, 250);
+    }
+
+    return () => {
+      cancelled = true;
+
+      if (idleCallbackId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleCallbackId);
+      }
+
+      if (timeoutId !== null) {
+        globalThis.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

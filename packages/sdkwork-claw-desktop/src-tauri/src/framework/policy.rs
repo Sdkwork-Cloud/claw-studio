@@ -1,5 +1,8 @@
 use crate::framework::{config::SecurityConfig, paths::AppPaths, FrameworkError, Result};
+use hub_installer_rs::{read_install_record, InstallRecord};
+use serde_json::Value;
 use std::{
+    env,
     ffi::OsString,
     fs,
     path::{Component, Path, PathBuf},
@@ -75,6 +78,10 @@ impl ExecutionPolicy {
     }
 }
 
+pub fn managed_path_roots_snapshot(paths: &AppPaths) -> Vec<PathBuf> {
+    managed_path_roots(paths)
+}
+
 pub fn resolve_managed_path(paths: &AppPaths, candidate: &Path) -> Result<PathBuf> {
     let raw = if candidate.as_os_str().is_empty() {
         paths.data_dir.clone()
@@ -85,10 +92,8 @@ pub fn resolve_managed_path(paths: &AppPaths, candidate: &Path) -> Result<PathBu
     };
 
     let normalized = normalize_path(&raw);
-    let allowed = paths
-        .managed_roots()
+    let allowed = managed_path_roots(paths)
         .into_iter()
-        .map(|root| normalize_path(&root))
         .any(|root| normalized.starts_with(&root));
 
     if allowed {
@@ -111,10 +116,8 @@ pub fn ensure_parent_directory(path: &Path) -> Result<()> {
 
 pub fn ensure_not_managed_root(paths: &AppPaths, candidate: &Path) -> Result<()> {
     let normalized = normalize_path(candidate);
-    let is_root = paths
-        .managed_roots()
+    let is_root = managed_path_roots(paths)
         .into_iter()
-        .map(|root| normalize_path(&root))
         .any(|root| normalized == root);
 
     if is_root {
@@ -177,6 +180,246 @@ fn allowed_spawn_commands() -> &'static [&'static str] {
     }
 }
 
+fn managed_path_roots(paths: &AppPaths) -> Vec<PathBuf> {
+    let mut roots = paths
+        .managed_roots()
+        .into_iter()
+        .map(|root| normalize_path(&root))
+        .collect::<Vec<_>>();
+
+    for root in discover_registered_openclaw_roots(paths) {
+        let normalized = normalize_path(&root);
+        if !roots.iter().any(|existing| existing == &normalized) {
+            roots.push(normalized);
+        }
+    }
+
+    roots
+}
+
+fn discover_registered_openclaw_roots(paths: &AppPaths) -> Vec<PathBuf> {
+    let installer_home = paths.user_root.join("hub-installer");
+    let Some(record) = read_installed_openclaw_install_record(&installer_home) else {
+        return Vec::new();
+    };
+    let Some(config_path) = discover_registered_openclaw_config_path(paths, &installer_home, &record)
+    else {
+        return Vec::new();
+    };
+
+    let mut roots = Vec::new();
+    push_unique_path(
+        &mut roots,
+        normalize_path(&resolve_openclaw_state_root(&config_path)),
+    );
+
+    for root in discover_explicit_openclaw_config_roots(&config_path) {
+        push_unique_path(&mut roots, normalize_path(&root));
+    }
+
+    roots
+}
+
+fn read_installed_openclaw_install_record(installer_home: &Path) -> Option<InstallRecord> {
+    read_install_record(installer_home.to_string_lossy().as_ref(), "openclaw")
+        .ok()
+        .flatten()
+        .filter(|record| matches!(record.status, hub_installer_rs::InstallRecordStatus::Installed))
+}
+
+fn discover_registered_openclaw_config_path(
+    paths: &AppPaths,
+    installer_home: &Path,
+    record: &InstallRecord,
+) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+
+    match record.manifest_name.as_str() {
+        "openclaw-wsl" | "openclaw-podman" => {}
+        "openclaw-docker" => {
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join("config")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root).join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+        }
+        _ => {
+            for root in openclaw_home_root_candidates(paths, installer_home) {
+                push_unique_path(
+                    &mut candidates,
+                    root.join(".openclaw").join("openclaw.json"),
+                );
+            }
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.work_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.install_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join("config")
+                    .join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root).join("openclaw.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                PathBuf::from(&record.data_root)
+                    .join(".openclaw")
+                    .join("openclaw.json"),
+            );
+        }
+    }
+
+    candidates.into_iter().find(|path| path.is_file())
+}
+
+fn openclaw_home_root_candidates(paths: &AppPaths, installer_home: &Path) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    push_unique_path(&mut candidates, paths.user_root.clone());
+
+    if let Some(home) = env::var_os("USERPROFILE")
+        .or_else(|| env::var_os("HOME"))
+        .map(PathBuf::from)
+    {
+        push_unique_path(&mut candidates, home);
+    }
+
+    let mut current = installer_home.parent();
+    while let Some(path) = current {
+        push_unique_path(&mut candidates, path.to_path_buf());
+        current = path.parent();
+    }
+
+    candidates
+}
+
+fn resolve_openclaw_state_root(config_path: &Path) -> PathBuf {
+    let Some(parent) = config_path.parent() else {
+        return config_path.to_path_buf();
+    };
+
+    if parent
+        .file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(|value| value.eq_ignore_ascii_case("config"))
+    {
+        return parent.parent().unwrap_or(parent).to_path_buf();
+    }
+
+    parent.to_path_buf()
+}
+
+fn resolve_openclaw_user_root(config_path: &Path) -> PathBuf {
+    let state_root = resolve_openclaw_state_root(config_path);
+    state_root.parent().unwrap_or(&state_root).to_path_buf()
+}
+
+fn discover_explicit_openclaw_config_roots(config_path: &Path) -> Vec<PathBuf> {
+    let content = match fs::read_to_string(config_path) {
+        Ok(content) => content,
+        Err(_) => return Vec::new(),
+    };
+    let root = match json5::from_str::<Value>(&content) {
+        Ok(root) => root,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut resolved_roots = Vec::new();
+
+    if let Some(workspace) = read_json_path_string(&root, &["agents", "defaults", "workspace"]) {
+        if let Some(path) = resolve_explicit_openclaw_path(config_path, workspace) {
+            push_unique_path(&mut resolved_roots, path);
+        }
+    }
+
+    for entry in root
+        .get("agents")
+        .and_then(|value| value.get("list"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if let Some(workspace) =
+            entry.get("workspace").and_then(Value::as_str).map(str::trim)
+        {
+            if let Some(path) = resolve_explicit_openclaw_path(config_path, workspace) {
+                push_unique_path(&mut resolved_roots, path);
+            }
+        }
+
+        if let Some(agent_dir) = entry.get("agentDir").and_then(Value::as_str).map(str::trim) {
+            if let Some(path) = resolve_explicit_openclaw_path(config_path, agent_dir) {
+                if let Some(parent) = path.parent() {
+                    push_unique_path(&mut resolved_roots, parent.to_path_buf());
+                } else {
+                    push_unique_path(&mut resolved_roots, path);
+                }
+            }
+        }
+    }
+
+    resolved_roots
+}
+
+fn read_json_path_string<'a>(value: &'a Value, segments: &[&str]) -> Option<&'a str> {
+    let mut current = value;
+    for segment in segments {
+        current = current.get(*segment)?;
+    }
+
+    current.as_str().map(str::trim).filter(|value| !value.is_empty())
+}
+
+fn resolve_explicit_openclaw_path(config_path: &Path, raw_path: &str) -> Option<PathBuf> {
+    let trimmed = raw_path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if trimmed == "~" {
+        return Some(normalize_path(&resolve_openclaw_user_root(config_path)));
+    }
+
+    if let Some(stripped) = trimmed.strip_prefix("~/") {
+        return Some(normalize_path(&resolve_openclaw_user_root(config_path).join(stripped)));
+    }
+
+    let path = PathBuf::from(trimmed);
+    if path.is_absolute() {
+        return Some(normalize_path(&path));
+    }
+
+    None
+}
+
+fn push_unique_path(target: &mut Vec<PathBuf>, value: PathBuf) {
+    if !target.iter().any(|existing| existing == &value) {
+        target.push(value);
+    }
+}
+
 fn canonicalize_directory(path: &Path) -> Result<PathBuf> {
     let metadata = fs::metadata(path).map_err(|_| {
         FrameworkError::NotFound(format!("working directory not found: {}", path.display()))
@@ -234,6 +477,10 @@ mod tests {
         ensure_not_managed_root, resolve_managed_path, validate_command_spawn, ExecutionPolicy,
     };
     use crate::framework::{config::SecurityConfig, paths::resolve_paths_for_root};
+    use hub_installer_rs::{
+        types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
+        write_install_record, InstallRecord, InstallRecordStatus,
+    };
     use std::ffi::OsString;
 
     #[test]
@@ -258,6 +505,90 @@ mod tests {
         assert!(error
             .to_string()
             .contains("outside managed runtime directories"));
+    }
+
+    #[test]
+    fn allows_config_backed_local_external_openclaw_paths() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let install_root = root.path().join("external-install");
+        let work_root = root.path().join("external-work");
+        let data_root = root.path().join("external-data");
+        let config_path = data_root.join("config").join("openclaw.json");
+        let workspace_file = root
+            .path()
+            .join("agent-market")
+            .join("workspace")
+            .join("orchestrator")
+            .join("AGENTS.md");
+        let workspace_root = workspace_file
+            .parent()
+            .and_then(|path| path.parent())
+            .expect("workspace root")
+            .to_path_buf();
+        let installer_home = paths.user_root.join("hub-installer");
+
+        std::fs::create_dir_all(&install_root).expect("create install root");
+        std::fs::create_dir_all(&work_root).expect("create work root");
+        std::fs::create_dir_all(&data_root).expect("create data root");
+        std::fs::create_dir_all(config_path.parent().expect("config parent"))
+            .expect("create config parent");
+        std::fs::write(
+            &config_path,
+            format!(
+                r#"{{
+  agents: {{
+    defaults: {{
+      workspace: "{}",
+    }},
+  }},
+}}
+"#,
+                workspace_root.to_string_lossy().replace('\\', "\\\\")
+            ),
+        )
+        .expect("write external config");
+
+        let record = InstallRecord {
+            schema_version: "1.0".to_string(),
+            software_name: "openclaw".to_string(),
+            manifest_name: "openclaw-docker".to_string(),
+            manifest_path: "./manifests/openclaw-docker.hub.yaml".to_string(),
+            manifest_source_input: "bundled-registry".to_string(),
+            manifest_source_kind: "registry".to_string(),
+            platform: SupportedPlatform::Windows,
+            effective_runtime_platform: EffectiveRuntimePlatform::Windows,
+            installer_home: installer_home.to_string_lossy().into_owned(),
+            install_scope: InstallScope::User,
+            install_root: install_root.to_string_lossy().into_owned(),
+            work_root: work_root.to_string_lossy().into_owned(),
+            bin_dir: install_root.join("bin").to_string_lossy().into_owned(),
+            data_root: data_root.to_string_lossy().into_owned(),
+            install_control_level: InstallControlLevel::Partial,
+            status: InstallRecordStatus::Installed,
+            installed_at: Some("2026-03-21T00:00:00Z".to_string()),
+            updated_at: "2026-03-21T00:00:00Z".to_string(),
+        };
+
+        write_install_record(
+            installer_home.to_string_lossy().as_ref(),
+            "openclaw",
+            &record,
+        )
+        .expect("write install record");
+
+        let managed_roots = super::managed_path_roots_snapshot(&paths);
+
+        let resolved_config = resolve_managed_path(&paths, &config_path).unwrap_or_else(|error| {
+            panic!("resolve config-backed path: {error}; managed_roots={managed_roots:?}");
+        });
+        let resolved_workspace =
+            resolve_managed_path(&paths, &workspace_file).unwrap_or_else(|error| {
+                panic!("resolve workspace path: {error}; managed_roots={managed_roots:?}");
+            });
+
+        assert_eq!(resolved_config, config_path);
+        assert_eq!(resolved_workspace, workspace_file);
     }
 
     #[test]

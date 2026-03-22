@@ -17,6 +17,8 @@ import type {
   HubInstallResult,
   HubUninstallRequest,
   HubUninstallResult,
+  PlatformCapturedScreenshot,
+  PlatformFetchedRemoteUrl,
   PlatformFileEntry,
   PlatformPathInfo,
   PlatformSaveFileOptions,
@@ -70,6 +72,14 @@ export interface DesktopAppConfig extends RuntimeConfigInfo {}
 export interface DesktopSystemInfo extends RuntimeSystemInfo {}
 export interface DesktopFileEntry extends PlatformFileEntry {}
 export interface DesktopPathInfo extends PlatformPathInfo {}
+interface DesktopCapturedScreenshotPayload
+  extends Omit<PlatformCapturedScreenshot, 'bytes'> {
+  bytes: number[];
+}
+interface DesktopFetchedRemoteUrlPayload
+  extends Omit<PlatformFetchedRemoteUrl, 'bytes'> {
+  bytes: number[];
+}
 export interface DesktopJobUpdateEvent extends RuntimeJobUpdateEvent {}
 export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
 export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo {}
@@ -784,6 +794,52 @@ export async function openExternal(url: string): Promise<void> {
   );
 }
 
+export function supportsNativeScreenshot(): boolean {
+  return isTauriRuntime();
+}
+
+export async function captureScreenshot(): Promise<PlatformCapturedScreenshot | null> {
+  return runDesktopOrFallback(
+    'shell.captureScreenshot',
+    async () => {
+      const payload = await invokeDesktopCommand<DesktopCapturedScreenshotPayload>(
+        DESKTOP_COMMANDS.captureScreenshot,
+        undefined,
+        {
+          operation: 'shell.captureScreenshot',
+        },
+      );
+
+      return {
+        ...payload,
+        bytes: Uint8Array.from(payload.bytes ?? []),
+      };
+    },
+    async () => null,
+  );
+}
+
+export async function fetchRemoteUrl(url: string): Promise<PlatformFetchedRemoteUrl> {
+  return runDesktopOrFallback(
+    'shell.fetchRemoteUrl',
+    async () => {
+      const payload = await invokeDesktopCommand<DesktopFetchedRemoteUrlPayload>(
+        DESKTOP_COMMANDS.fetchRemoteUrl,
+        { url },
+        {
+          operation: 'shell.fetchRemoteUrl',
+        },
+      );
+
+      return {
+        ...payload,
+        bytes: Uint8Array.from(payload.bytes ?? []),
+      };
+    },
+    () => webPlatform.fetchRemoteUrl(url),
+  );
+}
+
 export async function selectFiles(
   options?: PlatformSelectFileOptions,
 ): Promise<string[]> {
@@ -1119,6 +1175,9 @@ export const desktopTemplateApi = {
   },
   shell: {
     openExternal,
+    fetchRemoteUrl,
+    captureScreenshot,
+    supportsNativeScreenshot,
     selectFiles,
     saveFile,
     minimizeWindow,
@@ -1156,6 +1215,9 @@ export function configureDesktopPlatformBridge() {
       getStorage: (key) => webPlatform.getStorage(key),
       copy: (text) => webPlatform.copy(text),
       openExternal: (url) => openExternal(url),
+      supportsNativeScreenshot: () => supportsNativeScreenshot(),
+      captureScreenshot: () => captureScreenshot(),
+      fetchRemoteUrl: (url) => fetchRemoteUrl(url),
       selectFile: (options) => selectFiles(options),
       saveFile: (data, filename, options) => saveFile(data, filename, options),
       minimizeWindow: () => minimizeWindow(),

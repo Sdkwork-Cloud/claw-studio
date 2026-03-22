@@ -22,25 +22,65 @@ import { type Agent, type Skill } from '@sdkwork/claw-types';
 import { ChatInput } from '../components/ChatInput';
 import { ChatMessage } from '../components/ChatMessage';
 import { ChatSidebar } from '../components/ChatSidebar';
-import { agentService, chatService } from '../services';
+import {
+  agentService,
+  composeOutgoingChatText,
+  chatService,
+  instanceEffectiveModelCatalogService,
+  resolveChatBootstrapAction,
+} from '../services';
+import type { ChatComposerSubmitPayload } from '../types/index.ts';
 import { useChatStore } from '../store/useChatStore';
 
 const EMPTY_SKILLS: Skill[] = [];
 const EMPTY_AGENTS: Agent[] = [];
 
+function getScopeKey(instanceId: string | null | undefined) {
+  return instanceId ?? '__direct__';
+}
+
+function createFallbackGatewayChannel(modelId: string) {
+  const [providerId, rawModelId] = modelId.includes('/')
+    ? modelId.split('/', 2)
+    : ['openclaw', modelId];
+  const label = rawModelId || modelId;
+
+  return {
+    id: providerId || 'openclaw',
+    name: providerId ? providerId.charAt(0).toUpperCase() + providerId.slice(1) : 'OpenClaw',
+    provider: providerId || 'openclaw',
+    baseUrl: '',
+    apiKey: '',
+    icon: 'AI',
+    defaultModelId: modelId,
+    models: [
+      {
+        id: modelId,
+        name: label,
+      },
+    ],
+  };
+}
+
 export function Chat() {
   const { activeInstanceId } = useInstanceStore();
   const {
     sessions,
-    activeSessionId,
-    syncState,
+    activeSessionIdByInstance,
+    syncStateByInstance,
+    lastErrorByInstance,
+    instanceRouteModeById,
     hydrateInstance,
     createSession,
     addMessage,
     updateMessage,
     flushSession,
+    setActiveSession,
+    sendGatewayMessage,
+    abortSession,
+    setGatewaySessionModel,
   } = useChatStore();
-  const { channels, setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
+  const { setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
   const { t } = useTranslation();
   const appName = t('common.productName');
   const suggestions = [
@@ -77,19 +117,72 @@ export function Chat() {
   const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
   const activeChannelId = instanceConfig?.activeChannelId || '';
   const activeModelId = instanceConfig?.activeModelId || '';
+  const scopeKey = getScopeKey(activeInstanceId);
+  const activeSessionId = activeSessionIdByInstance[scopeKey] ?? null;
+  const syncState = syncStateByInstance[scopeKey] ?? 'idle';
+  const lastError = lastErrorByInstance[scopeKey];
+  const routeMode = activeInstanceId ? instanceRouteModeById[activeInstanceId] : 'directLlm';
+  const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';
 
   const instanceSessions = sessions.filter(
     (session) =>
       session.instanceId === activeInstanceId || (!session.instanceId && !activeInstanceId),
   );
   const activeSession = instanceSessions.find((session) => session.id === activeSessionId);
-  const activeMessages = Array.isArray(activeSession?.messages) ? activeSession.messages : [];
+  const sessionSelectedModelId =
+    isOpenClawGateway && activeSession
+      ? activeSession.model || activeSession.defaultModel || null
+      : null;
 
-  const activeChannel = channels.find((channel) => channel.id === activeChannelId) || channels[0];
+  const {
+    data: modelCatalog,
+    error: modelCatalogError,
+  } = useQuery({
+    queryKey: ['chat', 'instance-model-catalog', activeInstanceId],
+    enabled: Boolean(activeInstanceId),
+    staleTime: 10_000,
+    queryFn: async () => {
+      if (!activeInstanceId) {
+        return { channels: [] };
+      }
+
+      return instanceEffectiveModelCatalogService.getCatalog(activeInstanceId);
+    },
+  });
+
+  const catalogChannels = modelCatalog?.channels ?? [];
+  const channels = useMemo(() => {
+    if (catalogChannels.length > 0) {
+      return catalogChannels;
+    }
+
+    if (sessionSelectedModelId) {
+      return [createFallbackGatewayChannel(sessionSelectedModelId)];
+    }
+
+    return [];
+  }, [catalogChannels, sessionSelectedModelId]);
+  const activeMessages = Array.isArray(activeSession?.messages) ? activeSession.messages : [];
+  const gatewayStreaming = isOpenClawGateway ? Boolean(activeSession?.runId) : false;
+  const isBusy = isTyping || gatewayStreaming;
+
+  const preferredModelId = sessionSelectedModelId || activeModelId || '';
+  const channelFromPreferredModel = preferredModelId
+    ? channels.find((channel) => channel.models.some((model) => model.id === preferredModelId))
+    : undefined;
+  const activeChannel = channelFromPreferredModel || channels.find((channel) => channel.id === activeChannelId) || channels[0];
   const activeModel =
-    activeChannel?.models.find((model) => model.id === activeModelId) || activeChannel?.models[0];
+    (preferredModelId
+      ? activeChannel?.models.find((model) => model.id === preferredModelId) ||
+        channels.flatMap((channel) => channel.models).find((model) => model.id === preferredModelId)
+      : undefined) ||
+    activeChannel?.models.find((model) => model.id === activeModelId) ||
+    activeChannel?.models[0];
   const activeSkill = skills.find((skill) => skill.id === selectedSkillId);
   const activeAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const effectiveLastError =
+    lastError ||
+    (modelCatalogError instanceof Error ? modelCatalogError.message : undefined);
 
   const filteredSkills = useMemo(() => {
     if (!skillSearchQuery) {
@@ -118,43 +211,74 @@ export function Chat() {
   }, [agents, agentSearchQuery]);
 
   useEffect(() => {
+    if (isOpenClawGateway) {
+      chatRef.current = null;
+      return;
+    }
+
     if (activeChannel?.provider === 'google' && activeModel) {
       chatRef.current = chatService.createChatSession(activeModel.id, activeSkill, activeAgent);
       return;
     }
 
     chatRef.current = null;
-  }, [activeAgent, activeChannel, activeModel, activeSkill]);
+  }, [activeAgent, activeChannel, activeModel, activeSkill, isOpenClawGateway]);
 
   useEffect(() => {
     void hydrateInstance(activeInstanceId);
   }, [activeInstanceId, hydrateInstance]);
 
   useEffect(() => {
-    if (!activeInstanceId) {
+    if (!activeInstanceId || channels.length === 0 || sessionSelectedModelId) {
       return;
     }
 
-    if (syncState === 'loading') {
+    const nextChannelId = activeChannel?.id || channels[0]?.id;
+    const nextModelId =
+      activeModel?.id ||
+      activeChannel?.defaultModelId ||
+      activeChannel?.models[0]?.id;
+
+    if (nextChannelId && nextChannelId !== activeChannelId) {
+      setActiveChannel(activeInstanceId, nextChannelId);
+    }
+    if (nextModelId && nextModelId !== activeModelId) {
+      setActiveModel(activeInstanceId, nextModelId);
+    }
+  }, [
+    activeChannel?.defaultModelId,
+    activeChannel?.id,
+    activeChannel?.models,
+    activeChannelId,
+    activeInstanceId,
+    activeModel?.id,
+    activeModelId,
+    channels,
+    sessionSelectedModelId,
+    setActiveChannel,
+    setActiveModel,
+  ]);
+
+  useEffect(() => {
+    const bootstrapAction = resolveChatBootstrapAction({
+      activeInstanceId,
+      routeMode,
+      syncState,
+      hasActiveModel: Boolean(activeModel),
+      activeSessionId,
+      sessionIds: instanceSessions.map((session) => session.id),
+    });
+
+    if (bootstrapAction.type === 'create' && activeModel) {
+      void createSession(
+        isOpenClawGateway ? activeModel.id : activeModel.name,
+        activeInstanceId ?? undefined,
+      );
       return;
     }
 
-    if (!activeSessionId && instanceSessions.length === 0 && activeModel) {
-      createSession(activeModel.name, activeInstanceId);
-      return;
-    }
-
-    if (!activeSessionId && instanceSessions.length > 0) {
-      useChatStore.getState().setActiveSession(instanceSessions[0].id);
-      return;
-    }
-
-    if (activeSessionId && !instanceSessions.find((session) => session.id === activeSessionId)) {
-      if (instanceSessions.length > 0) {
-        useChatStore.getState().setActiveSession(instanceSessions[0].id);
-      } else if (activeModel) {
-        createSession(activeModel.name, activeInstanceId);
-      }
+    if (bootstrapAction.type === 'select') {
+      void setActiveSession(bootstrapAction.sessionId, activeInstanceId ?? undefined);
     }
   }, [
     activeInstanceId,
@@ -162,12 +286,14 @@ export function Chat() {
     activeSessionId,
     createSession,
     instanceSessions,
+    routeMode,
+    setActiveSession,
     syncState,
   ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeMessages, isTyping]);
+  }, [activeMessages, isBusy]);
 
   const handleChannelChange = (channelId: string) => {
     if (!activeInstanceId) {
@@ -182,7 +308,18 @@ export function Chat() {
     setActiveChannel(activeInstanceId, channelId);
 
     if (nextChannel.models.length > 0) {
-      setActiveModel(activeInstanceId, nextChannel.defaultModelId || nextChannel.models[0].id);
+      const nextModelId = nextChannel.defaultModelId || nextChannel.models[0].id;
+      setActiveModel(activeInstanceId, nextModelId);
+
+      if (isOpenClawGateway && activeSession) {
+        void setGatewaySessionModel({
+          instanceId: activeInstanceId,
+          sessionId: activeSession.id,
+          model: nextModelId,
+        }).catch((error) => {
+          console.error('Failed to switch OpenClaw session model:', error);
+        });
+      }
     }
   };
 
@@ -196,23 +333,72 @@ export function Chat() {
     }
 
     setActiveModel(activeInstanceId, modelId);
+
+    if (isOpenClawGateway && activeSession) {
+      void setGatewaySessionModel({
+        instanceId: activeInstanceId,
+        sessionId: activeSession.id,
+        model: modelId,
+      }).catch((error) => {
+        console.error('Failed to update OpenClaw session model:', error);
+      });
+    }
   };
 
-  const handleSend = async (content: string) => {
-    if (!activeSessionId || !activeModel || !activeChannel || isTyping) {
+  const handleSend = async ({ text, attachments }: ChatComposerSubmitPayload) => {
+    const content = text.trim();
+    const normalizedAttachments = attachments.map((attachment) => ({ ...attachment }));
+    const requestText = composeOutgoingChatText(content, normalizedAttachments);
+
+    if (!activeModel || !activeChannel || isBusy || (activeInstanceId && !routeMode)) {
       return;
     }
 
-    const sessionId = activeSessionId;
+    if (!content && normalizedAttachments.length === 0) {
+      return;
+    }
+
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      sessionId = await createSession(
+        isOpenClawGateway ? activeModel.id : activeModel.name,
+        activeInstanceId ?? undefined,
+      );
+    }
+
+    if (!sessionId) {
+      return;
+    }
+
     const requestModel = activeModel;
     const requestChannel = activeChannel;
     const requestSkill = activeSkill;
     const requestAgent = activeAgent;
     const requestChatSession = chatRef.current;
 
+    if (isOpenClawGateway && activeInstanceId) {
+      setIsTyping(true);
+      try {
+        await sendGatewayMessage({
+          instanceId: activeInstanceId,
+          sessionId,
+          content,
+          model: requestModel.id,
+          attachments: normalizedAttachments,
+          requestText,
+        });
+      } catch (error) {
+        console.error('OpenClaw gateway chat error:', error);
+      } finally {
+        setIsTyping(false);
+      }
+      return;
+    }
+
     addMessage(sessionId, {
       role: 'user',
       content,
+      attachments: normalizedAttachments,
     });
 
     setIsTyping(true);
@@ -228,7 +414,7 @@ export function Chat() {
       let fullContent = '';
       const stream = chatService.sendMessageStream(
         requestChatSession,
-        content,
+        requestText,
         {
           id: requestModel.id,
           name: requestModel.name,
@@ -285,6 +471,14 @@ export function Chat() {
   };
 
   const handleStop = () => {
+    if (isOpenClawGateway && activeInstanceId && activeSessionId) {
+      void abortSession({
+        instanceId: activeInstanceId,
+        sessionId: activeSessionId,
+      });
+      return;
+    }
+
     abortControllerRef.current?.abort();
   };
 
@@ -508,13 +702,19 @@ export function Chat() {
 
           <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
             <button
-              onClick={() => navigate('/settings/llm')}
+              onClick={() => navigate('/api-router')}
               className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
             >
               <Settings2 className="h-5 w-5" />
             </button>
           </div>
         </header>
+
+        {effectiveLastError ? (
+          <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+            {effectiveLastError}
+          </div>
+        ) : null}
 
         <div className="relative flex flex-1 flex-col overflow-y-auto scrollbar-hide scroll-smooth">
           {activeMessages.length === 0 ? (
@@ -564,7 +764,12 @@ export function Chat() {
                     {suggestions.map((suggestion, index) => (
                       <button
                         key={suggestion}
-                        onClick={() => handleSend(suggestion)}
+                        onClick={() =>
+                          handleSend({
+                            text: suggestion,
+                            attachments: [],
+                          })
+                        }
                         className="group relative flex min-h-[8.5rem] flex-col justify-between overflow-hidden rounded-[1.75rem] border border-zinc-200/80 bg-white p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-primary-500/50 hover:shadow-lg hover:shadow-primary-500/5 dark:border-zinc-800/80 dark:bg-zinc-900 dark:hover:border-primary-500/50"
                       >
                         <div className="absolute inset-0 bg-gradient-to-br from-primary-500/0 via-primary-500/0 to-primary-500/0 transition-colors duration-500 group-hover:from-primary-500/5 group-hover:via-primary-500/0 group-hover:to-transparent" />
@@ -586,7 +791,7 @@ export function Chat() {
             <div className="flex-1 space-y-5 px-3 py-6 pb-36 sm:space-y-6 sm:px-4 sm:py-8 sm:pb-40">
               {activeMessages.map((message, index) => {
                 const isLastMessage = index === activeMessages.length - 1;
-                const showTyping = isTyping && isLastMessage && message.role === 'assistant';
+                const showTyping = isBusy && isLastMessage && message.role === 'assistant';
 
                 return (
                   <ChatMessage
@@ -596,6 +801,7 @@ export function Chat() {
                     model={message.model}
                     timestamp={message.timestamp}
                     isTyping={showTyping}
+                    attachments={message.attachments}
                   />
                 );
               })}
@@ -608,14 +814,14 @@ export function Chat() {
           <div className="pointer-events-auto mx-auto w-full max-w-4xl">
             <ChatInput
               onSend={handleSend}
-              isLoading={isTyping}
+              isLoading={isBusy}
               onStop={handleStop}
               channels={channels}
               activeChannel={activeChannel}
               activeModel={activeModel}
               onChannelChange={handleChannelChange}
               onModelChange={handleModelChange}
-              onOpenModelConfig={() => navigate('/settings/llm')}
+              onOpenModelConfig={() => navigate('/api-router')}
             />
           </div>
         </div>

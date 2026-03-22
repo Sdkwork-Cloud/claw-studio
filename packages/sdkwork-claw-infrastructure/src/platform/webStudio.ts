@@ -35,10 +35,16 @@ import type {
   StudioPlatformAPI,
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
-import { studioMockService } from '../services/index.ts';
 
 const INSTANCE_STORAGE_KEY = 'claw-studio:studio:instances:v1';
 const CONVERSATION_STORAGE_KEY = 'claw-studio:studio:conversations:v1';
+type StudioMockService = typeof import('../services/index.ts')['studioMockService'];
+type StudioMockTask = Awaited<ReturnType<StudioMockService['listTasks']>>[number];
+
+async function getStudioMockService(): Promise<StudioMockService> {
+  const module = await import('../services/index.ts');
+  return module.getStudioMockService();
+}
 
 function asObject(value: unknown) {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -58,16 +64,75 @@ function asNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+function mapSessionTarget(
+  sessionTarget: string | undefined,
+): Pick<StudioMockTask, 'sessionMode' | 'customSessionId'> {
+  if (sessionTarget === 'main') {
+    return { sessionMode: 'main' };
+  }
+
+  if (sessionTarget === 'current') {
+    return { sessionMode: 'current' };
+  }
+
+  if (sessionTarget?.startsWith('session:')) {
+    const customSessionId = sessionTarget.slice('session:'.length).trim();
+    if (customSessionId) {
+      return {
+        sessionMode: 'custom',
+        customSessionId,
+      };
+    }
+  }
+
+  return { sessionMode: 'isolated' };
+}
+
+function mapDelivery(
+  delivery: Record<string, unknown>,
+  sessionMode: StudioMockTask['sessionMode'],
+): Pick<StudioMockTask, 'deliveryMode' | 'deliveryBestEffort' | 'deliveryChannel' | 'recipient'> {
+  const deliveryMode = asString(delivery.mode);
+  const recipient = asString(delivery.to);
+  const deliveryBestEffort = asBoolean(delivery.bestEffort) ? true : undefined;
+
+  if (deliveryMode === 'webhook') {
+    return {
+      deliveryMode: 'webhook',
+      deliveryBestEffort,
+      deliveryChannel: undefined,
+      recipient,
+    };
+  }
+
+  if (deliveryMode === 'none' || (!deliveryMode && sessionMode === 'main')) {
+    return {
+      deliveryMode: 'none',
+      deliveryBestEffort: undefined,
+      deliveryChannel: undefined,
+      recipient: undefined,
+    };
+  }
+
+  return {
+    deliveryMode: 'publishSummary',
+    deliveryBestEffort,
+    deliveryChannel: asString(delivery.channel),
+    recipient,
+  };
+}
+
 function mapOpenClawTaskPayloadToMockTask(
   payload: StudioInstanceTaskMutationPayload,
-): Omit<Awaited<ReturnType<typeof studioMockService.listTasks>>[number], 'id' | 'instanceId'> {
+): Omit<StudioMockTask, 'id' | 'instanceId'> {
   const root = asObject(payload);
   const schedule = asObject(root.schedule);
   const jobPayload = asObject(root.payload);
   const delivery = asObject(root.delivery);
   const scheduleKind = asString(schedule.kind) || 'cron';
-  const sessionTarget = asString(root.sessionTarget);
   const payloadKind = asString(jobPayload.kind);
+  const session = mapSessionTarget(asString(root.sessionTarget));
+  const deliveryState = mapDelivery(delivery, session.sessionMode);
 
   if (scheduleKind === 'every') {
     const everyMs = asNumber(schedule.everyMs) || 30 * 60 * 1000;
@@ -85,13 +150,16 @@ function mapOpenClawTaskPayloadToMockTask(
       cronExpression: undefined,
       actionType: payloadKind === 'systemEvent' ? 'message' : 'skill',
       status: asBoolean(root.enabled) === false ? 'paused' : 'active',
-      sessionMode: sessionTarget === 'main' ? 'main' : 'isolated',
+      ...session,
       wakeUpMode: asString(root.wakeMode) === 'next-heartbeat' ? 'nextCycle' : 'immediate',
       executionContent: payloadKind === 'systemEvent' ? 'sendPromptMessage' : 'runAssistantTask',
       timeoutSeconds: asNumber(jobPayload.timeoutSeconds),
-      deliveryMode: asString(delivery.mode) === 'none' ? 'none' : 'publishSummary',
-      deliveryChannel: asString(delivery.channel),
-      recipient: asString(delivery.to),
+      deleteAfterRun: asBoolean(root.deleteAfterRun),
+      agentId: asString(root.agentId),
+      model: asString(jobPayload.model),
+      thinking: asString(jobPayload.thinking) as StudioMockTask['thinking'],
+      lightContext: asBoolean(jobPayload.lightContext),
+      ...deliveryState,
       lastRun: undefined,
       nextRun: undefined,
     };
@@ -121,13 +189,16 @@ function mapOpenClawTaskPayloadToMockTask(
       cronExpression: `${Number(minutes)} ${Number(hours)} ${Number(day)} ${Number(month)} *`,
       actionType: payloadKind === 'systemEvent' ? 'message' : 'skill',
       status: asBoolean(root.enabled) === false ? 'paused' : 'active',
-      sessionMode: sessionTarget === 'main' ? 'main' : 'isolated',
+      ...session,
       wakeUpMode: asString(root.wakeMode) === 'next-heartbeat' ? 'nextCycle' : 'immediate',
       executionContent: payloadKind === 'systemEvent' ? 'sendPromptMessage' : 'runAssistantTask',
       timeoutSeconds: asNumber(jobPayload.timeoutSeconds),
-      deliveryMode: asString(delivery.mode) === 'none' ? 'none' : 'publishSummary',
-      deliveryChannel: asString(delivery.channel),
-      recipient: asString(delivery.to),
+      deleteAfterRun: asBoolean(root.deleteAfterRun),
+      agentId: asString(root.agentId),
+      model: asString(jobPayload.model),
+      thinking: asString(jobPayload.thinking) as StudioMockTask['thinking'],
+      lightContext: asBoolean(jobPayload.lightContext),
+      ...deliveryState,
       lastRun: undefined,
       nextRun: undefined,
     };
@@ -141,17 +212,22 @@ function mapOpenClawTaskPayloadToMockTask(
     scheduleMode: 'cron',
     scheduleConfig: {
       cronExpression: asString(schedule.expr) || '* * * * *',
+      cronTimezone: asString(schedule.tz),
+      staggerMs: asNumber(schedule.staggerMs),
     },
     cronExpression: asString(schedule.expr) || '* * * * *',
     actionType: payloadKind === 'systemEvent' ? 'message' : 'skill',
     status: asBoolean(root.enabled) === false ? 'paused' : 'active',
-    sessionMode: sessionTarget === 'main' ? 'main' : 'isolated',
+    ...session,
     wakeUpMode: asString(root.wakeMode) === 'next-heartbeat' ? 'nextCycle' : 'immediate',
     executionContent: payloadKind === 'systemEvent' ? 'sendPromptMessage' : 'runAssistantTask',
     timeoutSeconds: asNumber(jobPayload.timeoutSeconds),
-    deliveryMode: asString(delivery.mode) === 'none' ? 'none' : 'publishSummary',
-    deliveryChannel: asString(delivery.channel),
-    recipient: asString(delivery.to),
+    deleteAfterRun: asBoolean(root.deleteAfterRun),
+    agentId: asString(root.agentId),
+    model: asString(jobPayload.model),
+    thinking: asString(jobPayload.thinking) as StudioMockTask['thinking'],
+    lightContext: asBoolean(jobPayload.lightContext),
+    ...deliveryState,
     lastRun: undefined,
     nextRun: undefined,
   };
@@ -1100,6 +1176,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     instanceId: string,
     payload: StudioInstanceTaskMutationPayload,
   ): Promise<void> {
+    const studioMockService = await getStudioMockService();
     await studioMockService.createTask(instanceId, mapOpenClawTaskPayloadToMockTask(payload));
   }
 
@@ -1108,6 +1185,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     taskId: string,
     payload: StudioInstanceTaskMutationPayload,
   ): Promise<void> {
+    const studioMockService = await getStudioMockService();
     const updated = await studioMockService.updateTask(taskId, mapOpenClawTaskPayloadToMockTask(payload));
     if (!updated) {
       throw new Error(`Task "${taskId}" not found`);
@@ -1119,6 +1197,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     taskId: string,
     name?: string,
   ): Promise<void> {
+    const studioMockService = await getStudioMockService();
     const cloned = await studioMockService.cloneTask(taskId, name ? { name } : {});
     if (!cloned) {
       throw new Error(`Task "${taskId}" not found`);
@@ -1129,6 +1208,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     _instanceId: string,
     taskId: string,
   ): Promise<StudioWorkbenchTaskExecutionRecord> {
+    const studioMockService = await getStudioMockService();
     const execution = await studioMockService.runTaskNow(taskId);
     if (!execution) {
       throw new Error(`Task "${taskId}" not found`);
@@ -1140,6 +1220,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     _instanceId: string,
     taskId: string,
   ): Promise<StudioWorkbenchTaskExecutionRecord[]> {
+    const studioMockService = await getStudioMockService();
     return studioMockService.listTaskExecutions(taskId);
   }
 
@@ -1148,6 +1229,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     taskId: string,
     status: 'active' | 'paused',
   ): Promise<void> {
+    const studioMockService = await getStudioMockService();
     const updated = await studioMockService.updateTaskStatus(taskId, status);
     if (!updated) {
       throw new Error(`Task "${taskId}" not found`);
@@ -1155,6 +1237,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
   }
 
   async deleteInstanceTask(_instanceId: string, taskId: string): Promise<boolean> {
+    const studioMockService = await getStudioMockService();
     return studioMockService.deleteTask(taskId);
   }
 

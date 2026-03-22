@@ -7,12 +7,9 @@ import {
   Check,
   Download,
   ExternalLink,
-  HardDrive,
   Loader2,
   RefreshCw,
   Share,
-  ShieldCheck,
-  Star,
   Wrench,
 } from 'lucide-react';
 import {
@@ -26,6 +23,10 @@ import {
 } from '@sdkwork/claw-infrastructure';
 import { toast } from 'sonner';
 import { type AppInstallInspection, type AppItem, appStoreService } from '../../services';
+import {
+  createCatalogMetadataFields,
+  type CatalogMetadataField,
+} from './appCatalogPresentation.ts';
 
 type InstallState =
   | 'idle'
@@ -432,6 +433,22 @@ function getPlatformLabel(t: Translator, value: string | null | undefined) {
   return translateDynamicLabel(t, 'apps.detail.values.platforms', value);
 }
 
+function getCatalogMetadataFieldLabel(t: Translator, value: CatalogMetadataField['id']) {
+  if (value === 'registry') {
+    return t('apps.detail.metadata.registry');
+  }
+
+  if (value === 'defaultSoftwareName') {
+    return t('apps.detail.metadata.defaultSoftwareName');
+  }
+
+  if (value === 'selectedSoftwareName') {
+    return t('apps.detail.metadata.selectedSoftwareName');
+  }
+
+  return t('apps.detail.metadata.supportedHosts');
+}
+
 function getControlLevelLabel(t: Translator, value: string | null | undefined) {
   return translateDynamicLabel(t, 'apps.detail.values.controlLevels', value);
 }
@@ -493,14 +510,74 @@ export function AppDetail() {
   const [assessmentError, setAssessmentError] = useState<string | null>(null);
   const [progressSummary, setProgressSummary] = useState<ProgressSummary>(createProgressSummary());
   const [progressLines, setProgressLines] = useState<string[]>([]);
+  const progressSummaryStateRef = useRef<ProgressSummary>(createProgressSummary());
+  const progressLinesStateRef = useRef<string[]>([]);
+  const pendingProgressSummaryRef = useRef<ProgressSummary | null>(null);
+  const pendingProgressLinesRef = useRef<string[] | null>(null);
+  const progressFlushHandleRef = useRef<number | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [selectedVariantByApp, setSelectedVariantByApp] = useState<Record<string, string>>({});
   const [optimisticInstallStatus, setOptimisticInstallStatus] = useState<HubInstallRecordStatus | null>(null);
   const [dependencyActionTarget, setDependencyActionTarget] = useState<string | 'all' | null>(null);
   const selectedVariantId = id ? selectedVariantByApp[id] ?? null : null;
 
+  const cancelScheduledProgressFlush = () => {
+    if (progressFlushHandleRef.current === null) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      clearTimeout(progressFlushHandleRef.current);
+    } else {
+      window.cancelAnimationFrame(progressFlushHandleRef.current);
+    }
+
+    progressFlushHandleRef.current = null;
+  };
+
+  const flushProgressState = () => {
+    progressFlushHandleRef.current = null;
+
+    if (pendingProgressSummaryRef.current) {
+      progressSummaryStateRef.current = pendingProgressSummaryRef.current;
+      setProgressSummary(pendingProgressSummaryRef.current);
+      pendingProgressSummaryRef.current = null;
+    }
+
+    if (pendingProgressLinesRef.current) {
+      progressLinesStateRef.current = pendingProgressLinesRef.current;
+      setProgressLines(pendingProgressLinesRef.current);
+      pendingProgressLinesRef.current = null;
+    }
+  };
+
+  const scheduleProgressFlush = () => {
+    if (progressFlushHandleRef.current !== null) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      progressFlushHandleRef.current = setTimeout(flushProgressState, 0) as unknown as number;
+      return;
+    }
+
+    progressFlushHandleRef.current = window.requestAnimationFrame(flushProgressState);
+  };
+
+  const resetProgressState = () => {
+    cancelScheduledProgressFlush();
+    const nextProgressSummary = createProgressSummary();
+    progressSummaryStateRef.current = nextProgressSummary;
+    progressLinesStateRef.current = [];
+    pendingProgressSummaryRef.current = null;
+    pendingProgressLinesRef.current = null;
+    setProgressSummary(nextProgressSummary);
+    setProgressLines([]);
+  };
+
   useEffect(() => {
     return () => {
+      cancelScheduledProgressFlush();
       const unsubscribe = progressUnsubscribeRef.current;
       progressUnsubscribeRef.current = null;
       currentProgressRequestIdRef.current = null;
@@ -521,26 +598,12 @@ export function AppDetail() {
 
     const loadAppDetail = async () => {
       currentProgressRequestIdRef.current = null;
+      resetProgressState();
       setLoading(true);
       setInstallState('inspecting');
       setAssessmentError(null);
 
       try {
-        const nextApp = await appStoreService.getApp(id);
-        if (!active) {
-          return;
-        }
-
-        setApp(nextApp);
-
-        if (!nextApp.installable) {
-          setInspection(null);
-          setOptimisticInstallStatus(null);
-          setInstallState('idle');
-          setLoading(false);
-          return;
-        }
-
         const nextInspection = await appStoreService.inspectInstall(
           id,
           requestedVariantId ? { variantId: requestedVariantId } : undefined,
@@ -549,6 +612,7 @@ export function AppDetail() {
           return;
         }
 
+        setApp(nextInspection.app);
         setInspection(nextInspection);
         setSelectedVariantByApp((current) => {
           if (current[id] === nextInspection.target.variant.id) {
@@ -567,6 +631,21 @@ export function AppDetail() {
           return;
         }
 
+        let fallbackApp: AppItem | null = null;
+
+        try {
+          fallbackApp = await appStoreService.getApp(id);
+        } catch {
+          fallbackApp = null;
+        }
+
+        if (!active) {
+          return;
+        }
+
+        setApp(fallbackApp);
+        setInspection(null);
+        setOptimisticInstallStatus(null);
         setAssessmentError(getErrorMessage(error));
         setInstallState('error');
       } finally {
@@ -628,25 +707,55 @@ export function AppDetail() {
   const isInstalledTarget = installStatus === 'installed';
   const progressSoftwareName =
     inspection?.target.request.softwareName ?? app?.defaultSoftwareName ?? app?.id ?? 'app';
+  const totalProfileCount = compatibleVariants.length || inspection?.definition.variants.length || 0;
+  const supportedHostLabels = useMemo(
+    () =>
+      (app?.supportedHostPlatforms ?? inspection?.definition.supportedHostPlatforms ?? [])
+        .map((platform) => getPlatformLabel(t, platform) || platform)
+        .filter((value): value is string => Boolean(value)),
+    [app?.supportedHostPlatforms, inspection?.definition.supportedHostPlatforms, t],
+  );
+  const supportedHostSummary =
+    supportedHostLabels.join(', ') || t('apps.detail.metadata.notAvailable');
+  const aboutText =
+    app?.description || app?.installSummary || inspection?.assessment.manifestDescription || null;
+  const catalogNotes = useMemo(
+    () =>
+      [
+        selectedVariant?.summary,
+        app?.installSummary,
+        installationMethod?.summary,
+        inspection?.assessment.manifestDescription,
+      ].filter((value, index, values): value is string => {
+        if (!value?.trim()) {
+          return false;
+        }
 
-  const extendedApp = app
-    ? {
-        ...app,
-        reviewsCount: app.reviewsCount || '12.4K',
-        screenshots:
-          app.screenshots ||
-          [
-            `https://picsum.photos/seed/${app.id}_1/800/500`,
-            `https://picsum.photos/seed/${app.id}_2/800/500`,
-            `https://picsum.photos/seed/${app.id}_3/800/500`,
-          ],
-        version: app.version || '1.0.0',
-        size: app.size || t('apps.detail.defaults.unknown'),
-        releaseDate: app.releaseDate || '2026-03-20',
-        compatibility: app.compatibility || t('apps.detail.defaults.compatibility'),
-        ageRating: app.ageRating || '4+',
-      }
-    : null;
+        return values.indexOf(value) === index;
+      }),
+    [
+      app?.installSummary,
+      inspection?.assessment.manifestDescription,
+      installationMethod?.summary,
+      selectedVariant?.summary,
+    ],
+  );
+  const catalogMetadataFields = useMemo(
+    () =>
+      createCatalogMetadataFields({
+        registryName: inspection?.assessment.registryName,
+        defaultSoftwareName: app?.defaultSoftwareName ?? inspection?.definition.defaultSoftwareName,
+        selectedSoftwareName: inspection?.target.softwareName,
+        supportedHostLabels,
+      }),
+    [
+      app?.defaultSoftwareName,
+      inspection?.assessment.registryName,
+      inspection?.definition.defaultSoftwareName,
+      inspection?.target.softwareName,
+      supportedHostLabels,
+    ],
+  );
 
   const startProgressTracking = async (
     requestId: string,
@@ -660,8 +769,7 @@ export function AppDetail() {
       await unsubscribe();
     }
 
-    setProgressSummary(createProgressSummary());
-    setProgressLines([]);
+    resetProgressState();
 
     progressUnsubscribeRef.current = await installerService.subscribeHubInstallProgress((event) => {
       if (
@@ -671,14 +779,20 @@ export function AppDetail() {
         return;
       }
 
-      setProgressSummary((current) => reduceProgressEvent(current, event));
+      pendingProgressSummaryRef.current = reduceProgressEvent(
+        pendingProgressSummaryRef.current ?? progressSummaryStateRef.current,
+        event,
+      );
 
       const line = formatProgressEvent(t, event);
-      if (!line) {
-        return;
+      if (line) {
+        pendingProgressLinesRef.current = [
+          ...(pendingProgressLinesRef.current ?? progressLinesStateRef.current).slice(-11),
+          line,
+        ];
       }
 
-      setProgressLines((current) => [...current.slice(-11), line]);
+      scheduleProgressFlush();
     });
   };
 
@@ -697,8 +811,7 @@ export function AppDetail() {
     }));
     setOptimisticInstallStatus(null);
     setAssessmentError(null);
-    setProgressLines([]);
-    setProgressSummary(createProgressSummary());
+    resetProgressState();
     currentProgressRequestIdRef.current = null;
     refreshInspection();
   };
@@ -829,7 +942,7 @@ export function AppDetail() {
     );
   }
 
-  if (!app || !extendedApp) {
+  if (!app) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-white dark:bg-zinc-950">
         <h2 className="mb-4 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
@@ -864,7 +977,7 @@ export function AppDetail() {
       <div className="mx-auto max-w-6xl p-8">
         <div className="mb-12 flex flex-col items-start gap-8 md:flex-row">
           <img
-            src={extendedApp.icon}
+            src={app.icon}
             alt={app.name}
             className="h-32 w-32 shrink-0 rounded-3xl border border-zinc-100 object-cover shadow-lg md:h-40 md:w-40 dark:border-zinc-800"
             referrerPolicy="no-referrer"
@@ -892,27 +1005,26 @@ export function AppDetail() {
             <div className="mb-6 flex flex-wrap items-center gap-6">
               <div className="flex flex-col">
                 <span className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  {t('apps.detail.rating')}
+                  {t('apps.detail.category')}
                 </span>
-                <div className="flex items-center gap-1 font-bold text-zinc-900 dark:text-zinc-100">
-                  {app.rating}
-                  <Star className="h-4 w-4 fill-zinc-900 dark:fill-zinc-100" />
+                <div className="font-bold text-zinc-900 dark:text-zinc-100">{app.category}</div>
+              </div>
+              <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-800" />
+              <div className="flex flex-col">
+                <span className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  {t('apps.detail.catalogProfiles')}
+                </span>
+                <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {totalProfileCount}
                 </div>
               </div>
               <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-800" />
               <div className="flex flex-col">
                 <span className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  {t('apps.detail.category')}
-                </span>
-                <div className="font-medium text-zinc-900 dark:text-zinc-100">{app.category}</div>
-              </div>
-              <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-800" />
-              <div className="flex flex-col">
-                <span className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  {t('apps.detail.age')}
+                  {t('apps.detail.supportedHosts')}
                 </span>
                 <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {extendedApp.ageRating}
+                  {supportedHostSummary}
                 </div>
               </div>
             </div>
@@ -1730,57 +1842,36 @@ export function AppDetail() {
           </div>
         ) : null}
 
-        <div className="mb-12">
-          <h3 className="mb-4 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {t('common.preview')}
-          </h3>
-          <div className="flex snap-x gap-4 overflow-x-auto pb-4 scrollbar-hide">
-            {extendedApp.screenshots.map((src: string, index: number) => (
-              <img
-                key={src}
-                src={src}
-                alt={t('apps.detail.screenshotAlt', { index: index + 1 })}
-                className="h-64 shrink-0 snap-start rounded-2xl border border-zinc-200 object-cover shadow-sm md:h-80 dark:border-zinc-800"
-                referrerPolicy="no-referrer"
-              />
-            ))}
-          </div>
-        </div>
-
         <div className="grid gap-12 md:grid-cols-3">
           <div className="space-y-8 md:col-span-2">
-            <div>
-              <h3 className="mb-4 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                {t('apps.detail.about')}
-              </h3>
-              <div className="prose prose-zinc max-w-none dark:prose-invert">
-                <p className="whitespace-pre-wrap leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  {app.description}
-                </p>
+            {aboutText ? (
+              <div>
+                <h3 className="mb-4 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+                  {t('apps.detail.about')}
+                </h3>
+                <div className="prose prose-zinc max-w-none dark:prose-invert">
+                  <p className="whitespace-pre-wrap leading-relaxed text-zinc-600 dark:text-zinc-400">
+                    {aboutText}
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : null}
 
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-6 dark:border-zinc-800/50 dark:bg-zinc-900/50">
-              <h4 className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">
-                {t('apps.detail.whatsNew')}
-              </h4>
-              <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
-                {t('apps.detail.versionReleased', {
-                  version: extendedApp.version,
-                  date: extendedApp.releaseDate,
-                })}
-              </p>
-              <div className="space-y-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                <p>
-                  -{' '}
-                  {selectedVariant?.summary ||
-                    app.installSummary ||
-                    t('apps.detail.whatsNewBullets.one')}
+            {catalogNotes.length > 0 ? (
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-6 dark:border-zinc-800/50 dark:bg-zinc-900/50">
+                <h4 className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">
+                  {t('apps.detail.catalogNotesTitle')}
+                </h4>
+                <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('apps.detail.catalogNotesDescription')}
                 </p>
-                <p>- {t('apps.detail.whatsNewBullets.two')}</p>
-                <p>- {t('apps.detail.whatsNewBullets.three')}</p>
+                <div className="space-y-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                  {catalogNotes.map((note) => (
+                    <p key={note}>- {note}</p>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
 
           <div className="space-y-6">
@@ -1789,29 +1880,31 @@ export function AppDetail() {
             </h3>
 
             <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <HardDrive className="h-5 w-5 shrink-0 text-zinc-400 dark:text-zinc-500" />
-                <div>
-                  <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {t('apps.detail.size')}
+              {catalogMetadataFields.map((field) => (
+                <div
+                  key={field.id}
+                  className="rounded-2xl border border-zinc-200 bg-zinc-50/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/60"
+                >
+                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    {getCatalogMetadataFieldLabel(t, field.id)}
                   </div>
-                  <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {extendedApp.size}
+                  <div className="mt-2 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {field.value}
                   </div>
                 </div>
-              </div>
+              ))}
 
-              <div className="flex items-start gap-3">
-                <ShieldCheck className="h-5 w-5 shrink-0 text-zinc-400 dark:text-zinc-500" />
-                <div>
-                  <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {t('apps.detail.compatibility')}
-                  </div>
-                  <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {extendedApp.compatibility}
-                  </div>
-                </div>
-              </div>
+              {installDocumentationUrl ? (
+                <a
+                  href={installDocumentationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-zinc-300 px-4 py-2 text-sm font-bold text-primary-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-primary-300 dark:hover:bg-zinc-800"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {t('apps.detail.actions.openInstallationDocs')}
+                </a>
+              ) : null}
 
               {blockingIssues.length ? (
                 <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10">

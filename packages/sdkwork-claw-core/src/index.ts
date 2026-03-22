@@ -3,8 +3,6 @@ export * from './platform-impl/index.ts';
 export * from './store/index.ts';
 export * from './sdk/useAppSdkClient.ts';
 export * from './sdk/appSdkResult.ts';
-export * from './components/CommandPalette.tsx';
-export * from './components/Sidebar.tsx';
 export * from './lib/llmService.ts';
 export * from './services/openClawConfigService.ts';
 export * from './services/index.ts';

@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, ChevronDown, Server, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useInstanceStore } from '@sdkwork/claw-core';
-import { instanceService, type Instance } from '@sdkwork/claw-instances';
+import {
+  instanceDirectoryService,
+  useInstanceStore,
+  type InstanceDirectoryItem,
+} from '@sdkwork/claw-core';
 
 export function InstanceSwitcher() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { activeInstanceId, setActiveInstanceId } = useInstanceStore();
-  const [instances, setInstances] = useState<Instance[]>([]);
+  const [instances, setInstances] = useState<InstanceDirectoryItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -18,7 +21,7 @@ export function InstanceSwitcher() {
 
     async function fetchInstances() {
       try {
-        const data = await instanceService.getInstances();
+        const data = await instanceDirectoryService.listInstances();
         if (disposed) {
           return;
         }

@@ -17,107 +17,143 @@ export interface PlatformBridge {
   studio: StudioPlatformAPI;
 }
 
-let platformBridge: PlatformBridge = {
-  platform: new WebPlatform(),
-  installer: new WebInstallerPlatform(),
-  runtime: new WebRuntimePlatform(),
-  storage: new WebStoragePlatform(),
-  studio: new WebStudioPlatform(),
+const PLATFORM_BRIDGE_GLOBAL_KEY = Symbol.for('sdkwork.claw.platformBridge');
+
+type GlobalPlatformBridgeState = typeof globalThis & {
+  [PLATFORM_BRIDGE_GLOBAL_KEY]?: PlatformBridge;
 };
 
-export function configurePlatformBridge(nextBridge: Partial<PlatformBridge>) {
-  platformBridge = {
-    ...platformBridge,
-    ...nextBridge,
+function createDefaultPlatformBridge(): PlatformBridge {
+  return {
+    platform: new WebPlatform(),
+    installer: new WebInstallerPlatform(),
+    runtime: new WebRuntimePlatform(),
+    storage: new WebStoragePlatform(),
+    studio: new WebStudioPlatform(),
   };
 }
 
+function readGlobalPlatformBridge() {
+  const globalState = globalThis as GlobalPlatformBridgeState;
+  return globalState[PLATFORM_BRIDGE_GLOBAL_KEY] ?? null;
+}
+
+function writeGlobalPlatformBridge(nextBridge: PlatformBridge) {
+  const globalState = globalThis as GlobalPlatformBridgeState;
+  globalState[PLATFORM_BRIDGE_GLOBAL_KEY] = nextBridge;
+  return nextBridge;
+}
+
+function syncPlatformBridge() {
+  const globalBridge = readGlobalPlatformBridge();
+
+  if (globalBridge) {
+    platformBridge = globalBridge;
+    return globalBridge;
+  }
+
+  return writeGlobalPlatformBridge(platformBridge);
+}
+
+let platformBridge: PlatformBridge =
+  readGlobalPlatformBridge() ?? writeGlobalPlatformBridge(createDefaultPlatformBridge());
+
+export function configurePlatformBridge(nextBridge: Partial<PlatformBridge>) {
+  platformBridge = writeGlobalPlatformBridge({
+    ...syncPlatformBridge(),
+    ...nextBridge,
+  });
+}
+
 export function getPlatformBridge(): PlatformBridge {
-  return platformBridge;
+  return syncPlatformBridge();
 }
 
 export function getInstallerPlatform(): InstallerPlatformAPI {
-  return platformBridge.installer;
+  return getPlatformBridge().installer;
 }
 
 export function getRuntimePlatform(): RuntimePlatformAPI {
-  return platformBridge.runtime;
+  return getPlatformBridge().runtime;
 }
 
 export function getStoragePlatform(): StoragePlatformAPI {
-  return platformBridge.storage;
+  return getPlatformBridge().storage;
 }
 
 export function getStudioPlatform(): StudioPlatformAPI {
-  return platformBridge.studio;
+  return getPlatformBridge().studio;
 }
 
 export const platform: PlatformAPI = {
-  getPlatform: () => platformBridge.platform.getPlatform(),
-  getDeviceId: () => platformBridge.platform.getDeviceId(),
-  setStorage: (key, value) => platformBridge.platform.setStorage(key, value),
-  getStorage: (key) => platformBridge.platform.getStorage(key),
-  copy: (text) => platformBridge.platform.copy(text),
-  openExternal: (url) => platformBridge.platform.openExternal(url),
-  selectFile: (options) => platformBridge.platform.selectFile(options),
-  saveFile: (data, filename, options) => platformBridge.platform.saveFile(data, filename, options),
-  minimizeWindow: () => platformBridge.platform.minimizeWindow(),
-  maximizeWindow: () => platformBridge.platform.maximizeWindow(),
-  restoreWindow: () => platformBridge.platform.restoreWindow(),
-  isWindowMaximized: () => platformBridge.platform.isWindowMaximized(),
+  getPlatform: () => getPlatformBridge().platform.getPlatform(),
+  getDeviceId: () => getPlatformBridge().platform.getDeviceId(),
+  setStorage: (key, value) => getPlatformBridge().platform.setStorage(key, value),
+  getStorage: (key) => getPlatformBridge().platform.getStorage(key),
+  copy: (text) => getPlatformBridge().platform.copy(text),
+  openExternal: (url) => getPlatformBridge().platform.openExternal(url),
+  supportsNativeScreenshot: () => getPlatformBridge().platform.supportsNativeScreenshot(),
+  captureScreenshot: () => getPlatformBridge().platform.captureScreenshot(),
+  fetchRemoteUrl: (url) => getPlatformBridge().platform.fetchRemoteUrl(url),
+  selectFile: (options) => getPlatformBridge().platform.selectFile(options),
+  saveFile: (data, filename, options) => getPlatformBridge().platform.saveFile(data, filename, options),
+  minimizeWindow: () => getPlatformBridge().platform.minimizeWindow(),
+  maximizeWindow: () => getPlatformBridge().platform.maximizeWindow(),
+  restoreWindow: () => getPlatformBridge().platform.restoreWindow(),
+  isWindowMaximized: () => getPlatformBridge().platform.isWindowMaximized(),
   subscribeWindowMaximized: (listener) =>
-    platformBridge.platform.subscribeWindowMaximized(listener),
-  closeWindow: () => platformBridge.platform.closeWindow(),
-  listDirectory: (path) => platformBridge.platform.listDirectory(path),
-  pathExists: (path) => platformBridge.platform.pathExists(path),
-  getPathInfo: (path) => platformBridge.platform.getPathInfo(path),
-  createDirectory: (path) => platformBridge.platform.createDirectory(path),
-  removePath: (path) => platformBridge.platform.removePath(path),
-  copyPath: (sourcePath, destinationPath) => platformBridge.platform.copyPath(sourcePath, destinationPath),
-  movePath: (sourcePath, destinationPath) => platformBridge.platform.movePath(sourcePath, destinationPath),
-  readBinaryFile: (path) => platformBridge.platform.readBinaryFile(path),
-  writeBinaryFile: (path, content) => platformBridge.platform.writeBinaryFile(path, content),
-  readFile: (path) => platformBridge.platform.readFile(path),
-  writeFile: (path, content) => platformBridge.platform.writeFile(path, content),
+    getPlatformBridge().platform.subscribeWindowMaximized(listener),
+  closeWindow: () => getPlatformBridge().platform.closeWindow(),
+  listDirectory: (path) => getPlatformBridge().platform.listDirectory(path),
+  pathExists: (path) => getPlatformBridge().platform.pathExists(path),
+  getPathInfo: (path) => getPlatformBridge().platform.getPathInfo(path),
+  createDirectory: (path) => getPlatformBridge().platform.createDirectory(path),
+  removePath: (path) => getPlatformBridge().platform.removePath(path),
+  copyPath: (sourcePath, destinationPath) => getPlatformBridge().platform.copyPath(sourcePath, destinationPath),
+  movePath: (sourcePath, destinationPath) => getPlatformBridge().platform.movePath(sourcePath, destinationPath),
+  readBinaryFile: (path) => getPlatformBridge().platform.readBinaryFile(path),
+  writeBinaryFile: (path, content) => getPlatformBridge().platform.writeBinaryFile(path, content),
+  readFile: (path) => getPlatformBridge().platform.readFile(path),
+  writeFile: (path, content) => getPlatformBridge().platform.writeFile(path, content),
 };
 
 export const storage: StoragePlatformAPI = {
-  getStorageInfo: () => platformBridge.storage.getStorageInfo(),
-  getText: (request) => platformBridge.storage.getText(request),
-  putText: (request) => platformBridge.storage.putText(request),
-  delete: (request) => platformBridge.storage.delete(request),
-  listKeys: (request) => platformBridge.storage.listKeys(request),
+  getStorageInfo: () => getPlatformBridge().storage.getStorageInfo(),
+  getText: (request) => getPlatformBridge().storage.getText(request),
+  putText: (request) => getPlatformBridge().storage.putText(request),
+  delete: (request) => getPlatformBridge().storage.delete(request),
+  listKeys: (request) => getPlatformBridge().storage.listKeys(request),
 };
 
 export const studio: StudioPlatformAPI = {
-  listInstances: () => platformBridge.studio.listInstances(),
-  getInstance: (id) => platformBridge.studio.getInstance(id),
-  getInstanceDetail: (id) => platformBridge.studio.getInstanceDetail(id),
-  createInstance: (input) => platformBridge.studio.createInstance(input),
-  updateInstance: (id, input) => platformBridge.studio.updateInstance(id, input),
-  deleteInstance: (id) => platformBridge.studio.deleteInstance(id),
-  startInstance: (id) => platformBridge.studio.startInstance(id),
-  stopInstance: (id) => platformBridge.studio.stopInstance(id),
-  restartInstance: (id) => platformBridge.studio.restartInstance(id),
-  setInstanceStatus: (id, status) => platformBridge.studio.setInstanceStatus(id, status),
-  getInstanceConfig: (id) => platformBridge.studio.getInstanceConfig(id),
-  updateInstanceConfig: (id, config) => platformBridge.studio.updateInstanceConfig(id, config),
-  getInstanceLogs: (id) => platformBridge.studio.getInstanceLogs(id),
+  listInstances: () => getPlatformBridge().studio.listInstances(),
+  getInstance: (id) => getPlatformBridge().studio.getInstance(id),
+  getInstanceDetail: (id) => getPlatformBridge().studio.getInstanceDetail(id),
+  createInstance: (input) => getPlatformBridge().studio.createInstance(input),
+  updateInstance: (id, input) => getPlatformBridge().studio.updateInstance(id, input),
+  deleteInstance: (id) => getPlatformBridge().studio.deleteInstance(id),
+  startInstance: (id) => getPlatformBridge().studio.startInstance(id),
+  stopInstance: (id) => getPlatformBridge().studio.stopInstance(id),
+  restartInstance: (id) => getPlatformBridge().studio.restartInstance(id),
+  setInstanceStatus: (id, status) => getPlatformBridge().studio.setInstanceStatus(id, status),
+  getInstanceConfig: (id) => getPlatformBridge().studio.getInstanceConfig(id),
+  updateInstanceConfig: (id, config) => getPlatformBridge().studio.updateInstanceConfig(id, config),
+  getInstanceLogs: (id) => getPlatformBridge().studio.getInstanceLogs(id),
   createInstanceTask: (instanceId, payload) =>
-    platformBridge.studio.createInstanceTask(instanceId, payload),
+    getPlatformBridge().studio.createInstanceTask(instanceId, payload),
   updateInstanceTask: (instanceId, taskId, payload) =>
-    platformBridge.studio.updateInstanceTask(instanceId, taskId, payload),
+    getPlatformBridge().studio.updateInstanceTask(instanceId, taskId, payload),
   cloneInstanceTask: (instanceId, taskId, name) =>
-    platformBridge.studio.cloneInstanceTask(instanceId, taskId, name),
+    getPlatformBridge().studio.cloneInstanceTask(instanceId, taskId, name),
   runInstanceTaskNow: (instanceId, taskId) =>
-    platformBridge.studio.runInstanceTaskNow(instanceId, taskId),
+    getPlatformBridge().studio.runInstanceTaskNow(instanceId, taskId),
   listInstanceTaskExecutions: (instanceId, taskId) =>
-    platformBridge.studio.listInstanceTaskExecutions(instanceId, taskId),
+    getPlatformBridge().studio.listInstanceTaskExecutions(instanceId, taskId),
   updateInstanceTaskStatus: (instanceId, taskId, status) =>
-    platformBridge.studio.updateInstanceTaskStatus(instanceId, taskId, status),
+    getPlatformBridge().studio.updateInstanceTaskStatus(instanceId, taskId, status),
   deleteInstanceTask: (instanceId, taskId) =>
-    platformBridge.studio.deleteInstanceTask(instanceId, taskId),
-  listConversations: (instanceId) => platformBridge.studio.listConversations(instanceId),
-  putConversation: (record) => platformBridge.studio.putConversation(record),
-  deleteConversation: (id) => platformBridge.studio.deleteConversation(id),
+    getPlatformBridge().studio.deleteInstanceTask(instanceId, taskId),
+  listConversations: (instanceId) => getPlatformBridge().studio.listConversations(instanceId),
+  putConversation: (record) => getPlatformBridge().studio.putConversation(record),
+  deleteConversation: (id) => getPlatformBridge().studio.deleteConversation(id),
 };

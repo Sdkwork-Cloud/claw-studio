@@ -35,6 +35,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { CronTasksManager } from '@sdkwork/claw-commons';
+import type { OpenClawAgentInput, OpenClawProviderInput } from '@sdkwork/claw-core';
 import { useInstanceStore } from '@sdkwork/claw-core';
 import { openExternalUrl } from '@sdkwork/claw-infrastructure';
 import {
@@ -50,9 +51,16 @@ import {
   getTaskExecutionBadgeTone,
   getTaskHistoryBadgeTone,
   Input,
+  Label,
   getTaskPreview,
   getTaskStatusBadgeTone,
   getTaskToggleStatusTarget,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
   TaskCatalog,
   TaskExecutionHistoryDrawer,
   Textarea,
@@ -60,6 +68,7 @@ import {
 } from '@sdkwork/claw-ui';
 import { InstanceFileExplorer } from '../components/InstanceFileExplorer';
 import { InstanceLLMConfigPanel } from '../components/InstanceLLMConfigPanel';
+import { buildInstanceDetailBadgeDescriptors } from './instanceDetailBadgeDescriptors';
 import { instanceService, instanceWorkbenchService } from '../services';
 import type {
   InstanceConfig,
@@ -76,6 +85,39 @@ interface WorkbenchSectionDefinition {
   descriptionKey: string;
   sectionTitleKey: string;
   sectionDescriptionKey: string;
+}
+
+interface OpenClawProviderFormState {
+  id: string;
+  name: string;
+  endpoint: string;
+  apiKeySource: string;
+  defaultModelId: string;
+  reasoningModelId: string;
+  embeddingModelId: string;
+  modelsText: string;
+}
+
+interface OpenClawProviderModelFormState {
+  originalId?: string;
+  id: string;
+  name: string;
+}
+
+interface OpenClawAgentFormState {
+  id: string;
+  name: string;
+  avatar: string;
+  workspace: string;
+  agentDir: string;
+  isDefault: boolean;
+  primaryModel: string;
+  fallbackModelsText: string;
+  temperature: string;
+  topP: string;
+  maxTokens: string;
+  timeoutMs: string;
+  streaming: boolean;
 }
 
 const workbenchSections: WorkbenchSectionDefinition[] = [
@@ -359,6 +401,120 @@ function formatWorkbenchLabel(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function normalizeManagedProviderId(providerId: string) {
+  return providerId.startsWith('api-router-')
+    ? providerId.slice('api-router-'.length)
+    : providerId;
+}
+
+function parseProviderModelsText(modelsText: string) {
+  const models = modelsText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf('=');
+      if (separatorIndex <= 0) {
+        return {
+          id: line,
+          name: line,
+        };
+      }
+
+      const id = line.slice(0, separatorIndex).trim();
+      const name = line.slice(separatorIndex + 1).trim();
+      return {
+        id,
+        name: name || id,
+      };
+    })
+    .filter((model) => model.id);
+
+  return Array.from(
+    new Map(models.map((model) => [model.id, model] as const)).values(),
+  );
+}
+
+function createEmptyProviderForm(): OpenClawProviderFormState {
+  return {
+    id: '',
+    name: '',
+    endpoint: '',
+    apiKeySource: '',
+    defaultModelId: '',
+    reasoningModelId: '',
+    embeddingModelId: '',
+    modelsText: '',
+  };
+}
+
+function createEmptyProviderModelForm(): OpenClawProviderModelFormState {
+  return {
+    originalId: undefined,
+    id: '',
+    name: '',
+  };
+}
+
+function createProviderModelForm(
+  model?: InstanceWorkbenchSnapshot['llmProviders'][number]['models'][number] | null,
+): OpenClawProviderModelFormState {
+  if (!model) {
+    return createEmptyProviderModelForm();
+  }
+
+  return {
+    originalId: model.id,
+    id: model.id,
+    name: model.name,
+  };
+}
+
+function createDefaultProviderRuntimeConfig(): InstanceLLMProviderUpdate['config'] {
+  return {
+    temperature: 0.2,
+    topP: 1,
+    maxTokens: 8192,
+    timeoutMs: 60000,
+    streaming: true,
+  };
+}
+
+function createAgentFormFromAgent(
+  agent: InstanceWorkbenchSnapshot['agents'][number] | null,
+): OpenClawAgentFormState {
+  return {
+    id: agent?.agent.id || '',
+    name: agent?.agent.name || '',
+    avatar: agent?.agent.avatar || '',
+    workspace: agent?.workspace || '',
+    agentDir: agent?.agentDir || '',
+    isDefault: Boolean(agent?.isDefault),
+    primaryModel: agent?.model?.primary || '',
+    fallbackModelsText: agent?.model?.fallbacks.join('\n') || '',
+    temperature:
+      typeof agent?.params?.temperature === 'number' ? String(agent.params.temperature) : '',
+    topP: typeof agent?.params?.topP === 'number' ? String(agent.params.topP) : '',
+    maxTokens:
+      typeof agent?.params?.maxTokens === 'number' ? String(agent.params.maxTokens) : '',
+    timeoutMs:
+      typeof agent?.params?.timeoutMs === 'number' ? String(agent.params.timeoutMs) : '',
+    streaming:
+      typeof agent?.params?.streaming === 'boolean' ? agent.params.streaming : true,
+  };
+}
+
+function parseAgentFallbackModels(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/\r?\n/)
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 function getCapabilityTone(status: string) {
   if (status === 'ready') {
     return getStatusBadge(status);
@@ -410,10 +566,28 @@ export function InstanceDetail() {
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, InstanceLLMProviderUpdate>>({});
   const [isSavingProviderConfig, setIsSavingProviderConfig] = useState(false);
+  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+  const [providerDialogDraft, setProviderDialogDraft] = useState<OpenClawProviderFormState>(
+    createEmptyProviderForm(),
+  );
+  const [isSavingProviderDialog, setIsSavingProviderDialog] = useState(false);
+  const [isProviderModelDialogOpen, setIsProviderModelDialogOpen] = useState(false);
+  const [providerModelDialogDraft, setProviderModelDialogDraft] =
+    useState<OpenClawProviderModelFormState>(createEmptyProviderModelForm());
+  const [isSavingProviderModelDialog, setIsSavingProviderModelDialog] = useState(false);
+  const [providerModelDeleteId, setProviderModelDeleteId] = useState<string | null>(null);
+  const [providerDeleteId, setProviderDeleteId] = useState<string | null>(null);
   const [selectedManagedChannelId, setSelectedManagedChannelId] = useState<string | null>(null);
   const [managedChannelDrafts, setManagedChannelDrafts] = useState<Record<string, Record<string, string>>>({});
   const [managedChannelError, setManagedChannelError] = useState<string | null>(null);
   const [isSavingManagedChannel, setIsSavingManagedChannel] = useState(false);
+  const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
+  const [agentDialogDraft, setAgentDialogDraft] = useState<OpenClawAgentFormState>(
+    createAgentFormFromAgent(null),
+  );
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [isSavingAgentDialog, setIsSavingAgentDialog] = useState(false);
+  const [agentDeleteId, setAgentDeleteId] = useState<string | null>(null);
   const [taskExecutionsById, setTaskExecutionsById] = useState<Record<string, InstanceWorkbenchTaskExecution[]>>({});
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -540,6 +714,16 @@ export function InstanceDetail() {
     setRunningTaskIds([]);
     setStatusTaskIds([]);
     setDeletingTaskIds([]);
+    setIsProviderDialogOpen(false);
+    setProviderDialogDraft(createEmptyProviderForm());
+    setIsProviderModelDialogOpen(false);
+    setProviderModelDialogDraft(createEmptyProviderModelForm());
+    setProviderModelDeleteId(null);
+    setProviderDeleteId(null);
+    setIsAgentDialogOpen(false);
+    setAgentDialogDraft(createAgentFormFromAgent(null));
+    setEditingAgentId(null);
+    setAgentDeleteId(null);
   }, [id]);
 
   const instance = workbench?.instance || null;
@@ -547,7 +731,6 @@ export function InstanceDetail() {
   const managedConfigPath = workbench?.managedConfigPath || null;
   const managedChannels = workbench?.managedChannels || [];
   const consoleAccess = detail?.consoleAccess || null;
-  const isOpenClawWorkbench = detail?.instance.runtimeKind === 'openclaw' && Boolean(detail?.workbench);
   const isOpenClawConfigWritable =
     detail?.instance.runtimeKind === 'openclaw' && Boolean(managedConfigPath);
   const canEditManagedChannels = Boolean(id && managedConfigPath && managedChannels.length);
@@ -572,9 +755,39 @@ export function InstanceDetail() {
     () => workbench?.llmProviders.find((provider) => provider.id === selectedProviderId) || null,
     [selectedProviderId, workbench],
   );
+  const deletingProvider = useMemo(
+    () => workbench?.llmProviders.find((provider) => provider.id === providerDeleteId) || null,
+    [providerDeleteId, workbench],
+  );
+  const deletingProviderModel = useMemo(
+    () => selectedProvider?.models.find((model) => model.id === providerModelDeleteId) || null,
+    [providerModelDeleteId, selectedProvider],
+  );
   const selectedManagedChannel = useMemo(
     () => managedChannels.find((channel) => channel.id === selectedManagedChannelId) || null,
     [managedChannels, selectedManagedChannelId],
+  );
+  const providerDialogModels = useMemo(
+    () => parseProviderModelsText(providerDialogDraft.modelsText),
+    [providerDialogDraft.modelsText],
+  );
+  const availableAgentModelOptions = useMemo(
+    () => {
+      const options = new Map<string, { value: string; label: string }>();
+      (workbench?.llmProviders || []).forEach((provider) => {
+        provider.models.forEach((model) => {
+          const value = `${normalizeManagedProviderId(provider.id)}/${model.id}`;
+          if (!options.has(value)) {
+            options.set(value, {
+              value,
+              label: `${provider.name} / ${model.name}`,
+            });
+          }
+        });
+      });
+      return [...options.values()];
+    },
+    [workbench],
   );
 
   const selectedFileDraft = selectedFile ? fileDrafts[selectedFile.id] ?? selectedFile.content : '';
@@ -728,6 +941,253 @@ export function InstanceDetail() {
       toast.error(error.message || t('instances.detail.instanceWorkbench.llmProviders.saveFailed'));
     } finally {
       setIsSavingProviderConfig(false);
+    }
+  };
+
+  const openCreateProviderDialog = () => {
+    setProviderDialogDraft(createEmptyProviderForm());
+    setIsProviderDialogOpen(true);
+  };
+
+  const handleSubmitProviderDialog = async () => {
+    if (!id) {
+      return;
+    }
+
+    const providerId = providerDialogDraft.id.trim();
+    const models = providerDialogModels;
+    if (!providerId) {
+      toast.error('Provider ID is required.');
+      return;
+    }
+    if (models.length === 0) {
+      toast.error('Add at least one model. Use one line per model: model-id=Display Name');
+      return;
+    }
+
+    const defaultModelId = providerDialogDraft.defaultModelId.trim() || models[0]?.id || '';
+    const reasoningModelId = providerDialogDraft.reasoningModelId.trim() || undefined;
+    const embeddingModelId = providerDialogDraft.embeddingModelId.trim() || undefined;
+    const validModelIds = new Set(models.map((model) => model.id));
+
+    if (!validModelIds.has(defaultModelId)) {
+      toast.error('Default model must exist in the provider model list.');
+      return;
+    }
+    if (reasoningModelId && !validModelIds.has(reasoningModelId)) {
+      toast.error('Reasoning model must exist in the provider model list.');
+      return;
+    }
+    if (embeddingModelId && !validModelIds.has(embeddingModelId)) {
+      toast.error('Embedding model must exist in the provider model list.');
+      return;
+    }
+
+    const providerInput: OpenClawProviderInput = {
+      id: providerId,
+      channelId: providerId,
+      name: providerDialogDraft.name.trim() || providerId,
+      apiKey: providerDialogDraft.apiKeySource.trim(),
+      baseUrl: providerDialogDraft.endpoint.trim(),
+      models,
+      config: createDefaultProviderRuntimeConfig(),
+    };
+
+    setIsSavingProviderDialog(true);
+    try {
+      await instanceService.createInstanceLlmProvider(id, providerInput, {
+        defaultModelId,
+        reasoningModelId,
+        embeddingModelId,
+      });
+      toast.success('Provider saved to OpenClaw config.');
+      setIsProviderDialogOpen(false);
+      setProviderDialogDraft(createEmptyProviderForm());
+      await loadWorkbench(id, { withSpinner: false });
+      setSelectedProviderId(`api-router-${providerId}`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save provider.');
+    } finally {
+      setIsSavingProviderDialog(false);
+    }
+  };
+
+  const openCreateProviderModelDialog = () => {
+    setProviderModelDialogDraft(createEmptyProviderModelForm());
+    setIsProviderModelDialogOpen(true);
+  };
+
+  const openEditProviderModelDialog = (
+    model: InstanceWorkbenchSnapshot['llmProviders'][number]['models'][number],
+  ) => {
+    setProviderModelDialogDraft(createProviderModelForm(model));
+    setIsProviderModelDialogOpen(true);
+  };
+
+  const handleSubmitProviderModelDialog = async () => {
+    if (!id || !selectedProvider) {
+      return;
+    }
+
+    const modelId = providerModelDialogDraft.id.trim();
+    if (!modelId) {
+      toast.error('Model ID is required.');
+      return;
+    }
+
+    setIsSavingProviderModelDialog(true);
+    try {
+      if (providerModelDialogDraft.originalId) {
+        await instanceService.updateInstanceLlmProviderModel(
+          id,
+          selectedProvider.id,
+          providerModelDialogDraft.originalId,
+          {
+            id: modelId,
+            name: providerModelDialogDraft.name.trim() || modelId,
+          },
+        );
+        toast.success('Provider model updated.');
+      } else {
+        await instanceService.createInstanceLlmProviderModel(id, selectedProvider.id, {
+          id: modelId,
+          name: providerModelDialogDraft.name.trim() || modelId,
+        });
+        toast.success('Provider model added.');
+      }
+      setIsProviderModelDialogOpen(false);
+      setProviderModelDialogDraft(createEmptyProviderModelForm());
+      await loadWorkbench(id, { withSpinner: false });
+      setSelectedProviderId(selectedProvider.id);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save provider model.');
+    } finally {
+      setIsSavingProviderModelDialog(false);
+    }
+  };
+
+  const handleDeleteProviderModel = async () => {
+    if (!id || !selectedProvider || !providerModelDeleteId) {
+      return;
+    }
+
+    try {
+      await instanceService.deleteInstanceLlmProviderModel(
+        id,
+        selectedProvider.id,
+        providerModelDeleteId,
+      );
+      toast.success('Provider model removed.');
+      setProviderModelDeleteId(null);
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete provider model.');
+    }
+  };
+
+  const handleDeleteProvider = async () => {
+    if (!id || !providerDeleteId) {
+      return;
+    }
+
+    try {
+      await instanceService.deleteInstanceLlmProvider(id, providerDeleteId);
+      toast.success('Provider removed from OpenClaw config.');
+      setProviderDeleteId(null);
+      setSelectedProviderId(null);
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete provider.');
+    }
+  };
+
+  const openCreateAgentDialog = () => {
+    setEditingAgentId(null);
+    setAgentDialogDraft(createAgentFormFromAgent(null));
+    setIsAgentDialogOpen(true);
+  };
+
+  const openEditAgentDialog = (agent: InstanceWorkbenchSnapshot['agents'][number]) => {
+    setEditingAgentId(agent.agent.id);
+    setAgentDialogDraft(createAgentFormFromAgent(agent));
+    setIsAgentDialogOpen(true);
+  };
+
+  const handleSaveAgentDialog = async () => {
+    if (!id) {
+      return;
+    }
+
+    const agentId = agentDialogDraft.id.trim();
+    if (!agentId) {
+      toast.error('Agent ID is required.');
+      return;
+    }
+
+    const params: Record<string, string | number | boolean | null | undefined> = {};
+    if (agentDialogDraft.temperature.trim()) {
+      params.temperature = Number(agentDialogDraft.temperature);
+    }
+    if (agentDialogDraft.topP.trim()) {
+      params.topP = Number(agentDialogDraft.topP);
+    }
+    if (agentDialogDraft.maxTokens.trim()) {
+      params.maxTokens = Number(agentDialogDraft.maxTokens);
+    }
+    if (agentDialogDraft.timeoutMs.trim()) {
+      params.timeoutMs = Number(agentDialogDraft.timeoutMs);
+    }
+    if (!agentDialogDraft.streaming) {
+      params.streaming = false;
+    }
+
+    const agentInput: OpenClawAgentInput = {
+      id: agentId,
+      name: agentDialogDraft.name,
+      avatar: agentDialogDraft.avatar,
+      workspace: agentDialogDraft.workspace,
+      agentDir: agentDialogDraft.agentDir,
+      isDefault: agentDialogDraft.isDefault,
+      model: agentDialogDraft.primaryModel.trim()
+        ? {
+            primary: agentDialogDraft.primaryModel.trim(),
+            fallbacks: parseAgentFallbackModels(agentDialogDraft.fallbackModelsText),
+          }
+        : null,
+      params,
+    };
+
+    setIsSavingAgentDialog(true);
+    try {
+      if (editingAgentId) {
+        await instanceService.updateOpenClawAgent(id, agentInput);
+        toast.success('OpenClaw agent updated.');
+      } else {
+        await instanceService.createOpenClawAgent(id, agentInput);
+        toast.success('OpenClaw agent created.');
+      }
+      setIsAgentDialogOpen(false);
+      setEditingAgentId(null);
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save OpenClaw agent.');
+    } finally {
+      setIsSavingAgentDialog(false);
+    }
+  };
+
+  const handleDeleteAgent = async () => {
+    if (!id || !agentDeleteId) {
+      return;
+    }
+
+    try {
+      await instanceService.deleteOpenClawAgent(id, agentDeleteId);
+      toast.success('OpenClaw agent removed.');
+      setAgentDeleteId(null);
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete OpenClaw agent.');
     }
   };
 
@@ -1146,12 +1606,16 @@ export function InstanceDetail() {
                     {endpoint.url || '--'}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {[endpoint.kind, endpoint.exposure, endpoint.auth].map((value) => (
+                    {buildInstanceDetailBadgeDescriptors(endpoint.id, [
+                      { slot: 'kind', value: endpoint.kind },
+                      { slot: 'exposure', value: endpoint.exposure },
+                      { slot: 'auth', value: endpoint.auth },
+                    ]).map((badge) => (
                       <span
-                        key={`${endpoint.id}-${value}`}
+                        key={badge.key}
                         className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
                       >
-                        {formatWorkbenchLabel(value)}
+                        {formatWorkbenchLabel(badge.value)}
                       </span>
                     ))}
                   </div>
@@ -1249,12 +1713,16 @@ export function InstanceDetail() {
                     {route.target || '--'}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {[route.scope, route.mode, route.source].map((value) => (
+                    {buildInstanceDetailBadgeDescriptors(route.id, [
+                      { slot: 'scope', value: route.scope },
+                      { slot: 'mode', value: route.mode },
+                      { slot: 'source', value: route.source },
+                    ]).map((badge) => (
                       <span
-                        key={`${route.id}-${value}`}
+                        key={badge.key}
                         className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
                       >
-                        {formatWorkbenchLabel(value)}
+                        {formatWorkbenchLabel(badge.value)}
                       </span>
                     ))}
                     <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
@@ -1318,12 +1786,15 @@ export function InstanceDetail() {
                     {artifact.location || '--'}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {[artifact.kind, artifact.source].map((value) => (
+                    {buildInstanceDetailBadgeDescriptors(artifact.id, [
+                      { slot: 'kind', value: artifact.kind },
+                      { slot: 'source', value: artifact.source },
+                    ]).map((badge) => (
                       <span
-                        key={`${artifact.id}-${value}`}
+                        key={badge.key}
                         className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
                       >
-                        {formatWorkbenchLabel(value)}
+                        {formatWorkbenchLabel(badge.value)}
                       </span>
                     ))}
                     <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
@@ -1601,48 +2072,386 @@ export function InstanceDetail() {
   };
 
   const renderAgentsSection = () => {
-    if (!workbench || workbench.agents.length === 0) {
-      return renderSectionAvailability('agents', 'instances.detail.instanceWorkbench.empty.agents');
+    if (!workbench) {
+      return null;
     }
 
     return (
-      <WorkbenchRowList>
-        {workbench.agents.map(({ agent, focusAreas, automationFitScore }, index) => (
-          <WorkbenchRow key={agent.id} isLast={index === workbench.agents.length - 1}>
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-xl">
-                {agent.avatar}
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                  {agent.name}
-                </h3>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                  {agent.description}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {focusAreas.map((focusArea) => (
-                <span
-                  key={focusArea}
-                  className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
-                >
-                  {focusArea}
+      <div className="space-y-6">
+        <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                  OpenClaw Agents
                 </span>
-              ))}
-            </div>
-            <div className="text-right">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                {t('instances.detail.instanceWorkbench.metrics.automationFitScore')}
+                {managedConfigPath ? (
+                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                    Managed Config
+                  </span>
+                ) : null}
               </div>
-              <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                {automationFitScore}%
-              </div>
+              <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                Agent identity, workspace, per-agent model overrides, and state directories are written
+                back to the real config-backed OpenClaw config. Credentials still live inside each agent&apos;s
+                <span className="mx-1 font-mono text-xs">auth-profiles.json</span>
+                under its
+                <span className="mx-1 font-mono text-xs">agentDir</span>
+                and are intentionally not shared automatically.
+              </p>
             </div>
-          </WorkbenchRow>
-        ))}
-      </WorkbenchRowList>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/agents?instanceId=${encodeURIComponent(id)}`)}
+                disabled={!isOpenClawConfigWritable}
+                className="rounded-2xl px-4 py-3"
+              >
+                <Bot className="h-4 w-4" />
+                {t('sidebar.agentMarket')}
+              </Button>
+              <Button
+                onClick={openCreateAgentDialog}
+                disabled={!isOpenClawConfigWritable}
+                className="rounded-2xl px-4 py-3"
+              >
+                <Plus className="h-4 w-4" />
+                New Agent
+              </Button>
+            </div>
+          </div>
+          {!isOpenClawConfigWritable ? (
+            <div className="mt-4 rounded-2xl border border-zinc-200/70 bg-zinc-50 px-4 py-3 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.agents.marketReadonlyNotice')}
+            </div>
+          ) : null}
+        </div>
+
+        {workbench.agents.length === 0 ? (
+          renderSectionAvailability('agents', 'instances.detail.instanceWorkbench.empty.agents')
+        ) : (
+          <WorkbenchRowList>
+            {workbench.agents.map((agentRecord, index) => {
+              const {
+                agent,
+                focusAreas,
+                automationFitScore,
+                workspace,
+                agentDir,
+                isDefault,
+                model,
+                configSource,
+              } = agentRecord;
+
+              return (
+                <WorkbenchRow key={agent.id} isLast={index === workbench.agents.length - 1}>
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-xl">
+                    {agent.avatar}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                        {agent.name}
+                      </h3>
+                      {isDefault ? (
+                        <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                          Default
+                        </span>
+                      ) : null}
+                      {configSource === 'managedConfig' ? (
+                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                          Config-backed
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                      {agent.description}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {focusAreas.map((focusArea) => (
+                        <span
+                          key={focusArea}
+                          className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
+                        >
+                          {focusArea}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl bg-zinc-950/[0.03] px-4 py-3 dark:bg-white/[0.04]">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                          Workspace
+                        </div>
+                        <div className="mt-1 break-all font-mono text-xs text-zinc-600 dark:text-zinc-300">
+                          {workspace || '--'}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-zinc-950/[0.03] px-4 py-3 dark:bg-white/[0.04]">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                          Agent Dir
+                        </div>
+                        <div className="mt-1 break-all font-mono text-xs text-zinc-600 dark:text-zinc-300">
+                          {agentDir || '--'}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-zinc-950/[0.03] px-4 py-3 dark:bg-white/[0.04]">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                          Primary Model
+                        </div>
+                        <div className="mt-1 break-all text-sm text-zinc-700 dark:text-zinc-200">
+                          {model?.primary || 'Inherit defaults'}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-zinc-950/[0.03] px-4 py-3 dark:bg-white/[0.04]">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                          Fallback Models
+                        </div>
+                        <div className="mt-1 break-all text-sm text-zinc-700 dark:text-zinc-200">
+                          {model?.fallbacks.length ? model.fallbacks.join(', ') : 'None'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.automationFitScore')}
+                    value={`${automationFitScore}%`}
+                  />
+                  <RowMetric label="Creator" value={agent.creator || '--'} />
+                </div>
+                <div className="flex flex-col items-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => openEditAgentDialog(agentRecord)}
+                    disabled={!isOpenClawConfigWritable}
+                    className="rounded-2xl px-4 py-3"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setAgentDeleteId(agent.id)}
+                    disabled={!isOpenClawConfigWritable}
+                    className="rounded-2xl px-4 py-3 text-rose-600 hover:text-rose-600 dark:text-rose-300"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+                </WorkbenchRow>
+              );
+            })}
+          </WorkbenchRowList>
+        )}
+
+        <Dialog open={isAgentDialogOpen} onOpenChange={setIsAgentDialogOpen}>
+          <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{editingAgentId ? 'Edit OpenClaw Agent' : 'Create OpenClaw Agent'}</DialogTitle>
+              <DialogDescription>
+                Agent IDs should stay stable. New agent credentials must be configured in the agent&apos;s
+                own auth store after creation if the chosen provider requires per-agent auth.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2 md:grid-cols-2">
+              <label className="block">
+                <Label className="mb-2">Agent ID</Label>
+                <Input
+                  value={agentDialogDraft.id}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, id: event.target.value }))
+                  }
+                  placeholder="research"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Display Name</Label>
+                <Input
+                  value={agentDialogDraft.name}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="Research Agent"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Avatar</Label>
+                <Input
+                  value={agentDialogDraft.avatar}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, avatar: event.target.value }))
+                  }
+                  placeholder="*"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Primary Model</Label>
+                <Select
+                  value={agentDialogDraft.primaryModel || '__inherit__'}
+                  onValueChange={(value) =>
+                    setAgentDialogDraft((current) => ({
+                      ...current,
+                      primaryModel: value === '__inherit__' ? '' : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="rounded-2xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__inherit__">Inherit defaults</SelectItem>
+                    {availableAgentModelOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="block md:col-span-2">
+                <Label className="mb-2">Fallback Models</Label>
+                <Textarea
+                  value={agentDialogDraft.fallbackModelsText}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({
+                      ...current,
+                      fallbackModelsText: event.target.value,
+                    }))
+                  }
+                  placeholder="one provider/model per line"
+                  rows={4}
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <Label className="mb-2">Workspace</Label>
+                <Input
+                  value={agentDialogDraft.workspace}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, workspace: event.target.value }))
+                  }
+                  placeholder="Leave blank to let OpenClaw derive workspace-<agentId>"
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <Label className="mb-2">Agent Dir</Label>
+                <Input
+                  value={agentDialogDraft.agentDir}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, agentDir: event.target.value }))
+                  }
+                  placeholder="Leave blank to use .openclaw/agents/<agentId>/agent"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Temperature</Label>
+                <Input
+                  value={agentDialogDraft.temperature}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, temperature: event.target.value }))
+                  }
+                  placeholder="0.2"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Top P</Label>
+                <Input
+                  value={agentDialogDraft.topP}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, topP: event.target.value }))
+                  }
+                  placeholder="1"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Max Tokens</Label>
+                <Input
+                  value={agentDialogDraft.maxTokens}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, maxTokens: event.target.value }))
+                  }
+                  placeholder="32000"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Timeout Ms</Label>
+                <Input
+                  value={agentDialogDraft.timeoutMs}
+                  onChange={(event) =>
+                    setAgentDialogDraft((current) => ({ ...current, timeoutMs: event.target.value }))
+                  }
+                  placeholder="60000"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950">
+                <div>
+                  <div className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                    Default Agent
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    OpenClaw routes the implicit main session to the first default agent.
+                  </div>
+                </div>
+                <Switch
+                  checked={agentDialogDraft.isDefault}
+                  onCheckedChange={(checked) =>
+                    setAgentDialogDraft((current) => ({ ...current, isDefault: checked }))
+                  }
+                />
+              </label>
+              <label className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950">
+                <div>
+                  <div className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                    Streaming
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Stored as a per-agent model param override when disabled.
+                  </div>
+                </div>
+                <Switch
+                  checked={agentDialogDraft.streaming}
+                  onCheckedChange={(checked) =>
+                    setAgentDialogDraft((current) => ({ ...current, streaming: checked }))
+                  }
+                />
+              </label>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAgentDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={() => void handleSaveAgentDialog()} disabled={isSavingAgentDialog}>
+                {isSavingAgentDialog ? t('common.loading') : t('common.save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(agentDeleteId)} onOpenChange={(open) => !open && setAgentDeleteId(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Delete OpenClaw Agent</DialogTitle>
+              <DialogDescription>
+                This removes the agent entry from the config-backed OpenClaw config. The workspace and
+                agentDir files are not deleted automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAgentDeleteId(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                onClick={() => void handleDeleteAgent()}
+                className="bg-rose-600 text-white hover:bg-rose-700"
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     );
   };
 
@@ -1691,176 +2500,537 @@ export function InstanceDetail() {
     );
   };
 
-  const renderLlmProvidersSection = () => {
-    if (!workbench || workbench.llmProviders.length === 0) {
-      return renderSectionAvailability('llmProviders', 'instances.detail.instanceWorkbench.empty.llmProviders');
-    }
+  const renderLlmProvidersSection = () => renderManagedLlmProviderSection();
+
+    /*
+
+                      {model.name} ·{' '}
+
+
+
+    */
+  const renderOpenClawProviderDialogs = () => {
+    const defaultDialogModelValue =
+      providerDialogDraft.defaultModelId &&
+      providerDialogModels.some((model) => model.id === providerDialogDraft.defaultModelId)
+        ? providerDialogDraft.defaultModelId
+        : '__auto__';
+    const reasoningDialogModelValue =
+      providerDialogDraft.reasoningModelId &&
+      providerDialogModels.some((model) => model.id === providerDialogDraft.reasoningModelId)
+        ? providerDialogDraft.reasoningModelId
+        : '__none__';
+    const embeddingDialogModelValue =
+      providerDialogDraft.embeddingModelId &&
+      providerDialogModels.some((model) => model.id === providerDialogDraft.embeddingModelId)
+        ? providerDialogDraft.embeddingModelId
+        : '__none__';
 
     return (
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_24rem]">
-        <div data-slot="instance-llm-provider-list" className="space-y-3">
-          {managedConfigPath ? (
-            <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/35 dark:text-zinc-300">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                {formatWorkbenchLabel('managedFile')}
-              </div>
-              <div className="mt-2 break-all font-mono text-xs leading-6 text-zinc-500 dark:text-zinc-400">
-                {managedConfigPath}
-              </div>
+      <>
+        <Dialog
+          open={isProviderDialogOpen}
+          onOpenChange={(open) => {
+            setIsProviderDialogOpen(open);
+            if (!open) {
+              setProviderDialogDraft(createEmptyProviderForm());
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Create OpenClaw Provider</DialogTitle>
+              <DialogDescription>
+                This writes a provider into the config-backed OpenClaw config for the current instance.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2 md:grid-cols-2">
+              <label className="block">
+                <Label className="mb-2">Provider ID</Label>
+                <Input
+                  value={providerDialogDraft.id}
+                  onChange={(event) =>
+                    setProviderDialogDraft((current) => ({ ...current, id: event.target.value }))
+                  }
+                  placeholder="openai"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Display Name</Label>
+                <Input
+                  value={providerDialogDraft.name}
+                  onChange={(event) =>
+                    setProviderDialogDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="OpenAI"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Endpoint</Label>
+                <Input
+                  value={providerDialogDraft.endpoint}
+                  onChange={(event) =>
+                    setProviderDialogDraft((current) => ({ ...current, endpoint: event.target.value }))
+                  }
+                  placeholder="https://api.openai.com/v1"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">API Key Source</Label>
+                <Input
+                  value={providerDialogDraft.apiKeySource}
+                  onChange={(event) =>
+                    setProviderDialogDraft((current) => ({
+                      ...current,
+                      apiKeySource: event.target.value,
+                    }))
+                  }
+                  placeholder="OPENAI_API_KEY"
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <Label className="mb-2">Models</Label>
+                <Textarea
+                  value={providerDialogDraft.modelsText}
+                  onChange={(event) =>
+                    setProviderDialogDraft((current) => ({ ...current, modelsText: event.target.value }))
+                  }
+                  placeholder={'gpt-4.1=GPT-4.1\ntext-embedding-3-large=Text Embedding 3 Large'}
+                  rows={6}
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Default Model</Label>
+                <Select
+                  value={defaultDialogModelValue}
+                  onValueChange={(value) =>
+                    setProviderDialogDraft((current) => ({
+                      ...current,
+                      defaultModelId: value === '__auto__' ? '' : value,
+                    }))
+                  }
+                  disabled={providerDialogModels.length === 0}
+                >
+                  <SelectTrigger className="rounded-2xl">
+                    <SelectValue placeholder="Use first model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto__">Use first model</SelectItem>
+                    {providerDialogModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="block">
+                <Label className="mb-2">Reasoning Model</Label>
+                <Select
+                  value={reasoningDialogModelValue}
+                  onValueChange={(value) =>
+                    setProviderDialogDraft((current) => ({
+                      ...current,
+                      reasoningModelId: value === '__none__' ? '' : value,
+                    }))
+                  }
+                  disabled={providerDialogModels.length === 0}
+                >
+                  <SelectTrigger className="rounded-2xl">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t('common.none')}</SelectItem>
+                    {providerDialogModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="block md:col-span-2">
+                <Label className="mb-2">Embedding Model</Label>
+                <Select
+                  value={embeddingDialogModelValue}
+                  onValueChange={(value) =>
+                    setProviderDialogDraft((current) => ({
+                      ...current,
+                      embeddingModelId: value === '__none__' ? '' : value,
+                    }))
+                  }
+                  disabled={providerDialogModels.length === 0}
+                >
+                  <SelectTrigger className="rounded-2xl">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t('common.none')}</SelectItem>
+                    {providerDialogModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
             </div>
-          ) : null}
-          {workbench.llmProviders.map((provider) => {
-            const isActive = selectedProvider?.id === provider.id;
-            const defaultModel = provider.models.find((model) => model.id === provider.defaultModelId);
-            const reasoningModel = provider.models.find(
-              (model) => model.id === provider.reasoningModelId,
-            );
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsProviderDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={() => void handleSubmitProviderDialog()} disabled={isSavingProviderDialog}>
+                {isSavingProviderDialog ? t('common.loading') : t('common.save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-            return (
-              <button
-                key={provider.id}
-                type="button"
-                onClick={() => setSelectedProviderId(provider.id)}
-                className={`w-full rounded-[1.5rem] border p-5 text-left transition-colors ${
-                  isActive
-                    ? 'border-zinc-950 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950'
-                    : 'border-zinc-200/70 bg-white/80 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60'
-                }`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold ${
-                        isActive
-                          ? 'bg-white/12 text-white dark:bg-zinc-950/10 dark:text-zinc-950'
-                          : 'bg-zinc-950 text-white dark:bg-white dark:text-zinc-950'
-                      }`}
-                    >
-                      {provider.icon}
+        <Dialog
+          open={isProviderModelDialogOpen}
+          onOpenChange={(open) => {
+            setIsProviderModelDialogOpen(open);
+            if (!open) {
+              setProviderModelDialogDraft(createEmptyProviderModelForm());
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>
+                {providerModelDialogDraft.originalId ? 'Edit Provider Model' : 'Create Provider Model'}
+              </DialogTitle>
+              <DialogDescription>
+                Model CRUD stays synchronized with OpenClaw default and agent model references.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <label className="block">
+                <Label className="mb-2">Model ID</Label>
+                <Input
+                  value={providerModelDialogDraft.id}
+                  onChange={(event) =>
+                    setProviderModelDialogDraft((current) => ({ ...current, id: event.target.value }))
+                  }
+                  placeholder="gpt-4.1"
+                />
+              </label>
+              <label className="block">
+                <Label className="mb-2">Display Name</Label>
+                <Input
+                  value={providerModelDialogDraft.name}
+                  onChange={(event) =>
+                    setProviderModelDialogDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="GPT-4.1"
+                />
+              </label>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsProviderModelDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={() => void handleSubmitProviderModelDialog()} disabled={isSavingProviderModelDialog}>
+                {isSavingProviderModelDialog ? t('common.loading') : t('common.save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(providerDeleteId)} onOpenChange={(open) => !open && setProviderDeleteId(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Delete OpenClaw Provider</DialogTitle>
+              <DialogDescription>
+                Delete provider <span className="font-mono text-xs">{deletingProvider?.id || providerDeleteId}</span> from
+                the config-backed OpenClaw config. Default and agent references will be cleaned automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setProviderDeleteId(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={() => void handleDeleteProvider()} className="bg-rose-600 text-white hover:bg-rose-700">
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(providerModelDeleteId)} onOpenChange={(open) => !open && setProviderModelDeleteId(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Delete Provider Model</DialogTitle>
+              <DialogDescription>
+                Delete model <span className="font-mono text-xs">{deletingProviderModel?.id || providerModelDeleteId}</span>{' '}
+                from the selected provider and prune stale OpenClaw references automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setProviderModelDeleteId(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={() => void handleDeleteProviderModel()} className="bg-rose-600 text-white hover:bg-rose-700">
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  };
+
+  const renderManagedLlmProviderSection = () => {
+    if (!workbench) {
+      return null;
+    }
+
+    const hasProviders = workbench.llmProviders.length > 0;
+
+    return (
+      <>
+        <div className="space-y-6">
+          <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/35">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-3xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                    OpenClaw Providers
+                  </span>
+                  {managedConfigPath ? (
+                    <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                      Managed Config
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  Provider and model CRUD write back to the real config-backed OpenClaw config and
+                  keep defaults plus agent model references synchronized.
+                </p>
+                {managedConfigPath ? (
+                  <div className="mt-4 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-xs text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em]">
+                      {formatWorkbenchLabel('managedFile')}
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold tracking-tight">{provider.name}</h3>
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
-                            provider.status === 'degraded'
-                              ? getDangerBadge('degraded')
-                              : getStatusBadge(provider.status)
-                          }`}
-                        >
-                          {t(
-                            `instances.detail.instanceWorkbench.llmProviders.status.${provider.status}`,
-                          )}
-                        </span>
-                      </div>
-                      <p
-                        className={`mt-2 text-sm leading-6 ${
-                          isActive ? 'text-white/75 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                    <div className="mt-1 break-all font-mono">{managedConfigPath}</div>
+                  </div>
+                ) : null}
+              </div>
+              <Button onClick={openCreateProviderDialog} disabled={!isOpenClawConfigWritable} className="rounded-2xl px-4 py-3">
+                <Plus className="h-4 w-4" />
+                New Provider
+              </Button>
+            </div>
+          </div>
+
+          {!hasProviders && !isOpenClawConfigWritable ? (
+            renderSectionAvailability('llmProviders', 'instances.detail.instanceWorkbench.empty.llmProviders')
+          ) : (
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
+              <div data-slot="instance-llm-provider-list" className="space-y-4">
+                {!hasProviders ? (
+                  <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/80 p-8 text-center dark:border-zinc-700 dark:bg-zinc-950/35">
+                    <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                      No providers configured
+                    </h3>
+                    <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                      Create the first provider to unlock real instance-scoped model routing.
+                    </p>
+                  </div>
+                ) : (
+                  workbench.llmProviders.map((providerRecord) => {
+                    const isActive = selectedProvider?.id === providerRecord.id;
+                    const defaultModel =
+                      providerRecord.models.find((model) => model.id === providerRecord.defaultModelId) || null;
+
+                    return (
+                      <div
+                        key={providerRecord.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedProviderId(providerRecord.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setSelectedProviderId(providerRecord.id);
+                          }
+                        }}
+                        className={`rounded-[1.5rem] border p-5 transition-colors ${
+                          isActive
+                            ? 'border-zinc-950 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950'
+                            : 'border-zinc-200/70 bg-white/80 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60'
                         }`}
                       >
-                        {provider.description}
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold ${
+                              isActive
+                                ? 'bg-white/12 text-white dark:bg-zinc-950/10 dark:text-zinc-950'
+                                : 'bg-zinc-950 text-white dark:bg-white dark:text-zinc-950'
+                            }`}>
+                              {providerRecord.icon}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-lg font-semibold tracking-tight">{providerRecord.name}</h3>
+                                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                                  providerRecord.status === 'degraded'
+                                    ? getDangerBadge('degraded')
+                                    : getStatusBadge(providerRecord.status)
+                                }`}>
+                                  {t(`instances.detail.instanceWorkbench.llmProviders.status.${providerRecord.status}`)}
+                                </span>
+                              </div>
+                              <p className={`mt-2 text-sm leading-6 ${
+                                isActive ? 'text-white/75 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                              }`}>
+                                {providerRecord.description}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedProviderId(providerRecord.id);
+                              setProviderDeleteId(providerRecord.id);
+                            }}
+                            disabled={!isOpenClawConfigWritable}
+                            className="rounded-2xl px-3 py-2 text-rose-600 hover:text-rose-600 dark:text-rose-300"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
+                        </div>
+                        <div className={`mt-4 rounded-2xl px-4 py-3 font-mono text-sm ${
+                          isActive
+                            ? 'bg-white/10 text-white/80 dark:bg-zinc-950/10 dark:text-zinc-700'
+                            : 'bg-zinc-950/[0.04] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300'
+                        }`}>
+                          {providerRecord.endpoint || '--'}
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-4">
+                          <div>
+                            <div className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                              isActive ? 'text-white/60 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                            }`}>
+                              Default
+                            </div>
+                            <div className={`mt-1 text-sm font-medium ${
+                              isActive ? 'text-white dark:text-zinc-950' : 'text-zinc-950 dark:text-zinc-50'
+                            }`}>
+                              {defaultModel?.name || '--'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                              isActive ? 'text-white/60 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                            }`}>
+                              Models
+                            </div>
+                            <div className={`mt-1 text-sm font-medium ${
+                              isActive ? 'text-white dark:text-zinc-950' : 'text-zinc-950 dark:text-zinc-50'
+                            }`}>
+                              {providerRecord.models.length}
+                            </div>
+                          </div>
+                          <div>
+                            <div className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                              isActive ? 'text-white/60 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                            }`}>
+                              Temperature
+                            </div>
+                            <div className={`mt-1 text-sm font-medium ${
+                              isActive ? 'text-white dark:text-zinc-950' : 'text-zinc-950 dark:text-zinc-50'
+                            }`}>
+                              {providerRecord.config.temperature}
+                            </div>
+                          </div>
+                          <div>
+                            <div className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                              isActive ? 'text-white/60 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
+                            }`}>
+                              Streaming
+                            </div>
+                            <div className={`mt-1 text-sm font-medium ${
+                              isActive ? 'text-white dark:text-zinc-950' : 'text-zinc-950 dark:text-zinc-50'
+                            }`}>
+                              {providerRecord.config.streaming ? 'On' : 'Off'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <InstanceLLMConfigPanel
+                  provider={selectedProvider}
+                  draft={selectedProviderDraft}
+                  hasPendingChanges={hasPendingProviderChanges}
+                  isSaving={isSavingProviderConfig}
+                  isReadonly={isProviderConfigReadonly}
+                  readonlyMessage={t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice')}
+                  onFieldChange={handleProviderFieldChange}
+                  onConfigChange={handleProviderConfigChange}
+                  onReset={handleResetProviderDraft}
+                  onSave={handleSaveProviderConfig}
+                />
+                <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/40">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                        Provider Models
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                        Add, rename, or remove models from the selected provider catalog.
                       </p>
                     </div>
+                    <Button onClick={openCreateProviderModelDialog} disabled={!selectedProvider || !isOpenClawConfigWritable} className="rounded-2xl px-4 py-3">
+                      <Plus className="h-4 w-4" />
+                      Add Model
+                    </Button>
                   </div>
-
-                  <div
-                    className={`rounded-2xl px-3 py-2 text-xs font-medium ${
-                      isActive
-                        ? 'bg-white/10 text-white/80 dark:bg-zinc-950/10 dark:text-zinc-700'
-                        : 'bg-zinc-950/[0.04] text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400'
-                    }`}
-                  >
-                    {provider.lastCheckedAt}
-                  </div>
-                </div>
-
-                <div
-                  className={`mt-4 truncate rounded-2xl px-4 py-3 font-mono text-sm ${
-                    isActive
-                      ? 'bg-white/10 text-white/80 dark:bg-zinc-950/10 dark:text-zinc-700'
-                      : 'bg-zinc-950/[0.04] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300'
-                  }`}
-                >
-                  {provider.endpoint}
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {provider.models.map((model) => (
-                    <span
-                      key={model.id}
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        isActive
-                          ? 'bg-white/10 text-white/85 dark:bg-zinc-950/10 dark:text-zinc-700'
-                          : 'bg-zinc-950/[0.04] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300'
-                      }`}
-                    >
-                      {model.name} ·{' '}
-                      {t(`instances.detail.instanceWorkbench.llmProviders.modelRoles.${model.role}`)}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-5">
-                  {[
-                    {
-                      label: t('instances.detail.instanceWorkbench.llmProviders.defaultModel'),
-                      value: defaultModel?.name || '--',
-                    },
-                    {
-                      label: t('instances.detail.instanceWorkbench.llmProviders.reasoningModel'),
-                      value: reasoningModel?.name || '--',
-                    },
-                    {
-                      label: t('instances.detail.instanceWorkbench.llmProviders.temperature'),
-                      value: provider.config.temperature,
-                    },
-                    {
-                      label: t('instances.detail.instanceWorkbench.llmProviders.topP'),
-                      value: provider.config.topP,
-                    },
-                    {
-                      label: t('instances.detail.instanceWorkbench.llmProviders.streaming'),
-                      value: provider.config.streaming
-                        ? t('instances.detail.instanceWorkbench.files.on')
-                        : t('instances.detail.instanceWorkbench.files.off'),
-                    },
-                  ].map((metric) => (
-                    <div key={metric.label} className="min-w-[7rem]">
-                      <div
-                        className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${
-                          isActive ? 'text-white/60 dark:text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'
-                        }`}
-                      >
-                        {metric.label}
-                      </div>
-                      <div
-                        className={`mt-1 text-sm font-medium ${
-                          isActive ? 'text-white dark:text-zinc-950' : 'text-zinc-950 dark:text-zinc-50'
-                        }`}
-                      >
-                        {metric.value}
-                      </div>
+                  {!selectedProvider ? (
+                    <div className="mt-5 rounded-2xl bg-zinc-950/[0.04] px-4 py-5 text-sm text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
+                      Select a provider to manage its model catalog.
                     </div>
-                  ))}
+                  ) : (
+                    <div className="mt-5 space-y-3">
+                      {selectedProvider.models.map((model) => (
+                        <div key={model.id} className="rounded-2xl border border-zinc-200/70 bg-zinc-950/[0.02] p-4 dark:border-zinc-800 dark:bg-white/[0.03]">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{model.name}</h4>
+                                <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                                  {t(`instances.detail.instanceWorkbench.llmProviders.modelRoles.${model.role}`)}
+                                </span>
+                              </div>
+                              <div className="mt-2 font-mono text-xs text-zinc-500 dark:text-zinc-400">{model.id}</div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="outline" onClick={() => openEditProviderModelDialog(model)} disabled={!isOpenClawConfigWritable} className="rounded-2xl px-3 py-2">
+                                <Edit2 className="h-4 w-4" />
+                                Edit
+                              </Button>
+                              <Button variant="outline" onClick={() => setProviderModelDeleteId(model.id)} disabled={!isOpenClawConfigWritable} className="rounded-2xl px-3 py-2 text-rose-600 hover:text-rose-600 dark:text-rose-300">
+                                <Trash2 className="h-4 w-4" />
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </button>
-            );
-          })}
+              </div>
+            </div>
+          )}
         </div>
-
-        <InstanceLLMConfigPanel
-          provider={selectedProvider}
-          draft={selectedProviderDraft}
-          hasPendingChanges={hasPendingProviderChanges}
-          isSaving={isSavingProviderConfig}
-          isReadonly={isProviderConfigReadonly}
-          readonlyMessage={t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice')}
-          onFieldChange={handleProviderFieldChange}
-          onConfigChange={handleProviderConfigChange}
-          onReset={handleResetProviderDraft}
-          onSave={handleSaveProviderConfig}
-        />
-      </div>
+        {renderOpenClawProviderDialogs()}
+      </>
     );
   };
 

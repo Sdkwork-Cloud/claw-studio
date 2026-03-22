@@ -132,6 +132,8 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/open_external.rs', 'desktop open external command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/select_files.rs', 'desktop select files command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/commands/save_blob_file.rs', 'desktop save blob file command'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/fetch_remote_url.rs', 'desktop remote url fetch command'],
+  ['packages/sdkwork-claw-desktop/src-tauri/src/commands/capture_screenshot.rs', 'desktop capture screenshot command'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/state/mod.rs', 'desktop state module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/platform/mod.rs', 'desktop platform module'],
   ['scripts/prepare-openclaw-runtime.mjs', 'bundled openclaw runtime prepare script'],
@@ -172,6 +174,21 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_SOURCE_REPO_DIR',
+  'desktop bundled sdkwork-api-router source repo dir env example',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_ADMIN_SITE_SOURCE_DIR',
+  'desktop bundled sdkwork-api-router admin site source dir env example',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
+  'SDKWORK_API_ROUTER_PORTAL_SITE_SOURCE_DIR',
+  'desktop bundled sdkwork-api-router portal site source dir env example',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/.env.example',
   'SDKWORK_API_ROUTER_BASE_PORT',
   'desktop managed sdkwork-api-router base port env example',
 );
@@ -204,6 +221,16 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
   'getApiRouterRuntimeStatus',
   'desktop api router runtime command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'captureScreenshot',
+  'desktop screenshot command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'fetchRemoteUrl',
+  'desktop remote url fetch command catalog entry',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
@@ -249,6 +276,21 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'export async function getDesktopStorageInfo',
   'desktop storage info bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function captureScreenshot',
+  'desktop screenshot bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function fetchRemoteUrl',
+  'desktop remote url fetch bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export function supportsNativeScreenshot',
+  'desktop screenshot support bridge export',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
@@ -397,6 +439,16 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/index.ts',
+  'captureScreenshot',
+  'desktop package screenshot export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
+  'fetchRemoteUrl',
+  'desktop package remote url fetch export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
   'DesktopBridgeError',
   'desktop package bridge error export',
 );
@@ -414,6 +466,16 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'DESKTOP_COMMANDS.saveBlobFile',
   'desktop save blob file invoke wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'DESKTOP_COMMANDS.captureScreenshot',
+  'desktop screenshot invoke wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'DESKTOP_COMMANDS.fetchRemoteUrl',
+  'desktop remote url fetch invoke wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
@@ -461,6 +523,16 @@ assertIncludes(
   'opener plugin dependency',
 );
 assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  'xcap',
+  'desktop screenshot crate dependency',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  'image',
+  'desktop screenshot image dependency',
+);
+assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
   'plugins',
   'plugin bootstrap wiring',
@@ -484,6 +556,16 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
   'commands::run_hub_uninstall::run_hub_uninstall',
   'desktop hub uninstall command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::capture_screenshot::capture_screenshot',
+  'desktop screenshot command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::fetch_remote_url::fetch_remote_url',
+  'desktop remote url fetch command registration',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',

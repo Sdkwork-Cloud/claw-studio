@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { APP_ENV } from '../config/env.ts';
 import {
   configurePlatformBridge,
   type RuntimeApiRouterRuntimeStatus,
@@ -203,6 +204,76 @@ await runTest('sdkworkApiRouterAdminClient resolves the gateway base URL from ru
   assert.equal(gatewayBaseUrl, 'http://127.0.0.1:13003/api');
 });
 
+await runTest('sdkworkApiRouterAdminClient prefers an explicitly configured admin token over a stale stored session token', async () => {
+  const requests: Array<{ url: string; authorization: string | null }> = [];
+  const previousAdminToken = APP_ENV.apiRouter.adminToken;
+  APP_ENV.apiRouter.adminToken = 'configured-admin-token';
+
+  configurePlatformBridge({
+    runtime: {
+      getRuntimeInfo: async () => ({ platform: 'desktop' }),
+      getApiRouterRuntimeStatus: async () => createRuntimeStatus(),
+      getApiRouterAdminBootstrapSession: async () => null,
+      setAppLanguage: async () => {},
+      submitProcessJob: async () => 'job-configured-token',
+      getJob: async () => ({
+        id: 'job-configured-token',
+        kind: 'process',
+        state: 'queued',
+        stage: 'queued',
+      }),
+      listJobs: async () => [],
+      cancelJob: async () => ({
+        id: 'job-configured-token',
+        kind: 'process',
+        state: 'cancelled',
+        stage: 'cancelled',
+      }),
+      subscribeJobUpdates: async () => () => {},
+      subscribeProcessOutput: async () => () => {},
+    },
+  });
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    requests.push({
+      url: String(input),
+      authorization: headers.get('authorization'),
+    });
+
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+  }) as typeof fetch;
+
+  const { writeApiRouterAdminSession } = await import('../auth/apiRouterAdminSession.ts');
+  const { sdkworkApiRouterAdminClient } = await import('./sdkworkApiRouterAdminClient.ts');
+
+  try {
+    writeApiRouterAdminSession({
+      token: 'stale-router-admin-token',
+      user: {
+        id: 'admin_local_default',
+        email: 'admin@sdkwork.local',
+        displayName: 'Admin Operator',
+        active: true,
+        createdAtMs: 1_700_000_000_000,
+      },
+    });
+
+    await sdkworkApiRouterAdminClient.listUsageRecords();
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0]?.authorization, 'Bearer configured-admin-token');
+  } finally {
+    APP_ENV.apiRouter.adminToken = previousAdminToken;
+    clearApiRouterAdminSession();
+  }
+});
+
 await runTest('sdkworkApiRouterAdminClient bootstraps a managed local admin session before sending authenticated requests', async () => {
   const requests: Array<{ url: string; authorization: string | null }> = [];
   configurePlatformBridge({
@@ -284,6 +355,259 @@ await runTest('sdkworkApiRouterAdminClient bootstraps a managed local admin sess
   assert.equal(requests[0]?.authorization, 'Bearer managed-bootstrap-token');
   assert.equal(readApiRouterAdminSession()?.token, 'managed-bootstrap-token');
   assert.equal(readApiRouterAdminSession()?.user.email, 'admin@sdkwork.local');
+});
+
+await runTest('sdkworkApiRouterAdminClient upgrades a stale local session to the trusted local bootstrap session before the first request', async () => {
+  const requests: Array<{ url: string; authorization: string | null }> = [];
+  configurePlatformBridge({
+    runtime: {
+      getRuntimeInfo: async () => ({ platform: 'desktop' }),
+      getApiRouterRuntimeStatus: async () =>
+        createRuntimeStatus({
+          mode: 'attachedExternal',
+          configSource: 'file',
+          resolvedConfigFile: 'C:/Users/admin/.sdkwork/router/config.json',
+          admin: {
+            bindAddr: '127.0.0.1:12101',
+            healthUrl: 'http://127.0.0.1:12101/admin/health',
+            enabled: true,
+            publicBaseUrl: 'http://127.0.0.1:12103/api/admin',
+            healthy: true,
+            portAvailable: false,
+          },
+          portal: {
+            bindAddr: '127.0.0.1:12102',
+            healthUrl: 'http://127.0.0.1:12102/portal/health',
+            enabled: true,
+            publicBaseUrl: 'http://127.0.0.1:12103/api/portal',
+            healthy: true,
+            portAvailable: false,
+          },
+          gateway: {
+            bindAddr: '127.0.0.1:12100',
+            healthUrl: 'http://127.0.0.1:12100/health',
+            publicBaseUrl: 'http://127.0.0.1:12103/api',
+            healthy: true,
+            portAvailable: false,
+          },
+          adminSiteBaseUrl: 'http://127.0.0.1:12103/admin',
+          portalSiteBaseUrl: 'http://127.0.0.1:12103/portal',
+          reason: 'Detected a healthy independently started sdkwork-api-router runtime.',
+        }),
+      getApiRouterAdminBootstrapSession: async () => ({
+        token: 'trusted-local-bootstrap-token',
+        source: 'managedLocalJwt',
+        user: {
+          id: 'admin_local_default',
+          email: 'admin@sdkwork.local',
+          displayName: 'Admin Operator',
+          active: true,
+          createdAtMs: 1_700_000_000_000,
+        },
+      }),
+      setAppLanguage: async () => {},
+      submitProcessJob: async () => 'job-attached-bootstrap-preflight',
+      getJob: async () => ({
+        id: 'job-attached-bootstrap-preflight',
+        kind: 'process',
+        state: 'queued',
+        stage: 'queued',
+      }),
+      listJobs: async () => [],
+      cancelJob: async () => ({
+        id: 'job-attached-bootstrap-preflight',
+        kind: 'process',
+        state: 'cancelled',
+        stage: 'cancelled',
+      }),
+      subscribeJobUpdates: async () => () => {},
+      subscribeProcessOutput: async () => () => {},
+    },
+  });
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    requests.push({
+      url: String(input),
+      authorization: headers.get('authorization'),
+    });
+
+    return new Response(
+      JSON.stringify([
+        {
+          tenant_id: 'tenant-local',
+          id: 'project-local',
+          name: 'Trusted Local Project',
+        },
+      ]),
+      {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+    );
+  }) as typeof fetch;
+
+  const { writeApiRouterAdminSession } = await import('../auth/apiRouterAdminSession.ts');
+  const { sdkworkApiRouterAdminClient } = await import('./sdkworkApiRouterAdminClient.ts');
+
+  writeApiRouterAdminSession({
+    token: 'stale-router-admin-token',
+    user: {
+      id: 'admin_local_default',
+      email: 'admin@sdkwork.local',
+      displayName: 'Admin Operator',
+      active: true,
+      createdAtMs: 1_700_000_000_000,
+    },
+  });
+
+  const result = await sdkworkApiRouterAdminClient.listProjects();
+
+  assert.equal(result.length, 1);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]?.authorization, 'Bearer trusted-local-bootstrap-token');
+  assert.equal(readApiRouterAdminSession()?.token, 'trusted-local-bootstrap-token');
+  assert.equal(readApiRouterAdminSession()?.source, 'managedBootstrap');
+});
+
+await runTest('sdkworkApiRouterAdminClient retries with a refreshed trusted local bootstrap session after a stale managed bootstrap token is rejected', async () => {
+  const requests: Array<{ url: string; authorization: string | null }> = [];
+  configurePlatformBridge({
+    runtime: {
+      getRuntimeInfo: async () => ({ platform: 'desktop' }),
+      getApiRouterRuntimeStatus: async () =>
+        createRuntimeStatus({
+          mode: 'attachedExternal',
+          configSource: 'file',
+          resolvedConfigFile: 'C:/Users/admin/.sdkwork/router/config.json',
+          admin: {
+            bindAddr: '127.0.0.1:12101',
+            healthUrl: 'http://127.0.0.1:12101/admin/health',
+            enabled: true,
+            publicBaseUrl: 'http://127.0.0.1:12103/api/admin',
+            healthy: true,
+            portAvailable: false,
+          },
+          portal: {
+            bindAddr: '127.0.0.1:12102',
+            healthUrl: 'http://127.0.0.1:12102/portal/health',
+            enabled: true,
+            publicBaseUrl: 'http://127.0.0.1:12103/api/portal',
+            healthy: true,
+            portAvailable: false,
+          },
+          gateway: {
+            bindAddr: '127.0.0.1:12100',
+            healthUrl: 'http://127.0.0.1:12100/health',
+            publicBaseUrl: 'http://127.0.0.1:12103/api',
+            healthy: true,
+            portAvailable: false,
+          },
+          adminSiteBaseUrl: 'http://127.0.0.1:12103/admin',
+          portalSiteBaseUrl: 'http://127.0.0.1:12103/portal',
+          reason: 'Detected a healthy independently started sdkwork-api-router runtime.',
+        }),
+      getApiRouterAdminBootstrapSession: async () => ({
+        token: 'refreshed-trusted-local-bootstrap-token',
+        source: 'managedLocalJwt',
+        user: {
+          id: 'admin_local_default',
+          email: 'admin@sdkwork.local',
+          displayName: 'Admin Operator',
+          active: true,
+          createdAtMs: 1_700_000_000_000,
+        },
+      }),
+      setAppLanguage: async () => {},
+      submitProcessJob: async () => 'job-attached-bootstrap-retry',
+      getJob: async () => ({
+        id: 'job-attached-bootstrap-retry',
+        kind: 'process',
+        state: 'queued',
+        stage: 'queued',
+      }),
+      listJobs: async () => [],
+      cancelJob: async () => ({
+        id: 'job-attached-bootstrap-retry',
+        kind: 'process',
+        state: 'cancelled',
+        stage: 'cancelled',
+      }),
+      subscribeJobUpdates: async () => () => {},
+      subscribeProcessOutput: async () => () => {},
+    },
+  });
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    const authorization = headers.get('authorization');
+    requests.push({
+      url: String(input),
+      authorization,
+    });
+
+    if (authorization === 'Bearer stale-managed-bootstrap-token') {
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: 'Unauthorized',
+          },
+        }),
+        {
+          status: 401,
+          headers: {
+            'content-type': 'application/json',
+          },
+        },
+      );
+    }
+
+    if (authorization === 'Bearer refreshed-trusted-local-bootstrap-token') {
+      return new Response(
+        JSON.stringify([
+          {
+            tenant_id: 'tenant-local',
+            id: 'project-local',
+            name: 'Trusted Local Project',
+          },
+        ]),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+          },
+        },
+      );
+    }
+
+    return new Response('missing auth', { status: 500 });
+  }) as typeof fetch;
+
+  const { writeApiRouterAdminSession } = await import('../auth/apiRouterAdminSession.ts');
+  const { sdkworkApiRouterAdminClient } = await import('./sdkworkApiRouterAdminClient.ts');
+
+  writeApiRouterAdminSession({
+    token: 'stale-managed-bootstrap-token',
+    source: 'managedBootstrap',
+    user: {
+      id: 'admin_local_default',
+      email: 'admin@sdkwork.local',
+      displayName: 'Admin Operator',
+      active: true,
+      createdAtMs: 1_700_000_000_000,
+    },
+  });
+
+  const result = await sdkworkApiRouterAdminClient.listProjects();
+
+  assert.equal(result.length, 1);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0]?.authorization, 'Bearer stale-managed-bootstrap-token');
+  assert.equal(requests[1]?.authorization, 'Bearer refreshed-trusted-local-bootstrap-token');
+  assert.equal(readApiRouterAdminSession()?.token, 'refreshed-trusted-local-bootstrap-token');
+  assert.equal(readApiRouterAdminSession()?.source, 'managedBootstrap');
 });
 
 await runTest('sdkworkApiRouterAdminClient login stores the router admin session', async () => {

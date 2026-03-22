@@ -37,6 +37,7 @@ runTest('sdkwork-claw-model-purchase is implemented as a real feature package', 
   assert.ok(exists('packages/sdkwork-claw-model-purchase/src/components/ModelPurchaseSidebar.tsx'));
   assert.ok(exists('packages/sdkwork-claw-model-purchase/src/components/ModelPurchaseBillingSwitch.tsx'));
   assert.ok(exists('packages/sdkwork-claw-model-purchase/src/components/ModelPurchasePlanGrid.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-model-purchase/src/components/ModelPurchasePaymentView.tsx'));
   assert.ok(!exists('packages/sdkwork-claw-model-purchase/src/components/ModelPurchaseVendorSummary.tsx'));
   assert.ok(exists('packages/sdkwork-claw-model-purchase/src/components/ModelPurchaseVendorHero.tsx'));
   assert.ok(exists('packages/sdkwork-claw-model-purchase/src/services/index.ts'));
@@ -58,6 +59,9 @@ runTest('sdkwork-claw-model-purchase renders a sidebar-driven billing experience
   const gridSource = read(
     'packages/sdkwork-claw-model-purchase/src/components/ModelPurchasePlanGrid.tsx',
   );
+  const paymentSource = read(
+    'packages/sdkwork-claw-model-purchase/src/components/ModelPurchasePaymentView.tsx',
+  );
   const heroSource = read(
     'packages/sdkwork-claw-model-purchase/src/components/ModelPurchaseVendorHero.tsx',
   );
@@ -71,6 +75,8 @@ runTest('sdkwork-claw-model-purchase renders a sidebar-driven billing experience
   assert.match(pageSource, /useQuery/);
   assert.match(pageSource, /useTranslation/);
   assert.match(pageSource, /startTransition/);
+  assert.match(pageSource, /useState<'plans' \| 'payment'>\('plans'\)/);
+  assert.match(pageSource, /<ModelPurchasePaymentView/);
   assert.doesNotMatch(pageSource, /ModelPurchaseVendorSummary/);
   assert.doesNotMatch(pageSource, /model-purchase-vendor-summary/);
   assert.match(pageSource, /vendor=\{selectedVendor\}/);
@@ -92,9 +98,16 @@ runTest('sdkwork-claw-model-purchase renders a sidebar-driven billing experience
   assert.match(gridSource, /md:grid-cols-2/);
   assert.match(gridSource, /xl:grid-cols-4/);
   assert.match(gridSource, /flex h-full flex-col/);
+  assert.match(gridSource, /onPurchasePlan: \(plan: ModelPurchasePlan\) => void/);
   assert.doesNotMatch(gridSource, /mt-auto/);
   assert.match(gridSource, /startPlan[\s\S]*planGrid\.quota/);
   assert.doesNotMatch(gridSource, /planGrid\.includedModels/);
+  assert.match(paymentSource, /data-slot="model-purchase-payment-view"/);
+  assert.match(paymentSource, /data-slot="model-purchase-package-details"/);
+  assert.match(paymentSource, /onBack: \(\) => void/);
+  assert.match(paymentSource, /onConfirmPayment: \(\) => void/);
+  assert.doesNotMatch(paymentSource, /ModelPurchaseBillingSwitch/);
+  assert.doesNotMatch(paymentSource, /SelectTrigger/);
   assert.match(heroSource, /data-slot="model-purchase-vendor-hero"/);
   assert.match(serviceSource, /default/);
   assert.match(serviceSource, /openai/);

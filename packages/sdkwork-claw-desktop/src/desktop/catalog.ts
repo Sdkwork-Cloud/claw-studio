@@ -60,6 +60,8 @@ export const DESKTOP_COMMANDS = {
   openExternal: 'open_external',
   selectFiles: 'select_files',
   saveBlobFile: 'save_blob_file',
+  fetchRemoteUrl: 'fetch_remote_url',
+  captureScreenshot: 'capture_screenshot',
 } as const;
 
 export type DesktopCommandName =

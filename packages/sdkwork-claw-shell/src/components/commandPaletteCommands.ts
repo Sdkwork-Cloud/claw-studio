@@ -1,6 +1,7 @@
 import type { ElementType } from 'react';
 import {
   Box,
+  Bot,
   Code,
   Cpu,
   Gauge,
@@ -10,7 +11,6 @@ import {
   MessageCircle,
   Router,
   Server,
-  ShoppingCart,
   Settings,
   Terminal,
 } from 'lucide-react';
@@ -46,6 +46,14 @@ export function buildCommandPaletteCommands({
 }: BuildCommandPaletteCommandsOptions): CommandPaletteCommand[] {
   const baseCommands: CommandPaletteCommand[] = [
     {
+      id: 'nav-chat',
+      title: t('commandPalette.commands.chat.title'),
+      subtitle: t('commandPalette.commands.chat.subtitle'),
+      icon: MessageCircle,
+      category: t('commandPalette.categories.navigation'),
+      action: () => navigate('/chat'),
+    },
+    {
       id: 'nav-dashboard',
       title: t('commandPalette.commands.dashboard.title'),
       subtitle: t('commandPalette.commands.dashboard.subtitle'),
@@ -60,6 +68,14 @@ export function buildCommandPaletteCommands({
       icon: LayoutGrid,
       category: t('commandPalette.categories.navigation'),
       action: () => navigate('/apps'),
+    },
+    {
+      id: 'nav-agents',
+      title: t('commandPalette.commands.agents.title'),
+      subtitle: t('commandPalette.commands.agents.subtitle'),
+      icon: Bot,
+      category: t('commandPalette.categories.navigation'),
+      action: () => navigate('/agents'),
     },
     {
       id: 'nav-github',
@@ -102,14 +118,6 @@ export function buildCommandPaletteCommands({
       action: () => navigate('/devices'),
     },
     {
-      id: 'nav-chat',
-      title: t('commandPalette.commands.chat.title'),
-      subtitle: t('commandPalette.commands.chat.subtitle'),
-      icon: MessageCircle,
-      category: t('commandPalette.categories.navigation'),
-      action: () => navigate('/chat'),
-    },
-    {
       id: 'nav-codebox',
       title: t('commandPalette.commands.codebox.title'),
       subtitle: t('commandPalette.commands.codebox.subtitle'),
@@ -124,14 +132,6 @@ export function buildCommandPaletteCommands({
       icon: Router,
       category: t('commandPalette.categories.navigation'),
       action: () => navigate('/api-router'),
-    },
-    {
-      id: 'nav-model-purchase',
-      title: t('commandPalette.commands.modelPurchase.title'),
-      subtitle: t('commandPalette.commands.modelPurchase.subtitle'),
-      icon: ShoppingCart,
-      category: t('commandPalette.categories.navigation'),
-      action: () => navigate('/model-purchase'),
     },
     {
       id: 'nav-settings',

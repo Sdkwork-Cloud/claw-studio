@@ -385,6 +385,30 @@ export interface StudioInstanceRecord {
 
 export type StudioConversationRole = 'user' | 'assistant' | 'system';
 export type StudioConversationMessageStatus = 'complete' | 'streaming' | 'error';
+export type StudioConversationAttachmentKind =
+  | 'file'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'screenshot'
+  | 'screen-recording'
+  | 'link';
+
+export interface StudioConversationAttachment {
+  id: string;
+  kind: StudioConversationAttachmentKind;
+  name: string;
+  url?: string;
+  previewUrl?: string;
+  objectKey?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  fileId?: string;
+  originalUrl?: string;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+}
 
 export interface StudioConversationMessage {
   id: string;
@@ -396,6 +420,7 @@ export interface StudioConversationMessage {
   model?: string;
   senderInstanceId?: string | null;
   status: StudioConversationMessageStatus;
+  attachments?: StudioConversationAttachment[];
 }
 
 export interface StudioConversationSummary {

@@ -120,9 +120,64 @@ export interface OpenClawProviderRuntimeConfig {
   streaming: boolean;
 }
 
+export type OpenClawAgentParamValue = string | number | boolean;
+
+export interface OpenClawAgentModelConfig {
+  primary?: string;
+  fallbacks?: string[];
+}
+
+export interface OpenClawAgentInput {
+  id: string;
+  name?: string;
+  avatar?: string;
+  workspace?: string;
+  agentDir?: string;
+  isDefault?: boolean;
+  model?: string | OpenClawAgentModelConfig | null;
+  params?: Record<string, OpenClawAgentParamValue | null | undefined>;
+}
+
+export interface OpenClawAgentSnapshot {
+  id: string;
+  name: string;
+  avatar: string;
+  description: string;
+  workspace: string;
+  agentDir: string;
+  isDefault: boolean;
+  model: {
+    primary?: string;
+    fallbacks: string[];
+  };
+  params: Record<string, OpenClawAgentParamValue>;
+}
+
+export interface OpenClawResolvedAgentPaths {
+  id: string;
+  workspace: string;
+  agentDir: string;
+  isDefault: boolean;
+}
+
+export interface OpenClawSubagentDefaultsInput {
+  maxConcurrent?: number;
+  maxSpawnDepth?: number;
+  maxChildrenPerAgent?: number;
+}
+
+export interface ConfigureOpenClawMultiAgentSupportInput {
+  configPath: string;
+  coordinatorAgentId?: string;
+  allowAgentIds: string[];
+  subagentDefaults?: OpenClawSubagentDefaultsInput;
+  sessionsVisibility?: 'self' | 'tree' | 'agent' | 'all';
+}
+
 export interface OpenClawConfigSnapshot {
   configPath: string;
   providerSnapshots: OpenClawProviderSnapshot[];
+  agentSnapshots: OpenClawAgentSnapshot[];
   channelSnapshots: OpenClawChannelSnapshot[];
   root: JsonObject;
 }
@@ -137,6 +192,12 @@ export interface SaveOpenClawChannelConfigurationInput {
 function normalizePath(path: string) {
   return path.replace(/\\/g, '/');
 }
+
+const DEFAULT_AGENT_ID = 'main';
+const VALID_AGENT_ID_RE = /^[a-z0-9](?:[a-z0-9._-]{0,63})$/;
+const INVALID_AGENT_ID_CHARS_RE = /[^a-z0-9._-]+/g;
+const LEADING_DASH_RE = /^-+/;
+const TRAILING_DASH_RE = /-+$/;
 
 function pushCandidatePath(target: string[], nextPath?: string | null) {
   if (!nextPath) {
@@ -164,6 +225,72 @@ function joinPath(root?: string | null, ...segments: string[]) {
   return [normalizedRoot, ...segments].join('/');
 }
 
+function getDirectoryName(path: string) {
+  const normalized = normalizePath(path).replace(/\/+$/, '');
+  const lastSlashIndex = normalized.lastIndexOf('/');
+  if (lastSlashIndex <= 0) {
+    return lastSlashIndex === 0 ? '/' : normalized;
+  }
+
+  return normalized.slice(0, lastSlashIndex);
+}
+
+function normalizeJoinedPath(path: string) {
+  return normalizePath(path)
+    .replace(/\/\.\//g, '/')
+    .replace(/\/{2,}/g, '/');
+}
+
+function isAbsolutePath(path: string) {
+  return /^([a-zA-Z]:\/|\/|\/\/)/.test(normalizePath(path));
+}
+
+function resolveStateRootFromConfigPath(configPath: string) {
+  const normalized = normalizePath(configPath).replace(/\/+$/, '');
+  if (normalized.endsWith('/.openclaw/openclaw.json')) {
+    return getDirectoryName(normalized);
+  }
+  if (normalized.endsWith('/config/openclaw.json')) {
+    return getDirectoryName(getDirectoryName(normalized));
+  }
+  return getDirectoryName(normalized);
+}
+
+function resolveUserRootFromConfigPath(configPath: string) {
+  const stateRoot = resolveStateRootFromConfigPath(configPath);
+  if (stateRoot.endsWith('/.openclaw')) {
+    return stateRoot.slice(0, -'/.openclaw'.length);
+  }
+
+  return getDirectoryName(stateRoot);
+}
+
+function resolveUserPathFromConfig(configPath: string, rawPath?: string | null) {
+  const trimmed = rawPath?.trim() || '';
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed === '~') {
+    return resolveUserRootFromConfigPath(configPath);
+  }
+
+  if (trimmed.startsWith('~/')) {
+    return normalizeJoinedPath(
+      `${resolveUserRootFromConfigPath(configPath)}/${trimmed.slice(2)}`,
+    );
+  }
+
+  if (isAbsolutePath(trimmed)) {
+    return normalizeJoinedPath(trimmed);
+  }
+
+  const relativePath = trimmed.startsWith('./') ? trimmed.slice(2) : trimmed;
+  return normalizeJoinedPath(
+    `${resolveStateRootFromConfigPath(configPath)}/${relativePath}`,
+  );
+}
+
 function ensureObject(parent: JsonObject, key: string): JsonObject {
   const current = parent[key];
   if (!current || typeof current !== 'object' || Array.isArray(current)) {
@@ -180,6 +307,23 @@ function ensureArray(parent: JsonObject, key: string): JsonArray {
   }
 
   return parent[key] as JsonArray;
+}
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function readObject(value: JsonValue | undefined) {
+  return isJsonObject(value) ? value : null;
+}
+
+function deleteIfEmptyObject(parent: JsonObject, key: string) {
+  const value = parent[key];
+  if (!isJsonObject(value) || Object.keys(value).length > 0) {
+    return;
+  }
+
+  delete parent[key];
 }
 
 function readScalar(value: JsonValue | undefined) {
@@ -209,6 +353,23 @@ function readNumber(value: JsonValue | undefined, fallback: number) {
   return fallback;
 }
 
+function readBoolean(value: JsonValue | undefined, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    if (value === 'true') {
+      return true;
+    }
+    if (value === 'false') {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
 function setOptionalScalar(target: JsonObject, key: string, value: string | undefined) {
   const normalized = value?.trim() || '';
   if (!normalized) {
@@ -217,6 +378,34 @@ function setOptionalScalar(target: JsonObject, key: string, value: string | unde
   }
 
   target[key] = normalized;
+}
+
+function normalizeAgentId(value: string | undefined | null) {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) {
+    return DEFAULT_AGENT_ID;
+  }
+
+  if (VALID_AGENT_ID_RE.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  return (
+    trimmed
+      .toLowerCase()
+      .replace(INVALID_AGENT_ID_CHARS_RE, '-')
+      .replace(LEADING_DASH_RE, '')
+      .replace(TRAILING_DASH_RE, '')
+      .slice(0, 64) || DEFAULT_AGENT_ID
+  );
+}
+
+function titleizeIdentifier(value: string) {
+  return value
+    .split(/[-_.]/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
 }
 
 function isReasoningModel(modelId: string, modelName: string, explicitReasoning?: JsonValue) {
@@ -309,6 +498,416 @@ function titleizeProviderKey(providerKey: string) {
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
+}
+
+function readModelConfig(value: JsonValue | undefined): OpenClawAgentModelConfig {
+  if (typeof value === 'string') {
+    return {
+      primary: value,
+      fallbacks: [],
+    };
+  }
+
+  if (!isJsonObject(value)) {
+    return {
+      fallbacks: [],
+    };
+  }
+
+  const primary = readScalar(value.primary).trim() || undefined;
+  const fallbacks = readArray(value.fallbacks)
+    .map((entry) => readScalar(entry).trim())
+    .filter(Boolean);
+
+  return {
+    primary,
+    fallbacks,
+  };
+}
+
+function writeModelConfig(
+  target: JsonObject,
+  key: string,
+  value: string | OpenClawAgentModelConfig | null | undefined,
+) {
+  if (value == null) {
+    delete target[key];
+    return;
+  }
+
+  const config = typeof value === 'string' ? { primary: value, fallbacks: [] } : value;
+  const primary = config.primary?.trim() || '';
+  const fallbacks = (config.fallbacks || []).map((entry) => entry.trim()).filter(Boolean);
+
+  if (!primary && fallbacks.length === 0) {
+    delete target[key];
+    return;
+  }
+
+  const modelConfig: JsonObject = {};
+  if (primary) {
+    modelConfig.primary = primary;
+  }
+  if (fallbacks.length > 0) {
+    modelConfig.fallbacks = [...new Set(fallbacks)];
+  }
+
+  target[key] = modelConfig;
+}
+
+function readAgentParams(value: JsonValue | undefined): Record<string, OpenClawAgentParamValue> {
+  if (!isJsonObject(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entry]) =>
+      typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean'
+        ? [[key, entry]]
+        : [],
+    ),
+  );
+}
+
+function writeAgentParams(
+  target: JsonObject,
+  params?: Record<string, OpenClawAgentParamValue | null | undefined>,
+) {
+  if (!params) {
+    return;
+  }
+
+  const nextParams = Object.fromEntries(
+    Object.entries(params).flatMap(([key, value]) =>
+      typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+        ? [[key, value]]
+        : [],
+    ),
+  );
+
+  if (Object.keys(nextParams).length === 0) {
+    delete target.params;
+    return;
+  }
+
+  target.params = nextParams;
+}
+
+function readStringArray(value: JsonValue | undefined) {
+  return readArray(value)
+    .map((entry) => readScalar(entry).trim())
+    .filter(Boolean);
+}
+
+function normalizeAgentIdList(values: string[]) {
+  return [
+    ...new Set(
+      values
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => (value === '*' ? value : normalizeAgentId(value))),
+    ),
+  ];
+}
+
+function setStringArray(
+  target: JsonObject,
+  key: string,
+  values: string[],
+) {
+  const normalizedValues = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  if (normalizedValues.length === 0) {
+    delete target[key];
+    return;
+  }
+
+  target[key] = normalizedValues;
+}
+
+function getAgentListEntries(root: JsonObject) {
+  const agentList = readObject(root.agents)?.list;
+  return readArray(agentList).filter((entry): entry is JsonObject => isJsonObject(entry));
+}
+
+function resolveDefaultAgentId(root: JsonObject) {
+  const agentList = getAgentListEntries(root);
+  if (agentList.length === 0) {
+    return DEFAULT_AGENT_ID;
+  }
+
+  const defaultEntry =
+    agentList.find((entry) => readBoolean(entry.default, false)) || agentList[0];
+
+  return normalizeAgentId(readScalar(defaultEntry?.id));
+}
+
+function collectAvailableModelEntries(root: JsonObject) {
+  const providersRoot = readObject(readObject(root.models)?.providers) || {};
+  const availableEntries = new Map<string, { alias: string; streaming: boolean }>();
+
+  for (const [providerKey, rawProvider] of Object.entries(providersRoot)) {
+    if (!isJsonObject(rawProvider)) {
+      continue;
+    }
+
+    for (const entry of readArray(rawProvider.models)) {
+      if (!isJsonObject(entry)) {
+        continue;
+      }
+
+      const modelId = readScalar(entry.id).trim();
+      if (!modelId) {
+        continue;
+      }
+
+      availableEntries.set(buildModelRef(providerKey, modelId), {
+        alias: readScalar(entry.name).trim() || modelId,
+        streaming: !isEmbeddingModel(modelId, readScalar(entry.name)),
+      });
+    }
+  }
+
+  return availableEntries;
+}
+
+function syncModelCatalog(root: JsonObject) {
+  const agentsRoot = ensureObject(root, 'agents');
+  const defaultsRoot = ensureObject(agentsRoot, 'defaults');
+  const catalogRoot = ensureObject(defaultsRoot, 'models');
+  const availableEntries = collectAvailableModelEntries(root);
+
+  for (const key of Object.keys(catalogRoot)) {
+    if (!availableEntries.has(key)) {
+      delete catalogRoot[key];
+    }
+  }
+
+  for (const [modelRef, metadata] of availableEntries.entries()) {
+    const current = readObject(catalogRoot[modelRef]) || {};
+    catalogRoot[modelRef] = {
+      ...current,
+      alias: readScalar(current.alias).trim() || metadata.alias,
+      streaming:
+        typeof current.streaming === 'boolean' ? current.streaming : metadata.streaming,
+    };
+  }
+
+  deleteIfEmptyObject(defaultsRoot, 'models');
+}
+
+function sanitizeModelConfig(
+  value: JsonValue | undefined,
+  availableModelRefs: Set<string>,
+  fallbackPrimary?: string,
+) {
+  const modelConfig = readModelConfig(value);
+  const fallbacks = [...new Set((modelConfig.fallbacks || []).filter((entry) => availableModelRefs.has(entry)))];
+  let primary =
+    modelConfig.primary && availableModelRefs.has(modelConfig.primary)
+      ? modelConfig.primary
+      : undefined;
+
+  if (primary) {
+    const filteredFallbacks = fallbacks.filter((entry) => entry !== primary);
+    return {
+      primary,
+      fallbacks: filteredFallbacks,
+    };
+  }
+
+  if (fallbacks.length > 0) {
+    primary = fallbacks[0];
+    return {
+      primary,
+      fallbacks: fallbacks.slice(1).filter((entry) => entry !== primary),
+    };
+  }
+
+  if (fallbackPrimary && availableModelRefs.has(fallbackPrimary)) {
+    return {
+      primary: fallbackPrimary,
+      fallbacks: [],
+    };
+  }
+
+  return {
+    fallbacks: [],
+  };
+}
+
+function pruneModelReferences(root: JsonObject) {
+  const availableModelRefs = new Set(collectAvailableModelEntries(root).keys());
+  const agentsRoot = ensureObject(root, 'agents');
+  const defaultsRoot = ensureObject(agentsRoot, 'defaults');
+  const firstAvailableModelRef = [...availableModelRefs][0];
+  const nextDefaultsModel = sanitizeModelConfig(
+    defaultsRoot.model,
+    availableModelRefs,
+    firstAvailableModelRef,
+  );
+
+  writeModelConfig(defaultsRoot, 'model', nextDefaultsModel);
+  const defaultPrimary = nextDefaultsModel.primary;
+
+  for (const entry of getAgentListEntries(root)) {
+    const nextAgentModel = sanitizeModelConfig(entry.model, availableModelRefs, defaultPrimary);
+    if (!nextAgentModel.primary && nextAgentModel.fallbacks.length === 0) {
+      delete entry.model;
+      continue;
+    }
+
+    writeModelConfig(entry, 'model', nextAgentModel);
+  }
+
+  deleteIfEmptyObject(defaultsRoot, 'model');
+  deleteIfEmptyObject(agentsRoot, 'defaults');
+}
+
+function ensureSingleDefaultAgent(root: JsonObject) {
+  const agentsRoot = ensureObject(root, 'agents');
+  const agentList = ensureArray(agentsRoot, 'list');
+  const entries = agentList.filter((entry): entry is JsonObject => isJsonObject(entry));
+  if (entries.length === 0) {
+    return;
+  }
+
+  const defaultIndex = entries.findIndex((entry) => readBoolean(entry.default, false));
+  const normalizedDefaultIndex = defaultIndex >= 0 ? defaultIndex : 0;
+
+  entries.forEach((entry, index) => {
+    entry.default = index === normalizedDefaultIndex;
+  });
+
+  agentList.length = 0;
+  for (const entry of entries) {
+    agentList.push(entry);
+  }
+}
+
+function updateModelRefInConfig(
+  target: JsonObject,
+  key: string,
+  oldModelRef: string,
+  nextModelRef: string,
+) {
+  const current = readModelConfig(target[key]);
+  const nextPrimary = current.primary === oldModelRef ? nextModelRef : current.primary;
+  const nextFallbacks = (current.fallbacks || []).map((entry) =>
+    entry === oldModelRef ? nextModelRef : entry,
+  );
+  writeModelConfig(target, key, {
+    primary: nextPrimary,
+    fallbacks: nextFallbacks,
+  });
+}
+
+function renameModelRefAcrossConfig(root: JsonObject, oldModelRef: string, nextModelRef: string) {
+  const defaultsRoot = ensureObject(ensureObject(root, 'agents'), 'defaults');
+  const catalogRoot = ensureObject(defaultsRoot, 'models');
+  if (catalogRoot[oldModelRef] !== undefined) {
+    catalogRoot[nextModelRef] = catalogRoot[oldModelRef];
+    delete catalogRoot[oldModelRef];
+  }
+
+  updateModelRefInConfig(defaultsRoot, 'model', oldModelRef, nextModelRef);
+  for (const entry of getAgentListEntries(root)) {
+    updateModelRefInConfig(entry, 'model', oldModelRef, nextModelRef);
+  }
+}
+
+function buildAgentSnapshots(root: JsonObject, configPath: string): OpenClawAgentSnapshot[] {
+  const defaultsRoot = readObject(readObject(root.agents)?.defaults) || {};
+  const defaultModel = readModelConfig(defaultsRoot.model);
+  const defaultAgentId = resolveDefaultAgentId(root);
+  const defaultWorkspace = readScalar(defaultsRoot.workspace).trim();
+  const agentEntries = [...getAgentListEntries(root)].sort((left, right) => {
+    const leftId = normalizeAgentId(readScalar(left.id));
+    const rightId = normalizeAgentId(readScalar(right.id));
+    if (leftId === defaultAgentId) {
+      return -1;
+    }
+    if (rightId === defaultAgentId) {
+      return 1;
+    }
+    return 0;
+  });
+
+  return agentEntries.map((entry) => {
+    const id = normalizeAgentId(readScalar(entry.id));
+    const name = readScalar(entry.name).trim() || titleizeIdentifier(id);
+    const identityRoot = readObject(entry.identity) || {};
+    const avatar =
+      readScalar(identityRoot.emoji).trim() ||
+      readScalar(identityRoot.avatar).trim() ||
+      '*';
+    const configuredWorkspace = readScalar(entry.workspace).trim();
+    const configuredAgentDir = readScalar(entry.agentDir).trim();
+    const workspace =
+      resolveUserPathFromConfig(
+        configPath,
+        configuredWorkspace || (id === defaultAgentId ? defaultWorkspace || 'workspace' : `workspace-${id}`),
+      ) || resolveUserPathFromConfig(configPath, `workspace-${id}`);
+    const agentDir =
+      resolveUserPathFromConfig(
+        configPath,
+        configuredAgentDir || `agents/${id}/agent`,
+      ) || resolveUserPathFromConfig(configPath, `agents/${id}/agent`);
+    const configuredModel = readModelConfig(entry.model);
+    const effectiveModel =
+      configuredModel.primary || configuredModel.fallbacks?.length
+        ? configuredModel
+        : defaultModel;
+
+    return {
+      id,
+      name,
+      avatar,
+      description: `${name} agent backed by workspace ${workspace}.`,
+      workspace,
+      agentDir,
+      isDefault: id === defaultAgentId,
+      model: {
+        primary: effectiveModel.primary,
+        fallbacks: [...new Set((effectiveModel.fallbacks || []).filter(Boolean))],
+      },
+      params: readAgentParams(entry.params),
+    };
+  });
+}
+
+function buildResolvedAgentPaths(
+  root: JsonObject,
+  configPath: string,
+  agentId: string,
+  overrides: {
+    workspace?: string | null;
+    agentDir?: string | null;
+  } = {},
+): OpenClawResolvedAgentPaths {
+  const normalizedId = normalizeAgentId(agentId);
+  const defaultsRoot = readObject(readObject(root.agents)?.defaults) || {};
+  const defaultAgentId = resolveDefaultAgentId(root);
+  const defaultWorkspace = readScalar(defaultsRoot.workspace).trim();
+  const workspaceHint =
+    overrides.workspace?.trim() ||
+    (normalizedId === defaultAgentId ? defaultWorkspace || 'workspace' : `workspace-${normalizedId}`);
+  const agentDirHint = overrides.agentDir?.trim() || `agents/${normalizedId}/agent`;
+  const workspace =
+    resolveUserPathFromConfig(configPath, workspaceHint) ||
+    resolveUserPathFromConfig(
+      configPath,
+      normalizedId === defaultAgentId ? 'workspace' : `workspace-${normalizedId}`,
+    );
+  const agentDir =
+    resolveUserPathFromConfig(configPath, agentDirHint) ||
+    resolveUserPathFromConfig(configPath, `agents/${normalizedId}/agent`);
+
+  return {
+    id: normalizedId,
+    workspace,
+    agentDir,
+    isDefault: normalizedId === defaultAgentId,
+  };
 }
 
 const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
@@ -555,38 +1154,11 @@ function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
 }
 
 function buildProviderSnapshots(root: JsonObject): OpenClawProviderSnapshot[] {
-  const providersRoot =
-    root.models &&
-    typeof root.models === 'object' &&
-    !Array.isArray(root.models) &&
-    (root.models as JsonObject).providers &&
-    typeof (root.models as JsonObject).providers === 'object' &&
-    !Array.isArray((root.models as JsonObject).providers)
-      ? ((root.models as JsonObject).providers as JsonObject)
-      : {};
-  const defaultsRoot =
-    root.agents &&
-    typeof root.agents === 'object' &&
-    !Array.isArray(root.agents) &&
-    (root.agents as JsonObject).defaults &&
-    typeof (root.agents as JsonObject).defaults === 'object' &&
-    !Array.isArray((root.agents as JsonObject).defaults)
-      ? ((root.agents as JsonObject).defaults as JsonObject)
-      : {};
-  const primaryRef = parseModelRef(
-    defaultsRoot.model &&
-      typeof defaultsRoot.model === 'object' &&
-      !Array.isArray(defaultsRoot.model)
-      ? (defaultsRoot.model as JsonObject).primary
-      : undefined,
-  );
-  const fallbackRefs = readArray(
-    defaultsRoot.model &&
-      typeof defaultsRoot.model === 'object' &&
-      !Array.isArray(defaultsRoot.model)
-      ? (defaultsRoot.model as JsonObject).fallbacks
-      : undefined,
-  )
+  const providersRoot = readObject(readObject(root.models)?.providers) || {};
+  const defaultsRoot = readObject(readObject(root.agents)?.defaults) || {};
+  const defaultsModel = readModelConfig(defaultsRoot.model);
+  const primaryRef = parseModelRef(defaultsModel.primary);
+  const fallbackRefs = (defaultsModel.fallbacks || [])
     .map((entry) => parseModelRef(entry))
     .filter((entry): entry is { providerKey: string; modelId: string } => Boolean(entry));
 
@@ -670,8 +1242,6 @@ function updateProviderConfig(root: JsonObject, provider: OpenClawProviderInput,
   const providersRoot = ensureObject(modelsRoot, 'providers');
   const agentsRoot = ensureObject(root, 'agents');
   const defaultsRoot = ensureObject(agentsRoot, 'defaults');
-  const modelRoot = ensureObject(defaultsRoot, 'model');
-  const catalogRoot = ensureObject(defaultsRoot, 'models');
   const providerKey = buildProviderKey(provider.id);
   const providerRoot = ensureObject(providersRoot, providerKey);
 
@@ -704,27 +1274,15 @@ function updateProviderConfig(root: JsonObject, provider: OpenClawProviderInput,
     maxTokens: model.id === selection.embeddingModelId ? 8192 : 32000,
   })) as JsonValue;
 
-  const selectedModelIds = [
-    selection.defaultModelId,
-    selection.reasoningModelId,
-    selection.embeddingModelId,
-  ].filter((value): value is string => Boolean(value));
-  const uniqueSelectedModelIds = [...new Set(selectedModelIds)];
-  const modelNamesById = Object.fromEntries(provider.models.map((model) => [model.id, model.name]));
+  writeModelConfig(defaultsRoot, 'model', {
+    primary: buildModelRef(providerKey, selection.defaultModelId),
+    fallbacks: selection.reasoningModelId
+      ? [buildModelRef(providerKey, selection.reasoningModelId)]
+      : [],
+  });
 
-  for (const modelId of uniqueSelectedModelIds) {
-    catalogRoot[buildModelRef(providerKey, modelId)] = {
-      alias: modelNamesById[modelId] || modelId,
-      streaming: modelId !== selection.embeddingModelId,
-    };
-  }
-
-  modelRoot.primary = buildModelRef(providerKey, selection.defaultModelId);
-  const fallbacks = ensureArray(modelRoot, 'fallbacks');
-  fallbacks.length = 0;
-  if (selection.reasoningModelId) {
-    fallbacks.push(buildModelRef(providerKey, selection.reasoningModelId));
-  }
+  syncModelCatalog(root);
+  pruneModelReferences(root);
 }
 
 function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigurationInput) {
@@ -744,6 +1302,182 @@ function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigu
     (field) => Boolean(input.values[field.key]?.trim()),
   ).length;
   channelRoot.enabled = input.enabled ?? configuredFieldCount > 0;
+}
+
+function resolveProviderEntry(root: JsonObject, providerId: string) {
+  const providersRoot = ensureObject(ensureObject(root, 'models'), 'providers');
+  const providerKey = buildProviderKey(providerId);
+  const providerRoot = readObject(providersRoot[providerKey]);
+
+  return {
+    providersRoot,
+    providerKey,
+    providerRoot,
+  };
+}
+
+function resolveProviderModelEntries(providerRoot: JsonObject) {
+  return readArray(providerRoot.models).filter((entry): entry is JsonObject => isJsonObject(entry));
+}
+
+function updateProviderModelCatalog(root: JsonObject) {
+  syncModelCatalog(root);
+  pruneModelReferences(root);
+}
+
+function saveAgentConfig(root: JsonObject, input: OpenClawAgentInput) {
+  const agentsRoot = ensureObject(root, 'agents');
+  const agentList = ensureArray(agentsRoot, 'list');
+  const normalizedId = normalizeAgentId(input.id);
+  const existingIndex = agentList.findIndex(
+    (entry) => isJsonObject(entry) && normalizeAgentId(readScalar(entry.id)) === normalizedId,
+  );
+  const currentEntry =
+    existingIndex >= 0 && isJsonObject(agentList[existingIndex])
+      ? (agentList[existingIndex] as JsonObject)
+      : {};
+
+  currentEntry.id = normalizedId;
+  setOptionalScalar(currentEntry, 'name', input.name);
+  if (input.workspace !== undefined) {
+    setOptionalScalar(currentEntry, 'workspace', input.workspace);
+  }
+  if (input.agentDir !== undefined) {
+    setOptionalScalar(currentEntry, 'agentDir', input.agentDir);
+  }
+  if (input.model !== undefined) {
+    writeModelConfig(currentEntry, 'model', input.model);
+  }
+  if (input.params !== undefined) {
+    writeAgentParams(currentEntry, input.params);
+  }
+  if (input.avatar !== undefined) {
+    const identityRoot = ensureObject(currentEntry, 'identity');
+    setOptionalScalar(identityRoot, 'emoji', input.avatar);
+    deleteIfEmptyObject(currentEntry, 'identity');
+  }
+  if (typeof input.isDefault === 'boolean') {
+    currentEntry.default = input.isDefault;
+  }
+
+  if (existingIndex >= 0) {
+    agentList[existingIndex] = currentEntry;
+  } else {
+    agentList.push(currentEntry);
+  }
+
+  if (input.isDefault) {
+    for (const entry of getAgentListEntries(root)) {
+      entry.default = normalizeAgentId(readScalar(entry.id)) === normalizedId;
+    }
+  }
+
+  ensureSingleDefaultAgent(root);
+  pruneModelReferences(root);
+}
+
+function deleteAgentConfig(root: JsonObject, agentId: string) {
+  const agentsRoot = ensureObject(root, 'agents');
+  const agentList = ensureArray(agentsRoot, 'list');
+  const normalizedId = normalizeAgentId(agentId);
+  const nextEntries = agentList.filter(
+    (entry) => !isJsonObject(entry) || normalizeAgentId(readScalar(entry.id)) !== normalizedId,
+  );
+  agentList.length = 0;
+  for (const entry of nextEntries) {
+    agentList.push(entry);
+  }
+
+  ensureSingleDefaultAgent(root);
+  pruneModelReferences(root);
+}
+
+function setMissingNumericValue(target: JsonObject, key: string, value: number | undefined) {
+  if (!Number.isFinite(value)) {
+    return;
+  }
+  if (typeof target[key] === 'number') {
+    return;
+  }
+
+  target[key] = Math.max(1, Math.floor(value as number));
+}
+
+function configureMultiAgentSupport(
+  root: JsonObject,
+  input: ConfigureOpenClawMultiAgentSupportInput,
+) {
+  const normalizedCoordinatorId = normalizeAgentId(input.coordinatorAgentId || DEFAULT_AGENT_ID);
+  const normalizedAllowAgentIds = normalizeAgentIdList([
+    normalizedCoordinatorId,
+    ...input.allowAgentIds,
+  ]);
+  const existingCoordinator = getAgentListEntries(root).find(
+    (entry) => normalizeAgentId(readScalar(entry.id)) === normalizedCoordinatorId,
+  );
+
+  if (!existingCoordinator) {
+    saveAgentConfig(root, {
+      id: normalizedCoordinatorId,
+      isDefault: normalizedCoordinatorId === DEFAULT_AGENT_ID,
+    });
+  }
+
+  const coordinatorEntry = getAgentListEntries(root).find(
+    (entry) => normalizeAgentId(readScalar(entry.id)) === normalizedCoordinatorId,
+  );
+  if (coordinatorEntry) {
+    const subagentsRoot = ensureObject(coordinatorEntry, 'subagents');
+    const currentAllowAgents = readStringArray(subagentsRoot.allowAgents);
+    const nextAllowAgents = normalizeAgentIdList([
+      ...currentAllowAgents,
+      ...normalizedAllowAgentIds.filter((agentId) => agentId !== normalizedCoordinatorId),
+    ]);
+    setStringArray(subagentsRoot, 'allowAgents', nextAllowAgents);
+    deleteIfEmptyObject(coordinatorEntry, 'subagents');
+  }
+
+  const defaultsRoot = ensureObject(ensureObject(root, 'agents'), 'defaults');
+  const subagentDefaultsRoot = ensureObject(defaultsRoot, 'subagents');
+  setMissingNumericValue(
+    subagentDefaultsRoot,
+    'maxConcurrent',
+    input.subagentDefaults?.maxConcurrent,
+  );
+  setMissingNumericValue(
+    subagentDefaultsRoot,
+    'maxSpawnDepth',
+    input.subagentDefaults?.maxSpawnDepth,
+  );
+  setMissingNumericValue(
+    subagentDefaultsRoot,
+    'maxChildrenPerAgent',
+    input.subagentDefaults?.maxChildrenPerAgent,
+  );
+  deleteIfEmptyObject(defaultsRoot, 'subagents');
+
+  const toolsRoot = ensureObject(root, 'tools');
+  const agentToAgentRoot = ensureObject(toolsRoot, 'agentToAgent');
+  agentToAgentRoot.enabled = true;
+  const currentAllowAgentIds = readStringArray(agentToAgentRoot.allow);
+  setStringArray(
+    agentToAgentRoot,
+    'allow',
+    normalizeAgentIdList([...currentAllowAgentIds, ...normalizedAllowAgentIds]),
+  );
+  deleteIfEmptyObject(toolsRoot, 'agentToAgent');
+
+  if (input.sessionsVisibility) {
+    const sessionsRoot = ensureObject(toolsRoot, 'sessions');
+    const currentVisibility = readScalar(sessionsRoot.visibility).trim();
+    if (!currentVisibility) {
+      sessionsRoot.visibility = input.sessionsVisibility;
+    }
+    deleteIfEmptyObject(toolsRoot, 'sessions');
+  }
+
+  deleteIfEmptyObject(root, 'tools');
+  ensureSingleDefaultAgent(root);
 }
 
 class OpenClawConfigService {
@@ -795,11 +1529,25 @@ class OpenClawConfigService {
     return null;
   }
 
+  async resolveAgentPaths(input: {
+    configPath: string;
+    agentId: string;
+    workspace?: string | null;
+    agentDir?: string | null;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    return buildResolvedAgentPaths(root, input.configPath, input.agentId, {
+      workspace: input.workspace,
+      agentDir: input.agentDir,
+    });
+  }
+
   async readConfigSnapshot(configPath: string): Promise<OpenClawConfigSnapshot> {
     const root = await readConfigRoot(configPath);
     return {
       configPath: normalizePath(configPath),
       providerSnapshots: buildProviderSnapshots(root),
+      agentSnapshots: buildAgentSnapshots(root, configPath),
       channelSnapshots: buildChannelSnapshots(root),
       root,
     };
@@ -816,6 +1564,142 @@ class OpenClawConfigService {
 
     const providerKey = buildProviderKey(input.provider.id);
     return buildProviderSnapshots(root).find((provider) => provider.providerKey === providerKey) || null;
+  }
+
+  async createProviderModel(input: {
+    configPath: string;
+    providerId: string;
+    model: OpenClawProviderModelInput;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    const { providerRoot } = resolveProviderEntry(root, input.providerId);
+    if (!providerRoot) {
+      throw new Error(`OpenClaw provider "${input.providerId}" was not found.`);
+    }
+
+    const models = resolveProviderModelEntries(providerRoot);
+    if (models.some((entry) => readScalar(entry.id).trim() === input.model.id.trim())) {
+      throw new Error(`Model "${input.model.id}" already exists for provider "${input.providerId}".`);
+    }
+
+    providerRoot.models = [
+      ...models,
+      {
+        id: input.model.id.trim(),
+        name: input.model.name.trim() || input.model.id.trim(),
+      },
+    ] as JsonValue;
+    updateProviderModelCatalog(root);
+    await writeConfigRoot(input.configPath, root);
+
+    return this.readConfigSnapshot(input.configPath);
+  }
+
+  async updateProviderModel(input: {
+    configPath: string;
+    providerId: string;
+    modelId: string;
+    model: OpenClawProviderModelInput;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    const { providerKey, providerRoot } = resolveProviderEntry(root, input.providerId);
+    if (!providerRoot) {
+      throw new Error(`OpenClaw provider "${input.providerId}" was not found.`);
+    }
+
+    const models = resolveProviderModelEntries(providerRoot);
+    const target = models.find((entry) => readScalar(entry.id).trim() === input.modelId.trim());
+    if (!target) {
+      throw new Error(`Model "${input.modelId}" was not found for provider "${input.providerId}".`);
+    }
+
+    const nextModelId = input.model.id.trim();
+    if (
+      nextModelId !== input.modelId.trim() &&
+      models.some((entry) => readScalar(entry.id).trim() === nextModelId)
+    ) {
+      throw new Error(`Model "${nextModelId}" already exists for provider "${input.providerId}".`);
+    }
+
+    const previousModelRef = buildModelRef(providerKey, input.modelId.trim());
+    const nextModelRef = buildModelRef(providerKey, nextModelId);
+    target.id = nextModelId;
+    target.name = input.model.name.trim() || nextModelId;
+
+    if (previousModelRef !== nextModelRef) {
+      renameModelRefAcrossConfig(root, previousModelRef, nextModelRef);
+    }
+
+    updateProviderModelCatalog(root);
+    await writeConfigRoot(input.configPath, root);
+
+    return this.readConfigSnapshot(input.configPath);
+  }
+
+  async deleteProviderModel(input: {
+    configPath: string;
+    providerId: string;
+    modelId: string;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    const { providerRoot } = resolveProviderEntry(root, input.providerId);
+    if (!providerRoot) {
+      throw new Error(`OpenClaw provider "${input.providerId}" was not found.`);
+    }
+
+    const nextModels = resolveProviderModelEntries(providerRoot).filter(
+      (entry) => readScalar(entry.id).trim() !== input.modelId.trim(),
+    );
+    providerRoot.models = nextModels as JsonValue;
+    updateProviderModelCatalog(root);
+    await writeConfigRoot(input.configPath, root);
+
+    return this.readConfigSnapshot(input.configPath);
+  }
+
+  async deleteProvider(input: {
+    configPath: string;
+    providerId: string;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    const { providersRoot, providerKey } = resolveProviderEntry(root, input.providerId);
+    delete providersRoot[providerKey];
+    updateProviderModelCatalog(root);
+    await writeConfigRoot(input.configPath, root);
+
+    return this.readConfigSnapshot(input.configPath);
+  }
+
+  async saveAgent(input: {
+    configPath: string;
+    agent: OpenClawAgentInput;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    saveAgentConfig(root, input.agent);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildAgentSnapshots(root, input.configPath).find(
+      (agent) => agent.id === normalizeAgentId(input.agent.id),
+    ) || null;
+  }
+
+  async deleteAgent(input: {
+    configPath: string;
+    agentId: string;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    deleteAgentConfig(root, input.agentId);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildAgentSnapshots(root, input.configPath);
+  }
+
+  async configureMultiAgentSupport(input: ConfigureOpenClawMultiAgentSupportInput) {
+    const root = await readConfigRoot(input.configPath);
+    configureMultiAgentSupport(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return this.readConfigSnapshot(input.configPath);
   }
 
   async saveChannelConfiguration(input: SaveOpenClawChannelConfigurationInput) {

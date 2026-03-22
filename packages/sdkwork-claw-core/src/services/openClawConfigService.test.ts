@@ -20,6 +20,12 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
     getStorage: async () => null,
     copy: async () => {},
     openExternal: async () => {},
+    supportsNativeScreenshot: () => false,
+    captureScreenshot: async () => null,
+    fetchRemoteUrl: async (url) => ({
+      url,
+      bytes: new Uint8Array(),
+    }),
     selectFile: async () => [],
     saveFile: async () => {},
     minimizeWindow: async () => {},
@@ -319,4 +325,286 @@ await runTest('openClawConfigService resolves a file-backed config path from ins
     openClawConfigService.resolveInstanceConfigPath(detail),
     'D:/OpenClaw/.openclaw/openclaw.json',
   );
+});
+
+await runTest('openClawConfigService manages agent CRUD with OpenClaw-compatible default, workspace, agentDir, and model rules', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  let fileContent = `{
+  models: {
+    providers: {
+      "api-router-openai": {
+        baseUrl: "https://router.example.com/v1",
+        apiKey: "sk-router-live",
+        models: [
+          { id: "gpt-4.1", name: "GPT-4.1" },
+          { id: "o4-mini", name: "o4-mini", reasoning: true },
+        ],
+      },
+    },
+  },
+  agents: {
+    defaults: {
+      workspace: "D:/OpenClaw/workspace",
+      model: {
+        primary: "api-router-openai/gpt-4.1",
+        fallbacks: ["api-router-openai/o4-mini"],
+      },
+    },
+    list: [
+      {
+        id: "main",
+        default: true,
+        name: "Main",
+        identity: {
+          emoji: "🤖",
+        },
+      },
+    ],
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+      writeFile: async (_path, content) => {
+        fileContent = content;
+      },
+    }),
+  });
+
+  try {
+    await openClawConfigService.saveAgent({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      agent: {
+        id: 'research',
+        name: 'Research',
+        avatar: '🔬',
+        model: {
+          primary: 'api-router-openai/o4-mini',
+          fallbacks: ['api-router-openai/gpt-4.1'],
+        },
+        params: {
+          temperature: 0.4,
+          maxTokens: 24000,
+        },
+      },
+    });
+
+    let snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    let research = snapshot.agentSnapshots.find((agent) => agent.id === 'research');
+    let main = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
+
+    assert.equal(research?.name, 'Research');
+    assert.equal(research?.avatar, '🔬');
+    assert.equal(research?.isDefault, false);
+    assert.equal(research?.workspace, 'D:/OpenClaw/.openclaw/workspace-research');
+    assert.equal(research?.agentDir, 'D:/OpenClaw/.openclaw/agents/research/agent');
+    assert.equal(research?.model.primary, 'api-router-openai/o4-mini');
+    assert.deepEqual(research?.model.fallbacks, ['api-router-openai/gpt-4.1']);
+    assert.equal(research?.params.temperature, 0.4);
+    assert.equal(research?.params.maxTokens, 24000);
+    assert.equal(main?.isDefault, true);
+
+    await openClawConfigService.saveAgent({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      agent: {
+        id: 'research',
+        name: 'Research Ops',
+        avatar: '🧠',
+        workspace: './workspace-research-ops',
+        agentDir: './agents/research-home/agent',
+        isDefault: true,
+        model: {
+          primary: 'api-router-openai/gpt-4.1',
+          fallbacks: ['api-router-openai/o4-mini'],
+        },
+      },
+    });
+
+    snapshot = await openClawConfigService.readConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json');
+    research = snapshot.agentSnapshots.find((agent) => agent.id === 'research');
+    main = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
+
+    assert.equal(research?.name, 'Research Ops');
+    assert.equal(research?.avatar, '🧠');
+    assert.equal(research?.isDefault, true);
+    assert.equal(research?.workspace, 'D:/OpenClaw/.openclaw/workspace-research-ops');
+    assert.equal(research?.agentDir, 'D:/OpenClaw/.openclaw/agents/research-home/agent');
+    assert.equal(main?.isDefault, false);
+
+    await openClawConfigService.deleteAgent({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      agentId: 'research',
+    });
+
+    snapshot = await openClawConfigService.readConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json');
+
+    assert.equal(snapshot.agentSnapshots.some((agent) => agent.id === 'research'), false);
+    assert.equal(snapshot.agentSnapshots[0]?.id, 'main');
+    assert.equal(snapshot.agentSnapshots[0]?.isDefault, true);
+    assert.match(fileContent, /default:\s*true/);
+    assert.match(fileContent, /workspace:\s*['"]D:\/OpenClaw\/workspace['"]/);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawConfigService updates provider-model references and prunes removed providers without leaving stale defaults behind', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  let fileContent = `{
+  models: {
+    providers: {
+      "api-router-openai": {
+        baseUrl: "https://router.example.com/v1",
+        apiKey: "sk-router-live",
+        models: [
+          { id: "gpt-4.1", name: "GPT-4.1" },
+          { id: "o4-mini", name: "o4-mini", reasoning: true },
+        ],
+      },
+      "api-router-anthropic": {
+        baseUrl: "https://anthropic.example.com/v1",
+        apiKey: "sk-ant-live",
+        models: [
+          { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5" },
+        ],
+      },
+    },
+  },
+  agents: {
+    defaults: {
+      model: {
+        primary: "api-router-openai/gpt-4.1",
+        fallbacks: [
+          "api-router-openai/o4-mini",
+          "api-router-anthropic/claude-sonnet-4-5",
+        ],
+      },
+      models: {
+        "api-router-openai/gpt-4.1": {
+          alias: "GPT-4.1",
+          streaming: true,
+          params: {
+            transport: "sse",
+          },
+        },
+        "api-router-openai/o4-mini": {
+          alias: "o4-mini",
+          streaming: true,
+        },
+        "api-router-anthropic/claude-sonnet-4-5": {
+          alias: "Claude Sonnet 4.5",
+          streaming: true,
+        },
+      },
+    },
+    list: [
+      {
+        id: "main",
+        default: true,
+        name: "Main",
+        model: {
+          primary: "api-router-openai/o4-mini",
+          fallbacks: ["api-router-anthropic/claude-sonnet-4-5"],
+        },
+      },
+    ],
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+      writeFile: async (_path, content) => {
+        fileContent = content;
+      },
+    }),
+  });
+
+  try {
+    await openClawConfigService.createProviderModel({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      providerId: 'openai',
+      model: {
+        id: 'text-embedding-3-small',
+        name: 'text-embedding-3-small',
+      },
+    });
+
+    let snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    let openai = snapshot.providerSnapshots.find((provider) => provider.id === 'api-router-openai');
+    assert.equal(
+      openai?.models.some((model) => model.id === 'text-embedding-3-small'),
+      true,
+    );
+    assert.equal(
+      snapshot.root.agents &&
+        typeof snapshot.root.agents === 'object' &&
+        !Array.isArray(snapshot.root.agents) &&
+        (snapshot.root.agents as Record<string, any>).defaults.models[
+          'api-router-openai/text-embedding-3-small'
+        ].alias,
+      'text-embedding-3-small',
+    );
+
+    await openClawConfigService.updateProviderModel({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      providerId: 'openai',
+      modelId: 'o4-mini',
+      model: {
+        id: 'o4-mini-high',
+        name: 'o4-mini-high',
+      },
+    });
+
+    snapshot = await openClawConfigService.readConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json');
+    openai = snapshot.providerSnapshots.find((provider) => provider.id === 'api-router-openai');
+    const mainAgent = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
+    const defaultsAfterRename = (snapshot.root.agents as Record<string, any>).defaults;
+
+    assert.equal(openai?.models.some((model) => model.id === 'o4-mini-high'), true);
+    assert.equal(openai?.models.some((model) => model.id === 'o4-mini'), false);
+    assert.equal(
+      defaultsAfterRename.model.fallbacks.includes('api-router-openai/o4-mini'),
+      false,
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(
+        defaultsAfterRename.models,
+        'api-router-openai/o4-mini',
+      ),
+      false,
+    );
+    assert.equal(mainAgent?.model.primary, 'api-router-openai/o4-mini-high');
+
+    await openClawConfigService.deleteProvider({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      providerId: 'openai',
+    });
+
+    snapshot = await openClawConfigService.readConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json');
+    const remainingProviderIds = snapshot.providerSnapshots.map((provider) => provider.id);
+    const remainingMainAgent = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
+
+    assert.deepEqual(remainingProviderIds, ['api-router-anthropic']);
+    assert.equal(
+      snapshot.root.agents && JSON.stringify(snapshot.root.agents).includes('api-router-openai'),
+      false,
+    );
+    assert.equal(snapshot.root.agents && JSON.stringify(snapshot.root.agents).includes('api-router-anthropic/claude-sonnet-4-5'), true);
+    assert.equal(remainingMainAgent?.model.primary, 'api-router-anthropic/claude-sonnet-4-5');
+    assert.match(fileContent, /api-router-anthropic/);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
 });

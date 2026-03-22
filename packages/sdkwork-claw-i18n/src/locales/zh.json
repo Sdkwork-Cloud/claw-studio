@@ -38,6 +38,7 @@
     "devices": "设备",
     "install": "安装 Claw",
     "market": "ClawHub",
+    "agentMarket": "Agent 市场",
     "aiChat": "AI 对话",
     "channels": "渠道",
     "cronTasks": "定时任务",
@@ -52,7 +53,7 @@
     "codebox": "CodeBox",
     "apiRouter": "API 路由",
     "modelPurchase": "模型购买",
-    "clawUpload": "Claw 发布",
+    "clawUpload": "Claw联网",
     "systemResources": "系统资源",
     "cpu": "CPU",
     "ram": "RAM",
@@ -435,6 +436,10 @@
         "title": "前往应用商店",
         "subtitle": "浏览 AI 应用"
       },
+      "agents": {
+        "title": "前往 Agent 市场",
+        "subtitle": "浏览 OpenClaw Agent 模板并安装到实例"
+      },
       "github": {
         "title": "前往 GitHub 仓库",
         "subtitle": "安装开源项目"
@@ -444,8 +449,8 @@
         "subtitle": "下载 AI 模型"
       },
       "upload": {
-        "title": "前往 Claw 发布",
-        "subtitle": "将你的 Claw 发布到生态中"
+        "title": "前往 Claw联网",
+        "subtitle": "管理 OpenClaw 注册中心连接和网关接入"
       },
       "instances": {
         "title": "前往实例",
@@ -620,14 +625,15 @@
       "state": {
         "authenticated": "已连接",
         "needsLogin": "需要登录",
+        "needsConfiguration": "需要修正配置",
         "unavailable": "不可用"
       },
-        "authSource": {
-          "session": "操作员会话",
-          "managedBootstrap": "本地托管静默引导",
-          "configuredToken": "已配置令牌",
-          "none": "未提供凭据"
-        },
+      "authSource": {
+        "session": "操作员会话",
+        "managedBootstrap": "本地托管静默引导",
+        "configuredToken": "已配置令牌",
+        "none": "未提供凭据"
+      },
       "fields": {
         "authSource": "认证来源",
         "adminBaseUrl": "管理端地址",
@@ -649,13 +655,14 @@
         "autoResolved": "由运行时自动解析",
         "unknown": "未知"
       },
-        "messages": {
-          "sessionConnected": "当前 API Router 控制面已经通过操作员会话完成认证，可以直接调用 router 原生管理接口。",
-          "managedBootstrapConnected": "Claw Studio 已为当前本地托管的 sdkwork-api-router 静默完成认证，可以直接调用 router 原生管理接口。",
-          "configuredTokenConnected": "当前 API Router 控制面已经通过预配置管理员令牌完成认证，可以直接调用 router 原生管理接口。",
-          "signInRequired": "请登录 sdkwork-api-router 管理接口，这样控制面能力才能切换到真实 router 后端，而不是继续使用 mock 回退。",
-          "reauthenticateRequired": "已保存的 router 管理凭据已经失效。请重新登录，恢复 router-backed 控制面访问能力。"
-        },
+      "messages": {
+        "sessionConnected": "当前 API Router 控制面已经通过操作员会话完成认证，可以直接调用 router 原生管理接口。",
+        "managedBootstrapConnected": "Claw Studio 已为当前本地托管的 sdkwork-api-router 静默完成认证，可以直接调用 router 原生管理接口。",
+        "configuredTokenConnected": "当前 API Router 控制面已经通过预配置管理员令牌完成认证，可以直接调用 router 原生管理接口。",
+        "configuredTokenConfigurationRequired": "预配置的 sdkwork-api-router 管理员令牌已被服务端拒绝。请先更新或移除 VITE_API_ROUTER_ADMIN_TOKEN，然后再重试；只要该令牌仍然被配置，手动登录就会保持禁用。",
+        "signInRequired": "请登录 sdkwork-api-router 管理接口，这样控制面能力才能切换到真实 router 后端，而不是继续使用 mock 回退。",
+        "reauthenticateRequired": "已保存的 router 管理凭据已经失效。请重新登录，恢复 router-backed 控制面访问能力。"
+      },
       "loginHint": "无论是独立部署的服务端，还是当前附着的本地托管运行时，都使用这里的 router 管理员账号登录。",
       "toast": {
         "connected": "已使用 {{email}} 连接到 sdkwork-api-router",
@@ -672,18 +679,18 @@
       "sharedRoot": "共享 Router 根目录",
       "configFile": "解析后的配置文件",
       "bind": "绑定地址",
-    "mode": {
-      "attachedExternal": "已附着到外部 Router",
-      "managedActive": "由 Claw Studio 托管运行",
-      "needsManagedStart": "需要进入托管启动",
-      "conflicted": "Router 启动被阻塞"
-    },
-    "summary": {
-      "attachedExternal": "外部实例已运行",
-      "managedActive": "托管实例已运行",
-      "needsManagedStart": "可以准备启动",
-      "conflicted": "需要人工处理"
-    },
+      "mode": {
+        "attachedExternal": "已附着到外部 Router",
+        "managedActive": "由 Claw Studio 托管运行",
+        "needsManagedStart": "需要进入托管启动",
+        "conflicted": "Router 启动被阻塞"
+      },
+      "summary": {
+        "attachedExternal": "外部实例已运行",
+        "managedActive": "托管实例已运行",
+        "needsManagedStart": "可以准备启动",
+        "conflicted": "需要人工处理"
+      },
       "managedMode": {
         "inProcess": "在托管启动器接入后，由 Claw 随应用生命周期以进程内方式启动 sdkwork-api-router。"
       },
@@ -1446,47 +1453,66 @@
   },
   "apps": {
     "store": {
-      "title": "AI 应用商店",
-      "searchPlaceholder": "搜索 AI 智能体、模型、工具...",
-      "featuredLabel": "精选 AI",
-      "featuredTitle": "发现最佳内容",
-      "bannerAlt": "精选横幅",
-      "iconAlt": "应用图标",
-      "editorsChoice": "编辑精选",
-      "getButton": "获取",
-      "topChartsTitle": "热门榜单",
-      "topChartsDescription": "当前最受欢迎的应用",
-      "seeAll": "查看全部"
+      "title": "Hub Installer 目录",
+      "description": "浏览来自真实 hub-installer registry 的可安装应用。",
+      "searchPlaceholder": "搜索 catalog 应用、包、工具...",
+      "catalogBadge": "Hub Installer",
+      "catalogTitle": "真实 catalog 数据，实时安装就绪状态",
+      "catalogDescription": "App Store 现在直接读取 hub-installer catalog，并按需检查安装就绪状态，让页面在展示真实状态时仍保持流畅。",
+      "catalogTotals": "{{categories}} 个分类，共 {{count}} 个应用",
+      "searchResultsDescription": "{{count}} 个匹配的 catalog 条目",
+      "checkingInstallReadiness": "正在后台检查安装就绪情况...",
+      "installed": "已安装",
+      "ready": "可安装",
+      "needsSetup": "需先准备",
+      "installedHint": "当前设备已安装",
+      "readyHint": "当前设备已具备安装条件",
+      "blockingHint": "有 {{count}} 项阻塞检查需要处理",
+      "dependencyHint": "有 {{count}} 项依赖检查需要处理",
+      "reviewHint": "安装前请先检查准备要求",
+      "hostPlatforms": "支持主机",
+      "catalogAppFallback": "打开详情以查看安装方案、依赖检查和安装指引。",
+      "categoryCount": "{{count}} 个应用",
+      "emptyCatalogTitle": "当前没有可用的 catalog 条目",
+      "emptyCatalogDescription": "hub-installer 还没有为当前主机返回可安装应用。",
+      "emptySearchTitle": "没有匹配的 catalog 条目",
+      "emptySearchDescription": "没有找到与“{{query}}”匹配的 catalog 应用。",
+      "overview": {
+        "totalApps": "应用",
+        "categories": "分类",
+        "installed": "已安装",
+        "ready": "可安装",
+        "attention": "需处理"
+      }
     },
     "detail": {
       "notFoundTitle": "未找到应用",
       "pageTitle": "应用详情",
       "installSuccess": "{{name}} 安装成功！",
-      "rating": "评分",
       "category": "分类",
-      "age": "年龄分级",
+      "catalogProfiles": "安装方案",
+      "supportedHosts": "支持主机",
       "installToLocal": "安装到本地",
       "downloading": "下载中...",
       "installing": "安装中...",
       "openApp": "打开应用",
-      "screenshotAlt": "截图 {{index}}",
       "about": "关于此应用",
-      "whatsNew": "更新内容",
-      "versionReleased": "版本 {{version}} - {{date}}",
-      "whatsNewBullets": {
-        "one": "基于 Rust hub-installer 的平台感知安装流程。",
-        "two": "安装前会先做依赖检查，并支持逐项修复。",
-        "three": "安装进度直接来自桌面运行时的实时事件流。"
-      },
+      "catalogNotesTitle": "Catalog 说明",
+      "catalogNotesDescription": "这里只展示 hub-installer 和当前所选方案实际提供的元数据。",
       "information": "信息",
-      "size": "大小",
-      "compatibility": "兼容性",
       "hostValue": "主机：{{host}}",
       "installProfilesCount": "{{count}} 个可用方案",
       "dependencyChecks": "{{count}} 项依赖检查",
       "installStatusNote": "状态来自 Rust 评估结果中当前所选安装方案的记录。",
       "installBlockedFallback": "当前安装被阻止。",
       "methodFallback": "托管方案",
+      "metadata": {
+        "registry": "Registry",
+        "defaultSoftwareName": "默认软件名",
+        "selectedSoftwareName": "当前软件名",
+        "supportedHosts": "支持主机",
+        "notAvailable": "暂无"
+      },
       "installStatus": {
         "uninstalled": "已卸载",
         "notManaged": "尚未纳管"
@@ -1565,11 +1591,6 @@
         "manualSetupRequired": "需要手动完成配置",
         "check": "检查项：{{check}}"
       },
-      "defaults": {
-        "unknown": "未知",
-        "compatibility": "Windows 11、macOS 13+、Ubuntu 22.04+",
-        "manifestSummary": "所选 Rust manifest 已提供该方案的元数据信息。"
-      },
       "values": {
         "platforms": {
           "windows": "Windows",
@@ -1637,14 +1658,64 @@
       "modelLabel": "模型",
       "readyWith": "当前将使用 {{model}}",
       "respondingWith": "正在使用 {{model}} 回复",
-      "nextReplyUses": "当前回复仍使用 {{currentModel}}，下一条消息将切换为 {{nextModel}}。"
+      "nextReplyUses": "当前回复仍使用 {{currentModel}}，下一条消息将切换为 {{nextModel}}。",
+      "importUrl": "导入 URL",
+      "importUrlHint": "拉取远程资源后会先走 S3 预签名上传，再作为附件加入当前消息。",
+      "urlPlaceholder": "https://example.com/asset.png",
+      "urlFileNamePlaceholder": "可选文件名",
+      "importAction": "上传 URL",
+      "captureScreenshot": "截图",
+      "startScreenRecording": "开始录屏",
+      "stopRecording": "停止录制",
+      "recordingVoice": "正在录制语音消息",
+      "recordingScreen": "正在录制屏幕",
+      "preparingRecording": "正在整理录制附件...",
+      "recordingFailed": "录制失败，请重试。",
+      "recordingPermissionDenied": "录制语音需要麦克风权限。",
+      "screenRecordingDenied": "录屏需要屏幕捕获权限。",
+      "nativeScreenshotUnavailable": "当前运行环境暂不支持原生截图。",
+      "uploading": "附件上传中...",
+      "ready": "已就绪",
+      "failed": "失败",
+      "retryUpload": "重试",
+      "removeAttachment": "移除附件",
+      "dropFiles": "松开即可附加文件",
+      "dropFilesHint": "支持图片、录音、录屏、文档以及远程 URL。",
+      "uploadFailedGeneric": "附件上传失败，请重试。",
+      "invalidUrl": "请输入有效的 http 或 https URL。",
+      "waitForUploads": "请等待附件上传完成后再发送。",
+      "waitForRecording": "请等待录制内容整理完成后再发送。",
+      "stopRecordingBeforeSend": "请先结束当前录制，再发送消息。",
+      "sendMessage": "发送消息",
+      "attachmentKinds": {
+        "file": "文件",
+        "image": "图片",
+        "audio": "音频",
+        "video": "视频",
+        "screenshot": "截图",
+        "screenRecording": "录屏",
+        "link": "链接"
+      }
     },
     "message": {
       "copyMessage": "复制消息",
       "copyCode": "复制代码",
       "copied": "已复制！",
       "assistant": "助手",
-      "regenerateResponse": "重新生成回答"
+      "regenerateResponse": "重新生成回答",
+      "attachmentKinds": {
+        "file": "文件",
+        "image": "图片",
+        "audio": "音频",
+        "video": "视频",
+        "screenshot": "截图",
+        "screenRecording": "录屏",
+        "link": "链接"
+      },
+      "openAttachment": "打开",
+      "fileSizeBytes": "{{count}} B",
+      "fileSizeKb": "{{size}} KB",
+      "fileSizeMb": "{{size}} MB"
     },
     "sidebar": {
       "newChat": "新建对话",
@@ -2049,11 +2120,60 @@
     }
   },
   "clawUpload": {
-    "title": "Claw 发布",
-    "subtitle": "将你的 Claw 发布到生态中",
-    "comingSoon": "Claw 发布即将上线",
-    "description": "很快你就能打包并发布自定义 Claw，让更多人发现并使用。",
-    "prepare": "准备你的 Claw"
+    "eyebrow": "注册中心已连接",
+    "title": "Claw联网",
+    "subtitle": "从注册中心读取 OpenClaw 实例，并把网关连通性集中展示在一个界面里。",
+    "description": "这个基于注册中心的视图会展示已经注册到 Claw Studio 的 OpenClaw 运行时，方便你在智能体上线前核对联网状态、网关暴露情况以及路由就绪度。",
+    "refresh": "刷新注册中心",
+    "openApiRouter": "打开 API 路由",
+    "loadFailed": "加载注册中心连接状态失败",
+    "loadFailedDescription": "当前无法读取 OpenClaw 注册中心快照。",
+    "emptyTitle": "当前还没有已注册的 OpenClaw 实例",
+    "emptyDescription": "请先安装或注册一个 OpenClaw 运行时。进入注册中心后，这里会展示它的网关地址、WebSocket 入口、存储命名空间和路由就绪情况。",
+    "openInstall": "安装 OpenClaw",
+    "openInstances": "查看实例",
+    "builtInBadge": "内置",
+    "defaultBadge": "默认",
+    "notAvailable": "暂无",
+    "noDescription": "这个 OpenClaw 运行时已经出现在注册中心中，可以继续检查联网情况。",
+    "summary": {
+      "registered": "已注册运行时",
+      "online": "当前在线",
+      "gatewayReady": "网关就绪",
+      "builtIn": "内置运行时"
+    },
+    "status": {
+      "online": "在线",
+      "offline": "离线",
+      "starting": "启动中",
+      "error": "异常",
+      "syncing": "同步中"
+    },
+    "deploymentModes": {
+      "local-managed": "本地托管",
+      "local-external": "本地挂载运行时",
+      "remote": "远程运行时"
+    },
+    "transportKinds": {
+      "openclawGatewayWs": "OpenClaw 网关",
+      "zeroclawHttp": "ZeroClaw HTTP",
+      "ironclawWeb": "IronClaw Web",
+      "openaiHttp": "OpenAI HTTP",
+      "customHttp": "自定义 HTTP",
+      "customWs": "自定义 WebSocket"
+    },
+    "labels": {
+      "instanceId": "注册 ID",
+      "gateway": "网关地址",
+      "websocket": "WebSocket 地址",
+      "storage": "存储命名空间",
+      "capabilities": "能力",
+      "lastSeen": "最后在线"
+    },
+    "actions": {
+      "viewInstance": "查看实例",
+      "configureRouting": "配置路由"
+    }
   },
   "account": {
     "title": "账户与钱包",
@@ -2089,6 +2209,266 @@
     "invalidAmount": "请输入有效金额",
     "insufficientBalance": "余额不足",
     "fetchError": "加载账户数据失败"
+  },
+  "points": {
+    "units": {
+      "points": "积分"
+    },
+    "filters": {
+      "all": "全部记录",
+      "earned": "获得记录",
+      "spent": "支出记录"
+    },
+    "cycles": {
+      "monthly": "月套餐",
+      "yearly": "年套餐"
+    },
+    "paymentMethods": {
+      "wechat": "微信支付",
+      "alipay": "支付宝",
+      "bankcard": "银行卡"
+    },
+    "header": {
+      "upgrade": "升级 Plus",
+      "upgradeShort": "Plus",
+      "pointsButton": "打开积分面板"
+    },
+    "quickPanel": {
+      "eyebrow": "积分钱包",
+      "pointsAvailable": "当前可用积分",
+      "guestHint": "登录后即可查看实时积分与会员状态。",
+      "currentPlan": "当前套餐",
+      "thisMonth": "本月获得",
+      "recharge": "充值积分",
+      "rechargeHint": "支持常用积分档位，也支持自定义输入。",
+      "upgrade": "升级会员",
+      "upgradeHint": "解锁每月赠送积分与更强工作流能力。",
+      "authRequired": "请先登录，再继续积分与会员相关操作。",
+      "recentRecords": "最近记录",
+      "openCenter": "进入积分中心",
+      "noRecords": "暂时还没有最近的积分记录。"
+    },
+    "page": {
+      "eyebrow": "积分中心",
+      "title": "管理积分、充值与使用情况",
+      "description": "查看实时积分余额，按后端配置汇率充值积分，并通过共享 app-sdk 购买可用的 VIP 套餐。",
+      "rechargeAction": "充值积分",
+      "upgradeAction": "升级 Plus",
+      "availablePoints": "当前积分余额",
+      "growthHint": "提前准备好积分，让工作流持续不断档。",
+      "currentPlan": "会员套餐",
+      "planMeta": "{{cycle}}，立即到账 {{grant}} 积分",
+      "planPrice": "当前周期价格 {{amount}}",
+      "earnedThisMonth": "本月获得",
+      "spentThisMonth": "本月支出",
+      "monthlyGrant": "套餐赠送积分",
+      "noGrant": "暂无赠送积分",
+      "rateTitle": "兑换汇率",
+      "rateValue": "1 元 = {{rate}} 积分",
+      "rateMeta": "当前后端汇率：1 元充值 {{rate}} 积分",
+      "rateUnavailable": "汇率暂不可用",
+      "recordsEyebrow": "积分账本",
+      "recordsTitle": "全部积分记录",
+      "empty": "当前筛选下暂无积分记录。",
+      "errorTitle": "积分数据加载失败",
+      "errorDescription": "共享 app-sdk 暂时不可用，请稍后重试。",
+      "retry": "重新加载"
+    },
+  "rechargeDialog": {
+    "eyebrow": "积分充值",
+    "title": "充值积分",
+    "description": "选择常用档位或自定义数量，核对后端返回的实时汇率后，直接通过真实 app-sdk 提交充值。",
+    "payable": "本次需支付",
+    "commonAmounts": "常用积分档位",
+    "configureTitle": "配置本次充值",
+    "configureDescription": "常用档位仍然保留为快捷入口，但实际支付金额始终以服务端配置的积分汇率为准。",
+    "customAmount": "自定义积分数量",
+    "customPlaceholder": "请输入正整数积分数量",
+    "backToForm": "返回充值设置",
+    "summaryEyebrow": "充值信息",
+    "summaryTitle": "确认本次积分充值",
+    "summaryDescription": "这里展示实时兑换汇率、支付方式与本次应付金额，全部来自真实积分充值契约。",
+    "summaryMeta": "购买 {{points}} 积分，需支付 {{amount}}",
+    "rechargeDetailsTitle": "充值积分",
+    "rechargeDetailsDescription": "确认本次购买的积分数量、划线原价与实付金额后，在右侧扫码完成支付。",
+    "selectedPointsLabel": "购买积分",
+    "purchaseTypeLabel": "充值方式",
+    "originalPriceLabel": "划线原价",
+    "actualPriceLabel": "实付金额",
+    "exchangeRateLabel": "兑换汇率",
+    "exchangeRateValue": "1 元 = {{rate}} 积分",
+    "rateUnavailable": "后端暂未返回可用的积分汇率。",
+    "presetMeta": "需支付 {{amount}}",
+    "presetPurchase": "常用档位",
+    "customPurchase": "自定义数量",
+    "paymentEyebrow": "扫码支付",
+      "paymentTitle": "扫码完成积分充值",
+      "paymentDescription": "右侧展示当前支付二维码，切换支付方式后二维码会同步更新。",
+      "qrAlt": "{{method}} 充值二维码",
+      "scanHint": "请使用{{method}}扫描上方二维码",
+      "paymentTip": "当前为模拟支付流程，确认后会立即充值 {{points}} 积分并更新积分记录。",
+      "paymentMethod": "支付方式",
+      "tip": "当前版本先模拟支付流程，但余额、记录和头部积分面板都会即时更新。",
+      "continueToPayment": "去支付",
+      "confirm": "确认充值",
+      "confirmPayment": "我已完成充值"
+    },
+    "upgradeDialog": {
+      "eyebrow": "会员升级",
+      "title": "升级您的订阅计划",
+      "description": "从 app-sdk 返回的实时 VIP 套餐中选择合适的方案，并通过真实会员购买契约完成提交。",
+      "save20": "省 20%",
+    "pointsGrant": "立即到账套餐积分",
+    "pointsGrantValue": "{{points}} 积分",
+    "noGrant": "暂无套餐积分",
+    "includedBenefits": "包含特权",
+    "backToPlans": "返回计划",
+    "summaryEyebrow": "套餐信息",
+    "summaryTitle": "确认已选套餐",
+    "summaryDescription": "先确认当前会员状态、所选套餐、有效时长和赠送积分，再提交真实会员购买请求。",
+    "currentMembership": "当前会员状态",
+    "defaultPlanDescription": "该 VIP 套餐由共享 app-sdk 提供，购买成功后即可立即生效。",
+    "noPlans": "当前暂无可购买的 VIP 套餐。",
+    "summaryMeta": "{{cycle}}，开通后立即到账 {{points}} 积分",
+    "paymentLockedHint": "当前支付步骤不支持修改套餐或年月周期，请点击左上角返回重新选择。",
+    "paymentSummaryHint": "如需更换套餐或周期，请点击左上角返回上一步重新选择。",
+    "currentPlanHint": "当前选择已经是你正在使用的套餐周期，无需重复开通。",
+      "paymentEyebrow": "扫码支付",
+      "paymentTitle": "扫码完成支付",
+      "paymentDescription": "右侧展示当前支付二维码与支付摘要，切换方式后二维码会同步更新。",
+      "qrAlt": "{{method}} 支付二维码",
+      "scanHint": "请使用{{method}}扫描上方二维码",
+      "paymentTip": "当前为模拟支付流程，确认后会立即发放 {{points}} 积分并更新积分记录。",
+      "confirmPayment": "我已完成支付",
+      "agreementPrefix": "支付即代表您已阅读并同意",
+      "membershipAgreement": "《会员权益说明》",
+      "agreementJoiner": "与",
+      "serviceAgreement": "《订阅服务协议》",
+      "packageDetailsTitle": "套餐信息",
+    "packageDetailsDescription": "核对套餐、周期、到账积分与价格后即可继续支付。",
+    "lockedBadge": "已锁定",
+    "packageNameLabel": "套餐方案",
+    "durationLabel": "有效时长",
+    "durationValue": "{{days}} 天",
+    "durationUnknown": "暂未提供时长信息",
+    "billingCycleLabel": "订阅周期",
+    "grantPointsLabel": "到账积分",
+    "originalPriceLabel": "划线原价",
+    "actualPriceLabel": "实付金额",
+    "totalPriceLabel": "应付金额"
+  },
+    "auth": {
+      "signInRequired": "请先登录，才能读取、充值或升级您的实时积分账户。"
+    },
+    "membership": {
+      "guest": "访客",
+      "free": "免费版",
+      "vip": "会员",
+      "freeMeta": "您当前使用的是免费会员层级。",
+      "remainingDays": "剩余 {{days}} 天",
+      "expireAt": "到期时间 {{date}}"
+    },
+    "status": {
+      "completed": "已完成",
+      "pending": "处理中",
+      "failed": "失败"
+    },
+    "planBadges": {
+      "recommended": "推荐计划",
+      "current": "当前方案",
+      "free": "免费"
+    },
+    "plans": {
+      "free": {
+        "title": "Free",
+        "tagline": "适合初次体验和轻量日常使用。",
+        "audience": "适合首次体验用户与产品评估场景。",
+        "benefits": [
+          "每日签到奖励持续可领",
+          "保留核心聊天与工作流能力",
+          "可随时升级到付费套餐"
+        ]
+      },
+      "plus": {
+        "title": "Plus",
+        "tagline": "适合高频创作与持续输出的主力方案。",
+        "audience": "适合个人创作者与轻量执行团队。",
+        "benefits": [
+          "每月赠送 8,800 积分",
+          "每日额外 200 免费积分",
+          "优先体验高强度工作流运行"
+        ]
+      },
+      "pro": {
+        "title": "Pro",
+        "tagline": "为多任务并发和深度自动化提供更多余量。",
+        "audience": "适合承担更复杂自动化与稳定产出的团队。",
+        "benefits": [
+          "每月赠送 17,600 积分",
+          "支持更高并发的复杂任务批次",
+          "更适合内容与运营跨团队协作"
+        ]
+      },
+      "ultra": {
+        "title": "Ultra",
+        "tagline": "面向持续运行与规模化自动化交付的团队方案。",
+        "audience": "适合长期高负载运行的规模化团队。",
+        "benefits": [
+          "每月赠送 44,000 积分",
+          "支持长时间高负载工作流",
+          "更适合团队级自动化覆盖"
+        ]
+      }
+    },
+    "transactions": {
+      "dailyCheckIn": {
+        "title": "每日签到奖励",
+        "description": "今日签到积分已经到账。"
+      },
+      "aiImageGeneration": {
+        "title": "AI 绘图支出",
+        "description": "高清绘图任务消耗了一部分积分。"
+      },
+      "referralReward": {
+        "title": "邀请奖励",
+        "description": "有新用户通过你的邀请加入，奖励积分已发放。"
+      },
+      "workflowRun": {
+        "title": "工作流运行支出",
+        "description": "自动化工作流执行时消耗积分。"
+      },
+      "welcomePack": {
+        "title": "新人积分礼包",
+        "description": "首次登录赠送的欢迎积分礼包。"
+      },
+      "manualTopUp": {
+        "title": "积分充值",
+        "description": "通过 {{method}} 充值，支付金额 {{amount}}。"
+      },
+      "planUpgrade": {
+        "title": "{{plan}}{{cycle}}已开通",
+        "description": "已即时发放 {{points}} 积分，当前模拟支付金额为 {{amount}}。"
+      },
+      "fallback": {
+        "title": "积分变动",
+        "description": "你的积分余额发生了变化。"
+      }
+    },
+    "actions": {
+      "processing": "处理中...",
+      "currentPlan": "当前正在使用",
+      "freePlan": "当前免费方案",
+      "upgradeNow": "立即升级",
+      "selectedPlan": "已选择",
+      "selectPlan": "选择此套餐"
+    },
+    "toasts": {
+      "rechargeSuccess": "已成功到账 {{points}} 积分。",
+      "rechargeFailed": "充值失败，请稍后重试。",
+      "upgradeSuccess": "{{plan}} 已开通，并到账 {{points}} 积分。",
+      "upgradeFailed": "升级失败，请稍后重试。",
+      "invalidCustomPoints": "请输入大于 0 的整数积分数量。"
+    }
   },
   "clawCenter": {
     "title": "Claw",
@@ -2882,6 +3262,9 @@
             "embedding": "向量",
             "fallback": "兜底"
           }
+        },
+        "agents": {
+          "marketReadonlyNotice": "当前这个 OpenClaw 宿主还没有暴露可写的真实配置文件，因此 Agent Market 安装和 Agent CRUD 会保持禁用，直到宿主提供 config-backed 的运行时访问路径。"
         },
         "empty": {
           "channels": "此实例还没有挂接任何渠道。",
@@ -4286,9 +4669,16 @@
     }
   },
   "market": {
-    "actions": {
-      "confirmUninstallSkill": "卸载这个技能？",
-      "uninstall": "卸载"
+  "actions": {
+    "installPack": "安装技能包",
+    "publishSkill": "新建技能",
+    "createSkillWithChat": "通过对话创建",
+    "uploadLocalSkill": "本地上传",
+    "confirmUninstallSkill": "卸载这个技能？",
+    "uninstall": "卸载"
+  },
+    "badges": {
+      "curated": "精选"
     },
     "categories": {
       "aiModels": "AI 模型",
@@ -4319,6 +4709,8 @@
     "empty": {
       "installedDescription": "从市场安装一个技能后会显示在这里。",
       "installedTitle": "暂无已安装技能",
+      "noActiveInstanceDescription": "请先选择一个活跃实例，这样 Claw Hub 才能知道你要管理哪台实例上的技能。",
+      "noActiveInstanceTitle": "尚未选择活跃实例",
       "packagesDescription": "当前没有符合筛选条件的技能包。",
       "packagesTitle": "未找到技能包",
       "skillsDescription": "当前没有符合筛选条件的技能。",
@@ -4339,9 +4731,18 @@
       "packAlt": "精选技能包封面",
       "setupLabel": "快速上手"
     },
+    "fallbacks": {
+      "noActiveInstance": "暂无活跃实例"
+    },
+    "hints": {
+      "discovery": "建议先从精选技能包快速搭建，再按具体场景补充单个技能，整个库会更容易理解。",
+      "installed": "已安装技能始终跟随当前活跃实例，这样清理、审计和维护都会更稳。"
+    },
     "labels": {
+      "activeInstance": "当前实例：{{name}}",
       "installCount": "{{count, number}} 次安装",
       "installed": "已安装",
+      "packSkillCount": "{{count, number}} 个技能",
       "sdkworkOfficial": "SDKWork 官方",
       "version": "版本 {{value}}"
     },
@@ -4365,17 +4766,36 @@
       "selectTargetInstances": "选择目标实例"
     },
     "page": {
-      "title": "市场"
+      "subtitle": "用更轻、更清楚的方式发现、安装和管理塑造你工作区的技能。",
+      "title": "Claw Hub"
     },
-    "search": {
-      "placeholders": {
-        "packages": "搜索技能包、作者或分类...",
-        "skills": "搜索技能、作者或分类..."
-      }
-    },
-    "sections": {
-      "myInstalledSkills": "我已安装的技能",
-      "sdkworkOfficialSkills": "SDKWork 官方技能",
+  "search": {
+    "placeholders": {
+      "discover": "搜索技能、技能包、作者或分类...",
+      "installed": "搜索已安装技能...",
+      "packages": "搜索技能包、作者或分类...",
+      "skills": "搜索技能、作者或分类...",
+      "mySkills": "搜索我的技能..."
+    }
+  },
+  "sections": {
+    "allSkills": "技能库",
+    "allSkillsDescription": "把真正重要的技能放回前面，用更少噪音完成浏览和安装。",
+      "featuredPacks": "精选技能包",
+      "featuredPacksDescription": "更适合快速起步的成套能力入口，减少第一次搭建时的选择负担。",
+      "featuredPacksEyebrow": "快速搭建",
+      "installedEyebrow": "我的空间",
+      "installedSkills": "已安装技能",
+      "installedSkillsDescription": "{{name}} 当前可用的技能。",
+      "libraryEyebrow": "浏览",
+    "matchingPacks": "匹配的技能包",
+    "myInstalledSkills": "我已安装的技能",
+    "searchResults": "搜索结果",
+    "skillPacksDescription": "按套装浏览可直接安装的一整组能力。",
+    "sdkworkOfficialSkills": "SDKWork 官方技能",
+    "spotlightEyebrow": "推荐",
+    "spotlightSkills": "推荐技能",
+      "spotlightSkillsDescription": "先从这些高信号技能开始，更容易快速建立一套顺手的工作流。",
       "topFreeSkills": "热门免费技能",
       "trendingBundles": "趋势套装"
     },
@@ -4383,11 +4803,17 @@
       "offline": "离线",
       "online": "在线"
     },
-    "tabs": {
-      "mySkills": "我的技能",
-      "packages": "套装",
-      "sdkwork": "SDKWork",
-      "skills": "技能"
+  "tabs": {
+    "mySkills": "我的技能",
+    "packages": "技能包",
+    "sdkwork": "SDKWork",
+    "skills": "技能"
+  },
+    "views": {
+      "discover": "技能库",
+      "discoverDescription": "默认先发现，技能包靠前展示，让主技能库更容易一眼看懂。",
+      "installed": "我的技能",
+      "installedDescription": "管理 {{name}} 上已经安装好的技能。"
     },
     "toast": {
       "installationFailed": "安装失败",
@@ -4482,6 +4908,142 @@
       "targetInstance": "目标实例"
     }
   },
+  "agentMarket": {
+    "hero": {
+      "eyebrow": "多 Agent 工作区",
+      "title": "OpenClaw Agent 市场",
+      "description": "把常用的 OpenClaw Agent 模板直接安装到受管实例中，自动补齐标准工作区文件，并打开多 Agent 协作所需的配置。",
+      "multiAgentNote": "每次安装都会写入 OpenClaw 标准 Agent 工作区文件，并为目标实例开启 agent-to-agent 协作能力。"
+    },
+    "metrics": {
+      "templates": "精选模板",
+      "instances": "可安装实例",
+      "installedTemplates": "已安装模板"
+    },
+    "section": {
+      "title": "常用 Agent 目录",
+      "description": "从编排、开发、运维、研究、内容和支持等常见角色出发，避免每次都从零手写 OpenClaw Agent。"
+    },
+    "searchPlaceholder": "搜索 Agent 角色、能力或关键字...",
+    "categories": {
+      "All": "全部",
+      "Coordination": "协调",
+      "Development": "开发",
+      "Operations": "运维",
+      "Research": "研究",
+      "Content": "内容",
+      "Support": "支持"
+    },
+    "actions": {
+      "install": "添加 Agent",
+      "installed": "已安装",
+      "installing": "安装中...",
+      "installToInstance": "安装到实例"
+    },
+    "labels": {
+      "installedInCount": "已安装到 {{count, number}} 个实例",
+      "installed": "已安装",
+      "builtIn": "内置",
+      "instanceStatus": "{{type}} · {{host}} · {{status}}",
+      "instanceAgentCount": "已安装 {{count, number}} 个 Agent"
+    },
+    "error": {
+      "title": "无法加载可安装的 OpenClaw 实例",
+      "description": "Agent 目录仍然可浏览，但带有真实配置文件的 OpenClaw 实例发现失败了。请在内置运行时、本地桥接和运行时元数据恢复后重试。",
+      "retry": "重试实例发现"
+    },
+    "empty": {
+      "searchTitle": "没有匹配的 Agent",
+      "searchDescription": "试试更换关键字或切换分类，找到更适合当前工作流的模板。",
+      "noTargetsTitle": "没有可安装的 OpenClaw 实例",
+      "noTargetsDescription": "请先创建或连接一个带真实配置文件的 OpenClaw 运行时。只有当前宿主能暴露可写 OpenClaw 配置文件时，内置实例和本地外部实例才会出现在这里。"
+    },
+    "modal": {
+      "title": "安装 Agent 模板",
+      "targetLabel": "选择目标实例",
+      "instanceSummaryTitle": "该实例中已存在的 Agent"
+    },
+    "status": {
+      "online": "在线",
+      "offline": "离线",
+      "starting": "启动中",
+      "error": "异常",
+      "syncing": "同步中"
+    },
+    "toast": {
+      "installSuccessTitle": "Agent 安装成功",
+      "installSuccessDescription": "{{name}} 已添加到所选 OpenClaw 实例。",
+      "installFailedTitle": "Agent 安装失败"
+    },
+    "templates": {
+      "orchestrator": {
+        "name": "编排 Agent",
+        "summary": "协调多个专职 Agent，拆解任务，并让交付始终保持对齐。",
+        "description": "用于工作分发、进度检查以及判断该并行还是本地直接执行的控制平面 Agent。",
+        "focus": "让多 Agent 协作保持有纪律、可追踪。",
+        "capabilities": {
+          "0": "任务路由",
+          "1": "委派执行",
+          "2": "复盘闭环"
+        }
+      },
+      "coding-engineer": {
+        "name": "编码工程师",
+        "summary": "负责功能实现、代码调试和边界明确的工程任务。",
+        "description": "针对代码改动、小型重构、测试修复以及在现有仓库内的务实交付进行了优化。",
+        "focus": "偏好可审查的具体补丁和站得住脚的工程取舍。",
+        "capabilities": {
+          "0": "功能交付",
+          "1": "缺陷修复",
+          "2": "代码评审"
+        }
+      },
+      "ops-responder": {
+        "name": "运维响应",
+        "summary": "处理事故、排查运行时故障，并推动服务恢复。",
+        "description": "面向事故响应、运行手册执行、回滚判断以及压力下的受控缓解流程。",
+        "focus": "强调快速诊断、明确证据和低风险止损。",
+        "capabilities": {
+          "0": "事故分诊",
+          "1": "运行手册",
+          "2": "升级处理"
+        }
+      },
+      "research-analyst": {
+        "name": "研究分析",
+        "summary": "收集证据、对比来源，并把结论整理成结构化判断。",
+        "description": "适用于竞品调研、需求研究、根因分析以及以证据为核心的简报产出。",
+        "focus": "优先保证证据、可追溯性和简洁分析。",
+        "capabilities": {
+          "0": "证据收集",
+          "1": "对比分析",
+          "2": "结论归纳"
+        }
+      },
+      "content-writer": {
+        "name": "内容写作",
+        "summary": "撰写上线文案、产品文档和面向干系人的高质量表达。",
+        "description": "适合文档、公告、产品叙事以及需要结构感和一致性的编辑工作。",
+        "focus": "强调清晰结构、语气克制和受众匹配。",
+        "capabilities": {
+          "0": "文档编写",
+          "1": "上线文案",
+          "2": "内容编辑"
+        }
+      },
+      "support-triage": {
+        "name": "支持分诊",
+        "summary": "对进入的问题进行分类、补齐上下文，并把用户引导到正确的解决路径。",
+        "description": "面向一线支持接单、工单整洁度和用户侧排障流程。",
+        "focus": "尽快消除歧义，让支持流程保持可执行。",
+        "capabilities": {
+          "0": "工单分诊",
+          "1": "信息补齐",
+          "2": "解决路由"
+        }
+      }
+    }
+  },
   "apiRouterWorkspace": {
     "eyebrow": "路由商业区",
     "title": "API 路由工作区",
@@ -4574,6 +5136,41 @@
       "concurrency": "并发",
       "includedModels": "包含模型",
       "startPlan": "开通 {{planName}}"
+    },
+    "payment": {
+      "eyebrow": "支付视图",
+      "title": "确认并支付已选订阅套餐",
+      "description": "当前步骤会锁定你刚刚选择的供应商套餐和购买周期，如需修改请先返回上一步重新选择。",
+      "backToPlans": "返回套餐选择",
+      "lockedBadge": "已锁定套餐",
+      "packageDetailsTitle": "已选套餐详情",
+      "packageDetailsDescription": "这里仅用于确认当前套餐信息和支付方式，支付步骤内不再提供套餐或周期切换。",
+      "lockedHint": "如果你想改套餐或改购买周期，请点击左上角返回，回到上一页重新选择后再支付。",
+      "vendorLabel": "供应商",
+      "planLabel": "套餐",
+      "cycleLabel": "购买周期",
+      "quotaLabel": "额度",
+      "supportLabel": "支持",
+      "priceLabel": "应付金额",
+      "benefitsLabel": "套餐亮点",
+      "methodTitle": "选择支付方式",
+      "methodDescription": "这里先模拟支付交互流程，用于打磨套餐确认和支付体验。",
+      "methodSelected": "当前已选",
+      "methodTapToUse": "点击切换为该支付方式",
+      "scanTitle": "使用当前方式继续支付",
+      "scanDescription": "请使用{{method}}完成本次模拟支付。",
+      "summaryTitle": "支付摘要",
+      "summaryDescription": "完成这次模拟支付后，将自动返回订阅套餐列表页面。",
+      "summaryLocked": "要改套餐，需要先返回上一页。",
+      "mockTag": "模拟支付",
+      "confirmPayment": "确认支付",
+      "successBanner": "{{vendor}} · {{plan}}（{{cycle}}）已完成模拟支付。",
+      "successDescription": "整条交互流程已经跑通，本次模拟支付金额：{{price}}。",
+      "methods": {
+        "wechat": "微信支付",
+        "alipay": "支付宝",
+        "bankcard": "银行卡"
+      }
     },
     "freeMembership": {
       "badge": "免费",

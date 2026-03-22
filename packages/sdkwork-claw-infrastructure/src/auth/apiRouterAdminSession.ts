@@ -133,6 +133,7 @@ export function writeApiRouterAdminSession(session: ApiRouterAdminSession) {
 }
 
 export function clearApiRouterAdminSession() {
+  apiRouterAdminBootstrapSessionPromise = null;
   const storage = getStorage();
   if (!storage) {
     return;
@@ -141,23 +142,9 @@ export function clearApiRouterAdminSession() {
   storage.removeItem(API_ROUTER_ADMIN_SESSION_STORAGE_KEY);
 }
 
-export async function ensureApiRouterAdminSession(
-  options: { forceBootstrap?: boolean } = {},
-): Promise<ApiRouterAdminSession | null> {
-  const configuredToken = readConfiguredApiRouterAdminToken(APP_ENV);
-  if (!options.forceBootstrap) {
-    const existing = readApiRouterAdminSession();
-    if (existing) {
-      return existing;
-    }
-
-    if (configuredToken) {
-      return null;
-    }
-  }
-
+async function resolveBootstrapAdminSession() {
   if (!apiRouterAdminBootstrapSessionPromise) {
-    apiRouterAdminBootstrapSessionPromise = (async () => {
+    const bootstrapSessionPromise = (async () => {
       try {
         const bootstrap = await getRuntimePlatform().getApiRouterAdminBootstrapSession();
         if (!bootstrap?.token) {
@@ -169,26 +156,60 @@ export async function ensureApiRouterAdminSession(
         return session;
       } catch {
         return null;
-      } finally {
-        apiRouterAdminBootstrapSessionPromise = null;
       }
     })();
+
+    apiRouterAdminBootstrapSessionPromise = bootstrapSessionPromise;
+    void bootstrapSessionPromise.finally(() => {
+      if (apiRouterAdminBootstrapSessionPromise === bootstrapSessionPromise) {
+        apiRouterAdminBootstrapSessionPromise = null;
+      }
+    });
   }
 
   return apiRouterAdminBootstrapSessionPromise;
 }
 
+export async function ensureApiRouterAdminSession(
+  options: { forceBootstrap?: boolean } = {},
+): Promise<ApiRouterAdminSession | null> {
+  const configuredToken = readConfiguredApiRouterAdminToken(APP_ENV);
+  const existing = options.forceBootstrap ? null : readApiRouterAdminSession();
+  if (configuredToken) {
+    return existing ?? null;
+  }
+
+  if (options.forceBootstrap) {
+    clearApiRouterAdminSession();
+  }
+
+  const shouldAttemptBootstrap =
+    options.forceBootstrap || !existing || existing.source !== 'managedBootstrap';
+  if (shouldAttemptBootstrap) {
+    const bootstrapSession = await resolveBootstrapAdminSession();
+    if (bootstrapSession) {
+      return bootstrapSession;
+    }
+  }
+
+  return existing ?? null;
+}
+
 export async function ensureApiRouterAdminSessionToken(
   options: { forceBootstrap?: boolean } = {},
 ) {
+  const configuredToken = readConfiguredApiRouterAdminToken(APP_ENV);
+  if (configuredToken) {
+    return configuredToken;
+  }
+
   return (
     (await ensureApiRouterAdminSession(options))?.token
-    || readConfiguredApiRouterAdminToken(APP_ENV)
   );
 }
 
 export function readApiRouterAdminSessionToken() {
-  return readApiRouterAdminSession()?.token || readConfiguredApiRouterAdminToken(APP_ENV);
+  return readConfiguredApiRouterAdminToken(APP_ENV) || readApiRouterAdminSession()?.token;
 }
 
 export { API_ROUTER_ADMIN_SESSION_STORAGE_KEY };

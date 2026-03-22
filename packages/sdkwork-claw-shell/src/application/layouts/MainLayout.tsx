@@ -1,13 +1,19 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAppStore, useKeyboardShortcuts } from '@sdkwork/claw-core';
-import { MobileAppDownloadDialog } from '@sdkwork/claw-install';
+import { OpenClawGatewayConnections } from '@sdkwork/claw-chat';
 import { AppHeader } from '../../components/AppHeader';
 import { CommandPalette } from '../../components/CommandPalette';
 import { GlobalTaskManager } from '../../components/GlobalTaskManager';
 import { Sidebar } from '../../components/Sidebar';
 import { AppRoutes } from '../router/AppRoutes';
 import { ROUTE_PATHS } from '../router/routePaths';
+
+const MobileAppDownloadDialog = lazy(() =>
+  import('@sdkwork/claw-install').then((module) => ({
+    default: module.MobileAppDownloadDialog,
+  })),
+);
 
 export function MainLayout() {
   useKeyboardShortcuts();
@@ -68,6 +74,7 @@ export function MainLayout() {
         <div className="absolute inset-y-0 left-0 w-80 bg-[radial-gradient(circle_at_left,_rgba(15,23,42,0.08),_transparent_72%)] dark:bg-[radial-gradient(circle_at_left,_rgba(255,255,255,0.04),_transparent_72%)]" />
       </div>
       <AppHeader />
+      <OpenClawGatewayConnections />
       <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <main className="relative z-10 min-w-0 flex-1 overflow-auto scrollbar-hide bg-white/35 dark:bg-zinc-950/18">
@@ -76,7 +83,14 @@ export function MainLayout() {
       </div>
       <CommandPalette />
       <GlobalTaskManager />
-      <MobileAppDownloadDialog isOpen={isMobileAppDialogOpen} onClose={closeMobileAppDialog} />
+      {isMobileAppDialogOpen ? (
+        <Suspense fallback={null}>
+          <MobileAppDownloadDialog
+            isOpen={isMobileAppDialogOpen}
+            onClose={closeMobileAppDialog}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

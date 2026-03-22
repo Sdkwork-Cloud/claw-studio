@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const root = process.cwd();
 
@@ -32,6 +33,16 @@ function exists(relPath: string) {
 function runTest(name: string, fn: () => void) {
   try {
     fn();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}
+
+async function runAsyncTest(name: string, fn: () => Promise<void>) {
+  try {
+    await fn();
     console.log(`ok - ${name}`);
   } catch (error) {
     console.error(`not ok - ${name}`);
@@ -177,4 +188,203 @@ runTest('sdkwork-claw-desktop wires hub-installer execution through a real Tauri
     /commands::run_hub_install::run_hub_install/,
   );
   assert.match(tauriConfig, /vendor\/hub-installer\/registry/);
+});
+
+await runAsyncTest('sdkwork-claw-desktop recognizes Tauri v2 runtimes even when withGlobalTauri is disabled', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousIsTauri = (globalThis as { isTauri?: unknown }).isTauri;
+  const runtimeModule = await import('../packages/sdkwork-claw-desktop/src/desktop/runtime.ts');
+
+  try {
+    (globalThis as { window?: unknown }).window = {
+      __TAURI_INTERNALS__: {
+        invoke() {},
+        transformCallback() {
+          return 1;
+        },
+        unregisterCallback() {},
+        convertFileSrc() {
+          return '';
+        },
+      },
+    };
+    delete (globalThis as { isTauri?: unknown }).isTauri;
+
+    assert.equal(
+      runtimeModule.isTauriRuntime(),
+      true,
+      'expected the desktop runtime probe to recognize __TAURI_INTERNALS__',
+    );
+
+    (globalThis as { window?: unknown }).window = {};
+
+    assert.equal(
+      runtimeModule.isTauriRuntime(),
+      false,
+      'expected plain web previews without Tauri globals to stay on the web fallback',
+    );
+  } finally {
+    if (typeof previousWindow === 'undefined') {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = previousWindow;
+    }
+
+    if (typeof previousIsTauri === 'undefined') {
+      delete (globalThis as { isTauri?: unknown }).isTauri;
+    } else {
+      (globalThis as { isTauri?: unknown }).isTauri = previousIsTauri;
+    }
+  }
+});
+
+await runAsyncTest('sdkwork-claw-desktop waits for a late Tauri runtime before falling back to web mocks', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousIsTauri = (globalThis as { isTauri?: unknown }).isTauri;
+  const runtimeModule = await import('../packages/sdkwork-claw-desktop/src/desktop/runtime.ts');
+  let installHandle: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    let desktopCalls = 0;
+    (globalThis as { window?: unknown }).window = {};
+    delete (globalThis as { isTauri?: unknown }).isTauri;
+
+    installHandle = setTimeout(() => {
+      const runtimeWindow = ((globalThis as { window?: Record<string, unknown> }).window ??
+        {}) as Record<string, unknown>;
+      runtimeWindow.__TAURI_INTERNALS__ = {
+        invoke(command: string) {
+          desktopCalls += 1;
+          assert.equal(command, 'studio_list_instances');
+          return Promise.resolve([
+            {
+              id: 'local-built-in',
+              name: 'Local Built-In',
+              description: 'Bundled local OpenClaw runtime managed by Claw Studio.',
+              runtimeKind: 'openclaw',
+              deploymentMode: 'local-managed',
+              transportKind: 'openclawGatewayWs',
+              status: 'online',
+              isBuiltIn: true,
+              isDefault: true,
+              iconType: 'server',
+              version: 'bundled',
+              typeLabel: 'Built-In OpenClaw',
+              host: '127.0.0.1',
+              port: 18796,
+              baseUrl: 'http://127.0.0.1:18796',
+              websocketUrl: 'ws://127.0.0.1:18796',
+              cpu: 0,
+              memory: 0,
+              totalMemory: 'Unknown',
+              uptime: '-',
+              capabilities: ['chat', 'health'],
+              storage: {
+                profileId: 'default-local',
+                provider: 'localFile',
+                namespace: 'claw-studio',
+                database: null,
+                connectionHint: null,
+                endpoint: null,
+              },
+              config: {
+                port: '18796',
+                sandbox: true,
+                autoUpdate: true,
+                logLevel: 'info',
+                corsOrigins: '*',
+                workspacePath: null,
+                baseUrl: 'http://127.0.0.1:18796',
+                websocketUrl: 'ws://127.0.0.1:18796',
+                authToken: 'studio-token',
+              },
+              createdAt: 1,
+              updatedAt: 1,
+              lastSeenAt: 1,
+            },
+          ]);
+        },
+      };
+      (globalThis as { window?: unknown }).window = runtimeWindow;
+    }, 15);
+
+    const instances = await runtimeModule.invokeDesktopCommand<any[]>(
+      'studio_list_instances',
+      undefined,
+      { operation: 'studio.listInstances' },
+    );
+
+    assert.equal(desktopCalls, 1);
+    assert.equal(instances[0]?.port, 18796);
+    assert.equal(instances[0]?.websocketUrl, 'ws://127.0.0.1:18796');
+    assert.equal(instances[0]?.config.authToken, 'studio-token');
+  } finally {
+    if (installHandle) {
+      clearTimeout(installHandle);
+    }
+
+    if (typeof previousWindow === 'undefined') {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = previousWindow;
+    }
+
+    if (typeof previousIsTauri === 'undefined') {
+      delete (globalThis as { isTauri?: unknown }).isTauri;
+    } else {
+      (globalThis as { isTauri?: unknown }).isTauri = previousIsTauri;
+    }
+  }
+});
+
+await runAsyncTest('sdkwork-claw-infrastructure shares the configured platform bridge across duplicate module instances', async () => {
+  const registryUrl = pathToFileURL(
+    path.join(root, 'packages/sdkwork-claw-infrastructure/src/platform/registry.ts'),
+  ).href;
+  const registryCopyA = await import(`${registryUrl}?bridge-copy=a`);
+  const registryCopyB = await import(`${registryUrl}?bridge-copy=b`);
+  const originalBridge = registryCopyA.getPlatformBridge();
+  const sharedInstaller = {
+    async listHubInstallCatalog() {
+      return [];
+    },
+    async inspectHubInstall() {
+      return {
+        ready: true,
+        installStatus: 'not-installed',
+        issues: [],
+        dependencies: [],
+        installations: [],
+      };
+    },
+    async runHubDependencyInstall() {
+      return { success: true, dependencyReports: [] };
+    },
+    async runHubInstall() {
+      return { success: true, summary: '', stageReports: [], artifactReports: [] };
+    },
+    async runHubUninstall() {
+      return { success: true, targetReports: [] };
+    },
+    async subscribeHubInstallProgress() {
+      return () => {};
+    },
+    async installApiRouterClientSetup() {
+      return { success: true, files: [], environment: [] };
+    },
+  };
+
+  try {
+    registryCopyA.configurePlatformBridge({
+      installer: sharedInstaller,
+    });
+
+    assert.equal(
+      registryCopyB.getInstallerPlatform(),
+      sharedInstaller,
+      'expected duplicate infrastructure module instances to observe the same installer bridge',
+    );
+  } finally {
+    registryCopyA.configurePlatformBridge(originalBridge);
+  }
 });

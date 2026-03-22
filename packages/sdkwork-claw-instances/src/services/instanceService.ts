@@ -4,6 +4,12 @@ import {
   type StudioCreateInstanceInput,
   type StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
+import type {
+  OpenClawAgentInput,
+  OpenClawModelSelection,
+  OpenClawProviderInput,
+  OpenClawProviderModelInput,
+} from '@sdkwork/claw-core';
 import { openClawConfigService } from '@sdkwork/claw-core';
 import { ListParams, PaginatedResult, type StudioInstanceRecord } from '@sdkwork/claw-types';
 import { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types';
@@ -97,7 +103,7 @@ const updateMockInstanceLlmProviderConfig =
 
 async function resolveManagedOpenClawConfig(id: string) {
   const detail = await studio.getInstanceDetail(id);
-  if (!detail || detail.instance.runtimeKind !== 'openclaw') {
+  if (!detail || detail.instance.runtimeKind !== 'openclaw' || !detail.lifecycle.configWritable) {
     return null;
   }
 
@@ -134,6 +140,31 @@ export interface IInstanceService {
     providerId: string,
     update: InstanceLLMProviderUpdate,
   ): Promise<void>;
+  createInstanceLlmProvider(
+    id: string,
+    provider: OpenClawProviderInput,
+    selection: OpenClawModelSelection,
+  ): Promise<void>;
+  deleteInstanceLlmProvider(id: string, providerId: string): Promise<void>;
+  createInstanceLlmProviderModel(
+    id: string,
+    providerId: string,
+    model: OpenClawProviderModelInput,
+  ): Promise<void>;
+  updateInstanceLlmProviderModel(
+    id: string,
+    providerId: string,
+    modelId: string,
+    model: OpenClawProviderModelInput,
+  ): Promise<void>;
+  deleteInstanceLlmProviderModel(
+    id: string,
+    providerId: string,
+    modelId: string,
+  ): Promise<void>;
+  createOpenClawAgent(id: string, agent: OpenClawAgentInput): Promise<void>;
+  updateOpenClawAgent(id: string, agent: OpenClawAgentInput): Promise<void>;
+  deleteOpenClawAgent(id: string, agentId: string): Promise<void>;
   saveOpenClawChannelConfig(
     id: string,
     channelId: string,
@@ -294,7 +325,7 @@ class InstanceService implements IInstanceService {
       );
 
       if (!currentProvider) {
-        throw new Error('Failed to resolve the managed OpenClaw provider configuration.');
+        throw new Error('Failed to resolve the config-backed OpenClaw provider configuration.');
       }
 
       await openClawConfigService.saveProviderSelection({
@@ -326,6 +357,124 @@ class InstanceService implements IInstanceService {
     }
   }
 
+  async createInstanceLlmProvider(
+    id: string,
+    provider: OpenClawProviderInput,
+    selection: OpenClawModelSelection,
+  ): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.saveProviderSelection({
+      configPath: managedConfig.configPath,
+      provider,
+      selection,
+    });
+  }
+
+  async deleteInstanceLlmProvider(id: string, providerId: string): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.deleteProvider({
+      configPath: managedConfig.configPath,
+      providerId: trimApiRouterProviderId(providerId),
+    });
+  }
+
+  async createInstanceLlmProviderModel(
+    id: string,
+    providerId: string,
+    model: OpenClawProviderModelInput,
+  ): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.createProviderModel({
+      configPath: managedConfig.configPath,
+      providerId: trimApiRouterProviderId(providerId),
+      model,
+    });
+  }
+
+  async updateInstanceLlmProviderModel(
+    id: string,
+    providerId: string,
+    modelId: string,
+    model: OpenClawProviderModelInput,
+  ): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.updateProviderModel({
+      configPath: managedConfig.configPath,
+      providerId: trimApiRouterProviderId(providerId),
+      modelId,
+      model,
+    });
+  }
+
+  async deleteInstanceLlmProviderModel(
+    id: string,
+    providerId: string,
+    modelId: string,
+  ): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.deleteProviderModel({
+      configPath: managedConfig.configPath,
+      providerId: trimApiRouterProviderId(providerId),
+      modelId,
+    });
+  }
+
+  async createOpenClawAgent(id: string, agent: OpenClawAgentInput): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.saveAgent({
+      configPath: managedConfig.configPath,
+      agent,
+    });
+  }
+
+  async updateOpenClawAgent(id: string, agent: OpenClawAgentInput): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.saveAgent({
+      configPath: managedConfig.configPath,
+      agent,
+    });
+  }
+
+  async deleteOpenClawAgent(id: string, agentId: string): Promise<void> {
+    const managedConfig = await resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.deleteAgent({
+      configPath: managedConfig.configPath,
+      agentId,
+    });
+  }
+
   async saveOpenClawChannelConfig(
     id: string,
     channelId: string,
@@ -333,7 +482,7 @@ class InstanceService implements IInstanceService {
   ): Promise<void> {
     const managedConfig = await resolveManagedOpenClawConfig(id);
     if (!managedConfig) {
-      throw new Error('Managed OpenClaw config file is not available for this instance.');
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
     await openClawConfigService.saveChannelConfiguration({
@@ -351,7 +500,7 @@ class InstanceService implements IInstanceService {
   ): Promise<void> {
     const managedConfig = await resolveManagedOpenClawConfig(id);
     if (!managedConfig) {
-      throw new Error('Managed OpenClaw config file is not available for this instance.');
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
     await openClawConfigService.setChannelEnabled({

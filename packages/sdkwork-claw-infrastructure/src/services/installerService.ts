@@ -11,9 +11,9 @@ import type {
   HubInstallResult,
   HubUninstallRequest,
   HubUninstallResult,
-  RuntimeEventUnsubscribe,
-} from '../platform/index.ts';
-import { getInstallerPlatform } from '../platform/index.ts';
+} from '../platform/contracts/installer.ts';
+import type { RuntimeEventUnsubscribe } from '../platform/contracts/runtime.ts';
+import { getInstallerPlatform } from '../platform/registry.ts';
 
 export const installerService = {
   listHubInstallCatalog: async (

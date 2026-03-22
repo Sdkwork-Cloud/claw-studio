@@ -38,6 +38,7 @@
     "devices": "Devices",
     "install": "Install Claw",
     "market": "ClawHub",
+    "agentMarket": "Agent Market",
     "aiChat": "AI Chat",
     "channels": "Channels",
     "cronTasks": "Cron Tasks",
@@ -52,7 +53,7 @@
     "codebox": "CodeBox",
     "apiRouter": "API Router",
     "modelPurchase": "Model Purchase",
-    "clawUpload": "Claw Upload",
+    "clawUpload": "Claw Networking",
     "systemResources": "System Resources",
     "cpu": "CPU",
     "ram": "RAM",
@@ -435,6 +436,10 @@
         "title": "Go to App Store",
         "subtitle": "Browse AI applications"
       },
+      "agents": {
+        "title": "Go to Agent Market",
+        "subtitle": "Browse OpenClaw agent templates and install them to an instance"
+      },
       "github": {
         "title": "Go to GitHub Repos",
         "subtitle": "Install open-source projects"
@@ -444,8 +449,8 @@
         "subtitle": "Download AI models"
       },
       "upload": {
-        "title": "Go to Claw Upload",
-        "subtitle": "Publish your Claw to the ecosystem"
+        "title": "Go to Claw Networking",
+        "subtitle": "Manage OpenClaw registry connectivity and gateway access"
       },
       "instances": {
         "title": "Go to Instances",
@@ -620,14 +625,15 @@
       "state": {
         "authenticated": "Connected",
         "needsLogin": "Sign-in required",
+        "needsConfiguration": "Configuration required",
         "unavailable": "Unavailable"
       },
-        "authSource": {
-          "session": "Operator session",
-          "managedBootstrap": "Managed local bootstrap",
-          "configuredToken": "Configured token",
-          "none": "No credentials"
-        },
+      "authSource": {
+        "session": "Operator session",
+        "managedBootstrap": "Managed local bootstrap",
+        "configuredToken": "Configured token",
+        "none": "No credentials"
+      },
       "fields": {
         "authSource": "Auth Source",
         "adminBaseUrl": "Admin Base URL",
@@ -649,13 +655,14 @@
         "autoResolved": "Auto-resolved from runtime",
         "unknown": "Unknown"
       },
-        "messages": {
-          "sessionConnected": "The API Router control plane is authenticated with the current operator session and can call router-native admin APIs directly.",
-          "managedBootstrapConnected": "Claw Studio silently authenticated the local managed sdkwork-api-router runtime and can call router-native admin APIs directly.",
-          "configuredTokenConnected": "The API Router control plane is authenticated with the configured admin token and can call router-native admin APIs directly.",
-          "signInRequired": "Sign in to the sdkwork-api-router admin API to use router-backed control-plane features instead of mock fallbacks.",
-          "reauthenticateRequired": "The saved router admin credentials are no longer valid. Sign in again to restore router-backed control-plane access."
-        },
+      "messages": {
+        "sessionConnected": "The API Router control plane is authenticated with the current operator session and can call router-native admin APIs directly.",
+        "managedBootstrapConnected": "Claw Studio silently authenticated the local managed sdkwork-api-router runtime and can call router-native admin APIs directly.",
+        "configuredTokenConnected": "The API Router control plane is authenticated with the configured admin token and can call router-native admin APIs directly.",
+        "configuredTokenConfigurationRequired": "The configured sdkwork-api-router admin token was rejected. Update or remove VITE_API_ROUTER_ADMIN_TOKEN before retrying. Manual sign-in is disabled while that token is configured.",
+        "signInRequired": "Sign in to the sdkwork-api-router admin API to use router-backed control-plane features instead of mock fallbacks.",
+        "reauthenticateRequired": "The saved router admin credentials are no longer valid. Sign in again to restore router-backed control-plane access."
+      },
       "loginHint": "Use the router admin account for standalone deployments or for the local managed runtime you attached to.",
       "toast": {
         "connected": "Connected to sdkwork-api-router as {{email}}",
@@ -672,18 +679,18 @@
       "sharedRoot": "Shared Router Root",
       "configFile": "Resolved Config File",
       "bind": "Bind Address",
-    "mode": {
-      "attachedExternal": "Attached to external router",
-      "managedActive": "Managed by Claw Studio",
-      "needsManagedStart": "Managed startup is required",
-      "conflicted": "Router startup is blocked"
-    },
-    "summary": {
-      "attachedExternal": "External instance active",
-      "managedActive": "Managed instance active",
-      "needsManagedStart": "Ready to launch",
-      "conflicted": "Operator action required"
-    },
+      "mode": {
+        "attachedExternal": "Attached to external router",
+        "managedActive": "Managed by Claw Studio",
+        "needsManagedStart": "Managed startup is required",
+        "conflicted": "Router startup is blocked"
+      },
+      "summary": {
+        "attachedExternal": "External instance active",
+        "managedActive": "Managed instance active",
+        "needsManagedStart": "Ready to launch",
+        "conflicted": "Operator action required"
+      },
       "managedMode": {
         "inProcess": "Start sdkwork-api-router with the Claw app lifecycle in-process once the managed launcher is wired."
       },
@@ -1446,47 +1453,66 @@
   },
   "apps": {
     "store": {
-      "title": "AI App Store",
-      "searchPlaceholder": "Search AI agents, models, tools...",
-      "featuredLabel": "Featured AI",
-      "featuredTitle": "Discover the Best",
-      "bannerAlt": "Featured banner",
-      "iconAlt": "App icon",
-      "editorsChoice": "Editor's Choice",
-      "getButton": "Get",
-      "topChartsTitle": "Top Charts",
-      "topChartsDescription": "The most popular apps right now",
-      "seeAll": "See All"
+      "title": "Hub Installer Catalog",
+      "description": "Browse installable apps from the real hub-installer registry.",
+      "searchPlaceholder": "Search catalog apps, packages, tools...",
+      "catalogBadge": "Hub Installer",
+      "catalogTitle": "Real catalog data, live install readiness",
+      "catalogDescription": "App Store now reads directly from the hub-installer catalog. Install readiness is inspected lazily so the page stays responsive while real status data streams in.",
+      "catalogTotals": "{{count}} apps across {{categories}} categories",
+      "searchResultsDescription": "{{count}} matching catalog entries",
+      "checkingInstallReadiness": "Checking install readiness in the background...",
+      "installed": "Installed",
+      "ready": "Ready",
+      "needsSetup": "Needs setup",
+      "installedHint": "Installed on this device",
+      "readyHint": "Ready to install on this device",
+      "blockingHint": "{{count}} blocking checks need attention",
+      "dependencyHint": "{{count}} dependency checks need attention",
+      "reviewHint": "Review setup requirements before installing",
+      "hostPlatforms": "Hosts",
+      "catalogAppFallback": "Open details to inspect variants, dependencies, and installation guidance.",
+      "categoryCount": "{{count}} apps",
+      "emptyCatalogTitle": "No catalog entries available",
+      "emptyCatalogDescription": "hub-installer did not return any installable apps for this host yet.",
+      "emptySearchTitle": "No matching catalog entries",
+      "emptySearchDescription": "No catalog apps matched \"{{query}}\".",
+      "overview": {
+        "totalApps": "Apps",
+        "categories": "Categories",
+        "installed": "Installed",
+        "ready": "Ready",
+        "attention": "Needs attention"
+      }
     },
     "detail": {
       "notFoundTitle": "App not found",
       "pageTitle": "App details",
       "installSuccess": "{{name}} installed successfully!",
-      "rating": "Rating",
       "category": "Category",
-      "age": "Age",
+      "catalogProfiles": "Profiles",
+      "supportedHosts": "Supported hosts",
       "installToLocal": "Install to local",
       "downloading": "Downloading...",
       "installing": "Installing...",
       "openApp": "Open app",
-      "screenshotAlt": "Screenshot {{index}}",
       "about": "About this app",
-      "whatsNew": "What's new",
-      "versionReleased": "Version {{version}} - {{date}}",
-      "whatsNewBullets": {
-        "one": "Platform-aware install flow backed by the Rust hub installer.",
-        "two": "Dependency inspection runs before installation and supports per-item repair.",
-        "three": "Live progress streams directly from the desktop runtime."
-      },
+      "catalogNotesTitle": "Catalog notes",
+      "catalogNotesDescription": "Only details published by hub-installer and the selected profile are shown here.",
       "information": "Information",
-      "size": "Size",
-      "compatibility": "Compatibility",
       "hostValue": "Host: {{host}}",
       "installProfilesCount": "{{count}} available",
       "dependencyChecks": "{{count}} dependency checks",
       "installStatusNote": "State comes from the Rust assessment record for this selected profile.",
       "installBlockedFallback": "Install is currently blocked.",
       "methodFallback": "Managed profile",
+      "metadata": {
+        "registry": "Registry",
+        "defaultSoftwareName": "Default software name",
+        "selectedSoftwareName": "Selected software name",
+        "supportedHosts": "Supported hosts",
+        "notAvailable": "Not available"
+      },
       "installStatus": {
         "uninstalled": "Uninstalled",
         "notManaged": "Not managed yet"
@@ -1565,11 +1591,6 @@
         "manualSetupRequired": "Manual setup required",
         "check": "Check: {{check}}"
       },
-      "defaults": {
-        "unknown": "Unknown",
-        "compatibility": "Windows 11, macOS 13+, Ubuntu 22.04+",
-        "manifestSummary": "Profile metadata is available through the selected Rust manifest."
-      },
       "values": {
         "platforms": {
           "windows": "Windows",
@@ -1637,14 +1658,64 @@
       "modelLabel": "Model",
       "readyWith": "Ready with {{model}}",
       "respondingWith": "Responding with {{model}}",
-      "nextReplyUses": "Current reply stays on {{currentModel}}. Next message will use {{nextModel}}."
+      "nextReplyUses": "Current reply stays on {{currentModel}}. Next message will use {{nextModel}}.",
+      "importUrl": "Import URL",
+      "importUrlHint": "Fetch the remote resource, upload it through the presigned S3 flow, and attach it to this message.",
+      "urlPlaceholder": "https://example.com/asset.png",
+      "urlFileNamePlaceholder": "Optional file name",
+      "importAction": "Upload URL",
+      "captureScreenshot": "Capture screenshot",
+      "startScreenRecording": "Start screen recording",
+      "stopRecording": "Stop recording",
+      "recordingVoice": "Recording voice message",
+      "recordingScreen": "Recording screen capture",
+      "preparingRecording": "Preparing recording attachment...",
+      "recordingFailed": "Recording failed. Please try again.",
+      "recordingPermissionDenied": "Microphone permission is required to record voice.",
+      "screenRecordingDenied": "Screen recording permission is required to capture your display.",
+      "nativeScreenshotUnavailable": "Native screenshot capture is not available in this runtime.",
+      "uploading": "Uploading attachments...",
+      "ready": "Ready",
+      "failed": "Failed",
+      "retryUpload": "Retry",
+      "removeAttachment": "Remove attachment",
+      "dropFiles": "Drop files to attach",
+      "dropFilesHint": "Images, recordings, documents, and remote URLs are all supported here.",
+      "uploadFailedGeneric": "Attachment upload failed. Please try again.",
+      "invalidUrl": "Enter a valid http or https URL.",
+      "waitForUploads": "Wait for uploads to finish before sending.",
+      "waitForRecording": "Wait for the recording to finish processing before sending.",
+      "stopRecordingBeforeSend": "Stop the active recording before sending this message.",
+      "sendMessage": "Send message",
+      "attachmentKinds": {
+        "file": "File",
+        "image": "Image",
+        "audio": "Audio",
+        "video": "Video",
+        "screenshot": "Screenshot",
+        "screenRecording": "Screen recording",
+        "link": "Link"
+      }
     },
     "message": {
       "copyMessage": "Copy message",
       "copyCode": "Copy code",
       "copied": "Copied!",
       "assistant": "Assistant",
-      "regenerateResponse": "Regenerate response"
+      "regenerateResponse": "Regenerate response",
+      "attachmentKinds": {
+        "file": "File",
+        "image": "Image",
+        "audio": "Audio",
+        "video": "Video",
+        "screenshot": "Screenshot",
+        "screenRecording": "Screen recording",
+        "link": "Link"
+      },
+      "openAttachment": "Open",
+      "fileSizeBytes": "{{count}} B",
+      "fileSizeKb": "{{size}} KB",
+      "fileSizeMb": "{{size}} MB"
     },
     "sidebar": {
       "newChat": "New Chat",
@@ -2049,11 +2120,60 @@
     }
   },
   "clawUpload": {
-    "title": "Claw Upload",
-    "subtitle": "Publish your Claw to the ecosystem",
-    "comingSoon": "Claw Publishing Coming Soon",
-    "description": "Soon you will be able to package and publish your custom Claws to the global ecosystem for others to discover and use.",
-    "prepare": "Prepare Your Claw"
+    "eyebrow": "Registry Linked",
+    "title": "Claw Networking",
+    "subtitle": "Read OpenClaw instances from the registry and keep gateway connectivity visible in one place.",
+    "description": "This registry-backed view surfaces the OpenClaw runtimes already registered inside Claw Studio so you can verify networking posture, gateway exposure, and routing readiness before agents go online.",
+    "refresh": "Refresh Registry",
+    "openApiRouter": "Open API Router",
+    "loadFailed": "Failed to load registry connectivity",
+    "loadFailedDescription": "We could not read the OpenClaw registry snapshot right now.",
+    "emptyTitle": "No OpenClaw instances are registered yet",
+    "emptyDescription": "Install or register an OpenClaw runtime first. Once it is in the registry, this page will show its gateway endpoint, WebSocket entry, storage namespace, and route readiness.",
+    "openInstall": "Install OpenClaw",
+    "openInstances": "Open Instances",
+    "builtInBadge": "Built-In",
+    "defaultBadge": "Default",
+    "notAvailable": "Not available",
+    "noDescription": "This OpenClaw runtime is already present in the registry and ready for connectivity review.",
+    "summary": {
+      "registered": "Registered runtimes",
+      "online": "Online now",
+      "gatewayReady": "Gateway ready",
+      "builtIn": "Bundled runtimes"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "starting": "Starting",
+      "error": "Error",
+      "syncing": "Syncing"
+    },
+    "deploymentModes": {
+      "local-managed": "Managed locally",
+      "local-external": "Attached local runtime",
+      "remote": "Remote runtime"
+    },
+    "transportKinds": {
+      "openclawGatewayWs": "OpenClaw gateway",
+      "zeroclawHttp": "ZeroClaw HTTP",
+      "ironclawWeb": "IronClaw web",
+      "openaiHttp": "OpenAI HTTP",
+      "customHttp": "Custom HTTP",
+      "customWs": "Custom WebSocket"
+    },
+    "labels": {
+      "instanceId": "Registry ID",
+      "gateway": "Gateway endpoint",
+      "websocket": "WebSocket endpoint",
+      "storage": "Storage namespace",
+      "capabilities": "Capabilities",
+      "lastSeen": "Last seen"
+    },
+    "actions": {
+      "viewInstance": "View Instance",
+      "configureRouting": "Configure Routing"
+    }
   },
   "account": {
     "title": "Account & Wallet",
@@ -2089,6 +2209,266 @@
     "invalidAmount": "Please enter a valid amount",
     "insufficientBalance": "Insufficient balance",
     "fetchError": "Failed to load account data"
+  },
+  "points": {
+    "units": {
+      "points": "Points"
+    },
+    "filters": {
+      "all": "All Records",
+      "earned": "Earned",
+      "spent": "Spent"
+    },
+    "cycles": {
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    },
+    "paymentMethods": {
+      "wechat": "WeChat Pay",
+      "alipay": "Alipay",
+      "bankcard": "Bank Card"
+    },
+    "header": {
+      "upgrade": "Upgrade Plus",
+      "upgradeShort": "Plus",
+      "pointsButton": "Open points panel"
+    },
+    "quickPanel": {
+      "eyebrow": "Points Wallet",
+      "pointsAvailable": "Available points",
+      "guestHint": "Sign in to read your live points and membership.",
+      "currentPlan": "Current Plan",
+      "thisMonth": "This Month",
+      "recharge": "Recharge Points",
+      "rechargeHint": "Top up in common amounts or use a custom value.",
+      "upgrade": "Upgrade Membership",
+      "upgradeHint": "Unlock monthly bundled points and advanced workflows.",
+      "authRequired": "Sign in to continue with points and membership actions.",
+      "recentRecords": "Recent Records",
+      "openCenter": "Open Points Center",
+      "noRecords": "No recent point records yet."
+    },
+    "page": {
+      "eyebrow": "Points Center",
+      "title": "Manage Points, Recharge, and Usage",
+      "description": "Track your live point balance, recharge at the backend-configured rate, and purchase available VIP packs from the shared app SDK.",
+      "rechargeAction": "Recharge Points",
+      "upgradeAction": "Upgrade Plus",
+      "availablePoints": "Current Balance",
+      "growthHint": "Keep your workflows running with ready-to-use points.",
+      "currentPlan": "Membership Plan",
+      "planMeta": "{{cycle}} cycle, instant grant of {{grant}} points",
+      "planPrice": "{{amount}} for the current cycle",
+      "earnedThisMonth": "Earned This Month",
+      "spentThisMonth": "Spent This Month",
+      "monthlyGrant": "Bundled Grant",
+      "noGrant": "No included grant",
+      "rateTitle": "Exchange Rate",
+      "rateValue": "{{rate}} pts / CNY 1",
+      "rateMeta": "{{rate}} points recharge 1 CNY",
+      "rateUnavailable": "Rate unavailable",
+      "recordsEyebrow": "Point Ledger",
+      "recordsTitle": "All Point Records",
+      "empty": "No point records found for this filter.",
+      "errorTitle": "Failed to load points",
+      "errorDescription": "Please retry after the shared app SDK becomes available again.",
+      "retry": "Retry"
+    },
+  "rechargeDialog": {
+    "eyebrow": "Points Recharge",
+    "title": "Recharge Points",
+    "description": "Choose a preset or custom amount, review the backend exchange rate, and submit the recharge through the real app SDK.",
+    "payable": "Payable now",
+    "commonAmounts": "Common point amounts",
+    "configureTitle": "Configure this recharge",
+    "configureDescription": "Preset values stay as quick actions, but the payable amount always comes from the backend-configured points-to-cash rate.",
+    "customAmount": "Custom points",
+    "customPlaceholder": "Enter a whole-number point value",
+    "backToForm": "Back to recharge setup",
+    "summaryEyebrow": "Recharge information",
+    "summaryTitle": "Review this points recharge",
+    "summaryDescription": "The live rate, chosen payment method, and payable amount all come from the real points recharge contract.",
+    "summaryMeta": "Buy {{points}} points for {{amount}}",
+    "rechargeDetailsTitle": "Points package",
+    "rechargeDetailsDescription": "Review the points quantity, original price, and actual payment here, then complete payment from the QR code on the right.",
+    "selectedPointsLabel": "Points to buy",
+    "purchaseTypeLabel": "Recharge type",
+    "originalPriceLabel": "Original price",
+    "actualPriceLabel": "Actual payment",
+    "exchangeRateLabel": "Exchange rate",
+    "exchangeRateValue": "{{rate}} pts / CNY 1",
+    "rateUnavailable": "The backend has not returned a valid exchange rate yet.",
+    "presetMeta": "Pay {{amount}}",
+    "presetPurchase": "Preset amount",
+    "customPurchase": "Custom amount",
+    "paymentEyebrow": "Scan to pay",
+      "paymentTitle": "Scan to complete the recharge",
+      "paymentDescription": "The QR code on the right updates with the selected payment method.",
+      "qrAlt": "{{method}} recharge QR code",
+      "scanHint": "Use {{method}} to scan the QR code above",
+      "paymentTip": "This is still a simulated payment flow. Confirming will immediately add {{points}} points and append a new record.",
+      "paymentMethod": "Payment Method",
+      "tip": "Recharge is simulated in this build, but the balance, records, and quick panel all update immediately.",
+      "continueToPayment": "Continue to payment",
+      "confirm": "Confirm Recharge",
+      "confirmPayment": "I've completed the recharge"
+    },
+    "upgradeDialog": {
+      "eyebrow": "Membership Upgrade",
+      "title": "Upgrade your subscription plan",
+      "description": "Choose from the live VIP packs exposed by the app SDK and submit the purchase with the real membership contract.",
+      "save20": "Save 20%",
+    "pointsGrant": "Instant bundled grant",
+    "pointsGrantValue": "{{points}} points",
+    "noGrant": "No included points",
+    "includedBenefits": "Included benefits",
+    "backToPlans": "Back to plans",
+    "summaryEyebrow": "Package information",
+    "summaryTitle": "Confirm the selected package",
+    "summaryDescription": "Review the current membership, selected package, duration, and bundled points before submitting the VIP purchase.",
+    "currentMembership": "Current membership",
+    "defaultPlanDescription": "This VIP pack is available through the shared app SDK and can be activated immediately after purchase.",
+    "noPlans": "No VIP packs are available right now.",
+    "summaryMeta": "{{cycle}} cycle with an instant grant of {{points}} points",
+    "paymentLockedHint": "The payment page is read-only. Use the back action in the top-left corner if you need to change the plan or monthly/yearly cycle.",
+    "paymentSummaryHint": "Need a different package or cycle? Use the back action in the top-left corner first.",
+    "currentPlanHint": "This selection matches your current active plan cycle, so there is nothing new to activate.",
+      "paymentEyebrow": "Scan to pay",
+      "paymentTitle": "Scan to complete payment",
+      "paymentDescription": "The right side keeps the active QR code and payment summary in sync with your selected method.",
+      "qrAlt": "{{method}} payment QR code",
+      "scanHint": "Use {{method}} to scan the QR code above",
+      "paymentTip": "This build simulates payment. Confirming will instantly grant {{points}} points and append a new record.",
+      "confirmPayment": "I've completed payment",
+      "agreementPrefix": "By paying, you acknowledge and agree to",
+      "membershipAgreement": "Membership Benefits Notice",
+      "agreementJoiner": "and",
+      "serviceAgreement": "Subscription Service Agreement",
+      "packageDetailsTitle": "Package information",
+    "packageDetailsDescription": "Check the package, cycle, bundled points, and price before continuing to pay.",
+    "lockedBadge": "Locked",
+    "packageNameLabel": "Plan",
+    "durationLabel": "Duration",
+    "durationValue": "{{days}} days",
+    "durationUnknown": "Duration unavailable",
+    "billingCycleLabel": "Billing cycle",
+    "grantPointsLabel": "Bundled points",
+    "originalPriceLabel": "Original price",
+    "actualPriceLabel": "Actual payment",
+    "totalPriceLabel": "Amount due"
+  },
+    "auth": {
+      "signInRequired": "Sign in to read, recharge, or upgrade your live points balance."
+    },
+    "membership": {
+      "guest": "Guest",
+      "free": "Free",
+      "vip": "VIP",
+      "freeMeta": "You are currently using the free membership tier.",
+      "remainingDays": "{{days}} days remaining",
+      "expireAt": "Expires on {{date}}"
+    },
+    "status": {
+      "completed": "Completed",
+      "pending": "Pending",
+      "failed": "Failed"
+    },
+    "planBadges": {
+      "recommended": "Recommended",
+      "current": "Current",
+      "free": "Free"
+    },
+    "plans": {
+      "free": {
+        "title": "Free",
+        "tagline": "A clean starting point for exploration and light daily use.",
+        "audience": "Best for first-time users and product evaluation.",
+        "benefits": [
+          "Daily sign-in rewards stay available",
+          "Core chat and workflow capabilities remain open",
+          "Upgrade to paid plans whenever capacity increases"
+        ]
+      },
+      "plus": {
+        "title": "Plus",
+        "tagline": "A focused plan for creators and operators who need steady output.",
+        "audience": "Great for individual creators and compact execution teams.",
+        "benefits": [
+          "8,800 bundled points every month",
+          "200 extra free points every day",
+          "Priority access to higher-intensity workflow runs"
+        ]
+      },
+      "pro": {
+        "title": "Pro",
+        "tagline": "More monthly capacity for multi-task production and automation.",
+        "audience": "Built for teams handling deeper automation and heavier throughput.",
+        "benefits": [
+          "17,600 bundled points every month",
+          "Higher concurrency for complex task batches",
+          "Better fit for cross-team content and operations flows"
+        ]
+      },
+      "ultra": {
+        "title": "Ultra",
+        "tagline": "A team-scale plan for always-on automation and larger delivery loops.",
+        "audience": "Designed for scaled teams with continuous workflow demand.",
+        "benefits": [
+          "44,000 bundled points every month",
+          "Supports long-running high-load workflows",
+          "Best fit for team-wide automation coverage"
+        ]
+      }
+    },
+    "transactions": {
+      "dailyCheckIn": {
+        "title": "Daily check-in reward",
+        "description": "Your daily sign-in points have arrived."
+      },
+      "aiImageGeneration": {
+        "title": "AI image generation spend",
+        "description": "Points used for a high-resolution image task."
+      },
+      "referralReward": {
+        "title": "Referral reward",
+        "description": "Reward earned after a new user joined from your invite."
+      },
+      "workflowRun": {
+        "title": "Workflow execution spend",
+        "description": "Points used for an automation run."
+      },
+      "welcomePack": {
+        "title": "Welcome bonus pack",
+        "description": "Starter bonus points granted on first login."
+      },
+      "manualTopUp": {
+        "title": "Points recharge",
+        "description": "Recharged via {{method}} for {{amount}}."
+      },
+      "planUpgrade": {
+        "title": "{{plan}} {{cycle}} plan activated",
+        "description": "{{points}} bundled points were granted instantly for {{amount}}."
+      },
+      "fallback": {
+        "title": "Point change",
+        "description": "Your point balance changed."
+      }
+    },
+    "actions": {
+      "processing": "Processing...",
+      "currentPlan": "Current Plan",
+      "freePlan": "Current Free Plan",
+      "upgradeNow": "Upgrade Now",
+      "selectedPlan": "Selected",
+      "selectPlan": "Select this pack"
+    },
+    "toasts": {
+      "rechargeSuccess": "{{points}} points added successfully.",
+      "rechargeFailed": "Recharge failed. Please try again.",
+      "upgradeSuccess": "{{plan}} activated and {{points}} points granted.",
+      "upgradeFailed": "Upgrade failed. Please try again.",
+      "invalidCustomPoints": "Please enter a positive whole-number point amount."
+    }
   },
   "clawCenter": {
     "title": "Claw",
@@ -2882,6 +3262,9 @@
             "embedding": "Embedding",
             "fallback": "Fallback"
           }
+        },
+        "agents": {
+          "marketReadonlyNotice": "This OpenClaw host does not currently expose a writable config file. Agent Market installs and agent CRUD stay disabled until the host surfaces a config-backed runtime route."
         },
         "empty": {
           "channels": "No channels are attached to this instance yet.",
@@ -4286,9 +4669,16 @@
     }
   },
   "market": {
-    "actions": {
-      "confirmUninstallSkill": "Uninstall this skill?",
-      "uninstall": "Uninstall"
+  "actions": {
+    "installPack": "Install pack",
+    "publishSkill": "New skill",
+    "createSkillWithChat": "Create with chat",
+    "uploadLocalSkill": "Upload local skill",
+    "confirmUninstallSkill": "Uninstall this skill?",
+    "uninstall": "Uninstall"
+  },
+    "badges": {
+      "curated": "Curated"
     },
     "categories": {
       "aiModels": "AI Models",
@@ -4319,6 +4709,8 @@
     "empty": {
       "installedDescription": "Install a skill from the marketplace to see it here.",
       "installedTitle": "No installed skills",
+      "noActiveInstanceDescription": "Choose an active instance first so Claw Hub knows which installed skills to manage.",
+      "noActiveInstanceTitle": "No active instance selected",
       "packagesDescription": "No skill packs match your filters right now.",
       "packagesTitle": "No skill packs found",
       "skillsDescription": "No skills match your filters right now.",
@@ -4339,9 +4731,18 @@
       "packAlt": "Featured skill pack cover",
       "setupLabel": "Quick setup"
     },
+    "fallbacks": {
+      "noActiveInstance": "No active instance"
+    },
+    "hints": {
+      "discovery": "Start with a curated pack for the fastest setup, then add individual skills as each workflow becomes clearer.",
+      "installed": "Installed skills stay tied to the current active instance so cleanup and audits remain predictable."
+    },
     "labels": {
+      "activeInstance": "Active instance: {{name}}",
       "installCount": "{{count, number}} installs",
       "installed": "Installed",
+      "packSkillCount": "{{count, number}} skills",
       "sdkworkOfficial": "SDKWork Official",
       "version": "Version {{value}}"
     },
@@ -4365,17 +4766,36 @@
       "selectTargetInstances": "Select target instances"
     },
     "page": {
-      "title": "Marketplace"
+      "subtitle": "A calmer way to discover, install, and manage the skills that shape your workspace.",
+      "title": "Claw Hub"
     },
-    "search": {
-      "placeholders": {
-        "packages": "Search skill packs, authors, or categories...",
-        "skills": "Search skills, authors, or categories..."
-      }
-    },
-    "sections": {
-      "myInstalledSkills": "My installed skills",
-      "sdkworkOfficialSkills": "SDKWork official skills",
+  "search": {
+    "placeholders": {
+      "discover": "Search skills, packs, authors, or categories...",
+      "installed": "Search installed skills...",
+      "packages": "Search skill packs, authors, or categories...",
+      "skills": "Search skills, authors, or categories...",
+      "mySkills": "Search my skills..."
+    }
+  },
+  "sections": {
+    "allSkills": "Skill library",
+    "allSkillsDescription": "Browse focused skills with less noise and clearer install intent.",
+      "featuredPacks": "Featured packs",
+      "featuredPacksDescription": "Curated shortcuts for getting a full workflow online quickly.",
+      "featuredPacksEyebrow": "Quick setup",
+      "installedEyebrow": "My space",
+      "installedSkills": "Installed skills",
+      "installedSkillsDescription": "Skills currently available on {{name}}.",
+      "libraryEyebrow": "Browse",
+    "matchingPacks": "Matching packs",
+    "myInstalledSkills": "My installed skills",
+    "searchResults": "Search results",
+    "skillPacksDescription": "Browse ready-to-install groups of skills in one place.",
+    "sdkworkOfficialSkills": "SDKWork official skills",
+    "spotlightEyebrow": "Recommended",
+    "spotlightSkills": "Recommended skills",
+      "spotlightSkillsDescription": "High-signal skills worth trying first when you want the cleanest starting point.",
       "topFreeSkills": "Top free skills",
       "trendingBundles": "Trending bundles"
     },
@@ -4383,11 +4803,17 @@
       "offline": "Offline",
       "online": "Online"
     },
-    "tabs": {
-      "mySkills": "My Skills",
-      "packages": "Packs",
-      "sdkwork": "SDKWork",
-      "skills": "Skills"
+  "tabs": {
+    "mySkills": "My Skills",
+    "packages": "Skill Packs",
+    "sdkwork": "SDKWork",
+    "skills": "Skills"
+  },
+    "views": {
+      "discover": "Skill library",
+      "discoverDescription": "Default to discovery, keep packs nearby, and make the main catalog easier to scan.",
+      "installed": "My skills",
+      "installedDescription": "Manage what is already installed on {{name}}."
     },
     "toast": {
       "installationFailed": "Installation failed",
@@ -4482,6 +4908,142 @@
       "targetInstance": "Target instance"
     }
   },
+  "agentMarket": {
+    "hero": {
+      "eyebrow": "Multi-agent workspace",
+      "title": "OpenClaw Agent Market",
+      "description": "Install production-ready OpenClaw agent templates into managed instances, bootstrap the standard agent workspace files, and turn on the collaboration settings needed for multi-agent execution.",
+      "multiAgentNote": "Every install writes the OpenClaw standard workspace files and enables agent-to-agent collaboration for the target instance."
+    },
+    "metrics": {
+      "templates": "Curated templates",
+      "instances": "Installable instances",
+      "installedTemplates": "Installed templates"
+    },
+    "section": {
+      "title": "Curated agent catalog",
+      "description": "Start from common orchestration, engineering, operations, research, and support roles instead of hand-authoring every OpenClaw agent from scratch."
+    },
+    "searchPlaceholder": "Search agent roles, capabilities, or keywords...",
+    "categories": {
+      "All": "All",
+      "Coordination": "Coordination",
+      "Development": "Development",
+      "Operations": "Operations",
+      "Research": "Research",
+      "Content": "Content",
+      "Support": "Support"
+    },
+    "actions": {
+      "install": "Add Agent",
+      "installed": "Already Installed",
+      "installing": "Installing...",
+      "installToInstance": "Install to Instance"
+    },
+    "labels": {
+      "installedInCount": "Installed in {{count, number}} instances",
+      "installed": "Installed",
+      "builtIn": "Built-In",
+      "instanceStatus": "{{type}} · {{host}} · {{status}}",
+      "instanceAgentCount": "{{count, number}} agents installed"
+    },
+    "error": {
+      "title": "Unable to load installable OpenClaw instances",
+      "description": "The agent catalog is available, but config-backed OpenClaw instance discovery failed. Retry after the bundled runtimes, local bridge, and runtime metadata are available again.",
+      "retry": "Retry instance discovery"
+    },
+    "empty": {
+      "searchTitle": "No matching agents",
+      "searchDescription": "Try another keyword or switch categories to find a template that fits the workflow you want to install.",
+      "noTargetsTitle": "No installable OpenClaw instances",
+      "noTargetsDescription": "Create or connect a config-backed OpenClaw runtime. Built-in and local-external instances appear here only when this host exposes a writable OpenClaw config file."
+    },
+    "modal": {
+      "title": "Install agent template",
+      "targetLabel": "Choose target instance",
+      "instanceSummaryTitle": "Agents already present in this instance"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "starting": "Starting",
+      "error": "Error",
+      "syncing": "Syncing"
+    },
+    "toast": {
+      "installSuccessTitle": "Agent installed",
+      "installSuccessDescription": "{{name}} is now available in the selected OpenClaw instance.",
+      "installFailedTitle": "Agent installation failed"
+    },
+    "templates": {
+      "orchestrator": {
+        "name": "Orchestrator",
+        "summary": "Coordinate multiple specialists, decompose tasks, and keep delivery aligned.",
+        "description": "A control-plane agent for routing work, checking progress, and deciding when to parallelize versus execute locally.",
+        "focus": "Keeps multi-agent execution disciplined and traceable.",
+        "capabilities": {
+          "0": "Task routing",
+          "1": "Delegation",
+          "2": "Review loops"
+        }
+      },
+      "coding-engineer": {
+        "name": "Coding Engineer",
+        "summary": "Implement features, debug code, and work through bounded engineering tasks.",
+        "description": "Optimized for code changes, small refactors, test repairs, and pragmatic delivery inside existing repositories.",
+        "focus": "Prefers concrete patches and defensible engineering tradeoffs.",
+        "capabilities": {
+          "0": "Feature delivery",
+          "1": "Bug fixing",
+          "2": "Code review"
+        }
+      },
+      "ops-responder": {
+        "name": "Ops Responder",
+        "summary": "Handle incidents, triage runtime failures, and drive operational recovery.",
+        "description": "Designed for incident response, runbook execution, rollback decisions, and controlled mitigation under pressure.",
+        "focus": "Fast diagnosis, explicit evidence, and low-risk containment.",
+        "capabilities": {
+          "0": "Incident triage",
+          "1": "Runbooks",
+          "2": "Escalation"
+        }
+      },
+      "research-analyst": {
+        "name": "Research Analyst",
+        "summary": "Collect evidence, compare sources, and turn findings into structured decisions.",
+        "description": "Useful for competitor scans, requirements research, root-cause analysis, and evidence-driven briefs.",
+        "focus": "Prioritizes evidence, traceability, and concise analysis.",
+        "capabilities": {
+          "0": "Evidence gathering",
+          "1": "Comparison",
+          "2": "Synthesis"
+        }
+      },
+      "content-writer": {
+        "name": "Content Writer",
+        "summary": "Draft launch copy, product documentation, and polished stakeholder messaging.",
+        "description": "Useful for docs, announcements, product narratives, and editing work that needs structure and consistency.",
+        "focus": "Clear structure, tone discipline, and audience-aware writing.",
+        "capabilities": {
+          "0": "Documentation",
+          "1": "Launch copy",
+          "2": "Editing"
+        }
+      },
+      "support-triage": {
+        "name": "Support Triage",
+        "summary": "Classify inbound issues, gather missing context, and route users to the right resolution path.",
+        "description": "Built for frontline support intake, ticket hygiene, and user-facing troubleshooting workflows.",
+        "focus": "Reduce ambiguity quickly and keep support flows actionable.",
+        "capabilities": {
+          "0": "Case triage",
+          "1": "Intake",
+          "2": "Resolution routing"
+        }
+      }
+    }
+  },
   "apiRouterWorkspace": {
     "eyebrow": "Commercial Routing",
     "title": "API Router Workspace",
@@ -4574,6 +5136,41 @@
       "concurrency": "Concurrency",
       "includedModels": "Included models",
       "startPlan": "Start {{planName}}"
+    },
+    "payment": {
+      "eyebrow": "Payment View",
+      "title": "Review and pay for the selected package",
+      "description": "This step locks the selected vendor package and billing cycle. Use the back action if you need to make changes.",
+      "backToPlans": "Back to plans",
+      "lockedBadge": "Locked package",
+      "packageDetailsTitle": "Selected package details",
+      "packageDetailsDescription": "Confirm the chosen vendor package and payment method here. Package switching is intentionally disabled in this step.",
+      "lockedHint": "Need a different package or billing cycle? Return to the previous step and choose again before paying.",
+      "vendorLabel": "Vendor",
+      "planLabel": "Package",
+      "cycleLabel": "Billing cycle",
+      "quotaLabel": "Quota",
+      "supportLabel": "Support",
+      "priceLabel": "Total due",
+      "benefitsLabel": "Included highlights",
+      "methodTitle": "Choose a payment method",
+      "methodDescription": "This is a simulated payment flow for interaction polishing and package confirmation.",
+      "methodSelected": "Currently selected",
+      "methodTapToUse": "Tap to pay with this method",
+      "scanTitle": "Scan or continue with the selected method",
+      "scanDescription": "Use {{method}} to complete this mock payment.",
+      "summaryTitle": "Payment summary",
+      "summaryDescription": "After this simulated payment succeeds, you will return to the package list.",
+      "summaryLocked": "Package changes require going back first.",
+      "mockTag": "Simulated",
+      "confirmPayment": "Confirm payment",
+      "successBanner": "{{vendor}} · {{plan}} ({{cycle}}) payment simulated successfully.",
+      "successDescription": "The interaction flow is complete. Mock payment amount: {{price}}.",
+      "methods": {
+        "wechat": "WeChat Pay",
+        "alipay": "Alipay",
+        "bankcard": "Bank Card"
+      }
     },
     "freeMembership": {
       "badge": "Free",

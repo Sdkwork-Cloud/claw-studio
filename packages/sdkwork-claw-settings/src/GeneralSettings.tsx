@@ -83,12 +83,13 @@ export function GeneralSettings() {
   };
 
   const sidebarItems = [
-    { id: 'dashboard', label: t('sidebar.dashboard') },
     { id: 'chat', label: t('sidebar.aiChat') },
     { id: 'channels', label: t('sidebar.channels') },
     { id: 'tasks', label: t('sidebar.cronTasks') },
-    { id: 'apps', label: t('sidebar.appStore') },
+    { id: 'dashboard', label: t('sidebar.dashboard') },
     { id: 'market', label: t('sidebar.market') },
+    { id: 'agents', label: t('sidebar.agentMarket') },
+    { id: 'apps', label: t('sidebar.appStore') },
     { id: 'extensions', label: t('sidebar.extensions') },
     { id: 'claw-upload', label: t('sidebar.clawUpload') },
     { id: 'community', label: t('sidebar.community') },
@@ -97,9 +98,7 @@ export function GeneralSettings() {
     { id: 'claw-center', label: t('sidebar.clawMall') },
     { id: 'install', label: t('sidebar.install') },
     { id: 'instances', label: t('sidebar.instances') },
-    { id: 'devices', label: t('sidebar.devices') },
     { id: 'api-router', label: t('sidebar.apiRouter') },
-    { id: 'model-purchase', label: t('sidebar.modelPurchase') },
   ];
 
   return (

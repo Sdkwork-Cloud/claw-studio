@@ -1,6 +1,21 @@
 import React, { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
+import {
+  Bot,
+  Camera,
+  Check,
+  Copy,
+  FileText,
+  Image as ImageIcon,
+  Link2,
+  Mic,
+  MonitorUp,
+  RefreshCw,
+  ThumbsDown,
+  ThumbsUp,
+  Video,
+} from 'lucide-react';
+import type { StudioConversationAttachment } from '@sdkwork/claw-types';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -14,6 +29,81 @@ interface ChatMessageProps {
   timestamp: number;
   onRegenerate?: () => void;
   isTyping?: boolean;
+  attachments?: StudioConversationAttachment[];
+}
+
+function formatFileSize(
+  sizeBytes: number | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+) {
+  if (!sizeBytes || sizeBytes <= 0) {
+    return null;
+  }
+
+  if (sizeBytes < 1024) {
+    return t('chat.message.fileSizeBytes', { count: sizeBytes });
+  }
+  if (sizeBytes < 1024 * 1024) {
+    return t('chat.message.fileSizeKb', {
+      size: (sizeBytes / 1024).toFixed(1),
+    });
+  }
+
+  return t('chat.message.fileSizeMb', {
+    size: (sizeBytes / (1024 * 1024)).toFixed(1),
+  });
+}
+
+function formatDuration(durationMs: number | undefined) {
+  if (!durationMs || durationMs <= 0) {
+    return null;
+  }
+
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function attachmentIcon(kind: StudioConversationAttachment['kind']) {
+  switch (kind) {
+    case 'image':
+      return ImageIcon;
+    case 'audio':
+      return Mic;
+    case 'video':
+      return Video;
+    case 'screenshot':
+      return Camera;
+    case 'screen-recording':
+      return MonitorUp;
+    case 'link':
+      return Link2;
+    default:
+      return FileText;
+  }
+}
+
+function attachmentLabel(
+  attachment: StudioConversationAttachment,
+  t: (key: string) => string,
+) {
+  switch (attachment.kind) {
+    case 'image':
+      return t('chat.message.attachmentKinds.image');
+    case 'audio':
+      return t('chat.message.attachmentKinds.audio');
+    case 'video':
+      return t('chat.message.attachmentKinds.video');
+    case 'screenshot':
+      return t('chat.message.attachmentKinds.screenshot');
+    case 'screen-recording':
+      return t('chat.message.attachmentKinds.screenRecording');
+    case 'link':
+      return t('chat.message.attachmentKinds.link');
+    default:
+      return t('chat.message.attachmentKinds.file');
+  }
 }
 
 const CodeBlock = memo(
@@ -77,6 +167,152 @@ const CodeBlock = memo(
   },
 );
 
+const AttachmentTile = memo(function AttachmentTile({
+  attachment,
+  isUser,
+}: {
+  attachment: StudioConversationAttachment;
+  isUser: boolean;
+}) {
+  const { t } = useTranslation();
+  const Icon = attachmentIcon(attachment.kind);
+  const previewUrl = attachment.previewUrl || attachment.url;
+  const displayUrl = attachment.url || attachment.originalUrl;
+  const detailItems = [
+    attachmentLabel(attachment, t),
+    formatFileSize(attachment.sizeBytes, t),
+    formatDuration(attachment.durationMs),
+  ].filter(Boolean);
+  const surfaceClassName = isUser
+    ? 'border-zinc-300/80 bg-white/90 dark:border-zinc-700 dark:bg-zinc-900/70'
+    : 'border-zinc-200/80 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900/50';
+
+  if (
+    previewUrl &&
+    (attachment.kind === 'image' || attachment.kind === 'screenshot')
+  ) {
+    return (
+      <a
+        href={displayUrl || previewUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={cn(
+          'group relative overflow-hidden rounded-2xl border transition-all hover:-translate-y-0.5 hover:shadow-lg',
+          surfaceClassName,
+        )}
+      >
+        <img
+          src={previewUrl}
+          alt={attachment.name}
+          className="max-h-72 w-full object-cover"
+        />
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              {attachment.name}
+            </div>
+            <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {detailItems.join(' / ')}
+            </div>
+          </div>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-950/80 text-white dark:bg-zinc-100 dark:text-zinc-950">
+            <Icon className="h-4 w-4" />
+          </div>
+        </div>
+      </a>
+    );
+  }
+
+  if (previewUrl && attachment.kind === 'audio') {
+    return (
+      <div
+        className={cn(
+          'rounded-2xl border p-4 shadow-sm backdrop-blur-sm',
+          surfaceClassName,
+        )}
+      >
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+            <Mic className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              {attachment.name}
+            </div>
+            <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {detailItems.join(' / ')}
+            </div>
+          </div>
+        </div>
+        <audio controls preload="metadata" className="w-full" src={previewUrl} />
+      </div>
+    );
+  }
+
+  if (
+    previewUrl &&
+    (attachment.kind === 'video' || attachment.kind === 'screen-recording')
+  ) {
+    return (
+      <div
+        className={cn(
+          'overflow-hidden rounded-2xl border shadow-sm backdrop-blur-sm',
+          surfaceClassName,
+        )}
+      >
+        <video controls preload="metadata" className="max-h-80 w-full bg-zinc-950" src={previewUrl} />
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300">
+            <Video className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              {attachment.name}
+            </div>
+            <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {detailItems.join(' / ')}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={displayUrl || '#'}
+      target={displayUrl ? '_blank' : undefined}
+      rel={displayUrl ? 'noreferrer' : undefined}
+      className={cn(
+        'flex min-w-0 items-start gap-3 rounded-2xl border p-4 shadow-sm backdrop-blur-sm transition-colors hover:border-primary-500/40',
+        surfaceClassName,
+      )}
+    >
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-zinc-900/8 text-zinc-700 dark:bg-zinc-100/10 dark:text-zinc-200">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {attachment.name}
+        </div>
+        <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {detailItems.join(' / ')}
+        </div>
+        {attachment.originalUrl ? (
+          <div className="mt-2 truncate text-xs text-primary-600 dark:text-primary-300">
+            {attachment.originalUrl}
+          </div>
+        ) : null}
+      </div>
+      {displayUrl ? (
+        <div className="text-xs font-medium text-primary-600 dark:text-primary-300">
+          {t('chat.message.openAttachment')}
+        </div>
+      ) : null}
+    </a>
+  );
+});
+
 export const ChatMessage = memo(function ChatMessage({
   role,
   content,
@@ -84,6 +320,7 @@ export const ChatMessage = memo(function ChatMessage({
   timestamp,
   onRegenerate,
   isTyping,
+  attachments = [],
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
   const { t, i18n } = useTranslation();
@@ -100,6 +337,7 @@ export const ChatMessage = memo(function ChatMessage({
   };
 
   const isUser = role === 'user';
+  const hasRenderableContent = content.trim().length > 0 || isTyping;
 
   return (
     <div
@@ -186,61 +424,75 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           )}
 
-          <div
-            className={cn(
-              'prose prose-zinc prose-sm relative max-w-none break-words dark:prose-invert sm:prose-base',
-              'prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-primary-500 hover:prose-a:text-primary-600',
-              'prose-code:before:content-none prose-code:after:content-none prose-p:leading-relaxed prose-pre:bg-transparent prose-pre:p-0',
-              isTyping &&
-                content !== '' &&
-                "[&>*:last-child]:after:ml-1 [&>*:last-child]:after:animate-pulse [&>*:last-child]:after:content-['|'] [&>*:last-child]:after:text-primary-500",
-            )}
-          >
-            {content === '' && isTyping ? (
-              <div className="flex h-6 items-center gap-1">
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
-                  style={{ animationDelay: '0ms' }}
+          {attachments.length > 0 ? (
+            <div className="mb-4 grid gap-3 sm:grid-cols-2">
+              {attachments.map((attachment) => (
+                <AttachmentTile
+                  key={attachment.id}
+                  attachment={attachment}
+                  isUser={isUser}
                 />
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
-                  style={{ animationDelay: '150ms' }}
-                />
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
-                  style={{ animationDelay: '300ms' }}
-                />
-              </div>
-            ) : (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ className, children, ...props }: any) {
-                    const match = /language-(\w+)/.exec(className || '');
-                    const isInline = !match && !className?.includes('language-');
+              ))}
+            </div>
+          ) : null}
 
-                    if (!isInline && match) {
-                      return <CodeBlock match={match} children={children} props={props} />;
-                    }
+          {hasRenderableContent ? (
+            <div
+              className={cn(
+                'prose prose-zinc prose-sm relative max-w-none break-words dark:prose-invert sm:prose-base',
+                'prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-primary-500 hover:prose-a:text-primary-600',
+                'prose-code:before:content-none prose-code:after:content-none prose-p:leading-relaxed prose-pre:bg-transparent prose-pre:p-0',
+                isTyping &&
+                  content !== '' &&
+                  "[&>*:last-child]:after:ml-1 [&>*:last-child]:after:animate-pulse [&>*:last-child]:after:content-['|'] [&>*:last-child]:after:text-primary-500",
+              )}
+            >
+              {content === '' && isTyping ? (
+                <div className="flex h-6 items-center gap-1">
+                  <span
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
+                    style={{ animationDelay: '0ms' }}
+                  />
+                  <span
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
+                    style={{ animationDelay: '150ms' }}
+                  />
+                  <span
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
+                    style={{ animationDelay: '300ms' }}
+                  />
+                </div>
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    code({ className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const isInline = !match && !className?.includes('language-');
 
-                    return (
-                      <code
-                        {...props}
-                        className={cn(
-                          'rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[13px] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
-                          className,
-                        )}
-                      >
-                        {children}
-                      </code>
-                    );
-                  },
-                }}
-              >
-                {content}
-              </ReactMarkdown>
-            )}
-          </div>
+                      if (!isInline && match) {
+                        return <CodeBlock match={match} children={children} props={props} />;
+                      }
+
+                      return (
+                        <code
+                          {...props}
+                          className={cn(
+                            'rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[13px] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
+                            className,
+                          )}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

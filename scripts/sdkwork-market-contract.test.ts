@@ -29,6 +29,9 @@ function runTest(name: string, fn: () => void) {
 runTest('sdkwork-claw-market is implemented locally instead of re-exporting claw-studio-market', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-market/package.json');
   const indexSource = read('packages/sdkwork-claw-market/src/index.ts');
+  const marketEntrySource = read('packages/sdkwork-claw-market/src/Market.tsx');
+  const skillDetailEntrySource = read('packages/sdkwork-claw-market/src/SkillDetail.tsx');
+  const skillPackDetailEntrySource = read('packages/sdkwork-claw-market/src/SkillPackDetail.tsx');
 
   assert.ok(exists('packages/sdkwork-claw-market/src/Market.tsx'));
   assert.ok(exists('packages/sdkwork-claw-market/src/SkillDetail.tsx'));
@@ -36,6 +39,11 @@ runTest('sdkwork-claw-market is implemented locally instead of re-exporting claw
   assert.ok(exists('packages/sdkwork-claw-market/src/pages/Market.tsx'));
   assert.ok(exists('packages/sdkwork-claw-market/src/pages/SkillDetail.tsx'));
   assert.ok(exists('packages/sdkwork-claw-market/src/pages/SkillPackDetail.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-market/src/pages/marketLayout.ts'));
+  assert.ok(exists('packages/sdkwork-claw-market/src/pages/marketLayout.test.ts'));
+  assert.ok(exists('packages/sdkwork-claw-market/src/pages/marketPresentation.ts'));
+  assert.ok(exists('packages/sdkwork-claw-market/src/pages/marketPresentation.test.ts'));
+  assert.ok(exists('packages/sdkwork-claw-market/src/pages/marketViewComponents.tsx'));
   assert.ok(exists('packages/sdkwork-claw-market/src/services/index.ts'));
   assert.ok(exists('packages/sdkwork-claw-market/src/services/marketService.ts'));
   assert.ok(exists('packages/sdkwork-claw-market/src/services/mySkillService.ts'));
@@ -47,15 +55,65 @@ runTest('sdkwork-claw-market is implemented locally instead of re-exporting claw
   assert.match(indexSource, /\.\/SkillDetail/);
   assert.match(indexSource, /\.\/SkillPackDetail/);
   assert.match(indexSource, /\.\/services\/marketService/);
+  assert.match(marketEntrySource, /lazy\(\(\) =>/);
+  assert.match(marketEntrySource, /\.\/pages\/Market/);
+  assert.match(skillDetailEntrySource, /lazy\(\(\) =>/);
+  assert.match(skillDetailEntrySource, /\.\/pages\/SkillDetail/);
+  assert.match(skillPackDetailEntrySource, /lazy\(\(\) =>/);
+  assert.match(skillPackDetailEntrySource, /\.\/pages\/SkillPackDetail/);
 });
 
-runTest('sdkwork-claw-market preserves V5 market tab surface and multi-instance installs', () => {
+runTest('sdkwork-claw-market uses the three-tab hub surface while preserving multi-instance installs', () => {
   const marketSource = read('packages/sdkwork-claw-market/src/pages/Market.tsx');
+  const presentationSource = read('packages/sdkwork-claw-market/src/pages/marketPresentation.ts');
+  const viewComponentsSource = read('packages/sdkwork-claw-market/src/pages/marketViewComponents.tsx');
 
-  assert.match(marketSource, /'skills' \| 'packages' \| 'myskills' \| 'sdkwork'/);
+  assert.match(marketSource, /type MarketTab = 'skills' \| 'packages' \| 'mySkills'/);
+  assert.match(marketSource, /createSkillCatalog/);
+  assert.match(marketSource, /createPackCatalog/);
+  assert.match(marketSource, /createMySkillsCatalog/);
+  assert.match(marketSource, /createSkillCatalogGridStyle/);
+  assert.match(marketSource, /createPackCatalogGridStyle/);
+  assert.match(marketSource, /createMySkillsCatalogGridStyle/);
+  assert.match(marketSource, /setActiveTab/);
+  assert.match(marketSource, /setActiveCategory/);
+  assert.match(marketSource, /setIsCreateSkillMenuOpen/);
+  assert.match(marketSource, /createPortal/);
+  assert.match(marketSource, /createSkillMenuStyle/);
+  assert.match(marketSource, /whitespace-nowrap/);
+  assert.match(marketSource, /shrink-0/);
+  assert.match(marketSource, /navigate\('\/chat'\)/);
+  assert.match(marketSource, /navigate\('\/claw-upload'\)/);
+  assert.match(marketSource, /market\.actions\.createSkillWithChat/);
+  assert.match(marketSource, /market\.actions\.uploadLocalSkill/);
+  assert.match(marketSource, /market\.categoryLabels\./);
   assert.match(marketSource, /selectedInstanceIds/);
   assert.match(marketSource, /selectedInstanceIds\.map/);
-  assert.match(marketSource, /setActiveMarketTab\('sdkwork'\)/);
+  assert.doesNotMatch(marketSource, /linear-gradient/);
+  assert.doesNotMatch(marketSource, /backdrop-blur/);
+  assert.doesNotMatch(marketSource, /transition-all/);
+  assert.doesNotMatch(marketSource, /transition-colors/);
+  assert.doesNotMatch(marketSource, /transition-transform/);
+  assert.doesNotMatch(marketSource, /max-w-\[1480px\]/);
+  assert.doesNotMatch(marketSource, /type MarketView = 'discover' \| 'installed'/);
+  assert.doesNotMatch(marketSource, /createDiscoverCatalog/);
+  assert.doesNotMatch(marketSource, /createInstalledCatalog/);
+  assert.match(presentationSource, /createCategoryIds/);
+  assert.match(presentationSource, /createSkillCatalog/);
+  assert.match(presentationSource, /createPackCatalog/);
+  assert.match(presentationSource, /createMySkillsCatalog/);
+  assert.match(presentationSource, /activeCategory/);
+  assert.doesNotMatch(viewComponentsSource, /motion\/react/);
+  assert.doesNotMatch(viewComponentsSource, /<motion\./);
+  assert.doesNotMatch(viewComponentsSource, /animate-pulse/);
+  assert.doesNotMatch(viewComponentsSource, /animate-spin/);
+  assert.doesNotMatch(viewComponentsSource, /transition-all/);
+  assert.doesNotMatch(viewComponentsSource, /transition-colors/);
+  assert.doesNotMatch(viewComponentsSource, /bg-gradient-to-br/);
+  assert.doesNotMatch(viewComponentsSource, /linear-gradient/);
+  assert.doesNotMatch(viewComponentsSource, /radial-gradient/);
+  assert.doesNotMatch(viewComponentsSource, /hidden shrink-0 md:block/);
+  assert.doesNotMatch(viewComponentsSource, /mt-4 md:hidden/);
 });
 
 runTest('sdkwork-claw-market preserves V5 skill detail repository selector and multi-instance installs', () => {
@@ -67,4 +125,17 @@ runTest('sdkwork-claw-market preserves V5 skill detail repository selector and m
   assert.match(detailSource, /t\('market\.skillDetail\.repository\.options\.tencent\.title'\)/);
   assert.match(detailSource, /selectedInstanceIds/);
   assert.match(detailSource, /selectedInstanceIds\.map/);
+});
+
+runTest('sdkwork-claw-market keeps dead fallback seed data out of the public surface', () => {
+  const indexSource = read('packages/sdkwork-claw-market/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-market/src/services/index.ts');
+
+  assert.equal(exists('packages/sdkwork-claw-market/src/services/fallbackData.ts'), false);
+  assert.doesNotMatch(indexSource, /\.\/services';/);
+  assert.doesNotMatch(indexSource, /fallbackData/);
+  assert.doesNotMatch(servicesIndexSource, /fallbackData/);
+  assert.match(indexSource, /\.\/services\/instanceService/);
+  assert.match(indexSource, /\.\/services\/marketService/);
+  assert.match(indexSource, /\.\/services\/mySkillService/);
 });

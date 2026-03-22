@@ -363,10 +363,10 @@ class SettingsService implements ISettingsService {
 
   async getPreferences(): Promise<UserPreferences> {
     const client = getAppSdkClientWithSession();
-    const settings = unwrapAppSdkResponse<RemoteNotificationSettings>(
+    const settings = unwrapAppSdkResponse(
       await client.notification.getNotificationSettings(),
       'Failed to load preferences.',
-    );
+    ) as RemoteNotificationSettings;
 
     return buildPreferencesFromNotificationSettings(settings);
   }
@@ -381,21 +381,21 @@ class SettingsService implements ISettingsService {
     writeSettingsOverlay(nextOverlay);
 
     const client = getAppSdkClientWithSession();
-    const currentSettings = unwrapAppSdkResponse<RemoteNotificationSettings>(
+    const currentSettings = unwrapAppSdkResponse(
       await client.notification.getNotificationSettings(),
       'Failed to load notification settings.',
-    );
+    ) as RemoteNotificationSettings;
 
     if (!prefs.notifications) {
       return buildPreferencesFromNotificationSettings(currentSettings, nextOverlay);
     }
 
-    const updatedSettings = unwrapAppSdkResponse<RemoteNotificationSettings>(
+    const updatedSettings = unwrapAppSdkResponse(
       await client.notification.updateNotificationSettings(
         buildNotificationSettingsUpdate(currentSettings, prefs.notifications),
       ),
       'Failed to update preferences.',
-    );
+    ) as RemoteNotificationSettings;
 
     const typeSettingsUpdates = buildNotificationTypeSettingsUpdates(
       updatedSettings,
@@ -415,10 +415,10 @@ class SettingsService implements ISettingsService {
     const refreshedSettings =
       typeSettingsUpdates.length === 0
         ? updatedSettings
-        : unwrapAppSdkResponse<RemoteNotificationSettings>(
+        : (unwrapAppSdkResponse(
             await client.notification.getNotificationSettings(),
             'Failed to load preferences.',
-          );
+          ) as RemoteNotificationSettings);
 
     return buildPreferencesFromNotificationSettings(refreshedSettings, nextOverlay);
   }

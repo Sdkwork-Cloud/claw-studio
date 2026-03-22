@@ -56,6 +56,7 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
     'packages/sdkwork-claw-ui/src/components/TaskExecutionHistoryDrawer.tsx',
   );
   const channelCatalogSource = read('packages/sdkwork-claw-ui/src/components/ChannelCatalog.tsx');
+  const overlaySurfaceSource = read('packages/sdkwork-claw-ui/src/components/OverlaySurface.tsx');
 
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Modal.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Button.tsx'));
@@ -103,6 +104,8 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(taskExecutionHistoryDrawerSource, /export function TaskExecutionHistoryDrawer/);
   assert.match(channelCatalogSource, /onOpenOfficialLink\?:/);
   assert.match(channelCatalogSource, /onOpenOfficialLink\(channel, link\)/);
+  assert.match(overlaySurfaceSource, /createPortal/);
+  assert.match(overlaySurfaceSource, /document\.body/);
 });
 
 runTest('feature packages use shared shadcn-style form primitives instead of native controls', () => {

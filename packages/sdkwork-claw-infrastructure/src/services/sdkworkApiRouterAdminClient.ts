@@ -5,10 +5,7 @@ import {
   type ApiRouterAdminSession,
   writeApiRouterAdminSession,
 } from '../auth/apiRouterAdminSession.ts';
-import {
-  canSilentlyBootstrapManagedApiRouter,
-  resolveApiRouterResolvedEndpoints,
-} from './sdkworkApiRouterAccess.ts';
+import { resolveApiRouterResolvedEndpoints } from './sdkworkApiRouterAccess.ts';
 
 export interface ApiRouterAdminLoginRequest {
   email: string;
@@ -329,14 +326,7 @@ async function performApiRouterAdminFetch(
   });
 }
 
-async function refreshManagedBootstrapToken(
-  requestToken: string,
-  canSilentlyBootstrap: boolean,
-) {
-  if (!canSilentlyBootstrap) {
-    return '';
-  }
-
+async function refreshManagedBootstrapToken(requestToken: string) {
   clearApiRouterAdminSession();
   const retryToken = await ensureApiRouterAdminSessionToken({ forceBootstrap: true });
   if (!retryToken || retryToken === requestToken) {
@@ -354,7 +344,7 @@ async function requestApiRouterAdmin<T>(
   } = {},
 ): Promise<T> {
   const env = options.env ?? APP_ENV;
-  const { adminBaseUrl: baseUrl, runtimeStatus } = await resolveApiRouterResolvedEndpoints({
+  const { adminBaseUrl: baseUrl } = await resolveApiRouterResolvedEndpoints({
     adminBaseUrl: options.baseUrl,
     env,
   });
@@ -377,10 +367,7 @@ async function requestApiRouterAdmin<T>(
   }>(response);
 
   if (!response.ok && options.requireAuth !== false && isAuthResponseStatus(response.status)) {
-    const retryToken = await refreshManagedBootstrapToken(
-      requestToken,
-      canSilentlyBootstrapManagedApiRouter(runtimeStatus),
-    );
+    const retryToken = await refreshManagedBootstrapToken(requestToken);
     if (retryToken) {
       requestToken = retryToken;
       response = await performApiRouterAdminFetch(

@@ -153,11 +153,14 @@ runTest('desktop shell keeps header interactions outside the drag region hitbox'
   assert.match(headerSource, /h-12/);
 });
 
-runTest('desktop runtime uses the official Tauri detection API for window chrome actions', () => {
+runTest('desktop runtime detection supports Tauri v2 window APIs without relying on withGlobalTauri', () => {
   const runtimeSource = readText('packages/sdkwork-claw-desktop/src/desktop/runtime.ts');
+  const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
 
   assert.match(runtimeSource, /isTauri/);
-  assert.doesNotMatch(runtimeSource, /__TAURI_INTERNALS__/);
+  assert.equal(tauriConfig.app?.withGlobalTauri, undefined);
+  assert.match(runtimeSource, /__TAURI_INTERNALS__/);
+  assert.match(runtimeSource, /typeof tauriInternals\.invoke === 'function'/);
 });
 
 runTest('desktop startup host avoids StrictMode replays for one-shot window bootstrap side effects', () => {

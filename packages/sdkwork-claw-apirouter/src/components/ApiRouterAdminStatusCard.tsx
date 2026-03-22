@@ -29,6 +29,13 @@ function toneClassName(status: ApiRouterAdminStatus['state']) {
         badge:
           'bg-amber-500 text-amber-950 dark:bg-amber-300 dark:text-amber-950',
       };
+    case 'needsConfiguration':
+      return {
+        shell:
+          'border-orange-200/80 bg-orange-50/90 text-orange-950 dark:border-orange-900/80 dark:bg-orange-950/30 dark:text-orange-100',
+        badge:
+          'bg-orange-500 text-orange-950 dark:bg-orange-300 dark:text-orange-950',
+      };
     case 'unavailable':
       return {
         shell:
@@ -66,6 +73,8 @@ function stateLabelKey(state: ApiRouterAdminStatus['state']) {
       return 'apiRouterPage.admin.state.authenticated';
     case 'needsLogin':
       return 'apiRouterPage.admin.state.needsLogin';
+    case 'needsConfiguration':
+      return 'apiRouterPage.admin.state.needsConfiguration';
     case 'unavailable':
       return 'apiRouterPage.admin.state.unavailable';
     default: {
@@ -90,6 +99,10 @@ function resolveDescriptionKey(status: ApiRouterAdminStatus) {
     return status.authSource === 'none'
       ? 'apiRouterPage.admin.messages.signInRequired'
       : 'apiRouterPage.admin.messages.reauthenticateRequired';
+  }
+
+  if (status.state === 'needsConfiguration') {
+    return 'apiRouterPage.admin.messages.configuredTokenConfigurationRequired';
   }
 
   return null;
@@ -145,7 +158,7 @@ export function ApiRouterAdminStatusCard({
             <RefreshCw className="h-4 w-4" />
             {t('apiRouterPage.admin.actions.refresh')}
           </Button>
-          {status.authenticated && status.authSource !== 'managedBootstrap' ? (
+          {status.allowsManualDisconnect ? (
             <Button type="button" variant="outline" onClick={onLogout} disabled={isSigningOut}>
               <LogOut className="h-4 w-4" />
               {t('apiRouterPage.admin.actions.disconnect')}
@@ -195,7 +208,7 @@ export function ApiRouterAdminStatusCard({
             {status.operator?.displayName || status.sessionUser?.displayName || t('apiRouterPage.admin.values.unknown')}
           </div>
         </div>
-      ) : (
+      ) : status.allowsManualLogin ? (
         <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
           <div className="rounded-[22px] bg-white/55 p-4 dark:bg-black/20">
             <div className="grid gap-4 lg:grid-cols-2">
@@ -238,7 +251,7 @@ export function ApiRouterAdminStatusCard({
             </div>
           </div>
         </form>
-      )}
+      ) : null}
     </section>
   );
 }

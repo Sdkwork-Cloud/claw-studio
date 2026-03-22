@@ -456,14 +456,25 @@ fn find_available_gateway_port(preferred_port: u16) -> Result<u16> {
         }
     }
 
-    Err(FrameworkError::Conflict(
-        "failed to reserve an available loopback port for the bundled openclaw gateway".to_string(),
-    ))
+    reserve_any_loopback_port().ok_or_else(|| {
+        FrameworkError::Conflict(
+            "failed to reserve an available loopback port for the bundled openclaw gateway"
+                .to_string(),
+        )
+    })
 }
 
 fn is_loopback_port_available(port: u16) -> bool {
     let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
     TcpListener::bind(address).is_ok()
+}
+
+fn reserve_any_loopback_port() -> Option<u16> {
+    TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
+        .ok()?
+        .local_addr()
+        .ok()
+        .map(|address| address.port())
 }
 
 #[cfg(test)]
@@ -503,7 +514,6 @@ mod tests {
         assert_eq!(activated.workspace_dir, paths.openclaw_workspace_dir);
         assert_eq!(activated.config_path, paths.openclaw_config_file);
         assert!(activated.gateway_port >= DEFAULT_GATEWAY_PORT);
-        assert!(activated.gateway_port < DEFAULT_GATEWAY_PORT + 32);
         assert!(paths
             .openclaw_runtime_dir
             .join(&expected_install_key)
@@ -620,6 +630,42 @@ mod tests {
         drop(busy_listener);
 
         assert_ne!(activated.gateway_port, busy_port);
+
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+        )
+        .expect("config json");
+        assert_eq!(
+            config.pointer("/gateway/port").and_then(Value::as_u64),
+            Some(u64::from(activated.gateway_port))
+        );
+    }
+
+    #[test]
+    fn falls_back_to_os_assigned_port_when_preferred_window_is_unavailable() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let service = OpenClawRuntimeService::new();
+        let (preferred_port, occupied_ports) = reserve_contiguous_port_window(32);
+
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {preferred_port}\n  }}\n}}\n"),
+        )
+        .expect("seed config file");
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        drop(occupied_ports);
+
+        assert!(activated.gateway_port > 0);
+        assert!(
+            activated.gateway_port < preferred_port
+                || activated.gateway_port >= preferred_port.saturating_add(32)
+        );
 
         let config = serde_json::from_str::<Value>(
             &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
@@ -759,5 +805,30 @@ mod tests {
         .expect("manifest file");
 
         resource_root
+    }
+
+    fn reserve_contiguous_port_window(
+        size: u16,
+    ) -> (u16, Vec<std::net::TcpListener>) {
+        for start in 20_000..60_000u16.saturating_sub(size) {
+            let mut listeners = Vec::new();
+            let mut success = true;
+
+            for port in start..start.saturating_add(size) {
+                match std::net::TcpListener::bind(("127.0.0.1", port)) {
+                    Ok(listener) => listeners.push(listener),
+                    Err(_) => {
+                        success = false;
+                        break;
+                    }
+                }
+            }
+
+            if success {
+                return (start, listeners);
+            }
+        }
+
+        panic!("failed to reserve a contiguous loopback port window for the test");
     }
 }

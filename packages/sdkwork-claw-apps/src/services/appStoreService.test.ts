@@ -8,6 +8,7 @@ import {
   type HubInstallResult,
   type HubUninstallResult,
   type RuntimeInfo,
+  studioMockService,
 } from '@sdkwork/claw-infrastructure';
 import { appStoreService } from './appStoreService.ts';
 import { resolveAppHostPlatform } from './appInstallCatalog.ts';
@@ -137,8 +138,54 @@ function createCatalogEntry(
   };
 }
 
+function createRuntimeInfo(overrides: Partial<RuntimeInfo> = {}): RuntimeInfo {
+  return {
+    platform: 'desktop',
+    system: {
+      os: 'Windows 11 Pro',
+      arch: 'x86_64',
+      family: 'windows',
+      target: 'x86_64-pc-windows-msvc',
+    },
+    ...overrides,
+  };
+}
+
 function resetInstallerCatalogCache() {
   (appStoreService as any).installCatalogCache?.clear?.();
+  (appStoreService as any).catalogPresentationCache?.clear?.();
+  (appStoreService as any).installSurfaceSummaryCache?.clear?.();
+  (appStoreService as any).installSurfaceSummaryPending?.clear?.();
+  (appStoreService as any).runtimeInfoPromise = null;
+}
+
+function blockStudioMockAppStoreAccess() {
+  const originalMethods = {
+    getFeaturedApp: studioMockService.getFeaturedApp,
+    getTopChartApps: studioMockService.getTopChartApps,
+    getAppCategories: studioMockService.getAppCategories,
+    getApp: studioMockService.getApp,
+  };
+
+  studioMockService.getFeaturedApp = async () => {
+    throw new Error('studioMockService.getFeaturedApp should not be used by appStoreService');
+  };
+  studioMockService.getTopChartApps = async () => {
+    throw new Error('studioMockService.getTopChartApps should not be used by appStoreService');
+  };
+  studioMockService.getAppCategories = async () => {
+    throw new Error('studioMockService.getAppCategories should not be used by appStoreService');
+  };
+  studioMockService.getApp = async () => {
+    throw new Error('studioMockService.getApp should not be used by appStoreService');
+  };
+
+  return () => {
+    studioMockService.getFeaturedApp = originalMethods.getFeaturedApp;
+    studioMockService.getTopChartApps = originalMethods.getTopChartApps;
+    studioMockService.getAppCategories = originalMethods.getAppCategories;
+    studioMockService.getApp = originalMethods.getApp;
+  };
 }
 
 await runTest('resolveAppHostPlatform normalizes host operating systems', () => {
@@ -186,6 +233,109 @@ await runTest('getInstallCatalog delegates to the Rust installer catalog bridge'
   assert.equal(catalog[0]?.summary, 'Rust catalog summary from installer bridge.');
   assert.equal(catalog[0]?.variants[0]?.label, 'Rust WSL profile');
 });
+
+await runTest(
+  'catalog-driven app lookups reuse runtime detection across list, categories, and detail access',
+  async () => {
+    resetInstallerCatalogCache();
+    let runtimeInfoCalls = 0;
+    const restoreStudioMockService = blockStudioMockAppStoreAccess();
+
+    try {
+      configurePlatformBridge({
+        runtime: {
+          async getRuntimeInfo() {
+            runtimeInfoCalls += 1;
+            return createRuntimeInfo();
+          },
+          async setAppLanguage() {},
+          async submitProcessJob() {
+            return 'job-1';
+          },
+          async getJob() {
+            throw new Error('not implemented');
+          },
+          async listJobs() {
+            return [];
+          },
+          async cancelJob() {
+            throw new Error('not implemented');
+          },
+          async subscribeJobUpdates() {
+            return () => {};
+          },
+          async subscribeProcessOutput() {
+            return () => {};
+          },
+        },
+        installer: {
+          async listHubInstallCatalog() {
+            return [
+              createCatalogEntry(),
+              createCatalogEntry({
+                appId: 'app-codex',
+                title: 'Codex',
+                developer: 'OpenAI',
+                category: 'AI Agents',
+                summary: 'Rust-backed Codex catalog summary.',
+                description: 'Rust-backed Codex descriptor from hub-installer.',
+                homepage: 'https://openai.com/codex',
+                tags: ['ai', 'cli'],
+                defaultVariantId: 'windows-host',
+                defaultSoftwareName: 'codex',
+                variants: [
+                  {
+                    id: 'windows-host',
+                    label: 'Windows host profile',
+                    summary: 'Install Codex directly on Windows.',
+                    softwareName: 'codex',
+                    hostPlatforms: ['windows'],
+                    runtimePlatform: 'host',
+                    manifestName: 'Codex Install',
+                    manifestDescription: 'Install Codex on Windows.',
+                    manifestHomepage: 'https://openai.com/codex',
+                    installationMethod: null,
+                    request: {
+                      softwareName: 'codex',
+                    },
+                  },
+                ],
+              }),
+            ];
+          },
+          async inspectHubInstall(request) {
+            return createAssessment(request);
+          },
+          async runHubDependencyInstall() {
+            throw new Error('not implemented');
+          },
+          async runHubInstall() {
+            throw new Error('not implemented');
+          },
+          async runHubUninstall() {
+            throw new Error('not implemented');
+          },
+          async subscribeHubInstallProgress() {
+            return () => {};
+          },
+          async installApiRouterClientSetup() {
+            throw new Error('not implemented');
+          },
+        },
+      });
+
+      await Promise.all([
+        appStoreService.getList({ page: 1, pageSize: 20 }),
+        appStoreService.getCategories(),
+        appStoreService.getApp('app-codex'),
+      ]);
+
+      assert.equal(runtimeInfoCalls, 1);
+    } finally {
+      restoreStudioMockService();
+    }
+  },
+);
 
 await runTest('resolveInstallTarget prefers the Rust-selected variant data for Windows hosts', async () => {
   resetInstallerCatalogCache();
@@ -416,102 +566,292 @@ await runTest('getGuidedInstallNavigation routes claw runtimes into the step-bas
   );
 });
 
-await runTest('getList merges install metadata from the Rust catalog into seeded app content', async () => {
+await runTest('getList builds App Store entries directly from the Rust catalog without seeded mock content', async () => {
   resetInstallerCatalogCache();
-  configurePlatformBridge({
-    installer: {
-      async listHubInstallCatalog() {
-        return [
-          createCatalogEntry({
-            appId: 'app-nodejs',
-            title: 'Node.js',
-            developer: 'Node.js Foundation',
-            category: 'Runtimes',
-            summary: 'Rust catalog summary for Node.js.',
-            description: 'Rust-backed Node.js descriptor.',
-            homepage: 'https://nodejs.org/',
-            tags: ['runtime'],
-            defaultVariantId: 'shared-host',
-            defaultSoftwareName: 'nodejs-rust',
-            supportedHostPlatforms: ['windows', 'macos', 'ubuntu'],
-            variants: [
-              {
-                id: 'shared-host',
-                label: 'Rust host profile',
-                summary: 'Install Node.js on the current host.',
-                softwareName: 'nodejs-rust',
-                hostPlatforms: ['windows', 'macos', 'ubuntu'],
-                runtimePlatform: 'host',
-                manifestName: 'Node.js Install',
-                manifestDescription: 'Install Node.js on the current host.',
-                manifestHomepage: 'https://nodejs.org/',
-                installationMethod: null,
-                request: {
+  const restoreStudioMockService = blockStudioMockAppStoreAccess();
+
+  try {
+    configurePlatformBridge({
+      installer: {
+        async listHubInstallCatalog() {
+          return [
+            createCatalogEntry({
+              appId: 'app-nodejs',
+              title: 'Node.js',
+              developer: 'Node.js Foundation',
+              category: 'Runtimes',
+              summary: 'Rust catalog summary for Node.js.',
+              description: 'Rust-backed Node.js descriptor.',
+              homepage: 'https://nodejs.org/',
+              tags: ['runtime'],
+              defaultVariantId: 'shared-host',
+              defaultSoftwareName: 'nodejs-rust',
+              supportedHostPlatforms: ['windows', 'macos', 'ubuntu'],
+              variants: [
+                {
+                  id: 'shared-host',
+                  label: 'Rust host profile',
+                  summary: 'Install Node.js on the current host.',
                   softwareName: 'nodejs-rust',
+                  hostPlatforms: ['windows', 'macos', 'ubuntu'],
+                  runtimePlatform: 'host',
+                  manifestName: 'Node.js Install',
+                  manifestDescription: 'Install Node.js on the current host.',
+                  manifestHomepage: 'https://nodejs.org/',
+                  installationMethod: null,
+                  request: {
+                    softwareName: 'nodejs-rust',
+                  },
                 },
-              },
-            ],
-          }),
-          createCatalogEntry({
-            appId: 'app-pnpm',
-            title: 'pnpm',
-            developer: 'pnpm',
-            category: 'Package Managers',
-            summary: 'Rust catalog summary for pnpm.',
-            description: 'Rust-backed pnpm descriptor.',
-            homepage: 'https://pnpm.io/',
-            tags: ['package-manager'],
-            defaultVariantId: 'shared-host',
-            defaultSoftwareName: 'pnpm-rust',
-            supportedHostPlatforms: ['windows', 'macos', 'ubuntu'],
-            variants: [
-              {
-                id: 'shared-host',
-                label: 'Rust host profile',
-                summary: 'Install pnpm on the current host.',
-                softwareName: 'pnpm-rust',
-                hostPlatforms: ['windows', 'macos', 'ubuntu'],
-                runtimePlatform: 'host',
-                manifestName: 'pnpm Install',
-                manifestDescription: 'Install pnpm on the current host.',
-                manifestHomepage: 'https://pnpm.io/',
-                installationMethod: null,
-                request: {
+              ],
+            }),
+            createCatalogEntry({
+              appId: 'app-pnpm',
+              title: 'pnpm',
+              developer: 'pnpm',
+              category: 'Package Managers',
+              summary: 'Rust catalog summary for pnpm.',
+              description: 'Rust-backed pnpm descriptor.',
+              homepage: 'https://pnpm.io/',
+              tags: ['package-manager'],
+              defaultVariantId: 'shared-host',
+              defaultSoftwareName: 'pnpm-rust',
+              supportedHostPlatforms: ['windows', 'macos', 'ubuntu'],
+              variants: [
+                {
+                  id: 'shared-host',
+                  label: 'Rust host profile',
+                  summary: 'Install pnpm on the current host.',
                   softwareName: 'pnpm-rust',
+                  hostPlatforms: ['windows', 'macos', 'ubuntu'],
+                  runtimePlatform: 'host',
+                  manifestName: 'pnpm Install',
+                  manifestDescription: 'Install pnpm on the current host.',
+                  manifestHomepage: 'https://pnpm.io/',
+                  installationMethod: null,
+                  request: {
+                    softwareName: 'pnpm-rust',
+                  },
                 },
-              },
-            ],
-          }),
-        ];
+              ],
+            }),
+          ];
+        },
+        async inspectHubInstall(request) {
+          return createAssessment(request);
+        },
+        async runHubDependencyInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubUninstall() {
+          throw new Error('not implemented');
+        },
+        async subscribeHubInstallProgress() {
+          return () => {};
+        },
+        async installApiRouterClientSetup() {
+          throw new Error('not implemented');
+        },
       },
-      async inspectHubInstall(request) {
-        return createAssessment(request);
-      },
-      async runHubDependencyInstall() {
-        throw new Error('not implemented');
-      },
-      async runHubInstall() {
-        throw new Error('not implemented');
-      },
-      async runHubUninstall() {
-        throw new Error('not implemented');
-      },
-      async subscribeHubInstallProgress() {
-        return () => {};
-      },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
-      },
-    },
-  });
+    });
 
-  const result = await appStoreService.getList({ keyword: 'node', page: 1, pageSize: 10 });
+    const result = await appStoreService.getList({ page: 1, pageSize: 10 });
 
-  assert.equal(result.total, 2);
-  assert.equal(result.items[0]?.id, 'app-nodejs');
-  assert.equal(result.items[1]?.id, 'app-pnpm');
-  assert.equal(result.items[0]?.installSummary, 'Rust catalog summary for Node.js.');
-  assert.equal(result.items[0]?.defaultSoftwareName, 'nodejs-rust');
+    assert.equal(result.total, 2);
+    assert.deepEqual(
+      result.items.map((item) => item.id),
+      ['app-pnpm', 'app-nodejs'],
+    );
+    assert.equal(result.items[1]?.installSummary, 'Rust catalog summary for Node.js.');
+    assert.equal(result.items[1]?.defaultSoftwareName, 'nodejs-rust');
+    assert.match(result.items[0]?.icon || '', /^data:image\/svg\+xml/);
+  } finally {
+    restoreStudioMockService();
+  }
+});
+
+await runTest('getCategories groups Rust catalog entries without seeded App Store categories', async () => {
+  resetInstallerCatalogCache();
+  const restoreStudioMockService = blockStudioMockAppStoreAccess();
+
+  try {
+    configurePlatformBridge({
+      installer: {
+        async listHubInstallCatalog() {
+          return [
+            createCatalogEntry({
+              appId: 'app-pnpm',
+              title: 'pnpm',
+              developer: 'pnpm',
+              category: 'Package Managers',
+              summary: 'Rust catalog summary for pnpm.',
+              description: 'Rust-backed pnpm descriptor.',
+              homepage: 'https://pnpm.io/',
+              tags: ['package-manager'],
+              defaultVariantId: 'shared-host',
+              defaultSoftwareName: 'pnpm-rust',
+              supportedHostPlatforms: ['windows', 'macos', 'ubuntu'],
+              variants: [
+                {
+                  id: 'shared-host',
+                  label: 'Rust host profile',
+                  summary: 'Install pnpm on the current host.',
+                  softwareName: 'pnpm-rust',
+                  hostPlatforms: ['windows', 'macos', 'ubuntu'],
+                  runtimePlatform: 'host',
+                  manifestName: 'pnpm Install',
+                  manifestDescription: 'Install pnpm on the current host.',
+                  manifestHomepage: 'https://pnpm.io/',
+                  installationMethod: null,
+                  request: {
+                    softwareName: 'pnpm-rust',
+                  },
+                },
+              ],
+            }),
+            createCatalogEntry({
+              appId: 'app-nodejs',
+              title: 'Node.js',
+              developer: 'Node.js Foundation',
+              category: 'Runtimes',
+              summary: 'Rust catalog summary for Node.js.',
+              description: 'Rust-backed Node.js descriptor.',
+              homepage: 'https://nodejs.org/',
+              tags: ['runtime'],
+              defaultVariantId: 'shared-host',
+              defaultSoftwareName: 'nodejs-rust',
+              supportedHostPlatforms: ['windows', 'macos', 'ubuntu'],
+              variants: [
+                {
+                  id: 'shared-host',
+                  label: 'Rust host profile',
+                  summary: 'Install Node.js on the current host.',
+                  softwareName: 'nodejs-rust',
+                  hostPlatforms: ['windows', 'macos', 'ubuntu'],
+                  runtimePlatform: 'host',
+                  manifestName: 'Node.js Install',
+                  manifestDescription: 'Install Node.js on the current host.',
+                  manifestHomepage: 'https://nodejs.org/',
+                  installationMethod: null,
+                  request: {
+                    softwareName: 'nodejs-rust',
+                  },
+                },
+              ],
+            }),
+          ];
+        },
+        async inspectHubInstall(request) {
+          return createAssessment(request);
+        },
+        async runHubDependencyInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubUninstall() {
+          throw new Error('not implemented');
+        },
+        async subscribeHubInstallProgress() {
+          return () => {};
+        },
+        async installApiRouterClientSetup() {
+          throw new Error('not implemented');
+        },
+      },
+    });
+
+    const categories = await appStoreService.getCategories();
+
+    assert.equal(categories.length, 2);
+    assert.deepEqual(
+      categories.map((category) => category.title),
+      ['Package Managers', 'Runtimes'],
+    );
+    assert.deepEqual(
+      categories.map((category) => category.apps[0]?.id),
+      ['app-pnpm', 'app-nodejs'],
+    );
+  } finally {
+    restoreStudioMockService();
+  }
+});
+
+await runTest('getApp resolves details directly from the Rust catalog without seeded mock App Store items', async () => {
+  resetInstallerCatalogCache();
+  const restoreStudioMockService = blockStudioMockAppStoreAccess();
+
+  try {
+    configurePlatformBridge({
+      installer: {
+        async listHubInstallCatalog() {
+          return [
+            createCatalogEntry({
+              appId: 'app-codex',
+              title: 'Codex',
+              developer: 'OpenAI',
+              category: 'AI Agents',
+              summary: 'Rust-backed Codex catalog summary.',
+              description: 'Rust-backed Codex descriptor from hub-installer.',
+              homepage: 'https://openai.com/codex',
+              tags: ['ai', 'cli'],
+              defaultVariantId: 'windows-host',
+              defaultSoftwareName: 'codex',
+              supportedHostPlatforms: ['windows', 'macos', 'ubuntu'],
+              variants: [
+                {
+                  id: 'windows-host',
+                  label: 'Windows host profile',
+                  summary: 'Install Codex directly on Windows.',
+                  softwareName: 'codex',
+                  hostPlatforms: ['windows', 'macos', 'ubuntu'],
+                  runtimePlatform: 'host',
+                  manifestName: 'Codex Install',
+                  manifestDescription: 'Install Codex on Windows.',
+                  manifestHomepage: 'https://openai.com/codex',
+                  installationMethod: null,
+                  request: {
+                    softwareName: 'codex',
+                  },
+                },
+              ],
+            }),
+          ];
+        },
+        async inspectHubInstall(request) {
+          return createAssessment(request);
+        },
+        async runHubDependencyInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubUninstall() {
+          throw new Error('not implemented');
+        },
+        async subscribeHubInstallProgress() {
+          return () => {};
+        },
+        async installApiRouterClientSetup() {
+          throw new Error('not implemented');
+        },
+      },
+    });
+
+    const app = await appStoreService.getApp('app-codex');
+
+    assert.equal(app.id, 'app-codex');
+    assert.equal(app.name, 'Codex');
+    assert.equal(app.installHomepage, 'https://openai.com/codex');
+    assert.match(app.icon, /^data:image\/svg\+xml/);
+  } finally {
+    restoreStudioMockService();
+  }
 });
 
 await runTest('inspectInstall delegates to the shared installer bridge with the resolved request', async () => {
@@ -859,6 +1199,134 @@ await runTest('getInstallSurfaceSummaries derives installed, ready, and attentio
   assert.equal(summaries.get('app-pnpm')?.autoRemediableDependencyCount, 1);
   assert.equal(summaries.has('app-unknown'), false);
 });
+
+await runTest(
+  'getInstallSurfaceSummaries reuses cached inspections for repeated App Store summary lookups',
+  async () => {
+    resetInstallerCatalogCache();
+    let runtimeInfoCalls = 0;
+    const inspectCalls: HubInstallRequest[] = [];
+
+    configurePlatformBridge({
+      runtime: {
+        async getRuntimeInfo() {
+          runtimeInfoCalls += 1;
+          return createRuntimeInfo();
+        },
+        async setAppLanguage() {},
+        async submitProcessJob() {
+          return 'job-1';
+        },
+        async getJob() {
+          throw new Error('not implemented');
+        },
+        async listJobs() {
+          return [];
+        },
+        async cancelJob() {
+          throw new Error('not implemented');
+        },
+        async subscribeJobUpdates() {
+          return () => {};
+        },
+        async subscribeProcessOutput() {
+          return () => {};
+        },
+      },
+      installer: {
+        async listHubInstallCatalog() {
+          return [
+            createCatalogEntry(),
+            createCatalogEntry({
+              appId: 'app-pnpm',
+              title: 'pnpm',
+              developer: 'pnpm',
+              category: 'Package Managers',
+              summary: 'Rust-backed pnpm catalog summary.',
+              description: 'Rust-backed pnpm descriptor from hub-installer.',
+              homepage: 'https://pnpm.io/',
+              tags: ['package-manager'],
+              defaultVariantId: 'windows-host',
+              defaultSoftwareName: 'pnpm',
+              variants: [
+                {
+                  id: 'windows-host',
+                  label: 'Windows host profile',
+                  summary: 'Install pnpm directly on Windows.',
+                  softwareName: 'pnpm',
+                  hostPlatforms: ['windows'],
+                  runtimePlatform: 'host',
+                  manifestName: 'pnpm Install',
+                  manifestDescription: 'Install pnpm on Windows.',
+                  manifestHomepage: 'https://pnpm.io/',
+                  installationMethod: null,
+                  request: {
+                    softwareName: 'pnpm',
+                  },
+                },
+              ],
+            }),
+          ];
+        },
+        async inspectHubInstall(request) {
+          inspectCalls.push(request);
+          if (request.softwareName === 'openclaw-wsl') {
+            return createAssessment(request, {
+              installStatus: 'installed',
+            });
+          }
+          if (request.softwareName === 'pnpm') {
+            return createAssessment(request, {
+              ready: false,
+              issues: [
+                {
+                  id: 'pnpm-not-ready',
+                  severity: 'error',
+                  summary: 'pnpm needs repair',
+                  detail: 'pnpm is missing from PATH.',
+                },
+              ],
+            });
+          }
+
+          throw new Error(`unexpected software name: ${request.softwareName}`);
+        },
+        async runHubDependencyInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubUninstall() {
+          throw new Error('not implemented');
+        },
+        async subscribeHubInstallProgress() {
+          return () => {};
+        },
+        async installApiRouterClientSetup() {
+          throw new Error('not implemented');
+        },
+      },
+    });
+
+    const firstPass = await appStoreService.getInstallSurfaceSummaries([
+      'app-openclaw',
+      'app-pnpm',
+    ]);
+    const secondPass = await appStoreService.getInstallSurfaceSummaries([
+      'app-pnpm',
+      'app-openclaw',
+      'app-openclaw',
+    ]);
+
+    assert.equal(firstPass.size, 2);
+    assert.equal(secondPass.size, 2);
+    assert.equal(secondPass.get('app-openclaw')?.state, 'installed');
+    assert.equal(secondPass.get('app-pnpm')?.state, 'attention');
+    assert.equal(inspectCalls.length, 2);
+    assert.equal(runtimeInfoCalls, 1);
+  },
+);
 
 await runTest('installDependencies delegates to the shared dependency installer with selected dependency ids', async () => {
   resetInstallerCatalogCache();

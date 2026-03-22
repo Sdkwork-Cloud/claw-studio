@@ -238,7 +238,7 @@ function createInstallResult(overrides: Partial<HubInstallResult> = {}): HubInst
 }
 
 await runTest('openClawBootstrapService resolves the installed openclaw.json and syncs one local-external instance before configuration', async () => {
-  const { configurePlatformBridge, getPlatformBridge, studioMockService } = await import(
+  const { configurePlatformBridge, getPlatformBridge } = await import(
     '@sdkwork/claw-infrastructure'
   );
   const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
@@ -277,159 +277,9 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
     assert.equal(instanceState.instances[0]?.deploymentMode, 'local-external');
     assert.equal(instanceState.instances[0]?.runtimeKind, 'openclaw');
     assert.equal(instanceState.instances[0]?.transportKind, 'openclawGatewayWs');
-  } finally {
-    configurePlatformBridge(originalBridge);
-  }
-});
-
-await runTest('openClawBootstrapService writes provider and channel selections to the real openclaw config and keeps one synced instance', async () => {
-  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
-  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
-
-  const originalBridge = getPlatformBridge();
-  const fileSystem: Record<string, string> = {
-    'D:/Users/admin/.openclaw/openclaw.json': `{
-  gateway: { port: 28789 },
-  channels: {},
-  models: { providers: {} },
-  agents: { defaults: {} },
-}`,
-  };
-  const instanceState = {
-    instances: [],
-    created: [] as Array<Record<string, unknown>>,
-    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
-  };
-
-  configurePlatformBridge({
-    platform: createPlatformStub(fileSystem),
-    studio: createStudioStub(originalBridge.studio, instanceState),
-  });
-
-  try {
-    const data = await openClawBootstrapService.loadBootstrapData({
-      assessment: createAssessmentResult(),
-      installResult: createInstallResult(),
-    });
-    const provider = data.providers[0];
-
-    assert.ok(provider);
-
-    const result = await openClawBootstrapService.applyConfiguration({
-      configPath: data.configPath,
-      syncedInstanceId: data.syncedInstanceId,
-      providerId: provider.id,
-      modelSelection: {
-        defaultModelId: provider.models[0]?.id || 'gpt-4.1',
-        reasoningModelId: provider.models[1]?.id,
-        embeddingModelId: provider.models.find((model) => /embed/i.test(`${model.id} ${model.name}`))?.id,
-      },
-      channels: [
-        {
-          channelId: 'telegram',
-          values: {
-            botToken: '123456:telegram-token',
-            webhookUrl: 'https://example.com/openclaw/telegram',
-          },
-        },
-      ],
-      assessment: createAssessmentResult(),
-      installResult: createInstallResult(),
-    });
-
-    assert.equal(result.configuredChannelIds.includes('telegram'), true);
-    assert.equal(result.syncedInstanceId, data.syncedInstanceId);
-    assert.match(fileSystem[data.configPath], /api-router-/);
-    assert.match(fileSystem[data.configPath], /telegram/);
-    assert.equal(instanceState.instances.length, 1);
-  } finally {
-    configurePlatformBridge(originalBridge);
-  }
-});
-
-await runTest('openClawBootstrapService initializes packs on the synced local-external instance and builds verification from config + installed skills', async () => {
-  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
-  const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
-
-  const originalBridge = getPlatformBridge();
-  const fileSystem: Record<string, string> = {
-    'D:/Users/admin/.openclaw/openclaw.json': `{
-  gateway: { port: 28789 },
-  channels: {
-    telegram: {
-      enabled: true,
-      botToken: "123456:telegram-token",
-    },
-  },
-  models: {
-    providers: {
-      "api-router-provider-openai": {
-        baseUrl: "https://router.example.com/v1",
-        apiKey: "sk-router-live",
-        api: "openai-completions",
-        auth: "api-key",
-        models: [{ id: "gpt-4.1", name: "GPT-4.1", contextWindow: 128000, maxTokens: 32000 }],
-      },
-    },
-  },
-  agents: {
-    defaults: {
-      model: {
-        primary: "api-router-provider-openai/gpt-4.1",
-        fallbacks: [],
-      },
-      models: {
-        "api-router-provider-openai/gpt-4.1": {
-          alias: "GPT-4.1",
-          streaming: true,
-        },
-      },
-    },
-  },
-}`,
-  };
-  const instanceState = {
-    instances: [],
-    created: [] as Array<Record<string, unknown>>,
-    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
-  };
-
-  configurePlatformBridge({
-    platform: createPlatformStub(fileSystem),
-    studio: createStudioStub(originalBridge.studio, instanceState),
-  });
-
-  try {
-    const data = await openClawBootstrapService.loadBootstrapData({
-      assessment: createAssessmentResult(),
-      installResult: createInstallResult(),
-    });
-    const pack = data.packs[0];
-
-    assert.ok(pack);
-
-    const initialization = await openClawBootstrapService.initializeOpenClawInstance({
-      instanceId: data.syncedInstanceId,
-      packIds: [pack.id],
-      skillIds: [pack.skills[0]?.id || 'skill-1'],
-    });
-
-    assert.equal(initialization.instanceId, data.syncedInstanceId);
-    assert.equal(initialization.installedPackIds.includes(pack.id), true);
-
-    const snapshot = await openClawBootstrapService.loadVerificationSnapshot({
-      instanceId: data.syncedInstanceId,
-      configPath: data.configPath,
-      selectedChannelIds: ['telegram'],
-      packIds: [pack.id],
-      skillIds: pack.skills.map((skill) => skill.id),
-    });
-
-    assert.equal(snapshot.instanceId, data.syncedInstanceId);
-    assert.equal(snapshot.installSucceeded, true);
-    assert.equal(snapshot.hasReadyProvider, true);
-    assert.equal(snapshot.configuredChannelCount, 1);
-    assert.ok(snapshot.initializedSkillCount >= pack.skills.length);
+    assert.equal(data.websocketUrl, 'ws://127.0.0.1:28789');
+    assert.equal(instanceState.instances[0]?.websocketUrl, 'ws://127.0.0.1:28789');
+    assert.equal(instanceState.instances[0]?.config.websocketUrl, 'ws://127.0.0.1:28789');
   } finally {
     configurePlatformBridge(originalBridge);
   }

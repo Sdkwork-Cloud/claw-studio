@@ -1,4 +1,5 @@
 import type {
+  StudioConversationAttachment,
   StudioConversationMessage,
   StudioConversationRecord,
 } from '@sdkwork/claw-types';
@@ -15,6 +16,7 @@ export function mapStudioMessage(message: StudioConversationMessage): Message {
     content: message.content,
     timestamp: message.createdAt,
     model: message.model,
+    attachments: message.attachments?.map((attachment) => ({ ...attachment })),
   };
 }
 
@@ -31,17 +33,26 @@ export function mapStudioConversation(record: StudioConversationRecord): ChatSes
 }
 
 export function mapChatSession(session: ChatSession): StudioConversationRecord {
+  if (session.transport === 'openclawGateway') {
+    throw new Error('OpenClaw Gateway sessions must not be persisted through the studio conversation store.');
+  }
+
   const messages = session.messages.map((message) => ({
     id: message.id,
     conversationId: session.id,
     role: message.role,
-    content: message.content,
-    createdAt: message.timestamp,
-    updatedAt: message.timestamp,
-    model: message.model,
-    senderInstanceId: session.instanceId || null,
-    status: normalizeMessageStatus(message),
-  }));
+      content: message.content,
+      createdAt: message.timestamp,
+      updatedAt: message.timestamp,
+      model: message.model,
+      senderInstanceId: session.instanceId || null,
+      status: normalizeMessageStatus(message),
+      attachments: message.attachments?.map(
+        (attachment): StudioConversationAttachment => ({
+          ...attachment,
+        }),
+      ),
+    }));
 
   return {
     id: session.id,

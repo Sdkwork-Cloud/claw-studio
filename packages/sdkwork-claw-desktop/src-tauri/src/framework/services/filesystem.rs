@@ -65,8 +65,7 @@ impl FileSystemService {
     pub fn kernel_info(&self, paths: &AppPaths) -> DesktopFileSystemInfo {
         DesktopFileSystemInfo {
             default_working_directory: paths.data_dir.to_string_lossy().into_owned(),
-            managed_roots: paths
-                .managed_roots()
+            managed_roots: policy::managed_path_roots_snapshot(paths)
                 .into_iter()
                 .map(|root| root.to_string_lossy().into_owned())
                 .collect(),

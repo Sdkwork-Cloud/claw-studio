@@ -1,20 +1,33 @@
 use crate::{
-    framework::{services::api_router_runtime::ApiRouterRuntimeStatus, FrameworkError, Result as FrameworkResult},
+    framework::{
+        services::{
+            api_router_managed_runtime::ManagedApiRouterSecretBundle,
+            api_router_runtime::{shared_router_root, ApiRouterRuntimeStatus},
+        },
+        FrameworkError, Result as FrameworkResult,
+    },
     state::AppState,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
-    net::SocketAddr,
+    fs,
+    io::{Read, Write},
+    net::{SocketAddr, TcpStream},
+    path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 const MANAGED_BOOTSTRAP_ADMIN_USER_ID: &str = "admin_local_default";
+#[cfg(test)]
 const MANAGED_BOOTSTRAP_ADMIN_EMAIL: &str = "admin@sdkwork.local";
+#[cfg(test)]
 const MANAGED_BOOTSTRAP_ADMIN_DISPLAY_NAME: &str = "Admin Operator";
 const ADMIN_JWT_ISSUER: &str = "sdkwork-admin";
 const ADMIN_JWT_AUDIENCE: &str = "sdkwork-admin-ui";
 const ADMIN_JWT_TTL_SECS: u64 = 60 * 60 * 12;
+const MANAGED_SECRET_FILE_NAME: &str = "claw-managed-secrets.json";
+const ADMIN_BOOTSTRAP_PROBE_TIMEOUT_MS: u64 = 500;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +62,15 @@ struct AdminBootstrapClaims {
     iat: usize,
 }
 
+#[derive(Debug, Deserialize)]
+struct AdminBootstrapProfileDto {
+    id: String,
+    email: String,
+    display_name: String,
+    active: bool,
+    created_at_ms: u64,
+}
+
 pub fn api_router_runtime_status_from_state(
     state: &AppState,
 ) -> FrameworkResult<ApiRouterRuntimeStatus> {
@@ -70,39 +92,26 @@ pub fn api_router_admin_bootstrap_session_from_state(
     state: &AppState,
 ) -> FrameworkResult<Option<ApiRouterAdminBootstrapSession>> {
     let status = api_router_runtime_status_from_state(state)?;
-    if status.mode != crate::framework::services::api_router_runtime::ApiRouterRuntimeMode::ManagedActive
-        || !status.admin.enabled
-        || !status.admin.healthy
-        || !status.gateway.healthy
-        || !is_loopback_bind_addr(&status.admin.bind_addr)
-        || !is_loopback_bind_addr(&status.gateway.bind_addr)
-    {
+    if !bootstrap_session_prerequisites_met(&status) {
         return Ok(None);
     }
 
-    let Some(runtime) = state
-        .context
-        .services
-        .supervisor
-        .configured_api_router_runtime()?
-    else {
+    let Some(secret_bundle) = resolve_managed_secret_bundle(state)? else {
         return Ok(None);
     };
 
     let token = issue_admin_bootstrap_token(
         MANAGED_BOOTSTRAP_ADMIN_USER_ID,
-        &runtime.managed_secrets.admin_jwt_signing_secret,
+        &secret_bundle.admin_jwt_signing_secret,
     )?;
+    let Some(user) = verify_local_admin_bootstrap_profile(&status.admin.bind_addr, &token)? else {
+        return Ok(None);
+    };
+
     Ok(Some(ApiRouterAdminBootstrapSession {
         token,
         source: ApiRouterAdminBootstrapSessionSource::ManagedLocalJwt,
-        user: ApiRouterAdminBootstrapSessionUser {
-            id: MANAGED_BOOTSTRAP_ADMIN_USER_ID.to_string(),
-            email: MANAGED_BOOTSTRAP_ADMIN_EMAIL.to_string(),
-            display_name: MANAGED_BOOTSTRAP_ADMIN_DISPLAY_NAME.to_string(),
-            active: true,
-            created_at_ms: unix_timestamp_ms()?,
-        },
+        user,
     }))
 }
 
@@ -145,6 +154,102 @@ fn is_loopback_bind_addr(bind_addr: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn bootstrap_session_prerequisites_met(status: &ApiRouterRuntimeStatus) -> bool {
+    status.admin.enabled
+        && status.admin.healthy
+        && status.gateway.healthy
+        && is_loopback_bind_addr(&status.admin.bind_addr)
+        && is_loopback_bind_addr(&status.gateway.bind_addr)
+}
+
+fn resolve_managed_secret_bundle(
+    state: &AppState,
+) -> FrameworkResult<Option<ManagedApiRouterSecretBundle>> {
+    if let Some(runtime) = state
+        .context
+        .services
+        .supervisor
+        .configured_api_router_runtime()?
+    {
+        return Ok(Some(runtime.managed_secrets));
+    }
+
+    load_managed_secret_bundle(&shared_router_root(&state.paths))
+}
+
+fn load_managed_secret_bundle(
+    shared_root_dir: &Path,
+) -> FrameworkResult<Option<ManagedApiRouterSecretBundle>> {
+    let path = shared_root_dir.join(MANAGED_SECRET_FILE_NAME);
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(&path)?;
+    serde_json::from_str::<ManagedApiRouterSecretBundle>(&content)
+        .map(Some)
+        .map_err(|error| {
+            FrameworkError::ValidationFailed(format!(
+                "failed to parse managed api router secret bundle {}: {error}",
+                path.display()
+            ))
+        })
+}
+
+fn verify_local_admin_bootstrap_profile(
+    admin_bind_addr: &str,
+    token: &str,
+) -> FrameworkResult<Option<ApiRouterAdminBootstrapSessionUser>> {
+    let socket_addr = admin_bind_addr.parse::<SocketAddr>().map_err(|error| {
+        FrameworkError::ValidationFailed(format!(
+            "invalid router bind address {admin_bind_addr}: {error}"
+        ))
+    })?;
+    let timeout = std::time::Duration::from_millis(ADMIN_BOOTSTRAP_PROBE_TIMEOUT_MS);
+    let mut stream = match TcpStream::connect_timeout(&socket_addr, timeout) {
+        Ok(stream) => stream,
+        Err(_) => return Ok(None),
+    };
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+
+    let request = format!(
+        "GET /admin/auth/me HTTP/1.1\r\nHost: {socket_addr}\r\nAccept: application/json\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(request.as_bytes()).is_err() {
+        return Ok(None);
+    }
+
+    let mut response = String::new();
+    if stream.read_to_string(&mut response).is_err() {
+        return Ok(None);
+    }
+
+    let Some((head, body)) = response.split_once("\r\n\r\n") else {
+        return Ok(None);
+    };
+    let Some(status_line) = head.lines().next() else {
+        return Ok(None);
+    };
+    if !status_line.starts_with("HTTP/1.1 200") && !status_line.starts_with("HTTP/1.0 200") {
+        return Ok(None);
+    }
+
+    let profile = serde_json::from_str::<AdminBootstrapProfileDto>(body).map_err(|error| {
+        FrameworkError::Internal(format!(
+            "failed to parse sdkwork-api-router bootstrap auth profile: {error}"
+        ))
+    })?;
+
+    Ok(Some(ApiRouterAdminBootstrapSessionUser {
+        id: profile.id,
+        email: profile.email,
+        display_name: profile.display_name,
+        active: profile.active,
+        created_at_ms: profile.created_at_ms,
+    }))
+}
+
 fn unix_timestamp_secs() -> FrameworkResult<u64> {
     Ok(SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -152,21 +257,13 @@ fn unix_timestamp_secs() -> FrameworkResult<u64> {
         .as_secs())
 }
 
-fn unix_timestamp_ms() -> FrameworkResult<u64> {
-    Ok(u64::try_from(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| FrameworkError::Internal(error.to_string()))?
-            .as_millis(),
-    )
-    .map_err(|error| FrameworkError::Internal(error.to_string()))?)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         api_router_admin_bootstrap_session_from_state, api_router_runtime_status_from_state,
-        ApiRouterAdminBootstrapSessionSource,
+        ApiRouterAdminBootstrapSessionSource, ADMIN_JWT_AUDIENCE, ADMIN_JWT_ISSUER,
+        MANAGED_BOOTSTRAP_ADMIN_DISPLAY_NAME, MANAGED_BOOTSTRAP_ADMIN_EMAIL,
+        MANAGED_BOOTSTRAP_ADMIN_USER_ID,
     };
     use crate::{
         framework::{
@@ -184,6 +281,8 @@ mod tests {
         },
         state::AppState,
     };
+    use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+    use serde::Deserialize;
     use std::{
         fs,
         io::{Read, Write},
@@ -257,6 +356,139 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Deserialize)]
+    struct VerifiedBootstrapClaims {
+        sub: String,
+        iss: String,
+        aud: String,
+        exp: usize,
+        iat: usize,
+    }
+
+    struct TestBootstrapAdminServer {
+        bind_addr: String,
+        shutdown: Arc<AtomicBool>,
+        handle: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl TestBootstrapAdminServer {
+        fn start(signing_secret: &'static str) -> Self {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+            listener
+                .set_nonblocking(true)
+                .expect("listener non blocking");
+            let bind_addr = listener.local_addr().expect("local addr").to_string();
+            let shutdown = Arc::new(AtomicBool::new(false));
+            let shutdown_signal = shutdown.clone();
+            let handle = thread::spawn(move || {
+                while !shutdown_signal.load(Ordering::Relaxed) {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            let mut buffer = [0_u8; 4096];
+                            let bytes_read = stream.read(&mut buffer).unwrap_or(0);
+                            let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                            let (status, content_type, body) =
+                                bootstrap_admin_server_response(&request, signing_secret);
+                            let response = format!(
+                                "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                                body.len()
+                            );
+                            let _ = stream.write_all(response.as_bytes());
+                            let _ = stream.flush();
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            Self {
+                bind_addr,
+                shutdown,
+                handle: Some(handle),
+            }
+        }
+    }
+
+    impl Drop for TestBootstrapAdminServer {
+        fn drop(&mut self) {
+            self.shutdown.store(true, Ordering::Relaxed);
+            let _ = TcpStream::connect(self.bind_addr.as_str());
+            if let Some(handle) = self.handle.take() {
+                let _ = handle.join();
+            }
+        }
+    }
+
+    fn bootstrap_admin_server_response(
+        request: &str,
+        signing_secret: &str,
+    ) -> (&'static str, &'static str, String) {
+        if request.starts_with("GET /admin/health ") {
+            return ("200 OK", "text/plain; charset=utf-8", "ok".to_string());
+        }
+
+        if request.starts_with("GET /admin/auth/me ") {
+            if extract_bearer_token(request)
+                .is_some_and(|token| is_valid_bootstrap_token(token, signing_secret))
+            {
+                return (
+                    "200 OK",
+                    "application/json; charset=utf-8",
+                    format!(
+                        "{{\"id\":\"{}\",\"email\":\"{}\",\"display_name\":\"{}\",\"active\":true,\"created_at_ms\":1700000000000}}",
+                        MANAGED_BOOTSTRAP_ADMIN_USER_ID,
+                        MANAGED_BOOTSTRAP_ADMIN_EMAIL,
+                        MANAGED_BOOTSTRAP_ADMIN_DISPLAY_NAME,
+                    ),
+                );
+            }
+
+            return (
+                "401 Unauthorized",
+                "application/json; charset=utf-8",
+                "{\"error\":{\"message\":\"Unauthorized\"}}".to_string(),
+            );
+        }
+
+        (
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            "missing".to_string(),
+        )
+    }
+
+    fn extract_bearer_token(request: &str) -> Option<&str> {
+        request.lines().find_map(|line| {
+            line.strip_prefix("Authorization: Bearer ")
+                .or_else(|| line.strip_prefix("authorization: Bearer "))
+                .or_else(|| line.strip_prefix("authorization: bearer "))
+                .map(str::trim)
+        })
+    }
+
+    fn is_valid_bootstrap_token(token: &str, signing_secret: &str) -> bool {
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.set_audience(&[ADMIN_JWT_AUDIENCE]);
+        validation.set_issuer(&[ADMIN_JWT_ISSUER]);
+
+        decode::<VerifiedBootstrapClaims>(
+            token,
+            &DecodingKey::from_secret(signing_secret.as_bytes()),
+            &validation,
+        )
+        .map(|decoded| {
+            let claims = decoded.claims;
+            claims.sub == MANAGED_BOOTSTRAP_ADMIN_USER_ID
+                && claims.iss == ADMIN_JWT_ISSUER
+                && claims.aud == ADMIN_JWT_AUDIENCE
+                && claims.exp > claims.iat
+        })
+        .unwrap_or(false)
+    }
+
     fn reserve_available_bind_addr() -> String {
         TcpListener::bind("127.0.0.1:0")
             .expect("listener")
@@ -325,7 +557,7 @@ mod tests {
             .parent()
             .expect("shared namespace root")
             .join("router");
-        let admin_server = TestHealthServer::start("/admin/health");
+        let admin_server = TestBootstrapAdminServer::start("managed-admin-jwt-secret");
         let portal_server = TestHealthServer::start("/portal/health");
         let gateway_server = TestHealthServer::start("/health");
         let web_bind = reserve_available_bind_addr();
@@ -370,7 +602,7 @@ mod tests {
             .parent()
             .expect("shared namespace root")
             .join("router");
-        let admin_server = TestHealthServer::start("/admin/health");
+        let admin_server = TestBootstrapAdminServer::start("managed-admin-jwt-secret");
         let portal_server = TestHealthServer::start("/portal/health");
         let gateway_server = TestHealthServer::start("/health");
         let web_bind = reserve_available_bind_addr();
@@ -408,6 +640,62 @@ mod tests {
         );
         assert_eq!(session.user.email, "admin@sdkwork.local");
         assert_eq!(session.user.display_name, "Admin Operator");
+    }
+
+    #[test]
+    fn command_exposes_bootstrap_session_for_trusted_local_router_even_when_it_is_attached() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let logger = init_logger(&paths).expect("logger");
+        let context = Arc::new(FrameworkContext::from_parts(
+            paths.clone(),
+            AppConfig::default(),
+            logger,
+        ));
+        let state = AppState::from_context(context);
+        let router_root = paths
+            .user_root
+            .parent()
+            .expect("shared namespace root")
+            .join("router");
+        let runtime = managed_runtime_fixture(&router_root);
+        let admin_server = TestBootstrapAdminServer::start("managed-admin-jwt-secret");
+        let portal_server = TestHealthServer::start("/portal/health");
+        let gateway_server = TestHealthServer::start("/health");
+        let web_bind = reserve_available_bind_addr();
+
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::write(
+            router_root.join("config.json"),
+            format!(
+                "{{\"admin_bind\":\"{}\",\"portal_bind\":\"{}\",\"gateway_bind\":\"{}\",\"web_bind\":\"{}\"}}",
+                admin_server.bind_addr, portal_server.bind_addr, gateway_server.bind_addr, web_bind
+            ),
+        )
+        .expect("router config");
+        fs::write(
+            router_root.join("claw-managed-secrets.json"),
+            serde_json::to_string_pretty(&runtime.managed_secrets)
+                .expect("managed secret bundle json"),
+        )
+        .expect("managed secret bundle");
+
+        let session =
+            api_router_admin_bootstrap_session_from_state(&state).expect("bootstrap session");
+
+        assert!(session.is_some());
+        let session = session.expect("trusted local bootstrap session");
+        assert_eq!(
+            session.source,
+            ApiRouterAdminBootstrapSessionSource::ManagedLocalJwt
+        );
+        assert_eq!(session.user.id, MANAGED_BOOTSTRAP_ADMIN_USER_ID);
+        assert_eq!(session.user.email, MANAGED_BOOTSTRAP_ADMIN_EMAIL);
+        assert_eq!(
+            session.user.display_name,
+            MANAGED_BOOTSTRAP_ADMIN_DISPLAY_NAME
+        );
+        assert!(session.user.active);
     }
 
     #[test]

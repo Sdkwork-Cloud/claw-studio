@@ -103,6 +103,9 @@ runTest('sdkwork-claw-community keeps the V5 community package surface locally',
     'packages/sdkwork-claw-community/package.json',
   );
   const indexSource = read('packages/sdkwork-claw-community/src/index.ts');
+  const communityEntrySource = read('packages/sdkwork-claw-community/src/Community.tsx');
+  const detailEntrySource = read('packages/sdkwork-claw-community/src/CommunityPostDetail.tsx');
+  const newPostEntrySource = read('packages/sdkwork-claw-community/src/NewPost.tsx');
 
   assert.ok(exists('packages/sdkwork-claw-community/src/Community.tsx'));
   assert.ok(exists('packages/sdkwork-claw-community/src/CommunityPostDetail.tsx'));
@@ -112,6 +115,12 @@ runTest('sdkwork-claw-community keeps the V5 community package surface locally',
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-community']);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-community/);
+  assert.match(communityEntrySource, /lazy\(\(\) =>/);
+  assert.match(communityEntrySource, /\.\/pages\/community\/Community/);
+  assert.match(detailEntrySource, /lazy\(\(\) =>/);
+  assert.match(detailEntrySource, /\.\/pages\/community\/CommunityPostDetail/);
+  assert.match(newPostEntrySource, /lazy\(\(\) =>/);
+  assert.match(newPostEntrySource, /\.\/pages\/community\/NewPost/);
 });
 
 runTest(

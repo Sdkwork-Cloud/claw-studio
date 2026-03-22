@@ -1,6 +1,8 @@
 export type {
   PlatformAPI,
+  PlatformCapturedScreenshot,
   PlatformDialogFilter,
+  PlatformFetchedRemoteUrl,
   PlatformFileEntry,
   PlatformPathInfo,
   PlatformSaveFileOptions,
