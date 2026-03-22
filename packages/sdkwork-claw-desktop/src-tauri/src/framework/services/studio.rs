@@ -569,6 +569,7 @@ pub enum StudioInstanceConsoleInstallMethod {
     Wsl,
     Docker,
     Podman,
+    Ansible,
     Bun,
     Nix,
     Unknown,
@@ -2767,6 +2768,7 @@ fn console_install_method_from_profile_key(
         "openclaw-wsl" => Some(StudioInstanceConsoleInstallMethod::Wsl),
         "openclaw-docker" => Some(StudioInstanceConsoleInstallMethod::Docker),
         "openclaw-podman" => Some(StudioInstanceConsoleInstallMethod::Podman),
+        "openclaw-ansible" => Some(StudioInstanceConsoleInstallMethod::Ansible),
         "openclaw-git" | "openclaw-installer-script-git" => {
             Some(StudioInstanceConsoleInstallMethod::Git)
         }
@@ -2795,7 +2797,7 @@ fn console_install_method_from_manifest_name(
         return StudioInstanceConsoleInstallMethod::Podman;
     }
     if normalized.contains("ansible") {
-        return StudioInstanceConsoleInstallMethod::Unknown;
+        return StudioInstanceConsoleInstallMethod::Ansible;
     }
     if normalized.contains("nix") {
         return StudioInstanceConsoleInstallMethod::Nix;
@@ -4046,6 +4048,7 @@ fn get_nested_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
 #[cfg(test)]
 mod tests {
     use super::{
+        console_install_method_from_install_record, StudioInstanceConsoleInstallMethod,
         StudioConversationMessage, StudioConversationMessageStatus, StudioConversationRecord,
         StudioConversationRole, StudioCreateInstanceInput, StudioInstanceArtifactKind,
         StudioInstanceAuthMode, StudioInstanceCapability, StudioInstanceCapabilityStatus,
@@ -4920,6 +4923,117 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
         assert_eq!(
             console_access.get("autoLoginUrl").and_then(Value::as_str),
             Some("http://127.0.0.1:28789/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A28789#token=profile-token")
+        );
+    }
+
+    #[test]
+    fn local_external_openclaw_detail_reports_ansible_install_method_from_profile_record() {
+        let (root, paths, config, storage, service) = studio_context();
+        let install_root = root.path().join("ansible-install");
+        let work_root = root.path().join("ansible-work");
+        let data_root = root.path().join("ansible-data");
+        let installer_home = paths.user_root.join("hub-installer");
+        fs::create_dir_all(&install_root).expect("create ansible install root");
+        fs::create_dir_all(&work_root).expect("create ansible work root");
+        fs::create_dir_all(&data_root).expect("create ansible data root");
+        write_install_record(
+            installer_home.to_string_lossy().as_ref(),
+            "openclaw-ansible",
+            &InstallRecord {
+                schema_version: "1.0".to_string(),
+                software_name: "openclaw-ansible".to_string(),
+                manifest_name: "OpenClaw Install (Ansible)".to_string(),
+                manifest_path: "./manifests/openclaw-ansible.hub.yaml".to_string(),
+                manifest_source_input: "bundled-registry".to_string(),
+                manifest_source_kind: "registry".to_string(),
+                platform: SupportedPlatform::Ubuntu,
+                effective_runtime_platform: EffectiveRuntimePlatform::Ubuntu,
+                installer_home: installer_home.to_string_lossy().into_owned(),
+                install_scope: InstallScope::User,
+                install_root: install_root.to_string_lossy().into_owned(),
+                work_root: work_root.to_string_lossy().into_owned(),
+                bin_dir: install_root.join("bin").to_string_lossy().into_owned(),
+                data_root: data_root.to_string_lossy().into_owned(),
+                install_control_level: InstallControlLevel::Opaque,
+                status: InstallRecordStatus::Installed,
+                installed_at: Some("2026-03-23T00:00:00Z".to_string()),
+                updated_at: "2026-03-23T00:00:00Z".to_string(),
+            },
+        )
+        .expect("write ansible install record");
+
+        let instance = service
+            .create_instance(
+                &paths,
+                &config,
+                &storage,
+                StudioCreateInstanceInput {
+                    name: "Ansible OpenClaw".to_string(),
+                    description: Some("Ansible managed OpenClaw runtime".to_string()),
+                    runtime_kind: StudioRuntimeKind::Openclaw,
+                    deployment_mode: StudioInstanceDeploymentMode::LocalExternal,
+                    transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
+                    icon_type: None,
+                    version: Some("1.0.0".to_string()),
+                    type_label: Some("OpenClaw External".to_string()),
+                    host: Some("127.0.0.1".to_string()),
+                    port: Some(28789),
+                    base_url: Some("http://127.0.0.1:28789".to_string()),
+                    websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                    storage: None,
+                    config: Some(super::PartialStudioInstanceConfig {
+                        base_url: Some("http://127.0.0.1:28789".to_string()),
+                        websocket_url: Some("ws://127.0.0.1:28789".to_string()),
+                        port: Some("28789".to_string()),
+                        workspace_path: Some(work_root.to_string_lossy().into_owned()),
+                        ..super::PartialStudioInstanceConfig::default()
+                    }),
+                },
+            )
+            .expect("create ansible openclaw");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, &instance.id)
+            .expect("load instance detail")
+            .expect("ansible local external detail");
+        let serialized = serde_json::to_value(&detail).expect("serialize detail");
+        let console_access = serialized
+            .get("consoleAccess")
+            .and_then(Value::as_object)
+            .expect("detail should include console access");
+
+        assert_eq!(
+            console_access.get("installMethod").and_then(Value::as_str),
+            Some("ansible")
+        );
+    }
+
+    #[test]
+    fn openclaw_console_install_method_falls_back_to_ansible_manifest_name() {
+        let record = InstallRecord {
+            schema_version: "1.0".to_string(),
+            software_name: "openclaw-custom".to_string(),
+            manifest_name: "OpenClaw Install (Ansible)".to_string(),
+            manifest_path: "./manifests/openclaw-custom.hub.yaml".to_string(),
+            manifest_source_input: "bundled-registry".to_string(),
+            manifest_source_kind: "registry".to_string(),
+            platform: SupportedPlatform::Ubuntu,
+            effective_runtime_platform: EffectiveRuntimePlatform::Ubuntu,
+            installer_home: "/tmp/hub-installer".to_string(),
+            install_scope: InstallScope::User,
+            install_root: "/tmp/openclaw/install".to_string(),
+            work_root: "/tmp/openclaw/work".to_string(),
+            bin_dir: "/tmp/openclaw/bin".to_string(),
+            data_root: "/tmp/openclaw/data".to_string(),
+            install_control_level: InstallControlLevel::Opaque,
+            status: InstallRecordStatus::Installed,
+            installed_at: Some("2026-03-23T00:00:00Z".to_string()),
+            updated_at: "2026-03-23T00:00:00Z".to_string(),
+        };
+
+        assert_eq!(
+            console_install_method_from_install_record(&record),
+            StudioInstanceConsoleInstallMethod::Ansible
         );
     }
 

@@ -655,6 +655,7 @@ export type StudioInstanceConsoleInstallMethod =
   | 'wsl'
   | 'docker'
   | 'podman'
+  | 'ansible'
   | 'bun'
   | 'nix'
   | 'unknown';
