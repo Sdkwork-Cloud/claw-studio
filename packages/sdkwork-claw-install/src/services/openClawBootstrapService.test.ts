@@ -277,6 +277,9 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
     assert.equal(instanceState.instances[0]?.deploymentMode, 'local-external');
     assert.equal(instanceState.instances[0]?.runtimeKind, 'openclaw');
     assert.equal(instanceState.instances[0]?.transportKind, 'openclawGatewayWs');
+    assert.equal(data.websocketUrl, 'ws://127.0.0.1:28789');
+    assert.equal(instanceState.instances[0]?.websocketUrl, 'ws://127.0.0.1:28789');
+    assert.equal(instanceState.instances[0]?.config.websocketUrl, 'ws://127.0.0.1:28789');
   } finally {
     configurePlatformBridge(originalBridge);
   }

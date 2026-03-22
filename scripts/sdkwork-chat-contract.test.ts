@@ -34,7 +34,9 @@ await runTest('sdkwork-claw-chat is implemented locally instead of re-exporting 
   assert.ok(exists('packages/sdkwork-claw-chat/src/pages/Chat.tsx'));
   assert.ok(exists('packages/sdkwork-claw-chat/src/services/chatService.ts'));
   assert.ok(exists('packages/sdkwork-claw-chat/src/services/clawChatService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/services/openclaw/openClawGatewayClient.ts'));
   assert.ok(exists('packages/sdkwork-claw-chat/src/store/useChatStore.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/store/openClawGatewaySessionStore.ts'));
   assert.ok(exists('packages/sdkwork-claw-chat/src/types/index.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-chat']);
@@ -100,7 +102,9 @@ await runTest('sdkwork-claw-chat store tolerates migrated sessions without messa
           model: 'Gemini 3 Flash',
         } as any,
       ],
-      activeSessionId: 'legacy-session',
+      activeSessionIdByInstance: {
+        __direct__: 'legacy-session',
+      },
     });
 
     useChatStore.getState().addMessage('legacy-session', {
@@ -123,6 +127,27 @@ await runTest('sdkwork-claw-chat store tolerates migrated sessions without messa
   } finally {
     useChatStore.setState(initialState, true);
   }
+});
+
+await runTest('sdkwork-claw-chat keeps active session state isolated per instance and blocks local persistence for openclaw gateway sessions', () => {
+  const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/useChatStore.ts');
+  const localGatewaySource = read('packages/sdkwork-claw-chat/src/store/studioConversationGateway.ts');
+  const chatMappingSource = read('packages/sdkwork-claw-chat/src/chatSessionMapping.ts');
+  const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
+  const chatSidebarSource = read('packages/sdkwork-claw-chat/src/components/ChatSidebar.tsx');
+
+  assert.match(chatStoreSource, /activeSessionIdByInstance/);
+  assert.match(chatStoreSource, /syncStateByInstance/);
+  assert.match(chatStoreSource, /sendGatewayMessage/);
+  assert.match(chatStoreSource, /abortSession/);
+  assert.match(chatStoreSource, /instanceRouteModeById/);
+  assert.match(localGatewaySource, /openclawGateway/);
+  assert.match(localGatewaySource, /not persisted locally/);
+  assert.match(chatMappingSource, /must not be persisted through the studio conversation store/);
+  assert.match(chatPageSource, /const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';/);
+  assert.match(chatPageSource, /sendGatewayMessage/);
+  assert.match(chatPageSource, /abortSession/);
+  assert.match(chatSidebarSource, /activeSessionIdByInstance/);
 });
 
 await runTest('sdkwork-claw-chat resolves runtime chat routes for multiple claw instance kinds', async () => {
@@ -165,6 +190,44 @@ await runTest('sdkwork-claw-chat resolves runtime chat routes for multiple claw 
       corsOrigins: '*',
       baseUrl: 'http://127.0.0.1:18789',
       websocketUrl: 'ws://127.0.0.1:18789',
+    },
+    createdAt: 1,
+    updatedAt: 1,
+  });
+
+  const legacyOpenClawRoute = resolveInstanceChatRoute({
+    id: 'openclaw-legacy-http',
+    name: 'OpenClaw Legacy HTTP',
+    runtimeKind: 'openclaw',
+    deploymentMode: 'local-external',
+    transportKind: 'customHttp',
+    status: 'online',
+    isBuiltIn: false,
+    isDefault: false,
+    iconType: 'server',
+    version: '0.6.0',
+    typeLabel: 'OpenClaw Legacy',
+    host: '127.0.0.1',
+    port: 18795,
+    baseUrl: 'http://127.0.0.1:18795/v1/chat/completions',
+    websocketUrl: 'ws://127.0.0.1:18795/ws',
+    cpu: 0,
+    memory: 0,
+    totalMemory: 'Unknown',
+    uptime: '-',
+    capabilities: ['chat', 'health'],
+    storage: {
+      provider: 'localFile',
+      namespace: 'claw-studio',
+    },
+    config: {
+      port: '18795',
+      sandbox: true,
+      autoUpdate: false,
+      logLevel: 'info',
+      corsOrigins: '*',
+      baseUrl: 'http://127.0.0.1:18795/v1/chat/completions',
+      websocketUrl: 'ws://127.0.0.1:18795/ws',
     },
     createdAt: 1,
     updatedAt: 1,
@@ -284,9 +347,13 @@ await runTest('sdkwork-claw-chat resolves runtime chat routes for multiple claw 
     updatedAt: 1,
   });
 
-  assert.equal(openClawRoute.mode, 'instanceOpenAiHttp');
+  assert.equal(openClawRoute.mode, 'instanceOpenClawGatewayWs');
   assert.equal(openClawRoute.endpoint, 'http://127.0.0.1:18789/v1/chat/completions');
+  assert.equal(openClawRoute.websocketUrl, 'ws://127.0.0.1:18789');
   assert.equal(openClawRoute.runtimeKind, 'openclaw');
+  assert.equal(legacyOpenClawRoute.mode, 'instanceOpenClawGatewayWs');
+  assert.equal(legacyOpenClawRoute.endpoint, 'http://127.0.0.1:18795/v1/chat/completions');
+  assert.equal(legacyOpenClawRoute.websocketUrl, 'ws://127.0.0.1:18795');
   assert.equal(zeroClawRoute.mode, 'instanceOpenAiHttp');
   assert.equal(zeroClawRoute.endpoint, 'https://zero.example.com/chat/completions');
   assert.equal(ironClawRoute.mode, 'instanceSseHttp');

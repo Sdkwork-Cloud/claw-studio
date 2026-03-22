@@ -31,6 +31,10 @@ export function mapStudioConversation(record: StudioConversationRecord): ChatSes
 }
 
 export function mapChatSession(session: ChatSession): StudioConversationRecord {
+  if (session.transport === 'openclawGateway') {
+    throw new Error('OpenClaw Gateway sessions must not be persisted through the studio conversation store.');
+  }
+
   const messages = session.messages.map((message) => ({
     id: message.id,
     conversationId: session.id,

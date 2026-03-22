@@ -15,6 +15,7 @@ import {
   filterOpenClawCompatibleProviders,
   type OpenClawModelSelection,
 } from './openClawInstallWizardService.ts';
+import { resolveSyncedOpenClawAuthToken } from './openClawGatewayAuth.ts';
 
 export interface OpenClawBootstrapData {
   configPath: string;
@@ -146,7 +147,7 @@ function buildGatewayUrls(root: Record<string, unknown>) {
   const port = readGatewayPort(root);
   const host = '127.0.0.1';
   const baseUrl = `http://${host}:${port}`;
-  const websocketUrl = `ws://${host}:${port}/ws`;
+  const websocketUrl = `ws://${host}:${port}`;
 
   return {
     host,
@@ -177,6 +178,10 @@ async function syncLocalExternalInstance(input: {
         normalizePath(instance.baseUrl) === baseUrl ||
         normalizePath(instance.websocketUrl) === websocketUrl),
   );
+  const authToken = resolveSyncedOpenClawAuthToken({
+    root: input.root,
+    existingAuthToken: existing?.config.authToken ?? null,
+  });
 
   const nextInput = {
     name: 'OpenClaw Host',
@@ -204,7 +209,7 @@ async function syncLocalExternalInstance(input: {
       workspacePath: workRoot ?? dataRoot ?? installRoot ?? null,
       baseUrl,
       websocketUrl,
-      authToken: null,
+      authToken,
     },
   };
 
