@@ -8,6 +8,7 @@ import type {
   StudioInstanceTransportKind,
   StudioRuntimeKind,
   StudioStorageBinding,
+  StudioWorkbenchLLMProviderConfigRecord,
   StudioWorkbenchTaskExecutionRecord,
 } from '@sdkwork/claw-types';
 
@@ -39,6 +40,15 @@ export interface StudioUpdateInstanceInput
   isDefault?: boolean;
 }
 
+export interface StudioUpdateInstanceLlmProviderConfigInput {
+  endpoint: string;
+  apiKeySource: string;
+  defaultModelId: string;
+  reasoningModelId?: string;
+  embeddingModelId?: string;
+  config: StudioWorkbenchLLMProviderConfigRecord;
+}
+
 export interface StudioPlatformAPI {
   listInstances(): Promise<StudioInstanceRecord[]>;
   getInstance(id: string): Promise<StudioInstanceRecord | null>;
@@ -59,6 +69,16 @@ export interface StudioPlatformAPI {
     config: StudioInstanceConfig,
   ): Promise<StudioInstanceConfig | null>;
   getInstanceLogs(id: string): Promise<string>;
+  updateInstanceFileContent(
+    instanceId: string,
+    fileId: string,
+    content: string,
+  ): Promise<boolean>;
+  updateInstanceLlmProviderConfig(
+    instanceId: string,
+    providerId: string,
+    update: StudioUpdateInstanceLlmProviderConfigInput,
+  ): Promise<boolean>;
   cloneInstanceTask(instanceId: string, taskId: string, name?: string): Promise<void>;
   runInstanceTaskNow(
     instanceId: string,

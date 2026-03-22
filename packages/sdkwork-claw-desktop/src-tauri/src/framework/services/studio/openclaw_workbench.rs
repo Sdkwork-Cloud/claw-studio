@@ -415,8 +415,12 @@ fn build_openclaw_files(
     _config: &Value,
     agent_contexts: &[OpenClawAgentContext],
 ) -> Result<Vec<StudioWorkbenchFileRecord>> {
+    let mut writable_roots = BTreeSet::from([paths.openclaw_workspace_dir.clone()]);
+    writable_roots.extend(agent_contexts.iter().map(|context| context.workspace.clone()));
     let mut files = Vec::new();
     push_file_record(
+        paths,
+        &writable_roots,
         &mut files,
         &paths.openclaw_config_file,
         "config",
@@ -424,6 +428,8 @@ fn build_openclaw_files(
         "Managed OpenClaw configuration file.",
     );
     push_file_record(
+        paths,
+        &writable_roots,
         &mut files,
         &paths.logs_dir.join("openclaw-gateway.log"),
         "log",
@@ -431,6 +437,8 @@ fn build_openclaw_files(
         "Bundled gateway log emitted by the managed runtime.",
     );
     push_file_record(
+        paths,
+        &writable_roots,
         &mut files,
         &paths.openclaw_state_dir.join("cron").join("jobs.json"),
         "dataset",
@@ -438,6 +446,8 @@ fn build_openclaw_files(
         "OpenClaw cron job store for the managed runtime.",
     );
     push_file_record(
+        paths,
+        &writable_roots,
         &mut files,
         &paths
             .openclaw_runtime_dir
@@ -457,6 +467,8 @@ fn build_openclaw_files(
             let path = entry.path();
             if path.extension().and_then(OsStr::to_str) == Some("jsonl") {
                 push_file_record(
+                    paths,
+                    &writable_roots,
                     &mut files,
                     &path,
                     "dataset",
@@ -486,6 +498,8 @@ fn build_openclaw_files(
             };
             let description = format!("{} bootstrap file for {}.", file_name, context.name);
             push_file_record(
+                paths,
+                &writable_roots,
                 &mut files,
                 &context.workspace.join(file_name),
                 category,
@@ -1685,6 +1699,8 @@ fn token_estimate(text: &str) -> u32 {
 }
 
 fn push_file_record(
+    paths: &AppPaths,
+    writable_roots: &BTreeSet<PathBuf>,
     files: &mut Vec<StudioWorkbenchFileRecord>,
     path: &Path,
     category: &str,
@@ -1712,8 +1728,41 @@ fn push_file_record(
         status: file_status.to_string(),
         description: description.to_string(),
         content,
-        is_readonly: true,
+        is_readonly: !is_openclaw_workbench_file_writable(paths, writable_roots, path),
     });
+}
+
+fn is_openclaw_workbench_bootstrap_file(path: &Path) -> bool {
+    matches!(
+        path.file_name().and_then(OsStr::to_str),
+        Some(
+            "AGENTS.md"
+                | "SOUL.md"
+                | "TOOLS.md"
+                | "IDENTITY.md"
+                | "USER.md"
+                | "HEARTBEAT.md"
+                | "BOOTSTRAP.md"
+                | "MEMORY.md"
+                | "memory.md"
+        )
+    )
+}
+
+fn is_openclaw_workbench_file_writable(
+    paths: &AppPaths,
+    writable_roots: &BTreeSet<PathBuf>,
+    path: &Path,
+) -> bool {
+    if path == paths.openclaw_config_file {
+        return true;
+    }
+
+    if !is_openclaw_workbench_bootstrap_file(path) {
+        return false;
+    }
+
+    writable_roots.iter().any(|root| path.starts_with(root))
 }
 
 fn extract_frontmatter_value(content: &str, key: &str) -> Option<String> {

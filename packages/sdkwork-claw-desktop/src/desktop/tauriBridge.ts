@@ -45,6 +45,7 @@ import type {
   StudioInstanceDetailRecord,
   StudioInstanceConfig,
   StudioInstanceRecord,
+  StudioUpdateInstanceLlmProviderConfigInput,
   StudioWorkbenchTaskExecutionRecord,
   StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
@@ -320,6 +321,40 @@ export async function studioGetInstanceLogs(id: string): Promise<string> {
         operation: 'studio.getInstanceLogs',
       }),
     () => webStudioPlatform.getInstanceLogs(id),
+  );
+}
+
+export async function studioUpdateInstanceFileContent(
+  instanceId: string,
+  fileId: string,
+  content: string,
+): Promise<boolean> {
+  return runDesktopOrFallback(
+    'studio.updateInstanceFileContent',
+    () =>
+      invokeDesktopCommand<boolean>(
+        DESKTOP_COMMANDS.studioUpdateInstanceFileContent,
+        { instanceId, fileId, content },
+        { operation: 'studio.updateInstanceFileContent' },
+      ),
+    () => webStudioPlatform.updateInstanceFileContent(instanceId, fileId, content),
+  );
+}
+
+export async function studioUpdateInstanceLlmProviderConfig(
+  instanceId: string,
+  providerId: string,
+  update: StudioUpdateInstanceLlmProviderConfigInput,
+): Promise<boolean> {
+  return runDesktopOrFallback(
+    'studio.updateInstanceLlmProviderConfig',
+    () =>
+      invokeDesktopCommand<boolean>(
+        DESKTOP_COMMANDS.studioUpdateInstanceLlmProviderConfig,
+        { instanceId, providerId, update },
+        { operation: 'studio.updateInstanceLlmProviderConfig' },
+      ),
+    () => webStudioPlatform.updateInstanceLlmProviderConfig(instanceId, providerId, update),
   );
 }
 
@@ -1019,6 +1054,8 @@ export const desktopTemplateApi = {
     getInstanceConfig: studioGetInstanceConfig,
     updateInstanceConfig: studioUpdateInstanceConfig,
     getInstanceLogs: studioGetInstanceLogs,
+    updateInstanceFileContent: studioUpdateInstanceFileContent,
+    updateInstanceLlmProviderConfig: studioUpdateInstanceLlmProviderConfig,
     cloneInstanceTask: studioCloneInstanceTask,
     runInstanceTaskNow: studioRunInstanceTaskNow,
     listInstanceTaskExecutions: studioListInstanceTaskExecutions,
@@ -1150,6 +1187,10 @@ export function configureDesktopPlatformBridge() {
       getInstanceConfig: (id) => studioGetInstanceConfig(id),
       updateInstanceConfig: (id, config) => studioUpdateInstanceConfig(id, config),
       getInstanceLogs: (id) => studioGetInstanceLogs(id),
+      updateInstanceFileContent: (instanceId, fileId, content) =>
+        studioUpdateInstanceFileContent(instanceId, fileId, content),
+      updateInstanceLlmProviderConfig: (instanceId, providerId, update) =>
+        studioUpdateInstanceLlmProviderConfig(instanceId, providerId, update),
       cloneInstanceTask: (instanceId, taskId, name) =>
         studioCloneInstanceTask(instanceId, taskId, name),
       runInstanceTaskNow: (instanceId, taskId) =>

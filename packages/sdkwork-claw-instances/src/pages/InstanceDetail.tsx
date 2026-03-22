@@ -502,8 +502,7 @@ export function InstanceDetail() {
 
   const instance = workbench?.instance || null;
   const detail = workbench?.detail || null;
-  const isOpenClawWorkbench = detail?.instance.runtimeKind === 'openclaw' && Boolean(detail?.workbench);
-  const isOpenClawTaskEditorPending = isOpenClawWorkbench;
+  const isOpenClawTaskEditorPending = detail?.instance.runtimeKind === 'openclaw';
   const historyTask = historyTaskId ? workbench?.tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? taskExecutionsById[historyTaskId] || [] : [];
 
@@ -598,7 +597,7 @@ export function InstanceDetail() {
     field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
     value: string,
   ) => {
-    if (isOpenClawWorkbench || !selectedProvider || !selectedProviderDraft) {
+    if (!selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -621,7 +620,7 @@ export function InstanceDetail() {
     field: keyof InstanceLLMProviderUpdate['config'],
     value: number | boolean,
   ) => {
-    if (isOpenClawWorkbench || !selectedProvider || !selectedProviderDraft) {
+    if (!selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -638,7 +637,7 @@ export function InstanceDetail() {
   };
 
   const handleResetProviderDraft = () => {
-    if (isOpenClawWorkbench || !selectedProvider) {
+    if (!selectedProvider) {
       return;
     }
 
@@ -656,7 +655,7 @@ export function InstanceDetail() {
   };
 
   const handleSaveProviderConfig = async () => {
-    if (isOpenClawWorkbench || !id || !selectedProvider || !selectedProviderDraft) {
+    if (!id || !selectedProvider || !selectedProviderDraft) {
       return;
     }
 
@@ -1399,7 +1398,7 @@ export function InstanceDetail() {
               variant="outline"
               size="sm"
               onClick={() => openTaskWorkspace({ taskMode: 'edit', taskId: task.id })}
-              disabled={isBusy || isOpenClawTaskEditorPending}
+              disabled={isBusy}
             >
               <Edit2 className="h-4 w-4" />
               {t('tasks.page.actions.edit')}
@@ -1480,11 +1479,12 @@ export function InstanceDetail() {
         {isOpenClawTaskEditorPending ? (
           <div
             data-slot="instance-openclaw-cron-editor-notice"
-            className="rounded-[1.5rem] border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+            className="rounded-[1.5rem] border border-amber-200/70 bg-amber-50/80 px-5 py-4 text-sm leading-6 text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100"
           >
             {t('instances.detail.instanceWorkbench.cronTasks.editorNotice')}
           </div>
         ) : null}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             {t('tasks.page.title')}
@@ -1506,7 +1506,6 @@ export function InstanceDetail() {
             <Button
               size="sm"
               onClick={() => openTaskWorkspace({ taskMode: 'create' })}
-              disabled={isOpenClawTaskEditorPending}
             >
               <Plus className="h-4 w-4" />
               {t('tasks.page.actions.newTask')}
@@ -1529,7 +1528,6 @@ export function InstanceDetail() {
               <Button
                 className="mt-6"
                 onClick={() => openTaskWorkspace({ taskMode: 'create' })}
-                disabled={isOpenClawTaskEditorPending}
               >
                 <Plus className="h-4 w-4" />
                 {t('tasks.page.actions.newTask')}
@@ -1784,8 +1782,7 @@ export function InstanceDetail() {
           draft={selectedProviderDraft}
           hasPendingChanges={hasPendingProviderChanges}
           isSaving={isSavingProviderConfig}
-          isReadonly={isOpenClawWorkbench}
-          readonlyMessage={t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice')}
+          isReadonly={false}
           onFieldChange={handleProviderFieldChange}
           onConfigChange={handleProviderConfigChange}
           onReset={handleResetProviderDraft}
