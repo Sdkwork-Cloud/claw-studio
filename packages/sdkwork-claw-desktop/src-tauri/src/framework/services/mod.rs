@@ -8,6 +8,8 @@ pub mod api_router_managed_runtime;
 pub mod api_router_runtime;
 pub mod api_router_web_server;
 pub mod browser;
+pub mod component_host;
+pub mod components;
 pub mod dialog;
 pub mod filesystem;
 pub mod integrations;
@@ -25,12 +27,15 @@ pub mod storage;
 pub mod studio;
 pub mod supervisor;
 pub mod system;
+pub mod upgrades;
 
 use self::{
     api_router::ApiRouterInstallerService,
     api_router_managed_runtime::ApiRouterManagedRuntimeService,
     api_router_runtime::ApiRouterRuntimeService,
     browser::BrowserService,
+    component_host::ComponentHostService,
+    components::ComponentRegistryService,
     dialog::DialogService,
     filesystem::FileSystemService,
     integrations::IntegrationService,
@@ -48,6 +53,7 @@ use self::{
     studio::StudioService,
     supervisor::SupervisorService,
     system::SystemService,
+    upgrades::ComponentUpgradeService,
 };
 
 #[derive(Clone, Debug)]
@@ -57,6 +63,8 @@ pub struct FrameworkServices {
     pub api_router_runtime: ApiRouterRuntimeService,
     pub system: SystemService,
     pub browser: BrowserService,
+    pub component_host: ComponentHostService,
+    pub components: ComponentRegistryService,
     pub dialog: DialogService,
     pub filesystem: FileSystemService,
     pub security: SecurityService,
@@ -74,6 +82,8 @@ pub struct FrameworkServices {
     pub studio: StudioService,
     pub kernel: KernelService,
     pub supervisor: SupervisorService,
+    #[allow(dead_code)]
+    pub upgrades: ComponentUpgradeService,
 }
 
 impl FrameworkServices {
@@ -86,6 +96,8 @@ impl FrameworkServices {
             api_router_runtime: ApiRouterRuntimeService::new(),
             system: SystemService::new(),
             browser: BrowserService::with_security(&config.security),
+            component_host: ComponentHostService::new(),
+            components: ComponentRegistryService::new(),
             dialog: DialogService::new(),
             filesystem: FileSystemService::new(),
             security: SecurityService::new(),
@@ -101,7 +113,8 @@ impl FrameworkServices {
             storage: StorageService::new(),
             studio: StudioService::new(),
             kernel: KernelService::new(),
-            supervisor: SupervisorService::new(),
+            supervisor: SupervisorService::for_paths(paths),
+            upgrades: ComponentUpgradeService::new(),
         })
     }
 
@@ -140,6 +153,7 @@ impl FrameworkServices {
                 payments: self.payments.kernel_info(&normalized),
                 integrations: self.integrations.kernel_info(paths, &normalized)?,
                 supervisor: self.supervisor.kernel_info()?,
+                bundled_components: self.components.kernel_info(paths)?,
                 storage: self.storage.storage_info(paths, &normalized),
             },
         ))

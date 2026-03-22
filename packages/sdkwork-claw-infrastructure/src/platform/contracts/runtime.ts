@@ -7,6 +7,7 @@ export interface RuntimeAppInfo {
 export interface RuntimePathsInfo {
   installRoot: string;
   foundationDir: string;
+  foundationComponentsDir: string;
   modulesDir: string;
   runtimesDir: string;
   toolsDir: string;
@@ -49,6 +50,11 @@ export interface RuntimePathsInfo {
   policiesFile: string;
   sourcesFile: string;
   serviceFile: string;
+  componentsFile: string;
+  upgradesFile: string;
+  componentRegistryFile: string;
+  serviceDefaultsFile: string;
+  upgradePolicyFile: string;
   deviceIdFile: string;
   mainLogFile: string;
 }
@@ -374,6 +380,23 @@ export interface RuntimeDesktopSupervisorInfo {
   services: RuntimeDesktopSupervisorServiceInfo[];
 }
 
+export interface RuntimeDesktopBundledComponentInfo {
+  id: string;
+  displayName: string;
+  kind: string;
+  bundledVersion: string;
+  startupMode: string;
+  installSubdir: string;
+}
+
+export interface RuntimeDesktopBundledComponentsInfo {
+  componentCount: number;
+  defaultStartupComponentIds: string[];
+  autoUpgradeEnabled: boolean;
+  approvalMode: string;
+  components: RuntimeDesktopBundledComponentInfo[];
+}
+
 export interface RuntimeDesktopKernelInfo {
   directories: RuntimeDesktopKernelDirectories;
   capabilities: RuntimeDesktopKernelCapability[];
@@ -385,6 +408,7 @@ export interface RuntimeDesktopKernelInfo {
   payments: RuntimeDesktopPaymentInfo;
   integrations: RuntimeDesktopIntegrationInfo;
   supervisor: RuntimeDesktopSupervisorInfo;
+  bundledComponents: RuntimeDesktopBundledComponentsInfo;
   storage: RuntimeStorageInfo;
 }
 

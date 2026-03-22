@@ -27,6 +27,8 @@
     "active": true,
     "targets": "all",
     "resources": [
+      "foundation/components/**/*",
+      "generated/bundled/**/*",
       "vendor/hub-installer/registry/**/*",
       "resources/openclaw-runtime/**/*",
       "resources/sdkwork-api-router-runtime/**/*"

@@ -352,6 +352,11 @@ assertIncludes(
   'start_openclaw_gateway',
   'bundled openclaw gateway supervisor startup',
 );
+assertIncludes(
+  'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  'bundledComponents: RuntimeDesktopBundledComponentsInfo;',
+  'desktop kernel bundled components payload',
+);
 
 if (failures.length > 0) {
   console.error('desktop kernel template contract failed');

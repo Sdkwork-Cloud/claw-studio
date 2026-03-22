@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "kind": "binary",
+      "bundledVersion": "bundled",
+      "startupMode": "autoStart",
+      "installSubdir": "modules/codex/current",
+      "upgradeChannel": "stable",
+      "serviceIds": ["codex"]
+    },
+    {
+      "id": "openclaw",
+      "displayName": "OpenClaw",
+      "kind": "nodeApp",
+      "bundledVersion": "bundled",
+      "startupMode": "manual",
+      "installSubdir": "modules/openclaw/current",
+      "upgradeChannel": "stable",
+      "serviceIds": ["openclaw"]
+    },
+    {
+      "id": "zeroclaw",
+      "displayName": "ZeroClaw",
+      "kind": "binary",
+      "bundledVersion": "bundled",
+      "startupMode": "manual",
+      "installSubdir": "modules/zeroclaw/current",
+      "upgradeChannel": "stable",
+      "serviceIds": ["zeroclaw"]
+    },
+    {
+      "id": "ironclaw",
+      "displayName": "IronClaw",
+      "kind": "binary",
+      "bundledVersion": "bundled",
+      "startupMode": "manual",
+      "installSubdir": "modules/ironclaw/current",
+      "upgradeChannel": "stable",
+      "serviceIds": ["ironclaw"]
+    },
+    {
+      "id": "sdkwork-api-router",
+      "displayName": "SdkWork API Router",
+      "kind": "serviceGroup",
+      "bundledVersion": "bundled",
+      "startupMode": "autoStart",
+      "installSubdir": "modules/sdkwork-api-router/current",
+      "upgradeChannel": "stable",
+      "serviceIds": [
+        "sdkwork_api_router_gateway",
+        "sdkwork_api_router_admin_api",
+        "sdkwork_api_router_portal_api",
+        "sdkwork_api_router_web_server"
+      ]
+    },
+    {
+      "id": "hub-installer",
+      "displayName": "Hub Installer",
+      "kind": "embeddedLibrary",
+      "bundledVersion": "bundled",
+      "startupMode": "embedded",
+      "installSubdir": "modules/hub-installer/current",
+      "upgradeChannel": "stable",
+      "serviceIds": []
+    }
+  ]
+}

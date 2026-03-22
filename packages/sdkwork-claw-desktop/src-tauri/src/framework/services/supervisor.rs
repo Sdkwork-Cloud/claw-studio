@@ -283,6 +283,10 @@ impl SupervisorService {
         Ok(planned_services)
     }
 
+    pub fn stop_service(&self, service_id: &str) -> Result<()> {
+        self.stop_service_process(service_id)
+    }
+
     pub fn configure_openclaw_gateway(&self, runtime: &ActivatedOpenClawRuntime) -> Result<()> {
         *self.lock_openclaw_runtime()? = Some(runtime.clone());
         Ok(())

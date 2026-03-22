@@ -55,12 +55,28 @@ import type {
 } from '@sdkwork/claw-infrastructure';
 import { DESKTOP_COMMANDS, DESKTOP_EVENTS } from './catalog';
 import {
+  controlDesktopComponent,
+  desktopComponentsApi,
+  listDesktopComponents,
+  restartDesktopComponent,
+  startDesktopComponent,
+  stopDesktopComponent,
+} from './componentsBridge';
+import {
   getDesktopWindow,
   invokeDesktopCommand,
   isTauriRuntime,
   listenDesktopEvent,
   runDesktopOrFallback,
 } from './runtime';
+
+export {
+  controlDesktopComponent,
+  listDesktopComponents,
+  restartDesktopComponent,
+  startDesktopComponent,
+  stopDesktopComponent,
+} from './componentsBridge';
 
 const webPlatform = new WebPlatform();
 const webStoragePlatform = new WebStoragePlatform();
@@ -1246,6 +1262,10 @@ export function configureDesktopPlatformBridge() {
       runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
       installApiRouterClientSetup: (request) => installApiRouterClientSetup(request),
+    },
+    components: {
+      listComponents: () => desktopComponentsApi.list(),
+      controlComponent: (request) => desktopComponentsApi.control(request.componentId, request.action),
     },
     storage: {
       async getStorageInfo() {

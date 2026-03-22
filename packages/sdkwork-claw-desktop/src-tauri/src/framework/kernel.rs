@@ -192,6 +192,106 @@ pub struct DesktopSupervisorInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DesktopBundledComponentInfo {
+    pub id: String,
+    pub display_name: String,
+    pub kind: String,
+    pub bundled_version: String,
+    pub startup_mode: String,
+    pub install_subdir: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopBundledComponentsInfo {
+    pub component_count: usize,
+    pub default_startup_component_ids: Vec<String>,
+    pub auto_upgrade_enabled: bool,
+    pub approval_mode: String,
+    pub components: Vec<DesktopBundledComponentInfo>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopComponentDocumentationRef {
+    pub label: String,
+    pub location: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopComponentEndpointInfo {
+    pub id: String,
+    pub label: String,
+    pub transport: String,
+    pub target: String,
+    pub description: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopComponentCapabilityInfo {
+    pub key: String,
+    pub label: String,
+    pub kind: String,
+    pub description: String,
+    pub entrypoints: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopComponentServiceBindingInfo {
+    pub service_id: String,
+    pub lifecycle: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopComponentInfo {
+    pub id: String,
+    pub display_name: String,
+    pub kind: String,
+    pub startup_mode: String,
+    pub bundled_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_commit: Option<String>,
+    pub install_subdir: String,
+    pub runtime_status: String,
+    pub service_ids: Vec<String>,
+    pub services: Vec<DesktopComponentServiceBindingInfo>,
+    pub endpoints: Vec<DesktopComponentEndpointInfo>,
+    pub capabilities: Vec<DesktopComponentCapabilityInfo>,
+    pub docs: Vec<DesktopComponentDocumentationRef>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopComponentCatalogInfo {
+    pub default_startup_component_ids: Vec<String>,
+    pub components: Vec<DesktopComponentInfo>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopComponentControlResult {
+    pub component_id: String,
+    pub action: String,
+    pub outcome: String,
+    pub affected_service_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DesktopKernelInfo {
     pub directories: DesktopKernelDirectories,
     pub capabilities: Vec<DesktopCapabilityInfo>,
@@ -203,5 +303,6 @@ pub struct DesktopKernelInfo {
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
+    pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
 }

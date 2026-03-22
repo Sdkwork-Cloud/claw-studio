@@ -142,6 +142,8 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
         .on_window_event(handle_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::app_info::app_info,
+            commands::component_commands::desktop_component_catalog,
+            commands::component_commands::desktop_component_control,
             commands::desktop_kernel::desktop_kernel_info,
             commands::desktop_kernel::desktop_storage_info,
             commands::get_app_paths::get_app_paths,

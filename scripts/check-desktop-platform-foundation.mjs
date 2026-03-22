@@ -79,6 +79,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-core/src/stores/useUpdateStore.ts', 'desktop update state store'],
   ['packages/sdkwork-claw-desktop/src-tauri/Cargo.toml', 'desktop Cargo manifest'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json', 'desktop Tauri config'],
+  ['packages/sdkwork-claw-desktop/src-tauri/generated', 'desktop generated bundled resource root'],
   ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw-runtime/runtime', 'bundled openclaw runtime resource root'],
   ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw-runtime/manifest.json', 'bundled openclaw runtime manifest'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs', 'desktop framework module'],
@@ -165,6 +166,7 @@ for (const scriptName of ['tauri:dev', 'tauri:build', 'tauri:icon', 'tauri:info'
 assertScript(desktopPackage, desktopPackagePath, 'dev:tauri');
 assertScript(desktopPackage, desktopPackagePath, 'prepare:openclaw-runtime');
 assertScript(desktopPackage, desktopPackagePath, 'prepare:api-router-runtime');
+assertScript(rootPackage, rootPackagePath, 'sync:bundled-components');
 
 assertDependency(desktopPackage, desktopPackagePath, '@tauri-apps/cli', 'devDependencies');
 assertIncludes(
@@ -234,6 +236,16 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'desktopComponentCatalog',
+  'desktop component catalog command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
+  'desktopComponentControl',
+  'desktop component control command catalog entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/catalog.ts',
   'export const DESKTOP_EVENTS',
   'desktop event catalog export',
 );
@@ -286,6 +298,11 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'export async function fetchRemoteUrl',
   'desktop remote url fetch bridge export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  "from './componentsBridge'",
+  'desktop components bridge integration',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
@@ -444,6 +461,11 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/index.ts',
+  'controlDesktopComponent',
+  'desktop package component control export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/index.ts',
   'fetchRemoteUrl',
   'desktop package remote url fetch export',
 );
@@ -564,6 +586,16 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::component_commands::desktop_component_catalog',
+  'desktop component catalog command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
+  'commands::component_commands::desktop_component_control',
+  'desktop component control command registration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',
   'commands::fetch_remote_url::fetch_remote_url',
   'desktop remote url fetch command registration',
 );
@@ -616,6 +648,16 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
   'resources/sdkwork-api-router-runtime/**/*',
   'bundled api router runtime resource declaration',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  'foundation/components/**/*',
+  'bundled component metadata resource packaging',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  'generated/bundled/**/*',
+  'generated bundled asset resource packaging',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',

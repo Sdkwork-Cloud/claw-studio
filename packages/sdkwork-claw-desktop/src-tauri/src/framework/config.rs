@@ -115,6 +115,26 @@ impl Default for ProcessConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+pub struct ComponentUpgradeConfig {
+    pub auto_upgrade_enabled: bool,
+    pub approval_mode: String,
+    pub default_channel: String,
+    pub max_retained_historical_packages: u32,
+}
+
+impl Default for ComponentUpgradeConfig {
+    fn default() -> Self {
+        Self {
+            auto_upgrade_enabled: false,
+            approval_mode: "manual".to_string(),
+            default_channel: "stable".to_string(),
+            max_retained_historical_packages: 3,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct AppConfig {
     pub version: u32,
     pub distribution: String,
@@ -128,6 +148,7 @@ pub struct AppConfig {
     pub payments: PaymentConfig,
     pub integrations: IntegrationConfig,
     pub process: ProcessConfig,
+    pub component_upgrades: ComponentUpgradeConfig,
 }
 
 impl Default for AppConfig {
@@ -145,6 +166,7 @@ impl Default for AppConfig {
             payments: PaymentConfig::default(),
             integrations: IntegrationConfig::default(),
             process: ProcessConfig::default(),
+            component_upgrades: ComponentUpgradeConfig::default(),
         }
     }
 }
@@ -186,6 +208,7 @@ pub struct PublicAppConfig {
     pub payments: PaymentConfig,
     pub integrations: IntegrationConfig,
     pub process: ProcessConfig,
+    pub component_upgrades: ComponentUpgradeConfig,
 }
 
 pub fn load_or_create_config(paths: &AppPaths) -> Result<AppConfig> {
@@ -234,6 +257,7 @@ impl AppConfig {
             payments: normalized.payments,
             integrations: normalized.integrations,
             process: normalized.process,
+            component_upgrades: normalized.component_upgrades,
         }
     }
 }
@@ -309,6 +333,10 @@ mod tests {
         assert!(value.get("payments").is_some(), "missing payments");
         assert!(value.get("integrations").is_some(), "missing integrations");
         assert!(value.get("process").is_some(), "missing process");
+        assert!(
+            value.get("componentUpgrades").is_some(),
+            "missing component upgrades"
+        );
     }
 
     #[test]
@@ -389,6 +417,10 @@ mod tests {
             value.pointer("/storage/profiles/0/endpoint"),
             None,
             "public config must not expose raw storage endpoint values"
+        );
+        assert_eq!(
+            value.pointer("/componentUpgrades/defaultChannel"),
+            Some(&Value::String("stable".to_string()))
         );
     }
 }

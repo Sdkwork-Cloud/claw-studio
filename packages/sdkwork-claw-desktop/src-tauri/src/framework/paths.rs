@@ -7,6 +7,7 @@ use tauri::{AppHandle, Runtime};
 pub struct AppPaths {
     pub install_root: PathBuf,
     pub foundation_dir: PathBuf,
+    pub foundation_components_dir: PathBuf,
     pub modules_dir: PathBuf,
     pub runtimes_dir: PathBuf,
     pub tools_dir: PathBuf,
@@ -56,6 +57,11 @@ pub struct AppPaths {
     pub policies_file: PathBuf,
     pub sources_file: PathBuf,
     pub service_file: PathBuf,
+    pub components_file: PathBuf,
+    pub upgrades_file: PathBuf,
+    pub component_registry_file: PathBuf,
+    pub service_defaults_file: PathBuf,
+    pub upgrade_policy_file: PathBuf,
     pub device_id_file: PathBuf,
     pub main_log_file: PathBuf,
 }
@@ -65,6 +71,7 @@ impl AppPaths {
         let mut roots = vec![
             self.install_root.clone(),
             self.foundation_dir.clone(),
+            self.foundation_components_dir.clone(),
             self.modules_dir.clone(),
             self.runtimes_dir.clone(),
             self.tools_dir.clone(),
@@ -133,6 +140,7 @@ pub fn resolve_paths_for_root(root: &std::path::Path) -> Result<AppPaths> {
 
 fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf) -> AppPaths {
     let foundation_dir = install_root.join("foundation");
+    let foundation_components_dir = foundation_dir.join("components");
     let modules_dir = install_root.join("modules");
     let runtimes_dir = install_root.join("runtimes");
     let tools_dir = install_root.join("tools");
@@ -183,12 +191,18 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let policies_file = config_dir.join("policies.json");
     let sources_file = config_dir.join("sources.json");
     let service_file = config_dir.join("service.json");
+    let components_file = config_dir.join("components.json");
+    let upgrades_file = config_dir.join("upgrades.json");
+    let component_registry_file = foundation_components_dir.join("component-registry.json");
+    let service_defaults_file = foundation_components_dir.join("service-defaults.json");
+    let upgrade_policy_file = foundation_components_dir.join("upgrade-policy.json");
     let device_id_file = state_dir.join("device-id");
     let main_log_file = logs_dir.join("app.log");
 
     AppPaths {
         install_root,
         foundation_dir,
+        foundation_components_dir,
         modules_dir,
         runtimes_dir,
         tools_dir,
@@ -238,6 +252,11 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
         policies_file,
         sources_file,
         service_file,
+        components_file,
+        upgrades_file,
+        component_registry_file,
+        service_defaults_file,
+        upgrade_policy_file,
         device_id_file,
         main_log_file,
     }
@@ -403,5 +422,7 @@ mod tests {
         assert!(machine_state_dir.join("policies.json").exists());
         assert!(machine_state_dir.join("sources.json").exists());
         assert!(machine_state_dir.join("service.json").exists());
+        assert!(machine_state_dir.join("components.json").exists());
+        assert!(machine_state_dir.join("upgrades.json").exists());
     }
 }

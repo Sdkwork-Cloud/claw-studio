@@ -1,8 +1,10 @@
+import type { ComponentPlatformAPI } from './contracts/components.ts';
 import type { InstallerPlatformAPI } from './contracts/installer.ts';
 import type { StoragePlatformAPI } from './contracts/storage.ts';
 import type { StudioPlatformAPI } from './contracts/studio.ts';
 import type { RuntimePlatformAPI } from './contracts/runtime.ts';
 import type { PlatformAPI } from './types.ts';
+import { WebComponentPlatform } from './webComponents.ts';
 import { WebInstallerPlatform } from './webInstaller.ts';
 import { WebPlatform } from './web.ts';
 import { WebRuntimePlatform } from './webRuntime.ts';
@@ -11,6 +13,7 @@ import { WebStudioPlatform } from './webStudio.ts';
 
 export interface PlatformBridge {
   platform: PlatformAPI;
+  components: ComponentPlatformAPI;
   installer: InstallerPlatformAPI;
   runtime: RuntimePlatformAPI;
   storage: StoragePlatformAPI;
@@ -26,6 +29,7 @@ type GlobalPlatformBridgeState = typeof globalThis & {
 function createDefaultPlatformBridge(): PlatformBridge {
   return {
     platform: new WebPlatform(),
+    components: new WebComponentPlatform(),
     installer: new WebInstallerPlatform(),
     runtime: new WebRuntimePlatform(),
     storage: new WebStoragePlatform(),
@@ -71,6 +75,10 @@ export function getPlatformBridge(): PlatformBridge {
 
 export function getInstallerPlatform(): InstallerPlatformAPI {
   return getPlatformBridge().installer;
+}
+
+export function getComponentPlatform(): ComponentPlatformAPI {
+  return getPlatformBridge().components;
 }
 
 export function getRuntimePlatform(): RuntimePlatformAPI {
@@ -156,4 +164,9 @@ export const studio: StudioPlatformAPI = {
   listConversations: (instanceId) => getPlatformBridge().studio.listConversations(instanceId),
   putConversation: (record) => getPlatformBridge().studio.putConversation(record),
   deleteConversation: (id) => getPlatformBridge().studio.deleteConversation(id),
+};
+
+export const components: ComponentPlatformAPI = {
+  listComponents: () => getPlatformBridge().components.listComponents(),
+  controlComponent: (request) => getPlatformBridge().components.controlComponent(request),
 };

@@ -10,6 +10,23 @@ export type {
   PlatformWindowStateUnsubscribe,
 } from './types.ts';
 export type {
+  ComponentPlatformAPI,
+  RuntimeBundledComponentId,
+  RuntimeDesktopComponentCapabilityInfo,
+  RuntimeDesktopComponentCatalogInfo,
+  RuntimeDesktopComponentKind,
+  RuntimeDesktopComponentLifecycle,
+  RuntimeDesktopComponentControlAction,
+  RuntimeDesktopComponentControlRequest,
+  RuntimeDesktopComponentControlResult,
+  RuntimeDesktopComponentDocumentationRef,
+  RuntimeDesktopComponentEndpointInfo,
+  RuntimeDesktopComponentInfo,
+  RuntimeDesktopComponentRuntimeStatus,
+  RuntimeDesktopComponentServiceBindingInfo,
+  RuntimeDesktopComponentStartupMode,
+} from './contracts/components.ts';
+export type {
   ApiRouterClientInstallRequest,
   ApiRouterClientInstallResult,
   ApiRouterInstalledEnvironment,
@@ -133,7 +150,9 @@ export type {
   StudioWorkbenchTaskExecutionRecord,
 } from '@sdkwork/claw-types';
 export {
+  components,
   configurePlatformBridge,
+  getComponentPlatform,
   getInstallerPlatform,
   getPlatformBridge,
   getRuntimePlatform,
@@ -143,7 +162,15 @@ export {
   storage,
   studio,
 } from './registry.ts';
+export {
+  BUNDLED_COMPONENT_IDS,
+  componentLibrary,
+  createDesktopComponentLibrary,
+  DesktopComponentLibrary,
+  isBundledComponentId,
+} from './componentLibrary.ts';
 export { openExternalUrl } from './openExternalUrl.ts';
+export { WebComponentPlatform } from './webComponents.ts';
 export { WebPlatform } from './web.ts';
 export { WebStoragePlatform } from './webStorage.ts';
 export { WebStudioPlatform } from './webStudio.ts';

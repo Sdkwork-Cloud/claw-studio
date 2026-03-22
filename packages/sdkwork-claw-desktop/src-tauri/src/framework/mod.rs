@@ -1,4 +1,6 @@
 pub mod capabilities;
+pub mod bundled;
+pub mod components;
 pub mod config;
 pub mod context;
 pub mod dialog;
