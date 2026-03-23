@@ -233,7 +233,7 @@ await runTest('openClawCatalogService matches install records against software n
 });
 
 await runTest(
-  'openClawCatalogService gives Bun, Ansible, and Nix variants meaningful tags and icons',
+  'openClawCatalogService keeps Bun and Nix variants visible on macOS while excluding Ubuntu-only Ansible',
   async () => {
     const { resolveOpenClawCatalogPresentation } = await import('./openClawCatalogService.ts');
 
@@ -270,7 +270,7 @@ await runTest(
             label: 'Ansible workflow',
             summary: 'Install OpenClaw through the openclaw-ansible automation repository.',
             softwareName: 'openclaw-ansible',
-            hostPlatforms: ['macos', 'ubuntu'],
+            hostPlatforms: ['ubuntu'],
             runtimePlatform: 'host',
             manifestName: 'openclaw-ansible',
             manifestDescription: 'OpenClaw Ansible profile',
@@ -326,12 +326,58 @@ await runTest(
     assert.ok(bunChoice?.tags.includes('bun'));
     assert.ok(bunChoice?.tags.includes('experimental'));
 
-    assert.equal(ansibleChoice?.iconId, 'server');
-    assert.ok(ansibleChoice?.tags.includes('ansible'));
-    assert.ok(ansibleChoice?.tags.includes('automation'));
+    assert.equal(ansibleChoice, undefined);
 
     assert.equal(nixChoice?.iconId, 'package');
     assert.ok(nixChoice?.tags.includes('nix'));
     assert.ok(nixChoice?.tags.includes('declarative'));
+  },
+);
+
+await runTest(
+  'openClawCatalogService gives Ubuntu-only Ansible variants meaningful tags and icons on Linux hosts',
+  async () => {
+    const { resolveOpenClawCatalogPresentation } = await import('./openClawCatalogService.ts');
+
+    const presentation = resolveOpenClawCatalogPresentation(
+      createCatalogEntry({
+        variants: [
+          ...createCatalogEntry().variants,
+          {
+            id: 'unix-ansible',
+            label: 'Ansible workflow',
+            summary: 'Install OpenClaw through the openclaw-ansible automation repository.',
+            softwareName: 'openclaw-ansible',
+            hostPlatforms: ['ubuntu'],
+            runtimePlatform: 'host',
+            manifestName: 'openclaw-ansible',
+            manifestDescription: 'OpenClaw Ansible profile',
+            manifestHomepage: 'https://docs.openclaw.ai/install/ansible',
+            installationMethod: {
+              id: 'ansible',
+              label: 'Ansible',
+              type: 'command',
+              summary: 'Use the Ansible automation repository.',
+              supported: true,
+              documentationUrl: 'https://docs.openclaw.ai/install/ansible',
+              notes: [],
+            },
+            request: {
+              softwareName: 'openclaw-ansible',
+            },
+          },
+        ],
+      }),
+      'linux',
+    );
+
+    const ansibleChoice = presentation.installChoices.find(
+      (choice) => choice.softwareName === 'openclaw-ansible',
+    );
+
+    assert.equal(ansibleChoice?.iconId, 'server');
+    assert.ok(ansibleChoice?.tags.includes('ansible'));
+    assert.ok(ansibleChoice?.tags.includes('automation'));
+    assert.deepEqual(ansibleChoice?.supportedHosts, ['linux']);
   },
 );

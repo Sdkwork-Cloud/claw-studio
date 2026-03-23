@@ -26,8 +26,8 @@ import {
 } from '@sdkwork/claw-infrastructure';
 import { Checkbox } from '@sdkwork/claw-ui';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
-import { GuidedInstallWizard, OpenClawGuidedInstallWizard } from '../../components';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { OpenClawGuidedInstallWizard } from '../../components';
 import {
   buildInstallRecommendationSummary,
   detectOpenClawCatalogChoice,
@@ -49,6 +49,7 @@ import {
   getVisibleUninstallChoices,
   pathJoin,
   pathParent,
+  shouldShowProductSidebar,
   type HostOs,
   type IconId,
   type LegacyInstallRecord,
@@ -361,6 +362,7 @@ async function refreshMigrationCandidates(
 
 export function Install() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const progressUnsubscribeRef = useRef<RuntimeEventUnsubscribe | null>(null);
   const uninstallOutputRef = useRef<HTMLDivElement>(null);
@@ -399,6 +401,7 @@ export function Install() {
     () => PRODUCTS.find((item) => item.id === productId) ?? PRODUCTS[0],
     [productId],
   );
+  const showProductSidebar = shouldShowProductSidebar(PRODUCTS.length);
   const hostOs = useMemo(() => getHostOs(runtimeInfo), [runtimeInfo]);
   const staticInstallChoices = useMemo(
     () => buildStaticInstallChoices(product, hostOs, t as (key: string) => string),
@@ -765,29 +768,35 @@ export function Install() {
 
   return (
     <div className="h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-      <div className="grid h-full grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="border-b border-zinc-200 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/80 md:border-b-0 md:border-r">
-          <div className="productSidebar space-y-2">
-            {PRODUCTS.map((item) => {
-              const active = item.id === product.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setProductId(item.id)}
-                  className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition-colors ${
-                    active
-                      ? 'border-primary-500/40 bg-primary-500/10 text-zinc-950 dark:text-zinc-50'
-                      : 'border-transparent bg-transparent text-zinc-500 hover:border-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900'
-                  }`}
-                >
-                  <span>{t(item.nameKey)}</span>
-                  {active && <span className="h-2.5 w-2.5 rounded-full bg-primary-500" />}
-                </button>
-              );
-            })}
-          </div>
-        </aside>
+      <div
+        className={`grid h-full ${
+          showProductSidebar ? 'grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)]' : 'grid-cols-1'
+        }`}
+      >
+        {showProductSidebar && (
+          <aside className="border-b border-zinc-200 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/80 md:border-b-0 md:border-r">
+            <div className="productSidebar space-y-2">
+              {PRODUCTS.map((item) => {
+                const active = item.id === product.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setProductId(item.id)}
+                    className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition-colors ${
+                      active
+                        ? 'border-primary-500/40 bg-primary-500/10 text-zinc-950 dark:text-zinc-50'
+                        : 'border-transparent bg-transparent text-zinc-500 hover:border-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900'
+                    }`}
+                  >
+                    <span>{t(item.nameKey)}</span>
+                    {active && <span className="h-2.5 w-2.5 rounded-full bg-primary-500" />}
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+        )}
 
         <main className="flex min-h-0 flex-col p-4 md:p-6">
           <div className="workspaceModeTabs mb-4 flex items-center justify-center">
@@ -908,13 +917,22 @@ export function Install() {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setInstallWizardMethodId(choice.id)}
-                        className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                      >
-                        {t('install.page.method.actions.install')}
-                      </button>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/install/${choice.id}`)}
+                          className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                        >
+                          Guide
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInstallWizardMethodId(choice.id)}
+                          className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        >
+                          {t('install.page.method.actions.install')}
+                        </button>
+                      </div>
                     </section>
                   );
                 })}
@@ -1153,32 +1171,19 @@ export function Install() {
           </div>
         </main>
       </div>
-      {activeInstallChoice &&
-        (product.id === 'openclaw' ? (
-          <OpenClawGuidedInstallWizard
-            isOpen={Boolean(activeInstallChoice)}
-            productName={t(product.nameKey)}
-            methodLabel={activeInstallChoice.label}
-            methodIcon={renderMethodIcon(activeInstallChoice.iconId)}
-            request={activeInstallChoice.request}
-            onClose={() => setInstallWizardMethodId(null)}
-            onInstallSuccess={() => {
-              void handleInstallFinished(activeInstallChoice.id);
-            }}
-          />
-        ) : (
-          <GuidedInstallWizard
-            isOpen={Boolean(activeInstallChoice)}
-            productName={t(product.nameKey)}
-            methodLabel={activeInstallChoice.label}
-            methodIcon={renderMethodIcon(activeInstallChoice.iconId)}
-            request={activeInstallChoice.request}
-            onClose={() => setInstallWizardMethodId(null)}
-            onInstalled={() => {
-              void handleInstallFinished(activeInstallChoice.id);
-            }}
-          />
-        ))}
+      {activeInstallChoice && (
+        <OpenClawGuidedInstallWizard
+          isOpen={Boolean(activeInstallChoice)}
+          productName={t(product.nameKey)}
+          methodLabel={activeInstallChoice.label}
+          methodIcon={renderMethodIcon(activeInstallChoice.iconId)}
+          request={activeInstallChoice.request}
+          onClose={() => setInstallWizardMethodId(null)}
+          onInstallSuccess={() => {
+            void handleInstallFinished(activeInstallChoice.id);
+          }}
+        />
+      )}
 
       {isModalOpen && action && (
         <div className="fixed inset-0 z-[90] flex min-h-screen items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm">

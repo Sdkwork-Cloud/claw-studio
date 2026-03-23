@@ -104,20 +104,6 @@ const CATALOG_SEEDS: &[CatalogSeed] = &[
         variants: &[],
     },
     CatalogSeed {
-        app_id: "app-codex",
-        title: "Codex",
-        developer: "OpenAI",
-        category: "AI Agents",
-        summary_software_name: "codex",
-        variants: &[CatalogVariantSeed {
-            id: "shared-host",
-            software_name: "codex",
-            runtime_platform: "host",
-            host_platforms: SHARED_HOST_PLATFORMS,
-            ..DEFAULT_VARIANT_SEED
-        }],
-    },
-    CatalogSeed {
         app_id: "app-nodejs",
         title: "Node.js",
         developer: "Node.js Foundation",
@@ -316,10 +302,12 @@ fn build_openclaw_catalog_entry(
     host_platform: &str,
 ) -> FrameworkResult<HubInstallCatalogEntry> {
     let summary_entry = resolve_entry(loaded_registry, seed.summary_software_name, host_platform)?;
+    let normalized_host_platform = normalize_catalog_host_platform(host_platform)?;
     let mut variants = build_openclaw_catalog_variants(loaded_registry)?;
+    variants.retain(|variant| variant_supports_host_platform(variant, normalized_host_platform));
     variants.sort_by(|left, right| compare_openclaw_variant(left, right));
 
-    let default_variant = resolve_default_openclaw_variant(&variants, host_platform)
+    let default_variant = resolve_default_openclaw_variant(&variants, normalized_host_platform)
         .ok_or_else(|| FrameworkError::NotFound("openclaw catalog variant".to_string()))?;
 
     Ok(HubInstallCatalogEntry {
@@ -667,6 +655,17 @@ fn supported_host_platforms_from_variants(variants: &[HubInstallCatalogVariant])
     values
 }
 
+fn normalize_catalog_host_platform(host_platform: &str) -> FrameworkResult<&'static str> {
+    Ok(parse_supported_platform(host_platform)?.as_str())
+}
+
+fn variant_supports_host_platform(variant: &HubInstallCatalogVariant, host_platform: &str) -> bool {
+    variant
+        .host_platforms
+        .iter()
+        .any(|value| value == host_platform)
+}
+
 fn build_catalog_variant(
     loaded_registry: &LoadedSoftwareRegistry,
     seed: &CatalogVariantSeed,
@@ -895,6 +894,16 @@ mod tests {
     }
 
     #[test]
+    fn hub_catalog_omits_codex_seed_from_desktop_catalog() {
+        let entries = catalog_from_registry_source(None, &registry_source()).expect("catalog");
+
+        assert!(
+            entries.iter().all(|entry| entry.app_id != "app-codex"),
+            "desktop catalog should stay focused on OpenClaw plus shared runtime/package-manager prerequisites"
+        );
+    }
+
+    #[test]
     fn hub_catalog_surfaces_openclaw_multi_profile_matrix() {
         let entries = catalog_from_registry_source(
             Some(super::HubInstallCatalogQuery {
@@ -950,8 +959,55 @@ mod tests {
         assert!(variant_ids.contains(&"unix-docker"));
         assert!(variant_ids.contains(&"unix-podman"));
         assert!(variant_ids.contains(&"unix-bun"));
-        assert!(variant_ids.contains(&"unix-ansible"));
         assert!(variant_ids.contains(&"unix-nix"));
+        assert!(!variant_ids.contains(&"unix-ansible"));
+    }
+
+    #[test]
+    fn hub_catalog_surfaces_openclaw_ansible_only_on_ubuntu_hosts() {
+        let entries = catalog_from_registry_source(
+            Some(super::HubInstallCatalogQuery {
+                host_platform: Some("ubuntu".to_string()),
+            }),
+            &registry_source(),
+        )
+        .expect("catalog");
+
+        let openclaw = entries
+            .iter()
+            .find(|entry| entry.app_id == "app-openclaw")
+            .expect("openclaw entry");
+        let variant_ids: Vec<&str> = openclaw
+            .variants
+            .iter()
+            .map(|variant| variant.id.as_str())
+            .collect();
+
+        assert!(variant_ids.contains(&"unix-ansible"));
+    }
+
+    #[test]
+    fn hub_catalog_maps_linux_query_to_ubuntu_openclaw_profiles() {
+        let entries = catalog_from_registry_source(
+            Some(super::HubInstallCatalogQuery {
+                host_platform: Some("linux".to_string()),
+            }),
+            &registry_source(),
+        )
+        .expect("catalog");
+
+        let openclaw = entries
+            .iter()
+            .find(|entry| entry.app_id == "app-openclaw")
+            .expect("openclaw entry");
+        let variant_ids: Vec<&str> = openclaw
+            .variants
+            .iter()
+            .map(|variant| variant.id.as_str())
+            .collect();
+
+        assert!(variant_ids.contains(&"unix-ansible"));
+        assert!(variant_ids.iter().all(|id| *id != "windows-wsl"));
     }
 
     #[test]

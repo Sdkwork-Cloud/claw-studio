@@ -1,6 +1,6 @@
 import type { HubInstallRequest, HubUninstallRequest, RuntimeInfo } from '@sdkwork/claw-infrastructure';
 
-export type ProductId = 'openclaw' | 'zeroclaw' | 'ironclaw';
+export type ProductId = 'openclaw';
 export type PageMode = 'install' | 'uninstall' | 'migrate';
 export type HostOs = 'windows' | 'macos' | 'linux' | 'unknown';
 export type Status = 'idle' | 'running' | 'success' | 'error';
@@ -141,7 +141,7 @@ function createLegacyRecordFileName(productId: ProductId) {
 
 function createMigrationDefinitions(productId: ProductId): MigrationDefinition[] {
   const hiddenRoot = `.${productId}`;
-  const definitions: MigrationDefinition[] = [
+  return [
     {
       id: 'config',
       titleKey: 'install.page.migrate.sections.config.title',
@@ -189,12 +189,6 @@ function createMigrationDefinitions(productId: ProductId): MigrationDefinition[]
       sourceKind: 'manual',
     },
   ];
-
-  if (productId === 'ironclaw') {
-    return definitions.filter((definition) => definition.id !== 'data');
-  }
-
-  return definitions;
 }
 
 type OpenClawChoiceDefinition = {
@@ -361,14 +355,14 @@ const OPENCLAW_CHOICE_DEFINITIONS: OpenClawChoiceDefinition[] = [
     titleFallback: 'Ansible workflow',
     descriptionKey: 'install.page.methods.ansible.description',
     descriptionFallback:
-      'Install OpenClaw through the documented openclaw-ansible automation repository on the current Unix host.',
+      'Install OpenClaw through the documented openclaw-ansible automation repository on Debian/Ubuntu hosts.',
     uninstallDescriptionKey: 'install.page.uninstall.methods.ansible.description',
     uninstallDescriptionFallback:
       'Remove the OpenClaw automation repository install and related host-side assets.',
     iconId: 'server',
-    tags: ['ansible', 'automation', 'macos', 'linux'],
+    tags: ['ansible', 'automation', 'linux'],
     request: { softwareName: 'openclaw-ansible' },
-    supportedHosts: ['macos', 'linux'],
+    supportedHosts: ['linux'],
   },
   {
     id: 'nix',
@@ -409,30 +403,6 @@ const OPENCLAW_METHODS: InstallChoice[] = [
   },
 ];
 
-const ZEROCLAW_METHODS: InstallChoice[] = [
-  {
-    id: 'source',
-    titleKey: 'install.page.methods.zeroclawSource.title',
-    descriptionKey: 'install.page.methods.zeroclawSource.description',
-    iconId: 'github',
-    tags: ['source', 'git', 'rust', 'cargo'],
-    request: { softwareName: 'zeroclaw-source' },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-];
-
-const IRONCLAW_METHODS: InstallChoice[] = [
-  {
-    id: 'source',
-    titleKey: 'install.page.methods.ironclawSource.title',
-    descriptionKey: 'install.page.methods.ironclawSource.description',
-    iconId: 'github',
-    tags: ['source', 'git', 'rust', 'postgresql', 'security'],
-    request: { softwareName: 'ironclaw-source' },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-];
-
 const OPENCLAW_UNINSTALL_METHODS: UninstallChoice[] = OPENCLAW_CHOICE_DEFINITIONS.map(
   ({
     descriptionFallback: _descriptionFallback,
@@ -454,30 +424,6 @@ const OPENCLAW_UNINSTALL_METHODS: UninstallChoice[] = OPENCLAW_CHOICE_DEFINITION
   }),
 );
 
-const ZEROCLAW_UNINSTALL_METHODS: UninstallChoice[] = [
-  {
-    id: 'source',
-    titleKey: 'install.page.methods.zeroclawSource.title',
-    descriptionKey: 'install.page.uninstall.methods.zeroclawSource.description',
-    iconId: 'trash',
-    tags: ['source', 'git', 'rust', 'cargo'],
-    request: { softwareName: 'zeroclaw-source', purgeData: false },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-];
-
-const IRONCLAW_UNINSTALL_METHODS: UninstallChoice[] = [
-  {
-    id: 'source',
-    titleKey: 'install.page.methods.ironclawSource.title',
-    descriptionKey: 'install.page.uninstall.methods.ironclawSource.description',
-    iconId: 'trash',
-    tags: ['source', 'git', 'rust', 'postgresql', 'security'],
-    request: { softwareName: 'ironclaw-source', purgeData: false },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-];
-
 export const PRODUCTS: ProductConfig[] = [
   {
     id: 'openclaw',
@@ -493,26 +439,6 @@ export const PRODUCTS: ProductConfig[] = [
     uninstallMethods: OPENCLAW_UNINSTALL_METHODS,
     migrationDefinitions: createMigrationDefinitions('openclaw'),
     legacyRecordFileName: createLegacyRecordFileName('openclaw'),
-  },
-  {
-    id: 'zeroclaw',
-    nameKey: 'install.page.products.zeroclaw.name',
-    descriptionKey: 'install.page.products.zeroclaw.description',
-    recommendedMethodId: 'source',
-    methods: ZEROCLAW_METHODS,
-    uninstallMethods: ZEROCLAW_UNINSTALL_METHODS,
-    migrationDefinitions: createMigrationDefinitions('zeroclaw'),
-    legacyRecordFileName: createLegacyRecordFileName('zeroclaw'),
-  },
-  {
-    id: 'ironclaw',
-    nameKey: 'install.page.products.ironclaw.name',
-    descriptionKey: 'install.page.products.ironclaw.description',
-    recommendedMethodId: 'source',
-    methods: IRONCLAW_METHODS,
-    uninstallMethods: IRONCLAW_UNINSTALL_METHODS,
-    migrationDefinitions: createMigrationDefinitions('ironclaw'),
-    legacyRecordFileName: createLegacyRecordFileName('ironclaw'),
   },
 ];
 
@@ -566,6 +492,10 @@ export function getInstallGridClassName(count: number) {
   }
 
   return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
+}
+
+export function shouldShowProductSidebar(productCount: number) {
+  return productCount > 1;
 }
 
 export function getVisibleUninstallChoices(product: ProductConfig, hostOs: HostOs) {
