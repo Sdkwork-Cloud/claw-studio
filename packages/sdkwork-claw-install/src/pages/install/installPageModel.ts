@@ -4,22 +4,43 @@ export type ProductId = 'openclaw' | 'zeroclaw' | 'ironclaw';
 export type PageMode = 'install' | 'uninstall' | 'migrate';
 export type HostOs = 'windows' | 'macos' | 'linux' | 'unknown';
 export type Status = 'idle' | 'running' | 'success' | 'error';
-export type MethodId = 'wsl' | 'docker' | 'npm' | 'pnpm' | 'source' | 'cloud';
+export type MethodId =
+  | 'wsl'
+  | 'installer'
+  | 'installerCli'
+  | 'git'
+  | 'docker'
+  | 'npm'
+  | 'pnpm'
+  | 'source'
+  | 'podman'
+  | 'bun'
+  | 'ansible'
+  | 'nix'
+  | 'cloud';
 export type IconId = 'sparkles' | 'server' | 'package' | 'github' | 'cloud' | 'trash' | 'file';
 export type TagId =
+  | 'ansible'
+  | 'automation'
+  | 'bun'
   | 'cargo'
   | 'cloud'
+  | 'declarative'
   | 'docker'
+  | 'experimental'
   | 'git'
   | 'linux'
   | 'macos'
   | 'managed'
+  | 'nix'
   | 'nodejs'
   | 'npm'
   | 'pnpm'
+  | 'podman'
   | 'postgresql'
   | 'rust'
   | 'security'
+  | 'script'
   | 'source'
   | 'windows'
   | 'wsl';
@@ -46,7 +67,9 @@ export type LegacyInstallRecord = {
 export type InstallChoice = {
   id: MethodId;
   titleKey: string;
+  titleFallback?: string;
   descriptionKey: string;
+  descriptionFallback?: string;
   iconId: IconId;
   tags: TagId[];
   request: HubInstallRequest;
@@ -57,7 +80,9 @@ export type InstallChoice = {
 export type UninstallChoice = {
   id: Exclude<MethodId, 'cloud'>;
   titleKey: string;
+  titleFallback?: string;
   descriptionKey: string;
+  descriptionFallback?: string;
   iconId: IconId;
   tags: TagId[];
   request: HubUninstallRequest;
@@ -172,29 +197,87 @@ function createMigrationDefinitions(productId: ProductId): MigrationDefinition[]
   return definitions;
 }
 
-const OPENCLAW_METHODS: InstallChoice[] = [
+type OpenClawChoiceDefinition = {
+  id: Exclude<MethodId, 'cloud'>;
+  titleKey: string;
+  titleFallback: string;
+  descriptionKey: string;
+  descriptionFallback: string;
+  uninstallDescriptionKey: string;
+  uninstallDescriptionFallback: string;
+  iconId: Exclude<IconId, 'cloud' | 'trash'>;
+  tags: TagId[];
+  request: HubInstallRequest;
+  supportedHosts: HostOs[];
+};
+
+const OPENCLAW_CHOICE_DEFINITIONS: OpenClawChoiceDefinition[] = [
   {
     id: 'wsl',
     titleKey: 'install.page.methods.wsl.title',
+    titleFallback: 'WSL install',
     descriptionKey: 'install.page.methods.wsl.description',
+    descriptionFallback: 'Install OpenClaw inside WSL on Windows for a Linux-style runtime path.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.wsl.description',
+    uninstallDescriptionFallback: 'Remove the OpenClaw runtime installed inside WSL.',
     iconId: 'sparkles',
     tags: ['wsl', 'windows', 'managed'],
     request: { softwareName: 'openclaw-wsl', effectiveRuntimePlatform: 'wsl' },
     supportedHosts: ['windows'],
   },
   {
-    id: 'docker',
-    titleKey: 'install.page.methods.docker.title',
-    descriptionKey: 'install.page.methods.docker.description',
-    iconId: 'server',
-    tags: ['docker', 'windows', 'macos', 'linux'],
-    request: { softwareName: 'openclaw-docker', containerRuntimePreference: 'auto' },
+    id: 'installer',
+    titleKey: 'install.page.methods.installer.title',
+    titleFallback: 'Official installer script',
+    descriptionKey: 'install.page.methods.installer.description',
+    descriptionFallback:
+      'Run the upstream OpenClaw installer script with hub-installer-managed defaults.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.installer.description',
+    uninstallDescriptionFallback:
+      'Remove the OpenClaw installation created by the official installer script while preserving user data by default.',
+    iconId: 'sparkles',
+    tags: ['managed', 'script', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'openclaw' },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+  {
+    id: 'installerCli',
+    titleKey: 'install.page.methods.installerCli.title',
+    titleFallback: 'Installer CLI local prefix',
+    descriptionKey: 'install.page.methods.installerCli.description',
+    descriptionFallback:
+      'Install OpenClaw into a managed local prefix with the documented install-cli workflow.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.installerCli.description',
+    uninstallDescriptionFallback:
+      'Remove the managed local-prefix OpenClaw installation created by install-cli.sh.',
+    iconId: 'package',
+    tags: ['managed', 'script', 'macos', 'linux'],
+    request: { softwareName: 'openclaw-cli-script' },
+    supportedHosts: ['macos', 'linux'],
+  },
+  {
+    id: 'git',
+    titleKey: 'install.page.methods.git.title',
+    titleFallback: 'Installer script (git mode)',
+    descriptionKey: 'install.page.methods.git.description',
+    descriptionFallback:
+      'Use the official installer in git mode to keep a local working tree under hub-installer control.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.git.description',
+    uninstallDescriptionFallback:
+      'Remove the installer-script git-mode OpenClaw checkout and associated managed wrappers.',
+    iconId: 'github',
+    tags: ['git', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'openclaw-git' },
     supportedHosts: ['windows', 'macos', 'linux'],
   },
   {
     id: 'npm',
     titleKey: 'install.page.methods.npm.title',
+    titleFallback: 'npm install',
     descriptionKey: 'install.page.methods.npm.description',
+    descriptionFallback: 'Install globally with npm when Node.js is already available on the host.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.npm.description',
+    uninstallDescriptionFallback: 'Remove the globally installed OpenClaw npm package.',
     iconId: 'package',
     tags: ['nodejs', 'npm', 'windows', 'macos', 'linux'],
     request: { softwareName: 'openclaw-npm' },
@@ -203,7 +286,12 @@ const OPENCLAW_METHODS: InstallChoice[] = [
   {
     id: 'pnpm',
     titleKey: 'install.page.methods.pnpm.title',
+    titleFallback: 'pnpm install',
     descriptionKey: 'install.page.methods.pnpm.description',
+    descriptionFallback:
+      'Install globally with pnpm for teams already using a pnpm-based toolchain.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.pnpm.description',
+    uninstallDescriptionFallback: 'Remove the globally installed OpenClaw pnpm package.',
     iconId: 'package',
     tags: ['nodejs', 'pnpm', 'windows', 'macos', 'linux'],
     request: { softwareName: 'openclaw-pnpm' },
@@ -212,16 +300,107 @@ const OPENCLAW_METHODS: InstallChoice[] = [
   {
     id: 'source',
     titleKey: 'install.page.methods.source.title',
+    titleFallback: 'Source install',
     descriptionKey: 'install.page.methods.source.description',
+    descriptionFallback: 'Clone, build, and run the selected product from source.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.source.description',
+    uninstallDescriptionFallback:
+      'Remove the source-based OpenClaw runtime and local build artifacts.',
     iconId: 'github',
     tags: ['source', 'git', 'windows', 'macos', 'linux'],
     request: { softwareName: 'openclaw-source' },
     supportedHosts: ['windows', 'macos', 'linux'],
   },
   {
+    id: 'docker',
+    titleKey: 'install.page.methods.docker.title',
+    titleFallback: 'Docker install',
+    descriptionKey: 'install.page.methods.docker.description',
+    descriptionFallback:
+      'Install with Docker and support local Docker or Docker running inside WSL.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.docker.description',
+    uninstallDescriptionFallback: 'Stop and remove the OpenClaw Docker deployment.',
+    iconId: 'server',
+    tags: ['docker', 'windows', 'macos', 'linux'],
+    request: { softwareName: 'openclaw-docker', containerRuntimePreference: 'auto' },
+    supportedHosts: ['windows', 'macos', 'linux'],
+  },
+  {
+    id: 'podman',
+    titleKey: 'install.page.methods.podman.title',
+    titleFallback: 'Podman workflow',
+    descriptionKey: 'install.page.methods.podman.description',
+    descriptionFallback:
+      'Run the documented rootless Podman deployment workflow on the current Unix host.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.podman.description',
+    uninstallDescriptionFallback:
+      'Remove the rootless Podman OpenClaw deployment and related launcher assets.',
+    iconId: 'server',
+    tags: ['podman', 'macos', 'linux'],
+    request: { softwareName: 'openclaw-podman' },
+    supportedHosts: ['macos', 'linux'],
+  },
+  {
+    id: 'bun',
+    titleKey: 'install.page.methods.bun.title',
+    titleFallback: 'Bun experimental workflow',
+    descriptionKey: 'install.page.methods.bun.description',
+    descriptionFallback:
+      'Build OpenClaw from source with the documented Bun runtime workflow on the current Unix host.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.bun.description',
+    uninstallDescriptionFallback:
+      'Remove the Bun-based OpenClaw build artifacts and managed wrappers.',
+    iconId: 'package',
+    tags: ['bun', 'source', 'experimental', 'macos', 'linux'],
+    request: { softwareName: 'openclaw-bun' },
+    supportedHosts: ['macos', 'linux'],
+  },
+  {
+    id: 'ansible',
+    titleKey: 'install.page.methods.ansible.title',
+    titleFallback: 'Ansible workflow',
+    descriptionKey: 'install.page.methods.ansible.description',
+    descriptionFallback:
+      'Install OpenClaw through the documented openclaw-ansible automation repository on the current Unix host.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.ansible.description',
+    uninstallDescriptionFallback:
+      'Remove the OpenClaw automation repository install and related host-side assets.',
+    iconId: 'server',
+    tags: ['ansible', 'automation', 'macos', 'linux'],
+    request: { softwareName: 'openclaw-ansible' },
+    supportedHosts: ['macos', 'linux'],
+  },
+  {
+    id: 'nix',
+    titleKey: 'install.page.methods.nix.title',
+    titleFallback: 'Nix workflow',
+    descriptionKey: 'install.page.methods.nix.description',
+    descriptionFallback:
+      'Install OpenClaw with the documented nix-openclaw flake workflows on the current Unix host.',
+    uninstallDescriptionKey: 'install.page.uninstall.methods.nix.description',
+    uninstallDescriptionFallback:
+      'Remove the nix-openclaw profile integration while preserving data roots by default.',
+    iconId: 'package',
+    tags: ['nix', 'declarative', 'macos', 'linux'],
+    request: { softwareName: 'openclaw-nix' },
+    supportedHosts: ['macos', 'linux'],
+  },
+];
+
+const OPENCLAW_METHODS: InstallChoice[] = [
+  ...OPENCLAW_CHOICE_DEFINITIONS.map(
+    ({
+      uninstallDescriptionFallback: _uninstallDescriptionFallback,
+      uninstallDescriptionKey: _uninstallDescriptionKey,
+      ...choice
+    }) => choice,
+  ),
+  {
     id: 'cloud',
     titleKey: 'install.page.methods.cloud.title',
+    titleFallback: 'Cloud install',
     descriptionKey: 'install.page.methods.cloud.description',
+    descriptionFallback: 'Provision the selected product in the cloud. This mode is in development.',
     iconId: 'cloud',
     tags: ['cloud'],
     request: { softwareName: 'openclaw-cloud' },
@@ -254,53 +433,26 @@ const IRONCLAW_METHODS: InstallChoice[] = [
   },
 ];
 
-const OPENCLAW_UNINSTALL_METHODS: UninstallChoice[] = [
-  {
-    id: 'wsl',
-    titleKey: 'install.page.methods.wsl.title',
-    descriptionKey: 'install.page.uninstall.methods.wsl.description',
+const OPENCLAW_UNINSTALL_METHODS: UninstallChoice[] = OPENCLAW_CHOICE_DEFINITIONS.map(
+  ({
+    descriptionFallback: _descriptionFallback,
+    descriptionKey: _descriptionKey,
+    iconId: _iconId,
+    request,
+    uninstallDescriptionFallback,
+    uninstallDescriptionKey,
+    ...choice
+  }) => ({
+    ...choice,
+    descriptionKey: uninstallDescriptionKey,
+    descriptionFallback: uninstallDescriptionFallback,
     iconId: 'trash',
-    tags: ['wsl', 'windows'],
-    request: { softwareName: 'openclaw-wsl', effectiveRuntimePlatform: 'wsl', purgeData: false },
-    supportedHosts: ['windows'],
-  },
-  {
-    id: 'docker',
-    titleKey: 'install.page.methods.docker.title',
-    descriptionKey: 'install.page.uninstall.methods.docker.description',
-    iconId: 'trash',
-    tags: ['docker', 'windows', 'macos', 'linux'],
-    request: { softwareName: 'openclaw-docker', purgeData: false },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-  {
-    id: 'npm',
-    titleKey: 'install.page.methods.npm.title',
-    descriptionKey: 'install.page.uninstall.methods.npm.description',
-    iconId: 'trash',
-    tags: ['npm', 'windows', 'macos', 'linux'],
-    request: { softwareName: 'openclaw-npm', purgeData: false },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-  {
-    id: 'pnpm',
-    titleKey: 'install.page.methods.pnpm.title',
-    descriptionKey: 'install.page.uninstall.methods.pnpm.description',
-    iconId: 'trash',
-    tags: ['pnpm', 'windows', 'macos', 'linux'],
-    request: { softwareName: 'openclaw-pnpm', purgeData: false },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-  {
-    id: 'source',
-    titleKey: 'install.page.methods.source.title',
-    descriptionKey: 'install.page.uninstall.methods.source.description',
-    iconId: 'trash',
-    tags: ['source', 'git', 'windows', 'macos', 'linux'],
-    request: { softwareName: 'openclaw-source', purgeData: false },
-    supportedHosts: ['windows', 'macos', 'linux'],
-  },
-];
+    request: {
+      ...request,
+      purgeData: false,
+    },
+  }),
+);
 
 const ZEROCLAW_UNINSTALL_METHODS: UninstallChoice[] = [
   {
@@ -331,11 +483,11 @@ export const PRODUCTS: ProductConfig[] = [
     id: 'openclaw',
     nameKey: 'install.page.products.openclaw.name',
     descriptionKey: 'install.page.products.openclaw.description',
-    recommendedMethodId: 'npm',
+    recommendedMethodId: 'installer',
     recommendedMethodByHost: {
       windows: 'wsl',
-      macos: 'npm',
-      linux: 'npm',
+      macos: 'installer',
+      linux: 'installer',
     },
     methods: OPENCLAW_METHODS,
     uninstallMethods: OPENCLAW_UNINSTALL_METHODS,
@@ -389,7 +541,11 @@ export function pathParent(value: string | null | undefined) {
 }
 
 export function supports(hostOs: HostOs, choice: { id: string; supportedHosts: HostOs[] }) {
-  return hostOs === 'unknown' ? choice.id !== 'wsl' : choice.supportedHosts.includes(hostOs);
+  if (hostOs === 'unknown') {
+    return ['windows', 'macos', 'linux'].every((platform) => choice.supportedHosts.includes(platform));
+  }
+
+  return choice.supportedHosts.includes(hostOs);
 }
 
 export function getVisibleInstallChoices(product: ProductConfig, hostOs: HostOs) {
@@ -437,10 +593,30 @@ export function getDetectedMethodId(
     }
 
     if (candidate.endsWith('-wsl') || candidate.includes('wsl')) return 'wsl';
+    if (
+      candidate.endsWith('-cli-script') ||
+      candidate.includes('installer cli') ||
+      candidate.includes('cli script') ||
+      candidate.includes('install-cli')
+    ) {
+      return 'installerCli';
+    }
+    if (candidate.endsWith('-git') || candidate.includes('git mode')) return 'git';
+    if (candidate.endsWith('-podman') || candidate.includes('podman')) return 'podman';
+    if (candidate.endsWith('-bun') || candidate.includes('bun')) return 'bun';
+    if (candidate.endsWith('-ansible') || candidate.includes('ansible')) return 'ansible';
+    if (candidate.endsWith('-nix') || candidate.includes('nix')) return 'nix';
     if (candidate.endsWith('-docker') || candidate.includes('docker')) return 'docker';
     if (candidate.endsWith('-pnpm') || candidate.includes('pnpm')) return 'pnpm';
     if (candidate.endsWith('-npm') || candidate.includes('npm')) return 'npm';
     if (candidate.endsWith('-source') || candidate.includes('source')) return 'source';
+    if (
+      candidate === 'openclaw' ||
+      candidate.includes('official installer script') ||
+      candidate.includes('installer script')
+    ) {
+      return 'installer';
+    }
     if (candidate.endsWith('-cloud') || candidate.includes('cloud')) return 'cloud';
   }
 

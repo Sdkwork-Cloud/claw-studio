@@ -174,6 +174,15 @@ function toCatalogQuery(hostOs: HostOs): HubInstallCatalogQuery | undefined {
   return undefined;
 }
 
+function translateOrFallback(
+  t: (key: string) => string,
+  key: string,
+  fallback?: string,
+) {
+  const translated = t(key);
+  return translated === key ? fallback ?? translated : translated;
+}
+
 function buildStaticInstallChoices(
   product: ProductConfig,
   hostOs: HostOs,
@@ -188,9 +197,11 @@ function buildStaticInstallChoices(
 
     return {
       id: choice.id,
-      label: t(choice.titleKey),
-      description: t(choice.descriptionKey),
-      uninstallDescription: uninstallChoice ? t(uninstallChoice.descriptionKey) : t(choice.descriptionKey),
+      label: translateOrFallback(t, choice.titleKey, choice.titleFallback),
+      description: translateOrFallback(t, choice.descriptionKey, choice.descriptionFallback),
+      uninstallDescription: uninstallChoice
+        ? translateOrFallback(t, uninstallChoice.descriptionKey, uninstallChoice.descriptionFallback)
+        : translateOrFallback(t, choice.descriptionKey, choice.descriptionFallback),
       iconId: choice.iconId,
       tags: [...choice.tags],
       request: choice.request,
@@ -217,9 +228,15 @@ function buildStaticUninstallChoices(
 
     return {
       id: choice.id,
-      label: t(choice.titleKey),
-      description: installChoice ? t(installChoice.descriptionKey) : t(choice.descriptionKey),
-      uninstallDescription: t(choice.descriptionKey),
+      label: translateOrFallback(t, choice.titleKey, choice.titleFallback),
+      description: installChoice
+        ? translateOrFallback(t, installChoice.descriptionKey, installChoice.descriptionFallback)
+        : translateOrFallback(t, choice.descriptionKey, choice.descriptionFallback),
+      uninstallDescription: translateOrFallback(
+        t,
+        choice.descriptionKey,
+        choice.descriptionFallback,
+      ),
       iconId: choice.iconId,
       tags: [...choice.tags],
       request: installChoice?.request ?? choice.request,
