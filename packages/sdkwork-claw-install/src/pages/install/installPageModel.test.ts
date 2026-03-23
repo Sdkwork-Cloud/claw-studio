@@ -10,7 +10,7 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
   }
 }
 
-await runTest('installPageModel keeps OpenClaw install methods concise per host', async () => {
+await runTest('installPageModel keeps OpenClaw fallback methods aligned with hub-installer profiles per host', async () => {
   const { PRODUCTS, getVisibleInstallChoices } = await import('./installPageModel.ts');
 
   const openclaw = PRODUCTS.find((item) => item.id === 'openclaw');
@@ -18,11 +18,15 @@ await runTest('installPageModel keeps OpenClaw install methods concise per host'
 
   assert.deepEqual(
     getVisibleInstallChoices(openclaw, 'windows').map((item) => item.id),
-    ['wsl', 'docker', 'npm', 'pnpm', 'source'],
+    ['wsl', 'installer', 'git', 'npm', 'pnpm', 'source', 'docker'],
   );
   assert.deepEqual(
     getVisibleInstallChoices(openclaw, 'linux').map((item) => item.id),
-    ['docker', 'npm', 'pnpm', 'source'],
+    ['installer', 'installerCli', 'git', 'npm', 'pnpm', 'source', 'docker', 'podman', 'bun', 'ansible', 'nix'],
+  );
+  assert.deepEqual(
+    getVisibleInstallChoices(openclaw, 'unknown').map((item) => item.id),
+    ['installer', 'git', 'npm', 'pnpm', 'source', 'docker'],
   );
 });
 
@@ -45,6 +49,13 @@ await runTest('installPageModel detects the active install method from install r
 
   assert.equal(getDetectedMethodId({ manifestName: 'openclaw-pnpm' }), 'pnpm');
   assert.equal(getDetectedMethodId({ manifestName: 'openclaw-wsl' }), 'wsl');
+  assert.equal(getDetectedMethodId({ manifestName: 'openclaw' }), 'installer');
+  assert.equal(getDetectedMethodId({ manifestName: 'openclaw-cli-script' }), 'installerCli');
+  assert.equal(getDetectedMethodId({ manifestName: 'openclaw-git' }), 'git');
+  assert.equal(getDetectedMethodId({ manifestName: 'openclaw-podman' }), 'podman');
+  assert.equal(getDetectedMethodId({ manifestName: 'openclaw-bun' }), 'bun');
+  assert.equal(getDetectedMethodId({ manifestName: 'openclaw-ansible' }), 'ansible');
+  assert.equal(getDetectedMethodId({ manifestName: 'openclaw-nix' }), 'nix');
   assert.equal(
     getDetectedMethodId({
       softwareName: 'openclaw-pnpm',
@@ -54,10 +65,59 @@ await runTest('installPageModel detects the active install method from install r
   );
   assert.equal(
     getDetectedMethodId({
+      softwareName: 'openclaw',
+      manifestName: 'OpenClaw Install (Official Installer Script)',
+    }),
+    'installer',
+  );
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-cli-script',
+      manifestName: 'OpenClaw Install (Installer CLI Script)',
+    }),
+    'installerCli',
+  );
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-git',
+      manifestName: 'OpenClaw Install (Installer Script Git Mode)',
+    }),
+    'git',
+  );
+  assert.equal(
+    getDetectedMethodId({
       softwareName: 'openclaw-docker',
       manifestName: 'OpenClaw Install (Docker)',
     }),
     'docker',
+  );
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-podman',
+      manifestName: 'OpenClaw Install (Podman)',
+    }),
+    'podman',
+  );
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-bun',
+      manifestName: 'OpenClaw Install (Bun Experimental)',
+    }),
+    'bun',
+  );
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-ansible',
+      manifestName: 'OpenClaw Install (Ansible)',
+    }),
+    'ansible',
+  );
+  assert.equal(
+    getDetectedMethodId({
+      softwareName: 'openclaw-nix',
+      manifestName: 'OpenClaw Install (Nix)',
+    }),
+    'nix',
   );
   assert.equal(getDetectedMethodId({ manifestName: 'zeroclaw-source' }), 'source');
   assert.equal(getDetectedMethodId({ manifestName: 'unknown-manifest' }), null);
