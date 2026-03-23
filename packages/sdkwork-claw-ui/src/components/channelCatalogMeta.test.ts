@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { getChannelOfficialLink } from './channelCatalogMeta.ts';
+import {
+  getChannelOfficialLink,
+  isChannelDownloadAppAction,
+  sortChannelCatalogItems,
+} from './channelCatalogMeta.ts';
 
 function runTest(name: string, callback: () => void) {
   try {
@@ -12,6 +16,10 @@ function runTest(name: string, callback: () => void) {
 }
 
 runTest('getChannelOfficialLink maps supported channels to their official setup destinations', () => {
+  assert.deepEqual(getChannelOfficialLink('sdkworkchat'), {
+    href: 'https://clawstudio.sdkwork.com/platforms/android',
+    label: 'Sdkwork Chat App Download',
+  });
   assert.deepEqual(getChannelOfficialLink('feishu'), {
     href: 'https://open.feishu.cn/app?lang=zh-CN',
     label: 'Feishu Open Platform',
@@ -28,8 +36,87 @@ runTest('getChannelOfficialLink maps supported channels to their official setup 
     href: 'https://work.weixin.qq.com/wework_admin/loginpage_wx?redirect_uri=https%3A%2F%2Fwork.weixin.qq.com%2Fwework_admin%2Fframe',
     label: 'WeCom Admin Console',
   });
+  assert.deepEqual(getChannelOfficialLink('wehcat'), {
+    href: 'https://mp.weixin.qq.com/',
+    label: 'WeChat Official Account Platform',
+  });
 });
 
 runTest('getChannelOfficialLink returns null for channels without a dedicated destination', () => {
   assert.equal(getChannelOfficialLink('webhook'), null);
+});
+
+runTest('isChannelDownloadAppAction only marks first-party Sdkwork Chat as a download-only action', () => {
+  assert.equal(isChannelDownloadAppAction('sdkworkchat'), true);
+  assert.equal(isChannelDownloadAppAction('wehcat'), false);
+  assert.equal(isChannelDownloadAppAction('discord'), false);
+});
+
+runTest('sortChannelCatalogItems keeps Sdkwork Chat pinned first and preserves configured channels after it', () => {
+  const sorted = sortChannelCatalogItems([
+    {
+      id: 'discord',
+      name: 'Discord',
+      description: 'Discord workspace',
+      status: 'connected',
+      enabled: true,
+    },
+    {
+      id: 'sdkworkchat',
+      name: 'Sdkwork Chat',
+      description: 'Sdkwork Chat workspace',
+      status: 'not_configured',
+      enabled: false,
+    },
+    {
+      id: 'wehcat',
+      name: 'Wehcat',
+      description: 'WeChat workspace',
+      status: 'not_configured',
+      enabled: false,
+    },
+  ]);
+
+  assert.deepEqual(
+    sorted.map((item) => item.id),
+    ['sdkworkchat', 'wehcat', 'discord'],
+  );
+});
+
+runTest('sortChannelCatalogItems keeps QQ directly after Wehcat across shared channel surfaces', () => {
+  const sorted = sortChannelCatalogItems([
+    {
+      id: 'qq',
+      name: 'QQ',
+      description: 'QQ workspace',
+      status: 'not_configured',
+      enabled: false,
+    },
+    {
+      id: 'slack',
+      name: 'Slack',
+      description: 'Slack workspace',
+      status: 'connected',
+      enabled: true,
+    },
+    {
+      id: 'feishu',
+      name: 'Feishu',
+      description: 'Feishu workspace',
+      status: 'connected',
+      enabled: true,
+    },
+    {
+      id: 'wehcat',
+      name: 'Wehcat',
+      description: 'WeChat workspace',
+      status: 'connected',
+      enabled: true,
+    },
+  ]);
+
+  assert.deepEqual(
+    sorted.map((item) => item.id),
+    ['wehcat', 'qq', 'feishu', 'slack'],
+  );
 });

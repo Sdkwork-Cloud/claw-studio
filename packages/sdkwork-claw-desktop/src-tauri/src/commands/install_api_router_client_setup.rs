@@ -1,9 +1,6 @@
 use crate::{
     framework::{
-        services::api_router::{
-            ApiRouterClientInstallRequest, ApiRouterClientInstallResult,
-            ApiRouterInstallerClientId,
-        },
+        services::api_router::{ApiRouterClientInstallRequest, ApiRouterClientInstallResult},
         Result as FrameworkResult,
     },
     state::AppState,
@@ -13,25 +10,6 @@ pub fn install_api_router_client_setup_at(
     state: &AppState,
     request: ApiRouterClientInstallRequest,
 ) -> FrameworkResult<ApiRouterClientInstallResult> {
-    if request.client_id == ApiRouterInstallerClientId::Openclaw {
-        let open_claw = request.open_claw.clone().ok_or_else(|| {
-            crate::framework::FrameworkError::ValidationFailed(
-                "OpenClaw installation requires instance selections".to_string(),
-            )
-        })?;
-        let open_claw_instances = state
-            .context
-            .services
-            .api_router_control
-            .provision_openclaw_instances(&open_claw)?;
-
-        return state
-            .context
-            .services
-            .api_router
-            .install_openclaw_instances(&state.context.paths, request, open_claw_instances);
-    }
-
     state
         .context
         .services
@@ -53,11 +31,7 @@ mod tests {
     use crate::{
         framework::{
             config::AppConfig, context::FrameworkContext, logging::init_logger,
-            paths::resolve_paths_for_root,
-            services::{
-                api_router::*,
-                api_router_runtime::ApiRouterDesktopAuthSession,
-            },
+            paths::resolve_paths_for_root, services::api_router::*,
         },
         state::AppState,
     };
@@ -73,15 +47,6 @@ mod tests {
             AppConfig::default(),
             logger,
         ));
-        context
-            .services
-            .api_router_runtime
-            .sync_auth_session(ApiRouterDesktopAuthSession {
-                user_id: "user-openclaw".to_string(),
-                email: "openclaw@example.com".to_string(),
-                display_name: "OpenClaw".to_string(),
-            })
-            .expect("auth session");
         let state = AppState::from_context(context);
         let request = ApiRouterClientInstallRequest {
             client_id: ApiRouterInstallerClientId::Openclaw,
@@ -101,9 +66,6 @@ mod tests {
             env_scope: None,
             open_claw: Some(ApiRouterInstallerOpenClawOptions {
                 instance_ids: vec!["local-built-in".to_string()],
-                api_key_strategy: ApiRouterInstallerOpenClawApiKeyStrategy::PerInstance,
-                router_provider_id: None,
-                model_mapping_id: None,
             }),
         };
 
@@ -111,7 +73,6 @@ mod tests {
 
         assert_eq!(result.updated_instance_ids, vec!["local-built-in"]);
         assert_eq!(result.written_files.len(), 1);
-        assert_eq!(result.open_claw_instances.len(), 1);
         assert!(paths
             .integrations_dir
             .join("openclaw")

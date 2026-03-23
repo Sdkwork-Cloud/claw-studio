@@ -1,5 +1,7 @@
 use crate::framework::{
-    components::{PackagedComponentDefinition, PackagedComponentKind, PackagedComponentStartupMode},
+    components::{
+        PackagedComponentDefinition, PackagedComponentKind, PackagedComponentStartupMode,
+    },
     kernel::{
         DesktopComponentCapabilityInfo, DesktopComponentCatalogInfo, DesktopComponentControlResult,
         DesktopComponentDocumentationRef, DesktopComponentEndpointInfo, DesktopComponentInfo,
@@ -10,20 +12,28 @@ use crate::framework::{
     FrameworkError, Result,
 };
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, net::SocketAddr, path::Path};
 
 use super::{
+    api_router_runtime::{
+        load_router_config, shared_router_root, ApiRouterRuntimeMode, ApiRouterRuntimeService,
+        DEFAULT_WEB_BIND,
+    },
     components::ComponentRegistryService,
     supervisor::{ManagedServiceLifecycle, SupervisorService},
 };
 
 const CODEX_APP_SERVER_LISTEN_URL: &str = "ws://127.0.0.1:46110";
 const OPENCLAW_GATEWAY_URL: &str = "ws://127.0.0.1:18789";
-const SDKWORK_GATEWAY_URL: &str = "http://127.0.0.1:8080/v1";
-const SDKWORK_ADMIN_URL: &str = "http://127.0.0.1:8081/admin";
-const SDKWORK_PORTAL_URL: &str = "http://127.0.0.1:8082/portal";
-const SDKWORK_WEB_ADMIN_URL: &str = "http://127.0.0.1:3001/admin";
-const SDKWORK_WEB_PORTAL_URL: &str = "http://127.0.0.1:3001/portal";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ApiRouterPublicEndpoints {
+    gateway_api_url: String,
+    admin_api_url: String,
+    portal_api_url: String,
+    admin_site_url: String,
+    portal_site_url: String,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentControlAction {
@@ -69,6 +79,7 @@ impl ComponentHostService {
         let resources = ComponentRegistryService::new().load_resources(paths)?;
         let components_state = read_json_file::<ComponentsState>(&paths.components_file)?;
         let supervisor_snapshot = supervisor.snapshot()?;
+        let api_router_public_endpoints = resolve_api_router_public_endpoints(paths);
         let service_map = supervisor_snapshot
             .services
             .into_iter()
@@ -81,8 +92,8 @@ impl ComponentHostService {
             .into_iter()
             .map(|definition| {
                 let component_state = components_state.entries.get(&definition.id);
-                let services = definition
-                    .service_ids
+                let resolved_service_ids = resolved_component_service_ids(&definition);
+                let services = resolved_service_ids
                     .iter()
                     .filter_map(|service_id| service_map.get(service_id))
                     .map(|service| DesktopComponentServiceBindingInfo {
@@ -107,10 +118,10 @@ impl ComponentHostService {
                     repository_url: component_source_url(&definition),
                     source_commit: definition.commit.clone(),
                     install_subdir: definition.install_subdir.clone(),
-                    runtime_status: component_runtime_status(&definition, &services),
-                    service_ids: definition.service_ids.clone(),
+                    runtime_status: component_runtime_status(paths, &definition, &services),
+                    service_ids: resolved_service_ids.clone(),
                     services,
-                    endpoints: component_endpoints(&definition),
+                    endpoints: component_endpoints(&definition, &api_router_public_endpoints),
                     capabilities: component_capabilities(&definition),
                     docs: component_docs(&definition),
                 })
@@ -136,7 +147,9 @@ impl ComponentHostService {
             .components
             .into_iter()
             .find(|component| component.id == component_id)
-            .ok_or_else(|| FrameworkError::NotFound(format!("component not found: {component_id}")))?;
+            .ok_or_else(|| {
+                FrameworkError::NotFound(format!("component not found: {component_id}"))
+            })?;
 
         if definition.startup_mode == PackagedComponentStartupMode::Embedded {
             return Ok(DesktopComponentControlResult {
@@ -147,6 +160,7 @@ impl ComponentHostService {
             });
         }
 
+        let resolved_service_ids = resolved_component_service_ids(&definition);
         let service_map = supervisor
             .snapshot()?
             .services
@@ -155,7 +169,7 @@ impl ComponentHostService {
             .collect::<HashMap<_, _>>();
 
         let mut changed = false;
-        for service_id in &definition.service_ids {
+        for service_id in &resolved_service_ids {
             let lifecycle = service_map
                 .get(service_id)
                 .map(|service| service.lifecycle.clone());
@@ -194,7 +208,7 @@ impl ComponentHostService {
             } else {
                 "noop".to_string()
             },
-            affected_service_ids: definition.service_ids,
+            affected_service_ids: resolved_service_ids,
         })
     }
 }
@@ -239,19 +253,77 @@ fn startup_mode_label(mode: &PackagedComponentStartupMode) -> &'static str {
     }
 }
 
+fn resolved_component_service_ids(definition: &PackagedComponentDefinition) -> Vec<String> {
+    match definition.id.as_str() {
+        "openclaw" => vec!["openclaw_gateway".to_string()],
+        "sdkwork-api-router" => vec!["api_router".to_string(), "web_server".to_string()],
+        _ => definition.service_ids.clone(),
+    }
+}
+
 fn component_runtime_status(
+    paths: &AppPaths,
     definition: &PackagedComponentDefinition,
     services: &[DesktopComponentServiceBindingInfo],
 ) -> String {
     if definition.startup_mode == PackagedComponentStartupMode::Embedded {
         return "embedded".to_string();
     }
+
+    if definition.id == "sdkwork-api-router" {
+        if let Some(status) = api_router_component_runtime_status(paths, services) {
+            return status;
+        }
+    }
+
+    generic_component_runtime_status(services)
+}
+
+fn api_router_component_runtime_status(
+    paths: &AppPaths,
+    services: &[DesktopComponentServiceBindingInfo],
+) -> Option<String> {
+    let runtime_status = ApiRouterRuntimeService::new().inspect(paths).ok()?;
+    let has_failed = services.iter().any(|service| service.lifecycle == "failed");
+    let has_transition = services
+        .iter()
+        .any(|service| matches!(service.lifecycle.as_str(), "starting" | "stopping"));
+    let web_host_running = services
+        .iter()
+        .any(|service| service.service_id == "web_server" && service.lifecycle == "running");
+
+    match runtime_status.mode {
+        ApiRouterRuntimeMode::ManagedActive | ApiRouterRuntimeMode::AttachedExternal => {
+            if has_transition {
+                Some("transitioning".to_string())
+            } else if web_host_running {
+                Some(if has_failed { "degraded" } else { "running" }.to_string())
+            } else {
+                Some(if has_failed { "failed" } else { "degraded" }.to_string())
+            }
+        }
+        ApiRouterRuntimeMode::Conflicted => Some(if has_transition {
+            "transitioning".to_string()
+        } else {
+            "failed".to_string()
+        }),
+        ApiRouterRuntimeMode::NeedsManagedStart => None,
+    }
+}
+
+fn generic_component_runtime_status(services: &[DesktopComponentServiceBindingInfo]) -> String {
     if services.is_empty() {
         return "stopped".to_string();
     }
 
-    let running = services.iter().filter(|service| service.lifecycle == "running").count();
-    let failed = services.iter().filter(|service| service.lifecycle == "failed").count();
+    let running = services
+        .iter()
+        .filter(|service| service.lifecycle == "running")
+        .count();
+    let failed = services
+        .iter()
+        .filter(|service| service.lifecycle == "failed")
+        .count();
     let transition = services
         .iter()
         .filter(|service| matches!(service.lifecycle.as_str(), "starting" | "stopping"))
@@ -283,14 +355,18 @@ fn component_source_url(definition: &PackagedComponentDefinition) -> Option<Stri
             "openclaw" => "https://github.com/openclaw/openclaw".to_string(),
             "zeroclaw" => "https://github.com/zeroclaw-labs/zeroclaw".to_string(),
             "ironclaw" => "https://github.com/nearai/ironclaw".to_string(),
-            "sdkwork-api-router" => "https://github.com/Sdkwork-Cloud/sdkwork-api-router".to_string(),
+            "sdkwork-api-router" => {
+                "https://github.com/Sdkwork-Cloud/sdkwork-api-router".to_string()
+            }
             "hub-installer" => "https://github.com/Sdkwork-Cloud/hub-installer".to_string(),
             _ => return None,
         })
     })
 }
 
-fn component_docs(definition: &PackagedComponentDefinition) -> Vec<DesktopComponentDocumentationRef> {
+fn component_docs(
+    definition: &PackagedComponentDefinition,
+) -> Vec<DesktopComponentDocumentationRef> {
     match definition.id.as_str() {
         "codex" => vec![
             repo_doc(definition, "Overview", "README.md"),
@@ -312,7 +388,11 @@ fn component_docs(definition: &PackagedComponentDefinition) -> Vec<DesktopCompon
         ],
         "sdkwork-api-router" => vec![
             repo_doc(definition, "Overview", "README.md"),
-            repo_doc(definition, "Gateway API", "docs/api-reference/gateway-api.md"),
+            repo_doc(
+                definition,
+                "Gateway API",
+                "docs/api-reference/gateway-api.md",
+            ),
             repo_doc(definition, "Admin API", "docs/api-reference/admin-api.md"),
             repo_doc(definition, "Portal API", "docs/api-reference/portal-api.md"),
         ],
@@ -347,7 +427,34 @@ fn repo_doc(
     }
 }
 
-fn component_endpoints(definition: &PackagedComponentDefinition) -> Vec<DesktopComponentEndpointInfo> {
+fn resolve_api_router_public_endpoints(paths: &AppPaths) -> ApiRouterPublicEndpoints {
+    let web_bind = load_router_config(&shared_router_root(paths))
+        .map(|config| config.web_bind)
+        .unwrap_or_else(|_| DEFAULT_WEB_BIND.to_string());
+
+    api_router_public_endpoints_for_bind(&web_bind)
+}
+
+fn api_router_public_endpoints_for_bind(web_bind: &str) -> ApiRouterPublicEndpoints {
+    let public_host = web_bind
+        .parse::<SocketAddr>()
+        .map(|value| value.to_string())
+        .unwrap_or_else(|_| DEFAULT_WEB_BIND.to_string());
+    let base_url = format!("http://{public_host}");
+
+    ApiRouterPublicEndpoints {
+        gateway_api_url: format!("{base_url}/api"),
+        admin_api_url: format!("{base_url}/api/admin"),
+        portal_api_url: format!("{base_url}/api/portal"),
+        admin_site_url: format!("{base_url}/admin"),
+        portal_site_url: format!("{base_url}/portal"),
+    }
+}
+
+fn component_endpoints(
+    definition: &PackagedComponentDefinition,
+    api_router_public_endpoints: &ApiRouterPublicEndpoints,
+) -> Vec<DesktopComponentEndpointInfo> {
     match definition.id.as_str() {
         "codex" => vec![DesktopComponentEndpointInfo {
             id: "app-server".to_string(),
@@ -369,36 +476,41 @@ fn component_endpoints(definition: &PackagedComponentDefinition) -> Vec<DesktopC
                 id: "gateway-v1".to_string(),
                 label: "Gateway API".to_string(),
                 transport: "http".to_string(),
-                target: SDKWORK_GATEWAY_URL.to_string(),
-                description: "OpenAI-compatible /v1 gateway endpoint.".to_string(),
+                target: api_router_public_endpoints.gateway_api_url.clone(),
+                description: "OpenAI-compatible gateway endpoint exposed through the Claw Studio router host."
+                    .to_string(),
             },
             DesktopComponentEndpointInfo {
                 id: "admin-api".to_string(),
                 label: "Admin API".to_string(),
                 transport: "http".to_string(),
-                target: SDKWORK_ADMIN_URL.to_string(),
-                description: "Operator-facing /admin API.".to_string(),
+                target: api_router_public_endpoints.admin_api_url.clone(),
+                description: "Operator-facing admin API exposed through the unified Claw Studio router port."
+                    .to_string(),
             },
             DesktopComponentEndpointInfo {
                 id: "portal-api".to_string(),
                 label: "Portal API".to_string(),
                 transport: "http".to_string(),
-                target: SDKWORK_PORTAL_URL.to_string(),
-                description: "Developer portal /portal API.".to_string(),
+                target: api_router_public_endpoints.portal_api_url.clone(),
+                description: "Developer portal API exposed through the unified Claw Studio router port."
+                    .to_string(),
             },
             DesktopComponentEndpointInfo {
                 id: "admin-site".to_string(),
                 label: "Admin Web".to_string(),
                 transport: "http".to_string(),
-                target: SDKWORK_WEB_ADMIN_URL.to_string(),
-                description: "Bundled admin web surface served by router-web-service.".to_string(),
+                target: api_router_public_endpoints.admin_site_url.clone(),
+                description: "Bundled admin web surface served by the Claw Studio built-in router web server."
+                    .to_string(),
             },
             DesktopComponentEndpointInfo {
                 id: "portal-site".to_string(),
                 label: "Portal Web".to_string(),
                 transport: "http".to_string(),
-                target: SDKWORK_WEB_PORTAL_URL.to_string(),
-                description: "Bundled portal web surface served by router-web-service.".to_string(),
+                target: api_router_public_endpoints.portal_site_url.clone(),
+                description: "Bundled portal web surface served by the Claw Studio built-in router web server."
+                    .to_string(),
             },
         ],
         _ => Vec::new(),
@@ -432,7 +544,7 @@ fn component_capabilities(
         "sdkwork-api-router" => vec![
             capability("openai-gateway", "OpenAI-Compatible Gateway", "http", "Gateway service exposing OpenAI-compatible /v1 routes.", &["gateway-service"]),
             capability("admin-portal-apis", "Admin / Portal APIs", "http", "Separate operator and developer API surfaces.", &["admin-api-service", "portal-api-service"]),
-            capability("bundled-web-host", "Bundled Web Host", "http", "Pingora-backed host for admin and portal sites.", &["router-web-service"]),
+            capability("bundled-web-host", "Bundled Web Host", "http", "Claw Studio built-in web host serving bundled admin and portal sites through the unified router port.", &["sdkwork_api_router_web_server"]),
         ],
         "hub-installer" => vec![
             capability("embedded-install-engine", "Embedded Install Engine", "embedded", "In-process Rust install engine for inspect/install/uninstall/backup.", &["run_hub_install", "run_hub_uninstall"]),
@@ -463,24 +575,96 @@ mod tests {
     use super::{ComponentControlAction, ComponentHostService};
     use crate::framework::paths::resolve_paths_for_root;
     use crate::framework::services::supervisor::SupervisorService;
+    use std::{
+        fs,
+        io::{Read, Write},
+        net::{TcpListener, TcpStream},
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        thread::{self, JoinHandle},
+        time::Duration,
+    };
+
+    struct TestHealthServer {
+        bind_addr: String,
+        stop_requested: Arc<AtomicBool>,
+        thread: Option<JoinHandle<()>>,
+    }
+
+    impl TestHealthServer {
+        fn start(health_path: &'static str) -> Self {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("bind test health listener");
+            listener
+                .set_nonblocking(true)
+                .expect("set nonblocking test health listener");
+            let bind_addr = listener.local_addr().expect("local addr").to_string();
+            let stop_requested = Arc::new(AtomicBool::new(false));
+            let stop_flag = Arc::clone(&stop_requested);
+            let thread = thread::spawn(move || {
+                while !stop_flag.load(Ordering::Relaxed) {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            let mut buffer = [0_u8; 1024];
+                            let size = match stream.read(&mut buffer) {
+                                Ok(size) => size,
+                                Err(_) => continue,
+                            };
+                            let request = String::from_utf8_lossy(&buffer[..size]);
+                            let ok = request.starts_with(&format!("GET {health_path} "));
+                            let body = if ok { "ok" } else { "missing" };
+                            let status = if ok { "200 OK" } else { "404 Not Found" };
+                            let response = format!(
+                                "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                                body.len()
+                            );
+                            let _ = stream.write_all(response.as_bytes());
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            Self {
+                bind_addr,
+                stop_requested,
+                thread: Some(thread),
+            }
+        }
+    }
+
+    impl Drop for TestHealthServer {
+        fn drop(&mut self) {
+            self.stop_requested.store(true, Ordering::Relaxed);
+            let _ = TcpStream::connect(self.bind_addr.as_str());
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+        }
+    }
+
+    fn reserve_available_bind_addr() -> String {
+        TcpListener::bind("127.0.0.1:0")
+            .expect("reserve bind addr")
+            .local_addr()
+            .expect("local addr")
+            .to_string()
+    }
 
     #[test]
     fn component_host_catalog_exposes_router_endpoints_and_docs() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = SupervisorService::new();
-        supervisor.record_running("codex", Some(41)).expect("codex running");
         supervisor
-            .record_running("sdkwork_api_router_gateway", Some(42))
-            .expect("router gateway running");
+            .record_running("api_router", Some(42))
+            .expect("router api running");
         supervisor
-            .record_running("sdkwork_api_router_admin_api", Some(43))
-            .expect("router admin running");
-        supervisor
-            .record_running("sdkwork_api_router_portal_api", Some(44))
-            .expect("router portal running");
-        supervisor
-            .record_running("sdkwork_api_router_web_server", Some(45))
+            .record_running("web_server", Some(45))
             .expect("router web running");
 
         let catalog = ComponentHostService::new()
@@ -489,19 +673,7 @@ mod tests {
 
         assert_eq!(
             catalog.default_startup_component_ids,
-            vec!["codex".to_string(), "sdkwork-api-router".to_string()]
-        );
-        let codex = catalog
-            .components
-            .iter()
-            .find(|component| component.id == "codex")
-            .expect("codex component");
-        assert_eq!(codex.runtime_status, "running");
-        assert!(
-            codex
-                .endpoints
-                .iter()
-                .any(|endpoint| endpoint.target == "ws://127.0.0.1:46110")
+            vec!["sdkwork-api-router".to_string()]
         );
         let router = catalog
             .components
@@ -509,13 +681,14 @@ mod tests {
             .find(|component| component.id == "sdkwork-api-router")
             .expect("router component");
         assert_eq!(router.runtime_status, "running");
-        assert_eq!(router.service_ids.len(), 4);
-        assert!(
-            router
-                .docs
-                .iter()
-                .any(|doc| doc.label == "Gateway API" && doc.location.contains("gateway-api.md"))
+        assert_eq!(
+            router.service_ids,
+            vec!["api_router".to_string(), "web_server".to_string()]
         );
+        assert!(router
+            .docs
+            .iter()
+            .any(|doc| doc.label == "Gateway API" && doc.location.contains("gateway-api.md")));
     }
 
     #[test]
@@ -526,29 +699,146 @@ mod tests {
         let service = ComponentHostService::new();
 
         let started = service
-            .control_component(&paths, &supervisor, "openclaw", ComponentControlAction::Start)
+            .control_component(
+                &paths,
+                &supervisor,
+                "openclaw",
+                ComponentControlAction::Start,
+            )
             .expect("start openclaw");
         let snapshot = supervisor.snapshot().expect("snapshot after start");
         let openclaw = snapshot
             .services
             .iter()
-            .find(|managed_service| managed_service.id == "openclaw")
+            .find(|managed_service| managed_service.id == "openclaw_gateway")
             .expect("openclaw state");
 
         assert_eq!(started.outcome, "started");
-        assert_eq!(openclaw.lifecycle, crate::framework::services::supervisor::ManagedServiceLifecycle::Starting);
+        assert_eq!(
+            openclaw.lifecycle,
+            crate::framework::services::supervisor::ManagedServiceLifecycle::Starting
+        );
 
         let stopped = service
-            .control_component(&paths, &supervisor, "openclaw", ComponentControlAction::Stop)
+            .control_component(
+                &paths,
+                &supervisor,
+                "openclaw",
+                ComponentControlAction::Stop,
+            )
             .expect("stop openclaw");
         let snapshot = supervisor.snapshot().expect("snapshot after stop");
         let openclaw = snapshot
             .services
             .iter()
-            .find(|managed_service| managed_service.id == "openclaw")
+            .find(|managed_service| managed_service.id == "openclaw_gateway")
             .expect("openclaw state");
 
         assert_eq!(stopped.outcome, "stopped");
-        assert_eq!(openclaw.lifecycle, crate::framework::services::supervisor::ManagedServiceLifecycle::Stopped);
+        assert_eq!(
+            openclaw.lifecycle,
+            crate::framework::services::supervisor::ManagedServiceLifecycle::Stopped
+        );
+    }
+
+    #[test]
+    fn component_host_catalog_uses_runtime_router_public_endpoints() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let supervisor = SupervisorService::new();
+        let router_root = paths
+            .user_root
+            .parent()
+            .expect("shared router root")
+            .join("router");
+
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::write(
+            router_root.join("config.json"),
+            "{\"gateway_bind\":\"127.0.0.1:28100\",\"admin_bind\":\"127.0.0.1:28101\",\"portal_bind\":\"127.0.0.1:28102\",\"web_bind\":\"127.0.0.1:28103\"}\n",
+        )
+        .expect("router config");
+
+        let catalog = ComponentHostService::new()
+            .component_catalog(&paths, &supervisor)
+            .expect("component catalog");
+        let router = catalog
+            .components
+            .iter()
+            .find(|component| component.id == "sdkwork-api-router")
+            .expect("router component");
+
+        let gateway = router
+            .endpoints
+            .iter()
+            .find(|endpoint| endpoint.id == "gateway-v1")
+            .expect("gateway endpoint");
+        let admin_api = router
+            .endpoints
+            .iter()
+            .find(|endpoint| endpoint.id == "admin-api")
+            .expect("admin api endpoint");
+        let portal_api = router
+            .endpoints
+            .iter()
+            .find(|endpoint| endpoint.id == "portal-api")
+            .expect("portal api endpoint");
+        let admin_site = router
+            .endpoints
+            .iter()
+            .find(|endpoint| endpoint.id == "admin-site")
+            .expect("admin site endpoint");
+        let portal_site = router
+            .endpoints
+            .iter()
+            .find(|endpoint| endpoint.id == "portal-site")
+            .expect("portal site endpoint");
+
+        assert_eq!(gateway.target, "http://127.0.0.1:28103/api");
+        assert_eq!(admin_api.target, "http://127.0.0.1:28103/api/admin");
+        assert_eq!(portal_api.target, "http://127.0.0.1:28103/api/portal");
+        assert_eq!(admin_site.target, "http://127.0.0.1:28103/admin");
+        assert_eq!(portal_site.target, "http://127.0.0.1:28103/portal");
+    }
+
+    #[test]
+    fn component_host_catalog_marks_attached_external_router_running_when_web_host_is_active() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let supervisor = SupervisorService::new();
+        let router_root = paths
+            .user_root
+            .parent()
+            .expect("shared router root")
+            .join("router");
+        let admin_server = TestHealthServer::start("/admin/health");
+        let portal_server = TestHealthServer::start("/portal/health");
+        let gateway_server = TestHealthServer::start("/health");
+        let web_bind = reserve_available_bind_addr();
+
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::write(
+            router_root.join("config.json"),
+            format!(
+                "{{\"gateway_bind\":\"{}\",\"admin_bind\":\"{}\",\"portal_bind\":\"{}\",\"web_bind\":\"{}\"}}\n",
+                gateway_server.bind_addr, admin_server.bind_addr, portal_server.bind_addr, web_bind
+            ),
+        )
+        .expect("router config");
+
+        supervisor
+            .record_running("web_server", Some(45))
+            .expect("router web running");
+
+        let catalog = ComponentHostService::new()
+            .component_catalog(&paths, &supervisor)
+            .expect("component catalog");
+        let router = catalog
+            .components
+            .iter()
+            .find(|component| component.id == "sdkwork-api-router")
+            .expect("router component");
+
+        assert_eq!(router.runtime_status, "running");
     }
 }

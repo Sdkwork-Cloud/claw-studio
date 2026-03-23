@@ -59,6 +59,10 @@ import {
 } from './openClawSupport.ts';
 import { instanceService } from './instanceService.ts';
 
+type ManagedOpenClawConfigSnapshot = Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>;
+type ManagedOpenClawChannelSnapshot = ManagedOpenClawConfigSnapshot['channelSnapshots'][number];
+type OpenClawChannelDefinition = ReturnType<typeof openClawConfigService.getChannelDefinitions>[number];
+
 function clampScore(score: number) {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -142,7 +146,7 @@ function mapLlmProvider(provider: MockInstanceLLMProvider): InstanceWorkbenchLLM
 }
 
 function mapManagedChannel(
-  channel: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['channelSnapshots'][number],
+  channel: ManagedOpenClawChannelSnapshot,
 ): InstanceWorkbenchChannel {
   return {
     id: channel.id,
@@ -150,6 +154,7 @@ function mapManagedChannel(
     description: channel.description,
     status: channel.status,
     enabled: channel.enabled,
+    configurationMode: channel.configurationMode,
     fieldCount: channel.fieldCount,
     configuredFieldCount: channel.configuredFieldCount,
     setupSteps: [...channel.setupSteps],
@@ -157,7 +162,7 @@ function mapManagedChannel(
 }
 
 function cloneManagedChannel(
-  channel: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['channelSnapshots'][number],
+  channel: ManagedOpenClawChannelSnapshot,
 ) {
   return {
     ...channel,
@@ -165,6 +170,89 @@ function cloneManagedChannel(
     values: { ...channel.values },
     fields: channel.fields.map((field) => ({ ...field })),
   };
+}
+
+function cloneWorkbenchChannel(channel: InstanceWorkbenchChannel): InstanceWorkbenchChannel {
+  return {
+    ...channel,
+    setupSteps: [...channel.setupSteps],
+  };
+}
+
+function mapOpenClawChannelDefinition(definition: OpenClawChannelDefinition): InstanceWorkbenchChannel {
+  const configurationMode = definition.configurationMode || 'required';
+  const enabled = configurationMode === 'none';
+
+  return {
+    id: definition.id,
+    name: definition.name,
+    description: definition.description,
+    status: configurationMode === 'none' ? 'connected' : 'not_configured',
+    enabled,
+    configurationMode,
+    fieldCount: definition.fields.length,
+    configuredFieldCount: 0,
+    setupSteps: [...definition.setupSteps],
+  };
+}
+
+function buildOpenClawChannelCatalog(
+  managedConfigSnapshot?: ManagedOpenClawConfigSnapshot | null,
+): InstanceWorkbenchChannel[] {
+  if (managedConfigSnapshot?.channelSnapshots.length) {
+    return managedConfigSnapshot.channelSnapshots.map(mapManagedChannel);
+  }
+
+  return openClawConfigService.getChannelDefinitions().map(mapOpenClawChannelDefinition);
+}
+
+function mergeOpenClawChannelCollections(
+  baseChannels: InstanceWorkbenchChannel[],
+  overrideChannels: InstanceWorkbenchChannel[],
+): InstanceWorkbenchChannel[] {
+  const orderedIds: string[] = [];
+  const mergedChannels = new Map<string, InstanceWorkbenchChannel>();
+
+  const rememberOrder = (channelId: string) => {
+    if (!orderedIds.includes(channelId)) {
+      orderedIds.push(channelId);
+    }
+  };
+
+  baseChannels.forEach((channel) => {
+    rememberOrder(channel.id);
+    mergedChannels.set(channel.id, cloneWorkbenchChannel(channel));
+  });
+
+  overrideChannels.forEach((channel) => {
+    rememberOrder(channel.id);
+    const baseChannel = mergedChannels.get(channel.id);
+
+    if (!baseChannel) {
+      mergedChannels.set(channel.id, cloneWorkbenchChannel(channel));
+      return;
+    }
+
+    mergedChannels.set(channel.id, {
+      id: channel.id,
+      name: baseChannel.name || channel.name,
+      description: baseChannel.description || channel.description,
+      status: channel.status,
+      enabled: channel.enabled,
+      configurationMode: channel.configurationMode || baseChannel.configurationMode || 'required',
+      fieldCount: Math.max(baseChannel.fieldCount, channel.fieldCount),
+      configuredFieldCount:
+        typeof channel.configuredFieldCount === 'number'
+          ? channel.configuredFieldCount
+          : baseChannel.configuredFieldCount,
+      setupSteps:
+        baseChannel.setupSteps.length > 0 ? [...baseChannel.setupSteps] : [...channel.setupSteps],
+    });
+  });
+
+  return orderedIds
+    .map((channelId) => mergedChannels.get(channelId))
+    .filter(Boolean) as InstanceWorkbenchChannel[];
 }
 
 function mapManagedProvider(
@@ -701,7 +789,7 @@ function mergeOpenClawSnapshots(
   live: InstanceWorkbenchSnapshot,
 ): InstanceWorkbenchSnapshot {
   return buildOpenClawSnapshotFromSections(base.detail, {
-    channels: live.channels.length > 0 ? live.channels : base.channels,
+    channels: mergeOpenClawChannelCollections(base.channels, live.channels),
     tasks: live.tasks.length > 0 ? live.tasks : base.tasks,
     llmProviders: live.llmProviders.length > 0 ? live.llmProviders : base.llmProviders,
     agents: live.agents.length > 0 ? live.agents : base.agents,
@@ -710,6 +798,34 @@ function mergeOpenClawSnapshots(
     memories: base.memories.length > 0 ? base.memories : live.memories,
     tools: live.tools.length > 0 ? live.tools : base.tools,
   });
+}
+
+function finalizeOpenClawSnapshot(
+  detail: StudioInstanceDetailRecord,
+  snapshot: InstanceWorkbenchSnapshot,
+  managedConfigPath: string | null,
+  managedConfigSnapshot: ManagedOpenClawConfigSnapshot | null,
+): InstanceWorkbenchSnapshot {
+  const channels = mergeOpenClawChannelCollections(
+    buildOpenClawChannelCatalog(managedConfigSnapshot),
+    snapshot.channels,
+  );
+  const finalizedSnapshot = buildOpenClawSnapshotFromSections(detail, {
+    channels,
+    tasks: snapshot.tasks,
+    agents: snapshot.agents,
+    skills: snapshot.skills,
+    files: snapshot.files,
+    llmProviders: snapshot.llmProviders,
+    memories: snapshot.memories,
+    tools: snapshot.tools,
+  });
+
+  return {
+    ...finalizedSnapshot,
+    managedConfigPath,
+    managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
+  };
 }
 
 function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWorkbenchChannel[] {
@@ -723,6 +839,7 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
 
   return orderedIds
     .map((channelId) => {
+      const isConfigurationFree = channelId === 'sdkworkchat';
       const rawChannel = rawChannels[channelId];
       if (!isRecord(rawChannel)) {
         return null;
@@ -738,17 +855,24 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
         (getBooleanValue(rawChannel, ['configured']) ?? false) ||
         configuredFieldCount > 0 ||
         accountCount > 0;
-      const setupSteps = configured
+      const setupSteps = isConfigurationFree
         ? [
-            `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} channel is configured for the gateway runtime.`,
+            'Download the Sdkwork Chat app or open the existing Sdkwork Chat workspace.',
             enabled
-              ? 'Channel is enabled for runtime delivery.'
-              : 'Enable the channel after validating connectivity.',
+              ? 'Sdkwork Chat delivery is ready for runtime handoff.'
+              : 'Enable the channel when this runtime should deliver into Sdkwork Chat.',
           ]
-        : [
-            `Configure credentials or routing for ${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)}.`,
-            'Add at least one account or destination target.',
-          ];
+        : configured
+          ? [
+              `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} channel is configured for the gateway runtime.`,
+              enabled
+                ? 'Channel is enabled for runtime delivery.'
+                : 'Enable the channel after validating connectivity.',
+            ]
+          : [
+              `Configure credentials or routing for ${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)}.`,
+              'Add at least one account or destination target.',
+            ];
 
       return {
         id: channelId,
@@ -756,10 +880,23 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
         description:
           status.channelDetailLabels?.[channelId] ||
           `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} integration managed by the OpenClaw gateway.`,
-        status: configured ? (enabled ? 'connected' : 'disconnected') : 'not_configured',
+        status: isConfigurationFree
+          ? enabled
+            ? 'connected'
+            : 'disconnected'
+          : configured
+            ? enabled
+              ? 'connected'
+              : 'disconnected'
+            : 'not_configured',
         enabled,
-        fieldCount: Math.max(fieldCount, accountCount, configured ? 1 : 0),
-        configuredFieldCount: configured ? Math.max(configuredFieldCount, accountCount, 1) : 0,
+        configurationMode: isConfigurationFree ? 'none' : 'required',
+        fieldCount: isConfigurationFree ? 0 : Math.max(fieldCount, accountCount, configured ? 1 : 0),
+        configuredFieldCount: isConfigurationFree
+          ? 0
+          : configured
+            ? Math.max(configuredFieldCount, accountCount, 1)
+            : 0,
         setupSteps,
       } satisfies InstanceWorkbenchChannel;
     })
@@ -1336,8 +1473,9 @@ class InstanceWorkbenchService {
   private async getOpenClawWorkbench(
     instanceId: string,
     detail: StudioInstanceDetailRecord,
-    managedConfigSnapshot: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>> | null,
+    managedConfigSnapshot: ManagedOpenClawConfigSnapshot | null,
   ): Promise<InstanceWorkbenchSnapshot> {
+    const managedConfigPath = openClawConfigService.resolveInstanceConfigPath(detail);
     const backendSnapshot = detail.workbench ? mapBackendWorkbench(detail, managedConfigSnapshot) : null;
     if (detail.workbench) {
       this.rememberBackendTaskExecutions(detail);
@@ -1351,35 +1489,30 @@ class InstanceWorkbenchService {
       backendSnapshot && liveSnapshot
         ? mergeOpenClawSnapshots(backendSnapshot, liveSnapshot)
         : backendSnapshot || liveSnapshot;
+    const finalizedSnapshot = finalizeOpenClawSnapshot(
+      detail,
+      snapshot ||
+        buildOpenClawSnapshotFromSections(detail, {
+          channels: [],
+          tasks: [],
+          agents: [],
+          skills: [],
+          files: [],
+          llmProviders: [],
+          memories: [],
+          tools: [],
+        }),
+      managedConfigPath,
+      managedConfigSnapshot,
+    );
 
-    if (snapshot) {
-      this.rememberOpenClawTasks(
-        instanceId,
-        snapshot.tasks,
-        detail.workbench?.cronTasks.taskExecutionsById || {},
-      );
-      return snapshot;
-    }
+    this.rememberOpenClawTasks(
+      instanceId,
+      finalizedSnapshot.tasks,
+      detail.workbench?.cronTasks.taskExecutionsById || {},
+    );
 
-    if (backendSnapshot) {
-      this.rememberOpenClawTasks(
-        instanceId,
-        backendSnapshot.tasks,
-        detail.workbench?.cronTasks.taskExecutionsById || {},
-      );
-      return backendSnapshot;
-    }
-
-    return buildOpenClawSnapshotFromSections(detail, {
-      channels: [],
-      tasks: [],
-      agents: [],
-      skills: [],
-      files: [],
-      llmProviders: [],
-      memories: [],
-      tools: [],
-    });
+    return finalizedSnapshot;
   }
 
   async getInstanceWorkbench(id: string): Promise<InstanceWorkbenchSnapshot | null> {
@@ -1437,6 +1570,7 @@ class InstanceWorkbenchService {
               description: channel.description,
               status: channel.status,
               enabled: channel.enabled,
+              configurationMode: channel.configurationMode,
               fieldCount: channel.fields.length,
               configuredFieldCount: channel.fields.filter((field) => Boolean(field.value)).length,
               setupSteps: [...channel.setupGuide],

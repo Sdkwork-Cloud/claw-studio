@@ -1,12 +1,11 @@
 use super::{
-    read_json5_object, StudioInstanceRecord, StudioRuntimeKind, StudioWorkbenchAgentProfile,
-    StudioWorkbenchAgentRecord, StudioWorkbenchChannelRecord, StudioWorkbenchCronTasksSnapshot,
-    StudioWorkbenchFileRecord, StudioWorkbenchLLMProviderConfigRecord,
-    StudioWorkbenchLLMProviderModelRecord, StudioWorkbenchLLMProviderRecord,
-    StudioWorkbenchMemoryEntryRecord, StudioWorkbenchSkillRecord, StudioWorkbenchSnapshot,
-    StudioWorkbenchTaskExecutionRecord, StudioWorkbenchTaskRecord,
+    read_json5_object, StudioInstanceDeploymentMode, StudioInstanceRecord, StudioRuntimeKind,
+    StudioWorkbenchAgentProfile, StudioWorkbenchAgentRecord, StudioWorkbenchChannelRecord,
+    StudioWorkbenchCronTasksSnapshot, StudioWorkbenchFileRecord,
+    StudioWorkbenchLLMProviderConfigRecord, StudioWorkbenchLLMProviderModelRecord,
+    StudioWorkbenchLLMProviderRecord, StudioWorkbenchMemoryEntryRecord, StudioWorkbenchSkillRecord,
+    StudioWorkbenchSnapshot, StudioWorkbenchTaskExecutionRecord, StudioWorkbenchTaskRecord,
     StudioWorkbenchTaskScheduleConfig, StudioWorkbenchToolRecord, DEFAULT_INSTANCE_ID,
-    StudioInstanceDeploymentMode,
 };
 use crate::framework::{paths::AppPaths, FrameworkError, Result};
 use serde_json::{Map, Value};
@@ -416,7 +415,11 @@ fn build_openclaw_files(
     agent_contexts: &[OpenClawAgentContext],
 ) -> Result<Vec<StudioWorkbenchFileRecord>> {
     let mut writable_roots = BTreeSet::from([paths.openclaw_workspace_dir.clone()]);
-    writable_roots.extend(agent_contexts.iter().map(|context| context.workspace.clone()));
+    writable_roots.extend(
+        agent_contexts
+            .iter()
+            .map(|context| context.workspace.clone()),
+    );
     let mut files = Vec::new();
     push_file_record(
         paths,
@@ -1962,7 +1965,10 @@ mod tests {
             task.custom_session_id.as_deref(),
             Some("project-alpha-monitor")
         );
-        assert_eq!(task.schedule_config.cron_timezone.as_deref(), Some("Asia/Shanghai"));
+        assert_eq!(
+            task.schedule_config.cron_timezone.as_deref(),
+            Some("Asia/Shanghai")
+        );
         assert_eq!(task.schedule_config.stagger_ms, Some(30000));
         assert_eq!(task.wake_up_mode, "nextCycle");
         assert_eq!(task.timeout_seconds, Some(600));

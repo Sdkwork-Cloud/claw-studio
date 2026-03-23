@@ -1,5 +1,4 @@
 export type RuntimeBundledComponentId =
-  | 'codex'
   | 'openclaw'
   | 'zeroclaw'
   | 'ironclaw'

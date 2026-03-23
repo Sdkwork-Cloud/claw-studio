@@ -4,11 +4,7 @@ use crate::framework::{
     FrameworkError, Result,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{
-    collections::BTreeSet,
-    fs,
-    path::Path,
-};
+use std::{collections::BTreeSet, fs, path::Path};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -250,7 +246,8 @@ mod tests {
         assert_eq!(receipt.fallback_version.as_deref(), Some("1.0.0"));
         assert_eq!(
             std::fs::read_to_string(
-                paths.modules_dir
+                paths
+                    .modules_dir
                     .join("codex")
                     .join("current")
                     .join("bin")
@@ -363,7 +360,8 @@ mod tests {
         assert_eq!(receipt.fallback_version.as_deref(), Some("20.10.0"));
         assert_eq!(
             std::fs::read_to_string(
-                paths.runtimes_dir
+                paths
+                    .runtimes_dir
                     .join("node")
                     .join("current")
                     .join("node.exe")
@@ -394,9 +392,21 @@ mod tests {
     fn seed_component_layout(root: &Path) {
         let install_root = root.join("install");
         let machine_state = root.join("machine").join("state");
-        let current_dir = install_root.join("modules").join("codex").join("current").join("bin");
-        let version_1_dir = install_root.join("modules").join("codex").join("1.0.0").join("bin");
-        let version_2_dir = install_root.join("modules").join("codex").join("2.0.0").join("bin");
+        let current_dir = install_root
+            .join("modules")
+            .join("codex")
+            .join("current")
+            .join("bin");
+        let version_1_dir = install_root
+            .join("modules")
+            .join("codex")
+            .join("1.0.0")
+            .join("bin");
+        let version_2_dir = install_root
+            .join("modules")
+            .join("codex")
+            .join("2.0.0")
+            .join("bin");
 
         std::fs::create_dir_all(&current_dir).expect("current dir");
         std::fs::create_dir_all(&version_1_dir).expect("v1 dir");

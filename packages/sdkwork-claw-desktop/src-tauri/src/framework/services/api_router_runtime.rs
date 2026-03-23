@@ -274,7 +274,9 @@ pub(crate) fn load_router_config_with_env(
         config.portal_bind = parsed
             .portal_bind
             .unwrap_or_else(|| DEFAULT_PORTAL_BIND.to_string());
-        config.web_bind = parsed.web_bind.unwrap_or_else(|| DEFAULT_WEB_BIND.to_string());
+        config.web_bind = parsed
+            .web_bind
+            .unwrap_or_else(|| DEFAULT_WEB_BIND.to_string());
         config.enable_admin = parsed.enable_admin.unwrap_or(true);
         config.enable_portal = parsed.enable_portal.unwrap_or(true);
         config.config_source = ApiRouterConfigSource::File;
@@ -332,7 +334,9 @@ fn current_process_env() -> HashMap<String, String> {
     std::env::vars().collect()
 }
 
-fn resolve_bind_env_overrides(values: &HashMap<String, String>) -> Result<BTreeMap<String, String>> {
+fn resolve_bind_env_overrides(
+    values: &HashMap<String, String>,
+) -> Result<BTreeMap<String, String>> {
     let base_port = resolve_host_base_port(values)?;
     let gateway_bind = resolve_bind_override(
         values,
@@ -421,8 +425,8 @@ fn resolve_boolean_override(
     host_key: &str,
     upstream_key: &str,
 ) -> Result<Option<bool>> {
-    let Some(raw) = non_empty_env_value(values, host_key)
-        .or_else(|| non_empty_env_value(values, upstream_key))
+    let Some(raw) =
+        non_empty_env_value(values, host_key).or_else(|| non_empty_env_value(values, upstream_key))
     else {
         return Ok(None);
     };
@@ -531,7 +535,9 @@ fn endpoint_satisfies_required_health(endpoint: &ApiRouterEndpointRuntimeStatus)
     !endpoint.enabled || endpoint.healthy
 }
 
-fn endpoint_satisfies_required_port_availability(endpoint: &ApiRouterEndpointRuntimeStatus) -> bool {
+fn endpoint_satisfies_required_port_availability(
+    endpoint: &ApiRouterEndpointRuntimeStatus,
+) -> bool {
     !endpoint.enabled || endpoint.port_available
 }
 
@@ -555,8 +561,8 @@ fn public_site_base_url(web_bind: &str, suffix: &str) -> Result<String> {
 mod tests {
     use super::{
         inspect_router_runtime, load_router_config_with_env, shared_router_root,
-        ApiRouterConfigSource, ApiRouterManagedMode, ApiRouterRuntimeMode,
-        ApiRouterRuntimeService, DEFAULT_ADMIN_BIND, DEFAULT_GATEWAY_BIND,
+        ApiRouterConfigSource, ApiRouterManagedMode, ApiRouterRuntimeMode, ApiRouterRuntimeService,
+        DEFAULT_ADMIN_BIND, DEFAULT_GATEWAY_BIND,
     };
     use crate::framework::paths::resolve_paths_for_root;
     use serde_json::Value;
@@ -795,8 +801,8 @@ mod tests {
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let router_root = router_root_for(&paths);
 
-        let config = load_router_config_with_env(&router_root, &HashMap::new())
-            .expect("runtime config");
+        let config =
+            load_router_config_with_env(&router_root, &HashMap::new()).expect("runtime config");
 
         assert_eq!(config.gateway_bind, DEFAULT_GATEWAY_BIND);
         assert_eq!(config.admin_bind, DEFAULT_ADMIN_BIND);
@@ -836,7 +842,10 @@ mod tests {
             .expect("runtime status");
         let value = serde_json::to_value(&status).expect("serialized runtime status");
 
-        assert_eq!(value["gateway"]["bindAddr"], Value::String("127.0.0.1:12100".to_string()));
+        assert_eq!(
+            value["gateway"]["bindAddr"],
+            Value::String("127.0.0.1:12100".to_string())
+        );
         assert_eq!(
             value["admin"]["bindAddr"],
             Value::String("127.0.0.1:12101".to_string())
@@ -942,8 +951,7 @@ mod tests {
             "70000".to_string(),
         )]);
 
-        let error =
-            load_router_config_with_env(&router_root, &env).expect_err("invalid base port");
+        let error = load_router_config_with_env(&router_root, &env).expect_err("invalid base port");
 
         assert!(error.to_string().contains("SDKWORK_API_ROUTER_BASE_PORT"));
     }

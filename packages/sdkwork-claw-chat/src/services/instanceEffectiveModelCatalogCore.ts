@@ -84,12 +84,101 @@ function resolveChannelIcon(channelId: string, providerId: string) {
   );
 }
 
-function sortModels(models: LLMModel[]) {
-  return [...models].sort((left, right) => left.name.localeCompare(right.name));
+function normalizePreferredModelId(modelId?: string | null) {
+  const trimmed = modelId?.trim();
+  return trimmed ? trimmed : null;
 }
 
 function sortChannels(channels: LLMChannel[]) {
   return [...channels].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function readObjectValue(
+  value: unknown,
+  key: string,
+): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const candidate = (value as Record<string, unknown>)[key];
+  return candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+    ? (candidate as Record<string, unknown>)
+    : null;
+}
+
+function readArrayValue(value: unknown, key: string) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return [];
+  }
+
+  const candidate = (value as Record<string, unknown>)[key];
+  return Array.isArray(candidate) ? candidate : [];
+}
+
+function readStringValue(value: unknown, key: string) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+}
+
+function readModelPrimary(value: unknown) {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+
+  return readStringValue(value, 'primary');
+}
+
+function resolvePreferredOpenClawModelId(configSnapshot: OpenClawConfigSnapshot) {
+  const agentSnapshots = Array.isArray(configSnapshot.agentSnapshots)
+    ? configSnapshot.agentSnapshots
+    : [];
+  const defaultAgentSnapshot =
+    agentSnapshots.find((agent) => agent.isDefault) || agentSnapshots[0];
+  if (defaultAgentSnapshot?.model?.primary) {
+    return normalizePreferredModelId(defaultAgentSnapshot.model.primary);
+  }
+
+  const agentsRoot = readObjectValue(configSnapshot.root, 'agents');
+  const agentList = readArrayValue(agentsRoot, 'list');
+  const defaultAgentEntry =
+    agentList.find((entry) => readStringValue(entry, 'id') && (entry as Record<string, unknown>).default === true) ||
+    agentList[0];
+  const defaultAgentModelId = readModelPrimary(readObjectValue(defaultAgentEntry, 'model'));
+  if (defaultAgentModelId) {
+    return normalizePreferredModelId(defaultAgentModelId);
+  }
+
+  const defaultsRoot = readObjectValue(agentsRoot, 'defaults');
+  return normalizePreferredModelId(readModelPrimary(readObjectValue(defaultsRoot, 'model')));
+}
+
+function matchesPreferredModel(modelId: string, preferredModelId?: string | null) {
+  if (!preferredModelId) {
+    return false;
+  }
+
+  if (modelId === preferredModelId) {
+    return true;
+  }
+
+  return !preferredModelId.includes('/') && modelId.endsWith(`/${preferredModelId}`);
+}
+
+function sortModels(models: LLMModel[], preferredModelId?: string | null) {
+  return [...models].sort((left, right) => {
+    const leftPreferred = matchesPreferredModel(left.id, preferredModelId);
+    const rightPreferred = matchesPreferredModel(right.id, preferredModelId);
+    if (leftPreferred !== rightPreferred) {
+      return leftPreferred ? -1 : 1;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
 }
 
 function buildGatewayModelRef(entry: { id: string; provider?: string }) {
@@ -146,6 +235,7 @@ function groupEntriesToChannels(
   params: {
     useModelRefAsId: boolean;
     runtimeNameByRef?: Map<string, string>;
+    preferredModelId?: string | null;
   },
 ) {
   const channelMap = new Map<string, LLMChannel>();
@@ -175,17 +265,23 @@ function groupEntriesToChannels(
 
   return sortChannels(
     [...channelMap.values()].map((channel) => {
-      const models = sortModels(channel.models);
+      const models = sortModels(channel.models, params.preferredModelId);
+      const preferredModel = models.find((model) =>
+        matchesPreferredModel(model.id, params.preferredModelId),
+      );
       return {
         ...channel,
         models,
-        defaultModelId: models[0]?.id,
+        defaultModelId: preferredModel?.id || models[0]?.id,
       };
     }),
   );
 }
 
-function buildRuntimeFallbackChannels(result: GatewayModelsListResult) {
+function buildRuntimeFallbackChannels(
+  result: GatewayModelsListResult,
+  preferredModelId?: string | null,
+) {
   const channelMap = new Map<string, LLMChannel>();
 
   for (const model of result.models) {
@@ -213,11 +309,14 @@ function buildRuntimeFallbackChannels(result: GatewayModelsListResult) {
 
   return sortChannels(
     [...channelMap.values()].map((channel) => {
-      const models = sortModels(channel.models);
+      const models = sortModels(channel.models, preferredModelId);
+      const preferredModel = models.find((model) =>
+        matchesPreferredModel(model.id, preferredModelId),
+      );
       return {
         ...channel,
         models,
-        defaultModelId: models[0]?.id,
+        defaultModelId: preferredModel?.id || models[0]?.id,
       };
     }),
   );
@@ -273,6 +372,7 @@ class DefaultInstanceEffectiveModelCatalogService
     }
 
     const configSnapshot = await this.dependencies.readOpenClawConfigSnapshot(configPath);
+    const preferredModelId = resolvePreferredOpenClawModelId(configSnapshot);
     const configuredProviderIds = new Set(
       configSnapshot.providerSnapshots.map((provider) => normalizeProviderId(provider.id)),
     );
@@ -287,8 +387,9 @@ class DefaultInstanceEffectiveModelCatalogService
           ? groupEntriesToChannels(filtered, {
               useModelRefAsId: true,
               runtimeNameByRef: runtimeNamesByRef,
+              preferredModelId,
             })
-          : buildRuntimeFallbackChannels(gatewayModels),
+          : buildRuntimeFallbackChannels(gatewayModels, preferredModelId),
     };
   }
 }

@@ -1,5 +1,5 @@
-pub mod capabilities;
 pub mod bundled;
+pub mod capabilities;
 pub mod components;
 pub mod config;
 pub mod context;

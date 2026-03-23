@@ -73,18 +73,16 @@ mod tests {
         let state = AppState::from_context(context);
 
         let catalog = desktop_component_catalog_from_state(&state).expect("component catalog");
-        let codex = catalog
+        let router = catalog
             .components
             .iter()
-            .find(|component| component.id == "codex")
-            .expect("codex component");
+            .find(|component| component.id == "sdkwork-api-router")
+            .expect("router component");
 
-        assert!(
-            codex
-                .capabilities
-                .iter()
-                .any(|capability| capability.key == "mcp-and-app-server")
-        );
+        assert!(router
+            .capabilities
+            .iter()
+            .any(|capability| capability.key == "openai-gateway"));
     }
 
     #[test]

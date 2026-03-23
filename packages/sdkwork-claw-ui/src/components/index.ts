@@ -1,5 +1,6 @@
 export * from './Button';
 export * from './ChannelCatalog';
+export * from './ChannelWorkspace';
 export * from './Checkbox';
 export * from './DateInput';
 export * from './Dialog';

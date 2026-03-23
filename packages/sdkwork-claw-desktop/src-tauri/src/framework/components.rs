@@ -37,18 +37,6 @@ pub struct PackagedComponentDefinition {
 pub fn bundled_component_defaults() -> Vec<PackagedComponentDefinition> {
     vec![
         PackagedComponentDefinition {
-            id: "codex".to_string(),
-            display_name: "Codex".to_string(),
-            kind: PackagedComponentKind::Binary,
-            bundled_version: "bundled".to_string(),
-            startup_mode: PackagedComponentStartupMode::AutoStart,
-            install_subdir: "modules/codex/current".to_string(),
-            upgrade_channel: "stable".to_string(),
-            service_ids: vec!["codex".to_string()],
-            source_url: None,
-            commit: None,
-        },
-        PackagedComponentDefinition {
             id: "openclaw".to_string(),
             display_name: "OpenClaw".to_string(),
             kind: PackagedComponentKind::NodeApp,
@@ -116,9 +104,7 @@ pub fn bundled_component_defaults() -> Vec<PackagedComponentDefinition> {
     ]
 }
 
-pub fn default_startup_component_ids(
-    definitions: &[PackagedComponentDefinition],
-) -> Vec<String> {
+pub fn default_startup_component_ids(definitions: &[PackagedComponentDefinition]) -> Vec<String> {
     definitions
         .iter()
         .filter(|definition| definition.startup_mode == PackagedComponentStartupMode::AutoStart)
@@ -144,7 +130,6 @@ mod tests {
         assert_eq!(
             ids,
             vec![
-                "codex",
                 "openclaw",
                 "zeroclaw",
                 "ironclaw",
@@ -154,7 +139,7 @@ mod tests {
         );
         assert_eq!(
             default_startup_component_ids(&definitions),
-            vec!["codex".to_string(), "sdkwork-api-router".to_string()]
+            vec!["sdkwork-api-router".to_string()]
         );
 
         let router = definitions

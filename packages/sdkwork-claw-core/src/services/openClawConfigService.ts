@@ -72,6 +72,7 @@ export interface OpenClawChannelDefinition {
   name: string;
   description: string;
   setupSteps: string[];
+  configurationMode?: 'required' | 'none';
   fields: OpenClawChannelFieldDefinition[];
 }
 
@@ -81,6 +82,7 @@ export interface OpenClawChannelSnapshot {
   description: string;
   status: 'connected' | 'disconnected' | 'not_configured';
   enabled: boolean;
+  configurationMode: 'required' | 'none';
   fieldCount: number;
   configuredFieldCount: number;
   setupSteps: string[];
@@ -187,6 +189,14 @@ export interface SaveOpenClawChannelConfigurationInput {
   channelId: string;
   values: Record<string, string>;
   enabled?: boolean;
+}
+
+export interface SaveOpenClawSkillEntryInput {
+  configPath: string;
+  skillKey: string;
+  enabled?: boolean;
+  apiKey?: string;
+  env?: Record<string, string>;
 }
 
 function normalizePath(path: string) {
@@ -912,6 +922,138 @@ function buildResolvedAgentPaths(
 
 const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
   {
+    id: 'sdkworkchat',
+    name: 'Sdkwork Chat',
+    description: 'Deliver OpenClaw conversations directly into the first-party Sdkwork Chat experience.',
+    setupSteps: [
+      'Download the Sdkwork Chat app or open the existing Sdkwork Chat workspace.',
+      'Sign in with your SDKWork account to receive OpenClaw conversations immediately.',
+      'Keep this channel enabled when the current runtime should hand off into Sdkwork Chat.',
+    ],
+    configurationMode: 'none',
+    fields: [],
+  },
+  {
+    id: 'wehcat',
+    name: 'Wehcat',
+    description: 'Connect a WeChat official account workflow so OpenClaw can serve China-facing channels.',
+    setupSteps: [
+      'Create or manage a WeChat official account in the WeChat platform.',
+      'Paste the App ID, App Secret, token, and optional AES key here.',
+      'Configure the callback URL on the WeChat side and enable the channel.',
+    ],
+    fields: [
+      {
+        key: 'appId',
+        label: 'App ID',
+        placeholder: 'wx1234567890abcdef',
+        required: true,
+      },
+      {
+        key: 'appSecret',
+        label: 'App Secret',
+        placeholder: 'WeChat app secret',
+        required: true,
+        sensitive: true,
+      },
+      {
+        key: 'token',
+        label: 'Token',
+        placeholder: 'Verification token',
+        required: true,
+      },
+      {
+        key: 'encodingAesKey',
+        label: 'Encoding AES Key',
+        placeholder: 'Optional AES key',
+        sensitive: true,
+      },
+    ],
+  },
+  {
+    id: 'qq',
+    name: 'QQ',
+    description: 'Connect a QQ bot so OpenClaw can route commands, alerts, and approvals into QQ groups.',
+    setupSteps: [
+      'Create or manage the target QQ bot in the QQ bot platform.',
+      'Paste the bot key and target group ID here.',
+      'Enable the channel after a dry-run delivery succeeds.',
+    ],
+    fields: [
+      {
+        key: 'botKey',
+        label: 'Bot Key',
+        placeholder: 'QQ bot key',
+        required: true,
+        sensitive: true,
+      },
+      {
+        key: 'groupId',
+        label: 'Group ID',
+        placeholder: '123456789',
+        required: true,
+        helpText: 'The target QQ group that receives OpenClaw updates.',
+      },
+    ],
+  },
+  {
+    id: 'dingtalk',
+    name: 'DingTalk',
+    description: 'Connect a DingTalk custom robot so OpenClaw can broadcast updates into DingTalk workspaces.',
+    setupSteps: [
+      'Create a custom robot in the target DingTalk group.',
+      'Copy the access token and signing secret into this form.',
+      'Enable the channel after the first connectivity check succeeds.',
+    ],
+    fields: [
+      {
+        key: 'accessToken',
+        label: 'Access Token',
+        placeholder: 'DingTalk access token',
+        required: true,
+        sensitive: true,
+      },
+      {
+        key: 'secret',
+        label: 'Secret',
+        placeholder: 'Robot signing secret',
+        required: true,
+        sensitive: true,
+      },
+    ],
+  },
+  {
+    id: 'wecom',
+    name: 'WeCom',
+    description: 'Connect a WeCom application so OpenClaw can serve enterprise WeCom conversations.',
+    setupSteps: [
+      'Create a WeCom application with bot or customer-contact permissions.',
+      'Paste the corp ID, agent ID, and secret here.',
+      'Save the configuration and verify that message delivery succeeds.',
+    ],
+    fields: [
+      {
+        key: 'corpId',
+        label: 'Corp ID',
+        placeholder: 'ww1234567890abcdef',
+        required: true,
+      },
+      {
+        key: 'agentId',
+        label: 'Agent ID',
+        placeholder: '1000002',
+        required: true,
+      },
+      {
+        key: 'secret',
+        label: 'Secret',
+        placeholder: 'WeCom app secret',
+        required: true,
+        sensitive: true,
+      },
+    ],
+  },
+  {
     id: 'feishu',
     name: 'Feishu',
     description: 'Connect a Feishu bot so OpenClaw can receive and reply to team messages.',
@@ -1130,13 +1272,24 @@ function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
       !Array.isArray(channelsRoot[definition.id])
         ? (channelsRoot[definition.id] as JsonObject)
         : {};
+    const configurationMode = definition.configurationMode || 'required';
     const values = Object.fromEntries(
       definition.fields.map((field) => [field.key, readScalar(channelConfig[field.key])]),
     );
     const configuredFieldCount = definition.fields.filter((field) => Boolean(values[field.key])).length;
-    const enabled = Boolean(channelConfig.enabled ?? configuredFieldCount > 0);
+    const enabled = Boolean(
+      channelConfig.enabled ?? (configurationMode === 'none' ? true : configuredFieldCount > 0),
+    );
     const status =
-      configuredFieldCount === 0 ? 'not_configured' : enabled ? 'connected' : 'disconnected';
+      configurationMode === 'none'
+        ? enabled
+          ? 'connected'
+          : 'disconnected'
+        : configuredFieldCount === 0
+          ? 'not_configured'
+          : enabled
+            ? 'connected'
+            : 'disconnected';
 
     return {
       id: definition.id,
@@ -1144,6 +1297,7 @@ function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
       description: definition.description,
       status,
       enabled,
+      configurationMode,
       fieldCount: definition.fields.length,
       configuredFieldCount,
       setupSteps: [...definition.setupSteps],
@@ -1301,7 +1455,70 @@ function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigu
   const configuredFieldCount = definition.fields.filter(
     (field) => Boolean(input.values[field.key]?.trim()),
   ).length;
-  channelRoot.enabled = input.enabled ?? configuredFieldCount > 0;
+  channelRoot.enabled =
+    input.enabled ??
+    ((definition.configurationMode || 'required') === 'none' ? true : configuredFieldCount > 0);
+}
+
+function updateSkillEntry(root: JsonObject, input: SaveOpenClawSkillEntryInput) {
+  const skillKey = input.skillKey.trim();
+  if (!skillKey) {
+    throw new Error('OpenClaw skill key is required.');
+  }
+
+  const skillsRoot = ensureObject(root, 'skills');
+  const entriesRoot = ensureObject(skillsRoot, 'entries');
+  const current = readObject(entriesRoot[skillKey]) || {};
+
+  if (typeof input.enabled === 'boolean') {
+    if (input.enabled) {
+      delete current.enabled;
+    } else {
+      current.enabled = false;
+    }
+  }
+
+  if (input.apiKey !== undefined) {
+    const normalizedApiKey = input.apiKey.trim();
+    if (normalizedApiKey) {
+      current.apiKey = normalizedApiKey;
+    } else {
+      delete current.apiKey;
+    }
+  }
+
+  if (input.env) {
+    const nextEnv = readObject(current.env) || {};
+
+    for (const [rawKey, rawValue] of Object.entries(input.env)) {
+      const key = rawKey.trim();
+      if (!key) {
+        continue;
+      }
+
+      const value = rawValue.trim();
+      if (value) {
+        nextEnv[key] = value;
+      } else {
+        delete nextEnv[key];
+      }
+    }
+
+    if (Object.keys(nextEnv).length > 0) {
+      current.env = nextEnv;
+    } else {
+      delete current.env;
+    }
+  }
+
+  if (Object.keys(current).length > 0) {
+    entriesRoot[skillKey] = current;
+  } else {
+    delete entriesRoot[skillKey];
+  }
+
+  deleteIfEmptyObject(skillsRoot, 'entries');
+  deleteIfEmptyObject(root, 'skills');
 }
 
 function resolveProviderEntry(root: JsonObject, providerId: string) {
@@ -1708,6 +1925,14 @@ class OpenClawConfigService {
     await writeConfigRoot(input.configPath, root);
 
     return buildChannelSnapshots(root).find((channel) => channel.id === input.channelId) || null;
+  }
+
+  async saveSkillEntry(input: SaveOpenClawSkillEntryInput) {
+    const root = await readConfigRoot(input.configPath);
+    updateSkillEntry(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return this.readConfigSnapshot(input.configPath);
   }
 
   async setChannelEnabled(input: {

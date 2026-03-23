@@ -8,7 +8,10 @@ use crate::framework::{
     FrameworkError, Result,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const COMPONENT_REGISTRY_FILE_NAME: &str = "component-registry.json";
 const SERVICE_DEFAULTS_FILE_NAME: &str = "service-defaults.json";
@@ -86,9 +89,7 @@ impl ComponentRegistryService {
 
         Ok(BundledComponentResources {
             registry: read_json_file(&active_directory.join(COMPONENT_REGISTRY_FILE_NAME))?,
-            service_defaults: read_json_file(
-                &active_directory.join(SERVICE_DEFAULTS_FILE_NAME),
-            )?,
+            service_defaults: read_json_file(&active_directory.join(SERVICE_DEFAULTS_FILE_NAME))?,
             upgrade_policy: read_json_file(&active_directory.join(UPGRADE_POLICY_FILE_NAME))?,
         })
     }
@@ -190,16 +191,12 @@ fn component_kind_label(kind: &crate::framework::components::PackagedComponentKi
     }
 }
 
-fn startup_mode_label(
-    mode: &crate::framework::components::PackagedComponentStartupMode,
-) -> String {
+fn startup_mode_label(mode: &crate::framework::components::PackagedComponentStartupMode) -> String {
     match mode {
         crate::framework::components::PackagedComponentStartupMode::AutoStart => {
             "autoStart".to_string()
         }
-        crate::framework::components::PackagedComponentStartupMode::Manual => {
-            "manual".to_string()
-        }
+        crate::framework::components::PackagedComponentStartupMode::Manual => "manual".to_string(),
         crate::framework::components::PackagedComponentStartupMode::Embedded => {
             "embedded".to_string()
         }
@@ -223,7 +220,7 @@ mod tests {
 
         assert_eq!(
             resources.service_defaults.auto_start_component_ids,
-            vec!["codex".to_string(), "sdkwork-api-router".to_string()]
+            vec!["sdkwork-api-router".to_string()]
         );
         assert_eq!(
             resources.service_defaults.manual_component_ids,

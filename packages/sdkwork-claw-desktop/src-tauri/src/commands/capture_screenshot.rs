@@ -43,12 +43,15 @@ fn now_unix_seconds() -> u64 {
 }
 
 fn capture_primary_monitor_png() -> FrameworkResult<CapturedScreenshotPayload> {
-    let monitors =
-        Monitor::all().map_err(|error| FrameworkError::Internal(error.to_string()))?;
+    let monitors = Monitor::all().map_err(|error| FrameworkError::Internal(error.to_string()))?;
     let monitor = monitors
         .into_iter()
         .find(|entry| entry.is_primary().unwrap_or(false))
-        .or_else(|| Monitor::all().ok().and_then(|items| items.into_iter().next()))
+        .or_else(|| {
+            Monitor::all()
+                .ok()
+                .and_then(|items| items.into_iter().next())
+        })
         .ok_or_else(|| FrameworkError::NotFound("desktop monitor".to_string()))?;
 
     let display_name = monitor.name().ok().filter(|value| !value.trim().is_empty());

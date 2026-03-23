@@ -1,12 +1,10 @@
 import React, { startTransition, useDeferredValue, useMemo, useState } from 'react';
 import {
   AlertCircle,
-  Bot,
   CheckCircle2,
   Search,
   Server,
   Sparkles,
-  Users2,
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -67,30 +65,6 @@ function buildTemplateSearchValues(
       ...localizedTemplate.capabilities,
     ]),
   ];
-}
-
-function MetricCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-200">
-          {icon}
-        </div>
-        <div className="text-sm text-zinc-500 dark:text-zinc-400">{label}</div>
-      </div>
-      <div className="mt-4 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-        {value}
-      </div>
-    </div>
-  );
 }
 
 function EmptyState({
@@ -418,9 +392,6 @@ export function AgentMarket() {
     [activeCategory, deferredSearchQuery, i18n.resolvedLanguage, t],
   );
 
-  const uniqueInstalledTemplateIds = new Set(
-    targets.flatMap((target) => target.installedTemplateIds),
-  );
   const modalTargets = useMemo(
     () =>
       selectedTemplate
@@ -453,42 +424,42 @@ export function AgentMarket() {
 
   return (
     <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950">
-      <div className="flex w-full flex-col gap-6 px-4 pb-14 pt-4 sm:px-5 md:pb-16 lg:px-6 lg:pt-6 xl:px-8 2xl:px-10">
-        <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-[linear-gradient(135deg,_rgba(14,165,233,0.10),_rgba(255,255,255,0.92)_36%,_rgba(244,244,245,0.96))] p-6 shadow-sm dark:border-zinc-800 dark:bg-[linear-gradient(135deg,_rgba(59,130,246,0.18),_rgba(9,9,11,0.96)_38%,_rgba(24,24,27,0.98))]">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
-                {t('agentMarket.hero.eyebrow')}
-              </div>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                {t('agentMarket.hero.title')}
-              </h1>
-              <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-400">
-                {t('agentMarket.hero.description')}
-              </p>
+      <div className="flex w-full flex-col gap-5 px-4 pb-14 pt-4 sm:px-5 md:pb-16 lg:px-6 lg:pt-6 xl:px-8 2xl:px-10">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:p-5 xl:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {catalog.categories.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => {
+                    startTransition(() => {
+                      setActiveCategory(category);
+                    });
+                  }}
+                  className={`rounded-full border px-4 py-2 text-sm font-medium ${
+                    activeCategory === category
+                      ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-200'
+                      : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900'
+                  }`}
+                >
+                  {category === 'All'
+                    ? t('agentMarket.categories.All')
+                    : t(`agentMarket.categories.${category}`, { defaultValue: category })}
+                </button>
+              ))}
             </div>
-            <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-sm text-zinc-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
-              {t('agentMarket.hero.multiAgentNote')}
+            <div className="relative w-full xl:max-w-sm">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <Input
+                type="text"
+                value={searchQuery}
+                placeholder={t('agentMarket.searchPlaceholder')}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="h-11 rounded-xl border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm shadow-none focus-visible:border-primary-300 focus-visible:bg-white focus-visible:ring-0 dark:border-zinc-800 dark:bg-zinc-900 dark:focus-visible:border-primary-500/30"
+              />
             </div>
           </div>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-3">
-          <MetricCard
-            icon={<Bot className="h-5 w-5" />}
-            label={t('agentMarket.metrics.templates')}
-            value={AGENT_MARKET_TEMPLATES.length}
-          />
-          <MetricCard
-            icon={<Server className="h-5 w-5" />}
-            label={t('agentMarket.metrics.instances')}
-            value={targets.length}
-          />
-          <MetricCard
-            icon={<Users2 className="h-5 w-5" />}
-            label={t('agentMarket.metrics.installedTemplates')}
-            value={uniqueInstalledTemplateIds.size}
-          />
         </section>
 
         {isError ? (
@@ -524,52 +495,6 @@ export function AgentMarket() {
             </div>
           </section>
         ) : null}
-
-        <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:p-5 xl:p-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                {t('agentMarket.section.title')}
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                {t('agentMarket.section.description')}
-              </p>
-            </div>
-            <div className="relative w-full xl:max-w-md">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <Input
-                type="text"
-                value={searchQuery}
-                placeholder={t('agentMarket.searchPlaceholder')}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="h-11 rounded-xl border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm shadow-none focus-visible:border-primary-300 focus-visible:bg-white focus-visible:ring-0 dark:border-zinc-800 dark:bg-zinc-900 dark:focus-visible:border-primary-500/30"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-            {catalog.categories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => {
-                  startTransition(() => {
-                    setActiveCategory(category);
-                  });
-                }}
-                className={`rounded-full border px-4 py-2 text-sm font-medium ${
-                  activeCategory === category
-                    ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-200'
-                    : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900'
-                }`}
-              >
-                {category === 'All'
-                  ? t('agentMarket.categories.All')
-                  : t(`agentMarket.categories.${category}`, { defaultValue: category })}
-              </button>
-            ))}
-          </div>
-        </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:p-5 xl:p-6">
           {isLoading ? (

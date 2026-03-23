@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openClawConfigService } from '@sdkwork/claw-core';
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
 import { createInstanceWorkbenchService } from './instanceWorkbenchService.ts';
 
@@ -566,8 +567,14 @@ await runTest('getInstanceWorkbench builds a remote OpenClaw snapshot from gatew
   assert.equal(mockReads.instance, 0);
   assert.equal(mockReads.tasks, 0);
   assert.equal(mockReads.files, 0);
-  assert.equal(workbench?.channels.length, 1);
-  assert.equal(workbench?.channels[0]?.name, 'Slack');
+  assert.deepEqual(
+    workbench?.channels.slice(0, 5).map((channel) => channel.id),
+    ['sdkworkchat', 'wehcat', 'qq', 'dingtalk', 'wecom'],
+  );
+  assert.equal(workbench?.channels.some((channel) => channel.id === 'slack'), true);
+  assert.equal(workbench?.channels.find((channel) => channel.id === 'slack')?.status, 'connected');
+  assert.equal(workbench?.channels.find((channel) => channel.id === 'qq')?.status, 'not_configured');
+  assert.equal(workbench?.channels.find((channel) => channel.id === 'sdkworkchat')?.status, 'connected');
   assert.equal(workbench?.tasks.length, 1);
   assert.equal(workbench?.tasks[0]?.id, 'job-ops-daily');
   assert.equal(workbench?.llmProviders.length, 1);
@@ -699,7 +706,12 @@ await runTest('getInstanceWorkbench overlays live OpenClaw gateway sections on t
   const workbench = await service.getInstanceWorkbench('local-built-in');
 
   assert.ok(workbench);
-  assert.equal(workbench?.channels[0]?.id, 'slack');
+  assert.deepEqual(
+    workbench?.channels.slice(0, 5).map((channel) => channel.id),
+    ['sdkworkchat', 'wehcat', 'qq', 'dingtalk', 'wecom'],
+  );
+  assert.equal(workbench?.channels.some((channel) => channel.id === 'slack'), true);
+  assert.equal(workbench?.channels.some((channel) => channel.id === 'old-channel'), true);
   assert.equal(workbench?.tasks[0]?.id, 'live-task-1');
   assert.equal(workbench?.llmProviders[0]?.id, 'openai');
   assert.equal(workbench?.agents[0]?.agent.id, 'ops');
@@ -707,6 +719,105 @@ await runTest('getInstanceWorkbench overlays live OpenClaw gateway sections on t
   assert.equal(workbench?.tools[0]?.id, 'cron');
   assert.equal(workbench?.files[0]?.id, '/workspace/main/AGENTS.md');
   assert.equal(workbench?.memories[0]?.id, 'backend-memory');
+});
+
+await runTest('getInstanceWorkbench keeps managed channel editing metadata when OpenClaw is sourced from live gateway sections', async () => {
+  const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
+  const managedChannelSnapshots = openClawConfigService.getChannelDefinitions().map((definition) => ({
+    id: definition.id,
+    name: definition.name,
+    description: definition.description,
+    status: definition.configurationMode === 'none' ? ('connected' as const) : ('not_configured' as const),
+    enabled: definition.configurationMode === 'none',
+    configurationMode: definition.configurationMode || 'required',
+    fieldCount: definition.fields.length,
+    configuredFieldCount: 0,
+    setupSteps: [...definition.setupSteps],
+    values: Object.fromEntries(definition.fields.map((field) => [field.key, ''])),
+    fields: definition.fields.map((field) => ({ ...field })),
+  }));
+  const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
+
+  openClawConfigService.readConfigSnapshot = async () => ({
+    configPath: managedConfigPath,
+    providerSnapshots: [],
+    agentSnapshots: [],
+    channelSnapshots: managedChannelSnapshots,
+    root: {},
+  });
+
+  try {
+    const service = createInstanceWorkbenchService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail('managed-live', {
+            workbench: null,
+            dataAccess: {
+              routes: [
+                {
+                  scope: 'config',
+                  mode: 'managedFile',
+                  target: managedConfigPath,
+                },
+              ],
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        listWorkbenchCronJobs: async () => [createLiveTask('live-task-managed')],
+        listWorkbenchCronRuns: async () => [],
+        getConfig: async () => ({
+          config: {
+            models: {
+              providers: {},
+            },
+          },
+        }),
+        listModels: async () => [],
+        getChannelStatus: async () => ({
+          channelOrder: ['slack'],
+          channelLabels: {
+            slack: 'Slack',
+          },
+          channels: {
+            slack: {
+              enabled: true,
+              configured: true,
+              fields: {
+                token: true,
+              },
+            },
+          },
+        }),
+        getSkillsStatus: async () => ({
+          skills: [],
+        }),
+        getToolsCatalog: async () => ({
+          profiles: [],
+          groups: [],
+        }),
+        listAgents: async () => ({
+          agents: [],
+        }),
+        listAgentFiles: async () => ({
+          files: [],
+        }),
+        getAgentFile: async () => ({
+          file: undefined,
+        }),
+      },
+    });
+
+    const workbench = await service.getInstanceWorkbench('managed-live');
+
+    assert.ok(workbench);
+    assert.equal(workbench?.managedConfigPath, managedConfigPath);
+    assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'qq'), true);
+    assert.equal(workbench?.channels.find((channel) => channel.id === 'slack')?.status, 'connected');
+    assert.equal(workbench?.channels.find((channel) => channel.id === 'qq')?.status, 'not_configured');
+  } finally {
+    openClawConfigService.readConfigSnapshot = originalReadConfigSnapshot;
+  }
 });
 
 await runTest('listTaskExecutions stays scoped to the most recently loaded OpenClaw instance when task ids overlap', async () => {

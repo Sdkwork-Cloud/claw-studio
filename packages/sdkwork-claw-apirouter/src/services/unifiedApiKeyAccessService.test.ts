@@ -126,6 +126,14 @@ await runTest('unifiedApiKeyAccessService only exposes working quick setup clien
   const claudeCode = configs.find((config) => config.id === 'claude-code');
   const gemini = configs.find((config) => config.id === 'gemini');
 
+  assert.deepEqual(configs.map((config) => config.id), [
+    'codex',
+    'claude-code',
+    'opencode',
+    'openclaw',
+    'gemini',
+  ]);
+  assert.equal(configs.length, 5);
   assert.equal(codex?.available, true);
   assert.equal(opencode?.available, true);
   assert.equal(openclaw?.available, true);

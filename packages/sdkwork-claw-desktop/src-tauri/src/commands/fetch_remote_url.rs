@@ -16,8 +16,8 @@ pub struct FetchedRemoteUrlPayload {
 }
 
 fn validate_remote_url(url: &str) -> FrameworkResult<Url> {
-    let parsed = Url::parse(url)
-        .map_err(|error| FrameworkError::ValidationFailed(error.to_string()))?;
+    let parsed =
+        Url::parse(url).map_err(|error| FrameworkError::ValidationFailed(error.to_string()))?;
 
     match parsed.scheme() {
         "http" | "https" => Ok(parsed),
@@ -106,8 +106,7 @@ pub async fn fetch_remote_url(url: String) -> Result<FetchedRemoteUrlPayload, St
 #[cfg(test)]
 mod tests {
     use super::{
-        derive_file_name_from_content_disposition, derive_file_name_from_url,
-        validate_remote_url,
+        derive_file_name_from_content_disposition, derive_file_name_from_url, validate_remote_url,
     };
 
     #[test]
@@ -128,12 +127,18 @@ mod tests {
             derive_file_name_from_content_disposition("inline; filename=screenshot.png"),
             Some("screenshot.png".to_string())
         );
-        assert_eq!(derive_file_name_from_content_disposition("attachment"), None);
+        assert_eq!(
+            derive_file_name_from_content_disposition("attachment"),
+            None
+        );
     }
 
     #[test]
     fn derives_file_name_from_final_url_path() {
         let url = validate_remote_url("https://example.com/assets/demo.mp3").expect("url");
-        assert_eq!(derive_file_name_from_url(&url), Some("demo.mp3".to_string()));
+        assert_eq!(
+            derive_file_name_from_url(&url),
+            Some("demo.mp3".to_string())
+        );
     }
 }

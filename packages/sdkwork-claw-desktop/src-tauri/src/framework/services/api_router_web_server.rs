@@ -5,9 +5,9 @@ use axum::{
     http::{
         header::{
             ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
-            ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_MAX_AGE,
-            ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, CACHE_CONTROL,
-            CONTENT_LENGTH, CONTENT_TYPE, HOST, ORIGIN, VARY,
+            ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_MAX_AGE, ACCESS_CONTROL_REQUEST_HEADERS,
+            ACCESS_CONTROL_REQUEST_METHOD, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE, HOST,
+            ORIGIN, VARY,
         },
         HeaderMap, HeaderName, HeaderValue, Method, Request, Response, StatusCode,
     },
@@ -177,9 +177,9 @@ impl ApiRouterWebServerHandle {
             let _ = shutdown.send(());
         }
         if let Some(thread) = self.thread.take() {
-            thread
-                .join()
-                .map_err(|_| FrameworkError::Internal("api router web server thread panicked".to_string()))?;
+            thread.join().map_err(|_| {
+                FrameworkError::Internal("api router web server thread panicked".to_string())
+            })?;
         }
 
         Ok(())
@@ -249,9 +249,9 @@ pub(crate) fn resolve_static_asset(
     site_root: &Path,
 ) -> Result<SiteAsset> {
     let path = strip_request_suffix(request_path);
-    let site_relative_path = path
-        .strip_prefix(site.mount_prefix())
-        .ok_or_else(|| FrameworkError::ValidationFailed("request path does not belong to site mount".to_string()))?;
+    let site_relative_path = path.strip_prefix(site.mount_prefix()).ok_or_else(|| {
+        FrameworkError::ValidationFailed("request path does not belong to site mount".to_string())
+    })?;
 
     let asset_path = if should_serve_index(site_relative_path) {
         site_root.join("index.html")
@@ -329,16 +329,16 @@ async fn handle_request(
 
     finalize_response_with_cors(
         match route {
-        RuntimeRoute::Health => text_response(StatusCode::OK, "ok"),
-        RuntimeRoute::Redirect(location) => redirect_response(&location),
-        RuntimeRoute::Proxy {
-            upstream,
-            request_path,
-        } => handle_proxy_request(state, request, upstream, &request_path).await,
-        RuntimeRoute::Static { site, request_path } => {
-            handle_static_request(&state.config, request, site, &request_path)
-        }
-        RuntimeRoute::NotFound => text_response(StatusCode::NOT_FOUND, "not found"),
+            RuntimeRoute::Health => text_response(StatusCode::OK, "ok"),
+            RuntimeRoute::Redirect(location) => redirect_response(&location),
+            RuntimeRoute::Proxy {
+                upstream,
+                request_path,
+            } => handle_proxy_request(state, request, upstream, &request_path).await,
+            RuntimeRoute::Static { site, request_path } => {
+                handle_static_request(&state.config, request, site, &request_path)
+            }
+            RuntimeRoute::NotFound => text_response(StatusCode::NOT_FOUND, "not found"),
         },
         cors_origin.as_ref(),
         &request_headers,
@@ -473,7 +473,9 @@ async fn handle_proxy_request(
     }
     response
         .body(Body::from(response_bytes))
-        .unwrap_or_else(|error| text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()))
+        .unwrap_or_else(|error| {
+            text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
+        })
 }
 
 fn copy_response_headers(source: &HeaderMap, target: &mut HeaderMap) {
@@ -562,9 +564,9 @@ fn redirect_response(location: &str) -> Response<Body> {
         headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
         headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
     }
-    response
-        .body(Body::empty())
-        .unwrap_or_else(|error| text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()))
+    response.body(Body::empty()).unwrap_or_else(|error| {
+        text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
+    })
 }
 
 fn cors_preflight_response(request_headers: &HeaderMap) -> Response<Body> {
@@ -600,9 +602,9 @@ fn cors_preflight_response(request_headers: &HeaderMap) -> Response<Body> {
         headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
         headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     }
-    response
-        .body(Body::empty())
-        .unwrap_or_else(|error| text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()))
+    response.body(Body::empty()).unwrap_or_else(|error| {
+        text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
+    })
 }
 
 fn finalize_response_with_cors(
@@ -639,7 +641,11 @@ fn apply_cors_headers(
 
 fn append_vary_header(headers: &mut HeaderMap, value: &str) {
     let new_value = match headers.get(VARY).and_then(|current| current.to_str().ok()) {
-        Some(current) if current.split(',').any(|part| part.trim().eq_ignore_ascii_case(value)) => {
+        Some(current)
+            if current
+                .split(',')
+                .any(|part| part.trim().eq_ignore_ascii_case(value)) =>
+        {
             return;
         }
         Some(current) if !current.trim().is_empty() => format!("{current}, {value}"),
@@ -698,7 +704,10 @@ fn html_response(status: StatusCode, cache_control: &str, html: &str) -> Respons
         let headers = response
             .headers_mut()
             .expect("response headers should be available");
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        );
         headers.insert(
             CACHE_CONTROL,
             HeaderValue::from_str(cache_control)
@@ -712,7 +721,9 @@ fn html_response(status: StatusCode, cache_control: &str, html: &str) -> Respons
     }
     response
         .body(Body::from(html.to_string()))
-        .unwrap_or_else(|error| text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()))
+        .unwrap_or_else(|error| {
+            text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
+        })
 }
 
 fn text_response(status: StatusCode, message: &str) -> Response<Body> {
@@ -981,7 +992,9 @@ mod tests {
         assert_eq!(response.status(), super::StatusCode::NO_CONTENT);
         assert_eq!(
             response.headers().get(ACCESS_CONTROL_ALLOW_METHODS),
-            Some(&HeaderValue::from_static("GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"))
+            Some(&HeaderValue::from_static(
+                "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+            ))
         );
         assert_eq!(
             response.headers().get(ACCESS_CONTROL_ALLOW_HEADERS),
@@ -998,7 +1011,9 @@ mod tests {
 
         assert_eq!(
             headers.get(super::VARY),
-            Some(&HeaderValue::from_static("Origin, Access-Control-Request-Headers"))
+            Some(&HeaderValue::from_static(
+                "Origin, Access-Control-Request-Headers"
+            ))
         );
     }
 }

@@ -4,6 +4,8 @@
     "back": "Back",
     "goBack": "Go Back",
     "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
     "cancel": "Cancel",
     "close": "Close",
     "search": "Search",
@@ -27,13 +29,14 @@
     "older": "Older",
     "viewAll": "See All",
     "add": "Add",
-    "done": "Done"
+    "done": "Done",
+    "reset": "Reset"
   },
   "sidebar": {
     "brand": "Claw Studio",
     "dashboard": "Dashboard",
     "hotBadge": "Hot",
-    "clawMall": "Claw Mall",
+    "clawMall": "Registry Center",
     "instances": "Instances",
     "devices": "Devices",
     "install": "Install Claw",
@@ -1136,7 +1139,7 @@
       "clients": {
         "codex": {
           "title": "Codex",
-          "description": "Install ~/.codex/config.toml and ~/.codex/auth.json so Codex can use this route through the official API key flow."
+          "description": "Install ~/.codex/config.toml and ~/.codex/auth.json with the API Router model provider, OpenAI base URL, and routed default model."
         },
         "claude-code": {
           "title": "Claude Code",
@@ -1156,7 +1159,7 @@
         }
       },
       "reasons": {
-        "requiresOpenAIResponses": "Codex one-click setup currently requires an OpenAI channel with a Responses-compatible route.",
+        "requiresOpenAICompatible": "Codex one-click setup requires an OpenAI-compatible route.",
         "requiresAnthropicCompatible": "Claude Code one-click setup requires an Anthropic-compatible route.",
         "requiresOpenAIOrAnthropicCompatible": "This client currently supports OpenAI-compatible or Anthropic-compatible routes only.",
         "requiresGeminiCompatible": "Gemini CLI one-click setup currently requires a Gemini-compatible Google route.",
@@ -2126,15 +2129,19 @@
         "share": "Share"
       },
       "assistantCta": {
-        "title": "OpenClaw can take the next step",
-        "description": "Use the assistant to optimize this entry, prepare repost variants, or organize the next follow-up action.",
-        "primaryAction": "Ask OpenClaw to continue"
-      },
-      "backToCommunity": "Back to classifieds",
-      "commentPlaceholder": "Add a follow-up note or question...",
-      "commentsTitle": "Comments ({{count, number}})",
-      "currentUserInitials": "ME",
-      "featuredBadge": "Featured",
+      "title": "OpenClaw can take the next step",
+      "description": "Use the assistant to optimize this entry, prepare repost variants, or organize the next follow-up action.",
+      "primaryAction": "Ask OpenClaw to continue"
+    },
+    "overviewEyebrow": "Entry detail",
+    "overviewTitle": "Listing overview",
+    "publisherPanelEyebrow": "Publisher",
+    "publisherPanelTitle": "Publisher profile",
+    "backToCommunity": "Back to classifieds",
+    "commentPlaceholder": "Add a follow-up note or question...",
+    "commentsTitle": "Comments ({{count, number}})",
+    "currentUserInitials": "ME",
+    "featuredBadge": "Featured",
       "listingMeta": {
         "title": "Listing metadata",
         "location": "Location",
@@ -2171,16 +2178,42 @@
           "onsite": "On-site delivery"
         }
       },
-      "meta": {
-        "views": "{{count, number}} views"
-      },
-      "newsPanelTitle": "Platform news",
-      "newsPanelDescription": "This is an official news entry, so it stays readable as a retained news module inside the broader classifieds entrance.",
-      "notFoundTitle": "Entry not found",
-      "roles": {
-        "official": "Official",
-        "coreContributor": "Core Contributor"
+    "meta": {
+      "views": "{{count, number}} views"
+    },
+    "newsPanelTitle": "Platform news",
+    "newsPanelDescription": "This is an official news entry, so it stays readable as a retained news module inside the broader classifieds entrance.",
+    "recommendations": {
+      "relatedServicesEyebrow": "Related services",
+      "relatedServicesTitle": "Services worth contacting",
+      "relatedServicesDescription": "Prioritized using the current listing's service demand, tags, and delivery context.",
+      "relatedServicesEmpty": "No closely related services are available right now.",
+      "relatedCompaniesEyebrow": "Related companies",
+      "relatedCompaniesTitle": "Companies worth matching",
+      "relatedCompaniesDescription": "Grouped from active classifieds so you can keep browsing nearby suppliers, operators, and company demand.",
+      "relatedCompaniesEmpty": "No closely related companies are available right now.",
+      "openService": "Open service",
+      "openCompany": "Representative listing",
+      "activeListings": "{{count, number}} active listings",
+      "reasonLabels": {
+        "featured": "featured",
+        "intentServiceLine": "matched demand",
+        "matchedServiceLine": "matched service",
+        "multiListing": "multi listing",
+        "onlineDelivery": "online delivery",
+        "officialPresence": "official presence",
+        "sameCompany": "same company",
+        "sameServiceLine": "same service line",
+        "sharedCategory": "shared category",
+        "sharedLocation": "shared location",
+        "sharedTag": "shared tag"
       }
+    },
+    "notFoundTitle": "Entry not found",
+    "roles": {
+      "official": "Official",
+      "coreContributor": "Core Contributor"
+    }
     }
   },
   "clawUpload": {
@@ -2535,69 +2568,176 @@
     }
   },
   "clawCenter": {
-    "title": "Claw",
-    "titleHighlight": " Mall",
-    "subtitle": "Connect directly with top-tier OpenClaw providers. Negotiate, integrate, and scale your AI workforce instantly.",
-    "searchPlaceholder": "Search providers, services, or tags...",
+    "eyebrow": "OpenClaw Registry",
+    "title": "OpenClaw Registry Center",
+    "subtitle": "Search large OpenClaw catalogs by capability, category, and intent, lock onto the right agent or service, then hand off a concrete ACP networking command without leaving the page.",
+    "searchPlaceholder": "Search agents, services, tags, or connection modes...",
+    "searchSummaryIdle": "Browse {{count}} registry entries across {{categories}} categories and start from the search workbench instead of digging through pages.",
+    "searchSummaryActive": "Search for \"{{query}}\" in {{category}} and review {{count}} matched registry entries from the workbench.",
+    "topMatchEmptyTitle": "No top match is available yet",
+    "topMatchEmptyDescription": "Adjust the query, broaden the category, or fall back to quick connect so networking can still start immediately.",
     "allCategories": "All Categories",
-    "verifiedOnly": "Verified Only",
-    "rating": "Rating",
-    "orders": "Orders",
-    "responseRate": "Response Rate",
-    "viewDetails": "View Details",
-    "noResults": "We couldn't find any Claw providers matching your search criteria. Try adjusting your filters or search terms.",
-    "services": "Services",
-    "search": "Search",
-    "messages": "Messages",
-    "myOrders": "My Orders",
-    "supercharge": "Supercharge Your Business",
-    "futureOfB2B": "The Future of B2B",
-    "aiAgentSourcing": "AI Agent Sourcing",
-    "exploreProviders": "Explore Top Providers",
-    "trendingProviders": "Trending Providers",
-    "providers": "Providers",
-    "noProvidersFound": "No providers found",
-    "bannerAlt": "AI service marketplace banner"
+    "actions": {
+      "quickConnect": "Quick Connect",
+      "quickRegister": "One-Click Register",
+      "copyCommand": "Copy ACP Command",
+      "copyContent": "Copy Content",
+      "quickConnectNow": "Connect Now",
+      "openLocalRegistry": "Open Local Networking",
+      "copyEntryCommand": "Copy Entry Command",
+      "viewDetails": "View Registry Detail",
+      "clearFilters": "Clear Filters"
+    },
+    "metrics": {
+      "entries": "Registered Entries",
+      "activeAgents": "Active Agents",
+      "matches": "Successful Matches",
+      "gatewayReady": "Gateway Ready"
+    },
+    "quickConnect": {
+      "eyebrow": "One-Click Networking",
+      "chatTitle": "Local Gateway Ready",
+      "instanceTitle": "Local Instance Needs Attention",
+      "installTitle": "No OpenClaw Instance Yet",
+      "chatDescription": "{{count}} gateway-ready OpenClaw instance is available. Jump straight into chat and attach the current workspace.",
+      "instanceDescription": "{{count}} OpenClaw instance is registered locally. Open the instance surface first, then complete networking from there.",
+      "installDescription": "No local OpenClaw instance is available yet. Start with installation, then come back to quick networking."
+    },
+    "labels": {
+      "searchStage": "Search Workbench",
+      "currentCommand": "Current ACP Command",
+      "matchCount": "Matches",
+      "activeAgents": "Agents",
+      "bestFor": "Best For",
+      "matchReasons": "Matched On"
+    },
+    "sections": {
+      "categories": "Categories",
+      "latestClaw": "Latest Claw",
+      "popularClaw": "Popular Claw",
+      "recommendedClaw": "Recommended Claw",
+      "suggestions": "Suggested Queries",
+      "topMatchEyebrow": "Search Priority",
+      "topMatch": "Top Match",
+      "statusEyebrow": "Local Networking",
+      "status": "Connection Status",
+      "spotlightEyebrow": "Registry Spotlight",
+      "spotlight": "Featured Matches",
+      "resultsEyebrow": "Search Results",
+      "results": "Registry Entries"
+    },
+    "resultsSummary": "{{count}} matching registry entries",
+    "emptyTitle": "No registry entries matched the current search",
+    "emptyDescription": "Try a broader keyword, switch categories, or use the copied ACP command from a featured entry to start networking anyway.",
+    "badges": {
+      "verified": "Verified",
+      "featured": "Featured"
+    },
+    "kind": {
+      "agent": "Agent",
+      "service": "Service"
+    },
+    "categories": {
+      "Engineering": "Engineering",
+      "Research": "Research",
+      "Operations": "Operations",
+      "Support": "Support",
+      "Content": "Content",
+      "Automation": "Automation"
+    },
+    "categoryDescriptions": {
+      "Engineering": "Code generation, review, release, and engineering specialists.",
+      "Research": "Evidence, browsing, retrieval, and structured analysis services.",
+      "Operations": "Incidents, runtime control, recovery, and production workflows.",
+      "Support": "Support intake, routing, context collection, and escalation flows.",
+      "Content": "Documentation, launch assets, editorial packaging, and publishing.",
+      "Automation": "Coordinators, schedules, triggers, and ACP-first workflow loops."
+    },
+    "messages": {
+      "quickConnectFailed": "Quick connect failed. Open the local instance or install flow instead.",
+      "copySuccess": "ACP command copied for {{name}}.",
+      "copyFailed": "Failed to copy the ACP command."
+    }
   },
   "clawDetail": {
-    "back": "Back to Marketplace",
-    "verified": "Verified",
-    "rating": "Rating",
-    "orders": "Orders",
-    "responseRate": "Response Rate",
-    "chatNow": "Chat Now",
-    "visitWebsite": "Visit Website",
-    "tabs": {
-      "products": "Products & Services",
-      "about": "About Company",
-      "reviews": "Reviews"
-    },
-    "about": {
-      "title": "Company Overview"
-    },
-    "reviews": {
-      "empty": "No reviews yet."
-    },
-    "details": {
-      "title": "Provider Details",
-      "established": "Established",
-      "location": "Location",
-      "email": "Email"
-    },
-    "secure": {
-      "title": "Secure Transaction",
-      "desc": "All transactions and service agreements made through Claw Mall are protected by our platform guarantee. Payments are held in escrow until service delivery is confirmed."
-    },
+    "back": "Back to Registry",
     "notFound": {
-      "title": "Provider Not Found",
-      "back": "Return to Marketplace"
+      "title": "Registry entry not found",
+      "description": "The requested OpenClaw subject is no longer in the current registry snapshot or the identifier is invalid.",
+      "back": "Return to Registry Center"
+    },
+    "kind": {
+      "agent": "Agent",
+      "service": "Service"
+    },
+    "badges": {
+      "verified": "Verified"
+    },
+    "actions": {
+      "quickConnect": "Use Quick Connect",
+      "copyCommand": "Copy ACP Command",
+      "openDocs": "Open ACP Docs",
+      "openMatchmaking": "Open Matchmaking",
+      "quickConnectNow": "Open Quick Connect"
+    },
+    "sections": {
+      "overviewEyebrow": "Registry Overview",
+      "overview": "What This Entry Does",
+      "matchingEyebrow": "Matchmaking Notes",
+      "matching": "When To Use It",
+      "onboardingEyebrow": "Handoff Steps",
+      "onboarding": "How To Onboard",
+      "connectEyebrow": "Connection Profile",
+      "connect": "Connect This Entry",
+      "relatedEyebrow": "Related Entries",
+      "related": "Continue Matching"
+    },
+    "labels": {
+      "bestFor": "Best For",
+      "trustHighlights": "Trust Highlights",
+      "capabilities": "Capabilities",
+      "integrations": "Integrations",
+      "matchingNotes": "Matching Notes"
+    },
+    "stats": {
+      "matches": "Matches",
+      "activeAgents": "Agents",
+      "region": "Region",
+      "latency": "Latency"
+    },
+    "connection": {
+      "gateway": "Gateway URL",
+      "websocket": "WebSocket URL",
+      "authMode": "Auth Mode",
+      "session": "Default Session",
+      "command": "ACP Command"
+    },
+    "authMode": {
+      "token": "Token",
+      "none": "None",
+      "external": "External"
+    },
+    "quickConnect": {
+      "eyebrow": "Local Quick Networking",
+      "chatTitle": "Gateway-ready OpenClaw is available",
+      "instanceTitle": "A local OpenClaw instance is registered",
+      "installTitle": "Install OpenClaw to enable one-click networking",
+      "chatDescription": "Jump directly into the chat surface and attach your local workspace to the registry flow.",
+      "instanceDescription": "Open the registered local instance first, then complete networking and session setup from there.",
+      "installDescription": "No local OpenClaw instance is available yet. Install one first, then return to this entry."
+    },
+    "messages": {
+      "quickConnectFailed": "Quick connect failed for this registry entry.",
+      "copySuccess": "ACP command copied for {{name}}.",
+      "copyFailed": "Failed to copy the ACP command.",
+      "openExternalFailed": "Failed to open the external link."
     },
     "chat": {
-      "repliesIn": "Typically replies in minutes",
-      "placeholder": "Type your inquiry...",
-      "welcome": "Hello! Welcome to our storefront. How can we help you today?",
-      "autoReply": "Thanks for reaching out! Let me check our availability and get right back to you. Do you have any specific requirements?",
-      "inquirePrefix": "Hi, I'm interested in"
+      "title": "Matchmaking for {{name}}",
+      "subtitle": "Use this drawer to describe the target task before handing the ACP command to another agent.",
+      "welcome": "You are viewing {{name}}. Describe the target workflow and I will help package the handoff.",
+      "autoReply": "Understood. I can help frame the handoff, choose the right session, and prepare the ACP command for {{name}}.",
+      "placeholder": "Describe the task or handoff you want to match..."
     }
   },
   "products": {
@@ -2679,6 +2819,7 @@
       "actions": {
         "connect": "Connect",
         "configure": "Configure",
+        "downloadApp": "Download App",
         "enableChannel": "Enable {{name}}",
         "openOfficialSite": "Open official setup",
         "saveAndEnable": "Save & Enable Channel",
@@ -3249,7 +3390,35 @@
           "artifactsDescription": "Inspect the concrete files, directories, endpoints, and storage bindings associated with this instance.",
           "noArtifacts": "No concrete artifacts are available for this instance yet.",
           "runtimeNotes": "Runtime Notes",
-          "logPreview": "Log Preview"
+          "logPreview": "Log Preview",
+          "management": {
+            "title": "Management Surface",
+            "description": "See who controls this instance, where the authoritative config lives, and how much of the runtime Claw Studio can manage directly.",
+            "notes": "Management Notes",
+            "labels": {
+              "controlPlane": "Control Plane",
+              "installMethod": "Install Method",
+              "configAuthority": "Config Authority",
+              "defaultWorkspace": "Default Workspace",
+              "managementScope": "Management Scope"
+            },
+            "details": {
+              "controlPlane": "The lifecycle owner and deployment posture determine whether this instance is bundled, attached from outside, or remotely administered.",
+              "installMethod": "This reflects the install path detected for the linked OpenClaw control surface.",
+              "installMethodUnknown": "No console install method was reported for this instance yet.",
+              "configManagedFile": "Claw Studio discovered a writable OpenClaw config file and can manage instance configuration against that source of truth.",
+              "configManagedDirectory": "Configuration is resolved from a managed directory binding instead of a single file path.",
+              "configRemoteEndpoint": "Configuration is only exposed through a runtime endpoint, so management stays partial and depends on gateway support.",
+              "configMetadataOnly": "Only metadata-level config discovery is available for this instance right now.",
+              "configUnavailable": "No authoritative config path is currently attached to this instance.",
+              "workspaceAgent": "This workspace comes from the current default agent and is the primary filesystem scope for prompts, skills, and agent files.",
+              "workspaceArtifact": "This workspace path was discovered from the instance artifact map rather than the agent registry.",
+              "workspaceNamespace": "No concrete workspace path is attached, so the storage namespace is shown as the fallback scope.",
+              "scopeFull": "Agent CRUD, channel config, provider config, and file editing can all route through the discovered OpenClaw config surface.",
+              "scopePartial": "Chat, file, or model operations may still work, but full agent and channel management is not available without a writable config attachment.",
+              "scopeReadonly": "This instance is currently discoverable, but Claw Studio should treat it as read-only until a writable management path is attached."
+            }
+          }
         },
         "metrics": {
           "configuredFields": "Configured Fields",
@@ -3307,6 +3476,8 @@
           "maxTokens": "Max Tokens",
           "timeoutMs": "Timeout (ms)",
           "streaming": "Streaming",
+          "on": "On",
+          "off": "Off",
           "streamingDescription": "Enable token streaming for runtime responses and live previews.",
           "saveConfig": "Save Provider",
           "saving": "Saving...",
@@ -3325,10 +3496,185 @@
             "reasoning": "Reasoning",
             "embedding": "Embedding",
             "fallback": "Fallback"
+          },
+          "toasts": {
+            "providerIdRequired": "Provider ID is required.",
+            "modelsRequired": "Add at least one model. Use one line per model: model-id=Display Name",
+            "defaultModelMissing": "Default model must exist in the provider model list.",
+            "reasoningModelMissing": "Reasoning model must exist in the provider model list.",
+            "embeddingModelMissing": "Embedding model must exist in the provider model list.",
+            "providerSaved": "Provider saved to OpenClaw config.",
+            "providerSaveFailed": "Failed to save provider.",
+            "modelIdRequired": "Model ID is required.",
+            "modelUpdated": "Provider model updated.",
+            "modelAdded": "Provider model added.",
+            "modelSaveFailed": "Failed to save provider model.",
+            "modelRemoved": "Provider model removed.",
+            "modelDeleteFailed": "Failed to delete provider model.",
+            "providerRemoved": "Provider removed from OpenClaw config.",
+            "providerDeleteFailed": "Failed to delete provider."
+          },
+          "panel": {
+            "badge": "OpenClaw Providers",
+            "managedConfig": "Managed Config",
+            "description": "Provider and model CRUD write back to the real config-backed OpenClaw config and keep defaults plus agent model references synchronized.",
+            "newProvider": "New Provider",
+            "emptyTitle": "No providers configured",
+            "emptyDescription": "Create the first provider to unlock real instance-scoped model routing.",
+            "defaultShort": "Default",
+            "models": "Models",
+            "providerModelsTitle": "Provider Models",
+            "providerModelsDescription": "Add, rename, or remove models from the selected provider catalog.",
+            "addModel": "Add Model",
+            "selectProvider": "Select a provider to manage its model catalog."
+          },
+          "dialog": {
+            "titleCreate": "Create OpenClaw Provider",
+            "description": "This writes a provider into the config-backed OpenClaw config for the current instance.",
+            "providerId": "Provider ID",
+            "displayName": "Display Name",
+            "models": "Models",
+            "useFirstModel": "Use first model",
+            "placeholders": {
+              "providerId": "openai",
+              "displayName": "OpenAI",
+              "endpoint": "https://api.openai.com/v1",
+              "apiKeySource": "OPENAI_API_KEY",
+              "models": "gpt-4.1=GPT-4.1\ntext-embedding-3-large=Text Embedding 3 Large"
+            }
+          },
+          "modelDialog": {
+            "titleCreate": "Create Provider Model",
+            "titleEdit": "Edit Provider Model",
+            "description": "Model CRUD stays synchronized with OpenClaw default and agent model references.",
+            "modelId": "Model ID",
+            "displayName": "Display Name",
+            "placeholders": {
+              "modelId": "gpt-4.1",
+              "displayName": "GPT-4.1"
+            }
+          },
+          "deleteProviderDialog": {
+            "title": "Delete OpenClaw Provider",
+            "descriptionPrefix": "Delete provider",
+            "descriptionSuffix": "from the config-backed OpenClaw config. Default and agent references will be cleaned automatically."
+          },
+          "deleteModelDialog": {
+            "title": "Delete Provider Model",
+            "descriptionPrefix": "Delete model",
+            "descriptionSuffix": "from the selected provider and prune stale OpenClaw references automatically."
           }
         },
         "agents": {
-          "marketReadonlyNotice": "This OpenClaw host does not currently expose a writable config file. Agent Market installs and agent CRUD stay disabled until the host surfaces a config-backed runtime route."
+          "marketReadonlyNotice": "This OpenClaw host does not currently expose a writable config file. Agent Market installs and agent CRUD stay disabled until the host surfaces a config-backed runtime route.",
+          "toasts": {
+            "agentIdRequired": "Agent ID is required.",
+            "agentUpdated": "OpenClaw agent updated.",
+            "agentCreated": "OpenClaw agent created.",
+            "agentSaveFailed": "Failed to save OpenClaw agent.",
+            "agentRemoved": "OpenClaw agent removed.",
+            "agentDeleteFailed": "Failed to delete OpenClaw agent.",
+            "skillInstalled": "OpenClaw skill installed into the default workspace.",
+            "skillInstallFailed": "Failed to install the selected OpenClaw skill.",
+            "skillEnabled": "OpenClaw skill enabled.",
+            "skillDisabled": "OpenClaw skill disabled.",
+            "skillUpdateFailed": "Failed to update the selected OpenClaw skill."
+          },
+          "panel": {
+            "badge": "OpenClaw Agents",
+            "managedConfig": "Managed Config",
+            "descriptionPrefix": "Agent identity, workspace, per-agent model overrides, and state directories are written back to the real config-backed OpenClaw config. Credentials still live inside each agent's",
+            "authProfilesFile": "auth-profiles.json",
+            "descriptionMiddle": "under its",
+            "agentDirInline": "agentDir",
+            "descriptionSuffix": "and are intentionally not shared automatically.",
+            "newAgent": "New Agent",
+            "defaultBadge": "Default",
+            "configBacked": "Config-backed",
+            "workspace": "Workspace",
+            "agentDir": "Agent Dir",
+            "primaryModel": "Primary Model",
+            "fallbackModels": "Fallback Models",
+            "inheritDefaults": "Inherit defaults",
+            "creator": "Creator",
+            "pathsTitle": "Agent Paths",
+            "skillsDirectory": "Skills Dir",
+            "sessions": "Sessions",
+            "boundAccounts": "Bound",
+            "availableAccounts": "Available",
+            "builtIn": "Built-in",
+            "workspaceInstallCommand": "Workspace Install Command",
+            "workspaceInstallDescription": "OpenClaw loads agent-specific skills from the selected workspace. Run the native OpenClaw CLI in this workspace to install a skill for the selected agent.",
+            "installToDefaultWorkspace": "Install to Default Workspace",
+            "defaultWorkspaceOnlyNotice": "Direct install is only available while the default agent is selected because the upstream skills.install gateway action still targets the default OpenClaw workspace.",
+            "skillPaths": "Skill Paths",
+            "agentWorkspace": "Agent Workspace",
+            "sharedSkills": "Shared Skills",
+            "source": "Source",
+            "primaryEnv": "Primary Env",
+            "missingPrefix": "Missing",
+            "filePreview": "File Preview",
+            "enableSkill": "Enable Skill",
+            "disableSkill": "Disable Skill",
+            "requirementEnv": "ENV",
+            "requirementBins": "Bins",
+            "requirementAnyBin": "Any bin",
+            "requirementConfig": "Config"
+          },
+          "status": {
+            "bound": "Bound",
+            "available": "Available",
+            "notConfigured": "Not Configured",
+            "ready": "Ready",
+            "connected": "Connected",
+            "degraded": "Degraded",
+            "configurationRequired": "Config Required",
+            "active": "Active",
+            "paused": "Paused",
+            "running": "Running",
+            "failed": "Failed",
+            "disconnected": "Disconnected"
+          },
+          "modelSources": {
+            "agent": "Agent Override",
+            "defaults": "Defaults",
+            "runtime": "Runtime"
+          },
+          "skillScopes": {
+            "workspace": "Workspace",
+            "managed": "Shared",
+            "bundled": "Bundled",
+            "unknown": "External"
+          },
+          "skillStates": {
+            "disabled": "Disabled",
+            "ready": "Ready",
+            "needsSetup": "Needs Setup"
+          },
+          "dialog": {
+            "titleCreate": "Create OpenClaw Agent",
+            "titleEdit": "Edit OpenClaw Agent",
+            "description": "Agent IDs should stay stable. New agent credentials must be configured in the agent's own auth store after creation if the chosen provider requires per-agent auth.",
+            "agentId": "Agent ID",
+            "displayName": "Display Name",
+            "avatar": "Avatar",
+            "workspace": "Workspace",
+            "agentDir": "Agent Dir",
+            "defaultAgent": "Default Agent",
+            "defaultAgentDescription": "OpenClaw routes the implicit main session to the first default agent.",
+            "streamingDescription": "Stored as a per-agent model param override when disabled.",
+            "placeholders": {
+              "agentId": "research",
+              "displayName": "Research Agent",
+              "fallbackModels": "one provider/model per line",
+              "workspace": "Leave blank to let OpenClaw derive workspace-<agentId>",
+              "agentDir": "Leave blank to use .openclaw/agents/<agentId>/agent"
+            }
+          },
+          "deleteDialog": {
+            "title": "Delete OpenClaw Agent",
+            "description": "This removes the agent entry from the config-backed OpenClaw config. The workspace and agentDir files are not deleted automatically."
+          }
         },
         "empty": {
           "channels": "No channels are attached to this instance yet.",

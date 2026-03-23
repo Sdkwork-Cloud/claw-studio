@@ -1,0 +1,339 @@
+import assert from 'node:assert/strict';
+import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
+import { buildInstanceManagementSummary } from './instanceManagementPresentation.ts';
+
+function runTest(name: string, callback: () => void | Promise<void>) {
+  return Promise.resolve()
+    .then(callback)
+    .then(() => {
+      console.log(`ok - ${name}`);
+    })
+    .catch((error) => {
+      console.error(`not ok - ${name}`);
+      throw error;
+    });
+}
+
+function createDetail(overrides: Partial<StudioInstanceDetailRecord> = {}): StudioInstanceDetailRecord {
+  return {
+    instance: {
+      id: 'openclaw-instance',
+      name: 'OpenClaw Instance',
+      runtimeKind: 'openclaw',
+      deploymentMode: 'local-managed',
+      transportKind: 'openclawGatewayWs',
+      status: 'online',
+      isBuiltIn: true,
+      isDefault: true,
+      iconType: 'server',
+      version: '2026.3.13',
+      typeLabel: 'OpenClaw Gateway',
+      host: '127.0.0.1',
+      port: 18789,
+      baseUrl: 'http://127.0.0.1:18789',
+      websocketUrl: 'ws://127.0.0.1:18789',
+      cpu: 12,
+      memory: 28,
+      totalMemory: '32 GB',
+      uptime: '12h',
+      capabilities: ['chat', 'health', 'files', 'models', 'tasks', 'tools'],
+      storage: {
+        provider: 'localFile',
+        namespace: 'openclaw-instance',
+      },
+      config: {
+        port: '18789',
+        sandbox: true,
+        autoUpdate: true,
+        logLevel: 'info',
+        corsOrigins: '*',
+        baseUrl: 'http://127.0.0.1:18789',
+        websocketUrl: 'ws://127.0.0.1:18789',
+        authToken: 'token',
+      },
+      createdAt: 1,
+      updatedAt: 1,
+      lastSeenAt: 1,
+    },
+    config: {
+      port: '18789',
+      sandbox: true,
+      autoUpdate: true,
+      logLevel: 'info',
+      corsOrigins: '*',
+      baseUrl: 'http://127.0.0.1:18789',
+      websocketUrl: 'ws://127.0.0.1:18789',
+      authToken: 'token',
+    },
+    logs: '',
+    health: {
+      score: 92,
+      status: 'healthy',
+      checks: [],
+      evaluatedAt: 1,
+    },
+    lifecycle: {
+      owner: 'appManaged',
+      startStopSupported: true,
+      configWritable: true,
+      notes: ['Claw Studio manages the bundled OpenClaw runtime.'],
+    },
+    storage: {
+      status: 'ready',
+      provider: 'localFile',
+      namespace: 'openclaw-instance',
+      durable: true,
+      queryable: false,
+      transactional: false,
+      remote: false,
+    },
+    connectivity: {
+      primaryTransport: 'openclawGatewayWs',
+      endpoints: [],
+    },
+    observability: {
+      status: 'ready',
+      logAvailable: true,
+      logPreview: [],
+      metricsSource: 'runtime',
+      lastSeenAt: 1,
+    },
+    dataAccess: {
+      routes: [],
+    },
+    artifacts: [],
+    capabilities: [],
+    officialRuntimeNotes: [],
+    consoleAccess: {
+      kind: 'openclawControlUi',
+      available: true,
+      url: 'http://127.0.0.1:18789/ui',
+      autoLoginUrl: 'http://127.0.0.1:18789/ui/autologin',
+      gatewayUrl: 'http://127.0.0.1:18789',
+      authMode: 'token',
+      authSource: 'managedConfig',
+      installMethod: 'pnpm',
+      reason: null,
+    },
+    workbench: null,
+    ...overrides,
+  };
+}
+
+function createWorkbench(
+  overrides: Partial<InstanceWorkbenchSnapshot> = {},
+): InstanceWorkbenchSnapshot {
+  return {
+    instance: {
+      id: 'openclaw-instance',
+      name: 'OpenClaw Instance',
+      type: 'OpenClaw Gateway',
+      iconType: 'server',
+      status: 'online',
+      version: '2026.3.13',
+      uptime: '12h',
+      ip: '127.0.0.1',
+      cpu: 12,
+      memory: 28,
+      totalMemory: '32 GB',
+    },
+    config: {
+      port: '18789',
+      sandbox: true,
+      autoUpdate: true,
+      logLevel: 'info',
+      corsOrigins: '*',
+    },
+    token: 'token',
+    logs: '',
+    detail: createDetail(),
+    managedConfigPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+    managedChannels: [],
+    healthScore: 92,
+    runtimeStatus: 'healthy',
+    connectedChannelCount: 2,
+    activeTaskCount: 1,
+    installedSkillCount: 3,
+    readyToolCount: 4,
+    sectionCounts: {
+      overview: 1,
+      channels: 2,
+      cronTasks: 1,
+      llmProviders: 1,
+      agents: 1,
+      skills: 3,
+      files: 2,
+      memory: 0,
+      tools: 4,
+    },
+    sectionAvailability: {
+      overview: { status: 'ready', detail: 'ready' },
+      channels: { status: 'ready', detail: 'ready' },
+      cronTasks: { status: 'ready', detail: 'ready' },
+      llmProviders: { status: 'ready', detail: 'ready' },
+      agents: { status: 'ready', detail: 'ready' },
+      skills: { status: 'ready', detail: 'ready' },
+      files: { status: 'ready', detail: 'ready' },
+      memory: { status: 'planned', detail: 'planned' },
+      tools: { status: 'ready', detail: 'ready' },
+    },
+    channels: [],
+    tasks: [],
+    agents: [
+      {
+        agent: {
+          id: 'main',
+          name: 'Main',
+          description: 'Default agent',
+          avatar: 'M',
+          systemPrompt: 'Main agent',
+          creator: 'OpenClaw',
+        },
+        focusAreas: ['Generalist'],
+        automationFitScore: 72,
+        workspace: 'D:/OpenClaw/.openclaw/workspace',
+        agentDir: 'D:/OpenClaw/.openclaw/agents/main/agent',
+        isDefault: true,
+        model: {
+          primary: 'api-router/gpt-5.4',
+          fallbacks: [],
+        },
+      },
+    ],
+    skills: [],
+    files: [],
+    llmProviders: [],
+    memories: [],
+    tools: [],
+    ...overrides,
+  };
+}
+
+await runTest(
+  'buildInstanceManagementSummary highlights fully managed OpenClaw instances with config-backed control',
+  () => {
+    const summary = buildInstanceManagementSummary(createWorkbench());
+
+    assert.deepEqual(summary.entries.map((entry) => entry.id), [
+      'controlPlane',
+      'installMethod',
+      'configAuthority',
+      'defaultWorkspace',
+      'managementScope',
+    ]);
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'controlPlane')?.value,
+      'App Managed / Local Managed',
+    );
+    assert.equal(summary.entries.find((entry) => entry.id === 'installMethod')?.value, 'pnpm');
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'configAuthority')?.value,
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'configAuthority')?.detailKey,
+      'instances.detail.instanceWorkbench.overview.management.details.configManagedFile',
+    );
+    assert.equal(summary.entries.find((entry) => entry.id === 'configAuthority')?.mono, true);
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'defaultWorkspace')?.value,
+      'D:/OpenClaw/.openclaw/workspace',
+    );
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'managementScope')?.value,
+      'Full config-backed control',
+    );
+    assert.deepEqual(summary.notes, ['Claw Studio manages the bundled OpenClaw runtime.']);
+  },
+);
+
+await runTest(
+  'buildInstanceManagementSummary falls back to partial runtime control when no managed config file is attached',
+  () => {
+    const detail = createDetail({
+      instance: {
+        ...createDetail().instance,
+        isBuiltIn: false,
+        isDefault: false,
+        deploymentMode: 'remote',
+        host: '10.0.0.8',
+      },
+      lifecycle: {
+        owner: 'remoteService',
+        startStopSupported: false,
+        configWritable: true,
+        notes: [],
+      },
+      dataAccess: {
+        routes: [
+          {
+            id: 'config-api',
+            label: 'Config API',
+            scope: 'config',
+            mode: 'remoteEndpoint',
+            status: 'ready',
+            target: 'https://gateway.example.com/admin/config',
+            readonly: false,
+            authoritative: true,
+            detail: 'Remote config endpoint.',
+            source: 'runtime',
+          },
+        ],
+      },
+      artifacts: [
+        {
+          id: 'workspace-root',
+          label: 'Workspace Root',
+          kind: 'workspaceDirectory',
+          status: 'remote',
+          location: '/srv/openclaw/workspace-main',
+          readonly: false,
+          detail: 'Remote workspace mount.',
+          source: 'runtime',
+        },
+      ],
+      consoleAccess: {
+        kind: 'openclawControlUi',
+        available: true,
+        url: 'https://gateway.example.com/ui',
+        autoLoginUrl: null,
+        gatewayUrl: 'https://gateway.example.com',
+        authMode: 'token',
+        authSource: 'workspaceConfig',
+        installMethod: 'docker',
+        reason: null,
+      },
+    });
+    const summary = buildInstanceManagementSummary(
+      createWorkbench({
+        detail,
+        managedConfigPath: null,
+        agents: [],
+      }),
+    );
+
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'controlPlane')?.value,
+      'Remote Service / Remote',
+    );
+    assert.equal(summary.entries.find((entry) => entry.id === 'installMethod')?.value, 'Docker');
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'configAuthority')?.value,
+      'https://gateway.example.com/admin/config',
+    );
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'configAuthority')?.detailKey,
+      'instances.detail.instanceWorkbench.overview.management.details.configRemoteEndpoint',
+    );
+    assert.equal(summary.entries.find((entry) => entry.id === 'configAuthority')?.tone, 'warning');
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'defaultWorkspace')?.value,
+      '/srv/openclaw/workspace-main',
+    );
+    assert.equal(
+      summary.entries.find((entry) => entry.id === 'managementScope')?.value,
+      'Partial runtime control',
+    );
+  },
+);

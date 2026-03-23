@@ -60,8 +60,10 @@ runTest('sdkwork-claw-instances is implemented locally instead of re-exporting c
 
   assert.ok(exists('packages/sdkwork-claw-instances/src/pages/Instances.tsx'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/components/InstanceFileExplorer.tsx'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/components/InstanceLLMConfigPanel.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-instances/src/services/agentWorkbenchService.ts'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/services/instanceService.ts'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts'));
   assert.ok(exists('packages/sdkwork-claw-instances/src/store/useInstanceStore.ts'));
@@ -128,6 +130,7 @@ runTest('sdkwork-claw-instances reuses the shared task catalog surface for cron 
 runTest('sdkwork-claw-instances opens channel official setup links through the host external browser bridge', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
 
+  assert.match(detailSource, /ChannelWorkspace/);
   assert.match(detailSource, /openExternalUrl/);
   assert.match(detailSource, /onOpenOfficialLink=\{\(_channel, link\) => void openOfficialLink\(link\.href\)\}/);
 });
@@ -213,8 +216,25 @@ runTest('sdkwork-claw-instances renders a backend-authored runtime overview sect
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
 
   assert.match(detailSource, /data-slot="instance-detail-overview"/);
+  assert.match(detailSource, /data-slot="instance-detail-management-summary"/);
   assert.match(detailSource, /data-slot="instance-detail-capability-matrix"/);
   assert.match(detailSource, /data-slot="instance-detail-connectivity"/);
+});
+
+runTest('sdkwork-claw-instances promotes instance management metadata into the overview workbench surface', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const presentationSource = read(
+    'packages/sdkwork-claw-instances/src/services/instanceManagementPresentation.ts',
+  );
+
+  assert.match(detailSource, /buildInstanceManagementSummary/);
+  assert.match(detailSource, /instanceWorkbench\.overview\.management\.title/);
+  assert.match(detailSource, /instanceWorkbench\.overview\.management\.description/);
+  assert.match(presentationSource, /managementScope/);
+  assert.match(presentationSource, /configAuthority/);
+  assert.match(presentationSource, /defaultWorkspace/);
+  assert.match(presentationSource, /instanceWorkbench\.overview\.management\.labels\.controlPlane/);
+  assert.match(presentationSource, /instanceWorkbench\.overview\.management\.details\.scopeFull/);
 });
 
 runTest('sdkwork-claw-instances renders backend-authored data access and artifact overview surfaces', () => {
@@ -322,12 +342,12 @@ runTest('sdkwork-claw-instances exposes real OpenClaw provider and agent CRUD co
   assert.match(detailSource, /handleSubmitProviderModelDialog/);
   assert.match(detailSource, /handleDeleteProviderModel/);
   assert.match(detailSource, /handleDeleteProvider/);
-  assert.match(detailSource, /New Provider/);
-  assert.match(detailSource, /Provider Models/);
-  assert.match(detailSource, /Delete OpenClaw Provider/);
-  assert.match(detailSource, /Delete Provider Model/);
-  assert.match(detailSource, /Delete OpenClaw Agent/);
-  assert.match(detailSource, /openEditAgentDialog\(agentRecord\)/);
+  assert.match(detailSource, /instances\.detail\.instanceWorkbench\.llmProviders\.panel\.newProvider/);
+  assert.match(detailSource, /instances\.detail\.instanceWorkbench\.llmProviders\.panel\.providerModelsTitle/);
+  assert.match(detailSource, /instances\.detail\.instanceWorkbench\.llmProviders\.deleteProviderDialog\.title/);
+  assert.match(detailSource, /instances\.detail\.instanceWorkbench\.llmProviders\.deleteModelDialog\.title/);
+  assert.match(detailSource, /instances\.detail\.instanceWorkbench\.agents\.deleteDialog\.title/);
+  assert.match(detailSource, /onEditAgent=\{openEditAgentDialog\}/);
   assert.match(instanceServiceSource, /createInstanceLlmProvider/);
   assert.match(instanceServiceSource, /updateInstanceLlmProviderModel/);
   assert.match(instanceServiceSource, /deleteInstanceLlmProviderModel/);
@@ -352,11 +372,45 @@ runTest('sdkwork-claw-instances keeps the OpenClaw workbench file explorer align
 
 runTest('sdkwork-claw-instances links the agents workbench to the agent marketplace for the current instance', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const panelSource = read('packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx');
 
   assert.match(detailSource, /\/agents\?instanceId=/);
-  assert.match(detailSource, /sidebar\.agentMarket/);
+  assert.match(panelSource, /sidebar\.agentMarket/);
+  assert.match(detailSource, /BriefcaseBusiness/);
+  assert.doesNotMatch(detailSource, /<Bot className="h-4 w-4" \/>/);
   assert.match(detailSource, /disabled=\{!isOpenClawConfigWritable\}/);
-  assert.match(detailSource, /instances\.detail\.instanceWorkbench\.agents\.marketReadonlyNotice/);
+  assert.match(panelSource, /instances\.detail\.instanceWorkbench\.agents\.marketReadonlyNotice/);
+});
+
+runTest('sdkwork-claw-instances turns agents into a master-detail workbench backed by an agent-scoped service', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const panelSource = read('packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx');
+  const serviceSource = read('packages/sdkwork-claw-instances/src/services/agentWorkbenchService.ts');
+
+  assert.match(detailSource, /AgentWorkbenchPanel/);
+  assert.match(detailSource, /selectedAgentId/);
+  assert.match(detailSource, /agentWorkbenchService\.getAgentWorkbench/);
+  assert.match(panelSource, /data-slot="agent-workbench-sidebar"/);
+  assert.match(panelSource, /data-slot="agent-workbench-detail"/);
+  assert.match(panelSource, /data-slot="agent-workbench-files"/);
+  assert.match(serviceSource, /authProfilesPath/);
+  assert.match(serviceSource, /modelsRegistryPath/);
+  assert.match(serviceSource, /sessionsPath/);
+  assert.match(serviceSource, /routeStatus/);
+});
+
+runTest('sdkwork-claw-instances gives agent skills an official workspace-scoped install guide and richer status metadata', () => {
+  const panelSource = read('packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx');
+  const serviceSource = read('packages/sdkwork-claw-instances/src/services/agentWorkbenchService.ts');
+
+  assert.match(panelSource, /openclaw skills install/);
+  assert.match(panelSource, /return `cd "\$\{target\}"\\nopenclaw skills install \$\{normalizedSlug\}`;/);
+  assert.match(panelSource, /navigator\.clipboard\.writeText/);
+  assert.match(panelSource, /skill\.scope/);
+  assert.match(panelSource, /skill\.eligible/);
+  assert.match(serviceSource, /scope:/);
+  assert.match(serviceSource, /installOptions:/);
+  assert.match(serviceSource, /skillKey:/);
 });
 
 runTest('sdkwork-claw-instances keeps direct InstanceDetail i18n keys mapped in both locale bundles', () => {

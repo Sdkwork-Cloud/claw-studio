@@ -2,16 +2,6 @@
   "version": 1,
   "components": [
     {
-      "id": "codex",
-      "displayName": "Codex",
-      "kind": "binary",
-      "bundledVersion": "bundled",
-      "startupMode": "autoStart",
-      "installSubdir": "modules/codex/current",
-      "upgradeChannel": "stable",
-      "serviceIds": ["codex"]
-    },
-    {
       "id": "openclaw",
       "displayName": "OpenClaw",
       "kind": "nodeApp",

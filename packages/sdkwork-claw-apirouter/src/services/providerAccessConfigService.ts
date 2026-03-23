@@ -13,7 +13,7 @@ export type ProviderAccessCompatibility = 'openai' | 'anthropic' | 'gemini' | 'u
 export type ProviderAccessInstallMode = 'standard' | 'env' | 'both';
 export type ProviderAccessEnvScope = 'user' | 'system';
 export type ProviderAccessUnavailableReason =
-  | 'requiresOpenAIResponses'
+  | 'requiresOpenAICompatible'
   | 'requiresAnthropicCompatible'
   | 'requiresOpenAIOrAnthropicCompatible'
   | 'requiresGeminiCompatible'
@@ -75,6 +75,7 @@ const OPENAI_COMPATIBLE_CHANNELS = new Set([
 const ANTHROPIC_COMPATIBLE_CHANNELS = new Set(['anthropic', 'minimax']);
 const GEMINI_COMPATIBLE_CHANNELS = new Set(['google']);
 const ENV_SCOPES: ProviderAccessEnvScope[] = ['user', 'system'];
+const CODEX_PROVIDER_ID = 'api_router';
 const GOOGLE_GEMINI_BASE_URL_KEY = 'GOOGLE_GEMINI_BASE_URL';
 const GEMINI_API_KEY_AUTH_MECHANISM_KEY = 'GEMINI_API_KEY_AUTH_MECHANISM';
 
@@ -262,21 +263,15 @@ function buildOpenCodeAuthSnippet(targetKey: string, apiKey: string): ProviderAc
   });
 }
 
-function getOpenCodeProviderPackage(provider: ProxyProvider) {
-  if (OPENAI_RESPONSES_COMPATIBLE_CHANNELS.has(provider.channelId)) {
-    return '@ai-sdk/openai';
-  }
-
-  return '@ai-sdk/openai-compatible';
-}
-
 function buildCodexConfig(provider: ProxyProvider): ProviderAccessClientConfig {
-  if (!OPENAI_RESPONSES_COMPATIBLE_CHANNELS.has(provider.channelId)) {
+  const compatibility = resolveCompatibility(provider);
+
+  if (compatibility !== 'openai') {
     return {
       id: 'codex',
-      compatibility: resolveCompatibility(provider),
+      compatibility,
       available: false,
-      reason: 'requiresOpenAIResponses',
+      reason: 'requiresOpenAICompatible',
       install: buildUnavailableInstallConfig(),
       snippets: [],
     };
@@ -286,7 +281,7 @@ function buildCodexConfig(provider: ProxyProvider): ProviderAccessClientConfig {
 
   return {
     id: 'codex',
-    compatibility: 'openai',
+    compatibility,
     available: true,
     install: buildInstallConfig({
       supportedModes: ['standard', 'env', 'both'],
@@ -294,6 +289,22 @@ function buildCodexConfig(provider: ProxyProvider): ProviderAccessClientConfig {
       environmentVariables: buildOpenAIEnvironmentVariables(provider),
     }),
     snippets: [
+      buildSnippet({
+        id: 'config',
+        kind: 'file',
+        language: 'toml',
+        target: '~/.codex/config.toml',
+        content: [
+          `model = ${toTomlString(model)}`,
+          `model_provider = ${toTomlString(CODEX_PROVIDER_ID)}`,
+          '',
+          `[model_providers.${CODEX_PROVIDER_ID}]`,
+          `name = ${toTomlString(provider.name)}`,
+          `base_url = ${toTomlString(provider.baseUrl)}`,
+          'wire_api = "responses"',
+          'requires_openai_auth = true',
+        ].join('\n'),
+      }),
       buildSnippet({
         id: 'auth',
         kind: 'file',
@@ -304,27 +315,16 @@ function buildCodexConfig(provider: ProxyProvider): ProviderAccessClientConfig {
           OPENAI_API_KEY: provider.apiKey,
         }),
       }),
-      buildSnippet({
-        id: 'config',
-        kind: 'file',
-        language: 'toml',
-        target: '~/.codex/config.toml',
-        content: [
-          '# Shared defaults are safe when Codex does not use profiles.',
-          '# If config.toml already sets `profile = "..."`, move `model` and `model_provider` into that active profile instead of overwriting shared defaults.',
-          '',
-          `model = ${toTomlString(model)}`,
-          'model_provider = "api_router"',
-          '',
-          '[model_providers.api_router]',
-          `name = ${toTomlString(provider.name)}`,
-          `base_url = ${toTomlString(provider.baseUrl)}`,
-          'wire_api = "responses"',
-          'requires_openai_auth = true',
-        ].join('\n'),
-      }),
     ],
   };
+}
+
+function getOpenCodeProviderPackage(provider: ProxyProvider) {
+  if (OPENAI_RESPONSES_COMPATIBLE_CHANNELS.has(provider.channelId)) {
+    return '@ai-sdk/openai';
+  }
+
+  return '@ai-sdk/openai-compatible';
 }
 
 function buildClaudeCodeConfig(provider: ProxyProvider): ProviderAccessClientConfig {

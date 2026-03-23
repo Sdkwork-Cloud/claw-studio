@@ -12,6 +12,10 @@ function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
 }
 
+function extractSingleQuotedStrings(value: string) {
+  return [...value.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+}
+
 function runTest(name: string, fn: () => void) {
   try {
     fn();
@@ -53,7 +57,7 @@ runTest('sdkwork-claw-apirouter is implemented as a real feature package', () =>
   assert.equal(exists('packages/sdkwork-claw-apirouter/src/components/UnifiedApiKeyDialogs.tsx'), true);
 });
 
-runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access status before unlocking management panels', () => {
+runTest('sdkwork-claw-apirouter page keeps the management workspace without the top runtime and admin status panels', () => {
   const pageSource = read('packages/sdkwork-claw-apirouter/src/pages/ApiRouter.tsx');
   const usageRecordsPageSource = read(
     'packages/sdkwork-claw-apirouter/src/pages/ApiRouterUsageRecordsPage.tsx',
@@ -76,9 +80,6 @@ runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access st
   const usageTableSource = read('packages/sdkwork-claw-apirouter/src/components/ApiRouterUsageTable.tsx');
   const usagePaginationSource = read(
     'packages/sdkwork-claw-apirouter/src/components/ApiRouterUsagePagination.tsx',
-  );
-  const adminStatusCardSource = read(
-    'packages/sdkwork-claw-apirouter/src/components/ApiRouterAdminStatusCard.tsx',
   );
   const adminStatusServiceSource = read(
     'packages/sdkwork-claw-apirouter/src/services/apiRouterAdminService.ts',
@@ -104,6 +105,9 @@ runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access st
   const sidebarSource = read('packages/sdkwork-claw-apirouter/src/components/ApiRouterChannelSidebar.tsx');
   const tableSource = read('packages/sdkwork-claw-apirouter/src/components/ProxyProviderTable.tsx');
   const dialogSource = read('packages/sdkwork-claw-apirouter/src/components/ProxyProviderDialogs.tsx');
+  const usageTabMatch = accessSharedSource.match(
+    /const API_ROUTER_USAGE_TAB_IDS:[^=]+=\s*\[([\s\S]*?)\];/,
+  );
 
   assert.match(pageSource, /data-slot="api-router-page"/);
   assert.match(pageSource, /data-slot="api-router-page-tabs"/);
@@ -111,23 +115,13 @@ runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access st
   assert.match(pageSource, /apiRouterPage\.pageTabs\.routeConfig/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.modelMapping/);
   assert.match(pageSource, /apiRouterPage\.pageTabs\.usageRecords/);
-  assert.match(pageSource, /<ApiRouterAdminStatusCard/);
-  assert.match(pageSource, /<ApiRouterRuntimeStatusCard/);
   assert.match(pageSource, /<UnifiedApiKeyManager/);
   assert.match(pageSource, /<ModelMappingManager/);
   assert.match(pageSource, /<ApiRouterUsageRecordsPage/);
   assert.match(pageSource, /apiRouterAdminService\.getStatus/);
-  assert.match(pageSource, /apiRouterRuntimeService\.getStatus/);
-  assert.match(pageSource, /signInMutation/);
-  assert.match(pageSource, /signOutMutation/);
-  assert.match(pageSource, /runtimeStatusQuery/);
   assert.match(pageSource, /adminStatusQuery/);
   assert.match(pageSource, /showManagementPanels = Boolean\(adminStatusQuery\.data\?\.authenticated\)/);
   assert.match(pageSource, /showManagementPanels/);
-  assert.match(adminStatusCardSource, /needsConfiguration/);
-  assert.match(adminStatusCardSource, /configuredTokenConfigurationRequired/);
-  assert.match(adminStatusCardSource, /status\.allowsManualDisconnect/);
-  assert.match(adminStatusCardSource, /status\.allowsManualLogin/);
   assert.match(adminStatusServiceSource, /allowsManualLogin/);
   assert.match(adminStatusServiceSource, /allowsManualDisconnect/);
   assert.match(adminStatusServiceSource, /'needsConfiguration'/);
@@ -206,6 +200,12 @@ runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access st
   assert.doesNotMatch(pageSource, /px-0/);
   assert.doesNotMatch(pageSource, /mx-auto/);
   assert.doesNotMatch(pageSource, /max-w-\[/);
+  assert.doesNotMatch(pageSource, /<ApiRouterAdminStatusCard/);
+  assert.doesNotMatch(pageSource, /<ApiRouterRuntimeStatusCard/);
+  assert.doesNotMatch(pageSource, /apiRouterRuntimeService\.getStatus/);
+  assert.doesNotMatch(pageSource, /signInMutation/);
+  assert.doesNotMatch(pageSource, /signOutMutation/);
+  assert.doesNotMatch(pageSource, /runtimeStatusQuery/);
   assert.doesNotMatch(pageSource, /apiRouterPage\.actions\.createKey/);
   assert.doesNotMatch(pageSource, /apiRouterPage\.actions\.refresh/);
   assert.doesNotMatch(pageSource, /apiRouterPage\.filters\.searchPlaceholder/);
@@ -275,6 +275,15 @@ runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access st
   assert.match(dialogSource, /apiRouterPage\.fields\.modelDisplayName/);
   assert.match(dialogSource, /DateInput/);
   assert.match(accessSharedSource, /const API_ROUTER_USAGE_TAB_IDS/);
+  assert.ok(usageTabMatch);
+  assert.deepEqual(extractSingleQuotedStrings(usageTabMatch[1] ?? ''), [
+    'default',
+    'codex',
+    'claude-code',
+    'opencode',
+    'openclaw',
+    'gemini',
+  ]);
   assert.match(accessSharedSource, /'default'/);
   assert.match(accessSharedSource, /'codex'/);
   assert.match(accessSharedSource, /'claude-code'/);
@@ -287,6 +296,10 @@ runTest('sdkwork-claw-apirouter page surfaces router runtime and admin access st
   assert.match(accessSharedSource, /case 'opencode'/);
   assert.match(accessSharedSource, /case 'openclaw'/);
   assert.match(accessSharedSource, /case 'gemini'/);
+  assert.match(enLocaleSource, /"codex": "Codex"/);
+  assert.match(enLocaleSource, /Install ~\/\.codex\/config\.toml and ~\/\.codex\/auth\.json/);
+  assert.match(zhLocaleSource, /"codex": "Codex"/);
+  assert.match(zhLocaleSource, /安装 ~\/\.codex\/config\.toml 和 ~\/\.codex\/auth\.json/);
 });
 
 runTest('shell routes /api-router directly to the feature module without a workspace wrapper', () => {

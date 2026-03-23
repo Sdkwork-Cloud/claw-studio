@@ -202,7 +202,8 @@ fn discover_registered_openclaw_roots(paths: &AppPaths) -> Vec<PathBuf> {
     let Some(record) = read_installed_openclaw_install_record(&installer_home) else {
         return Vec::new();
     };
-    let Some(config_path) = discover_registered_openclaw_config_path(paths, &installer_home, &record)
+    let Some(config_path) =
+        discover_registered_openclaw_config_path(paths, &installer_home, &record)
     else {
         return Vec::new();
     };
@@ -224,7 +225,12 @@ fn read_installed_openclaw_install_record(installer_home: &Path) -> Option<Insta
     read_install_record(installer_home.to_string_lossy().as_ref(), "openclaw")
         .ok()
         .flatten()
-        .filter(|record| matches!(record.status, hub_installer_rs::InstallRecordStatus::Installed))
+        .filter(|record| {
+            matches!(
+                record.status,
+                hub_installer_rs::InstallRecordStatus::Installed
+            )
+        })
 }
 
 fn discover_registered_openclaw_config_path(
@@ -361,8 +367,10 @@ fn discover_explicit_openclaw_config_roots(config_path: &Path) -> Vec<PathBuf> {
         .into_iter()
         .flatten()
     {
-        if let Some(workspace) =
-            entry.get("workspace").and_then(Value::as_str).map(str::trim)
+        if let Some(workspace) = entry
+            .get("workspace")
+            .and_then(Value::as_str)
+            .map(str::trim)
         {
             if let Some(path) = resolve_explicit_openclaw_path(config_path, workspace) {
                 push_unique_path(&mut resolved_roots, path);
@@ -389,7 +397,10 @@ fn read_json_path_string<'a>(value: &'a Value, segments: &[&str]) -> Option<&'a 
         current = current.get(*segment)?;
     }
 
-    current.as_str().map(str::trim).filter(|value| !value.is_empty())
+    current
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 fn resolve_explicit_openclaw_path(config_path: &Path, raw_path: &str) -> Option<PathBuf> {
@@ -403,7 +414,9 @@ fn resolve_explicit_openclaw_path(config_path: &Path, raw_path: &str) -> Option<
     }
 
     if let Some(stripped) = trimmed.strip_prefix("~/") {
-        return Some(normalize_path(&resolve_openclaw_user_root(config_path).join(stripped)));
+        return Some(normalize_path(
+            &resolve_openclaw_user_root(config_path).join(stripped),
+        ));
     }
 
     let path = PathBuf::from(trimmed);

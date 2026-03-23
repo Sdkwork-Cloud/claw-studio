@@ -3,10 +3,7 @@ use crate::framework::{
     services::{components::ComponentRegistryService, upgrades::ComponentUpgradeService},
     Result,
 };
-use std::{
-    fs,
-    path::Path,
-};
+use std::{fs, path::Path};
 use tauri::{path::BaseDirectory, AppHandle, Manager, Runtime};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -39,8 +36,11 @@ pub fn sync_bundled_installation_from_dir(
                 .filter(|candidate| candidate != "current")
                 .last()
             {
-                ComponentUpgradeService::new()
-                    .activate_runtime_version(paths, runtime_id, version.as_str())?;
+                ComponentUpgradeService::new().activate_runtime_version(
+                    paths,
+                    runtime_id,
+                    version.as_str(),
+                )?;
             }
         }
     }
@@ -52,7 +52,9 @@ pub fn sync_bundled_installation_from_dir(
             continue;
         }
 
-        let source_version_dir = bundled_modules_dir.join(&component.id).join(bundled_version);
+        let source_version_dir = bundled_modules_dir
+            .join(&component.id)
+            .join(bundled_version);
         if !source_version_dir.exists() {
             continue;
         }
@@ -64,8 +66,11 @@ pub fn sync_bundled_installation_from_dir(
             copy_directory_contents(&source_version_dir, &target_version_dir)?;
         }
 
-        ComponentUpgradeService::new()
-            .activate_component_version(paths, &component.id, bundled_version)?;
+        ComponentUpgradeService::new().activate_component_version(
+            paths,
+            &component.id,
+            bundled_version,
+        )?;
         report.seeded_component_ids.push(component.id);
     }
 
@@ -126,10 +131,17 @@ fn enumerate_child_directory_names(root: &Path) -> Result<Vec<String>> {
 
 fn bundled_resource_roots<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<std::path::PathBuf>> {
     let mut roots = Vec::new();
-    if let Ok(path) = app.path().resolve("generated/bundled", BaseDirectory::Resource) {
+    if let Ok(path) = app
+        .path()
+        .resolve("generated/bundled", BaseDirectory::Resource)
+    {
         roots.push(path);
     }
-    roots.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("generated").join("bundled"));
+    roots.push(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("generated")
+            .join("bundled"),
+    );
     Ok(roots)
 }
 
@@ -154,31 +166,40 @@ mod tests {
             .expect("bundled install sync");
 
         assert_eq!(report.seeded_component_ids, vec!["codex".to_string()]);
-        assert!(
-            paths
-                .foundation_components_dir
-                .join("component-registry.json")
-                .exists()
-        );
-        assert!(
-            paths
-                .foundation_dir
-                .join("hub-installer")
-                .join("registry")
-                .join("software-registry.yaml")
-                .exists()
-        );
-        assert!(paths.modules_dir.join("codex").join("1.2.3").join("bin").exists());
-        assert!(paths.modules_dir.join("codex").join("current").join("bin").exists());
-        assert!(paths.runtimes_dir.join("node").join("22.16.0").join("node.exe").exists());
-        assert!(
-            paths
-                .runtimes_dir
-                .join("node")
-                .join("current")
-                .join("node.exe")
-                .exists()
-        );
+        assert!(paths
+            .foundation_components_dir
+            .join("component-registry.json")
+            .exists());
+        assert!(paths
+            .foundation_dir
+            .join("hub-installer")
+            .join("registry")
+            .join("software-registry.yaml")
+            .exists());
+        assert!(paths
+            .modules_dir
+            .join("codex")
+            .join("1.2.3")
+            .join("bin")
+            .exists());
+        assert!(paths
+            .modules_dir
+            .join("codex")
+            .join("current")
+            .join("bin")
+            .exists());
+        assert!(paths
+            .runtimes_dir
+            .join("node")
+            .join("22.16.0")
+            .join("node.exe")
+            .exists());
+        assert!(paths
+            .runtimes_dir
+            .join("node")
+            .join("current")
+            .join("node.exe")
+            .exists());
     }
 
     #[test]

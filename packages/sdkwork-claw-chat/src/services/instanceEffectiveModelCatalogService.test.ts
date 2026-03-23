@@ -371,3 +371,149 @@ await runTest(
     ]);
   },
 );
+
+await runTest(
+  'instance effective model catalog prioritizes the configured default OpenClaw model when building chat channel defaults',
+  async () => {
+    const service = createInstanceEffectiveModelCatalogService({
+      getInstance: async () =>
+        ({
+          id: 'instance-openclaw-default-model',
+          runtimeKind: 'openclaw',
+          transportKind: 'openclawGatewayWs',
+          deploymentMode: 'local-managed',
+          baseUrl: 'http://127.0.0.1:18795',
+          websocketUrl: 'ws://127.0.0.1:18789',
+        }) as any,
+      getInstanceDetail: async () =>
+        ({
+          dataAccess: {
+            routes: [
+              {
+                scope: 'config',
+                mode: 'managedFile',
+                target: 'C:/openclaw/openclaw.json',
+              },
+            ],
+          },
+          artifacts: [],
+        }) as any,
+      listRouterChannels: async () => [
+        { id: 'general', name: 'General' },
+      ],
+      listRouterProviders: async () => [
+        {
+          id: 'openai',
+          channel_id: 'general',
+          extension_id: 'openai',
+          adapter_kind: 'openai-compatible',
+          base_url: 'https://api.openai.com/v1',
+          display_name: 'OpenAI',
+          channel_bindings: [
+            {
+              provider_id: 'openai',
+              channel_id: 'general',
+              is_primary: true,
+            },
+          ],
+        },
+        {
+          id: 'anthropic',
+          channel_id: 'general',
+          extension_id: 'anthropic',
+          adapter_kind: 'openai-compatible',
+          base_url: 'https://api.anthropic.com/v1',
+          display_name: 'Anthropic',
+          channel_bindings: [
+            {
+              provider_id: 'anthropic',
+              channel_id: 'general',
+              is_primary: true,
+            },
+          ],
+        },
+      ],
+      listRouterModels: async () => [
+        {
+          external_name: 'gpt-4.1',
+          provider_id: 'openai',
+          capabilities: ['chat'],
+          streaming: true,
+        },
+        {
+          external_name: 'claude-3-7-sonnet',
+          provider_id: 'anthropic',
+          capabilities: ['chat'],
+          streaming: true,
+        },
+      ],
+      resolveOpenClawConfigPath: (detail) =>
+        detail?.dataAccess?.routes?.[0]?.target ?? null,
+      readOpenClawConfigSnapshot: async () =>
+        ({
+          configPath: 'C:/openclaw/openclaw.json',
+          providerSnapshots: [
+            {
+              id: 'api-router-openai',
+            },
+            {
+              id: 'api-router-anthropic',
+            },
+          ],
+          agentSnapshots: [
+            {
+              id: 'main',
+              isDefault: true,
+              model: {
+                primary: 'openai/gpt-4.1',
+                fallbacks: ['anthropic/claude-3-7-sonnet'],
+              },
+            },
+          ],
+          channelSnapshots: [],
+          root: {
+            agents: {
+              defaults: {
+                model: {
+                  primary: 'anthropic/claude-3-7-sonnet',
+                },
+              },
+              list: [
+                {
+                  id: 'main',
+                  default: true,
+                  model: {
+                    primary: 'openai/gpt-4.1',
+                    fallbacks: ['anthropic/claude-3-7-sonnet'],
+                  },
+                },
+              ],
+            },
+          },
+        }) as any,
+      listGatewayModels: async () => ({
+        models: [
+          {
+            id: 'gpt-4.1',
+            name: 'GPT-4.1',
+            provider: 'openai',
+          },
+          {
+            id: 'claude-3-7-sonnet',
+            name: 'Claude 3.7 Sonnet',
+            provider: 'anthropic',
+          },
+        ],
+      }),
+    });
+
+    const catalog = await service.getCatalog('instance-openclaw-default-model');
+
+    assert.equal(catalog.channels[0]?.id, 'general');
+    assert.equal(catalog.channels[0]?.defaultModelId, 'openai/gpt-4.1');
+    assert.deepEqual(
+      catalog.channels[0]?.models.map((model) => model.id),
+      ['openai/gpt-4.1', 'anthropic/claude-3-7-sonnet'],
+    );
+  },
+);
