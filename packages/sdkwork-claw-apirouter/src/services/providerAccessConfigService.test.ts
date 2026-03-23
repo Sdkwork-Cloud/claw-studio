@@ -65,26 +65,18 @@ await runTest('providerAccessConfigService builds Codex, OpenCode, and OpenClaw 
     ['OPENAI_API_KEY', 'OPENAI_BASE_URL'],
   );
   assert.equal(codex.snippets.length, 2);
-  assert.equal(codex.snippets[0]?.target, '~/.codex/auth.json');
-  assert.equal(codex.snippets[1]?.target, '~/.codex/config.toml');
-  assert.match(codex.snippets[0]?.content || '', /"auth_mode": "apikey"/);
-  assert.match(codex.snippets[0]?.content || '', /"OPENAI_API_KEY": "sk-router-live-123"/);
-  assert.match(
-    codex.snippets[1]?.content || '',
-    /If config\.toml already sets `profile = "\.\.\."`, move `model` and `model_provider` into that active profile instead of overwriting shared defaults\./,
-  );
-  assert.match(codex.snippets[1]?.content || '', /model = "gpt-5\.4"/);
-  assert.match(codex.snippets[1]?.content || '', /model_provider = "api_router"/);
-  assert.match(codex.snippets[1]?.content || '', /base_url = "https:\/\/router\.example\.com\/v1"/);
-  assert.match(codex.snippets[1]?.content || '', /requires_openai_auth = true/);
-  assert.match(codex.snippets[1]?.content || '', /wire_api = "responses"/);
-  assert.doesNotMatch(codex.snippets[1]?.content || '', /env_key = "OPENAI_API_KEY"/);
-
-  const codexBundle = formatProviderAccessClientBundle(codex);
-  assert.match(codexBundle, /# ~\/\.codex\/auth\.json/);
-  assert.match(codexBundle, /"OPENAI_API_KEY": "sk-router-live-123"/);
-  assert.match(codexBundle, /\[model_providers\.api_router\]/);
-  assert.doesNotMatch(codexBundle, /export OPENAI_API_KEY=/);
+  assert.equal(codex.snippets[0]?.target, '~/.codex/config.toml');
+  assert.match(codex.snippets[0]?.content || '', /model = "gpt-5\.4"/);
+  assert.match(codex.snippets[0]?.content || '', /model_provider = "api_router"/);
+  assert.match(codex.snippets[0]?.content || '', /\[model_providers\.api_router\]/);
+  assert.match(codex.snippets[0]?.content || '', /name = "API Router OpenAI"/);
+  assert.match(codex.snippets[0]?.content || '', /base_url = "https:\/\/router\.example\.com\/v1"/);
+  assert.match(codex.snippets[0]?.content || '', /wire_api = "responses"/);
+  assert.match(codex.snippets[0]?.content || '', /requires_openai_auth = true/);
+  assert.doesNotMatch(codex.snippets[0]?.content || '', /env_key =/);
+  assert.equal(codex.snippets[1]?.target, '~/.codex/auth.json');
+  assert.match(codex.snippets[1]?.content || '', /"auth_mode": "apikey"/);
+  assert.match(codex.snippets[1]?.content || '', /"OPENAI_API_KEY": "sk-router-live-123"/);
 
   const claudeCode = configs.find((config) => config.id === 'claude-code');
   assert.ok(claudeCode);
@@ -151,7 +143,7 @@ await runTest('providerAccessConfigService builds Claude Code, OpenCode, and Ope
   const codex = configs.find((config) => config.id === 'codex');
   assert.ok(codex);
   assert.equal(codex.available, false);
-  assert.equal(codex.reason, 'requiresOpenAIResponses');
+  assert.equal(codex.reason, 'requiresOpenAICompatible');
 
   const claudeCode = configs.find((config) => config.id === 'claude-code');
   assert.ok(claudeCode);
@@ -206,6 +198,11 @@ await runTest('providerAccessConfigService enables Gemini CLI for Google-compati
   });
   const configs = buildProviderAccessClientConfigs(provider);
 
+  const codex = configs.find((config) => config.id === 'codex');
+  assert.ok(codex);
+  assert.equal(codex.available, false);
+  assert.equal(codex.reason, 'requiresOpenAICompatible');
+
   const gemini = configs.find((config) => config.id === 'gemini');
   assert.ok(gemini);
   assert.equal(gemini.available, true);
@@ -229,11 +226,6 @@ await runTest('providerAccessConfigService enables Gemini CLI for Google-compati
     /GOOGLE_GEMINI_BASE_URL="https:\/\/generativelanguage\.googleapis\.com\/v1beta"/,
   );
   assert.match(gemini.snippets[1]?.content || '', /GEMINI_API_KEY_AUTH_MECHANISM="x-goog-api-key"/);
-
-  const codex = configs.find((config) => config.id === 'codex');
-  assert.ok(codex);
-  assert.equal(codex.available, false);
-  assert.equal(codex.reason, 'requiresOpenAIResponses');
 
   const opencode = configs.find((config) => config.id === 'opencode');
   assert.ok(opencode);
@@ -275,7 +267,7 @@ await runTest('providerAccessConfigService writes bearer-based Gemini env snippe
   assert.match(gemini.snippets[1]?.content || '', /GEMINI_API_KEY_AUTH_MECHANISM="bearer"/);
 });
 
-await runTest('providerAccessConfigService enables OpenCode and OpenClaw for Moonshot OpenAI-compatible routes while keeping Codex conservative', async () => {
+await runTest('providerAccessConfigService enables Codex, OpenCode, and OpenClaw for Moonshot OpenAI-compatible routes', async () => {
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const provider = createProvider({
     channelId: 'moonshot',
@@ -293,8 +285,9 @@ await runTest('providerAccessConfigService enables OpenCode and OpenClaw for Moo
 
   const codex = configs.find((config) => config.id === 'codex');
   assert.ok(codex);
-  assert.equal(codex.available, false);
-  assert.equal(codex.reason, 'requiresOpenAIResponses');
+  assert.equal(codex.available, true);
+  assert.match(codex.snippets[0]?.content || '', /base_url = "https:\/\/api\.moonshot\.cn\/v1"/);
+  assert.match(codex.snippets[1]?.content || '', /"OPENAI_API_KEY": "moonshot-router-live-123"/);
 
   const opencode = configs.find((config) => config.id === 'opencode');
   assert.ok(opencode);
@@ -348,10 +341,8 @@ await runTest('providerAccessConfigService resolves platform-specific manual tar
   const provider = createProvider();
   const configs = buildProviderAccessClientConfigs(provider);
   const codex = configs.find((config) => config.id === 'codex');
-  const opencode = configs.find((config) => config.id === 'opencode');
 
   assert.ok(codex);
-  assert.ok(opencode);
 
   const displayPlatform = resolveProviderAccessSnippetDisplayPlatform({
     system: {
@@ -363,24 +354,16 @@ await runTest('providerAccessConfigService resolves platform-specific manual tar
   assert.equal(displayPlatform, 'windows');
   assert.equal(
     resolveProviderAccessSnippetTarget(codex.snippets[0], displayPlatform),
-    '%USERPROFILE%\\.codex\\auth.json',
-  );
-  assert.equal(
-    resolveProviderAccessSnippetTarget(codex.snippets[1], displayPlatform),
     '%USERPROFILE%\\.codex\\config.toml',
   );
   assert.equal(
-    resolveProviderAccessSnippetTarget(opencode.snippets[0], displayPlatform),
-    '%USERPROFILE%\\.config\\opencode\\opencode.json',
-  );
-  assert.equal(
-    resolveProviderAccessSnippetTarget(opencode.snippets[1], displayPlatform),
-    '%USERPROFILE%\\.local\\share\\opencode\\auth.json',
+    resolveProviderAccessSnippetTarget(codex.snippets[1], displayPlatform),
+    '%USERPROFILE%\\.codex\\auth.json',
   );
 
-  const bundle = formatProviderAccessClientBundle(opencode, displayPlatform);
-  assert.ok(bundle.includes('# %USERPROFILE%\\.config\\opencode\\opencode.json'));
-  assert.ok(bundle.includes('# %USERPROFILE%\\.local\\share\\opencode\\auth.json'));
+  const bundle = formatProviderAccessClientBundle(codex, displayPlatform);
+  assert.ok(bundle.includes('# %USERPROFILE%\\.codex\\config.toml'));
+  assert.ok(bundle.includes('# %USERPROFILE%\\.codex\\auth.json'));
 });
 
 await runTest('providerAccessConfigService marks every client unavailable when the plaintext provider secret is no longer present', async () => {

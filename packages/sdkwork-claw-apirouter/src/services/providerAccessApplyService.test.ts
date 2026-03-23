@@ -81,6 +81,15 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
       })) || [],
       updatedEnvironments: [],
       updatedInstanceIds: request.openClaw?.instanceIds || [],
+      openClawInstances: request.openClaw?.instanceIds.map((instanceId) => ({
+        instanceId,
+        endpoint: provider.baseUrl,
+        apiKey: provider.apiKey,
+        apiKeyProjectId: `project-${instanceId}`,
+        apiKeyStrategy: request.openClaw?.apiKeyStrategy || 'shared',
+        selectedProviderId: request.openClaw?.routerProviderId,
+        modelMappingId: request.openClaw?.modelMappingId,
+      })) || [],
     };
   };
 
@@ -95,7 +104,10 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
       {
         clientId: 'openclaw',
         openClaw: {
+          apiKeyStrategy: 'shared',
           instanceIds: ['local-built-in', 'home-nas'],
+          modelMappingId: undefined,
+          routerProviderId: undefined,
         },
       },
     ]);
@@ -116,7 +128,7 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
   }
 });
 
-await runTest('providerAccessApplyService performs one-click Codex setup through the installer platform instead of dialog saves', async () => {
+await runTest('providerAccessApplyService performs one-click Codex setup through the installer platform', async () => {
   const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const { installerService } = await import('@sdkwork/claw-infrastructure');
@@ -192,6 +204,97 @@ await runTest('providerAccessApplyService performs one-click Codex setup through
     assert.deepEqual(installCalls, [
       {
         clientId: 'codex',
+        installMode: 'both',
+        envScope: 'user',
+        provider: {
+          id: provider.id,
+          channelId: provider.channelId,
+          compatibility: 'openai',
+          models: provider.models,
+        },
+      },
+    ]);
+  } finally {
+    installerService.installApiRouterClientSetup = originalInstall;
+  }
+});
+
+await runTest('providerAccessApplyService performs one-click OpenCode setup through the installer platform instead of dialog saves', async () => {
+  const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
+  const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
+  const { installerService } = await import('@sdkwork/claw-infrastructure');
+  const provider = createProxyProvider('openai');
+
+  assert.ok(provider);
+
+  const client = buildProviderAccessClientConfigs(provider).find((item) => item.id === 'opencode');
+
+  assert.ok(client);
+  assert.equal(client.available, true);
+
+  const installCalls: Array<{
+    clientId: string;
+    installMode?: string;
+    envScope?: string;
+    provider: {
+      id: string;
+      channelId: string;
+      compatibility: string;
+      models: Array<{ id: string; name: string }>;
+    };
+  }> = [];
+  const originalInstall = installerService.installApiRouterClientSetup;
+  installerService.installApiRouterClientSetup = async (request) => {
+    installCalls.push({
+      clientId: request.clientId,
+      installMode: request.installMode,
+      envScope: request.envScope,
+      provider: {
+        id: request.provider.id,
+        channelId: request.provider.channelId,
+        compatibility: request.provider.compatibility,
+        models: request.provider.models,
+      },
+    });
+
+    return {
+      clientId: request.clientId,
+      writtenFiles: [
+        {
+          path: 'C:/Users/test/.config/opencode/opencode.json',
+          action: 'updated' as const,
+        },
+        {
+          path: 'C:/Users/test/.local/share/opencode/auth.json',
+          action: 'updated' as const,
+        },
+      ],
+      updatedEnvironments: [
+        {
+          scope: 'user' as const,
+          shell: 'powershell' as const,
+          target: 'C:/Users/test/Documents/PowerShell/Microsoft.PowerShell_profile.ps1',
+          variables: ['OPENAI_API_KEY', 'OPENAI_BASE_URL'],
+        },
+      ],
+      updatedInstanceIds: [],
+    };
+  };
+
+  try {
+    const result = await providerAccessApplyService.applyClientSetup(provider, client, {
+      installMode: 'both',
+      envScope: 'user',
+    });
+
+    assert.deepEqual(result, {
+      writtenFileCount: 2,
+      updatedEnvironmentCount: 1,
+      updatedInstanceIds: [],
+    });
+    assert.deepEqual(installCalls, [
+      {
+        clientId: 'opencode',
         installMode: 'both',
         envScope: 'user',
         provider: {
@@ -306,7 +409,7 @@ await runTest('providerAccessApplyService uses local file configuration by defau
 
   assert.ok(provider);
 
-  const client = buildProviderAccessClientConfigs(provider).find((item) => item.id === 'codex');
+  const client = buildProviderAccessClientConfigs(provider).find((item) => item.id === 'opencode');
 
   assert.ok(client);
   assert.equal(client.available, true);
@@ -328,11 +431,11 @@ await runTest('providerAccessApplyService uses local file configuration by defau
       clientId: request.clientId,
       writtenFiles: [
         {
-          path: 'C:/Users/test/.codex/config.toml',
+          path: 'C:/Users/test/.config/opencode/opencode.json',
           action: 'updated' as const,
         },
         {
-          path: 'C:/Users/test/.codex/auth.json',
+          path: 'C:/Users/test/.local/share/opencode/auth.json',
           action: 'updated' as const,
         },
       ],
@@ -351,7 +454,7 @@ await runTest('providerAccessApplyService uses local file configuration by defau
     });
     assert.deepEqual(installCalls, [
       {
-        clientId: 'codex',
+        clientId: 'opencode',
         installMode: 'standard',
         envScope: undefined,
       },
@@ -361,7 +464,7 @@ await runTest('providerAccessApplyService uses local file configuration by defau
   }
 });
 
-await runTest('providerAccessApplyService can configure only environment variables for Codex when requested', async () => {
+await runTest('providerAccessApplyService can configure only environment variables for OpenCode when requested', async () => {
   const { providerAccessApplyService } = await import('./providerAccessApplyService.ts');
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const { installerService } = await import('@sdkwork/claw-infrastructure');
@@ -369,7 +472,7 @@ await runTest('providerAccessApplyService can configure only environment variabl
 
   assert.ok(provider);
 
-  const client = buildProviderAccessClientConfigs(provider).find((item) => item.id === 'codex');
+  const client = buildProviderAccessClientConfigs(provider).find((item) => item.id === 'opencode');
 
   assert.ok(client);
   assert.equal(client.available, true);
@@ -415,7 +518,7 @@ await runTest('providerAccessApplyService can configure only environment variabl
     });
     assert.deepEqual(installCalls, [
       {
-        clientId: 'codex',
+        clientId: 'opencode',
         installMode: 'env',
         envScope: 'system',
       },

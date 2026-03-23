@@ -56,6 +56,8 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
     'packages/sdkwork-claw-ui/src/components/TaskExecutionHistoryDrawer.tsx',
   );
   const channelCatalogSource = read('packages/sdkwork-claw-ui/src/components/ChannelCatalog.tsx');
+  const channelWorkspaceSource = read('packages/sdkwork-claw-ui/src/components/ChannelWorkspace.tsx');
+  const channelCatalogMetaSource = read('packages/sdkwork-claw-ui/src/components/channelCatalogMeta.ts');
   const overlaySurfaceSource = read('packages/sdkwork-claw-ui/src/components/OverlaySurface.tsx');
 
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/Modal.tsx'));
@@ -72,6 +74,7 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/TaskRowList.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/TaskCatalog.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/TaskExecutionHistoryDrawer.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-ui/src/components/ChannelWorkspace.tsx'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/components/taskCatalogMeta.ts'));
   assert.ok(exists('packages/sdkwork-claw-ui/src/lib/utils.ts'));
 
@@ -92,6 +95,7 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(componentsIndexSource, /\.\/TaskCatalog/);
   assert.match(componentsIndexSource, /\.\/TaskExecutionHistoryDrawer/);
   assert.match(componentsIndexSource, /\.\/TaskRowList/);
+  assert.match(componentsIndexSource, /\.\/ChannelWorkspace/);
   assert.match(componentsIndexSource, /\.\/taskCatalogMeta/);
   assert.match(
     taskRowListSource,
@@ -104,6 +108,19 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(taskExecutionHistoryDrawerSource, /export function TaskExecutionHistoryDrawer/);
   assert.match(channelCatalogSource, /onOpenOfficialLink\?:/);
   assert.match(channelCatalogSource, /onOpenOfficialLink\(channel, link\)/);
+  assert.match(channelCatalogSource, /actionDownloadApp/);
+  assert.match(channelCatalogSource, /sortChannelCatalogItems/);
+  assert.match(channelWorkspaceSource, /export interface ChannelWorkspaceItem/);
+  assert.match(channelWorkspaceSource, /export function ChannelWorkspace/);
+  assert.match(channelWorkspaceSource, /actionDownloadApp/);
+  assert.match(channelWorkspaceSource, /OverlaySurface/);
+  assert.match(channelWorkspaceSource, /setupSteps/);
+  assert.match(channelWorkspaceSource, /Delete configuration/);
+  assert.match(channelCatalogMetaSource, /sdkworkchat/);
+  assert.match(channelCatalogMetaSource, /wehcat/);
+  assert.match(channelCatalogMetaSource, /clawstudio\.sdkwork\.com\/platforms\/android/);
+  assert.match(channelCatalogMetaSource, /isChannelDownloadAppAction/);
+  assert.match(channelCatalogMetaSource, /export function sortChannelCatalogItems/);
   assert.match(overlaySurfaceSource, /createPortal/);
   assert.match(overlaySurfaceSource, /document\.body/);
 });

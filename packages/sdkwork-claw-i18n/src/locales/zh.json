@@ -4,6 +4,8 @@
     "back": "返回",
     "goBack": "返回上一页",
     "save": "保存",
+    "edit": "编辑",
+    "delete": "删除",
     "cancel": "取消",
     "close": "关闭",
     "search": "搜索",
@@ -27,18 +29,19 @@
     "older": "更早",
     "viewAll": "查看全部",
     "add": "添加",
-    "done": "完成"
+    "done": "完成",
+    "reset": "重置"
   },
   "sidebar": {
     "brand": "Claw Studio",
     "dashboard": "控制台",
     "hotBadge": "热门",
-    "clawMall": "Claw 商城",
+    "clawMall": "联网中心",
     "instances": "实例",
     "devices": "设备",
     "install": "安装 Claw",
     "market": "ClawHub",
-    "agentMarket": "Agent 市场",
+    "agentMarket": "\u6570\u5b57\u5458\u5de5",
     "aiChat": "AI 对话",
     "channels": "渠道",
     "cronTasks": "定时任务",
@@ -1072,7 +1075,7 @@
       "clients": {
         "codex": {
           "title": "Codex",
-          "description": "安装 ~/.codex/config.toml 和 ~/.codex/auth.json，让 Codex 通过官方 API 密钥流程使用该路由。"
+          "description": "安装 ~/.codex/config.toml 和 ~/.codex/auth.json，并写入 API Router 模型提供方、OpenAI 基础 URL 与默认路由模型。"
         },
         "claude-code": {
           "title": "Claude Code",
@@ -1092,7 +1095,7 @@
         }
       },
       "reasons": {
-        "requiresOpenAIResponses": "Codex 一键配置当前需要带有 Responses 兼容路由的 OpenAI 渠道。",
+        "requiresOpenAICompatible": "Codex 一键配置需要兼容 OpenAI 的路由。",
         "requiresAnthropicCompatible": "Claude Code 一键配置需要兼容 Anthropic 的路由。",
         "requiresOpenAIOrAnthropicCompatible": "当前客户端仅支持兼容 OpenAI 或 Anthropic 的路由。",
         "requiresGeminiCompatible": "Gemini CLI 一键配置当前需要兼容 Gemini 的 Google 路由。",
@@ -2062,15 +2065,19 @@
         "share": "分享"
       },
       "assistantCta": {
-        "title": "OpenClaw 后续处理",
-        "description": "让助手继续优化这条信息、生成复投版本，或组织下一步跟进动作。",
-        "primaryAction": "让 OpenClaw 继续"
-      },
-      "backToCommunity": "返回分类信息",
-      "commentPlaceholder": "补充跟进说明或提问...",
-      "commentsTitle": "评论（{{count, number}}）",
-      "currentUserInitials": "我",
-      "featuredBadge": "精选",
+      "title": "OpenClaw 后续处理",
+      "description": "让助手继续优化这条信息、生成复投版本，或组织下一步跟进动作。",
+      "primaryAction": "让 OpenClaw 继续"
+    },
+    "overviewEyebrow": "信息详情",
+    "overviewTitle": "信息概览",
+    "publisherPanelEyebrow": "发布方",
+    "publisherPanelTitle": "发布方资料",
+    "backToCommunity": "返回分类信息",
+    "commentPlaceholder": "补充跟进说明或提问...",
+    "commentsTitle": "评论（{{count, number}}）",
+    "currentUserInitials": "我",
+    "featuredBadge": "精选",
       "listingMeta": {
         "title": "信息元数据",
         "location": "地点",
@@ -2107,16 +2114,42 @@
           "onsite": "线下交付"
         }
       },
-      "meta": {
-        "views": "{{count, number}} 浏览次数"
-      },
-      "newsPanelTitle": "平台资讯",
-      "newsPanelDescription": "这是一条官方资讯内容，适合保留在资讯模块中集中浏览、转发与归档。",
-      "notFoundTitle": "未找到该信息",
-      "roles": {
-        "official": "官方",
-        "coreContributor": "核心贡献者"
+    "meta": {
+      "views": "{{count, number}} 浏览次数"
+    },
+    "newsPanelTitle": "平台资讯",
+    "newsPanelDescription": "这是一条官方资讯内容，适合保留在资讯模块中集中浏览、转发与归档。",
+    "recommendations": {
+      "relatedServicesEyebrow": "相关服务",
+      "relatedServicesTitle": "值得联系的服务",
+      "relatedServicesDescription": "基于当前信息的服务需求、标签和交付语境，优先推荐更适合继续对接的服务方。",
+      "relatedServicesEmpty": "当前还没有足够贴近的服务推荐。",
+      "relatedCompaniesEyebrow": "相关企业",
+      "relatedCompaniesTitle": "值得继续匹配的企业",
+      "relatedCompaniesDescription": "从活跃分类信息里按企业聚合，方便继续浏览附近的供给方、运营方和企业需求。",
+      "relatedCompaniesEmpty": "当前还没有足够贴近的企业推荐。",
+      "openService": "查看服务",
+      "openCompany": "代表信息",
+      "activeListings": "{{count, number}} 条活跃信息",
+      "reasonLabels": {
+        "featured": "精选",
+        "intentServiceLine": "匹配需求",
+        "matchedServiceLine": "匹配服务",
+        "multiListing": "多条信息",
+        "onlineDelivery": "线上交付",
+        "officialPresence": "含官方信息",
+        "sameCompany": "同公司",
+        "sameServiceLine": "同服务线",
+        "sharedCategory": "同分类",
+        "sharedLocation": "同地区",
+        "sharedTag": "同标签"
       }
+    },
+    "notFoundTitle": "未找到该信息",
+    "roles": {
+      "official": "官方",
+      "coreContributor": "核心贡献者"
+    }
     }
   },
   "clawUpload": {
@@ -2471,69 +2504,176 @@
     }
   },
   "clawCenter": {
-    "title": "Claw",
-    "titleHighlight": "商城",
-    "subtitle": "直接连接顶级 OpenClaw 提供方，立即完成洽谈、集成并扩展你的 AI 劳动力。",
-    "searchPlaceholder": "搜索提供方、服务或标签...",
+    "eyebrow": "OpenClaw 注册中心",
+    "title": "OpenClaw 联网中心",
+    "subtitle": "按分类、能力和关键词搜索海量 OpenClaw 主体与服务，在一个页面里完成发现、撮合、一键联网与 ACP 命令交接。",
+    "searchPlaceholder": "搜索智能体、服务、标签或联网方式...",
     "allCategories": "全部分类",
-    "verifiedOnly": "仅看已认证",
-    "rating": "评分",
-    "orders": "订单",
-    "responseRate": "回复率",
-    "viewDetails": "查看详情",
-    "noResults": "没有找到符合你搜索条件的 Claw 提供方。试着调整筛选条件或搜索词。",
-    "services": "服务",
-    "search": "搜索",
-    "messages": "消息",
-    "myOrders": "我的订单",
-    "supercharge": "强化你的业务",
-    "futureOfB2B": "B2B 的未来",
-    "aiAgentSourcing": "AI 智能体采购",
-    "exploreProviders": "探索优质提供方",
-    "trendingProviders": "热门提供方",
-    "providers": "提供方",
-    "noProvidersFound": "未找到提供方",
-    "bannerAlt": "AI 服务市场横幅"
+    "searchSummaryIdle": "在 {{categories}} 个分类下浏览 {{count}} 个注册主体，从搜索工作台直接开始撮合与联网。",
+    "searchSummaryActive": "在 {{category}} 中搜索“{{query}}”，当前工作台已匹配 {{count}} 个注册条目。",
+    "topMatchEmptyTitle": "暂时没有可用的首选条目",
+    "topMatchEmptyDescription": "可以调整关键词、放宽分类，或直接走快速联网流程先完成连接。",
+    "actions": {
+      "quickConnect": "一键快速联网",
+      "quickRegister": "一键注册",
+      "copyCommand": "复制 ACP 命令",
+      "copyContent": "复制内容",
+      "quickConnectNow": "立即联网",
+      "openLocalRegistry": "打开本地联网",
+      "copyEntryCommand": "复制条目命令",
+      "viewDetails": "查看注册详情",
+      "clearFilters": "清除筛选"
+    },
+    "metrics": {
+      "entries": "注册条目",
+      "activeAgents": "活跃智能体",
+      "matches": "成功撮合",
+      "gatewayReady": "可直连网关"
+    },
+    "quickConnect": {
+      "eyebrow": "一键联网",
+      "chatTitle": "本地网关已就绪",
+      "instanceTitle": "本地实例待联网",
+      "installTitle": "尚未安装 OpenClaw",
+      "chatDescription": "{{count}} 个可直连网关的 OpenClaw 实例已就绪，可直接进入对话并挂接当前工作区。",
+      "instanceDescription": "本地已注册 {{count}} 个 OpenClaw 实例，请先打开实例界面，再完成联网与会话接入。",
+      "installDescription": "本地还没有可用的 OpenClaw 实例，请先安装，再回来执行快速联网。"
+    },
+    "labels": {
+      "searchStage": "搜索工作台",
+      "currentCommand": "当前 ACP 命令",
+      "matchCount": "撮合数",
+      "activeAgents": "智能体",
+      "bestFor": "适用场景",
+      "matchReasons": "命中原因"
+    },
+    "sections": {
+      "categories": "分类列表",
+      "latestClaw": "最新 Claw",
+      "popularClaw": "热门 Claw",
+      "recommendedClaw": "推荐 Claw",
+      "suggestions": "推荐搜索",
+      "topMatchEyebrow": "搜索优先级",
+      "topMatch": "首选条目",
+      "statusEyebrow": "本地联网",
+      "status": "连接状态",
+      "spotlightEyebrow": "注册中心精选",
+      "spotlight": "优先推荐",
+      "resultsEyebrow": "搜索结果",
+      "results": "注册条目"
+    },
+    "resultsSummary": "共 {{count}} 个匹配条目",
+    "emptyTitle": "当前搜索没有匹配到注册条目",
+    "emptyDescription": "可以尝试更宽泛的关键词、切换分类，或者直接复制推荐条目的 ACP 命令开始联网。",
+    "badges": {
+      "verified": "已认证",
+      "featured": "精选"
+    },
+    "kind": {
+      "agent": "智能体",
+      "service": "服务"
+    },
+    "categories": {
+      "Engineering": "工程",
+      "Research": "研究",
+      "Operations": "运维",
+      "Support": "支持",
+      "Content": "内容",
+      "Automation": "自动化"
+    },
+    "categoryDescriptions": {
+      "Engineering": "代码生成、评审、发布与工程协作型能力。",
+      "Research": "证据检索、联网搜索、资料汇总与结构化分析能力。",
+      "Operations": "故障处置、运行控制、恢复流程与生产运维能力。",
+      "Support": "工单受理、上下文收集、路由分发与升级协同能力。",
+      "Content": "文档写作、发布素材、编辑包装与内容生产能力。",
+      "Automation": "协调调度、定时触发、工作流编排与 ACP 优先闭环能力。"
+    },
+    "messages": {
+      "quickConnectFailed": "快速联网失败，请改为打开本地实例或安装入口。",
+      "copySuccess": "已复制 {{name}} 的 ACP 命令。",
+      "copyFailed": "复制 ACP 命令失败。"
+    }
   },
   "clawDetail": {
-    "back": "返回市场",
-    "verified": "已认证",
-    "rating": "评分",
-    "orders": "订单",
-    "responseRate": "回复率",
-    "chatNow": "立即沟通",
-    "visitWebsite": "访问网站",
-    "tabs": {
-      "products": "产品与服务",
-      "about": "关于公司",
-      "reviews": "评价"
-    },
-    "about": {
-      "title": "公司概览"
-    },
-    "reviews": {
-      "empty": "暂无评价。"
-    },
-    "details": {
-      "title": "提供方详情",
-      "established": "成立时间",
-      "location": "所在地",
-      "email": "邮箱"
-    },
-    "secure": {
-      "title": "安全交易",
-      "desc": "通过 Claw Mall 达成的所有交易和服务协议都受平台担保保护。款项会在确认服务交付后进入结算。"
-    },
+    "back": "返回注册中心",
     "notFound": {
-      "title": "未找到提供方",
-      "back": "返回市场"
+      "title": "未找到该注册条目",
+      "description": "请求的 OpenClaw 主体不在当前注册快照中，或标识符无效。",
+      "back": "返回联网中心"
+    },
+    "kind": {
+      "agent": "智能体",
+      "service": "服务"
+    },
+    "badges": {
+      "verified": "已认证"
+    },
+    "actions": {
+      "quickConnect": "使用快速联网",
+      "copyCommand": "复制 ACP 命令",
+      "openDocs": "打开 ACP 文档",
+      "openMatchmaking": "打开撮合对话",
+      "quickConnectNow": "打开快速联网"
+    },
+    "sections": {
+      "overviewEyebrow": "注册概览",
+      "overview": "这个条目能做什么",
+      "matchingEyebrow": "撮合说明",
+      "matching": "什么时候使用它",
+      "onboardingEyebrow": "交接步骤",
+      "onboarding": "如何接入",
+      "connectEyebrow": "连接档案",
+      "connect": "连接这个条目",
+      "relatedEyebrow": "相关条目",
+      "related": "继续撮合"
+    },
+    "labels": {
+      "bestFor": "最适合",
+      "trustHighlights": "可信亮点",
+      "capabilities": "能力标签",
+      "integrations": "集成能力",
+      "matchingNotes": "撮合建议"
+    },
+    "stats": {
+      "matches": "撮合数",
+      "activeAgents": "智能体",
+      "region": "区域",
+      "latency": "延迟"
+    },
+    "connection": {
+      "gateway": "Gateway 地址",
+      "websocket": "WebSocket 地址",
+      "authMode": "认证方式",
+      "session": "默认会话",
+      "command": "ACP 命令"
+    },
+    "authMode": {
+      "token": "Token",
+      "none": "无需认证",
+      "external": "外部认证"
+    },
+    "quickConnect": {
+      "eyebrow": "本地快速联网",
+      "chatTitle": "已有可直连的 OpenClaw",
+      "instanceTitle": "已注册本地 OpenClaw 实例",
+      "installTitle": "安装 OpenClaw 后即可一键联网",
+      "chatDescription": "可直接进入聊天界面，并把本地工作区挂接到当前注册流程。",
+      "instanceDescription": "请先打开已注册的本地实例，再在实例内完成联网和会话配置。",
+      "installDescription": "本地还没有可用的 OpenClaw 实例，请先安装，再返回这个条目。"
+    },
+    "messages": {
+      "quickConnectFailed": "这个注册条目的快速联网失败。",
+      "copySuccess": "已复制 {{name}} 的 ACP 命令。",
+      "copyFailed": "复制 ACP 命令失败。",
+      "openExternalFailed": "打开外部链接失败。"
     },
     "chat": {
-      "repliesIn": "通常几分钟内回复",
-      "placeholder": "输入你的咨询内容...",
-      "welcome": "你好，欢迎来到我们的店铺。今天想了解什么？",
-      "autoReply": "感谢联系！我先确认一下当前可提供的服务，马上回复你。你这边有具体需求吗？",
-      "inquirePrefix": "你好，我对以下内容感兴趣："
+      "title": "{{name}} 的撮合对话",
+      "subtitle": "在这里描述目标任务，再把 ACP 命令交接给下游智能体。",
+      "welcome": "你正在查看 {{name}}。描述你的目标工作流，我会帮你整理交接方式。",
+      "autoReply": "已了解。我可以帮你梳理交接内容、选择合适会话，并为 {{name}} 准备 ACP 命令。",
+      "placeholder": "描述你要撮合的任务或交接内容..."
     }
   },
   "products": {
@@ -2615,6 +2755,7 @@
       "actions": {
         "connect": "连接",
         "configure": "配置",
+        "downloadApp": "下载 App",
         "enableChannel": "启用 {{name}}",
         "openOfficialSite": "前往开放平台",
         "saveAndEnable": "保存并启用渠道",
@@ -3185,7 +3326,35 @@
           "artifactsDescription": "查看与当前实例关联的具体文件、目录、端点与存储绑定。",
           "noArtifacts": "当前实例还没有可展示的具体工件资源。",
           "runtimeNotes": "运行时说明",
-          "logPreview": "日志预览"
+          "logPreview": "日志预览",
+          "management": {
+            "title": "\u7ba1\u7406\u89c6\u56fe",
+            "description": "\u76f4\u63a5\u67e5\u770b\u8fd9\u4e2a\u5b9e\u4f8b\u7531\u8c01\u7ba1\u7406\u3001\u6743\u5a01\u914d\u7f6e\u5728\u54ea\u91cc\uff0c\u4ee5\u53ca Claw Studio \u5f53\u524d\u80fd\u591f\u63a5\u7ba1\u5230\u4ec0\u4e48\u7a0b\u5ea6\u3002",
+            "notes": "\u7ba1\u7406\u8bf4\u660e",
+            "labels": {
+              "controlPlane": "\u7ba1\u7406\u5e73\u9762",
+              "installMethod": "\u5b89\u88c5\u65b9\u5f0f",
+              "configAuthority": "\u914d\u7f6e\u6743\u5a01\u6765\u6e90",
+              "defaultWorkspace": "\u9ed8\u8ba4\u5de5\u4f5c\u533a",
+              "managementScope": "\u53ef\u7ba1\u8303\u56f4"
+            },
+            "details": {
+              "controlPlane": "\u751f\u547d\u5468\u671f\u5f52\u5c5e\u4e0e\u90e8\u7f72\u5f62\u6001\u51b3\u5b9a\u4e86\u8fd9\u4e2a\u5b9e\u4f8b\u662f\u5185\u7f6e\u6258\u7ba1\u3001\u5916\u90e8\u9644\u52a0\uff0c\u8fd8\u662f\u8fdc\u7a0b\u7ba1\u7406\u3002",
+              "installMethod": "\u8fd9\u91cc\u663e\u793a\u7684\u662f\u5f53\u524d OpenClaw \u63a7\u5236\u9762\u7684\u5b9e\u9645\u5b89\u88c5\u901a\u9053\u3002",
+              "installMethodUnknown": "\u5f53\u524d\u5b9e\u4f8b\u8fd8\u6ca1\u6709\u4e0a\u62a5\u53ef\u8bc6\u522b\u7684\u5b89\u88c5\u65b9\u5f0f\u3002",
+              "configManagedFile": "Claw Studio \u5df2\u53d1\u73b0\u53ef\u5199\u7684 OpenClaw \u914d\u7f6e\u6587\u4ef6\uff0c\u5b9e\u4f8b\u7ea7\u7ba1\u7406\u5c06\u56f4\u7ed5\u8fd9\u4e2a\u6743\u5a01\u6765\u6e90\u8fdb\u884c\u3002",
+              "configManagedDirectory": "\u5f53\u524d\u914d\u7f6e\u662f\u4ece\u53d7\u63a7\u76ee\u5f55\u4e2d\u89e3\u6790\u51fa\u6765\u7684\uff0c\u800c\u4e0d\u662f\u5355\u4e00\u7684\u914d\u7f6e\u6587\u4ef6\u3002",
+              "configRemoteEndpoint": "\u914d\u7f6e\u53ea\u80fd\u901a\u8fc7\u8fd0\u884c\u65f6\u7aef\u70b9\u8bbf\u95ee\uff0c\u56e0\u6b64\u53ea\u80fd\u63d0\u4f9b\u90e8\u5206\u7ba1\u7406\u80fd\u529b\u3002",
+              "configMetadataOnly": "\u76ee\u524d\u53ea\u62ff\u5230\u4e86\u914d\u7f6e\u5c42\u7684\u5143\u6570\u636e\uff0c\u8fd8\u6ca1\u6709\u76f4\u63a5\u53ef\u5199\u7684\u7ba1\u7406\u5165\u53e3\u3002",
+              "configUnavailable": "\u8fd9\u4e2a\u5b9e\u4f8b\u8fd8\u6ca1\u6709\u6302\u4e0a\u6743\u5a01\u914d\u7f6e\u8def\u5f84\u3002",
+              "workspaceAgent": "\u8fd9\u4e2a\u5de5\u4f5c\u533a\u6765\u81ea\u5f53\u524d\u9ed8\u8ba4 agent\uff0c\u662f Prompt\u3001Skills \u4e0e Agent \u6587\u4ef6\u7684\u4e3b\u8981\u6587\u4ef6\u7cfb\u7edf\u8303\u56f4\u3002",
+              "workspaceArtifact": "\u8fd9\u4e2a\u5de5\u4f5c\u533a\u8def\u5f84\u662f\u4ece\u5b9e\u4f8b artifact \u6620\u5c04\u4e2d\u53d1\u73b0\u7684\uff0c\u800c\u4e0d\u662f\u76f4\u63a5\u6765\u81ea agent \u6ce8\u518c\u4fe1\u606f\u3002",
+              "workspaceNamespace": "\u8fd8\u6ca1\u6709\u53ef\u76f4\u63a5\u5c55\u793a\u7684\u5de5\u4f5c\u533a\u8def\u5f84\uff0c\u5148\u4ee5\u5b58\u50a8 namespace \u4f5c\u4e3a\u7ba1\u7406\u8303\u56f4\u7684\u4ee3\u66ff\u5c55\u793a\u3002",
+              "scopeFull": "Agent CRUD\u3001Channel \u914d\u7f6e\u3001Provider \u914d\u7f6e\u548c\u6587\u4ef6\u7f16\u8f91\u90fd\u53ef\u4ee5\u901a\u8fc7\u53d1\u73b0\u5230\u7684 OpenClaw \u914d\u7f6e\u9762\u5b8c\u6210\u3002",
+              "scopePartial": "\u5bf9\u8bdd\u3001\u6587\u4ef6\u6216\u6a21\u578b\u76f8\u5173\u80fd\u529b\u53ef\u80fd\u4ecd\u7136\u53ef\u7528\uff0c\u4f46\u5728\u6ca1\u6709\u53ef\u5199\u914d\u7f6e\u9644\u7740\u7684\u60c5\u51b5\u4e0b\uff0c\u5b8c\u6574\u7684 agent \u4e0e channel \u7ba1\u7406\u8fd8\u4e0d\u80fd\u6253\u901a\u3002",
+              "scopeReadonly": "\u8fd9\u4e2a\u5b9e\u4f8b\u76ee\u524d\u53ef\u4ee5\u88ab\u53d1\u73b0\u548c\u89c2\u5bdf\uff0c\u4f46\u5728\u6302\u4e0a\u53ef\u5199\u7ba1\u7406\u8def\u5f84\u4e4b\u524d\uff0cClaw Studio \u5e94\u8be5\u628a\u5b83\u89c6\u4e3a\u53ea\u8bfb\u3002"
+            }
+          }
         },
         "metrics": {
           "configuredFields": "已配置字段",
@@ -3243,6 +3412,8 @@
           "maxTokens": "最大 Tokens",
           "timeoutMs": "超时（毫秒）",
           "streaming": "流式输出",
+          "on": "开",
+          "off": "关",
           "streamingDescription": "为运行时响应和实时预览启用 Token 流式输出。",
           "saveConfig": "保存提供方",
           "saving": "保存中...",
@@ -3261,10 +3432,185 @@
             "reasoning": "推理",
             "embedding": "向量",
             "fallback": "兜底"
+          },
+          "toasts": {
+            "providerIdRequired": "必须填写 Provider ID。",
+            "modelsRequired": "至少添加一个模型。每行使用 model-id=Display Name 的格式。",
+            "defaultModelMissing": "默认模型必须存在于提供方模型列表中。",
+            "reasoningModelMissing": "推理模型必须存在于提供方模型列表中。",
+            "embeddingModelMissing": "向量模型必须存在于提供方模型列表中。",
+            "providerSaved": "提供方已写入 OpenClaw 配置。",
+            "providerSaveFailed": "保存提供方失败。",
+            "modelIdRequired": "必须填写模型 ID。",
+            "modelUpdated": "提供方模型已更新。",
+            "modelAdded": "提供方模型已添加。",
+            "modelSaveFailed": "保存提供方模型失败。",
+            "modelRemoved": "提供方模型已删除。",
+            "modelDeleteFailed": "删除提供方模型失败。",
+            "providerRemoved": "提供方已从 OpenClaw 配置中移除。",
+            "providerDeleteFailed": "删除提供方失败。"
+          },
+          "panel": {
+            "badge": "OpenClaw Providers",
+            "managedConfig": "托管配置",
+            "description": "提供方和模型的增删改会回写到真实的 config-backed OpenClaw 配置中，并保持默认模型与智能体模型引用同步。",
+            "newProvider": "新建提供方",
+            "emptyTitle": "还没有配置提供方",
+            "emptyDescription": "先创建第一个提供方，再启用实例级模型路由。",
+            "defaultShort": "默认",
+            "models": "模型数",
+            "providerModelsTitle": "提供方模型",
+            "providerModelsDescription": "为当前选中的提供方新增、重命名或删除模型。",
+            "addModel": "添加模型",
+            "selectProvider": "先选择一个提供方，再管理它的模型目录。"
+          },
+          "dialog": {
+            "titleCreate": "创建 OpenClaw 提供方",
+            "description": "这会把一个提供方写入当前实例对应的 config-backed OpenClaw 配置。",
+            "providerId": "Provider ID",
+            "displayName": "显示名称",
+            "models": "模型列表",
+            "useFirstModel": "使用第一个模型",
+            "placeholders": {
+              "providerId": "openai",
+              "displayName": "OpenAI",
+              "endpoint": "https://api.openai.com/v1",
+              "apiKeySource": "OPENAI_API_KEY",
+              "models": "gpt-4.1=GPT-4.1\ntext-embedding-3-large=Text Embedding 3 Large"
+            }
+          },
+          "modelDialog": {
+            "titleCreate": "创建提供方模型",
+            "titleEdit": "编辑提供方模型",
+            "description": "模型的增删改会与 OpenClaw 默认模型和智能体模型引用保持同步。",
+            "modelId": "模型 ID",
+            "displayName": "显示名称",
+            "placeholders": {
+              "modelId": "gpt-4.1",
+              "displayName": "GPT-4.1"
+            }
+          },
+          "deleteProviderDialog": {
+            "title": "删除 OpenClaw 提供方",
+            "descriptionPrefix": "删除提供方",
+            "descriptionSuffix": "后，会自动清理 config-backed OpenClaw 配置中的默认模型和智能体引用。"
+          },
+          "deleteModelDialog": {
+            "title": "删除提供方模型",
+            "descriptionPrefix": "删除模型",
+            "descriptionSuffix": "后，会自动裁剪该提供方下已经失效的 OpenClaw 引用。"
           }
         },
         "agents": {
-          "marketReadonlyNotice": "当前这个 OpenClaw 宿主还没有暴露可写的真实配置文件，因此 Agent Market 安装和 Agent CRUD 会保持禁用，直到宿主提供 config-backed 的运行时访问路径。"
+          "marketReadonlyNotice": "当前这个 OpenClaw 宿主还没有暴露可写的真实配置文件，因此 Agent Market 安装和 Agent CRUD 会保持禁用，直到宿主提供 config-backed 的运行时访问路径。",
+          "toasts": {
+            "agentIdRequired": "必须填写智能体 ID。",
+            "agentUpdated": "OpenClaw 智能体已更新。",
+            "agentCreated": "OpenClaw 智能体已创建。",
+            "agentSaveFailed": "保存 OpenClaw 智能体失败。",
+            "agentRemoved": "OpenClaw 智能体已移除。",
+            "agentDeleteFailed": "删除 OpenClaw 智能体失败。",
+            "skillInstalled": "OpenClaw 技能已安装到默认工作区。",
+            "skillInstallFailed": "安装所选 OpenClaw 技能失败。",
+            "skillEnabled": "OpenClaw 技能已启用。",
+            "skillDisabled": "OpenClaw 技能已禁用。",
+            "skillUpdateFailed": "更新所选 OpenClaw 技能失败。"
+          },
+          "panel": {
+            "badge": "OpenClaw Agents",
+            "managedConfig": "托管配置",
+            "descriptionPrefix": "智能体身份、工作区、单智能体模型覆盖和状态目录都会回写到真实的 config-backed OpenClaw 配置里。凭据仍保存在每个智能体自己的",
+            "authProfilesFile": "auth-profiles.json",
+            "descriptionMiddle": "以及",
+            "agentDirInline": "agentDir",
+            "descriptionSuffix": "之下，不会被自动共享。",
+            "newAgent": "新建智能体",
+            "defaultBadge": "默认",
+            "configBacked": "配置回写",
+            "workspace": "工作区",
+            "agentDir": "智能体目录",
+            "primaryModel": "主模型",
+            "fallbackModels": "回退模型",
+            "inheritDefaults": "继承默认配置",
+            "creator": "创建者",
+            "pathsTitle": "智能体路径",
+            "skillsDirectory": "技能目录",
+            "sessions": "会话目录",
+            "boundAccounts": "已绑定",
+            "availableAccounts": "可用",
+            "builtIn": "内置",
+            "workspaceInstallCommand": "工作区安装命令",
+            "workspaceInstallDescription": "OpenClaw 会从当前选中智能体的工作区加载单智能体技能。在该工作区中执行下面的原生 OpenClaw CLI 命令，即可把技能安装到当前智能体。",
+            "installToDefaultWorkspace": "安装到默认工作区",
+            "defaultWorkspaceOnlyNotice": "只有选中默认智能体时才支持直接安装，因为 upstream 的 skills.install 网关动作仍然只写入默认 OpenClaw 工作区。",
+            "skillPaths": "技能路径",
+            "agentWorkspace": "智能体工作区",
+            "sharedSkills": "共享技能",
+            "source": "来源",
+            "primaryEnv": "主环境变量",
+            "missingPrefix": "缺失项",
+            "filePreview": "文件预览",
+            "enableSkill": "启用技能",
+            "disableSkill": "禁用技能",
+            "requirementEnv": "环境变量",
+            "requirementBins": "二进制",
+            "requirementAnyBin": "任一二进制",
+            "requirementConfig": "配置"
+          },
+          "status": {
+            "bound": "已绑定",
+            "available": "可用",
+            "notConfigured": "未配置",
+            "ready": "就绪",
+            "connected": "已连接",
+            "degraded": "降级",
+            "configurationRequired": "待配置",
+            "active": "运行中",
+            "paused": "已暂停",
+            "running": "执行中",
+            "failed": "失败",
+            "disconnected": "未连接"
+          },
+          "modelSources": {
+            "agent": "智能体覆盖",
+            "defaults": "默认配置",
+            "runtime": "运行时"
+          },
+          "skillScopes": {
+            "workspace": "工作区",
+            "managed": "共享",
+            "bundled": "内置",
+            "unknown": "外部"
+          },
+          "skillStates": {
+            "disabled": "已禁用",
+            "ready": "就绪",
+            "needsSetup": "待配置"
+          },
+          "dialog": {
+            "titleCreate": "创建 OpenClaw 智能体",
+            "titleEdit": "编辑 OpenClaw 智能体",
+            "description": "智能体 ID 应保持稳定。如果所选提供方要求单智能体认证，请在创建后到该智能体自己的认证存储中补充凭据。",
+            "agentId": "智能体 ID",
+            "displayName": "显示名称",
+            "avatar": "头像",
+            "workspace": "工作区",
+            "agentDir": "智能体目录",
+            "defaultAgent": "默认智能体",
+            "defaultAgentDescription": "OpenClaw 会把隐式主会话路由到第一个默认智能体。",
+            "streamingDescription": "关闭时会作为单智能体模型参数覆盖项写入配置。",
+            "placeholders": {
+              "agentId": "research",
+              "displayName": "Research Agent",
+              "fallbackModels": "每行填写一个 provider/model",
+              "workspace": "留空则由 OpenClaw 自动推导 workspace-<agentId>",
+              "agentDir": "留空则使用 .openclaw/agents/<agentId>/agent"
+            }
+          },
+          "deleteDialog": {
+            "title": "删除 OpenClaw 智能体",
+            "description": "这会从 config-backed OpenClaw 配置中移除该智能体条目，但不会自动删除 workspace 和 agentDir 内的文件。"
+          }
         },
         "empty": {
           "channels": "此实例还没有挂接任何渠道。",

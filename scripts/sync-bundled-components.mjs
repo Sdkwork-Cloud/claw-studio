@@ -40,34 +40,6 @@ const commandEnv = createCommandEnv();
 
 const componentSources = [
   {
-    id: 'codex',
-    repoUrl: 'https://github.com/openai/codex.git',
-    checkoutDir: 'codex',
-    resolveVersion(repoDir, sha) {
-      const baseVersion =
-        readCargoPackageVersion(path.join(repoDir, 'codex-rs', 'cli', 'Cargo.toml')) ??
-        readWorkspaceCargoVersion(path.join(repoDir, 'codex-rs', 'Cargo.toml')) ??
-        '0.0.0';
-      return `${baseVersion}+${sha}`;
-    },
-    build(repoDir) {
-      const targetDir = rustTargetDir('codex');
-      runCommand(cargoCmd, ['build', '--manifest-path', 'codex-rs/Cargo.toml', '--release', '-p', 'codex-cli'], {
-        cwd: repoDir,
-        env: { CARGO_TARGET_DIR: targetDir },
-      });
-    },
-    stage(repoDir, version) {
-      const targetDir = rustTargetDir('codex');
-      const versionDir = path.join(bundledRoot, 'modules', 'codex', version, 'bin');
-      fs.mkdirSync(versionDir, { recursive: true });
-      copyFile(
-        path.join(targetDir, 'release', withExe('codex')),
-        path.join(versionDir, withExe('codex')),
-      );
-    },
-  },
-  {
     id: 'openclaw',
     repoUrl: 'https://github.com/openclaw/openclaw.git',
     checkoutDir: 'openclaw',
@@ -128,54 +100,6 @@ const componentSources = [
         installedModulesDir,
         path.join(stageDir, 'node_modules'),
         new Set(['openclaw']),
-      );
-    },
-  },
-  {
-    id: 'zeroclaw',
-    repoUrl: 'https://github.com/zeroclaw-labs/zeroclaw.git',
-    checkoutDir: 'zeroclaw',
-    resolveVersion(repoDir, sha) {
-      return `${readCargoPackageVersion(path.join(repoDir, 'Cargo.toml')) ?? '0.0.0'}+${sha}`;
-    },
-    build(repoDir) {
-      const targetDir = rustTargetDir('zeroclaw');
-      runCommand(cargoCmd, ['build', '--manifest-path', 'Cargo.toml', '--release', '--bin', 'zeroclaw'], {
-        cwd: repoDir,
-        env: { CARGO_TARGET_DIR: targetDir },
-      });
-    },
-    stage(repoDir, version) {
-      const targetDir = rustTargetDir('zeroclaw');
-      const versionDir = path.join(bundledRoot, 'modules', 'zeroclaw', version, 'bin');
-      fs.mkdirSync(versionDir, { recursive: true });
-      copyFile(
-        path.join(targetDir, 'release', withExe('zeroclaw')),
-        path.join(versionDir, withExe('zeroclaw')),
-      );
-    },
-  },
-  {
-    id: 'ironclaw',
-    repoUrl: 'https://github.com/nearai/ironclaw.git',
-    checkoutDir: 'ironclaw',
-    resolveVersion(repoDir, sha) {
-      return `${readCargoPackageVersion(path.join(repoDir, 'Cargo.toml')) ?? '0.0.0'}+${sha}`;
-    },
-    build(repoDir) {
-      const targetDir = rustTargetDir('ironclaw');
-      runCommand(cargoCmd, ['build', '--manifest-path', 'Cargo.toml', '--release', '--bin', 'ironclaw'], {
-        cwd: repoDir,
-        env: { CARGO_TARGET_DIR: targetDir },
-      });
-    },
-    stage(repoDir, version) {
-      const targetDir = rustTargetDir('ironclaw');
-      const versionDir = path.join(bundledRoot, 'modules', 'ironclaw', version, 'bin');
-      fs.mkdirSync(versionDir, { recursive: true });
-      copyFile(
-        path.join(targetDir, 'release', withExe('ironclaw')),
-        path.join(versionDir, withExe('ironclaw')),
       );
     },
   },

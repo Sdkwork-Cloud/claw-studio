@@ -20,12 +20,28 @@ function parsePort(url) {
 
 const desktopPackage = readJson('packages/sdkwork-claw-desktop/package.json');
 const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
+const bundledSyncDevCommand = 'node ../../scripts/sync-bundled-components.mjs --dev --no-fetch';
+const bundledSyncBuildCommand = 'node ../../scripts/sync-bundled-components.mjs --no-fetch';
 const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
 const devBinaryUnlockGuardCommand =
   'node ../../scripts/ensure-tauri-dev-binary-unlocked.mjs src-tauri sdkwork-claw-desktop';
 const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420';
 const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runtime.mjs';
 const bundledApiRouterPrepareCommand = 'node ../../scripts/prepare-sdkwork-api-router-runtime.mjs';
+
+function assertCommandsAppearInOrder(script, commands, label) {
+  let lastIndex = -1;
+  for (const command of commands) {
+    const index = script.indexOf(command);
+    if (index === -1) {
+      fail(`${label} must include "${command}".`);
+    }
+    if (index < lastIndex) {
+      fail(`${label} must execute "${command}" after the previous required step.`);
+    }
+    lastIndex = index;
+  }
+}
 
 const tauriDevScript = desktopPackage.scripts?.['dev:tauri'];
 if (typeof tauriDevScript !== 'string' || tauriDevScript.trim().length === 0) {
@@ -72,58 +88,36 @@ if (bundledApiRouterPrepareScript !== bundledApiRouterPrepareCommand) {
   );
 }
 
-if (!tauriCliDevScript.startsWith(`${staleTargetGuardCommand} && `)) {
-  fail(
-    `Desktop "tauri:dev" must guard against stale Tauri target artifacts via "${staleTargetGuardCommand}" before invoking the Tauri CLI.`,
-  );
-}
-
-if (!tauriCliDevScript.includes(`&& ${bundledOpenClawPrepareCommand} &&`)) {
-  fail(
-    `Desktop "tauri:dev" must prepare the bundled OpenClaw runtime via "${bundledOpenClawPrepareCommand}" before invoking the Tauri CLI.`,
-  );
-}
-
-if (!tauriCliDevScript.includes(`&& ${bundledApiRouterPrepareCommand} &&`)) {
-  fail(
-    `Desktop "tauri:dev" must prepare the bundled sdkwork-api-router runtime via "${bundledApiRouterPrepareCommand}" before invoking the Tauri CLI.`,
-  );
-}
-
-if (!tauriCliDevScript.includes(`&& ${devBinaryUnlockGuardCommand} &&`)) {
-  fail(
-    `Desktop "tauri:dev" must stop locked debug binaries via "${devBinaryUnlockGuardCommand}" before invoking the Tauri CLI.`,
-  );
-}
-
-if (!tauriCliDevScript.includes(`&& ${devPortGuardCommand} &&`)) {
-  fail(
-    `Desktop "tauri:dev" must verify that the fixed Tauri dev port is free via "${devPortGuardCommand}" before invoking the Tauri CLI.`,
-  );
-}
+assertCommandsAppearInOrder(
+  tauriCliDevScript,
+  [
+    bundledSyncDevCommand,
+    staleTargetGuardCommand,
+    bundledOpenClawPrepareCommand,
+    bundledApiRouterPrepareCommand,
+    devBinaryUnlockGuardCommand,
+    devPortGuardCommand,
+    'tauri dev',
+  ],
+  'Desktop "tauri:dev"',
+);
 
 const tauriCliBuildScript = desktopPackage.scripts?.['tauri:build'];
 if (typeof tauriCliBuildScript !== 'string' || tauriCliBuildScript.trim().length === 0) {
   fail('Desktop package must define a "tauri:build" script.');
 }
 
-if (!tauriCliBuildScript.startsWith(`${staleTargetGuardCommand} && `)) {
-  fail(
-    `Desktop "tauri:build" must guard against stale Tauri target artifacts via "${staleTargetGuardCommand}" before invoking the Tauri CLI.`,
-  );
-}
-
-if (!tauriCliBuildScript.includes(`&& ${bundledOpenClawPrepareCommand} &&`)) {
-  fail(
-    `Desktop "tauri:build" must prepare the bundled OpenClaw runtime via "${bundledOpenClawPrepareCommand}" before invoking the Tauri CLI.`,
-  );
-}
-
-if (!tauriCliBuildScript.includes(`&& ${bundledApiRouterPrepareCommand} &&`)) {
-  fail(
-    `Desktop "tauri:build" must prepare the bundled sdkwork-api-router runtime via "${bundledApiRouterPrepareCommand}" before invoking the Tauri CLI.`,
-  );
-}
+assertCommandsAppearInOrder(
+  tauriCliBuildScript,
+  [
+    bundledSyncBuildCommand,
+    staleTargetGuardCommand,
+    bundledOpenClawPrepareCommand,
+    bundledApiRouterPrepareCommand,
+    'tauri build',
+  ],
+  'Desktop "tauri:build"',
+);
 
 const bundledResources = tauriConfig.bundle?.resources;
 if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/openclaw-runtime/**/*')) {

@@ -125,7 +125,6 @@ mod tests {
         assert_eq!(
             info.supervisor.managed_service_ids,
             vec![
-                "codex".to_string(),
                 "openclaw".to_string(),
                 "zeroclaw".to_string(),
                 "ironclaw".to_string(),
@@ -136,10 +135,10 @@ mod tests {
             ]
         );
         assert_eq!(info.supervisor.lifecycle, "running");
-        assert_eq!(info.bundled_components.component_count, 6);
+        assert_eq!(info.bundled_components.component_count, 5);
         assert_eq!(
             info.bundled_components.default_startup_component_ids,
-            vec!["codex".to_string(), "sdkwork-api-router".to_string()]
+            vec!["sdkwork-api-router".to_string()]
         );
     }
 

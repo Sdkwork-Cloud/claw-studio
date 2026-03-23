@@ -1,5 +1,7 @@
 export * from './pages/InstanceDetail';
 export * from './pages/Instances';
+export * from './services/agentWorkbenchService';
+export * from './services/agentSkillManagementService';
 export * from './services/instanceService';
 export * from './services/instanceWorkbenchService';
 export * from './store/useInstanceStore';

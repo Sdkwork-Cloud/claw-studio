@@ -1053,12 +1053,12 @@ fn build_tray_menu<R: Runtime>(
 mod tests {
     use super::{
         activate_bundled_api_router_from_resource_root,
-        activate_bundled_openclaw_from_resource_root, build_tray_menu_spec,
-        api_router_public_endpoint_lines, resolve_api_router_runtime_status, resolve_tray_language, should_prevent_main_window_close,
-        tray_action_for_menu_id, TrayAction, TrayLanguage, TrayMenuEntry, TRAY_MENU_ID_QUIT_APP,
-        TRAY_MENU_ID_RESTART_API_ROUTER, TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES,
-        TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY, TRAY_MENU_ID_RESTART_WEB_SERVER,
-        TRAY_MENU_ID_SHOW_WINDOW,
+        activate_bundled_openclaw_from_resource_root, api_router_public_endpoint_lines,
+        build_tray_menu_spec, resolve_api_router_runtime_status, resolve_tray_language,
+        should_prevent_main_window_close, tray_action_for_menu_id, TrayAction, TrayLanguage,
+        TrayMenuEntry, TRAY_MENU_ID_QUIT_APP, TRAY_MENU_ID_RESTART_API_ROUTER,
+        TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES, TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY,
+        TRAY_MENU_ID_RESTART_WEB_SERVER, TRAY_MENU_ID_SHOW_WINDOW,
     };
     use crate::framework::{
         config::AppConfig,
@@ -1076,6 +1076,25 @@ mod tests {
         },
     };
     use std::fs;
+
+    #[test]
+    fn invoke_handler_registers_api_router_runtime_bootstrap_commands_only() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+
+        assert!(production_source
+            .contains("commands::api_router_runtime::get_api_router_admin_bootstrap_session"));
+        assert!(production_source
+            .contains("commands::api_router_runtime::get_api_router_runtime_status"));
+        assert!(!production_source.contains("commands::api_router_auth::sync_auth_session"));
+        assert!(!production_source.contains("commands::api_router_auth::clear_auth_session"));
+        assert!(
+            !production_source.contains("commands::api_router_auth::get_api_router_admin_token")
+        );
+    }
 
     #[test]
     fn close_request_is_intercepted_until_shutdown_is_requested() {
@@ -1373,7 +1392,8 @@ mod tests {
             recommended_managed_mode: None,
             shared_root_dir: "C:/Users/admin/.sdkwork/router".to_string(),
             config_dir: "C:/Users/admin/.sdkwork/router".to_string(),
-            config_source: crate::framework::services::api_router_runtime::ApiRouterConfigSource::Defaults,
+            config_source:
+                crate::framework::services::api_router_runtime::ApiRouterConfigSource::Defaults,
             resolved_config_file: Some("C:/Users/admin/.sdkwork/router/config.json".to_string()),
             admin: crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
                 bind_addr: "127.0.0.1:12101".to_string(),
@@ -1383,22 +1403,24 @@ mod tests {
                 healthy: true,
                 port_available: false,
             },
-            portal: crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
-                bind_addr: "127.0.0.1:12102".to_string(),
-                health_url: "http://127.0.0.1:12102/portal/health".to_string(),
-                enabled: true,
-                public_base_url: Some("http://127.0.0.1:12103/api/portal".to_string()),
-                healthy: true,
-                port_available: false,
-            },
-            gateway: crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
-                bind_addr: "127.0.0.1:12100".to_string(),
-                health_url: "http://127.0.0.1:12100/health".to_string(),
-                enabled: true,
-                public_base_url: Some("http://127.0.0.1:12103/api".to_string()),
-                healthy: true,
-                port_available: false,
-            },
+            portal:
+                crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
+                    bind_addr: "127.0.0.1:12102".to_string(),
+                    health_url: "http://127.0.0.1:12102/portal/health".to_string(),
+                    enabled: true,
+                    public_base_url: Some("http://127.0.0.1:12103/api/portal".to_string()),
+                    healthy: true,
+                    port_available: false,
+                },
+            gateway:
+                crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
+                    bind_addr: "127.0.0.1:12100".to_string(),
+                    health_url: "http://127.0.0.1:12100/health".to_string(),
+                    enabled: true,
+                    public_base_url: Some("http://127.0.0.1:12103/api".to_string()),
+                    healthy: true,
+                    port_available: false,
+                },
             admin_site_base_url: Some("http://127.0.0.1:12103/admin".to_string()),
             portal_site_base_url: Some("http://127.0.0.1:12103/portal".to_string()),
             reason: "Claw Studio is managing the sdkwork-api-router runtime for this session."
@@ -1407,11 +1429,21 @@ mod tests {
 
         let lines = api_router_public_endpoint_lines(&status);
 
-        assert!(lines.iter().any(|line| line.contains("http://127.0.0.1:12103/api/v1/*")));
-        assert!(lines.iter().any(|line| line.contains("http://127.0.0.1:12103/api/admin")));
-        assert!(lines.iter().any(|line| line.contains("http://127.0.0.1:12103/api/portal")));
-        assert!(lines.iter().any(|line| line.contains("http://127.0.0.1:12103/admin")));
-        assert!(lines.iter().any(|line| line.contains("http://127.0.0.1:12103/portal")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("http://127.0.0.1:12103/api/v1/*")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("http://127.0.0.1:12103/api/admin")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("http://127.0.0.1:12103/api/portal")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("http://127.0.0.1:12103/admin")));
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("http://127.0.0.1:12103/portal")));
     }
 
     #[cfg(windows)]
@@ -1554,10 +1586,16 @@ mod tests {
             "@echo off\r\nnode \"%~dp0portal-api-service.mjs\"\r\n",
         )
         .expect("portal cmd");
-        fs::write(&admin_site_index_path, "<!doctype html><title>admin</title>")
-            .expect("admin site");
-        fs::write(&portal_site_index_path, "<!doctype html><title>portal</title>")
-            .expect("portal site");
+        fs::write(
+            &admin_site_index_path,
+            "<!doctype html><title>admin</title>",
+        )
+        .expect("admin site");
+        fs::write(
+            &portal_site_index_path,
+            "<!doctype html><title>portal</title>",
+        )
+        .expect("portal site");
         fs::write(
             router_root.join("config.json"),
             "{\"gateway_bind\":\"127.0.0.1:29080\",\"admin_bind\":\"127.0.0.1:29081\",\"portal_bind\":\"127.0.0.1:29082\",\"web_bind\":\"127.0.0.1:29083\"}\n",
@@ -1648,10 +1686,16 @@ mod tests {
             "import fs from 'node:fs';\nimport net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.portal_bind ?? '127.0.0.1:12102';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
         )
         .expect("portal script");
-        fs::write(&admin_site_index_path, "<!doctype html><title>admin</title>")
-            .expect("admin site");
-        fs::write(&portal_site_index_path, "<!doctype html><title>portal</title>")
-            .expect("portal site");
+        fs::write(
+            &admin_site_index_path,
+            "<!doctype html><title>admin</title>",
+        )
+        .expect("admin site");
+        fs::write(
+            &portal_site_index_path,
+            "<!doctype html><title>portal</title>",
+        )
+        .expect("portal site");
 
         let manifest = BundledApiRouterManifest {
             schema_version: 1,

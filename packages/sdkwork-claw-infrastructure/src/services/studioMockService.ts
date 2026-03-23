@@ -121,6 +121,7 @@ export interface MockChannel {
   icon: string;
   status: 'connected' | 'disconnected' | 'not_configured';
   enabled: boolean;
+  configurationMode?: 'required' | 'none';
   fields: MockChannelField[];
   setupGuide: string[];
 }
@@ -812,6 +813,56 @@ function createInitialTaskExecutions(): Record<string, MockTaskExecutionHistoryE
 
 function createInitialChannels(): MockChannel[] {
   return [
+    {
+      id: 'sdkworkchat',
+      instanceId: null,
+      name: 'Sdkwork Chat',
+      description: 'Use the first-party Sdkwork Chat app for native OpenClaw conversations and operator handoff.',
+      icon: 'MessageSquare',
+      status: 'connected',
+      enabled: true,
+      configurationMode: 'none',
+      setupGuide: [
+        'Download the Sdkwork Chat app or open the existing Sdkwork Chat workspace.',
+        'Sign in with your SDKWork account to receive OpenClaw conversations immediately.',
+        'Keep the channel enabled if this runtime should deliver into Sdkwork Chat.',
+      ],
+      fields: [],
+    },
+    {
+      id: 'wehcat',
+      instanceId: null,
+      name: 'Wehcat',
+      description: 'Distribute agent updates through WeChat official account delivery for China-facing audiences.',
+      icon: 'Send',
+      status: 'not_configured',
+      enabled: false,
+      setupGuide: [
+        'Create a WeChat official account or service account.',
+        'Copy the App ID, App Secret, token, and optional AES key.',
+        'Save the configuration and validate the callback endpoint.',
+      ],
+      fields: [
+        {
+          key: 'appId',
+          label: 'App ID',
+          type: 'text',
+          placeholder: 'wx1234567890abcdef',
+        },
+        {
+          key: 'appSecret',
+          label: 'App Secret',
+          type: 'password',
+          placeholder: 'Enter app secret',
+        },
+        {
+          key: 'token',
+          label: 'Token',
+          type: 'text',
+          placeholder: 'Enter verification token',
+        },
+      ],
+    },
     {
       id: 'feishu',
       instanceId: null,

@@ -678,6 +678,7 @@ export interface StudioWorkbenchChannelRecord {
   description: string;
   status: 'connected' | 'disconnected' | 'not_configured';
   enabled: boolean;
+  configurationMode?: 'required' | 'none';
   fieldCount: number;
   configuredFieldCount: number;
   setupSteps: string[];

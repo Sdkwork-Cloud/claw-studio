@@ -11,6 +11,7 @@ export {
   studio,
 } from './platform/registry.ts';
 export { openExternalUrl } from './platform/openExternalUrl.ts';
+export { WebComponentPlatform } from './platform/webComponents.ts';
 export { WebPlatform } from './platform/web.ts';
 export { WebStoragePlatform } from './platform/webStorage.ts';
 export { WebStudioPlatform } from './platform/webStudio.ts';

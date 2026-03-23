@@ -68,16 +68,59 @@ runTest('sdkwork-claw-shell exposes the agent marketplace across route, sidebar,
   assert.match(sidebarSource, /id: 'agents'/);
   assert.match(sidebarSource, /to: '\/agents'/);
   assert.match(sidebarSource, /label: t\('sidebar\.agentMarket'\)/);
+  assert.match(sidebarSource, /BriefcaseBusiness/);
+  assert.doesNotMatch(sidebarSource, /icon: Bot/);
   assert.match(settingsSource, /id: 'agents', label: t\('sidebar\.agentMarket'\)/);
   assert.match(commandPaletteSource, /id: 'nav-agents'/);
   assert.match(commandPaletteSource, /commandPalette\.commands\.agents\.title/);
   assert.match(commandPaletteSource, /navigate\('\/agents'\)/);
+  assert.match(commandPaletteSource, /icon: BriefcaseBusiness/);
+  assert.doesNotMatch(commandPaletteSource, /icon: Bot/);
   assert.equal(enLocale.sidebar.agentMarket, 'Agent Market');
   assert.equal(enLocale.commandPalette.commands.agents.title, 'Go to Agent Market');
   assert.equal(enLocale.agentMarket.hero.title, 'OpenClaw Agent Market');
-  assert.equal(zhLocale.sidebar.agentMarket, 'Agent 市场');
+  assert.equal(zhLocale.sidebar.agentMarket, '数字员工');
   assert.equal(zhLocale.commandPalette.commands.agents.title, '前往 Agent 市场');
   assert.equal(zhLocale.agentMarket.hero.title, 'OpenClaw Agent 市场');
+});
+
+runTest('sdkwork-claw-shell keeps sidebar and navigation icons semantically grouped instead of using generic placeholders', () => {
+  const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
+  const commandPaletteSource = read('packages/sdkwork-claw-shell/src/components/commandPaletteCommands.ts');
+
+  assert.match(sidebarSource, /LayoutDashboard/);
+  assert.match(sidebarSource, /CalendarClock/);
+  assert.match(sidebarSource, /Blocks/);
+  assert.match(sidebarSource, /PlugZap/);
+  assert.match(sidebarSource, /Waypoints/);
+  assert.match(sidebarSource, /Newspaper/);
+  assert.match(sidebarSource, /BrainCircuit/);
+  assert.match(sidebarSource, /Store/);
+  assert.match(sidebarSource, /id: 'tasks', to: '\/tasks', icon: CalendarClock/);
+  assert.match(sidebarSource, /id: 'dashboard', to: '\/dashboard', icon: LayoutDashboard/);
+  assert.match(sidebarSource, /id: 'market',[\s\S]*icon: Blocks/);
+  assert.match(sidebarSource, /id: 'extensions', to: '\/extensions', icon: PlugZap/);
+  assert.match(sidebarSource, /id: 'claw-upload', to: '\/claw-center', icon: Waypoints/);
+  assert.match(sidebarSource, /id: 'community', to: '\/community', icon: Newspaper/);
+  assert.match(sidebarSource, /id: 'huggingface', to: '\/huggingface', icon: BrainCircuit/);
+  assert.doesNotMatch(sidebarSource, /id: 'claw-center', to: '\/claw-center', icon: Store/);
+  assert.doesNotMatch(sidebarSource, /id: 'tasks', to: '\/tasks', icon: Clock/);
+  assert.doesNotMatch(sidebarSource, /id: 'dashboard', to: '\/dashboard', icon: Gauge/);
+  assert.doesNotMatch(sidebarSource, /id: 'community', to: '\/community', icon: Users/);
+  assert.doesNotMatch(sidebarSource, /id: 'huggingface', to: '\/huggingface', icon: Box/);
+  assert.doesNotMatch(sidebarSource, /id: 'claw-center', to: '\/claw-center', icon: Network/);
+
+  assert.match(commandPaletteSource, /LayoutDashboard/);
+  assert.match(commandPaletteSource, /BrainCircuit/);
+  assert.match(commandPaletteSource, /Waypoints/);
+  assert.match(commandPaletteSource, /id: 'nav-dashboard',[\s\S]*icon: LayoutDashboard/);
+  assert.match(commandPaletteSource, /id: 'nav-hf',[\s\S]*icon: BrainCircuit/);
+  assert.match(commandPaletteSource, /id: 'nav-upload',[\s\S]*icon: Waypoints/);
+  assert.match(commandPaletteSource, /id: 'nav-upload',[\s\S]*navigate\('\/claw-center'\)/);
+  assert.doesNotMatch(commandPaletteSource, /id: 'nav-dashboard',[\s\S]*icon: Gauge/);
+  assert.doesNotMatch(commandPaletteSource, /id: 'nav-hf',[\s\S]*icon: Box/);
+  assert.doesNotMatch(commandPaletteSource, /id: 'nav-upload',[\s\S]*icon: Globe/);
+  assert.doesNotMatch(commandPaletteSource, /id: 'nav-upload',[\s\S]*navigate\('\/claw-upload'\)/);
 });
 
 runTest('sdkwork-claw-shell lazy-loads heavy route modules so the shell entry stays responsive', () => {
@@ -332,7 +375,7 @@ runTest('sdkwork-claw-shell promotes ClawHub ahead of App Store in the ecosystem
   );
 });
 
-runTest('sdkwork-claw-shell keeps selected ecosystem entries toggleable while hiding app store instead of ClawHub by default', () => {
+runTest('sdkwork-claw-shell keeps the registry center under the Claw联网 entry while hiding app store instead of the market by default', () => {
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
   const settingsSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
   const appStoreSource = read('packages/sdkwork-claw-core/src/stores/useAppStore.ts');
@@ -340,27 +383,30 @@ runTest('sdkwork-claw-shell keeps selected ecosystem entries toggleable while hi
   assert.match(sidebarSource, /id: 'market'/);
   assert.match(sidebarSource, /id: 'apps'/);
   assert.match(sidebarSource, /id: 'extensions'/);
-  assert.match(sidebarSource, /id: 'claw-center'/);
+  assert.match(sidebarSource, /id: 'claw-upload', to: '\/claw-center'/);
+  assert.doesNotMatch(sidebarSource, /id: 'claw-center'/);
   assert.match(sidebarSource, /id: 'github'/);
   assert.match(sidebarSource, /id: 'huggingface'/);
   assert.match(settingsSource, /id: 'apps', label: t\('sidebar\.appStore'\)/);
   assert.match(settingsSource, /id: 'market', label: t\('sidebar\.market'\)/);
   assert.match(settingsSource, /id: 'extensions', label: t\('sidebar\.extensions'\)/);
-  assert.match(settingsSource, /id: 'claw-center', label: t\('sidebar\.clawMall'\)/);
+  assert.match(settingsSource, /id: 'claw-upload', label: t\('sidebar\.clawUpload'\)/);
+  assert.doesNotMatch(settingsSource, /id: 'claw-center', label: t\('sidebar\.clawMall'\)/);
   assert.match(settingsSource, /id: 'github', label: t\('sidebar\.githubRepos'\)/);
   assert.match(settingsSource, /id: 'huggingface', label: t\('sidebar\.huggingFace'\)/);
-  assert.match(appStoreSource, /const DEFAULT_HIDDEN_SIDEBAR_ITEMS/);
-  assert.match(appStoreSource, /'apps'/);
-  assert.match(appStoreSource, /'extensions'/);
-  assert.match(appStoreSource, /'claw-center'/);
-  assert.match(appStoreSource, /'github'/);
-  assert.match(appStoreSource, /'huggingface'/);
+  assert.match(
+    appStoreSource,
+    /const DEFAULT_HIDDEN_SIDEBAR_ITEMS = \['apps', 'extensions', 'github', 'huggingface'\] as const;/,
+  );
   assert.doesNotMatch(
     appStoreSource,
     /const DEFAULT_HIDDEN_SIDEBAR_ITEMS = \[[\s\S]*'market',/,
   );
-  assert.match(appStoreSource, /const SIDEBAR_VISIBILITY_VERSION = 3;/);
-  assert.match(appStoreSource, /filter\(\(item\) => item !== 'market' && item !== 'apps'\)/);
+  assert.match(appStoreSource, /const SIDEBAR_VISIBILITY_VERSION = 4;/);
+  assert.match(
+    appStoreSource,
+    /filter\([\s\S]*\(item\) => item !== 'market' && item !== 'apps' && item !== 'claw-center'[\s\S]*\)/,
+  );
   assert.match(appStoreSource, /sidebarVisibilityVersion/);
 });
 

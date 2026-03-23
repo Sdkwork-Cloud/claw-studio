@@ -50,18 +50,15 @@ await runTest('providerAccessSetupService derives one-click setup artifacts for 
   const client = buildProviderAccessClientConfigs(provider).find((item) => item.id === 'codex');
 
   assert.ok(client);
-  const artifacts = buildProviderAccessSetupArtifacts(client);
 
-  assert.equal(artifacts.length, 2);
-  assert.deepEqual(
-    artifacts.map((artifact) => artifact.filename),
-    ['codex-api-router.auth.json', 'codex-api-router.config.toml'],
-  );
-  assert.equal(artifacts[0]?.target, '~/.codex/auth.json');
-  assert.equal(artifacts[0]?.saveToFile, true);
-  assert.match(artifacts[0]?.content || '', /"auth_mode": "apikey"/);
-  assert.match(artifacts[1]?.content || '', /model_provider = "api_router"/);
-  assert.match(artifacts[1]?.content || '', /requires_openai_auth = true/);
+  const artifacts = buildProviderAccessSetupArtifacts(client);
+  assert.deepEqual(artifacts.map((artifact) => artifact.filename), [
+    'codex-api-router.config.toml',
+    'codex-api-router.auth.json',
+  ]);
+  assert.match(artifacts[0]?.content || '', /model_provider = "api_router"/);
+  assert.match(artifacts[0]?.content || '', /wire_api = "responses"/);
+  assert.match(artifacts[1]?.content || '', /"OPENAI_API_KEY": "sk-router-live-123"/);
 });
 
 await runTest('providerAccessSetupService derives one-click setup artifacts for Claude Code and OpenCode', async () => {
@@ -158,7 +155,13 @@ await runTest('providerAccessSetupService builds an instance-ready OpenClaw prov
     ],
   });
 
-  const draft = buildOpenClawInstanceProviderDraft(provider, 'local-built-in');
+  const draft = buildOpenClawInstanceProviderDraft(provider, {
+    instanceId: 'local-built-in',
+    endpoint: 'https://api.moonshot.cn/v1',
+    apiKey: 'moonshot-router-live-123',
+    apiKeyProjectId: 'project-api-router-local-built-in',
+    apiKeyStrategy: 'shared',
+  });
 
   assert.equal(draft.instanceId, 'local-built-in');
   assert.equal(draft.provider, 'api-router');

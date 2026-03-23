@@ -311,6 +311,40 @@ export interface OpenClawSkillStatusEntry {
   size?: string;
   updatedAt?: string;
   readme?: string;
+  source?: string;
+  bundled?: boolean;
+  filePath?: string;
+  baseDir?: string;
+  skillKey?: string;
+  primaryEnv?: string;
+  emoji?: string;
+  homepage?: string;
+  always?: boolean;
+  disabled?: boolean;
+  blockedByAllowlist?: boolean;
+  eligible?: boolean;
+  requirements?: {
+    bins?: string[];
+    anyBins?: string[];
+    env?: string[];
+    config?: string[];
+    [key: string]: unknown;
+  };
+  missing?: {
+    bins?: string[];
+    anyBins?: string[];
+    env?: string[];
+    config?: string[];
+    [key: string]: unknown;
+  };
+  configChecks?: Array<Record<string, unknown>>;
+  install?: Array<{
+    id?: string;
+    kind?: string;
+    label?: string;
+    bins?: string[];
+    [key: string]: unknown;
+  }>;
   [key: string]: unknown;
 }
 

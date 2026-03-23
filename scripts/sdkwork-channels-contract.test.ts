@@ -41,13 +41,18 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-channels/);
 
-  assert.match(serviceSource, /import\s+\{\s*studioMockService\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
+  assert.match(serviceSource, /import\s+\{[\s\S]*studio,[\s\S]*studioMockService[\s\S]*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
+  assert.match(serviceSource, /openClawConfigService/);
+  assert.match(serviceSource, /resolveInstanceConfigPath/);
   assert.match(serviceSource, /getChannels\(instanceId: string\): Promise<Channel\[]>/);
   assert.match(serviceSource, /studioMockService\.listChannels\(instanceId\)/);
+  assert.match(serviceSource, /studio\.getInstanceDetail\(instanceId\)/);
   assert.match(serviceSource, /updateChannelStatus\(instanceId: string, channelId: string, enabled: boolean\)/);
   assert.match(serviceSource, /studioMockService\.updateChannelStatus\(channelId, enabled\)/);
+  assert.match(serviceSource, /openClawConfigService\.setChannelEnabled/);
   assert.match(serviceSource, /saveChannelConfig\(instanceId: string, channelId: string, configData: Record<string, string>\)/);
   assert.match(serviceSource, /studioMockService\.saveChannelConfig\(channelId, configData\)/);
+  assert.match(serviceSource, /openClawConfigService\.saveChannelConfiguration/);
   assert.match(serviceSource, /deleteChannelConfig\(instanceId: string, channelId: string\)/);
   assert.match(serviceSource, /studioMockService\.deleteChannelConfig\(channelId\)/);
   assert.doesNotMatch(serviceSource, /fetch\('/);
@@ -58,9 +63,10 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.match(pageSource, /channelService\.updateChannelStatus\(\s*activeInstanceId,\s*channel\.id,\s*nextEnabled,\s*\)/);
   assert.match(pageSource, /channelService\.saveChannelConfig\(activeInstanceId, selectedChannel\.id, formData\)/);
   assert.match(pageSource, /channelService\.deleteChannelConfig\(activeInstanceId, selectedChannel\.id\)/);
-  assert.match(pageSource, /ChannelCatalog/);
+  assert.match(pageSource, /ChannelWorkspace/);
   assert.match(pageSource, /getChannelOfficialLink/);
   assert.match(pageSource, /openExternalUrl/);
+  assert.match(pageSource, /actionDownloadApp/);
   assert.match(pageSource, /onOpenOfficialLink=\{\(_channel, link\) => void openOfficialLink\(link\.href\)\}/);
   assert.doesNotMatch(pageSource, /href=\{selectedChannelOfficialLink\.href\}/);
 });

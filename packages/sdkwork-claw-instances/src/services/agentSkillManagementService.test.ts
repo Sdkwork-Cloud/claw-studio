@@ -1,0 +1,271 @@
+import assert from 'node:assert/strict';
+import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { createAgentSkillManagementService } from './agentSkillManagementService.ts';
+
+function runTest(name: string, callback: () => void | Promise<void>) {
+  return Promise.resolve()
+    .then(callback)
+    .then(() => {
+      console.log(`ok - ${name}`);
+    })
+    .catch((error) => {
+      console.error(`not ok - ${name}`);
+      throw error;
+    });
+}
+
+function createOpenClawDetail(overrides: Partial<StudioInstanceDetailRecord> = {}) {
+  return {
+    instance: {
+      id: 'openclaw-instance',
+      name: 'OpenClaw Host',
+      description: 'OpenClaw host',
+      runtimeKind: 'openclaw',
+      deploymentMode: 'local-external',
+      transportKind: 'openclawGatewayWs',
+      status: 'online',
+      isBuiltIn: false,
+      isDefault: false,
+      iconType: 'server',
+      version: '2026.3.13',
+      typeLabel: 'OpenClaw Gateway',
+      host: '127.0.0.1',
+      port: 28789,
+      baseUrl: 'http://127.0.0.1:28789',
+      websocketUrl: 'ws://127.0.0.1:28789',
+      cpu: 12,
+      memory: 26,
+      totalMemory: '32 GB',
+      uptime: '3h',
+      capabilities: ['chat', 'files', 'models', 'tools'],
+      storage: {
+        provider: 'localFile',
+        namespace: 'openclaw-instance',
+      },
+      config: {
+        port: '28789',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+        baseUrl: 'http://127.0.0.1:28789',
+        websocketUrl: 'ws://127.0.0.1:28789',
+        authToken: 'gateway-token',
+      },
+      createdAt: 1,
+      updatedAt: 2,
+      lastSeenAt: 3,
+    },
+    config: {
+      port: '28789',
+      sandbox: true,
+      autoUpdate: false,
+      logLevel: 'info',
+      corsOrigins: '*',
+      baseUrl: 'http://127.0.0.1:28789',
+      websocketUrl: 'ws://127.0.0.1:28789',
+      authToken: 'gateway-token',
+    },
+    logs: '',
+    health: {
+      score: 100,
+      status: 'healthy',
+      checks: [],
+      evaluatedAt: 1,
+    },
+    lifecycle: {
+      owner: 'externalProcess',
+      startStopSupported: false,
+      configWritable: true,
+      notes: [],
+    },
+    storage: {
+      status: 'ready',
+      provider: 'localFile',
+      namespace: 'openclaw-instance',
+      durable: true,
+      queryable: false,
+      transactional: false,
+      remote: false,
+    },
+    connectivity: {
+      primaryTransport: 'openclawGatewayWs',
+      endpoints: [],
+    },
+    observability: {
+      status: 'ready',
+      logAvailable: true,
+      logPreview: [],
+      metricsSource: 'runtime',
+      lastSeenAt: 3,
+    },
+    dataAccess: {
+      routes: [
+        {
+          id: 'config',
+          label: 'Configuration',
+          scope: 'config',
+          mode: 'managedFile',
+          status: 'ready',
+          target: 'D:/OpenClaw/.openclaw/openclaw.json',
+          readonly: false,
+          authoritative: true,
+          detail: 'Managed config file',
+          source: 'integration',
+        },
+      ],
+    },
+    artifacts: [],
+    capabilities: [],
+    officialRuntimeNotes: [],
+    ...overrides,
+  } as StudioInstanceDetailRecord;
+}
+
+await runTest(
+  'agentSkillManagementService writes skill enabled state through the discovered config file when available',
+  async () => {
+    const configWrites: Array<{ configPath: string; skillKey: string; enabled?: boolean }> = [];
+    const service = createAgentSkillManagementService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+        saveSkillEntry: async (input) => {
+          configWrites.push(input);
+          return null;
+        },
+      },
+      openClawGatewayClient: {
+        updateSkill: async () => {
+          throw new Error('gateway update should not be used when config file is writable');
+        },
+      },
+    });
+
+    await service.setSkillEnabled({
+      instanceId: 'openclaw-instance',
+      skillKey: 'research-skill',
+      enabled: false,
+    });
+
+    assert.deepEqual(configWrites, [
+      {
+        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        skillKey: 'research-skill',
+        enabled: false,
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'agentSkillManagementService falls back to gateway skills.update when no writable config path exists',
+  async () => {
+    const gatewayUpdates: Array<{ instanceId: string; args: Record<string, unknown> }> = [];
+    const service = createAgentSkillManagementService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail({
+            lifecycle: {
+              owner: 'remoteService',
+              startStopSupported: false,
+              configWritable: false,
+              notes: [],
+            },
+            dataAccess: {
+              routes: [],
+            },
+          }),
+      },
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => null,
+        saveSkillEntry: async () => {
+          throw new Error('config service should not be used without a writable config path');
+        },
+      },
+      openClawGatewayClient: {
+        updateSkill: async (instanceId, args) => {
+          gatewayUpdates.push({ instanceId, args });
+          return { ok: true };
+        },
+      },
+    });
+
+    await service.setSkillEnabled({
+      instanceId: 'openclaw-instance',
+      skillKey: 'research-skill',
+      enabled: true,
+    });
+
+    assert.deepEqual(gatewayUpdates, [
+      {
+        instanceId: 'openclaw-instance',
+        args: {
+          skillKey: 'research-skill',
+          enabled: true,
+        },
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'agentSkillManagementService installs ClawHub skills through the gateway for the default agent workspace only',
+  async () => {
+    const gatewayInstalls: Array<{ instanceId: string; args: Record<string, unknown> }> = [];
+    const service = createAgentSkillManagementService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+      openClawGatewayClient: {
+        installSkill: async (instanceId, args) => {
+          gatewayInstalls.push({ instanceId, args });
+          return { ok: true };
+        },
+      },
+    });
+
+    await service.installSkill({
+      instanceId: 'openclaw-instance',
+      agentId: 'main',
+      isDefaultAgent: true,
+      slug: 'research-skill',
+      force: true,
+    });
+
+    assert.deepEqual(gatewayInstalls, [
+      {
+        instanceId: 'openclaw-instance',
+        args: {
+          source: 'clawhub',
+          slug: 'research-skill',
+          force: true,
+        },
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'agentSkillManagementService rejects direct installs for non-default agents because upstream install targets the default workspace',
+  async () => {
+    const service = createAgentSkillManagementService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        service.installSkill({
+          instanceId: 'openclaw-instance',
+          agentId: 'research',
+          isDefaultAgent: false,
+          slug: 'research-skill',
+        }),
+      /default OpenClaw workspace/i,
+    );
+  },
+);

@@ -213,9 +213,11 @@ export function resolveOpenClawCatalogPresentation(
   };
 }
 
-export function detectOpenClawCatalogChoice(
+export function detectOpenClawCatalogChoice<
+  T extends Pick<OpenClawCatalogChoice, 'softwareName' | 'request' | 'runtimePlatform' | 'id'>,
+>(
   record: OpenClawCatalogInstallRecordLike | null | undefined,
-  choices: Pick<OpenClawCatalogChoice, 'softwareName' | 'request' | 'runtimePlatform' | 'id'>[],
+  choices: T[],
 ) {
   const candidateName =
     record?.softwareName?.trim() || record?.manifestName?.trim() || '';

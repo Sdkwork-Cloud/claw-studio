@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "autoStartComponentIds": ["codex", "sdkwork-api-router"],
+  "autoStartComponentIds": ["sdkwork-api-router"],
   "manualComponentIds": ["openclaw", "zeroclaw", "ironclaw"],
   "embeddedComponentIds": ["hub-installer"],
   "routerServiceIds": [

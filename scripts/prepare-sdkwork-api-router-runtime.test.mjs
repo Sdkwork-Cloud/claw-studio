@@ -179,6 +179,36 @@ try {
     );
   }
 
+  const syncedWorkspaceRoot = path.join(tempRoot, 'synced-workspace-root');
+  await mkdir(
+    path.join(
+      syncedWorkspaceRoot,
+      '.cache',
+      'bundled-components',
+      'upstreams',
+      'sdkwork-api-router',
+    ),
+    {
+      recursive: true,
+    },
+  );
+
+  const discoveredSyncedRepoDir = resolveDefaultApiRouterWorkspaceDir(syncedWorkspaceRoot);
+  if (
+    discoveredSyncedRepoDir
+    !== path.join(
+      syncedWorkspaceRoot,
+      '.cache',
+      'bundled-components',
+      'upstreams',
+      'sdkwork-api-router',
+    )
+  ) {
+    throw new Error(
+      `Expected resolveDefaultApiRouterWorkspaceDir() to fall back to .cache/bundled-components/upstreams/sdkwork-api-router, received ${discoveredSyncedRepoDir}`,
+    );
+  }
+
   if (!shouldRetryWorkspaceInstallWithoutLockfile('ERR_PNPM_OUTDATED_LOCKFILE Cannot install with "frozen-lockfile"')) {
     throw new Error('Expected outdated pnpm lockfile errors to enable the relaxed install retry');
   }

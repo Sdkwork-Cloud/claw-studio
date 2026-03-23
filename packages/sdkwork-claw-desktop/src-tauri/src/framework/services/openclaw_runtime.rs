@@ -172,7 +172,10 @@ impl OpenClawRuntimeService {
         paths: &AppPaths,
         runtime: &ActivatedOpenClawRuntime,
     ) -> Result<ActivatedOpenClawRuntime> {
-        if !runtime.node_path.exists() || !runtime.cli_path.exists() || !runtime.runtime_dir.exists() {
+        if !runtime.node_path.exists()
+            || !runtime.cli_path.exists()
+            || !runtime.runtime_dir.exists()
+        {
             return Err(FrameworkError::NotFound(format!(
                 "configured openclaw runtime is incomplete under {}",
                 runtime.install_dir.display()
@@ -690,9 +693,7 @@ mod tests {
 
         fs::write(
             &paths.openclaw_config_file,
-            format!(
-                "{{\n  \"gateway\": {{\n    \"port\": {configured_port}\n  }}\n}}\n"
-            ),
+            format!("{{\n  \"gateway\": {{\n    \"port\": {configured_port}\n  }}\n}}\n"),
         )
         .expect("seed config file");
 
@@ -714,14 +715,12 @@ mod tests {
             .expect("activated runtime");
         let busy_port = super::find_available_gateway_port(DEFAULT_GATEWAY_PORT)
             .expect("available busy-port candidate");
-        let busy_listener =
-            std::net::TcpListener::bind(("127.0.0.1", busy_port)).expect("busy gateway port listener");
+        let busy_listener = std::net::TcpListener::bind(("127.0.0.1", busy_port))
+            .expect("busy gateway port listener");
 
         fs::write(
             &paths.openclaw_config_file,
-            format!(
-                "{{\n  \"gateway\": {{\n    \"port\": {busy_port}\n  }}\n}}\n"
-            ),
+            format!("{{\n  \"gateway\": {{\n    \"port\": {busy_port}\n  }}\n}}\n"),
         )
         .expect("seed config file");
 
@@ -807,9 +806,7 @@ mod tests {
         resource_root
     }
 
-    fn reserve_contiguous_port_window(
-        size: u16,
-    ) -> (u16, Vec<std::net::TcpListener>) {
+    fn reserve_contiguous_port_window(size: u16) -> (u16, Vec<std::net::TcpListener>) {
         for start in 20_000..60_000u16.saturating_sub(size) {
             let mut listeners = Vec::new();
             let mut success = true;

@@ -48,14 +48,8 @@ type PersistedAppState = Pick<
   | 'hasSeenMobileAppPrompt'
 >;
 
-const SIDEBAR_VISIBILITY_VERSION = 3;
-const DEFAULT_HIDDEN_SIDEBAR_ITEMS = [
-  'apps',
-  'extensions',
-  'claw-center',
-  'github',
-  'huggingface',
-] as const;
+const SIDEBAR_VISIBILITY_VERSION = 4;
+const DEFAULT_HIDDEN_SIDEBAR_ITEMS = ['apps', 'extensions', 'github', 'huggingface'] as const;
 
 function dedupeSidebarItems(items: readonly string[]) {
   return Array.from(new Set(items));
@@ -63,7 +57,9 @@ function dedupeSidebarItems(items: readonly string[]) {
 
 function migrateHiddenSidebarItems(hiddenSidebarItems?: string[]) {
   return dedupeSidebarItems([
-    ...(hiddenSidebarItems || []).filter((item) => item !== 'market' && item !== 'apps'),
+    ...(hiddenSidebarItems || []).filter(
+      (item) => item !== 'market' && item !== 'apps' && item !== 'claw-center',
+    ),
     ...DEFAULT_HIDDEN_SIDEBAR_ITEMS,
   ]);
 }

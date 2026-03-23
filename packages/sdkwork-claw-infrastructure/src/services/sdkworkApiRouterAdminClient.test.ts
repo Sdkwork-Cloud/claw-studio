@@ -92,6 +92,98 @@ Object.defineProperty(globalThis, 'localStorage', {
   value: new MemoryStorage(),
 });
 
+await runTest('sdkworkApiRouterAdminClient reads usage summary from the runtime admin base URL', async () => {
+  const requests: Array<{ url: string; authorization: string | null }> = [];
+  const runtimeStatus = createRuntimeStatus();
+  configurePlatformBridge({
+    runtime: {
+      getRuntimeInfo: async () => ({ platform: 'desktop' }),
+      getApiRouterRuntimeStatus: async () => runtimeStatus,
+      setAppLanguage: async () => {},
+      submitProcessJob: async () => 'job-usage-summary',
+      getJob: async () => ({
+        id: 'job-usage-summary',
+        kind: 'process',
+        state: 'queued',
+        stage: 'queued',
+      }),
+      listJobs: async () => [],
+      cancelJob: async () => ({
+        id: 'job-usage-summary',
+        kind: 'process',
+        state: 'cancelled',
+        stage: 'cancelled',
+      }),
+      subscribeJobUpdates: async () => () => {},
+      subscribeProcessOutput: async () => () => {},
+    },
+  });
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    requests.push({
+      url: String(input),
+      authorization: headers.get('authorization'),
+    });
+
+    return new Response(
+      JSON.stringify({
+        total_requests: 42,
+        project_count: 2,
+        model_count: 3,
+        provider_count: 1,
+        projects: [
+          {
+            project_id: 'project-1',
+            request_count: 25,
+          },
+        ],
+        providers: [
+          {
+            provider: 'provider-openai-official',
+            request_count: 42,
+            project_count: 2,
+          },
+        ],
+        models: [
+          {
+            model: 'gpt-5.4',
+            request_count: 42,
+            provider_count: 1,
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+    );
+  }) as typeof fetch;
+
+  const { writeApiRouterAdminSession } = await import('../auth/apiRouterAdminSession.ts');
+  const { sdkworkApiRouterAdminClient } = await import('./sdkworkApiRouterAdminClient.ts');
+
+  writeApiRouterAdminSession({
+    token: 'router-admin-token',
+    user: {
+      id: 'admin_local_default',
+      email: 'admin@sdkwork.local',
+      displayName: 'Admin Operator',
+      active: true,
+      createdAtMs: 1_700_000_000_000,
+    },
+  });
+
+  const result = await sdkworkApiRouterAdminClient.getUsageSummary();
+
+  assert.equal(result.total_requests, 42);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]?.url, 'http://127.0.0.1:13003/api/admin/usage/summary');
+  assert.equal(requests[0]?.authorization, 'Bearer router-admin-token');
+});
+
 await runTest('sdkworkApiRouterAdminClient resolves the admin base URL from runtime status and sends the router admin bearer token', async () => {
   const requests: Array<{ url: string; authorization: string | null }> = [];
   const runtimeStatus = createRuntimeStatus();

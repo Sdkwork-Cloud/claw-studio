@@ -69,6 +69,15 @@ await runTest('instance status and config mutations persist across reads', async
   });
 });
 
+await runTest('channel seeds expose Sdkwork Chat first and include Wehcat for workspace delivery', async () => {
+  const service = createStudioMockService();
+
+  const channels = await service.listChannels('local-built-in');
+
+  assert.equal(channels[0]?.id, 'sdkworkchat');
+  assert.equal(channels.some((channel) => channel.id === 'wehcat'), true);
+});
+
 await runTest('tasks can be created and status updates round-trip', async () => {
   const service = createStudioMockService();
 

@@ -179,7 +179,7 @@ function buildStaticInstallChoices(
   hostOs: HostOs,
   t: (key: string) => string,
 ): InstallSurfaceChoice[] {
-  const uninstallById = new Map(
+  const uninstallById = new Map<InstallSurfaceChoice['id'], ReturnType<typeof getVisibleUninstallChoices>[number]>(
     getVisibleUninstallChoices(product, hostOs).map((choice) => [choice.id, choice]),
   );
 

@@ -645,7 +645,10 @@ mod tests {
             .expect("second activation");
         let managed_env = first.managed_env();
 
-        assert_eq!(managed_env.get("SDKWORK_CONFIG_DIR"), Some(&first.shared_root_dir.to_string_lossy().into_owned()));
+        assert_eq!(
+            managed_env.get("SDKWORK_CONFIG_DIR"),
+            Some(&first.shared_root_dir.to_string_lossy().into_owned())
+        );
         assert!(managed_env
             .get("SDKWORK_ADMIN_JWT_SIGNING_SECRET")
             .is_some_and(|value| !value.trim().is_empty()));
@@ -665,7 +668,9 @@ mod tests {
         );
         assert_eq!(
             managed_env.get("SDKWORK_PORTAL_JWT_SIGNING_SECRET"),
-            second.managed_env().get("SDKWORK_PORTAL_JWT_SIGNING_SECRET")
+            second
+                .managed_env()
+                .get("SDKWORK_PORTAL_JWT_SIGNING_SECRET")
         );
         assert_eq!(
             managed_env.get("SDKWORK_CREDENTIAL_MASTER_KEY"),
@@ -687,7 +692,11 @@ mod tests {
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("first activation");
-        let missing_admin_site_dir = activated.install_dir.join("runtime").join("sites").join("admin");
+        let missing_admin_site_dir = activated
+            .install_dir
+            .join("runtime")
+            .join("sites")
+            .join("admin");
         fs::remove_dir_all(&missing_admin_site_dir).expect("remove admin site");
 
         let reactivated = service

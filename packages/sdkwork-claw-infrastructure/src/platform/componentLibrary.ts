@@ -14,7 +14,6 @@ import type {
 import { getComponentPlatform } from './registry.ts';
 
 export const BUNDLED_COMPONENT_IDS: RuntimeBundledComponentId[] = [
-  'codex',
   'openclaw',
   'zeroclaw',
   'ironclaw',

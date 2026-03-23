@@ -1,7 +1,4 @@
 export const DESKTOP_COMMANDS = {
-  syncAuthSession: 'sync_auth_session',
-  clearAuthSession: 'clear_auth_session',
-  getApiRouterAdminToken: 'get_api_router_admin_token',
   getApiRouterRuntimeStatus: 'get_api_router_runtime_status',
   getApiRouterChannels: 'get_api_router_channels',
   getApiRouterGroups: 'get_api_router_groups',
@@ -88,7 +85,6 @@ export const DESKTOP_COMMANDS = {
   runHubUninstall: 'run_hub_uninstall',
   installApiRouterClientSetup: 'install_api_router_client_setup',
   getApiRouterAdminBootstrapSession: 'get_api_router_admin_bootstrap_session',
-  getApiRouterRuntimeStatus: 'get_api_router_runtime_status',
   openExternal: 'open_external',
   selectFiles: 'select_files',
   saveBlobFile: 'save_blob_file',

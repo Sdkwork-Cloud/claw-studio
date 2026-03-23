@@ -2,9 +2,8 @@ use crate::{
     framework::{
         services::studio::{
             StudioConversationRecord, StudioCreateInstanceInput, StudioInstanceConfig,
-            StudioInstanceDetailRecord, StudioInstanceRecord,
-            StudioUpdateInstanceLlmProviderConfigInput, StudioUpdateInstanceInput,
-            StudioWorkbenchTaskExecutionRecord,
+            StudioInstanceDetailRecord, StudioInstanceRecord, StudioUpdateInstanceInput,
+            StudioUpdateInstanceLlmProviderConfigInput, StudioWorkbenchTaskExecutionRecord,
         },
         Result as FrameworkResult,
     },

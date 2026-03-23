@@ -95,7 +95,6 @@ export function GeneralSettings() {
     { id: 'community', label: t('sidebar.community') },
     { id: 'github', label: t('sidebar.githubRepos') },
     { id: 'huggingface', label: t('sidebar.huggingFace') },
-    { id: 'claw-center', label: t('sidebar.clawMall') },
     { id: 'install', label: t('sidebar.install') },
     { id: 'instances', label: t('sidebar.instances') },
     { id: 'api-router', label: t('sidebar.apiRouter') },

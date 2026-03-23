@@ -29,11 +29,11 @@ function getArtifactMimeType(filename: string) {
 }
 
 function getArtifactFilename(clientId: ProviderAccessClientConfig['id'], target: string) {
-  if (clientId === 'codex' && target === '~/.codex/auth.json') {
-    return 'codex-api-router.auth.json';
-  }
-
   if (clientId === 'codex') {
+    if (target === '~/.codex/auth.json') {
+      return 'codex-api-router.auth.json';
+    }
+
     return 'codex-api-router.config.toml';
   }
 

@@ -163,6 +163,10 @@ struct ManagedChildProcessHandle {
 }
 
 impl SupervisorService {
+    pub fn for_paths(_paths: &AppPaths) -> Self {
+        Self::new()
+    }
+
     pub fn new() -> Self {
         let definitions = default_managed_services();
         let services = definitions
@@ -194,6 +198,10 @@ impl SupervisorService {
             web_server: Arc::new(Mutex::new(None)),
             managed_processes: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    pub fn start_default_services(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
     }
 
     pub fn managed_service_ids(&self) -> Vec<String> {
@@ -430,11 +438,7 @@ impl SupervisorService {
         match handle.stop() {
             Ok(()) => self.record_stopped(SERVICE_ID_WEB_SERVER, None, None),
             Err(error) => {
-                let _ = self.record_stopped(
-                    SERVICE_ID_WEB_SERVER,
-                    None,
-                    Some(error.to_string()),
-                );
+                let _ = self.record_stopped(SERVICE_ID_WEB_SERVER, None, Some(error.to_string()));
                 Err(error)
             }
         }
@@ -711,7 +715,10 @@ impl SupervisorService {
         self.record_stopped(service_id, exit_code, last_error)
     }
 
-    fn resolve_api_router_web_server_config(&self, paths: &AppPaths) -> Result<ApiRouterWebServerConfig> {
+    fn resolve_api_router_web_server_config(
+        &self,
+        paths: &AppPaths,
+    ) -> Result<ApiRouterWebServerConfig> {
         let router_root = shared_router_root(paths);
         let router_config = load_router_config(&router_root)?;
         let configured_runtime = self.lock_api_router_runtime()?.clone();
@@ -743,9 +750,9 @@ impl SupervisorService {
     }
 
     fn lock_web_server(&self) -> Result<MutexGuard<'_, Option<ApiRouterWebServerHandle>>> {
-        self.web_server
-            .lock()
-            .map_err(|_| FrameworkError::Internal("api router web server lock poisoned".to_string()))
+        self.web_server.lock().map_err(|_| {
+            FrameworkError::Internal("api router web server lock poisoned".to_string())
+        })
     }
 
     fn lock_managed_processes(
@@ -894,7 +901,13 @@ fn resolve_api_router_site_dir(
     let mut candidates = Vec::new();
     if let Some(runtime) = runtime {
         candidates.push(runtime.install_dir.join("sites").join(site.label()));
-        candidates.push(runtime.install_dir.join("runtime").join("sites").join(site.label()));
+        candidates.push(
+            runtime
+                .install_dir
+                .join("runtime")
+                .join("sites")
+                .join(site.label()),
+        );
     }
     if let Ok(cwd) = env::current_dir() {
         match site {
@@ -1134,6 +1147,7 @@ mod tests {
                 ActivatedApiRouterRuntime, ManagedApiRouterProcessSpec,
                 ManagedApiRouterSecretBundle,
             },
+            api_router_runtime::load_router_config,
             openclaw_runtime::ActivatedOpenClawRuntime,
         },
     };
@@ -1396,6 +1410,32 @@ mod tests {
         assert_eq!(api_router.pid, None);
     }
 
+    #[test]
+    fn supervisor_serves_bundled_api_router_admin_and_portal_sites_through_unified_web_bind() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_api_router_runtime(&paths);
+        let web_bind = load_router_config(&runtime.shared_root_dir)
+            .expect("router config")
+            .web_bind;
+
+        service
+            .configure_api_router_runtime(&runtime)
+            .expect("configure router runtime");
+        service.start_api_router(&paths).expect("start api router");
+
+        let admin_response = fetch_test_http_response(&web_bind, "/admin/");
+        let portal_response = fetch_test_http_response(&web_bind, "/portal/");
+
+        assert!(admin_response.starts_with("HTTP/1.1 200"));
+        assert!(admin_response.contains("sdkwork-api-router test admin"));
+        assert!(portal_response.starts_with("HTTP/1.1 200"));
+        assert!(portal_response.contains("sdkwork-api-router test portal"));
+
+        service.stop_api_router().expect("stop api router");
+    }
+
     #[cfg(windows)]
     fn fake_gateway_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
         fake_gateway_runtime_with_delay_ms(paths, 0)
@@ -1506,6 +1546,14 @@ mod tests {
             .expect("node should be available on PATH for OpenClaw supervisor tests")
     }
 
+    fn reserve_available_bind_addr() -> String {
+        std::net::TcpListener::bind("127.0.0.1:0")
+            .expect("reserve bind addr")
+            .local_addr()
+            .expect("local addr")
+            .to_string()
+    }
+
     #[cfg(windows)]
     fn fake_api_router_runtime(
         paths: &crate::framework::paths::AppPaths,
@@ -1522,27 +1570,57 @@ mod tests {
             .parent()
             .expect("shared root")
             .join("router");
+        let admin_site_dir = install_dir.join("runtime").join("sites").join("admin");
+        let portal_site_dir = install_dir.join("runtime").join("sites").join("portal");
+        let gateway_bind = reserve_available_bind_addr();
+        let admin_bind = reserve_available_bind_addr();
+        let portal_bind = reserve_available_bind_addr();
+        let web_bind = reserve_available_bind_addr();
 
         fs::create_dir_all(&install_dir).expect("router install dir");
         fs::create_dir_all(&router_root).expect("router root");
+        fs::create_dir_all(&admin_site_dir).expect("admin site dir");
+        fs::create_dir_all(&portal_site_dir).expect("portal site dir");
         fs::write(
             router_root.join("config.json"),
-            "{\"gateway_bind\":\"127.0.0.1:28080\",\"admin_bind\":\"127.0.0.1:28081\",\"portal_bind\":\"127.0.0.1:28082\",\"web_bind\":\"127.0.0.1:28083\"}\n",
+            format!(
+                "{{\"gateway_bind\":\"{}\",\"admin_bind\":\"{}\",\"portal_bind\":\"{}\",\"web_bind\":\"{}\"}}\n",
+                gateway_bind, admin_bind, portal_bind, web_bind
+            ),
         )
         .expect("router config");
         fs::write(
+            admin_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test admin</title>",
+        )
+        .expect("admin site");
+        fs::write(
+            portal_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test portal</title>",
+        )
+        .expect("portal site");
+        fs::write(
             &gateway_script,
-            "import net from 'node:net';\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(28080, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                gateway_bind
+            ),
         )
         .expect("gateway script");
         fs::write(
             &admin_script,
-            "import net from 'node:net';\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(28081, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                admin_bind
+            ),
         )
         .expect("admin script");
         fs::write(
             &portal_script,
-            "import net from 'node:net';\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(28082, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                portal_bind
+            ),
         )
         .expect("portal script");
 
@@ -1591,27 +1669,57 @@ mod tests {
             .parent()
             .expect("shared root")
             .join("router");
+        let admin_site_dir = install_dir.join("runtime").join("sites").join("admin");
+        let portal_site_dir = install_dir.join("runtime").join("sites").join("portal");
+        let gateway_bind = reserve_available_bind_addr();
+        let admin_bind = reserve_available_bind_addr();
+        let portal_bind = reserve_available_bind_addr();
+        let web_bind = reserve_available_bind_addr();
 
         fs::create_dir_all(&install_dir).expect("router install dir");
         fs::create_dir_all(&router_root).expect("router root");
+        fs::create_dir_all(&admin_site_dir).expect("admin site dir");
+        fs::create_dir_all(&portal_site_dir).expect("portal site dir");
         fs::write(
             router_root.join("config.json"),
-            "{\"gateway_bind\":\"127.0.0.1:28080\",\"admin_bind\":\"127.0.0.1:28081\",\"portal_bind\":\"127.0.0.1:28082\",\"web_bind\":\"127.0.0.1:28083\"}\n",
+            format!(
+                "{{\"gateway_bind\":\"{}\",\"admin_bind\":\"{}\",\"portal_bind\":\"{}\",\"web_bind\":\"{}\"}}\n",
+                gateway_bind, admin_bind, portal_bind, web_bind
+            ),
         )
         .expect("router config");
         fs::write(
+            admin_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test admin</title>",
+        )
+        .expect("admin site");
+        fs::write(
+            portal_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test portal</title>",
+        )
+        .expect("portal site");
+        fs::write(
             &gateway_script,
-            "import net from 'node:net';\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(28080, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                gateway_bind
+            ),
         )
         .expect("gateway script");
         fs::write(
             &admin_script,
-            "import net from 'node:net';\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(28081, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                admin_bind
+            ),
         )
         .expect("admin script");
         fs::write(
             &portal_script,
-            "import net from 'node:net';\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(28082, '127.0.0.1');\nsetInterval(() => {}, 1000);\n",
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                portal_bind
+            ),
         )
         .expect("portal script");
 
@@ -1642,5 +1750,24 @@ mod tests {
                 working_dir: None,
             },
         }
+    }
+
+    fn fetch_test_http_response(bind_addr: &str, path: &str) -> String {
+        use std::io::{Read, Write};
+        use std::net::TcpStream;
+
+        let mut stream = TcpStream::connect(bind_addr).expect("connect test http stream");
+        let request =
+            format!("GET {path} HTTP/1.1\r\nHost: {bind_addr}\r\nConnection: close\r\n\r\n");
+        stream
+            .write_all(request.as_bytes())
+            .expect("write test http request");
+        stream.flush().expect("flush test http request");
+
+        let mut response = String::new();
+        stream
+            .read_to_string(&mut response)
+            .expect("read test http response");
+        response
     }
 }

@@ -133,10 +133,10 @@ runTest(
     assert.match(pageSource, /id: 'recruitment'/);
     assert.match(pageSource, /id: 'services'/);
     assert.match(pageSource, /id: 'news'/);
-    assert.match(pageSource, /t\('community\.page\.hero\.primaryCta'\)/);
-    assert.match(pageSource, /t\('community\.page\.hero\.secondaryCta'\)/);
-    assert.match(pageSource, /t\('community\.page\.assistantWorkbench\.title'\)/);
-    assert.match(pageSource, /t\('community\.page\.revenueServices\.title'\)/);
+    assert.match(pageSource, /t\('community\.page\.title'\)/);
+    assert.match(pageSource, /t\('community\.page\.subtitle'\)/);
+    assert.match(pageSource, /t\('community\.page\.searchPlaceholder'\)/);
+    assert.match(pageSource, /t\('community\.page\.newPost'\)/);
     assert.match(pageSource, /community\.page\.feedEyebrow/);
     assert.match(pageSource, /community\.page\.serviceCatalog\.items\.legal\.title/);
     assert.match(pageSource, /community\.page\.serviceCatalog\.items\.consulting\.title/);
@@ -146,6 +146,11 @@ runTest(
     assert.match(pageSource, /community\.page\.rails\.urgentRecruitment/);
     assert.match(pageSource, /community\.page\.rails\.onlineServices/);
     assert.match(pageSource, /community\.page\.rails\.platformNews/);
+    assert.match(pageSource, /xl:grid-cols-\[240px_minmax\(0,1fr\)_320px\]/);
+    assert.match(pageSource, /xl:sticky xl:top-6 xl:self-start/);
+    assert.doesNotMatch(pageSource, /community\.page\.hero\./);
+    assert.doesNotMatch(pageSource, /community\.page\.assistantWorkbench\./);
+    assert.doesNotMatch(pageSource, /community\.page\.revenueServices\./);
     assert.doesNotMatch(pageSource, /community\.page\.latestClaw/);
     assert.doesNotMatch(pageSource, /community\.page\.onlineClaw/);
     assert.doesNotMatch(pageSource, /community\.page\.hottestClaw/);
@@ -154,6 +159,9 @@ runTest(
 
 runTest('sdkwork-claw-community keeps a recruitment-first classified mock content model with retained news', () => {
   const serviceSource = read('packages/sdkwork-claw-community/src/services/communityService.ts');
+  const recommendationSource = read(
+    'packages/sdkwork-claw-community/src/services/communityRecommendations.ts',
+  );
   const newPostSource = read('packages/sdkwork-claw-community/src/pages/community/NewPost.tsx');
   const detailSource = read('packages/sdkwork-claw-community/src/pages/community/CommunityPostDetail.tsx');
 
@@ -184,6 +192,10 @@ runTest('sdkwork-claw-community keeps a recruitment-first classified mock conten
   assert.match(newPostSource, /community\.newPost\.fields\.turnaround/);
   assert.match(newPostSource, /community\.newPost\.assistantPanel\.title/);
   assert.match(newPostSource, /community\.newPost\.assistantCards\.recruitment/);
+  assert.match(recommendationSource, /buildCommunityRecommendations/);
+  assert.match(recommendationSource, /relatedServices/);
+  assert.match(recommendationSource, /relatedCompanies/);
+  assert.match(recommendationSource, /reasons:/);
   assert.match(detailSource, /community\.postDetail\.assistantCta/);
   assert.match(detailSource, /community\.postDetail\.listingMeta/);
   assert.match(detailSource, /community\.postDetail\.listingMeta\.location/);
@@ -192,6 +204,14 @@ runTest('sdkwork-claw-community keeps a recruitment-first classified mock conten
   assert.match(detailSource, /community\.postDetail\.listingMeta\.serviceLine/);
   assert.match(detailSource, /community\.postDetail\.listingMeta\.deliveryMode/);
   assert.match(detailSource, /community\.postDetail\.listingMeta\.turnaround/);
+  assert.match(detailSource, /community\.postDetail\.recommendations\.relatedServicesTitle/);
+  assert.match(detailSource, /community\.postDetail\.recommendations\.relatedCompaniesTitle/);
+  assert.match(detailSource, /community\.postDetail\.recommendations\.reasonLabels\.sameServiceLine/);
+  assert.match(detailSource, /post\.tags\.map/);
+  assert.match(detailSource, /community\.postDetail\.publisherPanelTitle/);
+  assert.match(detailSource, /xl:grid-cols-\[minmax\(0,1fr\)_360px\]/);
+  assert.doesNotMatch(detailSource, /relative h-64 w-full md:h-96/);
+  assert.doesNotMatch(detailSource, /-mt-20/);
 });
 
 runTest('sdkwork-claw-community keeps the route surface and locale coverage aligned with the final classifieds UI', () => {

@@ -57,7 +57,13 @@ runTest('sdkwork-claw-agent stays local and exposes a dedicated market surface',
   assert.match(pageSource, /instanceId/);
   assert.match(pageSource, /resolvePreferredTargetId/);
   assert.match(pageSource, /sortTargetsForTemplate/);
-  assert.match(pageSource, /agentMarket\.hero\.title/);
+  assert.match(pageSource, /catalog\.categories\.map/);
+  assert.match(pageSource, /agentMarket\.searchPlaceholder/);
+  assert.doesNotMatch(pageSource, /agentMarket\.hero\./);
+  assert.doesNotMatch(pageSource, /agentMarket\.metrics\./);
+  assert.doesNotMatch(pageSource, /MetricCard/);
+  assert.doesNotMatch(pageSource, /agentMarket\.section\.title/);
+  assert.doesNotMatch(pageSource, /agentMarket\.section\.description/);
   assert.match(pageSource, /agentMarket\.actions\.installToInstance/);
   assert.match(pageSource, /agentMarket\.categories\.\$\{template\.category\}/);
   assert.match(pageSource, /agentMarket\.templates\.\$\{template\.id\}\.name/);

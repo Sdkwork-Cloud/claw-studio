@@ -307,6 +307,19 @@ await runTest('openClawConfigService persists API-router provider defaults and r
       snapshot.channelSnapshots.find((channel) => channel.id === 'telegram')?.configuredFieldCount,
       2,
     );
+    assert.equal(snapshot.channelSnapshots[0]?.id, 'sdkworkchat');
+    assert.equal(snapshot.channelSnapshots[0]?.fieldCount, 0);
+    assert.equal(snapshot.channelSnapshots[0]?.configuredFieldCount, 0);
+    assert.equal(snapshot.channelSnapshots[0]?.status, 'connected');
+    assert.equal(snapshot.channelSnapshots[0]?.enabled, true);
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'wehcat'), true);
+    assert.deepEqual(
+      snapshot.channelSnapshots.slice(0, 5).map((channel) => channel.id),
+      ['sdkworkchat', 'wehcat', 'qq', 'dingtalk', 'wecom'],
+    );
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'qq'), true);
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'dingtalk'), true);
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'wecom'), true);
     assert.match(fileContent, /api-router-provider-openai-primary/);
     assert.match(fileContent, /api-router-provider-openai-primary\/gpt-4\.1/);
     assert.match(fileContent, /channels:\s*\{/);
@@ -604,6 +617,81 @@ await runTest('openClawConfigService updates provider-model references and prune
     assert.equal(snapshot.root.agents && JSON.stringify(snapshot.root.agents).includes('api-router-anthropic/claude-sonnet-4-5'), true);
     assert.equal(remainingMainAgent?.model.primary, 'api-router-anthropic/claude-sonnet-4-5');
     assert.match(fileContent, /api-router-anthropic/);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawConfigService persists skill entry overrides and removes empty skill config cleanly', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  let fileContent = `{
+  skills: {
+    entries: {
+      "research-skill": {
+        enabled: false,
+        apiKey: "\${OLD_RESEARCH_KEY}",
+        env: {
+          RESEARCH_API_KEY: "\${OLD_RESEARCH_KEY}",
+        },
+      },
+    },
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+      writeFile: async (_path, content) => {
+        fileContent = content;
+      },
+    }),
+  });
+
+  try {
+    await openClawConfigService.saveSkillEntry({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      skillKey: 'research-skill',
+      enabled: false,
+      apiKey: '${RESEARCH_API_KEY}',
+      env: {
+        RESEARCH_API_KEY: '${RESEARCH_API_KEY}',
+        RESEARCH_REGION: 'global',
+      },
+    });
+
+    let snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    let entries = (((snapshot.root.skills as Record<string, any>) || {}).entries ||
+      {}) as Record<string, any>;
+
+    assert.equal(entries['research-skill']?.enabled, false);
+    assert.equal(entries['research-skill']?.apiKey, '${RESEARCH_API_KEY}');
+    assert.equal(entries['research-skill']?.env?.RESEARCH_API_KEY, '${RESEARCH_API_KEY}');
+    assert.equal(entries['research-skill']?.env?.RESEARCH_REGION, 'global');
+
+    await openClawConfigService.saveSkillEntry({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      skillKey: 'research-skill',
+      enabled: true,
+      apiKey: '',
+      env: {
+        RESEARCH_API_KEY: '',
+        RESEARCH_REGION: '',
+      },
+    });
+
+    snapshot = await openClawConfigService.readConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json');
+    entries = (((snapshot.root.skills as Record<string, any>) || {}).entries || {}) as Record<
+      string,
+      any
+    >;
+
+    assert.equal(entries['research-skill'], undefined);
+    assert.equal(fileContent.includes('research-skill'), false);
   } finally {
     configurePlatformBridge(originalBridge);
   }

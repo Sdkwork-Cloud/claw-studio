@@ -759,6 +759,13 @@ export function resolveDefaultApiRouterWorkspaceDir(workspaceRootDir = rootDir) 
   const candidates = [
     path.join(workspaceRootDir, '..', 'sdkwork-api-router'),
     path.join(workspaceRootDir, '.codex-tools', 'sdkwork-api-router'),
+    path.join(
+      workspaceRootDir,
+      '.cache',
+      'bundled-components',
+      'upstreams',
+      'sdkwork-api-router',
+    ),
     path.join(workspaceRootDir, '.codex-tools', 'sdkwork-api-router-ref'),
   ];
 

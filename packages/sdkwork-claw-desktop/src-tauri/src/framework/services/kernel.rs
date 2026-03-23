@@ -1,9 +1,9 @@
 use crate::framework::{
     kernel::{
-        DesktopCapabilityInfo, DesktopCapabilityStatus, DesktopFileSystemInfo,
-        DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
+        DesktopBundledComponentsInfo, DesktopCapabilityInfo, DesktopCapabilityStatus,
+        DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
         DesktopNotificationInfo, DesktopPaymentInfo, DesktopPermissionsInfo, DesktopProcessInfo,
-        DesktopSecurityInfo, DesktopSupervisorInfo, DesktopBundledComponentsInfo,
+        DesktopSecurityInfo, DesktopSupervisorInfo,
     },
     paths::AppPaths,
     storage::StorageInfo,
