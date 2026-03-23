@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Coins,
@@ -13,13 +13,16 @@ import { toast } from 'sonner';
 import { Button, Input, OverlaySurface } from '@sdkwork/claw-ui';
 import { pointsQueryKeys, pointsService } from '../services';
 import { formatCurrencyCny, formatPoints } from './pointsCopy';
+import {
+  createInitialPointsRechargeDialogState,
+  shouldResetPointsRechargeDialogState,
+  type RechargePaymentMethod,
+} from './pointsRechargeDialogState';
 
 interface PointsRechargeDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-type RechargePaymentMethod = 'wechat' | 'alipay' | 'bankcard';
 
 const PAYMENT_METHODS: RechargePaymentMethod[] = ['wechat', 'alipay', 'bankcard'];
 
@@ -45,6 +48,7 @@ export function PointsRechargeDialog({
 }: PointsRechargeDialogProps) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const wasOpenRef = useRef(false);
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [customPointsValue, setCustomPointsValue] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<RechargePaymentMethod>('wechat');
@@ -57,7 +61,7 @@ export function PointsRechargeDialog({
     placeholderData: pointsService.getEmptyDashboard(),
   });
 
-  const rechargePresets = pointsService.getRechargePresets();
+  const rechargePresets = useMemo(() => pointsService.getRechargePresets(), []);
   const language = i18n.resolvedLanguage ?? i18n.language;
   const rate = data.summary.pointsToCashRate;
   const parsedCustomPoints = Number.parseInt(customPointsValue || '0', 10);
@@ -68,13 +72,17 @@ export function PointsRechargeDialog({
   const canSubmit = Boolean(data.summary.isAuthenticated && rate && rate > 0 && resolvedPoints > 0);
 
   useEffect(() => {
-    if (!isOpen) {
+    const shouldReset = shouldResetPointsRechargeDialogState(wasOpenRef.current, isOpen);
+    wasOpenRef.current = isOpen;
+
+    if (!shouldReset) {
       return;
     }
 
-    setSelectedPreset(rechargePresets[1] ?? rechargePresets[0] ?? null);
-    setCustomPointsValue('');
-    setPaymentMethod('wechat');
+    const initialState = createInitialPointsRechargeDialogState(rechargePresets);
+    setSelectedPreset(initialState.selectedPreset);
+    setCustomPointsValue(initialState.customPointsValue);
+    setPaymentMethod(initialState.paymentMethod);
   }, [isOpen, rechargePresets]);
 
   const selectedPointsText = useMemo(
