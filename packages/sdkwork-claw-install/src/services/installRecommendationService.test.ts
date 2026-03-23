@@ -221,7 +221,7 @@ await runTest(
 );
 
 await runTest(
-  'installRecommendationService keeps source as the primary path for source-only products',
+  'installRecommendationService keeps source as the primary path for single-path source workflows',
   async () => {
     const { buildInstallRecommendationSummary } = await import('./installRecommendationService.ts');
 
@@ -232,7 +232,7 @@ await runTest(
       choices: [
         {
           id: 'source',
-          softwareName: 'zeroclaw-source',
+          softwareName: 'openclaw-source',
           assessment: createAssessment({
             runtime: {
               effectiveRuntimePlatform: 'ubuntu',

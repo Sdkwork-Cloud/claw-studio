@@ -10,39 +10,69 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
   }
 }
 
-await runTest('installPageModel keeps OpenClaw fallback methods aligned with hub-installer profiles per host', async () => {
-  const { PRODUCTS, getVisibleInstallChoices } = await import('./installPageModel.ts');
+await runTest(
+  'installPageModel keeps the install surface OpenClaw-only while preserving the fallback method matrix',
+  async () => {
+    const {
+      PRODUCTS,
+      getVisibleInstallChoices,
+      getVisibleUninstallChoices,
+      shouldShowProductSidebar,
+    } = await import('./installPageModel.ts');
 
-  const openclaw = PRODUCTS.find((item) => item.id === 'openclaw');
-  assert.ok(openclaw);
+    assert.deepEqual(PRODUCTS.map((item) => item.id), ['openclaw']);
+    assert.equal(shouldShowProductSidebar(PRODUCTS.length), false);
+    assert.equal(shouldShowProductSidebar(2), true);
 
-  assert.deepEqual(
-    getVisibleInstallChoices(openclaw, 'windows').map((item) => item.id),
-    ['wsl', 'installer', 'git', 'npm', 'pnpm', 'source', 'docker'],
-  );
-  assert.deepEqual(
-    getVisibleInstallChoices(openclaw, 'linux').map((item) => item.id),
-    ['installer', 'installerCli', 'git', 'npm', 'pnpm', 'source', 'docker', 'podman', 'bun', 'ansible', 'nix'],
-  );
-  assert.deepEqual(
-    getVisibleInstallChoices(openclaw, 'unknown').map((item) => item.id),
-    ['installer', 'git', 'npm', 'pnpm', 'source', 'docker'],
-  );
-});
+    const openclaw = PRODUCTS[0];
+    assert.ok(openclaw);
 
-await runTest('installPageModel keeps source-only products aligned across lifecycle tabs', async () => {
-  const { PRODUCTS, getVisibleInstallChoices, getVisibleUninstallChoices } = await import(
-    './installPageModel.ts'
-  );
-
-  const zeroclaw = PRODUCTS.find((item) => item.id === 'zeroclaw');
-  const ironclaw = PRODUCTS.find((item) => item.id === 'ironclaw');
-  assert.ok(zeroclaw);
-  assert.ok(ironclaw);
-
-  assert.deepEqual(getVisibleInstallChoices(zeroclaw, 'macos').map((item) => item.id), ['source']);
-  assert.deepEqual(getVisibleUninstallChoices(ironclaw, 'windows').map((item) => item.id), ['source']);
-});
+    assert.deepEqual(
+      getVisibleInstallChoices(openclaw, 'windows').map((item) => item.id),
+      ['wsl', 'installer', 'git', 'npm', 'pnpm', 'source', 'docker'],
+    );
+    assert.deepEqual(
+      getVisibleInstallChoices(openclaw, 'linux').map((item) => item.id),
+      [
+        'installer',
+        'installerCli',
+        'git',
+        'npm',
+        'pnpm',
+        'source',
+        'docker',
+        'podman',
+        'bun',
+        'ansible',
+        'nix',
+      ],
+    );
+    assert.deepEqual(
+      getVisibleInstallChoices(openclaw, 'macos').map((item) => item.id),
+      ['installer', 'installerCli', 'git', 'npm', 'pnpm', 'source', 'docker', 'podman', 'bun', 'nix'],
+    );
+    assert.deepEqual(
+      getVisibleInstallChoices(openclaw, 'unknown').map((item) => item.id),
+      ['installer', 'git', 'npm', 'pnpm', 'source', 'docker'],
+    );
+    assert.deepEqual(
+      getVisibleUninstallChoices(openclaw, 'linux').map((item) => item.id),
+      [
+        'installer',
+        'installerCli',
+        'git',
+        'npm',
+        'pnpm',
+        'source',
+        'docker',
+        'podman',
+        'bun',
+        'ansible',
+        'nix',
+      ],
+    );
+  },
+);
 
 await runTest('installPageModel detects the active install method from install records', async () => {
   const { getDetectedMethodId } = await import('./installPageModel.ts');
@@ -119,7 +149,7 @@ await runTest('installPageModel detects the active install method from install r
     }),
     'nix',
   );
-  assert.equal(getDetectedMethodId({ manifestName: 'zeroclaw-source' }), 'source');
+  assert.equal(getDetectedMethodId({ manifestName: 'OpenClaw Install (Source Build)' }), 'source');
   assert.equal(getDetectedMethodId({ manifestName: 'unknown-manifest' }), null);
 });
 

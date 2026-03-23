@@ -9,5 +9,6 @@ export * from './installBootstrapService';
 export * from './installGuidedWizardService';
 export * from './installRecordDiscoveryService';
 export * from './openClawCatalogService';
+export * from './openClawInstallDetailService';
 export * as openClawInstallWizardService from './openClawInstallWizardService';
 export * as installGuidedWizardService from './installGuidedWizardService';

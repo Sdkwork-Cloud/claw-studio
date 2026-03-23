@@ -21,7 +21,7 @@ await runTest(
     assert.equal(shouldReadProductInstallRecordEntry('openclaw', 'openclaw.json'), true);
     assert.equal(shouldReadProductInstallRecordEntry('openclaw', 'openclaw-pnpm.json'), true);
     assert.equal(shouldReadProductInstallRecordEntry('openclaw', 'openclaw-custom.json'), true);
-    assert.equal(shouldReadProductInstallRecordEntry('openclaw', 'zeroclaw-source.json'), false);
+    assert.equal(shouldReadProductInstallRecordEntry('openclaw', 'legacy-other-source.json'), false);
 
     const selected = selectProductInstallRecord('openclaw', [
       {
