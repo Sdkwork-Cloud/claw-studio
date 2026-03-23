@@ -468,7 +468,9 @@ export function pathParent(value: string | null | undefined) {
 
 export function supports(hostOs: HostOs, choice: { id: string; supportedHosts: HostOs[] }) {
   if (hostOs === 'unknown') {
-    return ['windows', 'macos', 'linux'].every((platform) => choice.supportedHosts.includes(platform));
+    return (['windows', 'macos', 'linux'] as const).every((platform) =>
+      choice.supportedHosts.includes(platform),
+    );
   }
 
   return choice.supportedHosts.includes(hostOs);
