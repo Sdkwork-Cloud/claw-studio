@@ -29,7 +29,14 @@ function extractRoutes(source) {
 
 const shellRoutes = extractRoutes(read(shellRoutesPath));
 const v5Routes = extractRoutes(read(v5RoutesPath));
-const approvedTemplateExtensions = new Set(['/dashboard', '/model-purchase', '/points', '/agents']);
+const approvedTemplateExtensions = new Set([
+  '/dashboard',
+  '/model-purchase',
+  '/points',
+  '/agents',
+  '/mall',
+  '/mall/:id',
+]);
 const missingRoutes = v5Routes.filter((route) => !shellRoutes.includes(route));
 const extraRoutes = shellRoutes.filter(
   (route) => !v5Routes.includes(route) && !approvedTemplateExtensions.has(route),

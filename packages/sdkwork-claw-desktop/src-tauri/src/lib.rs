@@ -1,11 +1,15 @@
 mod app;
 mod commands;
 mod framework;
+mod internal_cli;
 mod platform;
 mod plugins;
 mod state;
 
 pub fn run() {
+    if internal_cli::maybe_handle_internal_cli_action() {
+        return;
+    }
     app::bootstrap::build()
         .run(tauri::generate_context!())
         .expect("failed to run claw studio desktop");

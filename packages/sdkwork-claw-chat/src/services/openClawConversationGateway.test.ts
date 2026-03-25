@@ -75,6 +75,67 @@ await runTest('listConversations maps OpenClaw session summaries into chat sessi
   ]);
 });
 
+await runTest('listConversations ignores opaque upstream labels and prefers a readable preview fallback', async () => {
+  const gateway = createOpenClawConversationGateway({
+    client: {
+      async listGatewaySessions() {
+        return {
+          sessions: [
+            {
+              key: 'thread:claw-studio:ops-daily',
+              label: 'agent:research:main',
+              updatedAt: 1_710_000_123_000,
+              modelProvider: 'openai',
+              model: 'gpt-5.4',
+              lastMessagePreview: '  Summarize   the overnight alerts   and highlight the failures  ',
+            },
+          ],
+        };
+      },
+    } as any,
+    sleep: async () => {},
+    now: () => 1_710_000_999_000,
+  });
+
+  const sessions = await gateway.listConversations('openclaw-prod');
+
+  assert.equal(
+    sessions[0]?.title,
+    'Summarize the overnight alerts and highlight the failures',
+  );
+});
+
+await runTest('listConversations treats technical runtime display names as placeholders and prefers readable preview text', async () => {
+  const gateway = createOpenClawConversationGateway({
+    client: {
+      async listGatewaySessions() {
+        return {
+          sessions: [
+            {
+              key: 'thread:claw-studio:install-audit',
+              displayName: 'openclaw-tui',
+              label: 'main',
+              updatedAt: 1_710_000_223_000,
+              modelProvider: 'openai',
+              model: 'gpt-5.4',
+              lastMessagePreview: '  Compare the first user request with the current embedded runtime behavior  ',
+            },
+          ],
+        };
+      },
+    } as any,
+    sleep: async () => {},
+    now: () => 1_710_000_999_000,
+  });
+
+  const sessions = await gateway.listConversations('openclaw-prod');
+
+  assert.equal(
+    sessions[0]?.title,
+    'Compare the first user request with the current embedded runtime behavior',
+  );
+});
+
 await runTest('hydrateConversation extracts text from structured OpenClaw chat history payloads', async () => {
   const gateway = createOpenClawConversationGateway({
     client: {
@@ -149,6 +210,69 @@ await runTest('hydrateConversation extracts text from structured OpenClaw chat h
     messagesHydrated: true,
     lastMessagePreview: undefined,
   });
+});
+
+await runTest('hydrateConversation replaces opaque titles with a readable first user message title', async () => {
+  const gateway = createOpenClawConversationGateway({
+    client: {
+      async getChatHistory() {
+        return {
+          messages: [
+            {
+              role: 'user',
+              timestamp: 1_710_000_100_000,
+              content: [
+                {
+                  type: 'input_text',
+                  text: '  Compare   Gemini CLI and Claude Code install flows across macOS and Windows  ',
+                },
+              ],
+            },
+          ],
+        };
+      },
+    } as any,
+    sleep: async () => {},
+  });
+
+  const hydrated = await gateway.hydrateConversation(
+    createSession({
+      id: 'agent:research:main',
+      title: 'agent:research:main',
+      model: 'unknown',
+    }),
+  );
+
+  assert.equal(
+    hydrated.title,
+    'Compare Gemini CLI and Claude Code install flows across macOS and Windows',
+  );
+});
+
+await runTest('upsertConversation does not persist opaque machine titles back to OpenClaw', async () => {
+  const requests: Array<Record<string, unknown>> = [];
+  const gateway = createOpenClawConversationGateway({
+    client: {
+      async patchGatewaySession(_instanceId: string, args: Record<string, unknown>) {
+        requests.push(args);
+        return { ok: true };
+      },
+    } as any,
+    sleep: async () => {},
+  });
+
+  await gateway.upsertConversation(
+    createSession({
+      id: 'agent:research:main',
+      title: 'agent:research:main',
+    }),
+  );
+
+  assert.deepEqual(requests, [
+    {
+      key: 'agent:research:main',
+    },
+  ]);
 });
 
 await runTest('sendMessageStream uses the OpenClaw wrappers for model patching, send, wait, and history polling', async () => {

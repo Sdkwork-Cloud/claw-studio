@@ -27,7 +27,9 @@ import {
   composeOutgoingChatText,
   chatService,
   instanceEffectiveModelCatalogService,
+  openClawChatAgentCatalogService,
   resolveChatBootstrapAction,
+  resolveOpenClawCreateSessionTarget,
 } from '../services';
 import type { ChatComposerSubmitPayload } from '../types/index.ts';
 import { useChatStore } from '../store/useChatStore';
@@ -113,6 +115,23 @@ export function Chat() {
     queryKey: ['agents'],
     queryFn: () => agentService.getAgents(),
   });
+  const {
+    data: openClawAgentCatalog,
+  } = useQuery({
+    queryKey: ['chat', 'openclaw-agent-catalog', activeInstanceId],
+    enabled: Boolean(activeInstanceId),
+    staleTime: 10_000,
+    queryFn: async () => {
+      if (!activeInstanceId) {
+        return {
+          agents: [],
+          defaultAgentId: null,
+        };
+      }
+
+      return openClawChatAgentCatalogService.getCatalog(activeInstanceId);
+    },
+  });
 
   const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
   const activeChannelId = instanceConfig?.activeChannelId || '';
@@ -123,6 +142,12 @@ export function Chat() {
   const lastError = lastErrorByInstance[scopeKey];
   const routeMode = activeInstanceId ? instanceRouteModeById[activeInstanceId] : 'directLlm';
   const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';
+  const visibleAgents =
+    isOpenClawGateway ? openClawAgentCatalog?.agents ?? EMPTY_AGENTS : agents;
+  const defaultOpenClawAgentId =
+    isOpenClawGateway ? openClawAgentCatalog?.defaultAgentId ?? null : null;
+  const effectiveGatewayAgentId =
+    isOpenClawGateway ? selectedAgentId || defaultOpenClawAgentId : selectedAgentId;
 
   const instanceSessions = sessions.filter(
     (session) =>
@@ -138,7 +163,7 @@ export function Chat() {
     data: modelCatalog,
     error: modelCatalogError,
   } = useQuery({
-    queryKey: ['chat', 'instance-model-catalog', activeInstanceId],
+    queryKey: ['chat', 'instance-model-catalog', activeInstanceId, effectiveGatewayAgentId],
     enabled: Boolean(activeInstanceId),
     staleTime: 10_000,
     queryFn: async () => {
@@ -146,9 +171,28 @@ export function Chat() {
         return { channels: [] };
       }
 
-      return instanceEffectiveModelCatalogService.getCatalog(activeInstanceId);
+      return instanceEffectiveModelCatalogService.getCatalog(
+        activeInstanceId,
+        isOpenClawGateway ? effectiveGatewayAgentId : undefined,
+      );
     },
   });
+  const openClawCreateTarget = useMemo(
+    () =>
+      isOpenClawGateway
+        ? resolveOpenClawCreateSessionTarget({
+            agentId: effectiveGatewayAgentId,
+            activeSessionId,
+            sessions: instanceSessions.map((session) => ({
+              id: session.id,
+              isDraft: session.isDraft,
+            })),
+          })
+        : null,
+    [activeSessionId, effectiveGatewayAgentId, instanceSessions, isOpenClawGateway],
+  );
+  const openClawTargetSessionId =
+    openClawCreateTarget?.type === 'select' ? openClawCreateTarget.sessionId : null;
 
   const catalogChannels = modelCatalog?.channels ?? [];
   const channels = useMemo(() => {
@@ -179,7 +223,7 @@ export function Chat() {
     activeChannel?.models.find((model) => model.id === activeModelId) ||
     activeChannel?.models[0];
   const activeSkill = skills.find((skill) => skill.id === selectedSkillId);
-  const activeAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const activeAgent = visibleAgents.find((agent) => agent.id === effectiveGatewayAgentId);
   const effectiveLastError =
     lastError ||
     (modelCatalogError instanceof Error ? modelCatalogError.message : undefined);
@@ -199,16 +243,22 @@ export function Chat() {
 
   const filteredAgents = useMemo(() => {
     if (!agentSearchQuery) {
-      return agents;
+      return visibleAgents;
     }
 
     const lowerQuery = agentSearchQuery.toLowerCase();
-    return agents.filter(
+    return visibleAgents.filter(
       (agent) =>
         agent.name.toLowerCase().includes(lowerQuery) ||
         agent.description.toLowerCase().includes(lowerQuery),
     );
-  }, [agents, agentSearchQuery]);
+  }, [visibleAgents, agentSearchQuery]);
+
+  useEffect(() => {
+    if (selectedAgentId && !visibleAgents.some((agent) => agent.id === selectedAgentId)) {
+      setSelectedAgentId(null);
+    }
+  }, [selectedAgentId, visibleAgents]);
 
   useEffect(() => {
     if (isOpenClawGateway) {
@@ -254,6 +304,81 @@ export function Chat() {
     activeModel?.id,
     activeModelId,
     channels,
+    sessionSelectedModelId,
+    setActiveChannel,
+    setActiveModel,
+  ]);
+
+  const lastOpenClawAgentScopeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpenClawGateway || !activeInstanceId || syncState === 'loading') {
+      lastOpenClawAgentScopeRef.current = null;
+      return;
+    }
+
+    const scopeKey = `${activeInstanceId}:${effectiveGatewayAgentId || 'main'}`;
+    if (lastOpenClawAgentScopeRef.current === scopeKey) {
+      return;
+    }
+    lastOpenClawAgentScopeRef.current = scopeKey;
+
+    if (openClawTargetSessionId) {
+      if (activeSessionId !== openClawTargetSessionId) {
+        void setActiveSession(openClawTargetSessionId, activeInstanceId);
+      }
+      return;
+    }
+
+    if (activeSessionId !== null) {
+      void setActiveSession(null, activeInstanceId);
+    }
+  }, [
+    activeInstanceId,
+    activeSessionId,
+    effectiveGatewayAgentId,
+    isOpenClawGateway,
+    openClawTargetSessionId,
+    setActiveSession,
+    syncState,
+  ]);
+
+  const lastOpenClawModelScopeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpenClawGateway || !activeInstanceId || sessionSelectedModelId) {
+      if (!isOpenClawGateway || !activeInstanceId) {
+        lastOpenClawModelScopeRef.current = null;
+      }
+      return;
+    }
+
+    const preferredModelId = modelCatalog?.preferredModelId;
+    if (!preferredModelId) {
+      return;
+    }
+
+    const scopeKey = `${activeInstanceId}:${effectiveGatewayAgentId || 'main'}`;
+    if (lastOpenClawModelScopeRef.current === scopeKey) {
+      return;
+    }
+    lastOpenClawModelScopeRef.current = scopeKey;
+
+    const preferredChannel = catalogChannels.find((channel) =>
+      channel.models.some((model) => model.id === preferredModelId),
+    );
+    if (preferredChannel?.id && preferredChannel.id !== activeChannelId) {
+      setActiveChannel(activeInstanceId, preferredChannel.id);
+    }
+    if (preferredModelId !== activeModelId) {
+      setActiveModel(activeInstanceId, preferredModelId);
+    }
+  }, [
+    activeChannelId,
+    activeInstanceId,
+    activeModelId,
+    catalogChannels,
+    effectiveGatewayAgentId,
+    isOpenClawGateway,
+    modelCatalog?.preferredModelId,
     sessionSelectedModelId,
     setActiveChannel,
     setActiveModel,
@@ -360,10 +485,26 @@ export function Chat() {
 
     let sessionId = activeSessionId;
     if (!sessionId) {
-      sessionId = await createSession(
-        isOpenClawGateway ? activeModel.id : activeModel.name,
-        activeInstanceId ?? undefined,
-      );
+      if (isOpenClawGateway && activeInstanceId) {
+        if (openClawCreateTarget?.type === 'select') {
+          sessionId = openClawCreateTarget.sessionId;
+          await setActiveSession(sessionId, activeInstanceId);
+        } else {
+          sessionId = await createSession(
+            activeModel.id,
+            activeInstanceId,
+            {
+              openClawAgentId: effectiveGatewayAgentId,
+              openClawSessionId: openClawCreateTarget?.sessionId || null,
+            },
+          );
+        }
+      } else {
+        sessionId = await createSession(
+          activeModel.name,
+          activeInstanceId ?? undefined,
+        );
+      }
     }
 
     if (!sessionId) {
@@ -832,7 +973,11 @@ export function Chat() {
   return (
     <div className="relative flex h-full min-w-0 overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       <div className="hidden h-full w-72 shrink-0 lg:flex xl:w-80">
-        <ChatSidebar />
+        <ChatSidebar
+          isOpenClawGateway={isOpenClawGateway}
+          openClawAgentId={effectiveGatewayAgentId}
+          openClawTargetSessionId={openClawTargetSessionId}
+        />
       </div>
       <AnimatePresence>
         {isSidebarOpen ? (
@@ -855,7 +1000,13 @@ export function Chat() {
               transition={{ type: 'spring', stiffness: 360, damping: 32 }}
               className="fixed inset-y-0 left-0 z-50 w-[min(22rem,calc(100vw-1rem))] lg:hidden"
             >
-              <ChatSidebar onSessionSelect={closeSidebar} onClose={closeSidebar} />
+              <ChatSidebar
+                onSessionSelect={closeSidebar}
+                onClose={closeSidebar}
+                isOpenClawGateway={isOpenClawGateway}
+                openClawAgentId={effectiveGatewayAgentId}
+                openClawTargetSessionId={openClawTargetSessionId}
+              />
             </motion.div>
           </>
         ) : null}

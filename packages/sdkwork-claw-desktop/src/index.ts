@@ -15,6 +15,7 @@ export {
   controlDesktopComponent,
   copyPath,
   createDirectory,
+  ensureApiRouterRuntimeStarted,
   desktopTemplateApi,
   fetchRemoteUrl,
   getApiRouterAdminBootstrapSession,

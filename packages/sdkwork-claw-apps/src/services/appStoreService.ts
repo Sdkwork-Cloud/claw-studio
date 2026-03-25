@@ -2,13 +2,18 @@ import {
   getRuntimePlatform,
   installerService,
   type HubInstallAssessmentResult,
-  type HubInstallCatalogEntry,
   type HubInstallDependencyResult,
   type HubInstallRecordStatus,
   type HubInstallResult,
   type HubUninstallResult,
   type RuntimeInfo,
 } from '@sdkwork/claw-infrastructure';
+import {
+  type AppStoreCatalogApp,
+  type AppStoreCatalogCategory,
+  type AppStoreCatalogService,
+  appStoreCatalogService as defaultAppStoreCatalogService,
+} from '@sdkwork/claw-core/services/appStoreCatalogService';
 import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
 import {
   type AppInstallContext,
@@ -90,11 +95,21 @@ type GuidedInstallMethodId = 'wsl' | 'docker' | 'npm' | 'pnpm' | 'source' | 'clo
 
 const APP_STORE_INSPECTION_CONCURRENCY = 2;
 const INSTALL_SURFACE_SUMMARY_CACHE_TTL_MS = 30_000;
+const REMOTE_CATALOG_PAGE_SIZE = 100;
 
 interface AppCatalogPresentation {
   items: AppItem[];
   itemsById: Map<string, AppItem>;
   categories: AppCategory[];
+}
+
+interface AppStoreRemoteCatalogSnapshot {
+  items: AppStoreCatalogApp[];
+  categories: AppStoreCatalogCategory[];
+}
+
+export interface CreateAppStoreServiceOptions {
+  appStoreCatalogService?: AppStoreCatalogService;
 }
 
 export interface IAppStoreService {
@@ -179,18 +194,15 @@ function mergeAppWithInstallMetadata(
   };
 }
 
-function createCatalogBackedApp(definition: HubInstallCatalogEntry): AppItem {
-  return mergeAppWithInstallMetadata(
-    {
-      id: definition.appId,
-      name: definition.title,
-      developer: definition.developer,
-      category: definition.category,
-      description: definition.description || definition.summary,
-      icon: fallbackCatalogIcon(definition.appId),
-    },
-    definition,
-  );
+function createRemoteCatalogApp(app: AppStoreCatalogApp): AppItem {
+  return {
+    id: app.id,
+    name: app.name,
+    developer: app.developer,
+    category: app.category,
+    description: app.description,
+    icon: app.iconUrl || fallbackCatalogIcon(app.id),
+  };
 }
 
 function sortApps(items: AppItem[]) {
@@ -202,26 +214,10 @@ function sortApps(items: AppItem[]) {
   );
 }
 
-function createCatalogCategories(catalog: AppInstallDefinition[]): AppCategory[] {
-  const categoryMap = new Map<string, AppItem[]>();
-
-  catalog.forEach((definition) => {
-    const apps = categoryMap.get(definition.category) ?? [];
-    apps.push(createCatalogBackedApp(definition));
-    categoryMap.set(definition.category, apps);
-  });
-
-  return [...categoryMap.entries()]
-    .sort(([leftTitle], [rightTitle]) => leftTitle.localeCompare(rightTitle))
-    .map(([title, apps]) => ({
-      title,
-      apps: sortApps(apps),
-    }));
-}
-
-function createCatalogPresentation(catalog: AppInstallDefinition[]): AppCatalogPresentation {
-  const items = sortApps(catalog.map(createCatalogBackedApp));
-  const itemsById = new Map(items.map((item) => [item.id, item] as const));
+function createCatalogCategories(
+  items: AppItem[],
+  categories: AppStoreCatalogCategory[] = [],
+): AppCategory[] {
   const categoryMap = new Map<string, AppItem[]>();
 
   items.forEach((item) => {
@@ -230,13 +226,44 @@ function createCatalogPresentation(catalog: AppInstallDefinition[]): AppCatalogP
     categoryMap.set(item.category, apps);
   });
 
+  const categoryOrder = new Map(
+    categories.map((category, index) => [category.name, index] as const),
+  );
+
+  return [...categoryMap.entries()]
+    .sort(
+      ([leftTitle], [rightTitle]) =>
+        (categoryOrder.get(leftTitle) ?? Number.MAX_SAFE_INTEGER) -
+          (categoryOrder.get(rightTitle) ?? Number.MAX_SAFE_INTEGER) ||
+        leftTitle.localeCompare(rightTitle),
+    )
+    .map(([title, apps]) => ({
+      title,
+      apps: sortApps(apps),
+    }));
+}
+
+function createCatalogPresentation(
+  remoteCatalog: AppStoreRemoteCatalogSnapshot,
+  installCatalog: AppInstallDefinition[],
+): AppCatalogPresentation {
+  const installDefinitionsById = new Map(
+    installCatalog.map((definition) => [definition.appId, definition] as const),
+  );
+  const items = sortApps(
+    remoteCatalog.items.map((app) =>
+      mergeAppWithInstallMetadata(
+        createRemoteCatalogApp(app),
+        installDefinitionsById.get(app.id),
+      ),
+    ),
+  );
+  const itemsById = new Map(items.map((item) => [item.id, item] as const));
+
   return {
     items,
     itemsById,
-    categories: [...categoryMap.entries()].map(([title, apps]) => ({
-      title,
-      apps,
-    })),
+    categories: createCatalogCategories(items, remoteCatalog.categories),
   };
 }
 
@@ -467,8 +494,10 @@ async function mapWithConcurrency<T, R>(
 }
 
 class AppStoreServiceImpl implements IAppStoreService {
+  private appStoreCatalogService: AppStoreCatalogService;
   private installCatalogCache = new Map<string, Promise<AppInstallDefinition[]>>();
   private catalogPresentationCache = new Map<string, Promise<AppCatalogPresentation>>();
+  private remoteCatalogPromise: Promise<AppStoreRemoteCatalogSnapshot> | null = null;
   private runtimeInfoPromise: Promise<RuntimeInfo | null> | null = null;
   private installSurfaceSummaryCache = new Map<
     string,
@@ -478,6 +507,11 @@ class AppStoreServiceImpl implements IAppStoreService {
     }
   >();
   private installSurfaceSummaryPending = new Map<string, Promise<AppInstallSurfaceSummary | null>>();
+
+  constructor(options: CreateAppStoreServiceOptions = {}) {
+    this.appStoreCatalogService =
+      options.appStoreCatalogService || defaultAppStoreCatalogService;
+  }
 
   private async loadRuntimeInfo(): Promise<RuntimeInfo | null> {
     if (!this.runtimeInfoPromise) {
@@ -611,6 +645,49 @@ class AppStoreServiceImpl implements IAppStoreService {
     );
   }
 
+  private async loadRemoteCatalogSnapshot(): Promise<AppStoreRemoteCatalogSnapshot> {
+    if (this.remoteCatalogPromise) {
+      return this.remoteCatalogPromise;
+    }
+
+    const pending = (async (): Promise<AppStoreRemoteCatalogSnapshot> => {
+      const [categories, items] = await Promise.all([
+        this.appStoreCatalogService.listCategories().catch(() => []),
+        (async () => {
+          const collectedItems: AppStoreCatalogApp[] = [];
+          let page = 1;
+
+          while (true) {
+            const result = await this.appStoreCatalogService.listApps({
+              page,
+              pageSize: REMOTE_CATALOG_PAGE_SIZE,
+            });
+            collectedItems.push(...result.items);
+
+            if (!result.hasMore || result.items.length === 0) {
+              break;
+            }
+
+            page += 1;
+          }
+
+          return collectedItems;
+        })(),
+      ]);
+
+      return {
+        categories,
+        items: Array.from(new Map(items.map((item) => [item.id, item] as const)).values()),
+      };
+    })().catch((error) => {
+      this.remoteCatalogPromise = null;
+      throw error;
+    });
+
+    this.remoteCatalogPromise = pending;
+    return pending;
+  }
+
   private async loadCatalogPresentation(
     context: AppInstallContext = {},
   ): Promise<AppCatalogPresentation> {
@@ -621,8 +698,13 @@ class AppStoreServiceImpl implements IAppStoreService {
       return cached;
     }
 
-    const pending = this.loadInstallCatalog(resolvedContext)
-      .then((catalog) => createCatalogPresentation(catalog))
+    const pending = Promise.all([
+      this.loadRemoteCatalogSnapshot(),
+      this.loadInstallCatalog(resolvedContext),
+    ])
+      .then(([remoteCatalog, installCatalog]) =>
+        createCatalogPresentation(remoteCatalog, installCatalog),
+      )
       .catch((error) => {
         this.catalogPresentationCache.delete(cacheKey);
         throw error;
@@ -636,7 +718,7 @@ class AppStoreServiceImpl implements IAppStoreService {
     try {
       return await this.loadCatalogPresentation(context);
     } catch {
-      return createCatalogPresentation([]);
+      return createCatalogPresentation({ items: [], categories: [] }, []);
     }
   }
 
@@ -820,34 +902,31 @@ class AppStoreServiceImpl implements IAppStoreService {
   }
 
   async getList(params: ListParams = {}): Promise<PaginatedResult<AppItem>> {
-    const items = (await this.loadCatalogPresentationSafely()).items;
-
-    let filtered = items;
-    if (params.keyword) {
-      const lowerKeyword = params.keyword.toLowerCase();
-      filtered = filtered.filter(
-        (app) =>
-          app.name.toLowerCase().includes(lowerKeyword) ||
-          app.developer.toLowerCase().includes(lowerKeyword) ||
-          app.category.toLowerCase().includes(lowerKeyword) ||
-          app.description?.toLowerCase().includes(lowerKeyword) ||
-          app.installSummary?.toLowerCase().includes(lowerKeyword) ||
-          app.installTags?.some((tag) => tag.toLowerCase().includes(lowerKeyword)),
-      );
-    }
-
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
-    const total = filtered.length;
-    const start = (page - 1) * pageSize;
-    const paginatedItems = filtered.slice(start, start + pageSize);
+    const [result, installCatalogMap] = await Promise.all([
+      this.appStoreCatalogService.listApps({
+        keyword: params.keyword,
+        page,
+        pageSize,
+      }),
+      this.getInstallCatalogMap(),
+    ]);
+    const paginatedItems = sortApps(
+      result.items.map((app) =>
+        mergeAppWithInstallMetadata(
+          createRemoteCatalogApp(app),
+          installCatalogMap.get(app.id),
+        ),
+      ),
+    );
 
     return {
       items: paginatedItems,
-      total,
-      page,
-      pageSize,
-      hasMore: start + pageSize < total,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+      hasMore: result.hasMore,
     };
   }
 
@@ -876,15 +955,22 @@ class AppStoreServiceImpl implements IAppStoreService {
   }
 
   async getApp(id: string): Promise<AppItem> {
-    const catalogPresentation = await this.loadCatalogPresentationSafely();
-    const app = catalogPresentation.itemsById.get(id);
+    const [remoteApp, installCatalogMap] = await Promise.all([
+      this.appStoreCatalogService.getApp(id),
+      this.getInstallCatalogMap(),
+    ]);
 
-    if (app) {
-      return app;
-    }
-
-    throw new Error('Failed to fetch app');
+    return mergeAppWithInstallMetadata(
+      createRemoteCatalogApp(remoteApp),
+      installCatalogMap.get(id),
+    );
   }
 }
 
-export const appStoreService = new AppStoreServiceImpl();
+export function createAppStoreService(
+  options: CreateAppStoreServiceOptions = {},
+): IAppStoreService {
+  return new AppStoreServiceImpl(options);
+}
+
+export const appStoreService = createAppStoreService();

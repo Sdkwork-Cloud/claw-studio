@@ -6,6 +6,11 @@ export type ChatBootstrapAction =
   | { type: 'select'; sessionId: string }
   | { type: 'idle' };
 
+export function buildOpenClawMainSessionKey(agentId?: string | null) {
+  const normalizedAgentId = agentId?.trim() || 'main';
+  return `agent:${normalizedAgentId}:main`;
+}
+
 export function resolveChatBootstrapAction(params: {
   activeInstanceId: string | null | undefined;
   routeMode: InstanceChatRouteMode | undefined;
@@ -51,12 +56,26 @@ export function resolveChatBootstrapAction(params: {
 }
 
 export function resolveOpenClawCreateSessionTarget(snapshot: {
+  agentId?: string | null;
   activeSessionId: string | null;
   sessions: Array<{
     id: string;
     isDraft?: boolean;
   }>;
 }) {
-  void snapshot;
-  return { type: 'draft' as const };
+  const sessionId = buildOpenClawMainSessionKey(snapshot.agentId);
+  if (
+    snapshot.activeSessionId === sessionId ||
+    snapshot.sessions.some((session) => session.id === sessionId)
+  ) {
+    return {
+      type: 'select' as const,
+      sessionId,
+    };
+  }
+
+  return {
+    type: 'draft' as const,
+    sessionId,
+  };
 }

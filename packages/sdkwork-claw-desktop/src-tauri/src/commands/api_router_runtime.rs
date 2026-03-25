@@ -2,7 +2,9 @@ use crate::{
     framework::{
         services::{
             api_router_managed_runtime::ManagedApiRouterSecretBundle,
-            api_router_runtime::{shared_router_root, ApiRouterRuntimeStatus},
+            api_router_runtime::{
+                shared_router_root, ApiRouterRuntimeMode, ApiRouterRuntimeStatus,
+            },
         },
         FrameworkError, Result as FrameworkResult,
     },
@@ -88,6 +90,46 @@ pub fn api_router_runtime_status_from_state(
         .map(|status| status.with_managed_active(managed_active))
 }
 
+pub fn ensure_api_router_runtime_started_from_state(
+    app: &tauri::AppHandle,
+    state: &AppState,
+) -> FrameworkResult<ApiRouterRuntimeStatus> {
+    let status = api_router_runtime_status_from_state(state)?;
+    match status.mode {
+        ApiRouterRuntimeMode::AttachedExternal | ApiRouterRuntimeMode::ManagedActive => {
+            return Ok(status);
+        }
+        ApiRouterRuntimeMode::NeedsManagedStart | ApiRouterRuntimeMode::Conflicted => {}
+    }
+
+    let runtime = state
+        .context
+        .services
+        .api_router_managed_runtime
+        .ensure_bundled_runtime(app, &state.paths)?;
+    state
+        .context
+        .services
+        .supervisor
+        .configure_api_router_runtime(&runtime)?;
+
+    if matches!(status.mode, ApiRouterRuntimeMode::Conflicted) {
+        state
+            .context
+            .services
+            .supervisor
+            .restart_api_router(&state.paths)?;
+    } else {
+        state
+            .context
+            .services
+            .supervisor
+            .start_api_router(&state.paths)?;
+    }
+
+    api_router_runtime_status_from_state(state)
+}
+
 pub fn api_router_admin_bootstrap_session_from_state(
     state: &AppState,
 ) -> FrameworkResult<Option<ApiRouterAdminBootstrapSession>> {
@@ -120,6 +162,14 @@ pub fn get_api_router_runtime_status(
     state: tauri::State<'_, AppState>,
 ) -> Result<ApiRouterRuntimeStatus, String> {
     api_router_runtime_status_from_state(&state).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn ensure_api_router_runtime_started(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<ApiRouterRuntimeStatus, String> {
+    ensure_api_router_runtime_started_from_state(&app, &state).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

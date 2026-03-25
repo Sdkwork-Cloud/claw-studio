@@ -200,7 +200,7 @@ impl OpenClawRuntimeService {
     }
 }
 
-fn resolve_bundled_resource_root(resource_dir: &Path) -> Result<PathBuf> {
+pub(crate) fn resolve_bundled_resource_root(resource_dir: &Path) -> Result<PathBuf> {
     let direct = resource_dir.join(BUNDLED_RESOURCE_DIR);
     if direct.exists() {
         return Ok(direct);
@@ -289,6 +289,12 @@ fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawStat
         &["gateway", "http", "endpoints", "chatCompletions", "enabled"],
         true,
     );
+    set_nested_bool(
+        &mut config,
+        &["gateway", "http", "endpoints", "responses", "enabled"],
+        true,
+    );
+    ensure_nested_string_array_contains(&mut config, &["gateway", "tools", "allow"], "cron");
     set_nested_string(
         &mut config,
         &["agents", "defaults", "workspace"],
@@ -399,6 +405,35 @@ fn set_nested_u16(value: &mut Value, path: &[&str], next: u16) {
     set_nested_value(value, path, Value::Number(Number::from(next)));
 }
 
+fn ensure_nested_string_array_contains(value: &mut Value, path: &[&str], item: &str) {
+    let mut current = value;
+    for segment in &path[..path.len() - 1] {
+        let object = current.as_object_mut().expect("nested config objects");
+        current = object
+            .entry((*segment).to_string())
+            .or_insert_with(|| Value::Object(Map::new()));
+        if !current.is_object() {
+            *current = Value::Object(Map::new());
+        }
+    }
+
+    let entry = current
+        .as_object_mut()
+        .expect("nested config objects")
+        .entry(path[path.len() - 1].to_string())
+        .or_insert_with(|| Value::Array(Vec::new()));
+    if !entry.is_array() {
+        *entry = Value::Array(Vec::new());
+    }
+
+    let items = entry.as_array_mut().expect("nested config arrays");
+    if items.iter().any(|value| value.as_str() == Some(item)) {
+        return;
+    }
+
+    items.push(Value::String(item.to_string()));
+}
+
 fn set_nested_value(value: &mut Value, path: &[&str], next: Value) {
     if path.is_empty() {
         *value = next;
@@ -490,11 +525,14 @@ mod tests {
     use serde_json::Value;
     use std::fs;
 
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.23-2";
+
     #[test]
     fn installs_bundled_runtime_into_managed_directory_and_activates_it() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
 
         let activated = service
@@ -502,7 +540,8 @@ mod tests {
             .expect("activated runtime");
 
         let expected_install_key = format!(
-            "2026.3.13-{}-{}",
+            "{}-{}-{}",
+            TEST_BUNDLED_OPENCLAW_VERSION,
             normalized_target_platform(),
             normalized_target_arch()
         );
@@ -512,6 +551,16 @@ mod tests {
         assert!(activated.runtime_dir.exists());
         assert!(activated.node_path.exists());
         assert!(activated.cli_path.exists());
+        assert_eq!(
+            activated.cli_path,
+            activated
+                .install_dir
+                .join("runtime")
+                .join("package")
+                .join("node_modules")
+                .join("openclaw")
+                .join("openclaw.mjs")
+        );
         assert_eq!(activated.home_dir, paths.openclaw_home_dir);
         assert_eq!(activated.state_dir, paths.openclaw_state_dir);
         assert_eq!(activated.workspace_dir, paths.openclaw_workspace_dir);
@@ -542,6 +591,12 @@ mod tests {
             Some(true)
         );
         assert_eq!(
+            config
+                .pointer("/gateway/http/endpoints/responses/enabled")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
             config.pointer("/gateway/auth/mode").and_then(Value::as_str),
             Some("token")
         );
@@ -549,6 +604,13 @@ mod tests {
             .pointer("/gateway/auth/token")
             .and_then(Value::as_str)
             .is_some_and(|token| !token.trim().is_empty()));
+        assert_eq!(
+            config
+                .pointer("/gateway/tools/allow")
+                .and_then(Value::as_array)
+                .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>()),
+            Some(vec!["cron"])
+        );
         assert_eq!(
             config
                 .pointer("/agents/defaults/workspace")
@@ -573,7 +635,8 @@ mod tests {
     fn reuses_existing_install_when_the_bundled_runtime_key_matches() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
 
         let first = service
@@ -594,8 +657,12 @@ mod tests {
     fn rejects_bundled_runtime_for_a_different_target() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let resource_root =
-            create_bundled_runtime_fixture_for_target(temp.path(), "2026.3.13", "windows", "x64");
+        let resource_root = create_bundled_runtime_fixture_for_target(
+            temp.path(),
+            TEST_BUNDLED_OPENCLAW_VERSION,
+            "windows",
+            "x64",
+        );
         let service = OpenClawRuntimeService::new();
 
         if normalized_target_platform() == "windows" && normalized_target_arch() == "x64" {
@@ -613,7 +680,8 @@ mod tests {
     fn rewrites_busy_gateway_ports_to_an_available_loopback_port() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
         let busy_port = super::find_available_gateway_port(DEFAULT_GATEWAY_PORT)
             .expect("available busy-port candidate");
@@ -648,7 +716,8 @@ mod tests {
     fn falls_back_to_os_assigned_port_when_preferred_window_is_unavailable() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
         let (preferred_port, occupied_ports) = reserve_contiguous_port_window(32);
 
@@ -684,7 +753,8 @@ mod tests {
     fn refresh_configured_runtime_uses_the_saved_gateway_port_when_available() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
         let configured_port = 28_789;
         let activated = service
@@ -705,10 +775,60 @@ mod tests {
     }
 
     #[test]
+    fn preserves_existing_gateway_http_tool_allow_entries_when_adding_cron() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  gateway: {
+    tools: {
+      allow: ["gateway", "cron"],
+    },
+    http: {
+      endpoints: {
+        responses: { enabled: false },
+      },
+    },
+  },
+}
+"#,
+        )
+        .expect("seed config file");
+
+        service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+        )
+        .expect("config json");
+        assert_eq!(
+            config
+                .pointer("/gateway/tools/allow")
+                .and_then(Value::as_array)
+                .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>()),
+            Some(vec!["gateway", "cron"])
+        );
+        assert_eq!(
+            config
+                .pointer("/gateway/http/endpoints/responses/enabled")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
     fn refresh_configured_runtime_rewrites_busy_gateway_ports() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let resource_root = create_bundled_runtime_fixture(temp.path(), "2026.3.13");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
@@ -776,7 +896,7 @@ mod tests {
         } else {
             "runtime/node/bin/node"
         };
-        let cli_relative_path = "runtime/package/openclaw.mjs";
+        let cli_relative_path = "runtime/package/node_modules/openclaw/openclaw.mjs";
         let node_path = resource_root.join(node_relative_path);
         let cli_path = resource_root.join(cli_relative_path);
 

@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import {
   buildOpenClawManifest,
+  DEFAULT_OPENCLAW_VERSION,
+  DEFAULT_RESOURCE_DIR,
   inspectPreparedOpenClawRuntime,
   prepareOpenClawRuntime,
   prepareOpenClawRuntimeFromStagedDirs,
@@ -12,18 +14,34 @@ import {
   resolveBundledNpmCommand,
   resolveOpenClawPrepareCachePaths,
   resolveOpenClawTarget,
+  shouldSyncBundledResourceMirror,
   shouldReusePreparedOpenClawRuntime,
 } from './prepare-openclaw-runtime.mjs';
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'prepare-openclaw-runtime-test-'));
 const actualNodeVersion = process.version.replace(/^v/i, '');
+const expectedOpenClawVersion = '2026.3.23-2';
 
 try {
+  if (DEFAULT_OPENCLAW_VERSION !== expectedOpenClawVersion) {
+    throw new Error(
+      `Expected DEFAULT_OPENCLAW_VERSION=${expectedOpenClawVersion}, received ${DEFAULT_OPENCLAW_VERSION}`,
+    );
+  }
+
+  if (!shouldSyncBundledResourceMirror({ resourceDir: DEFAULT_RESOURCE_DIR })) {
+    throw new Error('Expected the default bundled resource directory to keep syncing the Windows mirror');
+  }
+
+  if (shouldSyncBundledResourceMirror({ resourceDir: path.join(tempRoot, 'isolated-resource-runtime') })) {
+    throw new Error('Expected temporary bundled resource directories to avoid mutating the shared Windows mirror');
+  }
+
   const sourceRuntimeDir = path.join(tempRoot, 'source-runtime');
   const resourceDir = path.join(tempRoot, 'resource-runtime');
   const target = resolveOpenClawTarget('win32', 'x64');
   const manifest = buildOpenClawManifest({
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     target,
   });
@@ -44,13 +62,13 @@ try {
   await writeFile(cliPath, 'console.log("openclaw");');
   await writeFile(
     openclawPackageJsonPath,
-    `${JSON.stringify({ name: 'openclaw', version: '2026.3.13' }, null, 2)}\n`,
+    `${JSON.stringify({ name: 'openclaw', version: expectedOpenClawVersion }, null, 2)}\n`,
   );
 
   const result = await prepareOpenClawRuntimeFromSource({
     sourceRuntimeDir,
     resourceDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     target,
   });
@@ -63,8 +81,8 @@ try {
     throw new Error(`Expected runtimeId=openclaw, received ${copiedManifest.runtimeId}`);
   }
 
-  if (copiedManifest.openclawVersion !== '2026.3.13') {
-    throw new Error(`Expected openclawVersion=2026.3.13, received ${copiedManifest.openclawVersion}`);
+  if (copiedManifest.openclawVersion !== expectedOpenClawVersion) {
+    throw new Error(`Expected openclawVersion=${expectedOpenClawVersion}, received ${copiedManifest.openclawVersion}`);
   }
 
   if (result.manifest.cliRelativePath !== 'runtime/package/node_modules/openclaw/openclaw.mjs') {
@@ -108,7 +126,7 @@ try {
     nodeSourceDir: stagedNodeDir,
     packageSourceDir: stagedPackageDir,
     resourceDir: stagedResourceDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     target,
   });
@@ -120,7 +138,7 @@ try {
   await prepareOpenClawRuntimeFromSource({
     sourceRuntimeDir,
     resourceDir: reusableResourceDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     target,
   });
@@ -142,7 +160,7 @@ try {
 
   const reused = await prepareOpenClawRuntime({
     resourceDir: reusableResourceDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     openclawPackage: 'openclaw',
     fetchImpl: async () => {
@@ -164,7 +182,7 @@ try {
   await prepareOpenClawRuntimeFromSource({
     sourceRuntimeDir,
     resourceDir: repairableResourceDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: actualNodeVersion,
     target,
   });
@@ -172,7 +190,7 @@ try {
 
   const repaired = await prepareOpenClawRuntime({
     resourceDir: repairableResourceDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: actualNodeVersion,
     openclawPackage: 'openclaw',
     fetchImpl: async () => {
@@ -188,16 +206,16 @@ try {
   const repairedManifest = JSON.parse(
     await readFile(path.join(repairableResourceDir, 'manifest.json'), 'utf8'),
   );
-  if (repairedManifest.openclawVersion !== '2026.3.13') {
+  if (repairedManifest.openclawVersion !== expectedOpenClawVersion) {
     throw new Error(
-      `Expected repaired manifest to restore openclawVersion=2026.3.13, received ${repairedManifest.openclawVersion}`,
+      `Expected repaired manifest to restore openclawVersion=${expectedOpenClawVersion}, received ${repairedManifest.openclawVersion}`,
     );
   }
 
   const cacheDir = path.join(tempRoot, 'persistent-cache');
   const cachePaths = resolveOpenClawPrepareCachePaths({
     cacheDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     target,
   });
@@ -210,7 +228,7 @@ try {
   const cached = await prepareOpenClawRuntime({
     resourceDir: cachePreparedResourceDir,
     cacheDir,
-    openclawVersion: '2026.3.13',
+    openclawVersion: expectedOpenClawVersion,
     nodeVersion: '22.16.0',
     openclawPackage: 'openclaw',
     fetchImpl: async () => {

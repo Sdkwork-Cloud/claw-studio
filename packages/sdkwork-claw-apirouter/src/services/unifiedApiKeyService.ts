@@ -15,6 +15,11 @@ import type {
   UnifiedApiKeySource,
   UnifiedApiKeyUpdate,
 } from '@sdkwork/claw-types';
+import {
+  clearUnifiedApiKeyLocalOverlay,
+  getUnifiedApiKeyLocalOverlay,
+  updateUnifiedApiKeyLocalOverlay,
+} from './apiRouterLocalOverlayStore.ts';
 
 export interface GetUnifiedApiKeysParams {
   keyword?: string;
@@ -57,8 +62,6 @@ const routerPlaintextRevealCache = new Map<
   }
 >();
 let routerPlaintextRevealCacheLoaded = false;
-
-const routerModelMappingCache = new Map<string, string | null>();
 
 function toIsoString(value?: number | null) {
   if (!value) {
@@ -255,6 +258,7 @@ function buildUnifiedApiKeyFromRouterRecord(
 
   const revealedSecret = routerPlaintextRevealCache.get(item.hashed_key);
   const projectName = getProjectName(item.project_id, projectNamesById, item.label);
+  const localOverlay = getUnifiedApiKeyLocalOverlay(item.hashed_key);
 
   return {
     id: item.hashed_key,
@@ -271,7 +275,9 @@ function buildUnifiedApiKeyFromRouterRecord(
     expiresAt: toIsoString(item.expires_at_ms),
     status: resolveStatus(item),
     createdAt: toIsoString(item.created_at_ms) || new Date(0).toISOString(),
-    modelMappingId: routerModelMappingCache.get(item.hashed_key) || undefined,
+    modelMappingId: localOverlay.modelMappingId || undefined,
+    routeMode: localOverlay.routeMode,
+    routeProviderId: localOverlay.routeProviderId || undefined,
     notes: normalizeOptionalText(item.notes) || undefined,
     canCopyApiKey: Boolean(revealedSecret?.apiKey),
     hashedKey: item.hashed_key,
@@ -463,7 +469,9 @@ function buildUnifiedApiKeyFromCreateResponse(
     expiresAt: toIsoString(created.expires_at_ms),
     status: 'active',
     createdAt: toIsoString(created.created_at_ms) || new Date().toISOString(),
-    modelMappingId: routerModelMappingCache.get(created.hashed) || undefined,
+    modelMappingId: undefined,
+    routeMode: 'sdkwork-remote',
+    routeProviderId: undefined,
     notes: normalizeOptionalText(created.notes) || undefined,
     canCopyApiKey: true,
     hashedKey: created.hashed,
@@ -517,6 +525,14 @@ function buildRouterUpdatePayload(
   };
 }
 
+function updateTouchesLocalOverlay(update: UnifiedApiKeyUpdate) {
+  return (
+    update.modelMappingId !== undefined
+    || update.routeMode !== undefined
+    || update.routeProviderId !== undefined
+  );
+}
+
 async function updateRouterUnifiedApiKey(
   id: string,
   update: UnifiedApiKeyUpdate,
@@ -533,6 +549,7 @@ async function updateRouterUnifiedApiKey(
   const projectName = update.name?.trim()
     ? buildHiddenProjectName(update.name)
     : project?.name || current.label;
+  const shouldUpdateLocalOverlay = updateTouchesLocalOverlay(update);
 
   await sdkworkApiRouterAdminClient.createProject({
     tenant_id: tenantId,
@@ -545,8 +562,12 @@ async function updateRouterUnifiedApiKey(
     buildRouterUpdatePayload(current, update, tenantId, projectId),
   );
 
-  if (update.modelMappingId !== undefined) {
-    routerModelMappingCache.set(id, update.modelMappingId);
+  if (shouldUpdateLocalOverlay) {
+    updateUnifiedApiKeyLocalOverlay(id, {
+      modelMappingId: update.modelMappingId,
+      routeMode: update.routeMode,
+      routeProviderId: update.routeProviderId,
+    });
   }
 
   const projectNamesById = buildProjectNameLookup([
@@ -603,6 +624,11 @@ class DefaultUnifiedApiKeyService implements UnifiedApiKeyService {
       source,
     });
 
+    updateUnifiedApiKeyLocalOverlay(created.hashed, {
+      routeMode: 'sdkwork-remote',
+      routeProviderId: null,
+      modelMappingId: null,
+    });
     return buildUnifiedApiKeyFromCreateResponse(created, projectName, source);
   }
 
@@ -632,7 +658,9 @@ class DefaultUnifiedApiKeyService implements UnifiedApiKeyService {
       throw new Error('Unified API key not found');
     }
 
-    routerModelMappingCache.set(id, modelMappingId);
+    updateUnifiedApiKeyLocalOverlay(id, {
+      modelMappingId,
+    });
     const projectNamesById = buildProjectNameLookup(routerDataset.projects);
     const usageByProject = buildUsageByProject(routerDataset.usageRecords);
     return buildUnifiedApiKeyFromRouterRecord(current, projectNamesById, usageByProject);
@@ -651,7 +679,7 @@ class DefaultUnifiedApiKeyService implements UnifiedApiKeyService {
     loadRouterPlaintextRevealCache();
     routerPlaintextRevealCache.delete(id);
     persistRouterPlaintextRevealCache();
-    routerModelMappingCache.delete(id);
+    clearUnifiedApiKeyLocalOverlay(id);
     return sdkworkApiRouterAdminClient.deleteApiKey(id);
   }
 }

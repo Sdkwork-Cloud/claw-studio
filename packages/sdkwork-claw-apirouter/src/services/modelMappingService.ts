@@ -11,6 +11,13 @@ import type {
   ModelMappingStatus,
   ModelMappingUpdate,
 } from '@sdkwork/claw-types';
+import {
+  createLocalModelMapping,
+  deleteLocalModelMapping,
+  listLocalModelMappings,
+  updateLocalModelMapping,
+  updateLocalModelMappingStatus,
+} from './apiRouterLocalOverlayStore.ts';
 
 export interface GetModelMappingsParams {
   keyword?: string;
@@ -24,9 +31,6 @@ export interface ModelMappingService {
   updateStatus(id: string, status: ModelMappingStatus): Promise<ModelMapping>;
   deleteModelMapping(id: string): Promise<boolean>;
 }
-
-const MODEL_MAPPING_UNSUPPORTED_ERROR =
-  'The connected sdkwork-api-router build does not expose first-class model mapping APIs yet. Routing policies exist on the router backend, but Claw Studio cannot safely emulate full model mapping CRUD without a dedicated backend contract.';
 
 function resolveProviderChannelId(provider: ApiRouterProviderDto) {
   return (
@@ -108,10 +112,6 @@ function filterModelMappings(items: ModelMapping[], params: GetModelMappingsPara
   );
 }
 
-function createUnsupportedError() {
-  return new Error(MODEL_MAPPING_UNSUPPORTED_ERROR);
-}
-
 class DefaultModelMappingService implements ModelMappingService {
   async getModelCatalog() {
     return loadRouterModelCatalog();
@@ -119,31 +119,28 @@ class DefaultModelMappingService implements ModelMappingService {
 
   async getModelMappings(params: GetModelMappingsParams = {}) {
     await loadRouterModelCatalog();
-    return filterModelMappings([], params);
+    return filterModelMappings(listLocalModelMappings(), params);
   }
 
   async createModelMapping(input: ModelMappingCreate): Promise<ModelMapping> {
-    void input;
-    throw createUnsupportedError();
+    await loadRouterModelCatalog();
+    return createLocalModelMapping(input);
   }
 
   async updateModelMapping(id: string, update: ModelMappingUpdate): Promise<ModelMapping> {
-    void id;
-    void update;
-    throw createUnsupportedError();
+    await loadRouterModelCatalog();
+    return updateLocalModelMapping(id, update);
   }
 
   async updateStatus(id: string, status: ModelMappingStatus): Promise<ModelMapping> {
-    void id;
-    void status;
-    throw createUnsupportedError();
+    await loadRouterModelCatalog();
+    return updateLocalModelMappingStatus(id, status);
   }
 
   async deleteModelMapping(id: string): Promise<boolean> {
-    void id;
-    throw createUnsupportedError();
+    await loadRouterModelCatalog();
+    return deleteLocalModelMapping(id);
   }
 }
 
 export const modelMappingService = new DefaultModelMappingService();
-export { MODEL_MAPPING_UNSUPPORTED_ERROR };

@@ -8,6 +8,7 @@ use std::fs;
 pub const APP_LANGUAGE_PREFERENCE_SYSTEM: &str = "system";
 pub const APP_LANGUAGE_PREFERENCE_ENGLISH: &str = "en";
 pub const APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE: &str = "zh";
+const CURRENT_APP_CONFIG_VERSION: u32 = 2;
 
 pub fn normalize_app_language_preference(value: &str) -> &'static str {
     let normalized = value.trim().to_lowercase().replace('_', "-");
@@ -99,6 +100,20 @@ impl Default for IntegrationConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+pub struct EmbeddedOpenClawConfig {
+    pub expose_cli_to_shell: bool,
+}
+
+impl Default for EmbeddedOpenClawConfig {
+    fn default() -> Self {
+        Self {
+            expose_cli_to_shell: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ProcessConfig {
     pub default_timeout_ms: u64,
     pub max_concurrent_jobs: u32,
@@ -147,6 +162,7 @@ pub struct AppConfig {
     pub notifications: NotificationConfig,
     pub payments: PaymentConfig,
     pub integrations: IntegrationConfig,
+    pub embedded_openclaw: EmbeddedOpenClawConfig,
     pub process: ProcessConfig,
     pub component_upgrades: ComponentUpgradeConfig,
 }
@@ -154,7 +170,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: CURRENT_APP_CONFIG_VERSION,
             distribution: "global".to_string(),
             log_level: "info".to_string(),
             theme: "system".to_string(),
@@ -165,6 +181,7 @@ impl Default for AppConfig {
             notifications: NotificationConfig::default(),
             payments: PaymentConfig::default(),
             integrations: IntegrationConfig::default(),
+            embedded_openclaw: EmbeddedOpenClawConfig::default(),
             process: ProcessConfig::default(),
             component_upgrades: ComponentUpgradeConfig::default(),
         }
@@ -207,6 +224,7 @@ pub struct PublicAppConfig {
     pub notifications: NotificationConfig,
     pub payments: PaymentConfig,
     pub integrations: IntegrationConfig,
+    pub embedded_openclaw: EmbeddedOpenClawConfig,
     pub process: ProcessConfig,
     pub component_upgrades: ComponentUpgradeConfig,
 }
@@ -236,6 +254,10 @@ impl AppConfig {
         if next.version == 0 {
             next.version = 1;
         }
+        if next.version < CURRENT_APP_CONFIG_VERSION {
+            next.embedded_openclaw.expose_cli_to_shell = true;
+            next.version = CURRENT_APP_CONFIG_VERSION;
+        }
         next.language = normalize_app_language_preference(&next.language).to_string();
         next.storage = next.storage.normalized();
         next
@@ -256,6 +278,7 @@ impl AppConfig {
             notifications: normalized.notifications,
             payments: normalized.payments,
             integrations: normalized.integrations,
+            embedded_openclaw: normalized.embedded_openclaw,
             process: normalized.process,
             component_upgrades: normalized.component_upgrades,
         }
@@ -332,10 +355,61 @@ mod tests {
         );
         assert!(value.get("payments").is_some(), "missing payments");
         assert!(value.get("integrations").is_some(), "missing integrations");
+        assert!(
+            value.get("embeddedOpenclaw").is_some(),
+            "missing embedded openclaw config"
+        );
         assert!(value.get("process").is_some(), "missing process");
         assert!(
             value.get("componentUpgrades").is_some(),
             "missing component upgrades"
+        );
+    }
+
+    #[test]
+    fn default_embedded_openclaw_config_enables_shell_cli_exposure() {
+        let config = AppConfig::default();
+
+        assert!(
+            config.embedded_openclaw.expose_cli_to_shell,
+            "bundled openclaw shell exposure should be enabled by default"
+        );
+    }
+
+    #[test]
+    fn normalizes_legacy_embedded_openclaw_shell_exposure_to_enabled() {
+        let config = AppConfig {
+            version: 1,
+            embedded_openclaw: super::EmbeddedOpenClawConfig {
+                expose_cli_to_shell: false,
+            },
+            ..AppConfig::default()
+        };
+
+        let normalized = config.normalized();
+
+        assert_eq!(normalized.version, AppConfig::default().version);
+        assert!(
+            normalized.embedded_openclaw.expose_cli_to_shell,
+            "legacy configs should be migrated so embedded openclaw stays on the shell path"
+        );
+    }
+
+    #[test]
+    fn preserves_explicit_shell_cli_opt_out_for_current_config_version() {
+        let config = AppConfig {
+            embedded_openclaw: super::EmbeddedOpenClawConfig {
+                expose_cli_to_shell: false,
+            },
+            ..AppConfig::default()
+        };
+
+        let normalized = config.normalized();
+
+        assert_eq!(normalized.version, AppConfig::default().version);
+        assert!(
+            !normalized.embedded_openclaw.expose_cli_to_shell,
+            "current-version configs should still be able to opt out explicitly"
         );
     }
 

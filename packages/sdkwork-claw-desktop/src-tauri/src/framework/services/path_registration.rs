@@ -3,7 +3,11 @@ use crate::framework::FrameworkError;
 use crate::framework::{
     paths::AppPaths, services::openclaw_runtime::ActivatedOpenClawRuntime, Result,
 };
-use std::{fs, path::Path};
+use crate::internal_cli::RUN_OPENCLAW_CLI_FLAG;
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 const PATH_BLOCK_START: &str = "# >>> claw-studio-openclaw >>>";
 const PATH_BLOCK_END: &str = "# <<< claw-studio-openclaw <<<";
@@ -20,20 +24,21 @@ impl PathRegistrationService {
     pub fn install_openclaw_shims(
         &self,
         paths: &AppPaths,
-        runtime: &ActivatedOpenClawRuntime,
+        _runtime: &ActivatedOpenClawRuntime,
     ) -> Result<()> {
         fs::create_dir_all(&paths.user_bin_dir)?;
+        let launcher_path = resolve_launcher_executable_path()?;
 
         write_if_changed(
             &paths.user_bin_dir.join("openclaw.cmd"),
-            &render_cmd_shim(runtime),
+            &render_cmd_shim(&launcher_path),
         )?;
         write_if_changed(
             &paths.user_bin_dir.join("openclaw.ps1"),
-            &render_powershell_shim(runtime),
+            &render_powershell_shim(&launcher_path),
         )?;
         let unix_shim = paths.user_bin_dir.join("openclaw");
-        write_if_changed(&unix_shim, &render_unix_shim(runtime))?;
+        write_if_changed(&unix_shim, &render_unix_shim(&launcher_path))?;
         set_executable_if_supported(&unix_shim)?;
 
         Ok(())
@@ -59,36 +64,27 @@ impl PathRegistrationService {
     }
 }
 
-fn render_cmd_shim(runtime: &ActivatedOpenClawRuntime) -> String {
+fn render_cmd_shim(launcher_path: &Path) -> String {
     format!(
-        "@echo off\r\nsetlocal\r\nset \"OPENCLAW_HOME={}\"\r\nset \"OPENCLAW_STATE_DIR={}\"\r\nset \"OPENCLAW_CONFIG_PATH={}\"\r\n\"{}\" \"{}\" %*\r\n",
-        runtime.home_dir.display(),
-        runtime.state_dir.display(),
-        runtime.config_path.display(),
-        runtime.node_path.display(),
-        runtime.cli_path.display()
+        "@echo off\r\n\"{}\" {} %*\r\n",
+        escape_cmd_value(&launcher_path.display().to_string()),
+        RUN_OPENCLAW_CLI_FLAG,
     )
 }
 
-fn render_powershell_shim(runtime: &ActivatedOpenClawRuntime) -> String {
+fn render_powershell_shim(launcher_path: &Path) -> String {
     format!(
-        "$env:OPENCLAW_HOME = '{}'\r\n$env:OPENCLAW_STATE_DIR = '{}'\r\n$env:OPENCLAW_CONFIG_PATH = '{}'\r\n& '{}' '{}' @Args\r\n",
-        escape_powershell_path(&runtime.home_dir),
-        escape_powershell_path(&runtime.state_dir),
-        escape_powershell_path(&runtime.config_path),
-        escape_powershell_path(&runtime.node_path),
-        escape_powershell_path(&runtime.cli_path)
+        "& '{}' '{}' @Args\r\n",
+        escape_powershell_path(launcher_path),
+        RUN_OPENCLAW_CLI_FLAG,
     )
 }
 
-fn render_unix_shim(runtime: &ActivatedOpenClawRuntime) -> String {
+fn render_unix_shim(launcher_path: &Path) -> String {
     format!(
-        "#!/bin/sh\nexport OPENCLAW_HOME='{}'\nexport OPENCLAW_STATE_DIR='{}'\nexport OPENCLAW_CONFIG_PATH='{}'\nexec '{}' '{}' \"$@\"\n",
-        escape_unix_path(&runtime.home_dir),
-        escape_unix_path(&runtime.state_dir),
-        escape_unix_path(&runtime.config_path),
-        escape_unix_path(&runtime.node_path),
-        escape_unix_path(&runtime.cli_path)
+        "#!/bin/sh\nexec '{}' '{}' \"$@\"\n",
+        escape_unix_path(launcher_path),
+        RUN_OPENCLAW_CLI_FLAG,
     )
 }
 
@@ -188,7 +184,13 @@ fn ensure_shell_profiles_source(managed_profile: &Path) -> Result<()> {
         .map(std::path::PathBuf::from)
         .ok_or_else(|| FrameworkError::NotFound("HOME environment variable".to_string()))?;
 
-    for file_name in [".profile", ".bash_profile", ".zprofile"] {
+    for file_name in [
+        ".profile",
+        ".bash_profile",
+        ".bashrc",
+        ".zprofile",
+        ".zshrc",
+    ] {
         let profile_path = home_dir.join(file_name);
         let current = fs::read_to_string(&profile_path).unwrap_or_default();
         let next = upsert_source_block(&current, managed_profile);
@@ -211,16 +213,10 @@ fn merge_windows_path(current: &str, user_bin_dir: &Path) -> String {
         .map(str::trim)
         .filter(|entry| !entry.is_empty())
         .map(ToString::to_string)
+        .filter(|entry| !entry.eq_ignore_ascii_case(needle.as_str()))
         .collect::<Vec<_>>();
 
-    if entries
-        .iter()
-        .any(|entry| entry.eq_ignore_ascii_case(needle.as_str()))
-    {
-        return entries.join(";");
-    }
-
-    entries.push(needle);
+    entries.insert(0, needle);
     entries.join(";")
 }
 
@@ -260,11 +256,27 @@ fn upsert_source_block(current: &str, managed_profile: &Path) -> String {
 }
 
 fn escape_powershell_path(path: &Path) -> String {
-    path.display().to_string().replace('\'', "''")
+    escape_powershell_value(&path.display().to_string())
 }
 
 fn escape_unix_path(path: &Path) -> String {
-    path.display().to_string().replace('\'', "'\"'\"'")
+    escape_unix_value(&path.display().to_string())
+}
+
+fn escape_cmd_value(value: &str) -> String {
+    value.replace('"', "\"\"")
+}
+
+fn escape_powershell_value(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+fn escape_unix_value(value: &str) -> String {
+    value.replace('\'', "'\"'\"'")
+}
+
+fn resolve_launcher_executable_path() -> Result<PathBuf> {
+    env::current_exe().map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -273,7 +285,7 @@ mod tests {
     use crate::framework::{
         paths::resolve_paths_for_root, services::openclaw_runtime::ActivatedOpenClawRuntime,
     };
-    use std::fs;
+    use std::{fs, path::PathBuf};
 
     #[test]
     fn writes_openclaw_cli_shims_for_windows_shells() {
@@ -290,12 +302,15 @@ mod tests {
         let ps1 = fs::read_to_string(paths.user_bin_dir.join("openclaw.ps1")).expect("ps1 shim");
         let unix = fs::read_to_string(paths.user_bin_dir.join("openclaw")).expect("unix shim");
 
-        assert!(cmd.contains(runtime.node_path.to_string_lossy().as_ref()));
-        assert!(cmd.contains(runtime.cli_path.to_string_lossy().as_ref()));
-        assert!(ps1.contains(runtime.node_path.to_string_lossy().as_ref()));
-        assert!(ps1.contains(runtime.cli_path.to_string_lossy().as_ref()));
-        assert!(unix.contains(runtime.node_path.to_string_lossy().as_ref()));
-        assert!(unix.contains(runtime.cli_path.to_string_lossy().as_ref()));
+        assert!(cmd.contains("--run-openclaw-cli"));
+        assert!(!cmd.contains("OPENCLAW_GATEWAY_TOKEN"));
+        assert!(!cmd.contains(runtime.gateway_auth_token.as_str()));
+        assert!(ps1.contains("--run-openclaw-cli"));
+        assert!(!ps1.contains("OPENCLAW_GATEWAY_TOKEN"));
+        assert!(!ps1.contains(runtime.gateway_auth_token.as_str()));
+        assert!(unix.contains("--run-openclaw-cli"));
+        assert!(!unix.contains("OPENCLAW_GATEWAY_TOKEN"));
+        assert!(!unix.contains(runtime.gateway_auth_token.as_str()));
     }
 
     #[test]
@@ -322,11 +337,41 @@ mod tests {
         assert_eq!(profile.matches(export_line.as_str()).count(), 1);
     }
 
+    #[test]
+    fn windows_path_registration_prioritizes_embedded_openclaw_bin_directory() {
+        let user_bin_dir = PathBuf::from(r"C:\Users\admin\AppData\Local\Claw Studio\bin");
+        let current = format!(
+            r"C:\Program Files\OpenClaw\bin;{};C:\Windows\System32",
+            user_bin_dir.display()
+        );
+
+        let merged = super::merge_windows_path(&current, &user_bin_dir);
+        let entries = merged.split(';').collect::<Vec<_>>();
+
+        assert_eq!(
+            entries.first().copied(),
+            Some(user_bin_dir.to_string_lossy().as_ref()),
+            "the embedded openclaw bin dir should take precedence on PATH"
+        );
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|entry| entry.eq_ignore_ascii_case(user_bin_dir.to_string_lossy().as_ref()))
+                .count(),
+            1,
+            "the embedded openclaw bin dir should not be duplicated on PATH"
+        );
+    }
+
     fn test_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
-        let install_dir = paths.openclaw_runtime_dir.join("2026.3.13-windows-x64");
+        let install_dir = paths.openclaw_runtime_dir.join("2026.3.23-2-windows-x64");
         let runtime_dir = install_dir.join("runtime");
         let node_path = runtime_dir.join("node").join("node.exe");
-        let cli_path = runtime_dir.join("package").join("openclaw.mjs");
+        let cli_path = runtime_dir
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("openclaw.mjs");
 
         fs::create_dir_all(node_path.parent().expect("node parent")).expect("node dir");
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
@@ -334,7 +379,7 @@ mod tests {
         fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
 
         ActivatedOpenClawRuntime {
-            install_key: "2026.3.13-windows-x64".to_string(),
+            install_key: "2026.3.23-2-windows-x64".to_string(),
             install_dir,
             runtime_dir,
             node_path,

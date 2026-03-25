@@ -1,5 +1,6 @@
 export const DESKTOP_COMMANDS = {
   getApiRouterRuntimeStatus: 'get_api_router_runtime_status',
+  ensureApiRouterRuntimeStarted: 'ensure_api_router_runtime_started',
   getApiRouterChannels: 'get_api_router_channels',
   getApiRouterGroups: 'get_api_router_groups',
   getApiRouterProxyProviders: 'get_api_router_proxy_providers',

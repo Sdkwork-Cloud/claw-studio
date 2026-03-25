@@ -34,8 +34,9 @@ runTest('desktop shell hides native window chrome in favor of a custom title bar
   assert.equal(mainWindow?.fullscreen, false);
 });
 
-runTest('desktop shell keeps title-bar window controls in the platform bridge', () => {
+runTest('desktop shell keeps title-bar window controls in the shared desktop bridge component', () => {
   const bridgeSource = readText('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
+  const controlsSource = readText('packages/sdkwork-claw-core/src/components/DesktopWindowControls.tsx');
   const headerSource = readText('packages/sdkwork-claw-shell/src/components/AppHeader.tsx');
   const startupSource = readText(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopStartupScreen.tsx',
@@ -48,8 +49,10 @@ runTest('desktop shell keeps title-bar window controls in the platform bridge', 
   assert.match(bridgeSource, /unmaximize/);
   assert.match(bridgeSource, /isMaximized/);
   assert.match(bridgeSource, /closeWindow/);
-  assert.match(headerSource, /restoreWindow/);
-  assert.match(headerSource, /isWindowMaximized/);
+  assert.match(controlsSource, /restoreWindow/);
+  assert.match(controlsSource, /isWindowMaximized/);
+  assert.match(headerSource, /DesktopWindowControls/);
+  assert.match(headerSource, /variant="header"/);
   assert.match(startupSource, /restoreWindow/);
   assert.match(startupSource, /isWindowMaximized/);
 });

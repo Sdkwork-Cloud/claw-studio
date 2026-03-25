@@ -84,6 +84,50 @@ runTest('sdkwork-claw-shell exposes the agent marketplace across route, sidebar,
   assert.equal(zhLocale.agentMarket.hero.title, 'OpenClaw Agent 市场');
 });
 
+runTest('sdkwork-claw-shell exposes ClawMall across route, sidebar, settings, prefetch, and command surfaces', () => {
+  const shellPackage = readJson<{ dependencies?: Record<string, string> }>(
+    'packages/sdkwork-claw-shell/package.json',
+  );
+  const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
+  const routePathsSource = read('packages/sdkwork-claw-shell/src/application/router/routePaths.ts');
+  const routePrefetchSource = read('packages/sdkwork-claw-shell/src/application/router/routePrefetch.ts');
+  const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
+  const settingsSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
+  const commandPaletteSource = read('packages/sdkwork-claw-shell/src/components/commandPaletteCommands.ts');
+  const enLocale = readJson<{
+    sidebar: { clawMall: string };
+    commandPalette: { commands: { mall: { title: string; subtitle: string } } };
+  }>('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = readJson<{
+    sidebar: { clawMall: string };
+    commandPalette: { commands: { mall: { title: string; subtitle: string } } };
+  }>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+
+  assert.equal(shellPackage.dependencies?.['@sdkwork/claw-mall'], 'workspace:*');
+  assert.match(routePathsSource, /MALL: '\/mall'/);
+  assert.match(routePathsSource, /PRODUCT_DETAIL: '\/mall\/:id'/);
+  assert.match(routesSource, /const ClawMall = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-mall'\)/);
+  assert.match(routesSource, /const ProductDetail = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-mall'\)/);
+  assert.match(routesSource, /path="\/mall"/);
+  assert.match(routesSource, /path="\/mall\/:id"/);
+  assert.match(routesSource, /<ClawMall \/>/);
+  assert.match(routesSource, /<ProductDetail \/>/);
+  assert.match(routePrefetchSource, /\['\/mall', \(\) => import\('@sdkwork\/claw-mall'\)\]/);
+  assert.match(sidebarSource, /id: 'mall'/);
+  assert.match(sidebarSource, /to: '\/mall'/);
+  assert.match(sidebarSource, /icon: Store/);
+  assert.match(sidebarSource, /label: t\('sidebar\.clawMall'\)/);
+  assert.match(settingsSource, /id: 'mall', label: t\('sidebar\.clawMall'\)/);
+  assert.match(commandPaletteSource, /id: 'nav-mall'/);
+  assert.match(commandPaletteSource, /commandPalette\.commands\.mall\.title/);
+  assert.match(commandPaletteSource, /navigate\('\/mall'\)/);
+  assert.match(commandPaletteSource, /icon: Store/);
+  assert.equal(enLocale.sidebar.clawMall, 'Claw Mall');
+  assert.equal(enLocale.commandPalette.commands.mall.title, 'Go to Claw Mall');
+  assert.equal(zhLocale.sidebar.clawMall, 'Claw 商城');
+  assert.equal(zhLocale.commandPalette.commands.mall.title, '前往 Claw 商城');
+});
+
 runTest('sdkwork-claw-shell keeps sidebar and navigation icons semantically grouped instead of using generic placeholders', () => {
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
   const commandPaletteSource = read('packages/sdkwork-claw-shell/src/components/commandPaletteCommands.ts');
@@ -99,6 +143,7 @@ runTest('sdkwork-claw-shell keeps sidebar and navigation icons semantically grou
   assert.match(sidebarSource, /id: 'tasks', to: '\/tasks', icon: CalendarClock/);
   assert.match(sidebarSource, /id: 'dashboard', to: '\/dashboard', icon: LayoutDashboard/);
   assert.match(sidebarSource, /id: 'market',[\s\S]*icon: Blocks/);
+  assert.match(sidebarSource, /id: 'mall', to: '\/mall', icon: Store/);
   assert.match(sidebarSource, /id: 'extensions', to: '\/extensions', icon: PlugZap/);
   assert.match(sidebarSource, /id: 'claw-upload', to: '\/claw-center', icon: Waypoints/);
   assert.match(sidebarSource, /id: 'community', to: '\/community', icon: Newspaper/);
@@ -113,9 +158,12 @@ runTest('sdkwork-claw-shell keeps sidebar and navigation icons semantically grou
   assert.match(commandPaletteSource, /LayoutDashboard/);
   assert.match(commandPaletteSource, /BrainCircuit/);
   assert.match(commandPaletteSource, /Waypoints/);
+  assert.match(commandPaletteSource, /Store/);
   assert.match(commandPaletteSource, /id: 'nav-dashboard',[\s\S]*icon: LayoutDashboard/);
+  assert.match(commandPaletteSource, /id: 'nav-mall',[\s\S]*icon: Store/);
   assert.match(commandPaletteSource, /id: 'nav-hf',[\s\S]*icon: BrainCircuit/);
   assert.match(commandPaletteSource, /id: 'nav-upload',[\s\S]*icon: Waypoints/);
+  assert.match(commandPaletteSource, /id: 'nav-mall',[\s\S]*navigate\('\/mall'\)/);
   assert.match(commandPaletteSource, /id: 'nav-upload',[\s\S]*navigate\('\/claw-center'\)/);
   assert.doesNotMatch(commandPaletteSource, /id: 'nav-dashboard',[\s\S]*icon: Gauge/);
   assert.doesNotMatch(commandPaletteSource, /id: 'nav-hf',[\s\S]*icon: Box/);
@@ -134,6 +182,7 @@ runTest('sdkwork-claw-shell lazy-loads heavy route modules so the shell entry st
   assert.match(routesSource, /const ApiRouter = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-apirouter'\)/);
   assert.match(routesSource, /const Points = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-points'\)/);
   assert.match(routesSource, /const AppStore = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-apps'\)/);
+  assert.match(routesSource, /const ClawMall = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-mall'\)/);
   assert.match(
     routesSource,
     /path="\/dashboard"[\s\S]*<Suspense fallback={<RouteFallback \/>}>[\s\S]*<Dashboard \/>/,
@@ -230,6 +279,19 @@ runTest('sdkwork-claw-shell promotes a unified app header above routed content',
   assert.match(routesSource, /path="\/dashboard"/);
 });
 
+runTest('sdkwork-claw-shell reuses the shared app header for auth routes while hiding workspace-only chrome', () => {
+  const layoutSource = read('packages/sdkwork-claw-shell/src/application/layouts/MainLayout.tsx');
+  const headerSource = read('packages/sdkwork-claw-shell/src/components/AppHeader.tsx');
+
+  assert.match(layoutSource, /if \(isAuthRoute\)/);
+  assert.match(layoutSource, /<AppHeader mode="auth" \/>/);
+  assert.match(headerSource, /mode\?: 'default' \| 'auth'/);
+  assert.match(headerSource, /const isAuthMode = mode === 'auth';/);
+  assert.match(headerSource, /\{!isAuthMode \? \([\s\S]*data-slot="app-header-search"/);
+  assert.match(headerSource, /\{!isAuthMode \? \([\s\S]*data-slot="app-header-center"/);
+  assert.match(headerSource, /DesktopWindowControls variant="header" \/>/);
+});
+
 runTest('sdkwork-claw-shell splits auth flows into distinct routes and moves settings into the user control', () => {
   const layoutSource = read('packages/sdkwork-claw-shell/src/application/layouts/MainLayout.tsx');
   const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
@@ -242,6 +304,23 @@ runTest('sdkwork-claw-shell splits auth flows into distinct routes and moves set
   assert.match(layoutSource, /isAuthRoute/);
   assert.match(sidebarSource, /data-slot="sidebar-user-control"/);
   assert.doesNotMatch(sidebarSource, /to="\/settings"/);
+});
+
+runTest('sdkwork-claw-shell routes OAuth callbacks through the dedicated auth callback page and keeps them inside the shared auth header chrome', () => {
+  const layoutSource = read('packages/sdkwork-claw-shell/src/application/layouts/MainLayout.tsx');
+  const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
+  const routePathsSource = read('packages/sdkwork-claw-shell/src/application/router/routePaths.ts');
+
+  assert.match(routePathsSource, /OAUTH_CALLBACK: '\/login\/oauth\/callback\/:provider'/);
+  assert.match(routePathsSource, /OAUTH_CALLBACK_PREFIX: '\/login\/oauth\/callback'/);
+  assert.match(
+    routesSource,
+    /const AuthOAuthCallbackPage = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-auth'\)[\s\S]*module\.AuthOAuthCallbackPage/,
+  );
+  assert.match(routesSource, /path="\/login\/oauth\/callback\/:provider"/);
+  assert.match(routesSource, /<AuthOAuthCallbackPage \/>/);
+  assert.match(layoutSource, /location\.pathname\.startsWith\(ROUTE_PATHS\.OAUTH_CALLBACK_PREFIX\)/);
+  assert.match(layoutSource, /<AppHeader mode="auth" \/>/);
 });
 
 runTest('sdkwork-claw-settings removes the dedicated llm settings tab in favor of api-router configuration', () => {
@@ -337,6 +416,16 @@ runTest('sdkwork-claw-shell uses a flat borderless header chrome', () => {
   assert.doesNotMatch(switcherSource, /border/);
 });
 
+runTest('sdkwork-claw-shell reuses the shared core desktop window controls instead of defining header-local window chrome', () => {
+  const headerSource = read('packages/sdkwork-claw-shell/src/components/AppHeader.tsx');
+
+  assert.match(headerSource, /DesktopWindowControls/);
+  assert.match(headerSource, /from '@sdkwork\/claw-core'/);
+  assert.doesNotMatch(headerSource, /function DesktopWindowControls/);
+  assert.doesNotMatch(headerSource, /function useDesktopWindowMaximized/);
+  assert.doesNotMatch(headerSource, /function WindowSizeGlyph/);
+});
+
 runTest('sdkwork-claw-shell keeps a persistent mobile app entry in the header chrome', () => {
   const headerSource = read('packages/sdkwork-claw-shell/src/components/AppHeader.tsx');
 
@@ -381,6 +470,7 @@ runTest('sdkwork-claw-shell keeps the registry center under the Claw联网 entry
   const appStoreSource = read('packages/sdkwork-claw-core/src/stores/useAppStore.ts');
 
   assert.match(sidebarSource, /id: 'market'/);
+  assert.match(sidebarSource, /id: 'mall'/);
   assert.match(sidebarSource, /id: 'apps'/);
   assert.match(sidebarSource, /id: 'extensions'/);
   assert.match(sidebarSource, /id: 'claw-upload', to: '\/claw-center'/);
@@ -388,6 +478,7 @@ runTest('sdkwork-claw-shell keeps the registry center under the Claw联网 entry
   assert.match(sidebarSource, /id: 'github'/);
   assert.match(sidebarSource, /id: 'huggingface'/);
   assert.match(settingsSource, /id: 'apps', label: t\('sidebar\.appStore'\)/);
+  assert.match(settingsSource, /id: 'mall', label: t\('sidebar\.clawMall'\)/);
   assert.match(settingsSource, /id: 'market', label: t\('sidebar\.market'\)/);
   assert.match(settingsSource, /id: 'extensions', label: t\('sidebar\.extensions'\)/);
   assert.match(settingsSource, /id: 'claw-upload', label: t\('sidebar\.clawUpload'\)/);

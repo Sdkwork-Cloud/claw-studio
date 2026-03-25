@@ -923,7 +923,7 @@ export function Install() {
                           onClick={() => navigate(`/install/${choice.id}`)}
                           className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
                         >
-                          Guide
+                          {t('install.page.method.actions.guide')}
                         </button>
                         <button
                           type="button"

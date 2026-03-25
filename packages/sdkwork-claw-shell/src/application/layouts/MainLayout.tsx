@@ -28,7 +28,8 @@ export function MainLayout() {
     location.pathname === ROUTE_PATHS.AUTH ||
     location.pathname === ROUTE_PATHS.LOGIN ||
     location.pathname === ROUTE_PATHS.REGISTER ||
-    location.pathname === ROUTE_PATHS.FORGOT_PASSWORD;
+    location.pathname === ROUTE_PATHS.FORGOT_PASSWORD ||
+    location.pathname.startsWith(ROUTE_PATHS.OAUTH_CALLBACK_PREFIX);
   const isInstallRoute =
     location.pathname === ROUTE_PATHS.INSTALL ||
     location.pathname.startsWith(`${ROUTE_PATHS.INSTALL}/`);
@@ -56,11 +57,12 @@ export function MainLayout() {
 
   if (isAuthRoute) {
     return (
-      <div className="relative flex h-screen overflow-hidden bg-zinc-100 font-sans text-zinc-900 transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-50">
+      <div className="relative flex h-screen flex-col overflow-hidden bg-zinc-100 font-sans text-zinc-900 transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-50">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.14),_transparent_68%)] dark:bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_68%)]" />
         </div>
-        <main className="relative z-10 flex-1 overflow-auto scrollbar-hide">
+        <AppHeader mode="auth" />
+        <main className="relative z-10 min-h-0 flex-1 overflow-auto scrollbar-hide">
           <AppRoutes />
         </main>
       </div>

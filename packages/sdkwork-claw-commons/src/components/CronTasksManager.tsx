@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -20,14 +20,18 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
+  buildTaskAgentSelectState,
   buildTaskCardState,
   buildTaskCreateWorkspaceState,
   buildCreateTaskInput,
   buildTaskFormValuesFromTask,
   collectTaskFormErrors,
   createDefaultTaskFormValues,
+  DEFAULT_TASK_AGENT_SELECT_VALUE,
   getActionTypeFromExecutionContent,
   isTaskThinkingLevel,
+  openClawAgentCatalogService,
+  type OpenClawAgentCatalog,
   serializeTaskSchedule,
   taskService,
   taskThinkingLevels,
@@ -251,6 +255,10 @@ export function CronTasksManager({
   const [tasks, setTasks] = useState<Task[]>([]);
   const [executionsByTaskId, setExecutionsByTaskId] = useState<Record<string, TaskExecutionHistoryEntry[]>>({});
   const [deliveryChannels, setDeliveryChannels] = useState<TaskDeliveryChannelOption[]>([]);
+  const [agentCatalog, setAgentCatalog] = useState<OpenClawAgentCatalog>({
+    agents: [],
+    defaultAgentId: null,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editorMode, setEditorMode] = useState<'create' | 'edit' | null>(null);
@@ -276,6 +284,19 @@ export function CronTasksManager({
   const channelNameMap = Object.fromEntries(
     deliveryChannels.map((channel) => [channel.id, channel.name]),
   ) as Record<string, string>;
+  const taskAgentSelectState = buildTaskAgentSelectState({
+    catalog: agentCatalog,
+    selectedAgentId: taskForm.agentId,
+  });
+  const selectedTaskAgentOption =
+    taskAgentSelectState.options.find((option) => option.value === taskAgentSelectState.value) || null;
+  const defaultTaskAgent =
+    agentCatalog.agents.find((agent) => agent.isDefault) ||
+    agentCatalog.agents.find((agent) => agent.id === agentCatalog.defaultAgentId) ||
+    null;
+  const supportsAgentCatalogSelection = agentCatalog.defaultAgentId !== null;
+  const defaultTaskAgentId = agentCatalog.defaultAgentId || defaultTaskAgent?.id || 'main';
+  const defaultTaskAgentName = defaultTaskAgent?.name || defaultTaskAgentId;
 
   const stats = {
     total: tasks.length,
@@ -292,6 +313,10 @@ export function CronTasksManager({
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
     setHasConsumedRouteIntent(false);
+    setAgentCatalog({
+      agents: [],
+      defaultAgentId: null,
+    });
   }, [activeInstanceId]);
 
   async function refreshTaskStudio(mode: 'initial' | 'refresh' = 'refresh') {
@@ -299,6 +324,10 @@ export function CronTasksManager({
       setTasks([]);
       setExecutionsByTaskId({});
       setDeliveryChannels([]);
+      setAgentCatalog({
+        agents: [],
+        defaultAgentId: null,
+      });
       setIsLoading(false);
       setIsRefreshing(false);
       return;
@@ -311,12 +340,16 @@ export function CronTasksManager({
     }
 
     try {
-      const [nextTasks, nextChannels] = await Promise.all([
+      const [nextTasks, nextChannels, nextAgentCatalog] = await Promise.all([
         taskService.getTasks(activeInstanceId),
         taskService.listDeliveryChannels(activeInstanceId).catch(() => {
           toast.error(t('tasks.page.toasts.failedToLoadChannels'));
           return [];
         }),
+        openClawAgentCatalogService.getCatalog(activeInstanceId).catch(() => ({
+          agents: [],
+          defaultAgentId: null,
+        })),
       ]);
       const executionEntries = await Promise.all(
         nextTasks.map(async (task) => {
@@ -330,6 +363,7 @@ export function CronTasksManager({
 
       setTasks(nextTasks);
       setDeliveryChannels(nextChannels);
+      setAgentCatalog(nextAgentCatalog);
       setExecutionsByTaskId(
         Object.fromEntries(executionEntries) as Record<string, TaskExecutionHistoryEntry[]>,
       );
@@ -597,35 +631,83 @@ export function CronTasksManager({
     return <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{hint}</p>;
   }
 
+  function renderCompactField({
+    label,
+    field,
+    hint,
+    meta,
+    align = 'start',
+    bodyClassName,
+    children,
+  }: {
+    label: string;
+    field?: TaskFormErrorKey;
+    hint?: string;
+    meta?: ReactNode;
+    align?: 'start' | 'center';
+    bodyClassName?: string;
+    children: ReactNode;
+  }) {
+    const resolvedMeta =
+      meta !== undefined
+        ? meta
+        : field
+          ? renderFieldMeta(field, hint)
+          : hint
+            ? <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">{hint}</p>
+            : null;
+
+    return (
+      <div
+        className={cn(
+          'grid gap-2 md:grid-cols-[10rem,minmax(0,1fr)] md:gap-3',
+          align === 'center' ? 'md:items-center' : 'md:items-start',
+        )}
+      >
+        <Label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 md:pt-2">
+          {label}
+        </Label>
+        <div className={cn('min-w-0 space-y-2', bodyClassName)}>
+          {children}
+          {resolvedMeta}
+        </div>
+      </div>
+    );
+  }
+
   function renderBasicInfoSection() {
     return (
-      <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
-        <section className="space-y-6">
-          <div className="rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="grid gap-5 xl:grid-cols-[1.08fr,0.92fr]">
+        <section className="space-y-5">
+          <div className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.overviewTitle')}
             </h3>
             <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
               {t('tasks.page.workspace.overviewDescription')}
             </p>
-            <div className="mt-5 space-y-5">
-              <div>
-                <Label className="mb-2 block">{t('tasks.page.fields.taskName')}</Label>
-                <Input
-                  value={taskForm.name}
-                  onChange={(event) => updateTaskFormField('name', event.target.value)}
-                  placeholder={t('tasks.page.fields.taskNamePlaceholder')}
-                />
-                {renderFieldMeta('name')}
-              </div>
-              <div>
-                <Label className="mb-2 block">{t('tasks.page.fields.description')}</Label>
-                <Input
-                  value={taskForm.description}
-                  onChange={(event) => updateTaskFormField('description', event.target.value)}
-                  placeholder={t('tasks.page.fields.descriptionPlaceholder')}
-                />
-              </div>
+            <div className="mt-4 space-y-4">
+              {renderCompactField({
+                label: t('tasks.page.fields.taskName'),
+                field: 'name',
+                children: (
+                  <Input
+                    value={taskForm.name}
+                    onChange={(event) => updateTaskFormField('name', event.target.value)}
+                    placeholder={t('tasks.page.fields.taskNamePlaceholder')}
+                  />
+                ),
+              })}
+              {renderCompactField({
+                label: t('tasks.page.fields.description'),
+                children: (
+                  <Input
+                    value={taskForm.description}
+                    onChange={(event) => updateTaskFormField('description', event.target.value)}
+                    placeholder={t('tasks.page.fields.descriptionPlaceholder')}
+                  />
+                ),
+              })}
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -645,35 +727,42 @@ export function CronTasksManager({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.promptTitle')}
             </h3>
             <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
               {t('tasks.page.workspace.promptDescription')}
             </p>
-            <div className="mt-5">
-              <Label className="mb-2 block">{t('tasks.page.fields.prompt')}</Label>
-              <Textarea
-                rows={12}
-                value={taskForm.prompt}
-                onChange={(event) => updateTaskFormField('prompt', event.target.value)}
-                placeholder={t('tasks.page.fields.promptPlaceholder')}
-                className="min-h-[260px] resize-none"
-              />
-              {renderFieldMeta('prompt', t('tasks.page.fields.promptHelp'))}
+            <div className="mt-4">
+              {renderCompactField({
+                label: t('tasks.page.fields.prompt'),
+                field: 'prompt',
+                hint: t('tasks.page.fields.promptHelp'),
+                align: 'start',
+                bodyClassName: 'space-y-3',
+                children: (
+                  <Textarea
+                    rows={10}
+                    value={taskForm.prompt}
+                    onChange={(event) => updateTaskFormField('prompt', event.target.value)}
+                    placeholder={t('tasks.page.fields.promptPlaceholder')}
+                    className="min-h-[220px] resize-none"
+                  />
+                ),
+              })}
             </div>
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
             {t('tasks.page.workspace.scheduleTitle')}
           </h3>
           <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
             {t('tasks.page.workspace.scheduleDescription')}
           </p>
-          <div className="mt-5 space-y-5">
+          <div className="mt-4 space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
               {(['interval', 'datetime', 'cron'] as TaskScheduleMode[]).map((mode) => (
                 <button
@@ -698,57 +787,65 @@ export function CronTasksManager({
             </div>
 
             {taskForm.scheduleMode === 'interval' ? (
-              <div className="grid gap-4 md:grid-cols-[1.1fr,0.9fr]">
-                <div>
-                  <Label className="mb-2 block">{t('tasks.page.fields.intervalValue')}</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={taskForm.intervalValue}
-                    onChange={(event) => updateTaskFormField('intervalValue', event.target.value)}
-                    placeholder="30"
-                  />
-                  {renderFieldMeta('intervalValue')}
-                </div>
-                <div>
-                  <Label className="mb-2 block">{t('tasks.page.fields.intervalUnit')}</Label>
-                  <Select
-                    value={taskForm.intervalUnit}
-                    onValueChange={(value) => updateTaskFormField('intervalUnit', value as TaskIntervalUnit)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="minute">{t('tasks.page.intervalUnits.minutes')}</SelectItem>
-                      <SelectItem value="hour">{t('tasks.page.intervalUnits.hours')}</SelectItem>
-                      <SelectItem value="day">{t('tasks.page.intervalUnits.days')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-3">
+                {renderCompactField({
+                  label: t('tasks.page.fields.intervalValue'),
+                  field: 'intervalValue',
+                  children: (
+                    <Input
+                      type="number"
+                      min="1"
+                      value={taskForm.intervalValue}
+                      onChange={(event) => updateTaskFormField('intervalValue', event.target.value)}
+                      placeholder="30"
+                    />
+                  ),
+                })}
+                {renderCompactField({
+                  label: t('tasks.page.fields.intervalUnit'),
+                  children: (
+                    <Select
+                      value={taskForm.intervalUnit}
+                      onValueChange={(value) => updateTaskFormField('intervalUnit', value as TaskIntervalUnit)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="minute">{t('tasks.page.intervalUnits.minutes')}</SelectItem>
+                        <SelectItem value="hour">{t('tasks.page.intervalUnits.hours')}</SelectItem>
+                        <SelectItem value="day">{t('tasks.page.intervalUnits.days')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ),
+                })}
               </div>
             ) : null}
 
             {taskForm.scheduleMode === 'datetime' ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label className="mb-2 block">{t('tasks.page.fields.scheduledDate')}</Label>
-                  <DateInput
-                    calendarLabel={t('tasks.page.fields.scheduledDate')}
-                    value={taskForm.scheduledDate}
-                    onChange={(event) => updateTaskFormField('scheduledDate', event.target.value)}
-                  />
-                  {renderFieldMeta('scheduledDate')}
-                </div>
-                <div>
-                  <Label className="mb-2 block">{t('tasks.page.fields.scheduledTime')}</Label>
-                  <Input
-                    type="time"
-                    value={taskForm.scheduledTime}
-                    onChange={(event) => updateTaskFormField('scheduledTime', event.target.value)}
-                  />
-                  {renderFieldMeta('scheduledTime')}
-                </div>
+              <div className="space-y-3">
+                {renderCompactField({
+                  label: t('tasks.page.fields.scheduledDate'),
+                  field: 'scheduledDate',
+                  children: (
+                    <DateInput
+                      calendarLabel={t('tasks.page.fields.scheduledDate')}
+                      value={taskForm.scheduledDate}
+                      onChange={(event) => updateTaskFormField('scheduledDate', event.target.value)}
+                    />
+                  ),
+                })}
+                {renderCompactField({
+                  label: t('tasks.page.fields.scheduledTime'),
+                  field: 'scheduledTime',
+                  children: (
+                    <Input
+                      type="time"
+                      value={taskForm.scheduledTime}
+                      onChange={(event) => updateTaskFormField('scheduledTime', event.target.value)}
+                    />
+                  ),
+                })}
               </div>
             ) : null}
 
@@ -760,40 +857,50 @@ export function CronTasksManager({
                 <p className="mt-1 text-xs leading-5 text-primary-700 dark:text-primary-200">
                   {t('tasks.page.workspace.cronManagedInAdvanced')}
                 </p>
-                <div className="mt-4">
-                  <Label className="mb-2 block">{t('tasks.page.fields.cronExpression')}</Label>
-                  <Input
-                    value={taskForm.cronExpression}
-                    onChange={(event) => updateTaskFormField('cronExpression', event.target.value)}
-                    placeholder={t('tasks.page.fields.cronExpressionPlaceholder')}
-                    className="font-mono"
-                  />
-                  {renderFieldMeta('cronExpression', t('tasks.page.fields.cronExpressionHelp'))}
-                </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label className="mb-2 block">{t('tasks.page.fields.cronTimezone')}</Label>
-                    <Input
-                      value={taskForm.cronTimezone}
-                      onChange={(event) => updateTaskFormField('cronTimezone', event.target.value)}
-                      placeholder={t('tasks.page.fields.cronTimezonePlaceholder')}
-                    />
-                    <p className="mt-2 text-xs leading-5 text-primary-700 dark:text-primary-200">
-                      {t('tasks.page.fields.cronTimezoneHelp')}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="mb-2 block">{t('tasks.page.fields.staggerMs')}</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="1000"
-                      value={taskForm.staggerMs}
-                      onChange={(event) => updateTaskFormField('staggerMs', event.target.value)}
-                      placeholder={t('tasks.page.fields.staggerMsPlaceholder')}
-                    />
-                    {renderFieldMeta('staggerMs', t('tasks.page.fields.staggerMsHelp'))}
-                  </div>
+                <div className="mt-4 space-y-3">
+                  {renderCompactField({
+                    label: t('tasks.page.fields.cronExpression'),
+                    field: 'cronExpression',
+                    hint: t('tasks.page.fields.cronExpressionHelp'),
+                    children: (
+                      <Input
+                        value={taskForm.cronExpression}
+                        onChange={(event) => updateTaskFormField('cronExpression', event.target.value)}
+                        placeholder={t('tasks.page.fields.cronExpressionPlaceholder')}
+                        className="font-mono"
+                      />
+                    ),
+                  })}
+                  {renderCompactField({
+                    label: t('tasks.page.fields.cronTimezone'),
+                    meta: (
+                      <p className="text-xs leading-5 text-primary-700 dark:text-primary-200">
+                        {t('tasks.page.fields.cronTimezoneHelp')}
+                      </p>
+                    ),
+                    children: (
+                      <Input
+                        value={taskForm.cronTimezone}
+                        onChange={(event) => updateTaskFormField('cronTimezone', event.target.value)}
+                        placeholder={t('tasks.page.fields.cronTimezonePlaceholder')}
+                      />
+                    ),
+                  })}
+                  {renderCompactField({
+                    label: t('tasks.page.fields.staggerMs'),
+                    field: 'staggerMs',
+                    hint: t('tasks.page.fields.staggerMsHelp'),
+                    children: (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={taskForm.staggerMs}
+                        onChange={(event) => updateTaskFormField('staggerMs', event.target.value)}
+                        placeholder={t('tasks.page.fields.staggerMsPlaceholder')}
+                      />
+                    ),
+                  })}
                 </div>
               </div>
             ) : null}
@@ -848,16 +955,16 @@ export function CronTasksManager({
 
   function renderExecutionSection() {
     return (
-      <div className="space-y-6">
-        <div className="grid gap-6 xl:grid-cols-2">
-          <section className="rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="space-y-5">
+        <div className="grid gap-5 xl:grid-cols-2">
+          <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.commonConfigTitle')}
             </h3>
             <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
               {t('tasks.page.workspace.commonConfigDescription')}
             </p>
-            <div className="mt-5 space-y-5">
+            <div className="mt-4 space-y-4">
               <div>
                 <div className="mb-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
                   {t('tasks.page.fields.executionContent')}
@@ -910,15 +1017,18 @@ export function CronTasksManager({
               </div>
 
               {taskForm.sessionMode === 'custom' ? (
-                <div>
-                  <Label className="mb-2 block">{t('tasks.page.fields.customSessionId')}</Label>
-                  <Input
-                    value={taskForm.customSessionId}
-                    onChange={(event) => updateTaskFormField('customSessionId', event.target.value)}
-                    placeholder={t('tasks.page.fields.customSessionIdPlaceholder')}
-                  />
-                  {renderFieldMeta('customSessionId', t('tasks.page.fields.customSessionIdHelp'))}
-                </div>
+                renderCompactField({
+                  label: t('tasks.page.fields.customSessionId'),
+                  field: 'customSessionId',
+                  hint: t('tasks.page.fields.customSessionIdHelp'),
+                  children: (
+                    <Input
+                      value={taskForm.customSessionId}
+                      onChange={(event) => updateTaskFormField('customSessionId', event.target.value)}
+                      placeholder={t('tasks.page.fields.customSessionIdPlaceholder')}
+                    />
+                  ),
+                })
               ) : null}
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -946,14 +1056,14 @@ export function CronTasksManager({
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
               {t('tasks.page.workspace.deliveryTitle')}
             </h3>
             <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
               {t('tasks.page.workspace.deliveryDescription')}
             </p>
-            <div className="mt-5 space-y-5">
+            <div className="mt-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
                 {getAvailableDeliveryModes(taskForm.sessionMode).map((value) => (
                   <button
@@ -979,53 +1089,60 @@ export function CronTasksManager({
 
               {taskForm.deliveryMode === 'publishSummary' ? (
                 <>
-                  <div>
-                    <Label className="mb-2 block">{t('tasks.page.fields.deliveryChannel')}</Label>
-                    <Select
-                      value={taskForm.deliveryChannel || undefined}
-                      onValueChange={(value) => updateTaskFormField('deliveryChannel', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('tasks.page.fields.deliveryChannelPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {deliveryChannels.map((channel) => (
-                          <SelectItem key={channel.id} value={channel.id}>
-                            {channel.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                      {deliveryChannels.length > 0
-                        ? t('tasks.page.fields.deliveryChannelHelp')
-                        : t('tasks.page.fields.noConnectedChannels')}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="mb-2 block">{t('tasks.page.fields.recipient')}</Label>
-                    <Input
-                      value={taskForm.recipient}
-                      onChange={(event) => updateTaskFormField('recipient', event.target.value)}
-                      placeholder={t('tasks.page.fields.recipientPlaceholder')}
-                    />
-                    <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                      {t('tasks.page.fields.recipientHelp')}
-                    </p>
-                  </div>
+                  {renderCompactField({
+                    label: t('tasks.page.fields.deliveryChannel'),
+                    meta: (
+                      <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                        {deliveryChannels.length > 0
+                          ? t('tasks.page.fields.deliveryChannelHelp')
+                          : t('tasks.page.fields.noConnectedChannels')}
+                      </p>
+                    ),
+                    children: (
+                      <Select
+                        value={taskForm.deliveryChannel || undefined}
+                        onValueChange={(value) => updateTaskFormField('deliveryChannel', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('tasks.page.fields.deliveryChannelPlaceholder')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {deliveryChannels.map((channel) => (
+                            <SelectItem key={channel.id} value={channel.id}>
+                              {channel.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ),
+                  })}
+                  {renderCompactField({
+                    label: t('tasks.page.fields.recipient'),
+                    hint: t('tasks.page.fields.recipientHelp'),
+                    children: (
+                      <Input
+                        value={taskForm.recipient}
+                        onChange={(event) => updateTaskFormField('recipient', event.target.value)}
+                        placeholder={t('tasks.page.fields.recipientPlaceholder')}
+                      />
+                    ),
+                  })}
                 </>
               ) : null}
 
               {taskForm.deliveryMode === 'webhook' ? (
-                <div>
-                  <Label className="mb-2 block">{t('tasks.page.fields.webhookUrl')}</Label>
-                  <Input
-                    value={taskForm.recipient}
-                    onChange={(event) => updateTaskFormField('recipient', event.target.value)}
-                    placeholder={t('tasks.page.fields.webhookUrlPlaceholder')}
-                  />
-                  {renderFieldMeta('recipient', t('tasks.page.fields.webhookUrlHelp'))}
-                </div>
+                renderCompactField({
+                  label: t('tasks.page.fields.webhookUrl'),
+                  field: 'recipient',
+                  hint: t('tasks.page.fields.webhookUrlHelp'),
+                  children: (
+                    <Input
+                      value={taskForm.recipient}
+                      onChange={(event) => updateTaskFormField('recipient', event.target.value)}
+                      placeholder={t('tasks.page.fields.webhookUrlPlaceholder')}
+                    />
+                  ),
+                })
               ) : null}
 
               {taskForm.deliveryMode !== 'none' ? (
@@ -1050,14 +1167,14 @@ export function CronTasksManager({
           </section>
         </div>
 
-        <section className="rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="rounded-[26px] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
             {t('tasks.page.workspace.executionAdvancedTitle')}
           </h3>
           <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
             {t('tasks.page.workspace.executionAdvancedDescription')}
           </p>
-          <div className="mt-5 grid gap-5 xl:grid-cols-[0.86fr,1.14fr]">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[0.84fr,1.16fr]">
             <div className="rounded-2xl border border-primary-200 bg-primary-50/70 p-5 dark:border-primary-500/20 dark:bg-primary-500/10">
               <div className="flex items-center gap-2 text-sm font-semibold text-primary-900 dark:text-primary-100">
                 <Shield className="h-4 w-4" />
@@ -1067,58 +1184,61 @@ export function CronTasksManager({
                 {t('tasks.page.workspace.executionSafeguardsDescription')}
               </p>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3">
               {taskForm.executionContent === 'runAssistantTask' ? (
                 <>
-                  <div>
-                    <Label className="mb-2 block">{t('tasks.page.fields.timeoutSeconds')}</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={taskForm.timeoutSeconds}
-                      onChange={(event) => updateTaskFormField('timeoutSeconds', event.target.value)}
-                      placeholder={t('tasks.page.fields.timeoutSecondsPlaceholder')}
-                    />
-                    {renderFieldMeta('timeoutSeconds', t('tasks.page.fields.timeoutSecondsHelp'))}
-                  </div>
-                  <div>
-                    <Label className="mb-2 block">{t('tasks.page.fields.model')}</Label>
-                    <Input
-                      value={taskForm.model}
-                      onChange={(event) => updateTaskFormField('model', event.target.value)}
-                      placeholder={t('tasks.page.fields.modelPlaceholder')}
-                    />
-                    <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                      {t('tasks.page.fields.modelHelp')}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="mb-2 block">{t('tasks.page.fields.thinking')}</Label>
-                    <Select
-                      value={taskForm.thinking || 'inherit'}
-                      onValueChange={(value) =>
-                        updateTaskFormField(
-                          'thinking',
-                          value === 'inherit' ? '' : isTaskThinkingLevel(value) ? value : '',
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('tasks.page.fields.thinkingPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="inherit">{t('tasks.page.thinkingLevels.inherit')}</SelectItem>
-                        {taskThinkingLevels.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {t(`tasks.page.thinkingLevels.${value}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                      {t('tasks.page.fields.thinkingHelp')}
-                    </p>
-                  </div>
+                  {renderCompactField({
+                    label: t('tasks.page.fields.timeoutSeconds'),
+                    field: 'timeoutSeconds',
+                    hint: t('tasks.page.fields.timeoutSecondsHelp'),
+                    children: (
+                      <Input
+                        type="number"
+                        min="1"
+                        value={taskForm.timeoutSeconds}
+                        onChange={(event) => updateTaskFormField('timeoutSeconds', event.target.value)}
+                        placeholder={t('tasks.page.fields.timeoutSecondsPlaceholder')}
+                      />
+                    ),
+                  })}
+                  {renderCompactField({
+                    label: t('tasks.page.fields.model'),
+                    hint: t('tasks.page.fields.modelHelp'),
+                    children: (
+                      <Input
+                        value={taskForm.model}
+                        onChange={(event) => updateTaskFormField('model', event.target.value)}
+                        placeholder={t('tasks.page.fields.modelPlaceholder')}
+                      />
+                    ),
+                  })}
+                  {renderCompactField({
+                    label: t('tasks.page.fields.thinking'),
+                    hint: t('tasks.page.fields.thinkingHelp'),
+                    children: (
+                      <Select
+                        value={taskForm.thinking || 'inherit'}
+                        onValueChange={(value) =>
+                          updateTaskFormField(
+                            'thinking',
+                            value === 'inherit' ? '' : isTaskThinkingLevel(value) ? value : '',
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('tasks.page.fields.thinkingPlaceholder')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inherit">{t('tasks.page.thinkingLevels.inherit')}</SelectItem>
+                          {taskThinkingLevels.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {t(`tasks.page.thinkingLevels.${value}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ),
+                  })}
                   <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950">
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -1137,17 +1257,71 @@ export function CronTasksManager({
                   </div>
                 </>
               ) : null}
-              <div>
-                <Label className="mb-2 block">{t('tasks.page.fields.agentId')}</Label>
-                <Input
-                  value={taskForm.agentId}
-                  onChange={(event) => updateTaskFormField('agentId', event.target.value)}
-                  placeholder={t('tasks.page.fields.agentIdPlaceholder')}
-                />
-                <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                  {t('tasks.page.fields.agentIdHelp')}
-                </p>
-              </div>
+              {renderCompactField({
+                label: t('tasks.page.fields.agentId'),
+                meta: (
+                  <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                    {supportsAgentCatalogSelection
+                      ? selectedTaskAgentOption?.defaultRoute
+                        ? t('tasks.page.fields.agentIdDefaultHelp', {
+                            name: defaultTaskAgentName,
+                            agentId: defaultTaskAgentId,
+                          })
+                        : selectedTaskAgentOption?.missing
+                          ? t('tasks.page.fields.agentIdUnavailableHelp', {
+                              agentId: selectedTaskAgentOption.agentId || taskForm.agentId,
+                            })
+                          : t('tasks.page.fields.agentIdCatalogHelp')
+                      : t('tasks.page.fields.agentIdHelp')}
+                  </p>
+                ),
+                children: supportsAgentCatalogSelection ? (
+                  <Select
+                    value={taskAgentSelectState.value}
+                    onValueChange={(value) =>
+                      updateTaskFormField(
+                        'agentId',
+                        value === DEFAULT_TASK_AGENT_SELECT_VALUE ? '' : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('tasks.page.fields.agentIdPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {taskAgentSelectState.options.map((option) => {
+                        const baseLabel =
+                          option.agentId && option.name !== option.agentId
+                            ? `${option.name} (${option.agentId})`
+                            : option.name;
+
+                        return (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.defaultRoute
+                              ? t('tasks.page.fields.agentIdDefaultOption', {
+                                  name: defaultTaskAgentName,
+                                  agentId: defaultTaskAgentId,
+                                })
+                              : option.missing
+                                ? t('tasks.page.fields.agentIdUnavailableOption', {
+                                    agentId: option.agentId || option.value,
+                                  })
+                                : option.defaultAgent
+                                  ? `${baseLabel} (${t('tasks.page.fields.agentIdDefaultLabel')})`
+                                  : baseLabel}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={taskForm.agentId}
+                    onChange={(event) => updateTaskFormField('agentId', event.target.value)}
+                    placeholder={t('tasks.page.fields.agentIdPlaceholder')}
+                  />
+                ),
+              })}
             </div>
           </div>
         </section>
@@ -1508,11 +1682,11 @@ export function CronTasksManager({
         isOpen={editorMode !== null}
         onClose={closeEditor}
         closeOnBackdrop={false}
-        className="max-w-[1180px]"
+        className="max-w-[1280px]"
       >
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <aside className="hidden w-[310px] shrink-0 border-r border-zinc-200/80 bg-zinc-50/90 dark:border-zinc-800 dark:bg-zinc-950/70 lg:flex lg:flex-col">
-            <div className="border-b border-zinc-200/80 px-6 py-6 dark:border-zinc-800">
+          <aside className="hidden w-[292px] shrink-0 border-r border-zinc-200/80 bg-zinc-50/90 dark:border-zinc-800 dark:bg-zinc-950/70 lg:flex lg:flex-col">
+            <div className="border-b border-zinc-200/80 px-5 py-5 dark:border-zinc-800">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
                 {t('tasks.page.workspace.navigationTitle')}
               </div>
@@ -1520,7 +1694,7 @@ export function CronTasksManager({
                 {t('tasks.page.workspace.navigationHint')}
               </p>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-5">
               <div className="space-y-3">
                 {workspaceState.sections.map((section) => (
                   <button
@@ -1577,7 +1751,7 @@ export function CronTasksManager({
           </aside>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="border-b border-zinc-200/80 px-6 py-5 dark:border-zinc-800 lg:px-8">
+            <div className="border-b border-zinc-200/80 px-5 py-5 dark:border-zinc-800 lg:px-7">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
@@ -1610,11 +1784,11 @@ export function CronTasksManager({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8 lg:py-8">
+            <div className="flex-1 overflow-y-auto px-5 py-5 lg:px-7 lg:py-6">
               {activeCreateSection === 'basicInfo' ? renderBasicInfoSection() : renderExecutionSection()}
             </div>
 
-            <div className="border-t border-zinc-200/80 bg-zinc-50/70 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950/80 lg:px-8">
+            <div className="border-t border-zinc-200/80 bg-zinc-50/70 px-5 py-4 dark:border-zinc-800 dark:bg-zinc-950/80 lg:px-7">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap gap-2">
                   {activeCreateSection === 'basicInfo' ? (

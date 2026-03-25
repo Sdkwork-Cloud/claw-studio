@@ -89,6 +89,7 @@ export function GeneralSettings() {
     { id: 'dashboard', label: t('sidebar.dashboard') },
     { id: 'market', label: t('sidebar.market') },
     { id: 'agents', label: t('sidebar.agentMarket') },
+    { id: 'mall', label: t('sidebar.clawMall') },
     { id: 'apps', label: t('sidebar.appStore') },
     { id: 'extensions', label: t('sidebar.extensions') },
     { id: 'claw-upload', label: t('sidebar.clawUpload') },

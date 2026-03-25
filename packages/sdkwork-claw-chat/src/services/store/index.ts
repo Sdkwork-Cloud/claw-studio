@@ -26,3 +26,14 @@ export {
   composeOutgoingChatText,
   deriveUserMessageTitle,
 } from '../chatComposerAttachments.ts';
+export {
+  DEFAULT_CHAT_SESSION_TITLE,
+  getChatSessionDisplayTitle,
+  isReadableChatSessionTitle,
+  normalizeChatSessionTitle,
+  resolveInitialChatSessionTitle,
+  selectReadableChatSessionTitleCandidates,
+} from '../chatSessionTitlePresentation.ts';
+export {
+  buildOpenClawMainSessionKey,
+} from '../chatSessionBootstrap.ts';

@@ -102,3 +102,13 @@ await runTest('deriveUserMessageTitle prefers trimmed text but falls back to att
     'error-screen.png, voice-note.webm',
   );
 });
+
+await runTest('deriveUserMessageTitle collapses multiline whitespace into a single readable line', () => {
+  assert.equal(
+    deriveUserMessageTitle({
+      text: '  Build   a release plan\n\nfor the api router \t and summarize blockers  ',
+      attachments: [],
+    }),
+    'Build a release plan for the api router and summarize blockers',
+  );
+});

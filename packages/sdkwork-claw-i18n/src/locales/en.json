@@ -36,7 +36,7 @@
     "brand": "Claw Studio",
     "dashboard": "Dashboard",
     "hotBadge": "Hot",
-    "clawMall": "Registry Center",
+    "clawMall": "Claw Mall",
     "instances": "Instances",
     "devices": "Devices",
     "install": "Install Claw",
@@ -81,8 +81,8 @@
   },
   "auth": {
     "qrLogin": "Scan to Login",
-    "qrDesc": "Use the SDKWork mobile app to scan the QR code for instant access.",
-    "openApp": "Open SDKWork App",
+    "qrDesc": "Scan with WeChat or another supported client to complete sign-in instantly.",
+    "openApp": "Open WeChat",
     "welcomeBack": "Welcome back",
     "createAccount": "Create an account",
     "resetPassword": "Reset password",
@@ -106,8 +106,40 @@
       "password": "Enter your password"
     },
     "providers": {
+      "wechat": "WeChat",
+      "douyin": "Douyin",
       "github": "GitHub",
       "google": "Google"
+    },
+    "qrAlt": "Login QR code",
+    "qrRefresh": "Refresh QR code",
+    "qrScannedHint": "QR scanned. Confirm the login in WeChat to continue.",
+    "qrWeChatHint": "Supports WeChat official account QR sign-in from the backend.",
+    "qrStatus": {
+      "loading": "Preparing QR code...",
+      "pending": "Scan the QR code to continue",
+      "scanned": "QR code scanned",
+      "confirmed": "Login confirmed",
+      "expired": "QR code expired",
+      "error": "QR status unavailable"
+    },
+    "errors": {
+      "signInFailed": "Failed to sign in.",
+      "passwordResetFailed": "Failed to send the password reset request.",
+      "oauthStartFailed": "Failed to start social sign-in.",
+      "qrGenerateFailed": "Failed to load the login QR code.",
+      "qrStatusFailed": "Failed to refresh QR login status.",
+      "invalidQrPayload": "The backend returned an invalid QR code payload."
+    },
+    "oauth": {
+      "badge": "OAuth Sign-In",
+      "processingTitle": "Completing sign-in",
+      "processingDesc": "The provider has returned to Claw Studio. We are verifying your authorization and creating the session.",
+      "processingHint": "Keep this page open until the redirect finishes.",
+      "failedTitle": "Sign-in failed",
+      "failed": "Failed to complete OAuth login.",
+      "invalidProvider": "Unsupported OAuth provider.",
+      "missingCode": "Authorization code is missing."
     }
   },
   "settings": {
@@ -154,36 +186,199 @@
       "wallet": "Account",
       "account": "Profile Settings",
       "notifications": "Notifications",
+      "feedback": "Feedback",
       "security": "Security",
       "api": "API Keys",
       "data": "Data & Privacy"
     },
     "account": {
       "title": "Account",
-      "description": "Update your profile and personal details.",
-      "signedOutDescription": "Sign in to manage your profile and personal details.",
-      "signInRequired": "Sign In Required",
+      "description": "Manage your identity, sync status, and profile details used across Claw Studio.",
+      "signedOutDescription": "Sign in to edit your profile, sync your account identity, and manage access on this device.",
+      "signInRequired": "Sign in to continue",
       "signedOut": "You are currently signed out.",
-      "signInPrompt": "Go to the login page to update your profile or sign in again.",
+      "signInPrompt": "Sign in to load your cloud profile, validate your email identity, and keep settings in sync across this device.",
       "goToLogin": "Go to Login",
-      "profileTitle": "Profile",
-      "changeAvatar": "Change Avatar",
-      "avatarHint": "JPG, GIF or PNG. Max size of 800K",
+      "profileTitle": "Profile Details",
+      "avatarTitle": "Profile Avatar",
       "firstName": "First Name",
       "lastName": "Last Name",
       "email": "Email Address",
       "saving": "Saving...",
       "saveChanges": "Save Changes",
+      "resetChanges": "Reset Changes",
       "dangerZone": "Danger Zone",
       "signOut": "Sign Out",
       "signOutDescription": "Sign out of your Claw Studio account on this device.",
+      "placeholders": {
+        "firstName": "e.g. Ada",
+        "lastName": "e.g. Lovelace",
+        "email": "you@example.com"
+      },
+      "metrics": {
+        "completeness": "Profile Health",
+        "sync": "Sync State",
+        "email": "Email State"
+      },
+      "status": {
+        "saving": "Saving",
+        "attention": "Needs attention",
+        "dirty": "Unsaved changes",
+        "synced": "Synced",
+        "session": "Session fallback"
+      },
+      "emailHealth": {
+        "valid": "Validated email",
+        "invalid": "Invalid email",
+        "missing": "Missing email"
+      },
+      "source": {
+        "remoteTitle": "Cloud profile",
+        "remoteDescription": "This profile is synced from your account service and ready to edit.",
+        "sessionTitle": "Session fallback",
+        "sessionDescription": "Using the current session identity on this device while cloud sync is unavailable.",
+        "sessionFailedDescription": "We couldn't refresh your cloud profile just now. You can continue editing from the current session identity and save again later."
+      },
+      "completion": {
+        "title": "Profile Completeness",
+        "summary": "{{completed}} / {{total}} fields complete",
+        "nextStep": "Next best improvement: add {{field}}",
+        "done": "Everything important is filled in and ready to use.",
+        "complete": "Complete",
+        "missing": "Missing",
+        "levels": {
+          "starter": "Core identity still needs work",
+          "growing": "Good baseline, one or two items left",
+          "complete": "Fully ready for cross-device use"
+        }
+      },
+      "form": {
+        "displayName": "Display name preview",
+        "displayNameHint": "This preview updates from your first and last name in real time.",
+        "emailHint": "This email is used for identity, recovery, and account-linked experiences.",
+        "emailMissing": "Add an email address before saving so your profile can sync correctly.",
+        "emailInvalid": "Enter a valid email address to keep profile sync and security flows working.",
+        "avatarReadonly": "Avatar changes are managed by the connected account provider. This workspace currently shows it as read-only.",
+        "unsavedTitle": "Changes ready to save",
+        "unsavedDescription": "Review your identity details and save when you're happy with the result.",
+        "upToDateTitle": "Everything is up to date",
+        "upToDateDescription": "No unsaved changes. Your profile draft matches the latest saved version."
+      },
+      "access": {
+        "title": "Account Access",
+        "avatarDescription": "Your avatar is sourced from the connected account identity and stays consistent across the workspace.",
+        "securityTitle": "Signed in on this device",
+        "securityDescription": "Use the sign-out action below if you want to disconnect this device from your account."
+      },
+      "signedOutCards": {
+        "syncTitle": "Sync cloud identity",
+        "syncDescription": "Load your profile across devices instead of editing a disconnected local shell.",
+        "securityTitle": "Keep access controlled",
+        "securityDescription": "Manage whether this device stays attached to your authenticated account session.",
+        "profileTitle": "Complete your operator profile",
+        "profileDescription": "Add your name and email so chat, notifications, and account surfaces stay consistent."
+      },
       "toasts": {
-        "avatarSimulated": "Avatar update simulated",
         "loadFailed": "Failed to load profile",
         "updated": "Profile updated successfully",
         "updateFailed": "Failed to update profile",
         "signedOut": "Signed out successfully",
-        "signOutFailed": "Failed to sign out"
+        "signOutFailed": "Failed to sign out",
+        "emailRequired": "Email address is required before saving",
+        "invalidEmail": "Please enter a valid email address before saving"
+      }
+    },
+    "feedback": {
+      "title": "Feedback Center",
+      "description": "Submit product feedback, track ticket progress, and review support resources from the shared app SDK.",
+      "authRequired": {
+        "title": "Sign in to manage feedback",
+        "description": "Sign in before you submit new feedback or track previous tickets in this workspace.",
+        "action": "Go to Login"
+      },
+      "submit": {
+        "title": "Submit Feedback",
+        "description": "Send bugs, suggestions, feature requests, or usage questions directly to the backend feedback service.",
+        "typeLabel": "Feedback type",
+        "contactLabel": "Contact",
+        "contactPlaceholder": "Email, phone, or preferred follow-up channel",
+        "contentLabel": "Description",
+        "contentPlaceholder": "Describe the issue, expected behavior, and any details that help reproduce it.",
+        "helper": "Be specific about what happened, what you expected, and what should be improved.",
+        "action": "Submit feedback",
+        "submitting": "Submitting..."
+      },
+      "history": {
+        "title": "Feedback History",
+        "description": "Review your recent tickets, filter by status, and open a record to continue the conversation.",
+        "refresh": "Refresh",
+        "empty": "You have not submitted any feedback yet.",
+        "emptyFiltered": "No feedback matches the current status filter."
+      },
+      "detail": {
+        "empty": "Select a feedback item to view its detail.",
+        "contact": "Contact",
+        "submittedAt": "Submitted",
+        "processedAt": "Processed",
+        "followUps": "Follow-ups",
+        "followUpPlaceholder": "Add more context, logs, or screenshots for the support team.",
+        "sendFollowUp": "Send follow-up",
+        "sendingFollowUp": "Sending...",
+        "closeAction": "Close ticket",
+        "closing": "Closing...",
+        "noFollowUps": "No follow-up messages yet."
+      },
+      "support": {
+        "title": "Support Info",
+        "description": "Use the official support channels when you need faster help outside the ticket thread.",
+        "hotline": "Hotline",
+        "email": "Email",
+        "hours": "Working hours",
+        "online": "Online support",
+        "faq": "FAQ link",
+        "helpCenter": "Help center",
+        "empty": "Support information is temporarily unavailable."
+      },
+      "faq": {
+        "title": "FAQ",
+        "description": "Search common answers before opening a new ticket.",
+        "categoryLabel": "Category",
+        "categoryAll": "All categories",
+        "searchPlaceholder": "Search FAQs",
+        "empty": "No FAQs matched the current query.",
+        "answerTitle": "Answer",
+        "selectPrompt": "Select an FAQ item to read the answer."
+      },
+      "status": {
+        "ALL": "All statuses",
+        "PENDING": "Pending",
+        "PROCESSING": "Processing",
+        "PROCESSED": "Processed",
+        "RESOLVED": "Resolved",
+        "CLOSED": "Closed",
+        "REJECTED": "Rejected"
+      },
+      "types": {
+        "SUGGESTION": "Suggestion",
+        "COMPLAINT": "Complaint",
+        "PRAISE": "Praise",
+        "BUG_REPORT": "Bug report",
+        "FEATURE_REQUEST": "Feature request",
+        "QUESTION": "Question",
+        "OTHER": "Other"
+      },
+      "toasts": {
+        "authRequired": "Please sign in before managing feedback.",
+        "submitSuccess": "Feedback submitted successfully.",
+        "submitFailed": "Failed to submit feedback.",
+        "loadFeedbackFailed": "Failed to load feedback history.",
+        "loadFeedbackDetailFailed": "Failed to load feedback detail.",
+        "followUpSuccess": "Follow-up sent successfully.",
+        "followUpFailed": "Failed to send the follow-up.",
+        "closeSuccess": "Feedback ticket closed.",
+        "closeFailed": "Failed to close the feedback ticket.",
+        "loadSupportFailed": "Failed to load support information.",
+        "loadFaqFailed": "Failed to load FAQ information."
       }
     },
     "apiKeys": {
@@ -438,6 +633,10 @@
       "apps": {
         "title": "Go to App Store",
         "subtitle": "Browse AI applications"
+      },
+      "mall": {
+        "title": "Go to Claw Mall",
+        "subtitle": "Browse products powered by the PlusProduct catalog"
       },
       "agents": {
         "title": "Go to Agent Market",
@@ -768,7 +967,8 @@
       "filters": {
         "searchPlaceholder": "Search key name, note, or API key",
         "allGroups": "All groups",
-        "modelMappingSearchPlaceholder": "Search mapping name, description, or mapped models"
+        "modelMappingSearchPlaceholder": "Search mapping name, description, or mapped models",
+        "routeConfigSearchPlaceholder": "Search route config name, group, channel, or model"
       },
       "table": {
         "name": "Name",
@@ -789,6 +989,7 @@
         "copyKey": "Copy Key",
         "copySnippet": "Copy Snippet",
         "usageMethod": "Usage",
+        "routeConfig": "Route Config",
         "associateModelMapping": "Associate Mapping",
         "clearModelMapping": "Clear Mapping",
         "enable": "Enable",
@@ -805,6 +1006,7 @@
         "usageTitle": "Usage Method",
         "createTitle": "New Unified API Key",
         "editTitle": "Edit Unified API Key",
+        "routeConfigTitle": "Route Config",
         "associateModelMappingTitle": "Associate Model Mapping",
         "exampleRequest": "Example Request",
         "create": "Create Key",
@@ -859,6 +1061,8 @@
         "keyCreated": "Unified API key created",
         "groupUpdated": "Key group updated",
         "statusUpdated": "Key status updated",
+        "routeConfigUpdated": "Route config updated",
+        "routeConfigValidationFailed": "Choose a route config before saving a custom route.",
         "modelMappingUpdated": "Model mapping association updated",
         "keyUpdated": "Unified API key updated",
         "keyDeleted": "Unified API key deleted"
@@ -867,10 +1071,40 @@
         "never": "Never",
         "mappedTo": "Mapped to {{name}}",
         "mappingUnavailable": "Unavailable mapping",
+        "sdkworkRemoteRoute": "SDKWORK remote default route",
+        "customRouteTo": "Custom route to {{name}}",
+        "routeConfigUnavailable": "Unavailable route config",
+        "modelMappingOptional": "Model mapping optional",
+        "routeConfigMeta": "{{channel}} · {{group}}",
         "associationHint": "Choose one model mapping for this key. Clearing the selection removes the current association.",
+        "noRouteConfigs": "No route configs match the current search.",
         "noModelMappings": "No model mappings match the current search.",
         "hiddenAfterCreation": "Masked key",
         "oneTimeSecretUnavailable": "This device does not have a managed plaintext copy of the key"
+      },
+      "routeConfig": {
+        "sidebar": {
+          "sdkworkRemote": {
+            "title": "SDKWORK Remote Route",
+            "description": "Default route. Requests without custom overrides continue through the remote SDKWORK API Router service."
+          },
+          "custom": {
+            "title": "Custom Route Config",
+            "description": "Select a local route config overlay to override routing for this unified key."
+          },
+          "modelMapping": {
+            "title": "Model Mapping Config",
+            "description": "Optionally attach a model mapping to this unified key. Leave empty to keep original model routing."
+          }
+        },
+        "sdkworkRemote": {
+          "title": "Keep SDKWORK remote routing",
+          "description": "Use the remote SDKWORK route as the default fallback. Local settings stay additive while the remote service remains the standardized router."
+        },
+        "custom": {
+          "title": "Choose a custom route",
+          "description": "These options come from the route config list. The selected route config becomes the local override for this unified key."
+        }
       }
     },
     "modelMapping": {
@@ -2122,6 +2356,7 @@
     "postDetail": {
       "actions": {
         "bookmark": "Bookmark",
+        "bookmarked": "Saved",
         "follow": "Follow",
         "more": "More options",
         "reply": "Reply",
@@ -2141,6 +2376,7 @@
     "commentPlaceholder": "Add a follow-up note or question...",
     "commentsTitle": "Comments ({{count, number}})",
     "currentUserInitials": "ME",
+    "emptyComments": "No follow-up comments yet. Start the thread with the first question.",
     "featuredBadge": "Featured",
       "listingMeta": {
         "title": "Listing metadata",
@@ -2210,6 +2446,15 @@
       }
     },
     "notFoundTitle": "Entry not found",
+    "toasts": {
+      "bookmarkAdded": "Saved to your classifieds shortlist.",
+      "bookmarkFailed": "Failed to update the saved state.",
+      "bookmarkRemoved": "Removed from your classifieds shortlist.",
+      "commentFailed": "Failed to send the comment.",
+      "shareCopied": "Share details copied to the clipboard.",
+      "shareFailed": "Failed to prepare the share action.",
+      "shareReady": "Share sheet is ready."
+    },
     "roles": {
       "official": "Official",
       "coreContributor": "Core Contributor"
@@ -2984,6 +3229,12 @@
         "agentId": "Agent ID",
         "agentIdPlaceholder": "Optional agent binding",
         "agentIdHelp": "Pin this task to a specific OpenClaw agent when your runtime has multiple agents.",
+        "agentIdDefaultOption": "Follow default agent routing (currently {{name}} / {{agentId}})",
+        "agentIdDefaultLabel": "default",
+        "agentIdDefaultHelp": "Leave this on the default route to follow the connected instance's current default agent, now {{name}} ({{agentId}}).",
+        "agentIdUnavailableOption": "Unavailable agent binding ({{agentId}})",
+        "agentIdUnavailableHelp": "This task is still pinned to {{agentId}}, but that agent is no longer available from the connected instance.",
+        "agentIdCatalogHelp": "Agent choices are read from the connected instance. Pick a specific agent only when this cron job must stay pinned to that agent.",
         "model": "Model override",
         "modelPlaceholder": "e.g. openai/gpt-5.4",
         "modelHelp": "Optional provider/model or alias override for agent-turn tasks.",
@@ -3185,8 +3436,12 @@
     },
     "list": {
       "title": "Instances",
-      "subtitle": "Manage, monitor, and configure your Claw Studio compute nodes.",
+      "subtitle": "Create, connect, and manage every OpenClaw runtime that should participate in this workspace.",
       "activeBadge": "Active",
+      "emptyTitle": "No instances are connected yet",
+      "emptyDescription": "Start with the built-in OpenClaw install, attach an existing local install, or connect a remote gateway so Claw Studio has a runtime to work with.",
+      "emptyPrimaryAction": "Install Built-In OpenClaw",
+      "emptySecondaryAction": "Associate Installed OpenClaw",
       "confirmUninstall": "Are you sure you want to uninstall this instance?",
       "actionNames": {
         "start": "start",
@@ -3194,8 +3449,28 @@
         "restart": "restart",
         "delete": "uninstall"
       },
+      "onboarding": {
+        "builtInBadge": "Recommended",
+        "builtInTitle": "Install built-in OpenClaw",
+        "builtInDescription": "Use the guided install flow to pick the best supported host method and keep the bundled OpenClaw runtime under Claw Studio control.",
+        "builtInAction": "Open guided install",
+        "associateBadge": "Local install",
+        "associateTitle": "Associate installed OpenClaw",
+        "associateDescription": "Scan this machine for existing OpenClaw installs created by pnpm, npm, Docker, WSL, source workflows, and other supported methods.",
+        "associateAction": "Scan installed runtimes",
+        "remoteBadge": "Remote",
+        "remoteTitle": "Connect remote gateway",
+        "remoteDescription": "Register an already running OpenClaw gateway over HTTP and WebSocket so the workspace can target it directly.",
+        "remoteAction": "Configure remote connection"
+      },
       "actions": {
         "deployInstance": "Deploy Instance",
+        "newInstance": "New Instance",
+        "associateInstalled": "Associate Installed",
+        "installBuiltIn": "Install Built-In",
+        "rescanInstalls": "Rescan Installs",
+        "associateConfigFile": "Associate from openclaw.json",
+        "createRemote": "Create Remote Instance",
         "setActive": "Set Active",
         "setAsActive": "Set as Active",
         "openTerminal": "Open Terminal",
@@ -3217,7 +3492,73 @@
         "billingCycle": "This billing cycle",
         "uptime": "Uptime: {{value}}"
       },
+      "associationStatus": {
+        "associated": "Associated",
+        "readyToAssociate": "Ready to associate",
+        "configMissing": "Config not found"
+      },
+      "installControlLevel": {
+        "managed": "Managed",
+        "partial": "Partial",
+        "opaque": "Opaque"
+      },
+      "runtimePlatform": {
+        "host": "Host",
+        "wsl": "WSL"
+      },
+      "associateDialog": {
+        "title": "Associate installed OpenClaw",
+        "description": "Link OpenClaw runtimes that already exist on this machine and keep the instance registry aligned with their current config.",
+        "detectedTitle": "Detected installs",
+        "detectedDescription": "Each detected method is inspected against the local host and matched to an existing local-external instance when possible.",
+        "filePickerTitle": "Select openclaw.json",
+        "emptyTitle": "No installed OpenClaw runtimes were detected",
+        "emptyDescription": "If OpenClaw was installed manually or through an unsupported path, attach it directly from its openclaw.json file below.",
+        "manualTitle": "Manual association",
+        "manualDescription": "Choose an existing openclaw.json file when the runtime was installed outside the guided installer or cannot be auto-discovered reliably.",
+        "manualDesktopOnly": "Manual file association is only available in the desktop app.",
+        "associateAction": "Associate instance",
+        "refreshAssociation": "Refresh link",
+        "configMissingHint": "This install record exists, but its OpenClaw config file could not be located automatically. Use manual association to pick the config file directly.",
+        "configUnavailable": "Config file not discovered",
+        "labels": {
+          "configPath": "Config path",
+          "endpoint": "Gateway endpoint",
+          "workRoot": "Work root",
+          "linkedInstance": "Linked instance"
+        }
+      },
+      "remoteDialog": {
+        "title": "Create remote OpenClaw instance",
+        "description": "Register a remote OpenClaw gateway so it appears as a first-class instance inside Claw Studio.",
+        "previewTitle": "Connection preview",
+        "protocolHttp": "HTTP",
+        "protocolWebSocket": "WebSocket",
+        "fields": {
+          "name": "Instance name",
+          "host": "Host",
+          "port": "Port",
+          "secure": "Use TLS",
+          "secureDescription": "Turn this on for HTTPS and secure WebSocket endpoints.",
+          "authToken": "Gateway auth token",
+          "description": "Description"
+        },
+        "placeholders": {
+          "name": "Team Gateway",
+          "host": "gateway.example.com",
+          "authToken": "Optional token used by the remote gateway",
+          "description": "Shared team OpenClaw runtime for staging or production traffic."
+        }
+      },
       "toasts": {
+        "loadFailed": "Unable to load instances",
+        "discoveryFailed": "Unable to scan installed OpenClaw runtimes",
+        "configMissing": "OpenClaw config file was not found for this install",
+        "associationCreated": "{{name}} was associated successfully",
+        "associationUpdated": "{{name}} was refreshed successfully",
+        "associationFailed": "Unable to associate the selected OpenClaw runtime",
+        "instanceCreated": "{{name}} was created successfully",
+        "remoteCreateFailed": "Unable to create the remote OpenClaw instance",
         "started": "Instance started",
         "stopped": "Instance stopped",
         "restarted": "Instance restarted",
@@ -3578,7 +3919,9 @@
             "skillInstallFailed": "Failed to install the selected OpenClaw skill.",
             "skillEnabled": "OpenClaw skill enabled.",
             "skillDisabled": "OpenClaw skill disabled.",
-            "skillUpdateFailed": "Failed to update the selected OpenClaw skill."
+            "skillUpdateFailed": "Failed to update the selected OpenClaw skill.",
+            "skillRemoved": "OpenClaw workspace skill removed.",
+            "skillRemoveFailed": "Failed to remove the selected OpenClaw workspace skill."
           },
           "panel": {
             "badge": "OpenClaw Agents",
@@ -3607,9 +3950,11 @@
             "workspaceInstallDescription": "OpenClaw loads agent-specific skills from the selected workspace. Run the native OpenClaw CLI in this workspace to install a skill for the selected agent.",
             "installToDefaultWorkspace": "Install to Default Workspace",
             "defaultWorkspaceOnlyNotice": "Direct install is only available while the default agent is selected because the upstream skills.install gateway action still targets the default OpenClaw workspace.",
+            "skillSlugPlaceholder": "calendar",
             "skillPaths": "Skill Paths",
             "agentWorkspace": "Agent Workspace",
             "sharedSkills": "Shared Skills",
+            "sharedSkillsDefaultPath": "~/.openclaw/skills",
             "source": "Source",
             "primaryEnv": "Primary Env",
             "missingPrefix": "Missing",
@@ -4404,6 +4749,7 @@
       },
       "method": {
         "actions": {
+          "guide": "Guide",
           "install": "Install now",
           "guidedInstall": "Start guided install",
           "uninstall": "Uninstall now",
@@ -5057,6 +5403,17 @@
         }
       },
       "back": "Back to install methods",
+      "eyebrow": "OpenClaw install guide",
+      "actions": {
+        "openOfficialGuide": "Open official guide"
+      },
+      "footerNote": "Exact commands can evolve with upstream docs and platform policy. This page stays intentionally high level and links out to the official OpenClaw guides instead of freezing a second command reference inside Claw Studio.",
+      "hosts": {
+        "macos": "macOS",
+        "linux": "Linux",
+        "windows": "Windows"
+      },
+      "profileHint": "Claw Studio uses the same hub-installer profile family shown here. Use this page when you want the official docs, platform caveats, and method fit before running the guided installer.",
       "help": {
         "description": {
           "after": "for live support.",
@@ -5069,7 +5426,15 @@
       },
       "notFound": {
         "back": "Back to install",
+        "description": "This route no longer maps to a supported OpenClaw install profile.",
         "title": "Installation method not found"
+      },
+      "sections": {
+        "afterInstall": "After install",
+        "beforeYouStart": "Before you start",
+        "bestFit": "Best fit",
+        "officialDocs": "Official docs",
+        "platformNotes": "Platform notes"
       },
       "platforms": {
         "macosLinuxWsl": "macOS / Linux / WSL",
@@ -5123,6 +5488,8 @@
       "noActiveInstanceTitle": "No active instance selected",
       "packagesDescription": "No skill packs match your filters right now.",
       "packagesTitle": "No skill packs found",
+      "signInRequiredDescription": "Sign in with your SDKWork account before ClawHub issues live skill, pack, and review requests through the app SDK.",
+      "signInRequiredTitle": "Sign in to load ClawHub",
       "skillsDescription": "No skills match your filters right now.",
       "skillsTitle": "No skills found"
     },
@@ -5253,6 +5620,7 @@
       },
       "links": {
         "developerWebsite": "Developer website",
+        "documentation": "Documentation",
         "privacyPolicy": "Privacy policy",
         "sourceCode": "Source code"
       },

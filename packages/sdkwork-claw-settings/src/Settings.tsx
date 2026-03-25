@@ -3,6 +3,7 @@ import {
   Bell,
   Database,
   Key,
+  MessageSquare,
   Monitor,
   Receipt,
   Search,
@@ -19,6 +20,7 @@ import { AccountSettings } from './AccountSettings';
 import { ApiKeysSettings } from './ApiKeysSettings';
 import { BillingSettings } from './BillingSettings';
 import { DataPrivacySettings } from './DataPrivacySettings';
+import { FeedbackSettings } from './FeedbackSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { SecuritySettings } from './SecuritySettings';
@@ -34,6 +36,7 @@ export function Settings() {
     { id: 'wallet', label: t('settings.tabs.wallet'), icon: Wallet },
     { id: 'account', label: t('settings.tabs.account'), icon: User },
     { id: 'notifications', label: t('settings.tabs.notifications'), icon: Bell },
+    { id: 'feedback', label: t('settings.tabs.feedback'), icon: MessageSquare },
     { id: 'security', label: t('settings.tabs.security'), icon: Shield },
     { id: 'api', label: t('settings.tabs.api'), icon: Key },
     { id: 'data', label: t('settings.tabs.data'), icon: Database },
@@ -120,6 +123,7 @@ export function Settings() {
             {activeTab === 'wallet' && <Account />}
             {activeTab === 'account' && <AccountSettings />}
             {activeTab === 'notifications' && <NotificationSettings />}
+            {activeTab === 'feedback' && <FeedbackSettings />}
             {activeTab === 'security' && <SecuritySettings />}
             {activeTab === 'api' && <ApiKeysSettings />}
             {activeTab === 'data' && <DataPrivacySettings />}

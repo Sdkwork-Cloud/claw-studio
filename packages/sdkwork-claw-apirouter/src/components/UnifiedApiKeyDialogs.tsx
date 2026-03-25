@@ -1,11 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   Check,
+  Globe2,
   KeyRound,
   Link2,
+  Route,
   Search,
   Shield,
   Sparkles,
+  Waypoints,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -15,10 +18,13 @@ import {
 } from '@sdkwork/claw-core';
 import { platform } from '@sdkwork/claw-infrastructure';
 import type {
+  ApiRouterChannel,
   ModelMapping,
+  ProxyProvider,
   ProxyProviderGroup,
   UnifiedApiKey,
   UnifiedApiKeyCreate,
+  UnifiedApiKeyRouteMode,
   UnifiedApiKeySource,
   UnifiedApiKeyUpdate,
 } from '@sdkwork/claw-types';
@@ -48,6 +54,9 @@ import {
   type ProviderAccessInstallMode,
   type UnifiedApiKeyFormState,
   unifiedApiKeyAccessService,
+  buildUnifiedApiKeyRouteConfigOptions,
+  resolveUnifiedApiKeyRouteConfigMeta,
+  SDKWORK_REMOTE_ROUTE_BASE_URL,
   UNIFIED_API_ACCESS_GATEWAYS,
 } from '../services';
 import {
@@ -68,19 +77,26 @@ interface UnifiedApiKeyDialogsProps {
   usageKey: UnifiedApiKey | null;
   isCreateOpen: boolean;
   editingKey: UnifiedApiKey | null;
-  associatingKey: UnifiedApiKey | null;
+  routeConfigKey: UnifiedApiKey | null;
+  channels: ApiRouterChannel[];
+  routeConfigProviders: ProxyProvider[];
   groups: ProxyProviderGroup[];
   modelMappings: ModelMapping[];
   defaultGroupId: string;
   onCloseUsage: () => void;
   onCloseCreate: () => void;
   onCloseEdit: () => void;
-  onCloseAssociation: () => void;
+  onCloseRouteConfig: () => void;
   onCreate: (input: UnifiedApiKeyCreate) => void;
   onSave: (itemId: string, update: UnifiedApiKeyUpdate) => void;
-  onAssignModelMapping: (itemId: string, modelMappingId: string | null) => void;
+  onSaveRouteConfig: (itemId: string, update: UnifiedApiKeyUpdate) => void;
   onCopyApiKey: (item: UnifiedApiKey) => void;
 }
+
+type UnifiedApiKeyRouteConfigSectionId =
+  | 'sdkwork-remote'
+  | 'custom-route-config'
+  | 'model-mapping';
 
 function UnifiedApiKeyUsageDefaultPanel({
   item,
@@ -468,17 +484,19 @@ export function UnifiedApiKeyDialogs({
   usageKey,
   isCreateOpen,
   editingKey,
-  associatingKey,
+  routeConfigKey,
+  channels,
+  routeConfigProviders,
   groups,
   modelMappings,
   defaultGroupId,
   onCloseUsage,
   onCloseCreate,
   onCloseEdit,
-  onCloseAssociation,
+  onCloseRouteConfig,
   onCreate,
   onSave,
-  onAssignModelMapping,
+  onSaveRouteConfig,
   onCopyApiKey,
 }: UnifiedApiKeyDialogsProps) {
   const { t } = useTranslation();
@@ -499,7 +517,13 @@ export function UnifiedApiKeyDialogs({
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
   const [openClawApiKeyStrategy, setOpenClawApiKeyStrategy] =
     useState<OpenClawApiKeyStrategy>('shared');
+  const [activeRouteConfigSection, setActiveRouteConfigSection] =
+    useState<UnifiedApiKeyRouteConfigSectionId>('sdkwork-remote');
+  const [routeConfigSearchQuery, setRouteConfigSearchQuery] = useState('');
   const [modelMappingSearchQuery, setModelMappingSearchQuery] = useState('');
+  const [selectedRouteMode, setSelectedRouteMode] =
+    useState<UnifiedApiKeyRouteMode>('sdkwork-remote');
+  const [selectedRouteProviderId, setSelectedRouteProviderId] = useState<string | null>(null);
   const [selectedModelMappingId, setSelectedModelMappingId] = useState<string | null>(null);
   const [accessGateways, setAccessGateways] = useState(UNIFIED_API_ACCESS_GATEWAYS);
 
@@ -523,15 +547,29 @@ export function UnifiedApiKeyDialogs({
   }, [editingKey]);
 
   useEffect(() => {
-    if (!associatingKey) {
+    if (!routeConfigKey) {
+      setRouteConfigSearchQuery('');
       setModelMappingSearchQuery('');
+      setSelectedRouteMode('sdkwork-remote');
+      setSelectedRouteProviderId(null);
       setSelectedModelMappingId(null);
+      setActiveRouteConfigSection('sdkwork-remote');
       return;
     }
 
+    const routeConfigMeta = resolveUnifiedApiKeyRouteConfigMeta(
+      routeConfigKey,
+      routeConfigProviders,
+    );
+    setRouteConfigSearchQuery('');
     setModelMappingSearchQuery('');
-    setSelectedModelMappingId(associatingKey.modelMappingId || null);
-  }, [associatingKey]);
+    setSelectedRouteMode(routeConfigMeta.routeMode);
+    setSelectedRouteProviderId(routeConfigMeta.routeProvider?.id || null);
+    setSelectedModelMappingId(routeConfigKey.modelMappingId || null);
+    setActiveRouteConfigSection(
+      routeConfigMeta.routeMode === 'custom' ? 'custom-route-config' : 'sdkwork-remote',
+    );
+  }, [routeConfigKey, routeConfigProviders]);
 
   useEffect(() => {
     setActiveUsageTab('default');
@@ -767,6 +805,17 @@ export function UnifiedApiKeyDialogs({
       .toLowerCase()
       .includes(modelMappingSearchQuery.trim().toLowerCase()),
   );
+  const routeConfigOptions = buildUnifiedApiKeyRouteConfigOptions({
+    providers: routeConfigProviders,
+    channels,
+    groups,
+    keyword: routeConfigSearchQuery,
+  });
+  const activeRouteConfigProvider =
+    routeConfigProviders.find((provider) => provider.id === selectedRouteProviderId) || null;
+  const activeRouteConfigChannel = activeRouteConfigProvider
+    ? channels.find((channel) => channel.id === activeRouteConfigProvider.channelId) || null
+    : null;
 
   return (
     <div data-slot="api-router-unified-key-dialogs">
@@ -914,114 +963,344 @@ export function UnifiedApiKeyDialogs({
       </Modal>
 
       <Modal
-        isOpen={Boolean(associatingKey)}
-        onClose={onCloseAssociation}
-        title={t('apiRouterPage.unifiedApiKey.dialogs.associateModelMappingTitle')}
-        className="max-w-5xl"
+        isOpen={Boolean(routeConfigKey)}
+        onClose={onCloseRouteConfig}
+        title={t('apiRouterPage.unifiedApiKey.dialogs.routeConfigTitle')}
+        className="max-w-6xl"
       >
-        {associatingKey ? (
-          <div className="space-y-5">
-            <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
-              <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                {associatingKey.name}
-              </div>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                {t('apiRouterPage.unifiedApiKey.values.associationHint')}
-              </p>
-            </div>
+        {routeConfigKey ? (
+          <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+            <aside className="space-y-2 rounded-[28px] border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+              {[
+                {
+                  id: 'sdkwork-remote' as const,
+                  icon: Globe2,
+                  title: t('apiRouterPage.unifiedApiKey.routeConfig.sidebar.sdkworkRemote.title'),
+                  description: t('apiRouterPage.unifiedApiKey.routeConfig.sidebar.sdkworkRemote.description'),
+                },
+                {
+                  id: 'custom-route-config' as const,
+                  icon: Route,
+                  title: t('apiRouterPage.unifiedApiKey.routeConfig.sidebar.custom.title'),
+                  description: t('apiRouterPage.unifiedApiKey.routeConfig.sidebar.custom.description'),
+                },
+                {
+                  id: 'model-mapping' as const,
+                  icon: Waypoints,
+                  title: t('apiRouterPage.unifiedApiKey.routeConfig.sidebar.modelMapping.title'),
+                  description: t('apiRouterPage.unifiedApiKey.routeConfig.sidebar.modelMapping.description'),
+                },
+              ].map((section) => {
+                const Icon = section.icon;
+                const isActive = activeRouteConfigSection === section.id;
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                <Input
-                  value={modelMappingSearchQuery}
-                  onChange={(event) => setModelMappingSearchQuery(event.target.value)}
-                  placeholder={t('apiRouterPage.unifiedApiKey.filters.modelMappingSearchPlaceholder')}
-                  className="h-11 rounded-2xl bg-white pl-11 dark:bg-zinc-950"
-                />
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setSelectedModelMappingId(null)}
-              >
-                {t('apiRouterPage.unifiedApiKey.actions.clearModelMapping')}
-              </Button>
-            </div>
-
-            {filteredModelMappings.length > 0 ? (
-              <div className="grid gap-3">
-                {filteredModelMappings.map((item) => {
-                  const isSelected = selectedModelMappingId === item.id;
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedModelMappingId(item.id)}
-                      className={cn(
-                        'rounded-[24px] border p-4 text-left transition',
-                        isSelected
-                          ? 'border-primary-500/35 bg-primary-500/8 shadow-[0_12px_30px_rgba(59,130,246,0.10)]'
-                          : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700',
-                      )}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                            {item.name}
-                          </div>
-                          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                            {item.description ||
-                              t('apiRouterPage.modelMapping.values.noDescription')}
-                          </p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <span className="inline-flex items-center rounded-full border border-primary-500/20 bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-500">
-                              {t('apiRouterPage.modelMapping.values.ruleCount', {
-                                count: item.rules.length,
-                              })}
-                            </span>
-                            {item.rules.slice(0, 2).map((rule) => (
-                              <span
-                                key={rule.id}
-                                className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-                              >
-                                {`${rule.source.modelName} -> ${rule.target.modelName}`}
-                              </span>
-                            ))}
-                          </div>
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveRouteConfigSection(section.id);
+                      if (section.id === 'sdkwork-remote') {
+                        setSelectedRouteMode('sdkwork-remote');
+                      }
+                      if (section.id === 'custom-route-config') {
+                        setSelectedRouteMode('custom');
+                      }
+                    }}
+                    className={cn(
+                      'w-full rounded-[24px] border p-4 text-left transition',
+                      isActive
+                        ? 'border-primary-500/35 bg-primary-500/8 shadow-[0_12px_30px_rgba(59,130,246,0.10)]'
+                        : 'border-transparent bg-white hover:border-zinc-200 dark:bg-zinc-950 dark:hover:border-zinc-800',
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={cn(
+                          'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl',
+                          isActive
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300',
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                          {section.title}
                         </div>
+                        <p className="mt-1 text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                          {section.description}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </aside>
 
-                        <div className="flex items-center gap-3">
-                          <ProxyProviderStatusBadge status={item.status} />
-                          {isSelected ? (
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary-500 text-white">
-                              <Check className="h-4 w-4" />
-                            </span>
-                          ) : null}
+            <div className="space-y-5">
+              <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+                <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                  {routeConfigKey.name}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedRouteMode === 'custom' ? (
+                    <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
+                      {t('apiRouterPage.unifiedApiKey.values.customRouteTo', {
+                        name:
+                          activeRouteConfigProvider?.name ||
+                          t('apiRouterPage.unifiedApiKey.values.routeConfigUnavailable'),
+                      })}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full border border-zinc-300/80 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                      {t('apiRouterPage.unifiedApiKey.values.sdkworkRemoteRoute')}
+                    </span>
+                  )}
+                  {activeRouteConfigChannel ? (
+                    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                      {activeRouteConfigChannel.name}
+                    </span>
+                  ) : null}
+                  {selectedModelMappingId ? (
+                    <span className="inline-flex items-center rounded-full border border-primary-500/20 bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-500">
+                      {t('apiRouterPage.unifiedApiKey.values.mappedTo', {
+                        name:
+                          modelMappings.find((item) => item.id === selectedModelMappingId)?.name ||
+                          t('apiRouterPage.unifiedApiKey.values.mappingUnavailable'),
+                      })}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                      {t('apiRouterPage.unifiedApiKey.values.modelMappingOptional')}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {activeRouteConfigSection === 'sdkwork-remote' ? (
+                <div className="space-y-4">
+                  <div className="rounded-[28px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-500 text-white">
+                        <Globe2 className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <div className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
+                          {t('apiRouterPage.unifiedApiKey.routeConfig.sdkworkRemote.title')}
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                          {t('apiRouterPage.unifiedApiKey.routeConfig.sdkworkRemote.description')}
+                        </p>
+                        <div className="mt-4 rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                          <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                            {t('apiRouterPage.unifiedApiKey.detail.baseUrl')}
+                          </div>
+                          <div className="mt-2 break-all text-sm text-zinc-600 dark:text-zinc-300">
+                            {SDKWORK_REMOTE_ROUTE_BASE_URL}
+                          </div>
                         </div>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50/70 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
-                {t('apiRouterPage.unifiedApiKey.values.noModelMappings')}
-              </div>
-            )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
-            <div className="flex flex-wrap justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onCloseAssociation}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                type="button"
-                onClick={() => onAssignModelMapping(associatingKey.id, selectedModelMappingId)}
-              >
-                {t('common.save')}
-              </Button>
+              {activeRouteConfigSection === 'custom-route-config' ? (
+                <div className="space-y-4">
+                  <div className="rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {t('apiRouterPage.unifiedApiKey.routeConfig.custom.title')}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                      {t('apiRouterPage.unifiedApiKey.routeConfig.custom.description')}
+                    </p>
+                  </div>
+
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <Input
+                      value={routeConfigSearchQuery}
+                      onChange={(event) => setRouteConfigSearchQuery(event.target.value)}
+                      placeholder={t('apiRouterPage.unifiedApiKey.filters.routeConfigSearchPlaceholder')}
+                      className="h-11 rounded-2xl bg-white pl-11 dark:bg-zinc-950"
+                    />
+                  </div>
+
+                  {routeConfigOptions.length > 0 ? (
+                    <div className="grid gap-3">
+                      {routeConfigOptions.map((item) => {
+                        const isSelected = selectedRouteProviderId === item.providerId;
+
+                        return (
+                          <button
+                            key={item.providerId}
+                            type="button"
+                            onClick={() => {
+                              setSelectedRouteMode('custom');
+                              setSelectedRouteProviderId(item.providerId);
+                            }}
+                            className={cn(
+                              'rounded-[24px] border p-4 text-left transition',
+                              isSelected
+                                ? 'border-primary-500/35 bg-primary-500/8 shadow-[0_12px_30px_rgba(59,130,246,0.10)]'
+                                : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700',
+                            )}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                                  {item.providerName}
+                                </div>
+                                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                                  {t('apiRouterPage.unifiedApiKey.values.routeConfigMeta', {
+                                    channel: item.channelName,
+                                    group: item.groupName,
+                                  })}
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {item.modelNames.slice(0, 3).map((modelName) => (
+                                    <span
+                                      key={modelName}
+                                      className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+                                    >
+                                      {modelName}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <ProxyProviderStatusBadge status={item.status} />
+                                {isSelected ? (
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary-500 text-white">
+                                    <Check className="h-4 w-4" />
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50/70 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
+                      {t('apiRouterPage.unifiedApiKey.values.noRouteConfigs')}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {activeRouteConfigSection === 'model-mapping' ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="relative flex-1">
+                      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                      <Input
+                        value={modelMappingSearchQuery}
+                        onChange={(event) => setModelMappingSearchQuery(event.target.value)}
+                        placeholder={t('apiRouterPage.unifiedApiKey.filters.modelMappingSearchPlaceholder')}
+                        className="h-11 rounded-2xl bg-white pl-11 dark:bg-zinc-950"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSelectedModelMappingId(null)}
+                    >
+                      {t('apiRouterPage.unifiedApiKey.actions.clearModelMapping')}
+                    </Button>
+                  </div>
+
+                  {filteredModelMappings.length > 0 ? (
+                    <div className="grid gap-3">
+                      {filteredModelMappings.map((item) => {
+                        const isSelected = selectedModelMappingId === item.id;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setSelectedModelMappingId(item.id)}
+                            className={cn(
+                              'rounded-[24px] border p-4 text-left transition',
+                              isSelected
+                                ? 'border-primary-500/35 bg-primary-500/8 shadow-[0_12px_30px_rgba(59,130,246,0.10)]'
+                                : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700',
+                            )}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                                  {item.name}
+                                </div>
+                                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                                  {item.description ||
+                                    t('apiRouterPage.modelMapping.values.noDescription')}
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <span className="inline-flex items-center rounded-full border border-primary-500/20 bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-500">
+                                    {t('apiRouterPage.modelMapping.values.ruleCount', {
+                                      count: item.rules.length,
+                                    })}
+                                  </span>
+                                  {item.rules.slice(0, 2).map((rule) => (
+                                    <span
+                                      key={rule.id}
+                                      className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+                                    >
+                                      {`${rule.source.modelName} -> ${rule.target.modelName}`}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <ProxyProviderStatusBadge status={item.status} />
+                                {isSelected ? (
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary-500 text-white">
+                                    <Check className="h-4 w-4" />
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50/70 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
+                      {t('apiRouterPage.unifiedApiKey.values.noModelMappings')}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button type="button" variant="outline" onClick={onCloseRouteConfig}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (selectedRouteMode === 'custom' && !selectedRouteProviderId) {
+                      toast.error(t('apiRouterPage.unifiedApiKey.toast.routeConfigValidationFailed'));
+                      return;
+                    }
+
+                    onSaveRouteConfig(routeConfigKey.id, {
+                      routeMode: selectedRouteMode,
+                      routeProviderId:
+                        selectedRouteMode === 'custom' ? selectedRouteProviderId : null,
+                      modelMappingId: selectedModelMappingId,
+                    });
+                  }}
+                >
+                  {t('common.save')}
+                </Button>
+              </div>
             </div>
           </div>
         ) : null}

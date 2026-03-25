@@ -112,6 +112,7 @@ export interface DashboardRevenueTrendPoint {
 
 export interface DashboardRevenueProductBreakdown {
   id: string;
+  productName: string;
   orders: number;
   revenue: number;
   share: number;
@@ -188,7 +189,14 @@ export interface DashboardRevenueRecord {
   orderNo: string;
   revenueAmount: number;
   channel: string;
-  status: 'paid' | 'pending' | 'refunded';
+  status:
+    | 'paid'
+    | 'pending'
+    | 'refunded'
+    | 'completed'
+    | 'delivered'
+    | 'cancelled'
+    | 'refunding';
 }
 
 export interface DashboardProductPerformanceRow {

@@ -5,7 +5,9 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { platform } from '@sdkwork/claw-infrastructure';
 import type {
+  ApiRouterChannel,
   ModelMapping,
+  ProxyProvider,
   UnifiedApiKey,
   UnifiedApiKeyCreate,
   UnifiedApiKeyUpdate,
@@ -19,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@sdkwork/claw-ui';
-import { modelMappingService, unifiedApiKeyService } from '../services';
+import { apiRouterService, modelMappingService, unifiedApiKeyService } from '../services';
 import { UnifiedApiKeyDialogs } from './UnifiedApiKeyDialogs';
 import { UnifiedApiKeyTable } from './UnifiedApiKeyTable';
 
@@ -30,7 +32,7 @@ export function UnifiedApiKeyManager() {
   const [groupFilter, setGroupFilter] = useState('all');
   const [usageKey, setUsageKey] = useState<UnifiedApiKey | null>(null);
   const [editingKey, setEditingKey] = useState<UnifiedApiKey | null>(null);
-  const [associatingKey, setAssociatingKey] = useState<UnifiedApiKey | null>(null);
+  const [routeConfigKey, setRouteConfigKey] = useState<UnifiedApiKey | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const normalizedKeyword = deferredSearchQuery.trim();
@@ -44,6 +46,16 @@ export function UnifiedApiKeyManager() {
   const { data: modelMappings = [] } = useQuery({
     queryKey: ['api-router', 'model-mappings', '__association__'],
     queryFn: () => modelMappingService.getModelMappings(),
+  });
+
+  const { data: channels = [] } = useQuery<ApiRouterChannel[]>({
+    queryKey: ['api-router', 'channels', '__unified-key-route-config__'],
+    queryFn: () => apiRouterService.getChannels(),
+  });
+
+  const { data: routeConfigProviders = [] } = useQuery<ProxyProvider[]>({
+    queryKey: ['api-router', 'providers', '__unified-key-route-config__'],
+    queryFn: () => apiRouterService.getProxyProviders(),
   });
 
   const { data: items = [] } = useQuery({
@@ -64,6 +76,9 @@ export function UnifiedApiKeyManager() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['api-router', 'unified-api-keys'] }),
       queryClient.invalidateQueries({ queryKey: ['api-router', 'unified-api-key-groups'] }),
+      queryClient.invalidateQueries({ queryKey: ['api-router', 'channels'] }),
+      queryClient.invalidateQueries({ queryKey: ['api-router', 'providers'] }),
+      queryClient.invalidateQueries({ queryKey: ['api-router', 'model-mappings'] }),
     ]);
   }
 
@@ -102,28 +117,21 @@ export function UnifiedApiKeyManager() {
     },
   });
 
-  const assignModelMappingMutation = useMutation({
-    mutationFn: ({ itemId, modelMappingId }: { itemId: string; modelMappingId: string | null }) =>
-      unifiedApiKeyService.assignModelMapping(itemId, modelMappingId),
-    onSuccess: async (item) => {
-      toast.success(t('apiRouterPage.unifiedApiKey.toast.modelMappingUpdated'));
-      setAssociatingKey(null);
-      if (usageKey?.id === item.id) {
-        setUsageKey(item);
-      }
-      if (editingKey?.id === item.id) {
-        setEditingKey(item);
-      }
-      await refreshUnifiedApiKeyData();
-    },
-  });
-
   const updateMutation = useMutation({
     mutationFn: ({ itemId, update }: { itemId: string; update: UnifiedApiKeyUpdate }) =>
       unifiedApiKeyService.updateUnifiedApiKey(itemId, update),
     onSuccess: async (item) => {
-      toast.success(t('apiRouterPage.unifiedApiKey.toast.keyUpdated'));
+      const routeConfigChanged = routeConfigKey?.id === item.id;
+
+      toast.success(
+        t(
+          routeConfigChanged
+            ? 'apiRouterPage.unifiedApiKey.toast.routeConfigUpdated'
+            : 'apiRouterPage.unifiedApiKey.toast.keyUpdated',
+        ),
+      );
       setEditingKey(null);
+      setRouteConfigKey((current) => (current?.id === item.id ? null : current));
       if (usageKey?.id === item.id) {
         setUsageKey(item);
       }
@@ -140,6 +148,9 @@ export function UnifiedApiKeyManager() {
       }
       if (editingKey?.id === item.id) {
         setEditingKey(null);
+      }
+      if (routeConfigKey?.id === item.id) {
+        setRouteConfigKey(null);
       }
       await refreshUnifiedApiKeyData();
     },
@@ -225,13 +236,15 @@ export function UnifiedApiKeyManager() {
 
       <UnifiedApiKeyTable
         items={items}
+        channels={channels}
+        providers={routeConfigProviders}
         modelMappings={modelMappings}
         groups={groups}
         onCopyApiKey={handleCopyApiKey}
         onGroupChange={(itemId, groupId) => updateGroupMutation.mutate({ itemId, groupId })}
         onOpenUsage={setUsageKey}
         onOpenEdit={setEditingKey}
-        onOpenAssociateMapping={setAssociatingKey}
+        onOpenRouteConfig={setRouteConfigKey}
         onToggleStatus={(item) =>
           updateStatusMutation.mutate({
             itemId: item.id,
@@ -245,19 +258,19 @@ export function UnifiedApiKeyManager() {
         usageKey={usageKey}
         isCreateOpen={isCreateOpen}
         editingKey={editingKey}
-        associatingKey={associatingKey}
+        routeConfigKey={routeConfigKey}
+        channels={channels}
+        routeConfigProviders={routeConfigProviders}
         groups={groups}
         modelMappings={modelMappings}
         defaultGroupId={defaultGroupId}
         onCloseUsage={() => setUsageKey(null)}
         onCloseCreate={() => setIsCreateOpen(false)}
         onCloseEdit={() => setEditingKey(null)}
-        onCloseAssociation={() => setAssociatingKey(null)}
+        onCloseRouteConfig={() => setRouteConfigKey(null)}
         onCreate={(input) => createMutation.mutate(input)}
         onSave={(itemId, update) => updateMutation.mutate({ itemId, update })}
-        onAssignModelMapping={(itemId, modelMappingId) =>
-          assignModelMappingMutation.mutate({ itemId, modelMappingId })
-        }
+        onSaveRouteConfig={(itemId, update) => updateMutation.mutate({ itemId, update })}
         onCopyApiKey={handleCopyApiKey}
       />
     </div>

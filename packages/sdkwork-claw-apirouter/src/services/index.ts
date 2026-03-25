@@ -10,6 +10,7 @@ export * from './providerAccessSetupService';
 export * from './proxyProviderFormService';
 export * from './unifiedApiKeyAccessService';
 export * from './unifiedApiKeyFormService';
+export * from './unifiedApiKeyRouteConfigService';
 export * from './unifiedApiKeyService';
 export * from './usageRecordsTableLayoutService';
 export * from './usageRecordsViewService';

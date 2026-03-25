@@ -98,6 +98,42 @@ runTest('sdkwork-claw-tasks shared manager uses the shared task catalog surface'
   assert.doesNotMatch(managerSource, /<TaskRow/);
 });
 
+runTest('sdkwork-claw-tasks shared manager binds cron agent selection to the connected instance catalog', () => {
+  const managerSource = read('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx');
+  const coreServiceSource = read('packages/sdkwork-claw-core/src/services/openClawAgentCatalogService.ts');
+
+  assert.match(managerSource, /openClawAgentCatalogService\.getCatalog\(activeInstanceId\)/);
+  assert.match(managerSource, /buildTaskAgentSelectState/);
+  assert.match(managerSource, /DEFAULT_TASK_AGENT_SELECT_VALUE/);
+  assert.match(
+    managerSource,
+    /value === DEFAULT_TASK_AGENT_SELECT_VALUE \? '' : value/,
+  );
+  assert.match(managerSource, /agentIdDefaultOption/);
+  assert.match(managerSource, /agentIdCatalogHelp/);
+  assert.match(coreServiceSource, /readOpenClawConfigSnapshot\(configPath\)\.catch\(\(\) => null\)/);
+  assert.match(coreServiceSource, /buildTaskAgentSelectState/);
+});
+
+runTest('sdkwork-claw-tasks shared manager uses compact label-control rows in the task editor', () => {
+  const managerSource = read('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx');
+
+  assert.match(managerSource, /function renderCompactField\(/);
+  assert.match(managerSource, /md:grid-cols-\[10rem,minmax\(0,1fr\)\]/);
+  assert.match(
+    managerSource,
+    /renderCompactField\(\{\s*label:\s*t\('tasks\.page\.fields\.taskName'\)/,
+  );
+  assert.match(
+    managerSource,
+    /renderCompactField\(\{\s*label:\s*t\('tasks\.page\.fields\.timeoutSeconds'\)/,
+  );
+  assert.doesNotMatch(
+    managerSource,
+    /<Label className="mb-2 block">\{t\('tasks\.page\.fields\.taskName'\)\}<\/Label>/,
+  );
+});
+
 runTest('sdkwork-claw-tasks ships readable zh task copy without mojibake placeholders', () => {
   const zh = readJson<{ tasks: { page: Record<string, unknown> } }>(
     'packages/sdkwork-claw-i18n/src/locales/zh.json',

@@ -19,7 +19,12 @@ function canWarmApiRouterBootstrapSession(
 
 export async function warmApiRouterAdminSession(): Promise<boolean> {
   try {
-    const runtimeStatus = await getRuntimePlatform().getApiRouterRuntimeStatus();
+    const runtimePlatform = getRuntimePlatform();
+    let runtimeStatus = await runtimePlatform.getApiRouterRuntimeStatus();
+    if (runtimeStatus?.mode === 'needsManagedStart' && runtimePlatform.ensureApiRouterRuntimeStarted) {
+      runtimeStatus = await runtimePlatform.ensureApiRouterRuntimeStarted();
+    }
+
     if (!canWarmApiRouterBootstrapSession(runtimeStatus)) {
       return false;
     }

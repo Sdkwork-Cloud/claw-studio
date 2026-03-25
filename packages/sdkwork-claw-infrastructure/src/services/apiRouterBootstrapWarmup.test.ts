@@ -199,3 +199,89 @@ await runTest('warmApiRouterAdminSession skips bootstrap when the local router i
   assert.equal(bootstrapRequests, 0);
   assert.equal(readApiRouterAdminSession(), null);
 });
+
+await runTest('warmApiRouterAdminSession starts the managed local router before warming bootstrap auth', async () => {
+  clearApiRouterAdminSession();
+  let runtimeStatusCallCount = 0;
+  let ensureRuntimeStartedCallCount = 0;
+  let bootstrapRequests = 0;
+
+  configurePlatformBridge({
+    runtime: {
+      getRuntimeInfo: async () => ({ platform: 'desktop' }),
+      getApiRouterRuntimeStatus: async () => {
+        runtimeStatusCallCount += 1;
+
+        if (runtimeStatusCallCount === 1) {
+          return createRuntimeStatus({
+            mode: 'needsManagedStart',
+            recommendedManagedMode: 'inProcess',
+            admin: {
+              bindAddr: '127.0.0.1:12101',
+              healthUrl: 'http://127.0.0.1:12101/admin/health',
+              enabled: true,
+              publicBaseUrl: 'http://127.0.0.1:12103/api/admin',
+              healthy: false,
+              portAvailable: true,
+            },
+            gateway: {
+              bindAddr: '127.0.0.1:12100',
+              healthUrl: 'http://127.0.0.1:12100/health',
+              publicBaseUrl: 'http://127.0.0.1:12103/api',
+              healthy: false,
+              portAvailable: true,
+            },
+            reason:
+              'No healthy external sdkwork-api-router runtime is attached; start the managed in-process runtime.',
+          });
+        }
+
+        return createRuntimeStatus();
+      },
+      ensureApiRouterRuntimeStarted: async () => {
+        ensureRuntimeStartedCallCount += 1;
+        return createRuntimeStatus();
+      },
+      getApiRouterAdminBootstrapSession: async () => {
+        bootstrapRequests += 1;
+        return {
+          token: 'ensured-bootstrap-token',
+          source: 'managedLocalJwt',
+          user: {
+            id: 'admin_local_default',
+            email: 'admin@sdkwork.local',
+            displayName: 'Admin Operator',
+            active: true,
+            createdAtMs: 1_700_000_000_000,
+          },
+        };
+      },
+      setAppLanguage: async () => {},
+      submitProcessJob: async () => 'job-3',
+      getJob: async () => ({
+        id: 'job-3',
+        kind: 'process',
+        state: 'queued',
+        stage: 'queued',
+      }),
+      listJobs: async () => [],
+      cancelJob: async () => ({
+        id: 'job-3',
+        kind: 'process',
+        state: 'cancelled',
+        stage: 'cancelled',
+      }),
+      subscribeJobUpdates: async () => () => {},
+      subscribeProcessOutput: async () => () => {},
+    },
+  });
+
+  const { warmApiRouterAdminSession } = await import('./apiRouterBootstrapWarmup.ts');
+
+  const warmed = await warmApiRouterAdminSession();
+
+  assert.equal(warmed, true);
+  assert.equal(ensureRuntimeStartedCallCount, 1);
+  assert.equal(bootstrapRequests, 1);
+  assert.equal(readApiRouterAdminSession()?.token, 'ensured-bootstrap-token');
+});

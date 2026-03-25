@@ -36,12 +36,12 @@
     "brand": "Claw Studio",
     "dashboard": "控制台",
     "hotBadge": "热门",
-    "clawMall": "联网中心",
+    "clawMall": "Claw 商城",
     "instances": "实例",
     "devices": "设备",
     "install": "安装 Claw",
     "market": "ClawHub",
-    "agentMarket": "\u6570\u5b57\u5458\u5de5",
+    "agentMarket": "数字员工",
     "aiChat": "AI 对话",
     "channels": "渠道",
     "cronTasks": "定时任务",
@@ -81,8 +81,8 @@
   },
   "auth": {
     "qrLogin": "扫码登录",
-    "qrDesc": "使用 SDKWork 移动应用扫描二维码即可快速登录。",
-    "openApp": "打开 SDKWork App",
+    "qrDesc": "使用微信或其他受支持的客户端扫描二维码，快速完成登录。",
+    "openApp": "打开微信",
     "welcomeBack": "欢迎回来",
     "createAccount": "创建账号",
     "resetPassword": "重置密码",
@@ -106,8 +106,40 @@
       "password": "输入你的密码"
     },
     "providers": {
+      "wechat": "微信",
+      "douyin": "抖音",
       "github": "GitHub",
       "google": "Google"
+    },
+    "qrAlt": "登录二维码",
+    "qrRefresh": "刷新二维码",
+    "qrScannedHint": "二维码已扫描，请在微信中确认登录。",
+    "qrWeChatHint": "支持后端返回的微信公众号登录二维码。",
+    "qrStatus": {
+      "loading": "正在准备二维码...",
+      "pending": "扫描二维码继续",
+      "scanned": "二维码已扫描",
+      "confirmed": "登录已确认",
+      "expired": "二维码已过期",
+      "error": "无法获取二维码状态"
+    },
+    "errors": {
+      "signInFailed": "登录失败。",
+      "passwordResetFailed": "发送重置密码请求失败。",
+      "oauthStartFailed": "发起社交登录失败。",
+      "qrGenerateFailed": "加载登录二维码失败。",
+      "qrStatusFailed": "刷新二维码登录状态失败。",
+      "invalidQrPayload": "后端返回的二维码数据无效。"
+    },
+    "oauth": {
+      "badge": "OAuth 登录",
+      "processingTitle": "正在完成登录",
+      "processingDesc": "授权提供方已经返回 Claw Studio，正在校验授权结果并创建会话。",
+      "processingHint": "请保持此页面打开，直到跳转完成。",
+      "failedTitle": "登录失败",
+      "failed": "完成 OAuth 登录失败。",
+      "invalidProvider": "不支持的 OAuth 提供方。",
+      "missingCode": "缺少授权码。"
     }
   },
   "settings": {
@@ -156,34 +188,104 @@
       "notifications": "通知",
       "security": "安全",
       "api": "API 密钥",
-      "data": "数据与隐私"
+      "data": "数据与隐私",
+      "feedback": "反馈"
     },
     "account": {
       "title": "账户",
-      "description": "更新你的个人资料与详细信息。",
-      "signedOutDescription": "登录后即可管理你的个人资料与账户设置。",
-      "signInRequired": "需要登录",
+      "description": "统一管理你在 Claw Studio 中使用的身份信息、同步状态和个人资料细节。",
+      "signedOutDescription": "登录后即可编辑个人资料、同步账户身份，并管理当前设备上的访问状态。",
+      "signInRequired": "请先登录",
       "signedOut": "当前尚未登录。",
-      "signInPrompt": "请前往登录页面后再编辑个人资料或重新登录。",
+      "signInPrompt": "登录后即可加载云端资料、校验邮箱身份，并让当前设备上的资料保持同步。",
       "goToLogin": "前往登录",
-      "profileTitle": "个人资料",
-      "changeAvatar": "更换头像",
-      "avatarHint": "支持 JPG、GIF 或 PNG，最大 800K",
+      "profileTitle": "资料详情",
+      "avatarTitle": "资料头像",
       "firstName": "名",
       "lastName": "姓",
       "email": "邮箱地址",
       "saving": "保存中...",
       "saveChanges": "保存更改",
+      "resetChanges": "重置更改",
       "dangerZone": "危险操作",
       "signOut": "退出登录",
       "signOutDescription": "在当前设备上退出你的 Claw Studio 账户。",
+      "placeholders": {
+        "firstName": "例如：Ada",
+        "lastName": "例如：Lovelace",
+        "email": "you@example.com"
+      },
+      "metrics": {
+        "completeness": "资料健康度",
+        "sync": "同步状态",
+        "email": "邮箱状态"
+      },
+      "status": {
+        "saving": "保存中",
+        "attention": "需要处理",
+        "dirty": "有未保存更改",
+        "synced": "已同步",
+        "session": "会话兜底"
+      },
+      "emailHealth": {
+        "valid": "邮箱已校验",
+        "invalid": "邮箱格式无效",
+        "missing": "缺少邮箱"
+      },
+      "source": {
+        "remoteTitle": "云端资料",
+        "remoteDescription": "当前资料已从账户服务同步完成，可以直接编辑并保存。",
+        "sessionTitle": "会话兜底资料",
+        "sessionDescription": "云端同步暂不可用，当前正在使用这台设备上的会话身份继续工作。",
+        "sessionFailedDescription": "暂时无法刷新云端资料。你仍可基于当前会话身份继续编辑，稍后再重新保存。"
+      },
+      "completion": {
+        "title": "资料完整度",
+        "summary": "已完成 {{completed}} / {{total}} 项",
+        "nextStep": "下一步建议：补充 {{field}}",
+        "done": "关键信息已经补齐，可以稳定用于跨设备和账户场景。",
+        "complete": "已完成",
+        "missing": "待补充",
+        "levels": {
+          "starter": "核心身份信息还需要继续补齐",
+          "growing": "基础资料已经成型，还剩少量项待完善",
+          "complete": "资料已完善，可稳定用于跨设备使用"
+        }
+      },
+      "form": {
+        "displayName": "显示名预览",
+        "displayNameHint": "这里会根据你的名和姓实时生成显示效果。",
+        "emailHint": "该邮箱会用于身份识别、找回流程以及账户相关体验。",
+        "emailMissing": "请先补充邮箱地址，再保存资料，确保同步链路可正常工作。",
+        "emailInvalid": "请输入有效的邮箱地址，保证资料同步和安全流程正常运行。",
+        "avatarReadonly": "头像由已连接的账户提供方统一管理，当前工作台仅提供只读展示。",
+        "unsavedTitle": "更改已准备好保存",
+        "unsavedDescription": "请确认当前身份信息无误，然后保存到最新资料版本。",
+        "upToDateTitle": "资料已是最新",
+        "upToDateDescription": "当前没有未保存更改，资料草稿与最新保存版本保持一致。"
+      },
+      "access": {
+        "title": "账户接入",
+        "avatarDescription": "头像来自已连接的账户身份，并会在整个工作台内保持一致。",
+        "securityTitle": "当前设备已登录",
+        "securityDescription": "如果你希望断开当前设备与账户的连接，可以使用下方的退出登录操作。"
+      },
+      "signedOutCards": {
+        "syncTitle": "同步云端身份",
+        "syncDescription": "跨设备加载你的账户资料，而不是停留在未连接的本地壳层状态。",
+        "securityTitle": "保持访问可控",
+        "securityDescription": "明确管理当前设备是否继续绑定到你的认证账户会话。",
+        "profileTitle": "完善操作员资料",
+        "profileDescription": "补齐姓名和邮箱，让聊天、通知和账户相关界面始终保持一致。"
+      },
       "toasts": {
-        "avatarSimulated": "已模拟头像更新",
         "loadFailed": "加载个人资料失败",
         "updated": "个人资料已更新",
         "updateFailed": "更新个人资料失败",
         "signedOut": "已成功退出登录",
-        "signOutFailed": "退出登录失败"
+        "signOutFailed": "退出登录失败",
+        "emailRequired": "保存前需要先填写邮箱地址",
+        "invalidEmail": "保存前请输入有效的邮箱地址"
       }
     },
     "apiKeys": {
@@ -414,6 +516,99 @@
         "modelNamePlaceholder": "显示名称（例如：GPT-4o）",
         "save": "保存配置"
       }
+    },
+    "feedback": {
+      "title": "反馈中心",
+      "description": "通过共享 app-sdk 提交产品反馈、跟踪工单处理进度，并查看官方支持信息。",
+      "authRequired": {
+        "title": "登录后管理反馈",
+        "description": "请先登录，再提交新的反馈或查看当前工作台中的历史工单。",
+        "action": "前往登录"
+      },
+      "submit": {
+        "title": "提交反馈",
+        "description": "可直接提交 Bug、建议、功能诉求或使用问题到后端反馈服务。",
+        "typeLabel": "反馈类型",
+        "contactLabel": "联系方式",
+        "contactPlaceholder": "邮箱、手机号或偏好的跟进方式",
+        "contentLabel": "反馈内容",
+        "contentPlaceholder": "请描述问题现象、期望行为以及可复现的关键细节。",
+        "helper": "尽量说明发生了什么、你期待什么，以及希望如何改进。",
+        "action": "提交反馈",
+        "submitting": "提交中..."
+      },
+      "history": {
+        "title": "反馈记录",
+        "description": "查看近期工单、按状态筛选，并打开某条记录继续补充信息。",
+        "refresh": "刷新",
+        "empty": "你还没有提交过任何反馈。",
+        "emptyFiltered": "当前状态筛选下没有匹配的反馈。"
+      },
+      "detail": {
+        "empty": "请选择一条反馈查看详情。",
+        "contact": "联系方式",
+        "submittedAt": "提交时间",
+        "processedAt": "处理时间",
+        "followUps": "补充记录",
+        "followUpPlaceholder": "补充更多上下文、日志或截图，方便支持团队继续处理。",
+        "sendFollowUp": "发送补充",
+        "sendingFollowUp": "发送中...",
+        "closeAction": "关闭工单",
+        "closing": "关闭中...",
+        "noFollowUps": "暂时还没有补充记录。"
+      },
+      "support": {
+        "title": "支持信息",
+        "description": "如需更快响应，可直接使用官方支持渠道处理当前问题。",
+        "hotline": "热线电话",
+        "email": "支持邮箱",
+        "hours": "工作时间",
+        "online": "在线支持",
+        "faq": "FAQ 链接",
+        "helpCenter": "帮助中心",
+        "empty": "暂时无法获取支持信息。"
+      },
+      "faq": {
+        "title": "常见问题",
+        "description": "提交新工单前，可以先搜索常见答案。",
+        "categoryLabel": "分类",
+        "categoryAll": "全部分类",
+        "searchPlaceholder": "搜索常见问题",
+        "empty": "当前查询没有匹配的 FAQ。",
+        "answerTitle": "回答",
+        "selectPrompt": "请选择一条 FAQ 查看回答。"
+      },
+      "status": {
+        "ALL": "全部状态",
+        "PENDING": "待处理",
+        "PROCESSING": "处理中",
+        "PROCESSED": "已处理",
+        "RESOLVED": "已解决",
+        "CLOSED": "已关闭",
+        "REJECTED": "已拒绝"
+      },
+      "types": {
+        "SUGGESTION": "建议",
+        "COMPLAINT": "投诉",
+        "PRAISE": "表扬",
+        "BUG_REPORT": "Bug 反馈",
+        "FEATURE_REQUEST": "功能诉求",
+        "QUESTION": "使用咨询",
+        "OTHER": "其他"
+      },
+      "toasts": {
+        "authRequired": "请先登录后再管理反馈。",
+        "submitSuccess": "反馈提交成功。",
+        "submitFailed": "反馈提交失败。",
+        "loadFeedbackFailed": "加载反馈记录失败。",
+        "loadFeedbackDetailFailed": "加载反馈详情失败。",
+        "followUpSuccess": "补充信息发送成功。",
+        "followUpFailed": "补充信息发送失败。",
+        "closeSuccess": "反馈工单已关闭。",
+        "closeFailed": "关闭反馈工单失败。",
+        "loadSupportFailed": "加载支持信息失败。",
+        "loadFaqFailed": "加载 FAQ 信息失败。"
+      }
     }
   },
   "commandPalette": {
@@ -438,6 +633,10 @@
       "apps": {
         "title": "前往应用商店",
         "subtitle": "浏览 AI 应用"
+      },
+      "mall": {
+        "title": "前往 Claw 商城",
+        "subtitle": "浏览基于 PlusProduct 产品目录的商城商品"
       },
       "agents": {
         "title": "前往 Agent 市场",
@@ -718,7 +917,8 @@
       "filters": {
         "searchPlaceholder": "搜索密钥名称、备注或 API 密钥",
         "allGroups": "全部分组",
-        "modelMappingSearchPlaceholder": "搜索映射名称、描述或映射模型"
+        "modelMappingSearchPlaceholder": "搜索映射名称、描述或映射模型",
+        "routeConfigSearchPlaceholder": "搜索路由配置名称、分组、渠道或模型"
       },
       "table": {
         "name": "名称",
@@ -739,6 +939,7 @@
         "copyKey": "复制密钥",
         "copySnippet": "复制片段",
         "usageMethod": "使用方式",
+        "routeConfig": "路由配置",
         "associateModelMapping": "关联模型映射",
         "clearModelMapping": "清除映射",
         "enable": "启用",
@@ -755,6 +956,7 @@
         "usageTitle": "使用方式",
         "createTitle": "新建统一 API 密钥",
         "editTitle": "编辑统一 API 密钥",
+        "routeConfigTitle": "路由配置",
         "associateModelMappingTitle": "关联模型映射",
         "exampleRequest": "示例请求",
         "create": "创建密钥",
@@ -809,6 +1011,8 @@
         "keyCreated": "统一 API 密钥已创建",
         "groupUpdated": "密钥分组已更新",
         "statusUpdated": "密钥状态已更新",
+        "routeConfigUpdated": "路由配置已更新",
+        "routeConfigValidationFailed": "自定义路由必须选择一个路由配置。",
         "modelMappingUpdated": "模型映射关联已更新",
         "keyUpdated": "统一 API 密钥已更新",
         "keyDeleted": "统一 API 密钥已删除"
@@ -817,10 +1021,40 @@
         "never": "永不过期",
         "mappedTo": "已关联 {{name}}",
         "mappingUnavailable": "映射已不可用",
+        "sdkworkRemoteRoute": "SDKWORK 远程默认路由",
+        "customRouteTo": "自定义路由到 {{name}}",
+        "routeConfigUnavailable": "路由配置已不可用",
+        "modelMappingOptional": "模型映射可选",
+        "routeConfigMeta": "{{channel}} · {{group}}",
         "associationHint": "为该 Key 选择一个模型映射，清空选择即可移除当前关联。",
+        "noRouteConfigs": "当前搜索条件下没有可用的路由配置。",
         "noModelMappings": "当前搜索条件下没有匹配的模型映射。",
         "hiddenAfterCreation": "已脱敏",
         "oneTimeSecretUnavailable": "当前设备没有这把密钥的本地明文托管副本"
+      },
+      "routeConfig": {
+        "sidebar": {
+          "sdkworkRemote": {
+            "title": "SDKWORK 远程路由",
+            "description": "默认路由。未配置覆盖规则的请求会继续走远程 SDKWORK API Router 标准化服务。"
+          },
+          "custom": {
+            "title": "自定义路由配置",
+            "description": "选择一个本地路由配置作为覆盖层，只改这把统一密钥的路由去向。"
+          },
+          "modelMapping": {
+            "title": "模型映射配置",
+            "description": "可选地为这把统一密钥附加模型映射。不配置时保持原始模型路由。"
+          }
+        },
+        "sdkworkRemote": {
+          "title": "保持 SDKWORK 远程路由",
+          "description": "使用 SDKWORK 远程路由作为默认兜底。这样本地设置只做增量覆盖，远端继续承担标准化路由服务和未配置请求。"
+        },
+        "custom": {
+          "title": "选择自定义路由",
+          "description": "这里列出路由配置中的可选项。选中后，这把统一密钥会优先走本地指定的路由配置。"
+        }
       }
     },
     "modelMapping": {
@@ -2058,6 +2292,7 @@
     "postDetail": {
       "actions": {
         "bookmark": "收藏",
+        "bookmarked": "已收藏",
         "follow": "关注",
         "more": "更多操作",
         "reply": "回复",
@@ -2065,19 +2300,20 @@
         "share": "分享"
       },
       "assistantCta": {
-      "title": "OpenClaw 后续处理",
-      "description": "让助手继续优化这条信息、生成复投版本，或组织下一步跟进动作。",
-      "primaryAction": "让 OpenClaw 继续"
-    },
-    "overviewEyebrow": "信息详情",
-    "overviewTitle": "信息概览",
-    "publisherPanelEyebrow": "发布方",
-    "publisherPanelTitle": "发布方资料",
-    "backToCommunity": "返回分类信息",
-    "commentPlaceholder": "补充跟进说明或提问...",
-    "commentsTitle": "评论（{{count, number}}）",
-    "currentUserInitials": "我",
-    "featuredBadge": "精选",
+        "title": "OpenClaw 后续处理",
+        "description": "让助手继续优化这条信息、生成复投版本，或组织下一步跟进动作。",
+        "primaryAction": "让 OpenClaw 继续"
+      },
+      "overviewEyebrow": "信息详情",
+      "overviewTitle": "信息概览",
+      "publisherPanelEyebrow": "发布方",
+      "publisherPanelTitle": "发布方资料",
+      "backToCommunity": "返回分类信息",
+      "commentPlaceholder": "补充跟进说明或提问...",
+      "commentsTitle": "评论（{{count, number}}）",
+      "currentUserInitials": "我",
+      "emptyComments": "当前还没有跟进评论，可以先发起第一条提问。",
+      "featuredBadge": "精选",
       "listingMeta": {
         "title": "信息元数据",
         "location": "地点",
@@ -2114,42 +2350,51 @@
           "onsite": "线下交付"
         }
       },
-    "meta": {
-      "views": "{{count, number}} 浏览次数"
-    },
-    "newsPanelTitle": "平台资讯",
-    "newsPanelDescription": "这是一条官方资讯内容，适合保留在资讯模块中集中浏览、转发与归档。",
-    "recommendations": {
-      "relatedServicesEyebrow": "相关服务",
-      "relatedServicesTitle": "值得联系的服务",
-      "relatedServicesDescription": "基于当前信息的服务需求、标签和交付语境，优先推荐更适合继续对接的服务方。",
-      "relatedServicesEmpty": "当前还没有足够贴近的服务推荐。",
-      "relatedCompaniesEyebrow": "相关企业",
-      "relatedCompaniesTitle": "值得继续匹配的企业",
-      "relatedCompaniesDescription": "从活跃分类信息里按企业聚合，方便继续浏览附近的供给方、运营方和企业需求。",
-      "relatedCompaniesEmpty": "当前还没有足够贴近的企业推荐。",
-      "openService": "查看服务",
-      "openCompany": "代表信息",
-      "activeListings": "{{count, number}} 条活跃信息",
-      "reasonLabels": {
-        "featured": "精选",
-        "intentServiceLine": "匹配需求",
-        "matchedServiceLine": "匹配服务",
-        "multiListing": "多条信息",
-        "onlineDelivery": "线上交付",
-        "officialPresence": "含官方信息",
-        "sameCompany": "同公司",
-        "sameServiceLine": "同服务线",
-        "sharedCategory": "同分类",
-        "sharedLocation": "同地区",
-        "sharedTag": "同标签"
+      "meta": {
+        "views": "{{count, number}} 浏览次数"
+      },
+      "newsPanelTitle": "平台资讯",
+      "newsPanelDescription": "这是一条官方资讯内容，适合保留在资讯模块中集中浏览、转发与归档。",
+      "recommendations": {
+        "relatedServicesEyebrow": "相关服务",
+        "relatedServicesTitle": "值得联系的服务",
+        "relatedServicesDescription": "基于当前信息的服务需求、标签和交付语境，优先推荐更适合继续对接的服务方。",
+        "relatedServicesEmpty": "当前还没有足够贴近的服务推荐。",
+        "relatedCompaniesEyebrow": "相关企业",
+        "relatedCompaniesTitle": "值得继续匹配的企业",
+        "relatedCompaniesDescription": "从活跃分类信息里按企业聚合，方便继续浏览附近的供给方、运营方和企业需求。",
+        "relatedCompaniesEmpty": "当前还没有足够贴近的企业推荐。",
+        "openService": "查看服务",
+        "openCompany": "代表信息",
+        "activeListings": "{{count, number}} 条活跃信息",
+        "reasonLabels": {
+          "featured": "精选",
+          "intentServiceLine": "匹配需求",
+          "matchedServiceLine": "匹配服务",
+          "multiListing": "多条信息",
+          "onlineDelivery": "线上交付",
+          "officialPresence": "含官方信息",
+          "sameCompany": "同公司",
+          "sameServiceLine": "同服务线",
+          "sharedCategory": "同分类",
+          "sharedLocation": "同地区",
+          "sharedTag": "同标签"
+        }
+      },
+      "notFoundTitle": "未找到该信息",
+      "toasts": {
+        "bookmarkAdded": "已加入分类信息收藏清单。",
+        "bookmarkFailed": "更新收藏状态失败。",
+        "bookmarkRemoved": "已从分类信息收藏清单移除。",
+        "commentFailed": "发送评论失败。",
+        "shareCopied": "分享内容已复制到剪贴板。",
+        "shareFailed": "准备分享内容失败。",
+        "shareReady": "分享面板已打开。"
+      },
+      "roles": {
+        "official": "官方",
+        "coreContributor": "核心贡献者"
       }
-    },
-    "notFoundTitle": "未找到该信息",
-    "roles": {
-      "official": "官方",
-      "coreContributor": "核心贡献者"
-    }
     }
   },
   "clawUpload": {
@@ -2307,34 +2552,34 @@
       "errorDescription": "共享 app-sdk 暂时不可用，请稍后重试。",
       "retry": "重新加载"
     },
-  "rechargeDialog": {
-    "eyebrow": "积分充值",
-    "title": "充值积分",
-    "description": "选择常用档位或自定义数量，核对后端返回的实时汇率后，直接通过真实 app-sdk 提交充值。",
-    "payable": "本次需支付",
-    "commonAmounts": "常用积分档位",
-    "configureTitle": "配置本次充值",
-    "configureDescription": "常用档位仍然保留为快捷入口，但实际支付金额始终以服务端配置的积分汇率为准。",
-    "customAmount": "自定义积分数量",
-    "customPlaceholder": "请输入正整数积分数量",
-    "backToForm": "返回充值设置",
-    "summaryEyebrow": "充值信息",
-    "summaryTitle": "确认本次积分充值",
-    "summaryDescription": "这里展示实时兑换汇率、支付方式与本次应付金额，全部来自真实积分充值契约。",
-    "summaryMeta": "购买 {{points}} 积分，需支付 {{amount}}",
-    "rechargeDetailsTitle": "充值积分",
-    "rechargeDetailsDescription": "确认本次购买的积分数量、划线原价与实付金额后，在右侧扫码完成支付。",
-    "selectedPointsLabel": "购买积分",
-    "purchaseTypeLabel": "充值方式",
-    "originalPriceLabel": "划线原价",
-    "actualPriceLabel": "实付金额",
-    "exchangeRateLabel": "兑换汇率",
-    "exchangeRateValue": "1 元 = {{rate}} 积分",
-    "rateUnavailable": "后端暂未返回可用的积分汇率。",
-    "presetMeta": "需支付 {{amount}}",
-    "presetPurchase": "常用档位",
-    "customPurchase": "自定义数量",
-    "paymentEyebrow": "扫码支付",
+    "rechargeDialog": {
+      "eyebrow": "积分充值",
+      "title": "充值积分",
+      "description": "选择常用档位或自定义数量，核对后端返回的实时汇率后，直接通过真实 app-sdk 提交充值。",
+      "payable": "本次需支付",
+      "commonAmounts": "常用积分档位",
+      "configureTitle": "配置本次充值",
+      "configureDescription": "常用档位仍然保留为快捷入口，但实际支付金额始终以服务端配置的积分汇率为准。",
+      "customAmount": "自定义积分数量",
+      "customPlaceholder": "请输入正整数积分数量",
+      "backToForm": "返回充值设置",
+      "summaryEyebrow": "充值信息",
+      "summaryTitle": "确认本次积分充值",
+      "summaryDescription": "这里展示实时兑换汇率、支付方式与本次应付金额，全部来自真实积分充值契约。",
+      "summaryMeta": "购买 {{points}} 积分，需支付 {{amount}}",
+      "rechargeDetailsTitle": "充值积分",
+      "rechargeDetailsDescription": "确认本次购买的积分数量、划线原价与实付金额后，在右侧扫码完成支付。",
+      "selectedPointsLabel": "购买积分",
+      "purchaseTypeLabel": "充值方式",
+      "originalPriceLabel": "划线原价",
+      "actualPriceLabel": "实付金额",
+      "exchangeRateLabel": "兑换汇率",
+      "exchangeRateValue": "1 元 = {{rate}} 积分",
+      "rateUnavailable": "后端暂未返回可用的积分汇率。",
+      "presetMeta": "需支付 {{amount}}",
+      "presetPurchase": "常用档位",
+      "customPurchase": "自定义数量",
+      "paymentEyebrow": "扫码支付",
       "paymentTitle": "扫码完成积分充值",
       "paymentDescription": "右侧展示当前支付二维码，切换支付方式后二维码会同步更新。",
       "qrAlt": "{{method}} 充值二维码",
@@ -2351,21 +2596,21 @@
       "title": "升级您的订阅计划",
       "description": "从 app-sdk 返回的实时 VIP 套餐中选择合适的方案，并通过真实会员购买契约完成提交。",
       "save20": "省 20%",
-    "pointsGrant": "立即到账套餐积分",
-    "pointsGrantValue": "{{points}} 积分",
-    "noGrant": "暂无套餐积分",
-    "includedBenefits": "包含特权",
-    "backToPlans": "返回计划",
-    "summaryEyebrow": "套餐信息",
-    "summaryTitle": "确认已选套餐",
-    "summaryDescription": "先确认当前会员状态、所选套餐、有效时长和赠送积分，再提交真实会员购买请求。",
-    "currentMembership": "当前会员状态",
-    "defaultPlanDescription": "该 VIP 套餐由共享 app-sdk 提供，购买成功后即可立即生效。",
-    "noPlans": "当前暂无可购买的 VIP 套餐。",
-    "summaryMeta": "{{cycle}}，开通后立即到账 {{points}} 积分",
-    "paymentLockedHint": "当前支付步骤不支持修改套餐或年月周期，请点击左上角返回重新选择。",
-    "paymentSummaryHint": "如需更换套餐或周期，请点击左上角返回上一步重新选择。",
-    "currentPlanHint": "当前选择已经是你正在使用的套餐周期，无需重复开通。",
+      "pointsGrant": "立即到账套餐积分",
+      "pointsGrantValue": "{{points}} 积分",
+      "noGrant": "暂无套餐积分",
+      "includedBenefits": "包含特权",
+      "backToPlans": "返回计划",
+      "summaryEyebrow": "套餐信息",
+      "summaryTitle": "确认已选套餐",
+      "summaryDescription": "先确认当前会员状态、所选套餐、有效时长和赠送积分，再提交真实会员购买请求。",
+      "currentMembership": "当前会员状态",
+      "defaultPlanDescription": "该 VIP 套餐由共享 app-sdk 提供，购买成功后即可立即生效。",
+      "noPlans": "当前暂无可购买的 VIP 套餐。",
+      "summaryMeta": "{{cycle}}，开通后立即到账 {{points}} 积分",
+      "paymentLockedHint": "当前支付步骤不支持修改套餐或年月周期，请点击左上角返回重新选择。",
+      "paymentSummaryHint": "如需更换套餐或周期，请点击左上角返回上一步重新选择。",
+      "currentPlanHint": "当前选择已经是你正在使用的套餐周期，无需重复开通。",
       "paymentEyebrow": "扫码支付",
       "paymentTitle": "扫码完成支付",
       "paymentDescription": "右侧展示当前支付二维码与支付摘要，切换方式后二维码会同步更新。",
@@ -2378,18 +2623,18 @@
       "agreementJoiner": "与",
       "serviceAgreement": "《订阅服务协议》",
       "packageDetailsTitle": "套餐信息",
-    "packageDetailsDescription": "核对套餐、周期、到账积分与价格后即可继续支付。",
-    "lockedBadge": "已锁定",
-    "packageNameLabel": "套餐方案",
-    "durationLabel": "有效时长",
-    "durationValue": "{{days}} 天",
-    "durationUnknown": "暂未提供时长信息",
-    "billingCycleLabel": "订阅周期",
-    "grantPointsLabel": "到账积分",
-    "originalPriceLabel": "划线原价",
-    "actualPriceLabel": "实付金额",
-    "totalPriceLabel": "应付金额"
-  },
+      "packageDetailsDescription": "核对套餐、周期、到账积分与价格后即可继续支付。",
+      "lockedBadge": "已锁定",
+      "packageNameLabel": "套餐方案",
+      "durationLabel": "有效时长",
+      "durationValue": "{{days}} 天",
+      "durationUnknown": "暂未提供时长信息",
+      "billingCycleLabel": "订阅周期",
+      "grantPointsLabel": "到账积分",
+      "originalPriceLabel": "划线原价",
+      "actualPriceLabel": "实付金额",
+      "totalPriceLabel": "应付金额"
+    },
     "auth": {
       "signInRequired": "请先登录，才能读取、充值或升级您的实时积分账户。"
     },
@@ -2920,6 +3165,12 @@
         "agentId": "Agent ID",
         "agentIdPlaceholder": "可选 agent 绑定",
         "agentIdHelp": "当运行时存在多个 OpenClaw agent 时，可将任务固定到指定 agent。",
+        "agentIdDefaultOption": "跟随默认 agent 路由（当前为 {{name}} / {{agentId}}）",
+        "agentIdDefaultLabel": "默认",
+        "agentIdDefaultHelp": "保持默认路由即可跟随当前连接实例的默认 agent，目前是 {{name}}（{{agentId}}）。",
+        "agentIdUnavailableOption": "不可用的 agent 绑定（{{agentId}}）",
+        "agentIdUnavailableHelp": "这个任务仍然绑定到 {{agentId}}，但当前连接实例里已经读不到这个 agent 了。",
+        "agentIdCatalogHelp": "agent 列表来自当前连接实例。只有在这个 cron job 必须固定到某个 agent 时，才需要显式选择具体 agent。",
         "model": "模型覆盖",
         "modelPlaceholder": "例如 openai/gpt-5.4",
         "modelHelp": "为 agentTurn 任务设置可选的 provider/model 或别名覆盖。",
@@ -3121,8 +3372,12 @@
     },
     "list": {
       "title": "实例",
-      "subtitle": "管理、监控并配置你的 Claw Studio 计算节点。",
+      "subtitle": "创建、关联并管理当前工作区需要使用的 OpenClaw 运行时。",
       "activeBadge": "活跃",
+      "emptyTitle": "还没有连接到任何实例",
+      "emptyDescription": "可以从内置 OpenClaw 安装开始，也可以关联本机已安装的 OpenClaw，或直接接入远程网关，让 Claw Studio 拥有可用的运行时。",
+      "emptyPrimaryAction": "安装内置 OpenClaw",
+      "emptySecondaryAction": "关联已安装 OpenClaw",
       "confirmUninstall": "确认要卸载这个实例吗？",
       "actionNames": {
         "start": "启动",
@@ -3130,8 +3385,28 @@
         "restart": "重启",
         "delete": "卸载"
       },
+      "onboarding": {
+        "builtInBadge": "推荐",
+        "builtInTitle": "安装内置 OpenClaw",
+        "builtInDescription": "使用引导安装流程选择当前主机最适合的安装方式，并将内置 OpenClaw 纳入 Claw Studio 管理。",
+        "builtInAction": "打开引导安装",
+        "associateBadge": "本地安装",
+        "associateTitle": "关联已安装 OpenClaw",
+        "associateDescription": "扫描当前机器上通过 pnpm、npm、Docker、WSL、源码等方式安装的 OpenClaw。",
+        "associateAction": "扫描已安装运行时",
+        "remoteBadge": "远程",
+        "remoteTitle": "接入远程网关",
+        "remoteDescription": "将已经运行的 OpenClaw HTTP / WebSocket 网关注册为工作区可用的实例。",
+        "remoteAction": "配置远程连接"
+      },
       "actions": {
         "deployInstance": "部署实例",
+        "newInstance": "新建实例",
+        "associateInstalled": "关联已安装",
+        "installBuiltIn": "安装内置",
+        "rescanInstalls": "重新扫描",
+        "associateConfigFile": "从 openclaw.json 关联",
+        "createRemote": "创建远程实例",
         "setActive": "设为活跃",
         "setAsActive": "设为活跃",
         "openTerminal": "打开终端",
@@ -3153,7 +3428,73 @@
         "billingCycle": "本计费周期",
         "uptime": "运行时长：{{value}}"
       },
+      "associationStatus": {
+        "associated": "已关联",
+        "readyToAssociate": "可关联",
+        "configMissing": "未找到配置"
+      },
+      "installControlLevel": {
+        "managed": "受控",
+        "partial": "部分受控",
+        "opaque": "不透明"
+      },
+      "runtimePlatform": {
+        "host": "主机",
+        "wsl": "WSL"
+      },
+      "associateDialog": {
+        "title": "关联已安装 OpenClaw",
+        "description": "将本机已存在的 OpenClaw 运行时与实例列表打通，并使其与当前配置保持一致。",
+        "detectedTitle": "已检测到的安装",
+        "detectedDescription": "每一种安装方式都会在当前主机上被检查，并与现有 local-external 实例进行匹配。",
+        "filePickerTitle": "选择 openclaw.json",
+        "emptyTitle": "未检测到已安装的 OpenClaw 运行时",
+        "emptyDescription": "如果 OpenClaw 是通过手动或其他非标准方式安装的，可以在下方通过 openclaw.json 直接关联。",
+        "manualTitle": "手动关联",
+        "manualDescription": "当前的 OpenClaw 来自自定义安装、其他脚本或无法稳定自动发现时，可直接选择现有的 openclaw.json 文件。",
+        "manualDesktopOnly": "手动选择文件只在桌面版可用。",
+        "associateAction": "关联实例",
+        "refreshAssociation": "刷新关联",
+        "configMissingHint": "已通过安装记录发现此 OpenClaw，但暂时无法自动定位到它的配置文件。可以使用下方的手动关联直接选择配置文件。",
+        "configUnavailable": "未发现配置文件",
+        "labels": {
+          "configPath": "配置路径",
+          "endpoint": "网关地址",
+          "workRoot": "工作根目录",
+          "linkedInstance": "已关联实例"
+        }
+      },
+      "remoteDialog": {
+        "title": "创建远程 OpenClaw 实例",
+        "description": "将远程 OpenClaw 网关注册为 Claw Studio 内的一等实例。",
+        "previewTitle": "连接预览",
+        "protocolHttp": "HTTP",
+        "protocolWebSocket": "WebSocket",
+        "fields": {
+          "name": "实例名称",
+          "host": "主机名",
+          "port": "端口",
+          "secure": "使用 TLS",
+          "secureDescription": "开启后将使用 HTTPS 和安全 WebSocket 地址。",
+          "authToken": "网关认证 Token",
+          "description": "描述"
+        },
+        "placeholders": {
+          "name": "Team Gateway",
+          "host": "gateway.example.com",
+          "authToken": "可选：远程网关使用的 Token",
+          "description": "用于测试或生产流量的共享 OpenClaw 运行时。"
+        }
+      },
       "toasts": {
+        "loadFailed": "无法加载实例列表",
+        "discoveryFailed": "无法扫描已安装的 OpenClaw 运行时",
+        "configMissing": "未找到该安装对应的 OpenClaw 配置文件",
+        "associationCreated": "已成功关联 {{name}}",
+        "associationUpdated": "已成功刷新 {{name}} 的关联",
+        "associationFailed": "无法关联选中的 OpenClaw 运行时",
+        "instanceCreated": "已成功创建 {{name}}",
+        "remoteCreateFailed": "无法创建远程 OpenClaw 实例",
         "started": "实例已启动",
         "stopped": "实例已停止",
         "restarted": "实例已重启",
@@ -3328,31 +3669,31 @@
           "runtimeNotes": "运行时说明",
           "logPreview": "日志预览",
           "management": {
-            "title": "\u7ba1\u7406\u89c6\u56fe",
-            "description": "\u76f4\u63a5\u67e5\u770b\u8fd9\u4e2a\u5b9e\u4f8b\u7531\u8c01\u7ba1\u7406\u3001\u6743\u5a01\u914d\u7f6e\u5728\u54ea\u91cc\uff0c\u4ee5\u53ca Claw Studio \u5f53\u524d\u80fd\u591f\u63a5\u7ba1\u5230\u4ec0\u4e48\u7a0b\u5ea6\u3002",
-            "notes": "\u7ba1\u7406\u8bf4\u660e",
+            "title": "管理视图",
+            "description": "直接查看这个实例由谁管理、权威配置在哪里，以及 Claw Studio 当前能够接管到什么程度。",
+            "notes": "管理说明",
             "labels": {
-              "controlPlane": "\u7ba1\u7406\u5e73\u9762",
-              "installMethod": "\u5b89\u88c5\u65b9\u5f0f",
-              "configAuthority": "\u914d\u7f6e\u6743\u5a01\u6765\u6e90",
-              "defaultWorkspace": "\u9ed8\u8ba4\u5de5\u4f5c\u533a",
-              "managementScope": "\u53ef\u7ba1\u8303\u56f4"
+              "controlPlane": "管理平面",
+              "installMethod": "安装方式",
+              "configAuthority": "配置权威来源",
+              "defaultWorkspace": "默认工作区",
+              "managementScope": "可管范围"
             },
             "details": {
-              "controlPlane": "\u751f\u547d\u5468\u671f\u5f52\u5c5e\u4e0e\u90e8\u7f72\u5f62\u6001\u51b3\u5b9a\u4e86\u8fd9\u4e2a\u5b9e\u4f8b\u662f\u5185\u7f6e\u6258\u7ba1\u3001\u5916\u90e8\u9644\u52a0\uff0c\u8fd8\u662f\u8fdc\u7a0b\u7ba1\u7406\u3002",
-              "installMethod": "\u8fd9\u91cc\u663e\u793a\u7684\u662f\u5f53\u524d OpenClaw \u63a7\u5236\u9762\u7684\u5b9e\u9645\u5b89\u88c5\u901a\u9053\u3002",
-              "installMethodUnknown": "\u5f53\u524d\u5b9e\u4f8b\u8fd8\u6ca1\u6709\u4e0a\u62a5\u53ef\u8bc6\u522b\u7684\u5b89\u88c5\u65b9\u5f0f\u3002",
-              "configManagedFile": "Claw Studio \u5df2\u53d1\u73b0\u53ef\u5199\u7684 OpenClaw \u914d\u7f6e\u6587\u4ef6\uff0c\u5b9e\u4f8b\u7ea7\u7ba1\u7406\u5c06\u56f4\u7ed5\u8fd9\u4e2a\u6743\u5a01\u6765\u6e90\u8fdb\u884c\u3002",
-              "configManagedDirectory": "\u5f53\u524d\u914d\u7f6e\u662f\u4ece\u53d7\u63a7\u76ee\u5f55\u4e2d\u89e3\u6790\u51fa\u6765\u7684\uff0c\u800c\u4e0d\u662f\u5355\u4e00\u7684\u914d\u7f6e\u6587\u4ef6\u3002",
-              "configRemoteEndpoint": "\u914d\u7f6e\u53ea\u80fd\u901a\u8fc7\u8fd0\u884c\u65f6\u7aef\u70b9\u8bbf\u95ee\uff0c\u56e0\u6b64\u53ea\u80fd\u63d0\u4f9b\u90e8\u5206\u7ba1\u7406\u80fd\u529b\u3002",
-              "configMetadataOnly": "\u76ee\u524d\u53ea\u62ff\u5230\u4e86\u914d\u7f6e\u5c42\u7684\u5143\u6570\u636e\uff0c\u8fd8\u6ca1\u6709\u76f4\u63a5\u53ef\u5199\u7684\u7ba1\u7406\u5165\u53e3\u3002",
-              "configUnavailable": "\u8fd9\u4e2a\u5b9e\u4f8b\u8fd8\u6ca1\u6709\u6302\u4e0a\u6743\u5a01\u914d\u7f6e\u8def\u5f84\u3002",
-              "workspaceAgent": "\u8fd9\u4e2a\u5de5\u4f5c\u533a\u6765\u81ea\u5f53\u524d\u9ed8\u8ba4 agent\uff0c\u662f Prompt\u3001Skills \u4e0e Agent \u6587\u4ef6\u7684\u4e3b\u8981\u6587\u4ef6\u7cfb\u7edf\u8303\u56f4\u3002",
-              "workspaceArtifact": "\u8fd9\u4e2a\u5de5\u4f5c\u533a\u8def\u5f84\u662f\u4ece\u5b9e\u4f8b artifact \u6620\u5c04\u4e2d\u53d1\u73b0\u7684\uff0c\u800c\u4e0d\u662f\u76f4\u63a5\u6765\u81ea agent \u6ce8\u518c\u4fe1\u606f\u3002",
-              "workspaceNamespace": "\u8fd8\u6ca1\u6709\u53ef\u76f4\u63a5\u5c55\u793a\u7684\u5de5\u4f5c\u533a\u8def\u5f84\uff0c\u5148\u4ee5\u5b58\u50a8 namespace \u4f5c\u4e3a\u7ba1\u7406\u8303\u56f4\u7684\u4ee3\u66ff\u5c55\u793a\u3002",
-              "scopeFull": "Agent CRUD\u3001Channel \u914d\u7f6e\u3001Provider \u914d\u7f6e\u548c\u6587\u4ef6\u7f16\u8f91\u90fd\u53ef\u4ee5\u901a\u8fc7\u53d1\u73b0\u5230\u7684 OpenClaw \u914d\u7f6e\u9762\u5b8c\u6210\u3002",
-              "scopePartial": "\u5bf9\u8bdd\u3001\u6587\u4ef6\u6216\u6a21\u578b\u76f8\u5173\u80fd\u529b\u53ef\u80fd\u4ecd\u7136\u53ef\u7528\uff0c\u4f46\u5728\u6ca1\u6709\u53ef\u5199\u914d\u7f6e\u9644\u7740\u7684\u60c5\u51b5\u4e0b\uff0c\u5b8c\u6574\u7684 agent \u4e0e channel \u7ba1\u7406\u8fd8\u4e0d\u80fd\u6253\u901a\u3002",
-              "scopeReadonly": "\u8fd9\u4e2a\u5b9e\u4f8b\u76ee\u524d\u53ef\u4ee5\u88ab\u53d1\u73b0\u548c\u89c2\u5bdf\uff0c\u4f46\u5728\u6302\u4e0a\u53ef\u5199\u7ba1\u7406\u8def\u5f84\u4e4b\u524d\uff0cClaw Studio \u5e94\u8be5\u628a\u5b83\u89c6\u4e3a\u53ea\u8bfb\u3002"
+              "controlPlane": "生命周期归属与部署形态决定了这个实例是内置托管、外部附加，还是远程管理。",
+              "installMethod": "这里显示的是当前 OpenClaw 控制面的实际安装通道。",
+              "installMethodUnknown": "当前实例还没有上报可识别的安装方式。",
+              "configManagedFile": "Claw Studio 已发现可写的 OpenClaw 配置文件，实例级管理将围绕这个权威来源进行。",
+              "configManagedDirectory": "当前配置是从受控目录中解析出来的，而不是单一的配置文件。",
+              "configRemoteEndpoint": "配置只能通过运行时端点访问，因此只能提供部分管理能力。",
+              "configMetadataOnly": "目前只拿到了配置层的元数据，还没有直接可写的管理入口。",
+              "configUnavailable": "这个实例还没有挂上权威配置路径。",
+              "workspaceAgent": "这个工作区来自当前默认 agent，是 Prompt、Skills 与 Agent 文件的主要文件系统范围。",
+              "workspaceArtifact": "这个工作区路径是从实例 artifact 映射中发现的，而不是直接来自 agent 注册信息。",
+              "workspaceNamespace": "还没有可直接展示的工作区路径，先以存储 namespace 作为管理范围的代替展示。",
+              "scopeFull": "Agent CRUD、Channel 配置、Provider 配置和文件编辑都可以通过发现到的 OpenClaw 配置面完成。",
+              "scopePartial": "对话、文件或模型相关能力可能仍然可用，但在没有可写配置附着的情况下，完整的 agent 与 channel 管理还不能打通。",
+              "scopeReadonly": "这个实例目前可以被发现和观察，但在挂上可写管理路径之前，Claw Studio 应该把它视为只读。"
             }
           }
         },
@@ -3514,7 +3855,9 @@
             "skillInstallFailed": "安装所选 OpenClaw 技能失败。",
             "skillEnabled": "OpenClaw 技能已启用。",
             "skillDisabled": "OpenClaw 技能已禁用。",
-            "skillUpdateFailed": "更新所选 OpenClaw 技能失败。"
+            "skillUpdateFailed": "更新所选 OpenClaw 技能失败。",
+            "skillRemoved": "OpenClaw 工作区技能已移除。",
+            "skillRemoveFailed": "移除所选 OpenClaw 工作区技能失败。"
           },
           "panel": {
             "badge": "OpenClaw Agents",
@@ -3543,9 +3886,11 @@
             "workspaceInstallDescription": "OpenClaw 会从当前选中智能体的工作区加载单智能体技能。在该工作区中执行下面的原生 OpenClaw CLI 命令，即可把技能安装到当前智能体。",
             "installToDefaultWorkspace": "安装到默认工作区",
             "defaultWorkspaceOnlyNotice": "只有选中默认智能体时才支持直接安装，因为 upstream 的 skills.install 网关动作仍然只写入默认 OpenClaw 工作区。",
+            "skillSlugPlaceholder": "calendar",
             "skillPaths": "技能路径",
             "agentWorkspace": "智能体工作区",
             "sharedSkills": "共享技能",
+            "sharedSkillsDefaultPath": "~/.openclaw/skills",
             "source": "来源",
             "primaryEnv": "主环境变量",
             "missingPrefix": "缺失项",
@@ -4340,6 +4685,7 @@
       },
       "method": {
         "actions": {
+          "guide": "查看指南",
           "install": "立即安装",
           "guidedInstall": "分步安装",
           "uninstall": "立即卸载",
@@ -4993,6 +5339,17 @@
         }
       },
       "back": "返回安装方式",
+      "eyebrow": "OpenClaw 安装指南",
+      "actions": {
+        "openOfficialGuide": "打开官方指南"
+      },
+      "footerNote": "具体命令会随着上游文档和平台策略变化而调整。这个页面刻意保持高层概览，并链接到官方 OpenClaw 指南，而不是在 Claw Studio 内再维护一份静态命令参考。",
+      "hosts": {
+        "macos": "macOS",
+        "linux": "Linux",
+        "windows": "Windows"
+      },
+      "profileHint": "Claw Studio 使用的就是这里展示的同一套 hub-installer 安装方案。在运行分步安装前，你可以先在这里确认官方文档、平台注意事项和方式适配度。",
       "help": {
         "description": {
           "after": "获取实时支持。",
@@ -5005,7 +5362,15 @@
       },
       "notFound": {
         "back": "返回安装",
+        "description": "这个路由已经不再对应任何受支持的 OpenClaw 安装方案。",
         "title": "未找到安装方式"
+      },
+      "sections": {
+        "afterInstall": "安装完成后",
+        "beforeYouStart": "开始前",
+        "bestFit": "适合场景",
+        "officialDocs": "官方文档",
+        "platformNotes": "平台说明"
       },
       "platforms": {
         "macosLinuxWsl": "macOS / Linux / WSL",
@@ -5015,14 +5380,14 @@
     }
   },
   "market": {
-  "actions": {
-    "installPack": "安装技能包",
-    "publishSkill": "新建技能",
-    "createSkillWithChat": "通过对话创建",
-    "uploadLocalSkill": "本地上传",
-    "confirmUninstallSkill": "卸载这个技能？",
-    "uninstall": "卸载"
-  },
+    "actions": {
+      "installPack": "安装技能包",
+      "publishSkill": "新建技能",
+      "createSkillWithChat": "通过对话创建",
+      "uploadLocalSkill": "本地上传",
+      "confirmUninstallSkill": "卸载这个技能？",
+      "uninstall": "卸载"
+    },
     "badges": {
       "curated": "精选"
     },
@@ -5059,6 +5424,8 @@
       "noActiveInstanceTitle": "尚未选择活跃实例",
       "packagesDescription": "当前没有符合筛选条件的技能包。",
       "packagesTitle": "未找到技能包",
+      "signInRequiredDescription": "请先登录 SDKWork 账户，ClawHub 才会通过 app-sdk 发起真实的技能、技能包和评价请求。",
+      "signInRequiredTitle": "请先登录以加载 ClawHub",
       "skillsDescription": "当前没有符合筛选条件的技能。",
       "skillsTitle": "未找到技能"
     },
@@ -5115,18 +5482,18 @@
       "subtitle": "用更轻、更清楚的方式发现、安装和管理塑造你工作区的技能。",
       "title": "Claw Hub"
     },
-  "search": {
-    "placeholders": {
-      "discover": "搜索技能、技能包、作者或分类...",
-      "installed": "搜索已安装技能...",
-      "packages": "搜索技能包、作者或分类...",
-      "skills": "搜索技能、作者或分类...",
-      "mySkills": "搜索我的技能..."
-    }
-  },
-  "sections": {
-    "allSkills": "技能库",
-    "allSkillsDescription": "把真正重要的技能放回前面，用更少噪音完成浏览和安装。",
+    "search": {
+      "placeholders": {
+        "discover": "搜索技能、技能包、作者或分类...",
+        "installed": "搜索已安装技能...",
+        "packages": "搜索技能包、作者或分类...",
+        "skills": "搜索技能、作者或分类...",
+        "mySkills": "搜索我的技能..."
+      }
+    },
+    "sections": {
+      "allSkills": "技能库",
+      "allSkillsDescription": "把真正重要的技能放回前面，用更少噪音完成浏览和安装。",
       "featuredPacks": "精选技能包",
       "featuredPacksDescription": "更适合快速起步的成套能力入口，减少第一次搭建时的选择负担。",
       "featuredPacksEyebrow": "快速搭建",
@@ -5134,13 +5501,13 @@
       "installedSkills": "已安装技能",
       "installedSkillsDescription": "{{name}} 当前可用的技能。",
       "libraryEyebrow": "浏览",
-    "matchingPacks": "匹配的技能包",
-    "myInstalledSkills": "我已安装的技能",
-    "searchResults": "搜索结果",
-    "skillPacksDescription": "按套装浏览可直接安装的一整组能力。",
-    "sdkworkOfficialSkills": "SDKWork 官方技能",
-    "spotlightEyebrow": "推荐",
-    "spotlightSkills": "推荐技能",
+      "matchingPacks": "匹配的技能包",
+      "myInstalledSkills": "我已安装的技能",
+      "searchResults": "搜索结果",
+      "skillPacksDescription": "按套装浏览可直接安装的一整组能力。",
+      "sdkworkOfficialSkills": "SDKWork 官方技能",
+      "spotlightEyebrow": "推荐",
+      "spotlightSkills": "推荐技能",
       "spotlightSkillsDescription": "先从这些高信号技能开始，更容易快速建立一套顺手的工作流。",
       "topFreeSkills": "热门免费技能",
       "trendingBundles": "趋势套装"
@@ -5149,12 +5516,12 @@
       "offline": "离线",
       "online": "在线"
     },
-  "tabs": {
-    "mySkills": "我的技能",
-    "packages": "技能包",
-    "sdkwork": "SDKWork",
-    "skills": "技能"
-  },
+    "tabs": {
+      "mySkills": "我的技能",
+      "packages": "技能包",
+      "sdkwork": "SDKWork",
+      "skills": "技能"
+    },
     "views": {
       "discover": "技能库",
       "discoverDescription": "默认先发现，技能包靠前展示，让主技能库更容易一眼看懂。",
@@ -5189,6 +5556,7 @@
       },
       "links": {
         "developerWebsite": "开发者网站",
+        "documentation": "文档",
         "privacyPolicy": "隐私政策",
         "sourceCode": "源代码"
       },

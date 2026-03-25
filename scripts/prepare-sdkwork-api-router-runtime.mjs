@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { cp, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync, symlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,30 @@ export const DEFAULT_RESOURCE_DIR = path.join(
   'resources',
   'sdkwork-api-router-runtime',
 );
+
+export function resolveBundledResourceMirrorRoot(
+  workspaceRootDir = rootDir,
+  resourceId = 'sdkwork-api-router-runtime',
+  platform = process.platform,
+) {
+  if (platform !== 'win32') {
+    return path.join(
+      workspaceRootDir,
+      'packages',
+      'sdkwork-claw-desktop',
+      'src-tauri',
+      'resources',
+      resourceId,
+    );
+  }
+
+  return path.win32.join(
+    path.win32.parse(workspaceRootDir).root,
+    '.sdkwork-bc',
+    path.win32.basename(workspaceRootDir),
+    resourceId,
+  );
+}
 
 export function resolveApiRouterTarget(platform = process.platform, arch = process.arch) {
   const platformId =
@@ -227,11 +251,11 @@ export async function prepareApiRouterRuntime({
     });
 
     if (shouldReusePreparedApiRouterRuntime({ inspection, forcePrepare })) {
-      return {
+      return await finalizePreparedApiRouterRuntime({
         manifest,
         resourceDir,
         strategy: inspection.repairedManifest ? 'repaired-existing-manifest' : 'reused-existing',
-      };
+      });
     }
   }
 
@@ -245,10 +269,10 @@ export async function prepareApiRouterRuntime({
       target,
     });
 
-    return {
+    return await finalizePreparedApiRouterRuntime({
       ...result,
       strategy: 'prepared-source',
-    };
+    });
   }
 
   if (!sourceRepoDir || !existsSync(sourceRepoDir)) {
@@ -273,13 +297,21 @@ export async function prepareApiRouterRuntime({
       target,
     });
 
-    return {
+    return await finalizePreparedApiRouterRuntime({
       ...result,
       strategy: 'prepared-workspace',
-    };
+    });
   } finally {
     await cleanup();
   }
+}
+
+async function finalizePreparedApiRouterRuntime(result) {
+  await ensureBundledResourceMirror({
+    resourceDir: result.resourceDir,
+    resourceId: 'sdkwork-api-router-runtime',
+  });
+  return result;
 }
 
 export async function validatePreparedApiRouterRuntimeSource(sourceRuntimeDir, manifest) {
@@ -373,13 +405,16 @@ async function buildApiRouterRuntimeFromWorkspace({
     '-p',
     'portal-api-service',
   );
-  await runCommand('cargo', cargoArgs, { cwd: sourceRepoDir });
+  const cargoTargetDir = resolveBundledApiRouterCargoTargetDir(rootDir, process.platform);
+  await runCommand('cargo', cargoArgs, {
+    cwd: sourceRepoDir,
+    env: withSupportedWindowsCmakeGenerator({
+      ...process.env,
+      CARGO_TARGET_DIR: cargoTargetDir,
+    }),
+  });
 
-  const builtArtifactsDir = path.join(
-    sourceRepoDir,
-    'target',
-    profile === 'release' ? 'release' : 'debug',
-  );
+  const builtArtifactsDir = path.join(cargoTargetDir, profile === 'release' ? 'release' : 'debug');
   const stagingRoot = await mkdtemp(path.join(os.tmpdir(), 'sdkwork-api-router-runtime-'));
   const runtimeDir = path.join(stagingRoot, 'runtime');
   await mkdir(runtimeDir, { recursive: true });
@@ -602,6 +637,56 @@ export function buildNonInteractiveInstallEnv(baseEnv = process.env) {
   };
 }
 
+export function withSupportedWindowsCmakeGenerator(
+  baseEnv = process.env,
+  platform = process.platform,
+) {
+  const env = { ...baseEnv };
+  if (platform !== 'win32') {
+    return env;
+  }
+
+  const requestedGenerator = String(env.CMAKE_GENERATOR ?? '').trim();
+  if (requestedGenerator.length > 0 && !requestedGenerator.includes('2026')) {
+    return env;
+  }
+
+  env.CMAKE_GENERATOR = 'Visual Studio 17 2022';
+  env.HOST_CMAKE_GENERATOR = 'Visual Studio 17 2022';
+  return env;
+}
+
+export function resolveBundledApiRouterCargoTargetDir(
+  workspaceRootDir = rootDir,
+  platform = process.platform,
+) {
+  if (platform !== 'win32') {
+    return path.posix.join(
+      workspaceRootDir,
+      '.cache',
+      'bundled-components',
+      'targets',
+      'sdkwork-api-router',
+    );
+  }
+
+  const workspaceName = sanitizePathSegment(path.win32.basename(workspaceRootDir)) || 'workspace';
+  const driveRoot = path.win32.parse(workspaceRootDir).root;
+  if (!driveRoot) {
+    return path.win32.join(
+      workspaceRootDir,
+      '.cache',
+      'bundled-components',
+      'targets',
+      'sdkwork-api-router',
+    );
+  }
+
+  // Keep this Cargo target intentionally short to avoid Windows
+  // MSBuild/FileTracker failures inside nested CMake scratch paths.
+  return path.win32.join(driveRoot, '.sdkwork-bc', workspaceName, 'sdkrouter');
+}
+
 async function installWorkspaceDependencies(appDir) {
   const installEnv = buildNonInteractiveInstallEnv();
 
@@ -677,6 +762,36 @@ async function writeGeneratedResourceMetadata(resourceDir) {
   );
 }
 
+async function ensureBundledResourceMirror({
+  resourceDir,
+  resourceId,
+  workspaceRootDir = rootDir,
+  platform = process.platform,
+}) {
+  const mirrorRoot = resolveBundledResourceMirrorRoot(workspaceRootDir, resourceId, platform);
+  if (path.resolve(mirrorRoot) === path.resolve(resourceDir)) {
+    return mirrorRoot;
+  }
+
+  const existingResolvedPath = resolveExistingPathTarget(mirrorRoot);
+  if (existingResolvedPath && path.resolve(existingResolvedPath) === path.resolve(resourceDir)) {
+    return mirrorRoot;
+  }
+
+  await rm(mirrorRoot, { recursive: true, force: true });
+  await mkdir(path.dirname(mirrorRoot), { recursive: true });
+  symlinkSync(resourceDir, mirrorRoot, platform === 'win32' ? 'junction' : 'dir');
+  return mirrorRoot;
+}
+
+function resolveExistingPathTarget(candidatePath) {
+  try {
+    return realpathSync.native(candidatePath);
+  } catch {
+    return null;
+  }
+}
+
 function parseBooleanFlag(value) {
   if (typeof value === 'boolean') {
     return value;
@@ -687,6 +802,14 @@ function parseBooleanFlag(value) {
   }
 
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
+function sanitizePathSegment(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
 }
 
 function sleep(ms) {

@@ -116,6 +116,41 @@ runTest('sdkwork-claw-market uses the three-tab hub surface while preserving mul
   assert.doesNotMatch(viewComponentsSource, /mt-4 md:hidden/);
 });
 
+runTest('sdkwork-claw-market routes ClawHub browsing through claw-core app sdk wrappers and keeps installed-skill management local', () => {
+  const marketServiceSource = read('packages/sdkwork-claw-market/src/services/marketService.ts');
+  const mySkillServiceSource = read('packages/sdkwork-claw-market/src/services/mySkillService.ts');
+  const marketPageSource = read('packages/sdkwork-claw-market/src/pages/Market.tsx');
+  const skillDetailSource = read('packages/sdkwork-claw-market/src/pages/SkillDetail.tsx');
+  const skillPackDetailSource = read('packages/sdkwork-claw-market/src/pages/SkillPackDetail.tsx');
+
+  assert.match(marketServiceSource, /@sdkwork\/claw-core\/services\/clawHubService/);
+  assert.match(marketServiceSource, /clawHubService/);
+  assert.match(marketServiceSource, /listCategories\(/);
+  assert.match(marketServiceSource, /listSkills\(/);
+  assert.match(marketServiceSource, /listPackages\(/);
+  assert.match(marketServiceSource, /getSkill\(/);
+  assert.match(marketServiceSource, /listReviews\(/);
+  assert.match(marketServiceSource, /getPackage\(/);
+  assert.doesNotMatch(marketServiceSource, /studioMockService/);
+  assert.doesNotMatch(marketServiceSource, /fetch\(/);
+  assert.doesNotMatch(marketServiceSource, /axios\./);
+  assert.doesNotMatch(marketServiceSource, /Authorization/);
+
+  assert.match(mySkillServiceSource, /instanceWorkbenchService/);
+  assert.match(mySkillServiceSource, /agentWorkbenchService/);
+  assert.match(mySkillServiceSource, /agentSkillManagementService/);
+  assert.doesNotMatch(mySkillServiceSource, /clawHubService/);
+  assert.doesNotMatch(mySkillServiceSource, /fetch\(/);
+  assert.doesNotMatch(mySkillServiceSource, /axios\./);
+
+  assert.match(marketPageSource, /queryFn:\s*marketService\.getCategories/);
+  assert.match(marketPageSource, /marketService\.getSkills\(/);
+  assert.match(marketPageSource, /marketService\.getPacks\(/);
+  assert.match(skillDetailSource, /queryFn:\s*\(\)\s*=>\s*marketService\.getSkill\(id!\)/);
+  assert.match(skillDetailSource, /queryFn:\s*\(\)\s*=>\s*marketService\.getSkillReviews\(id!\)/);
+  assert.match(skillPackDetailSource, /queryFn:\s*\(\)\s*=>\s*marketService\.getPack\(id!\)/);
+});
+
 runTest('sdkwork-claw-market preserves V5 skill detail repository selector and multi-instance installs', () => {
   const detailSource = read('packages/sdkwork-claw-market/src/pages/SkillDetail.tsx');
 

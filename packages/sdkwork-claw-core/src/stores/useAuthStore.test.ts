@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { StateStorage } from 'zustand/middleware';
 import { AUTH_SESSION_STORAGE_KEY } from '@sdkwork/claw-infrastructure';
+import { appAuthService } from '../services/index.ts';
 import { createAuthStore } from './useAuthStore.ts';
 
 function createMemoryStorage(): StateStorage {
@@ -88,6 +89,64 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     });
   }
 
+  if (url.endsWith('/app/v3/api/auth/oauth/login')) {
+    const body = JSON.parse(String(init?.body || '{}')) as { provider?: string };
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-oauth-login',
+        errorName: '',
+        data: {
+          authToken: 'oauth-auth-token',
+          refreshToken: 'oauth-refresh-token',
+          tokenType: 'Bearer',
+          expiresIn: 3600,
+          userInfo: {
+            username: `${(body.provider || 'oauth').toLowerCase()}-user`,
+            email: 'octocat@example.com',
+            nickname: 'Octo Cat',
+            avatar: 'https://cdn.example.com/octocat.png',
+          },
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/qr/status/qr-login-1')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-qr-status',
+        errorName: '',
+        data: {
+          status: 'confirmed',
+          userInfo: {
+            username: 'wechat-user',
+            email: 'wechat-user@example.com',
+            nickname: 'WeChat User',
+            avatar: 'https://cdn.example.com/wechat-user.png',
+          },
+          token: {
+            authToken: 'qr-auth-token',
+            refreshToken: 'qr-refresh-token',
+            tokenType: 'Bearer',
+            expiresIn: 3600,
+            userInfo: {
+              username: 'wechat-user',
+              email: 'wechat-user@example.com',
+              nickname: 'WeChat User',
+              avatar: 'https://cdn.example.com/wechat-user.png',
+            },
+          },
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   return new Response(JSON.stringify({ code: 404, message: 'Not found' }), {
     status: 404,
     headers: { 'Content-Type': 'application/json' },
@@ -162,4 +221,77 @@ await runTest('useAuthStore sends password reset requests through the backend au
     account: 'night-operator@example.com',
     channel: 'EMAIL',
   });
+});
+
+await runTest('useAuthStore clears stale persisted auth state when the app sdk session token is missing', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  storage.setItem(
+    'claw-studio-auth-storage',
+    JSON.stringify({
+      state: {
+        isAuthenticated: true,
+        user: {
+          firstName: 'Night',
+          lastName: 'Operator',
+          email: 'night-operator@example.com',
+          displayName: 'Night Operator',
+          initials: 'NO',
+        },
+      },
+      version: 0,
+    }),
+  );
+
+  const store = createAuthStore(storage);
+
+  assert.equal(store.getState().isAuthenticated, false);
+  assert.equal(store.getState().user, null);
+});
+
+await runTest('useAuthStore signs in with OAuth providers and persists the returned identity', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const store = createAuthStore(storage);
+
+  const user = await store.getState().signInWithOAuth({
+    provider: 'github',
+    code: 'oauth-code',
+    state: 'oauth-state',
+    deviceType: 'web',
+  });
+
+  assert.equal(store.getState().isAuthenticated, true);
+  assert.equal(user.email, 'octocat@example.com');
+  assert.equal(user.displayName, 'Octo Cat');
+
+  const oauthLoginRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/oauth/login'),
+  );
+
+  assert.ok(oauthLoginRequest);
+  assert.deepEqual(JSON.parse(String(oauthLoginRequest.init?.body ?? '{}')), {
+    provider: 'GITHUB',
+    code: 'oauth-code',
+    state: 'oauth-state',
+    deviceType: 'web',
+  });
+  assert.ok(storage.getItem(AUTH_SESSION_STORAGE_KEY));
+});
+
+await runTest('useAuthStore applies confirmed qr login sessions into auth state', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const store = createAuthStore(storage);
+  const qrStatus = await appAuthService.checkLoginQrCodeStatus('qr-login-1');
+
+  assert.equal(qrStatus.status, 'confirmed');
+  assert.ok(qrStatus.session);
+
+  const user = store.getState().applySession(qrStatus.session!);
+
+  assert.equal(store.getState().isAuthenticated, true);
+  assert.equal(user.email, 'wechat-user@example.com');
+  assert.equal(user.displayName, 'WeChat User');
+  assert.equal(user.initials, 'WU');
 });

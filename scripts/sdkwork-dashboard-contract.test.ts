@@ -39,6 +39,7 @@ runTest('sdkwork-claw-dashboard is implemented as a dedicated local feature pack
   assert.ok(exists('packages/sdkwork-claw-dashboard/src/types/index.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-dashboard']);
+  assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-dashboard/);
   assert.match(indexSource, /\.\/Dashboard/);
   assert.match(indexSource, /\.\/services\/dashboardService/);
@@ -62,14 +63,15 @@ runTest('sdkwork-claw-dashboard aggregates shared runtime data into a control-pl
   assert.match(serviceSource, /cacheCreationTokens/);
   assert.match(serviceSource, /cacheReadTokens/);
   assert.match(serviceSource, /revenueAnalytics/);
-  assert.match(serviceSource, /revenueTrend/);
-  assert.match(serviceSource, /productBreakdown/);
-  assert.match(serviceSource, /dailyRevenue/);
+  assert.match(serviceSource, /dashboardCommerceService/);
+  assert.match(serviceSource, /getCommerceSnapshot/);
+  assert.match(serviceSource, /createEmptyDashboardCommerceSnapshot/);
   assert.match(serviceSource, /businessSummary/);
   assert.match(serviceSource, /tokenSummary/);
   assert.match(serviceSource, /recentApiCalls/);
   assert.match(serviceSource, /recentRevenueRecords/);
   assert.match(serviceSource, /productPerformance/);
+  assert.doesNotMatch(serviceSource, /PRODUCT_PROFILES/);
 });
 
 runTest('sdkwork-claw-dashboard renders a professional operator cockpit instead of a placeholder page', () => {
@@ -115,6 +117,7 @@ runTest('sdkwork-claw-dashboard renders a professional operator cockpit instead 
   assert.match(pageSource, /dashboard\.tabs\.recentRevenueRecords/);
   assert.match(pageSource, /dashboard\.tabs\.productPerformance/);
   assert.match(pageSource, /dashboard\.tabs\.alerts/);
+  assert.doesNotMatch(pageSource, /dashboard\.products\./);
   assert.doesNotMatch(pageSource, /navigate\('\/instances'\)/);
   assert.doesNotMatch(pageSource, /navigate\('\/chat'\)/);
   assert.doesNotMatch(pageSource, /dashboard\.page\.openInstances/);

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { MessageSquare, Plus, Trash2, X } from 'lucide-react';
 import { useInstanceStore } from '@sdkwork/claw-core';
 import { cn } from '@sdkwork/claw-ui';
+import { getChatSessionDisplayTitle } from '../services';
 import { useChatStore } from '../store/useChatStore';
 
 function getScopeKey(instanceId: string | null | undefined) {
@@ -13,10 +14,16 @@ export function ChatSidebar({
   className,
   onSessionSelect,
   onClose,
+  isOpenClawGateway = false,
+  openClawAgentId = null,
+  openClawTargetSessionId = null,
 }: {
   className?: string;
   onSessionSelect?: () => void;
   onClose?: () => void;
+  isOpenClawGateway?: boolean;
+  openClawAgentId?: string | null;
+  openClawTargetSessionId?: string | null;
 }) {
   const {
     sessions,
@@ -31,7 +38,15 @@ export function ChatSidebar({
 
   const handleNewChat = () => {
     if (activeInstanceId) {
-      void createSession(undefined, activeInstanceId);
+      if (isOpenClawGateway && openClawTargetSessionId) {
+        void setActiveSession(openClawTargetSessionId, activeInstanceId);
+        onSessionSelect?.();
+        return;
+      }
+
+      void createSession(undefined, activeInstanceId, {
+        openClawAgentId,
+      });
       onSessionSelect?.();
     }
   };
@@ -83,7 +98,9 @@ export function ChatSidebar({
                       : 'text-zinc-400 dark:text-zinc-500',
                   )}
                 />
-                <span className="truncate text-[13px] font-medium">{session.title}</span>
+                <span className="truncate text-[13px] font-medium">
+                  {getChatSessionDisplayTitle(session)}
+                </span>
               </div>
 
               <button

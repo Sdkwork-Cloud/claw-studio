@@ -1,8 +1,15 @@
 import { openClawGatewayClient } from '@sdkwork/claw-infrastructure';
 import type { ChatSession, Message, Role } from '../store/useChatStore.ts';
 import type { ChatModel } from '../types/index.ts';
+import {
+  DEFAULT_CHAT_SESSION_TITLE,
+  getChatSessionDisplayTitle,
+  isReadableChatSessionTitle,
+  normalizeChatSessionTitle,
+  selectReadableChatSessionTitleCandidates,
+} from './chatSessionTitlePresentation.ts';
 
-const DEFAULT_TITLE = 'New Conversation';
+const DEFAULT_TITLE = DEFAULT_CHAT_SESSION_TITLE;
 const DEFAULT_HISTORY_LIMIT = 200;
 const DEFAULT_WAIT_TIMEOUT_MS = 90_000;
 const DEFAULT_POLL_INTERVAL_MS = 800;
@@ -52,28 +59,6 @@ function asString(value: unknown) {
 
 function asNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function truncateTitle(value: string) {
-  const normalized = value.trim();
-  if (!normalized) {
-    return DEFAULT_TITLE;
-  }
-
-  return normalized.length > 80 ? `${normalized.slice(0, 77)}...` : normalized;
-}
-
-function deriveTitleFromPreview(value?: string) {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  return truncateTitle(trimmed.replace(/\s+/g, ' '));
 }
 
 function normalizeModelRef(provider: unknown, model: unknown) {
@@ -158,11 +143,6 @@ function selectLatestAssistantText(messages: Message[]) {
   return assistantMessages[assistantMessages.length - 1]?.content || '';
 }
 
-function deriveTitleFromMessages(messages: Message[], fallback: string) {
-  const firstUserMessage = messages.find((message) => message.role === 'user')?.content;
-  return deriveTitleFromPreview(firstUserMessage) || fallback;
-}
-
 async function safeSleep(sleep: (ms: number) => Promise<void>, ms: number) {
   await sleep(ms);
 }
@@ -204,12 +184,16 @@ export function createOpenClawConversationGateway(
       .filter(isRecord)
       .map((session) => {
         const updatedAt = asNumber(session.updatedAt) ?? now();
-        const title =
-          asString(session.derivedTitle) ||
-          asString(session.displayName) ||
-          asString(session.label) ||
-          deriveTitleFromPreview(asString(session.lastMessagePreview)) ||
-          DEFAULT_TITLE;
+        const title = selectReadableChatSessionTitleCandidates(
+          [
+            asString(session.derivedTitle),
+            asString(session.displayName),
+            asString(session.label),
+            asString(session.lastMessagePreview),
+            asString(session.key),
+          ],
+          DEFAULT_TITLE,
+        );
 
         return {
           id: asString(session.key) || `thread:claw-studio:${updatedAt}`,
@@ -252,10 +236,11 @@ export function createOpenClawConversationGateway(
 
     return {
       ...session,
-      title:
-        session.title.trim() && session.title.trim() !== DEFAULT_TITLE
-          ? session.title
-          : deriveTitleFromMessages(messages, session.title || DEFAULT_TITLE),
+      title: getChatSessionDisplayTitle({
+        title: session.title,
+        messages,
+        lastMessagePreview: session.lastMessagePreview,
+      }),
       updatedAt: latestTimestamp,
       messages,
       model: latestModel || 'unknown',
@@ -274,8 +259,8 @@ export function createOpenClawConversationGateway(
       key: session.id,
     };
 
-    if (session.title.trim() && session.title.trim() !== DEFAULT_TITLE) {
-      payload.label = truncateTitle(session.title);
+    if (isReadableChatSessionTitle(session.title)) {
+      payload.label = normalizeChatSessionTitle(session.title);
     }
 
     await client.patchGatewaySession(session.instanceId, payload);
@@ -366,8 +351,8 @@ export function createOpenClawConversationGateway(
       key: session.id,
     };
 
-    if (session.title.trim() && session.title.trim() !== DEFAULT_TITLE) {
-      ensurePayload.label = truncateTitle(session.title);
+    if (isReadableChatSessionTitle(session.title)) {
+      ensurePayload.label = normalizeChatSessionTitle(session.title);
     }
 
     if (modelRef) {

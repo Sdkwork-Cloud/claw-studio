@@ -199,6 +199,11 @@ export interface SaveOpenClawSkillEntryInput {
   env?: Record<string, string>;
 }
 
+export interface DeleteOpenClawSkillEntryInput {
+  configPath: string;
+  skillKey: string;
+}
+
 function normalizePath(path: string) {
   return path.replace(/\\/g, '/');
 }
@@ -1521,6 +1526,20 @@ function updateSkillEntry(root: JsonObject, input: SaveOpenClawSkillEntryInput) 
   deleteIfEmptyObject(root, 'skills');
 }
 
+function deleteSkillEntry(root: JsonObject, skillKey: string) {
+  const normalizedSkillKey = skillKey.trim();
+  if (!normalizedSkillKey) {
+    throw new Error('OpenClaw skill key is required.');
+  }
+
+  const skillsRoot = ensureObject(root, 'skills');
+  const entriesRoot = ensureObject(skillsRoot, 'entries');
+  delete entriesRoot[normalizedSkillKey];
+
+  deleteIfEmptyObject(skillsRoot, 'entries');
+  deleteIfEmptyObject(root, 'skills');
+}
+
 function resolveProviderEntry(root: JsonObject, providerId: string) {
   const providersRoot = ensureObject(ensureObject(root, 'models'), 'providers');
   const providerKey = buildProviderKey(providerId);
@@ -1930,6 +1949,14 @@ class OpenClawConfigService {
   async saveSkillEntry(input: SaveOpenClawSkillEntryInput) {
     const root = await readConfigRoot(input.configPath);
     updateSkillEntry(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return this.readConfigSnapshot(input.configPath);
+  }
+
+  async deleteSkillEntry(input: DeleteOpenClawSkillEntryInput) {
+    const root = await readConfigRoot(input.configPath);
+    deleteSkillEntry(root, input.skillKey);
     await writeConfigRoot(input.configPath, root);
 
     return this.readConfigSnapshot(input.configPath);

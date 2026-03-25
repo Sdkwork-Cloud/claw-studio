@@ -1,18 +1,54 @@
-import { studioMockService } from '@sdkwork/claw-infrastructure';
+import {
+  clawHubService,
+  type ClawHubCategory,
+  type ClawHubPackageListParams,
+  type ClawHubService,
+  type ClawHubSkillListParams,
+} from '@sdkwork/claw-core/services/clawHubService';
 import type { ListParams, PaginatedResult, Review, Skill, SkillPack } from '@sdkwork/claw-types';
+
+export interface InstallSkillInput {
+  instanceId: string;
+  agentId: string;
+  isDefaultAgent: boolean;
+  slug: string;
+  version?: string;
+}
+
+type AgentSkillManagementServiceLike = {
+  installSkill(input: InstallSkillInput): Promise<unknown>;
+};
+
+type InstanceWorkbenchServiceLike = {
+  getInstanceWorkbench(instanceId: string): Promise<{
+    agents?: Array<{
+      isDefault?: boolean;
+      agent?: {
+        id?: string;
+      };
+    }>;
+  } | null | undefined>;
+};
 
 export interface InstallationResult {
   success: boolean;
   fallback?: boolean;
 }
 
+export type MarketCategory = ClawHubCategory;
+
+export interface MarketCatalogQuery extends ListParams {
+  categoryId?: string;
+}
+
 export interface IMarketService {
-  getSkillList(params?: ListParams): Promise<PaginatedResult<Skill>>;
-  getPackList(params?: ListParams): Promise<PaginatedResult<SkillPack>>;
-  getSkills(): Promise<Skill[]>;
+  getCategories(): Promise<MarketCategory[]>;
+  getSkillList(params?: MarketCatalogQuery): Promise<PaginatedResult<Skill>>;
+  getPackList(params?: MarketCatalogQuery): Promise<PaginatedResult<SkillPack>>;
+  getSkills(params?: MarketCatalogQuery): Promise<Skill[]>;
   getSkill(id: string): Promise<Skill>;
   getSkillReviews(id: string): Promise<Review[]>;
-  getPacks(): Promise<SkillPack[]>;
+  getPacks(params?: MarketCatalogQuery): Promise<SkillPack[]>;
   getPack(id: string): Promise<SkillPack>;
   installSkill(instanceId: string, skillId: string): Promise<InstallationResult>;
   installPack(instanceId: string, packId: string): Promise<InstallationResult>;
@@ -23,6 +59,12 @@ export interface IMarketService {
   ): Promise<InstallationResult>;
   downloadSkillLocal(skill: Skill, onProgress: (progress: number) => void): Promise<void>;
   downloadPackLocal(pack: SkillPack, onProgress: (progress: number) => void): Promise<void>;
+}
+
+export interface CreateMarketServiceOptions {
+  clawHubService?: ClawHubService;
+  instanceWorkbenchService?: InstanceWorkbenchServiceLike;
+  agentSkillManagementService?: AgentSkillManagementServiceLike;
 }
 
 function paginateItems<T>(items: T[], params: ListParams = {}): PaginatedResult<T> {
@@ -75,91 +117,168 @@ function simulateLocalDownload(
   });
 }
 
-class MarketService implements IMarketService {
-  async getSkillList(params: ListParams = {}): Promise<PaginatedResult<Skill>> {
-    const skills = await this.getSkills();
-    const keyword = params.keyword?.toLowerCase();
-    const filteredSkills = keyword
-      ? skills.filter(
-          (skill) =>
-            skill.name.toLowerCase().includes(keyword) ||
-            skill.description.toLowerCase().includes(keyword) ||
-            skill.category.toLowerCase().includes(keyword),
-        )
-      : skills;
-
-    return paginateItems(filteredSkills, params);
-  }
-
-  async getPackList(params: ListParams = {}): Promise<PaginatedResult<SkillPack>> {
-    const packs = await this.getPacks();
-    const keyword = params.keyword?.toLowerCase();
-    const filteredPacks = keyword
-      ? packs.filter(
-          (pack) =>
-            pack.name.toLowerCase().includes(keyword) ||
-            pack.description.toLowerCase().includes(keyword) ||
-            pack.category.toLowerCase().includes(keyword),
-        )
-      : packs;
-
-    return paginateItems(filteredPacks, params);
-  }
-
-  async getSkills(): Promise<Skill[]> {
-    return studioMockService.listSkills();
-  }
-
-  async getSkill(id: string): Promise<Skill> {
-    const skill = await studioMockService.getSkill(id);
-    if (!skill) {
-      throw new Error('Failed to fetch skill');
-    }
-    return skill;
-  }
-
-  async getSkillReviews(id: string): Promise<Review[]> {
-    return studioMockService.listSkillReviews(id);
-  }
-
-  async getPacks(): Promise<SkillPack[]> {
-    return studioMockService.listPacks();
-  }
-
-  async getPack(id: string): Promise<SkillPack> {
-    const pack = await studioMockService.getPack(id);
-    if (!pack) {
-      throw new Error('Failed to fetch pack details');
-    }
-    return pack;
-  }
-
-  async installSkill(instanceId: string, skillId: string): Promise<InstallationResult> {
-    return studioMockService.installSkill(instanceId, skillId);
-  }
-
-  async installPack(instanceId: string, packId: string): Promise<InstallationResult> {
-    return studioMockService.installPack(instanceId, packId);
-  }
-
-  async installPackWithSkills(
-    instanceId: string,
-    packId: string,
-    skillIds: string[],
-  ): Promise<InstallationResult> {
-    return studioMockService.installPack(instanceId, packId, skillIds);
-  }
-
-  async downloadSkillLocal(skill: Skill, onProgress: (progress: number) => void): Promise<void> {
-    return simulateLocalDownload(`${skill.id}-skill.json`, skill, onProgress);
-  }
-
-  async downloadPackLocal(
-    pack: SkillPack,
-    onProgress: (progress: number) => void,
-  ): Promise<void> {
-    return simulateLocalDownload(`${pack.id}-pack.json`, pack, onProgress);
-  }
+function toSkillQueryParams(params: MarketCatalogQuery = {}): ClawHubSkillListParams {
+  return Object.fromEntries(
+    Object.entries({
+      categoryId: params.categoryId,
+      keyword: params.keyword,
+      sortBy: params.sortBy,
+    }).filter(([, value]) => value !== undefined),
+  ) as ClawHubSkillListParams;
 }
 
-export const marketService = new MarketService();
+function toPackageQueryParams(params: MarketCatalogQuery = {}): ClawHubPackageListParams {
+  return Object.fromEntries(
+    Object.entries({
+      categoryId: params.categoryId,
+      keyword: params.keyword,
+    }).filter(([, value]) => value !== undefined),
+  ) as ClawHubPackageListParams;
+}
+
+function resolveInstallAgent(workbench: Awaited<ReturnType<InstanceWorkbenchServiceLike['getInstanceWorkbench']>>) {
+  const agents = workbench?.agents || [];
+  const defaultAgent = agents.find((agent) => agent.isDefault) || (agents.length === 1 ? agents[0] : null);
+  const agentId = defaultAgent?.agent?.id;
+
+  if (!agentId) {
+    throw new Error('No default OpenClaw agent workspace is available for ClawHub installation.');
+  }
+
+  return {
+    agentId,
+    isDefaultAgent: Boolean(defaultAgent?.isDefault || agents.length === 1),
+  };
+}
+
+function ensureSkillSlug(skill: Skill) {
+  const slug = skill.skillKey?.trim();
+  if (!slug) {
+    throw new Error(`ClawHub skill "${skill.name}" is missing the installation slug.`);
+  }
+  return slug;
+}
+
+async function getDefaultInstanceWorkbenchService(): Promise<InstanceWorkbenchServiceLike> {
+  const module = await import('@sdkwork/claw-instances/services/instanceWorkbenchService');
+  return module.instanceWorkbenchService;
+}
+
+async function getDefaultAgentSkillManagementService(): Promise<AgentSkillManagementServiceLike> {
+  const module = await import('@sdkwork/claw-instances/services/agentSkillManagementService');
+  return module.agentSkillManagementService;
+}
+
+export function createMarketService(options: CreateMarketServiceOptions = {}): IMarketService {
+  const hubService = options.clawHubService || clawHubService;
+
+  return {
+    async getCategories() {
+      return hubService.listCategories();
+    },
+
+    async getSkillList(params: MarketCatalogQuery = {}) {
+      return paginateItems(await this.getSkills(params), params);
+    },
+
+    async getPackList(params: MarketCatalogQuery = {}) {
+      return paginateItems(await this.getPacks(params), params);
+    },
+
+    async getSkills(params: MarketCatalogQuery = {}) {
+      return hubService.listSkills(toSkillQueryParams(params));
+    },
+
+    async getSkill(id: string) {
+      return hubService.getSkill(id);
+    },
+
+    async getSkillReviews(id: string) {
+      return hubService.listReviews(id);
+    },
+
+    async getPacks(params: MarketCatalogQuery = {}) {
+      return hubService.listPackages(toPackageQueryParams(params));
+    },
+
+    async getPack(id: string) {
+      return hubService.getPackage(id);
+    },
+
+    async installSkill(instanceId: string, skillId: string) {
+      const workbenchService =
+        options.instanceWorkbenchService || await getDefaultInstanceWorkbenchService();
+      const skillManagementService =
+        options.agentSkillManagementService || await getDefaultAgentSkillManagementService();
+      const [skill, workbench] = await Promise.all([
+        hubService.getSkill(skillId),
+        workbenchService.getInstanceWorkbench(instanceId),
+      ]);
+      const installTarget = resolveInstallAgent(workbench);
+
+      await skillManagementService.installSkill({
+        instanceId,
+        agentId: installTarget.agentId,
+        isDefaultAgent: installTarget.isDefaultAgent,
+        slug: ensureSkillSlug(skill),
+        version: skill.version,
+      });
+
+      return { success: true };
+    },
+
+    async installPack(instanceId: string, packId: string) {
+      const pack = await hubService.getPackage(packId);
+      return this.installPackWithSkills(
+        instanceId,
+        packId,
+        pack.skills.map((skill) => skill.id),
+      );
+    },
+
+    async installPackWithSkills(instanceId: string, packId: string, skillIds: string[]) {
+      const workbenchService =
+        options.instanceWorkbenchService || await getDefaultInstanceWorkbenchService();
+      const skillManagementService =
+        options.agentSkillManagementService || await getDefaultAgentSkillManagementService();
+      const [pack, workbench] = await Promise.all([
+        hubService.getPackage(packId),
+        workbenchService.getInstanceWorkbench(instanceId),
+      ]);
+      const selectedIds = Array.from(new Set(skillIds.map((id) => id.trim()).filter(Boolean)));
+      if (selectedIds.length === 0) {
+        throw new Error('Select at least one ClawHub skill before starting installation.');
+      }
+
+      const selectedSkills = pack.skills.filter((skill) => selectedIds.includes(skill.id));
+      if (selectedSkills.length !== selectedIds.length) {
+        throw new Error('Some selected ClawHub skills could not be resolved from the selected package.');
+      }
+
+      const installTarget = resolveInstallAgent(workbench);
+      await Promise.all(
+        selectedSkills.map((skill) =>
+          skillManagementService.installSkill({
+            instanceId,
+            agentId: installTarget.agentId,
+            isDefaultAgent: installTarget.isDefaultAgent,
+            slug: ensureSkillSlug(skill),
+            version: skill.version,
+          }),
+        ),
+      );
+
+      return { success: true };
+    },
+
+    async downloadSkillLocal(skill: Skill, onProgress: (progress: number) => void) {
+      return simulateLocalDownload(`${skill.id}-skill.json`, skill, onProgress);
+    },
+
+    async downloadPackLocal(pack: SkillPack, onProgress: (progress: number) => void) {
+      return simulateLocalDownload(`${pack.id}-pack.json`, pack, onProgress);
+    },
+  };
+}
+
+export const marketService = createMarketService();

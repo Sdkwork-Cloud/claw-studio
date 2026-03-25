@@ -11,10 +11,9 @@ use crate::framework::{
 };
 use serde_json::{json, Value};
 use std::{
-    env, fs,
+    fs,
     path::Path,
-    process::Command,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
@@ -59,27 +58,25 @@ pub(super) fn clone_openclaw_task(
         object.insert("name".to_string(), Value::String(name.to_string()));
     }
 
-    let _ = run_openclaw_gateway_call(runtime, paths, "cron.add", &params)?;
+    let _ = OpenClawGatewayAdminClient::new(runtime).call("cron.add", &params)?;
     Ok(())
 }
 
 pub(super) fn create_openclaw_task(
-    paths: &AppPaths,
+    _paths: &AppPaths,
     runtime: &ActivatedOpenClawRuntime,
     payload: &Value,
 ) -> Result<()> {
-    let _ = run_openclaw_gateway_call(runtime, paths, "cron.add", payload)?;
+    let _ = OpenClawGatewayAdminClient::new(runtime).call("cron.add", payload)?;
     Ok(())
 }
 
 pub(super) fn run_openclaw_task_now(
-    paths: &AppPaths,
+    _paths: &AppPaths,
     runtime: &ActivatedOpenClawRuntime,
     task_id: &str,
 ) -> Result<StudioWorkbenchTaskExecutionRecord> {
-    let response = run_openclaw_gateway_call(
-        runtime,
-        paths,
+    let response = OpenClawGatewayAdminClient::new(runtime).call(
         "cron.run",
         &json!({
             "id": task_id,
@@ -116,7 +113,7 @@ pub(super) fn list_openclaw_task_executions(
 }
 
 pub(super) fn update_openclaw_task_status(
-    paths: &AppPaths,
+    _paths: &AppPaths,
     runtime: &ActivatedOpenClawRuntime,
     task_id: &str,
     status: &str,
@@ -131,9 +128,7 @@ pub(super) fn update_openclaw_task_status(
         }
     };
 
-    let _ = run_openclaw_gateway_call(
-        runtime,
-        paths,
+    let _ = OpenClawGatewayAdminClient::new(runtime).call(
         "cron.update",
         &json!({
             "id": task_id,
@@ -146,14 +141,12 @@ pub(super) fn update_openclaw_task_status(
 }
 
 pub(super) fn update_openclaw_task(
-    paths: &AppPaths,
+    _paths: &AppPaths,
     runtime: &ActivatedOpenClawRuntime,
     task_id: &str,
     payload: &Value,
 ) -> Result<()> {
-    let _ = run_openclaw_gateway_call(
-        runtime,
-        paths,
+    let _ = OpenClawGatewayAdminClient::new(runtime).call(
         "cron.update",
         &json!({
             "id": task_id,
@@ -164,13 +157,11 @@ pub(super) fn update_openclaw_task(
 }
 
 pub(super) fn delete_openclaw_task(
-    paths: &AppPaths,
+    _paths: &AppPaths,
     runtime: &ActivatedOpenClawRuntime,
     task_id: &str,
 ) -> Result<bool> {
-    let response = run_openclaw_gateway_call(
-        runtime,
-        paths,
+    let response = OpenClawGatewayAdminClient::new(runtime).call(
         "cron.remove",
         &json!({
             "id": task_id,
@@ -220,96 +211,191 @@ fn read_json_document(path: &Path) -> Result<Value> {
     serde_json::from_str::<Value>(&content).map_err(Into::into)
 }
 
-fn run_openclaw_gateway_call(
-    runtime: &ActivatedOpenClawRuntime,
-    paths: &AppPaths,
+struct OpenClawGatewayAdminClient<'a> {
+    runtime: &'a ActivatedOpenClawRuntime,
+}
+
+impl<'a> OpenClawGatewayAdminClient<'a> {
+    fn new(runtime: &'a ActivatedOpenClawRuntime) -> Self {
+        Self { runtime }
+    }
+
+    fn call(&self, method: &str, params: &Value) -> Result<Value> {
+        let request = build_gateway_invoke_request(method, params)?;
+        let url = format!(
+            "http://127.0.0.1:{}/tools/invoke",
+            self.runtime.gateway_port
+        );
+        let response = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| {
+                FrameworkError::Internal(format!(
+                    "failed to build OpenClaw gateway admin runtime: {error}"
+                ))
+            })?
+            .block_on(async move {
+                let client = reqwest::Client::builder()
+                    .timeout(Duration::from_secs(30))
+                    .build()
+                    .map_err(|error| {
+                        FrameworkError::Internal(format!(
+                            "failed to build OpenClaw gateway admin client: {error}"
+                        ))
+                    })?;
+                let response = client
+                    .post(url)
+                    .header(
+                        "authorization",
+                        format!("Bearer {}", self.runtime.gateway_auth_token),
+                    )
+                    .header("content-type", "application/json")
+                    .header("accept", "application/json")
+                    .json(&request)
+                    .send()
+                    .await
+                    .map_err(|error| {
+                        FrameworkError::Conflict(format!(
+                            "failed to reach the built-in OpenClaw gateway for {method}: {error}"
+                        ))
+                    })?;
+                let status = response.status();
+                let body = response.text().await.map_err(|error| {
+                    FrameworkError::Internal(format!(
+                        "failed to read OpenClaw gateway response for {method}: {error}"
+                    ))
+                })?;
+                Ok::<_, FrameworkError>((status, body))
+            })?;
+
+        parse_gateway_invoke_response(method, response.0, response.1.as_str())
+    }
+}
+
+fn build_gateway_invoke_request(method: &str, params: &Value) -> Result<Value> {
+    let descriptor = resolve_gateway_method_descriptor(method);
+    if descriptor.tool.trim().is_empty() {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "invalid OpenClaw gateway method {method}"
+        )));
+    }
+
+    let mut request = serde_json::Map::new();
+    request.insert(
+        "tool".to_string(),
+        Value::String(descriptor.tool.to_string()),
+    );
+    if let Some(action) = descriptor.action {
+        request.insert("action".to_string(), Value::String(action.to_string()));
+    }
+    request.insert("args".to_string(), params.clone());
+    Ok(Value::Object(request))
+}
+
+struct OpenClawGatewayMethodDescriptor<'a> {
+    tool: &'a str,
+    action: Option<&'a str>,
+}
+
+fn resolve_gateway_method_descriptor(method: &str) -> OpenClawGatewayMethodDescriptor<'_> {
+    match method.rsplit_once('.') {
+        Some((tool, action)) if !tool.trim().is_empty() && !action.trim().is_empty() => {
+            OpenClawGatewayMethodDescriptor {
+                tool,
+                action: Some(action),
+            }
+        }
+        _ => OpenClawGatewayMethodDescriptor {
+            tool: method,
+            action: None,
+        },
+    }
+}
+
+fn parse_gateway_invoke_response(
     method: &str,
-    params: &Value,
+    status: reqwest::StatusCode,
+    body: &str,
 ) -> Result<Value> {
-    let ws_url = format!("ws://127.0.0.1:{}", runtime.gateway_port);
-    let params_json = serde_json::to_string(params)?;
-    let mut command = Command::new(&runtime.node_path);
-    command.arg(&runtime.cli_path);
-    command.arg("gateway");
-    command.arg("call");
-    command.arg(method);
-    command.arg("--params");
-    command.arg(params_json);
-    command.arg("--url");
-    command.arg(ws_url);
-    command.arg("--token");
-    command.arg(runtime.gateway_auth_token.as_str());
-    command.arg("--timeout");
-    command.arg("30000");
-    command.arg("--json");
-    command.current_dir(&runtime.runtime_dir);
-    command.env("PATH", prepend_path_env(&paths.user_bin_dir));
-    command.envs(runtime.managed_env());
+    let payload = if body.trim().is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_str::<Value>(body).map_err(|error| {
+            FrameworkError::ValidationFailed(format!(
+                "invalid OpenClaw gateway response for {method}: {error}"
+            ))
+        })?
+    };
 
-    let output = command.output()?;
-    if !output.status.success() {
-        return Err(FrameworkError::ProcessFailed {
-            command: format!(
-                "\"{}\" \"{}\" gateway call {}",
-                runtime.node_path.display(),
-                runtime.cli_path.display(),
-                method
-            ),
-            exit_code: output.status.code(),
-            stderr_tail: stderr_tail(&output.stderr),
-        });
+    if !status.is_success() {
+        return Err(map_gateway_http_failure(method, status, &payload));
     }
 
-    parse_gateway_call_output(method, &output.stdout)
-}
+    let Some(object) = payload.as_object() else {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "invalid OpenClaw gateway response for {method}: expected JSON object"
+        )));
+    };
 
-fn parse_gateway_call_output(method: &str, stdout: &[u8]) -> Result<Value> {
-    let text = String::from_utf8_lossy(stdout).trim().to_string();
-    if text.is_empty() {
-        return Ok(Value::Null);
+    match object.get("ok").and_then(Value::as_bool) {
+        Some(true) => Ok(object.get("result").cloned().unwrap_or(Value::Null)),
+        Some(false) => Err(FrameworkError::Conflict(format!(
+            "OpenClaw gateway method {method} failed: {}",
+            gateway_error_message(&payload)
+                .unwrap_or_else(|| "the gateway rejected the request".to_string())
+        ))),
+        None => Err(FrameworkError::ValidationFailed(format!(
+            "invalid OpenClaw gateway response for {method}: missing ok flag"
+        ))),
     }
-
-    serde_json::from_str::<Value>(&text).map_err(|error| {
-        FrameworkError::ValidationFailed(format!(
-            "invalid OpenClaw gateway call output for {method}: {error}"
-        ))
-    })
 }
 
-fn prepend_path_env(user_bin_dir: &Path) -> String {
-    let current = env::var_os("PATH")
-        .map(|value| value.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let separator = if cfg!(windows) { ';' } else { ':' };
-    let user_bin = user_bin_dir.to_string_lossy();
+fn map_gateway_http_failure(
+    method: &str,
+    status: reqwest::StatusCode,
+    payload: &Value,
+) -> FrameworkError {
+    let message = gateway_error_message(payload).unwrap_or_else(|| {
+        format!(
+            "OpenClaw gateway request failed with HTTP {}",
+            status.as_u16()
+        )
+    });
 
-    if current
-        .split(separator)
-        .any(|entry| entry.eq_ignore_ascii_case(user_bin.as_ref()))
+    match status.as_u16() {
+        401 => FrameworkError::Conflict(format!(
+            "OpenClaw gateway authorization failed for {method}: {message}"
+        )),
+        404 => FrameworkError::ValidationFailed(format!(
+            "OpenClaw gateway method {method} is not available: {message}"
+        )),
+        429 => {
+            FrameworkError::Conflict(format!("OpenClaw gateway rate limited {method}: {message}"))
+        }
+        _ => FrameworkError::Conflict(format!(
+            "OpenClaw gateway request for {method} failed with HTTP {}: {message}",
+            status.as_u16()
+        )),
+    }
+}
+
+fn gateway_error_message(payload: &Value) -> Option<String> {
+    if let Some(message) = payload
+        .get("error")
+        .and_then(Value::as_object)
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
     {
-        return current;
+        return Some(message.to_string());
     }
 
-    if current.is_empty() {
-        return user_bin.into_owned();
-    }
-
-    format!("{user_bin}{separator}{current}")
-}
-
-fn stderr_tail(stderr: &[u8]) -> String {
-    let text = String::from_utf8_lossy(stderr).trim().to_string();
-    if text.chars().count() <= 4000 {
-        return text;
-    }
-
-    text.chars()
-        .rev()
-        .take(4000)
-        .collect::<String>()
-        .chars()
-        .rev()
-        .collect()
+    payload
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 fn unix_timestamp_ms() -> Result<u64> {
@@ -341,14 +427,24 @@ mod tests {
             supervisor::{SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY},
         },
     };
-    use serde_json::Value;
-    use std::fs;
+    use serde_json::{json, Value};
+    use std::{
+        fs,
+        io::{Read, Write},
+        net::{TcpListener, TcpStream},
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc, Mutex,
+        },
+        thread::{self, JoinHandle},
+        time::Duration,
+    };
 
     #[test]
     fn clone_reuses_gateway_call_with_the_exact_job_shape() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let runtime = create_runtime_fixture(&paths);
+        let (runtime, server) = create_runtime_fixture(&paths);
 
         fs::create_dir_all(paths.openclaw_state_dir.join("cron")).expect("cron dir");
         fs::write(
@@ -403,7 +499,9 @@ mod tests {
         clone_openclaw_task(&paths, &runtime, "job-1", Some("Nightly Review Copy"))
             .expect("clone task");
 
-        let captured = read_capture(&paths).expect("capture entry");
+        let captured = read_capture(&server).expect("capture entry");
+        assert_eq!(captured.path, "/tools/invoke");
+        assert_eq!(captured.authorization.as_deref(), Some("Bearer test-token"));
         assert_eq!(captured.method, "cron.add");
         assert_eq!(
             captured.params.get("name").and_then(Value::as_str),
@@ -435,7 +533,7 @@ mod tests {
     fn create_and_update_forward_openclaw_upsert_payloads_without_rewriting_them() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let runtime = create_runtime_fixture(&paths);
+        let (runtime, server) = create_runtime_fixture(&paths);
 
         create_openclaw_task(
             &paths,
@@ -478,7 +576,7 @@ mod tests {
         )
         .expect("update task");
 
-        let captures = read_all_captures(&paths);
+        let captures = read_all_captures(&server);
         assert_eq!(captures.len(), 2);
         assert_eq!(captures[0].method, "cron.add");
         assert_eq!(
@@ -517,13 +615,13 @@ mod tests {
     fn update_run_and_delete_use_the_managed_gateway_call_surface() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
-        let runtime = create_runtime_fixture(&paths);
+        let (runtime, server) = create_runtime_fixture(&paths);
 
         update_openclaw_task_status(&paths, &runtime, "job-2", "paused").expect("pause task");
         let queued = run_openclaw_task_now(&paths, &runtime, "job-2").expect("queue run");
         let deleted = delete_openclaw_task(&paths, &runtime, "job-2").expect("delete task");
 
-        let captures = read_all_captures(&paths);
+        let captures = read_all_captures(&server);
         assert_eq!(captures.len(), 3);
         assert_eq!(captures[0].method, "cron.update");
         assert_eq!(
@@ -550,7 +648,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let supervisor = SupervisorService::new();
-        let runtime = create_runtime_fixture(&paths);
+        let (runtime, _server) = create_runtime_fixture(&paths);
 
         supervisor
             .configure_openclaw_gateway(&runtime)
@@ -567,103 +665,270 @@ mod tests {
         assert_eq!(resolved.gateway_port, runtime.gateway_port);
     }
 
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     struct CapturedGatewayCall {
+        path: String,
         method: String,
         params: Value,
+        authorization: Option<String>,
     }
 
     fn create_runtime_fixture(
         paths: &crate::framework::paths::AppPaths,
-    ) -> ActivatedOpenClawRuntime {
+    ) -> (ActivatedOpenClawRuntime, TestGatewayServer) {
         let install_dir = paths.openclaw_runtime_dir.join("test-runtime");
         let runtime_dir = install_dir.join("runtime");
-        let cli_path = runtime_dir.join("package").join("openclaw.mjs");
-        let node_path = resolve_test_node_executable();
+        let cli_path = runtime_dir
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("openclaw.mjs");
+        let node_path = runtime_dir.join("node").join("node");
+        let gateway_port = reserve_available_loopback_port();
+        let server = TestGatewayServer::spawn(gateway_port);
 
-        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
-        fs::write(
-            &cli_path,
-            r#"import fs from 'node:fs';
-import path from 'node:path';
-
-const args = process.argv.slice(2);
-const capturePath = path.join(process.env.OPENCLAW_STATE_DIR, 'capture.jsonl');
-const method = args[2];
-const paramsIndex = args.indexOf('--params');
-const params = paramsIndex >= 0 ? JSON.parse(args[paramsIndex + 1]) : null;
-fs.mkdirSync(path.dirname(capturePath), { recursive: true });
-fs.appendFileSync(capturePath, JSON.stringify({ method, params }) + '\n');
-
-if (method === 'cron.run') {
-  process.stdout.write(JSON.stringify({ ok: true, enqueued: true, runId: 'run-123' }));
-  process.exit(0);
-}
-
-if (method === 'cron.remove') {
-  process.stdout.write(JSON.stringify({ removed: true }));
-  process.exit(0);
-}
-
-process.stdout.write(JSON.stringify({ ok: true, method, params }));
-"#,
+        (
+            ActivatedOpenClawRuntime {
+                install_key: "test-runtime".to_string(),
+                install_dir,
+                runtime_dir,
+                node_path,
+                cli_path,
+                home_dir: paths.openclaw_home_dir.clone(),
+                state_dir: paths.openclaw_state_dir.clone(),
+                workspace_dir: paths.openclaw_workspace_dir.clone(),
+                config_path: paths.openclaw_config_file.clone(),
+                gateway_port,
+                gateway_auth_token: "test-token".to_string(),
+            },
+            server,
         )
-        .expect("cli script");
+    }
 
-        ActivatedOpenClawRuntime {
-            install_key: "test-runtime".to_string(),
-            install_dir,
-            runtime_dir,
-            node_path,
-            cli_path,
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
-            workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: paths.openclaw_config_file.clone(),
-            gateway_port: 18_789,
-            gateway_auth_token: "test-token".to_string(),
+    fn read_capture(server: &TestGatewayServer) -> Option<CapturedGatewayCall> {
+        read_all_captures(server).into_iter().last()
+    }
+
+    fn read_all_captures(server: &TestGatewayServer) -> Vec<CapturedGatewayCall> {
+        server.captures()
+    }
+
+    fn reserve_available_loopback_port() -> u16 {
+        TcpListener::bind("127.0.0.1:0")
+            .expect("reserve loopback port")
+            .local_addr()
+            .expect("loopback addr")
+            .port()
+    }
+
+    struct TestGatewayServer {
+        captures: Arc<Mutex<Vec<CapturedGatewayCall>>>,
+        stop: Arc<AtomicBool>,
+        handle: Option<JoinHandle<()>>,
+        port: u16,
+    }
+
+    impl TestGatewayServer {
+        fn spawn(port: u16) -> Self {
+            let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind gateway server");
+            listener
+                .set_nonblocking(true)
+                .expect("gateway listener nonblocking");
+
+            let captures = Arc::new(Mutex::new(Vec::new()));
+            let stop = Arc::new(AtomicBool::new(false));
+            let worker_captures = Arc::clone(&captures);
+            let worker_stop = Arc::clone(&stop);
+
+            let handle = thread::spawn(move || {
+                while !worker_stop.load(Ordering::SeqCst) {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            handle_gateway_request(&mut stream, &worker_captures);
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            Self {
+                captures,
+                stop,
+                handle: Some(handle),
+                port,
+            }
+        }
+
+        fn captures(&self) -> Vec<CapturedGatewayCall> {
+            self.captures.lock().expect("gateway captures lock").clone()
         }
     }
 
-    #[cfg(windows)]
-    fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for OpenClaw control tests")
+    impl Drop for TestGatewayServer {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            let _ = TcpStream::connect(("127.0.0.1", self.port));
+            if let Some(handle) = self.handle.take() {
+                let _ = handle.join();
+            }
+        }
     }
 
-    #[cfg(not(windows))]
-    fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node"))
-            .find(|candidate| candidate.exists())
-            .expect("node should be available on PATH for OpenClaw control tests")
-    }
-
-    fn read_capture(paths: &crate::framework::paths::AppPaths) -> Option<CapturedGatewayCall> {
-        read_all_captures(paths).into_iter().last()
-    }
-
-    fn read_all_captures(paths: &crate::framework::paths::AppPaths) -> Vec<CapturedGatewayCall> {
-        let capture_path = paths.openclaw_state_dir.join("capture.jsonl");
-        fs::read_to_string(capture_path)
+    fn handle_gateway_request(
+        stream: &mut TcpStream,
+        captures: &Arc<Mutex<Vec<CapturedGatewayCall>>>,
+    ) {
+        stream
+            .set_nonblocking(false)
+            .expect("gateway stream blocking mode");
+        let (path, headers, body) = read_http_request(stream);
+        let payload = serde_json::from_slice::<Value>(&body).expect("gateway request json");
+        let tool = payload
+            .get("tool")
+            .and_then(Value::as_str)
             .unwrap_or_default()
+            .to_string();
+        let method = payload
+            .get("action")
+            .and_then(Value::as_str)
+            .map(|action| format!("{tool}.{action}"))
+            .unwrap_or(tool);
+        let params = payload.get("args").cloned().unwrap_or(Value::Null);
+        captures
+            .lock()
+            .expect("gateway captures lock")
+            .push(CapturedGatewayCall {
+                path: path.clone(),
+                method: method.clone(),
+                params: params.clone(),
+                authorization: headers.get("authorization").cloned(),
+            });
+
+        if path != "/tools/invoke" {
+            write_json_response(
+                stream,
+                "404 Not Found",
+                &json!({
+                    "ok": false,
+                    "error": {
+                        "message": "unexpected path",
+                    }
+                }),
+            );
+            return;
+        }
+
+        let result = match method.as_str() {
+            "cron.run" => json!({
+                "ok": true,
+                "enqueued": true,
+                "runId": "run-123",
+            }),
+            "cron.remove" => json!({
+                "removed": true,
+            }),
+            _ => json!({
+                "ok": true,
+                "method": method,
+                "params": params,
+            }),
+        };
+
+        write_json_response(
+            stream,
+            "200 OK",
+            &json!({
+                "ok": true,
+                "result": result,
+            }),
+        );
+    }
+
+    fn read_http_request(
+        stream: &mut TcpStream,
+    ) -> (String, std::collections::BTreeMap<String, String>, Vec<u8>) {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .expect("gateway read timeout");
+
+        let mut buffer = Vec::new();
+        let mut chunk = [0u8; 1024];
+        let mut header_end = None;
+        let mut content_length = 0usize;
+
+        loop {
+            let read = stream.read(&mut chunk).expect("read gateway request");
+            if read == 0 {
+                break;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+
+            if header_end.is_none() {
+                if let Some(index) = find_bytes(&buffer, b"\r\n\r\n") {
+                    let end = index + 4;
+                    let header_text = String::from_utf8_lossy(&buffer[..end]);
+                    content_length = parse_content_length(header_text.as_ref());
+                    header_end = Some(end);
+                    if buffer.len() >= end + content_length {
+                        break;
+                    }
+                }
+            } else if buffer.len() >= header_end.expect("header end") + content_length {
+                break;
+            }
+        }
+
+        let header_end = header_end.expect("gateway request headers");
+        let header_text = String::from_utf8_lossy(&buffer[..header_end]);
+        let mut lines = header_text.split("\r\n").filter(|line| !line.is_empty());
+        let request_line = lines.next().expect("request line");
+        let path = request_line
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .to_string();
+        let headers = lines
+            .filter_map(|line| line.split_once(':'))
+            .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_string()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let body = buffer[header_end..header_end + content_length].to_vec();
+
+        (path, headers, body)
+    }
+
+    fn parse_content_length(headers: &str) -> usize {
+        headers
             .lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| serde_json::from_str::<Value>(line).expect("capture json"))
-            .map(|value| CapturedGatewayCall {
-                method: value
-                    .get("method")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-                params: value.get("params").cloned().unwrap_or(Value::Null),
+            .filter_map(|line| line.split_once(':'))
+            .find_map(|(name, value)| {
+                if name.trim().eq_ignore_ascii_case("content-length") {
+                    value.trim().parse::<usize>().ok()
+                } else {
+                    None
+                }
             })
-            .collect()
+            .unwrap_or(0)
+    }
+
+    fn find_bytes(buffer: &[u8], needle: &[u8]) -> Option<usize> {
+        buffer
+            .windows(needle.len())
+            .position(|window| window == needle)
+    }
+
+    fn write_json_response(stream: &mut TcpStream, status_line: &str, body: &Value) {
+        let body_text = serde_json::to_string(body).expect("response json");
+        let response = format!(
+            "HTTP/1.1 {status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body_text.len(),
+            body_text
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("write gateway response");
+        stream.flush().expect("flush gateway response");
     }
 }

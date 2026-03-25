@@ -268,6 +268,7 @@ pub enum StudioInstanceEndpointKind {
     Http,
     Websocket,
     OpenaiChatCompletions,
+    OpenaiResponses,
     Dashboard,
     Sse,
 }
@@ -1220,7 +1221,31 @@ impl StudioService {
         if instance.id == DEFAULT_INSTANCE_ID
             && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
         {
-            supervisor.start_openclaw_gateway(paths)?;
+            self.set_built_in_openclaw_status(
+                paths,
+                config,
+                storage,
+                StudioInstanceStatus::Starting,
+            )?;
+            match supervisor.start_openclaw_gateway(paths) {
+                Ok(()) => {
+                    return Ok(Some(self.set_built_in_openclaw_status(
+                        paths,
+                        config,
+                        storage,
+                        StudioInstanceStatus::Online,
+                    )?));
+                }
+                Err(error) => {
+                    let _ = self.set_built_in_openclaw_status(
+                        paths,
+                        config,
+                        storage,
+                        StudioInstanceStatus::Error,
+                    );
+                    return Err(error);
+                }
+            }
         }
 
         Ok(Some(self.set_instance_status(
@@ -1248,7 +1273,21 @@ impl StudioService {
         if instance.id == DEFAULT_INSTANCE_ID
             && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
         {
-            supervisor.stop_openclaw_gateway()?;
+            if let Err(error) = supervisor.stop_openclaw_gateway() {
+                let _ = self.set_built_in_openclaw_status(
+                    paths,
+                    config,
+                    storage,
+                    StudioInstanceStatus::Error,
+                );
+                return Err(error);
+            }
+            return Ok(Some(self.set_built_in_openclaw_status(
+                paths,
+                config,
+                storage,
+                StudioInstanceStatus::Offline,
+            )?));
         }
 
         Ok(Some(self.set_instance_status(
@@ -1276,7 +1315,31 @@ impl StudioService {
         if instance.id == DEFAULT_INSTANCE_ID
             && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
         {
-            supervisor.restart_openclaw_gateway(paths)?;
+            self.set_built_in_openclaw_status(
+                paths,
+                config,
+                storage,
+                StudioInstanceStatus::Starting,
+            )?;
+            match supervisor.restart_openclaw_gateway(paths) {
+                Ok(()) => {
+                    return Ok(Some(self.set_built_in_openclaw_status(
+                        paths,
+                        config,
+                        storage,
+                        StudioInstanceStatus::Online,
+                    )?));
+                }
+                Err(error) => {
+                    let _ = self.set_built_in_openclaw_status(
+                        paths,
+                        config,
+                        storage,
+                        StudioInstanceStatus::Error,
+                    );
+                    return Err(error);
+                }
+            }
         }
 
         Ok(Some(self.set_instance_status(
@@ -1311,6 +1374,16 @@ impl StudioService {
         let updated = registry.instances[index].clone();
         self.write_instance_registry(paths, config, storage, &registry)?;
         Ok(updated)
+    }
+
+    pub fn set_built_in_openclaw_status(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        status: StudioInstanceStatus,
+    ) -> Result<StudioInstanceRecord> {
+        self.set_instance_status(paths, config, storage, DEFAULT_INSTANCE_ID, status)
     }
 
     pub fn get_instance_config(
@@ -1619,7 +1692,14 @@ impl StudioService {
         let logs = self.get_instance_logs(paths, config, storage, id)?;
         let config = instance.config.clone();
         let storage_snapshot = build_storage_snapshot_for_instance(&instance);
-        let connectivity = build_connectivity_snapshot(&instance);
+        let managed_openclaw_root = if instance.runtime_kind == StudioRuntimeKind::Openclaw
+            && instance.deployment_mode == StudioInstanceDeploymentMode::LocalManaged
+        {
+            Some(read_json5_object(&paths.openclaw_config_file)?)
+        } else {
+            None
+        };
+        let connectivity = build_connectivity_snapshot(&instance, managed_openclaw_root.as_ref());
         let observability = build_observability_snapshot(paths, &instance, &logs);
         let data_access = build_data_access_snapshot(
             paths,
@@ -2158,6 +2238,7 @@ fn storage_capabilities_for_provider(kind: &StorageProviderKind) -> (bool, bool,
 
 fn build_connectivity_snapshot(
     instance: &StudioInstanceRecord,
+    root: Option<&Value>,
 ) -> StudioInstanceConnectivitySnapshot {
     let mut endpoints = Vec::new();
 
@@ -2185,17 +2266,37 @@ fn build_connectivity_snapshot(
 
     if let Some(base_url) = instance.base_url.as_deref() {
         match instance.runtime_kind {
-            StudioRuntimeKind::Openclaw => endpoints.push(connectivity_endpoint(
-                instance,
-                "openai-http-chat",
-                "OpenAI Chat Completions",
-                StudioInstanceEndpointKind::OpenaiChatCompletions,
-                Some(format!(
-                    "{}/v1/chat/completions",
-                    base_url.trim_end_matches('/')
-                )),
-                StudioInstanceEndpointSource::Derived,
-            )),
+            StudioRuntimeKind::Openclaw => {
+                endpoints.push(connectivity_endpoint(
+                    instance,
+                    "openai-http-chat",
+                    "OpenAI Chat Completions",
+                    StudioInstanceEndpointKind::OpenaiChatCompletions,
+                    Some(format!(
+                        "{}/v1/chat/completions",
+                        base_url.trim_end_matches('/')
+                    )),
+                    StudioInstanceEndpointSource::Derived,
+                ));
+                if root
+                    .and_then(|value| {
+                        get_nested_bool(
+                            value,
+                            &["gateway", "http", "endpoints", "responses", "enabled"],
+                        )
+                    })
+                    .unwrap_or(false)
+                {
+                    endpoints.push(connectivity_endpoint(
+                        instance,
+                        "openai-http-responses",
+                        "OpenAI Responses",
+                        StudioInstanceEndpointKind::OpenaiResponses,
+                        Some(format!("{}/v1/responses", base_url.trim_end_matches('/'))),
+                        StudioInstanceEndpointSource::Derived,
+                    ));
+                }
+            }
             StudioRuntimeKind::Zeroclaw => endpoints.push(connectivity_endpoint(
                 instance,
                 "dashboard",
@@ -3664,7 +3765,7 @@ fn build_built_in_instance(paths: &AppPaths, config: &AppConfig) -> Result<Studi
         runtime_kind: StudioRuntimeKind::Openclaw,
         deployment_mode: StudioInstanceDeploymentMode::LocalManaged,
         transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
-        status: StudioInstanceStatus::Online,
+        status: StudioInstanceStatus::Offline,
         is_built_in: true,
         is_default: true,
         icon_type: StudioInstanceIconType::Server,
@@ -4048,12 +4149,13 @@ fn get_nested_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
 #[cfg(test)]
 mod tests {
     use super::{
-        console_install_method_from_install_record, StudioInstanceConsoleInstallMethod,
-        StudioConversationMessage, StudioConversationMessageStatus, StudioConversationRecord,
-        StudioConversationRole, StudioCreateInstanceInput, StudioInstanceArtifactKind,
-        StudioInstanceAuthMode, StudioInstanceCapability, StudioInstanceCapabilityStatus,
-        StudioInstanceDataAccessMode, StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
-        StudioInstanceLifecycleOwner, StudioInstanceStorageStatus, StudioInstanceTransportKind,
+        console_install_method_from_install_record, StudioConversationMessage,
+        StudioConversationMessageStatus, StudioConversationRecord, StudioConversationRole,
+        StudioCreateInstanceInput, StudioInstanceArtifactKind, StudioInstanceAuthMode,
+        StudioInstanceCapability, StudioInstanceCapabilityStatus,
+        StudioInstanceConsoleInstallMethod, StudioInstanceDataAccessMode,
+        StudioInstanceDataAccessScope, StudioInstanceDeploymentMode, StudioInstanceLifecycleOwner,
+        StudioInstanceStatus, StudioInstanceStorageStatus, StudioInstanceTransportKind,
         StudioRuntimeKind, StudioService, DEFAULT_INSTANCE_ID,
     };
     use crate::framework::{
@@ -4070,8 +4172,18 @@ mod tests {
         types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
         write_install_record, InstallRecord, InstallRecordStatus,
     };
-    use serde_json::Value;
-    use std::fs;
+    use serde_json::{json, Value};
+    use std::{
+        fs,
+        io::{Read, Write},
+        net::{TcpListener, TcpStream},
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc, Mutex,
+        },
+        thread::{self, JoinHandle},
+        time::Duration,
+    };
 
     fn studio_context() -> (
         tempfile::TempDir,
@@ -4130,9 +4242,9 @@ mod tests {
 
     fn configured_openclaw_supervisor(
         paths: &crate::framework::paths::AppPaths,
-    ) -> SupervisorService {
+    ) -> (SupervisorService, TestGatewayServer) {
         let supervisor = SupervisorService::new();
-        let runtime = create_openclaw_runtime_fixture(paths);
+        let (runtime, server) = create_openclaw_runtime_fixture(paths);
 
         supervisor
             .configure_openclaw_gateway(&runtime)
@@ -4141,89 +4253,265 @@ mod tests {
             .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
             .expect("record running");
 
-        supervisor
+        (supervisor, server)
     }
 
     fn create_openclaw_runtime_fixture(
         paths: &crate::framework::paths::AppPaths,
-    ) -> ActivatedOpenClawRuntime {
+    ) -> (ActivatedOpenClawRuntime, TestGatewayServer) {
         let install_dir = paths.openclaw_runtime_dir.join("test-runtime");
         let runtime_dir = install_dir.join("runtime");
-        let cli_path = runtime_dir.join("package").join("openclaw.mjs");
-        let node_path = resolve_test_node_executable();
+        let cli_path = runtime_dir
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("openclaw.mjs");
+        let node_path = runtime_dir.join("node").join("node");
+        let gateway_port = reserve_available_loopback_port();
+        let server = TestGatewayServer::spawn(gateway_port);
 
-        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
-        fs::write(
-            &cli_path,
-            r#"import fs from 'node:fs';
-import path from 'node:path';
-
-const args = process.argv.slice(2);
-const capturePath = path.join(process.env.OPENCLAW_STATE_DIR, 'capture.jsonl');
-const method = args[2];
-const paramsIndex = args.indexOf('--params');
-const params = paramsIndex >= 0 ? JSON.parse(args[paramsIndex + 1]) : null;
-fs.mkdirSync(path.dirname(capturePath), { recursive: true });
-fs.appendFileSync(capturePath, JSON.stringify({ method, params }) + '\n');
-
-if (method === 'cron.run') {
-  process.stdout.write(JSON.stringify({ ok: true, enqueued: true, runId: 'run-123' }));
-  process.exit(0);
-}
-
-if (method === 'cron.remove') {
-  process.stdout.write(JSON.stringify({ removed: true }));
-  process.exit(0);
-}
-
-process.stdout.write(JSON.stringify({ ok: true, method, params }));
-"#,
+        (
+            ActivatedOpenClawRuntime {
+                install_key: "test-runtime".to_string(),
+                install_dir,
+                runtime_dir,
+                node_path,
+                cli_path,
+                home_dir: paths.openclaw_home_dir.clone(),
+                state_dir: paths.openclaw_state_dir.clone(),
+                workspace_dir: paths.openclaw_workspace_dir.clone(),
+                config_path: paths.openclaw_config_file.clone(),
+                gateway_port,
+                gateway_auth_token: "test-token".to_string(),
+            },
+            server,
         )
-        .expect("cli script");
+    }
 
-        ActivatedOpenClawRuntime {
-            install_key: "test-runtime".to_string(),
-            install_dir,
-            runtime_dir,
-            node_path,
-            cli_path,
-            home_dir: paths.openclaw_home_dir.clone(),
-            state_dir: paths.openclaw_state_dir.clone(),
-            workspace_dir: paths.openclaw_workspace_dir.clone(),
-            config_path: paths.openclaw_config_file.clone(),
-            gateway_port: 18_789,
-            gateway_auth_token: "test-token".to_string(),
+    fn read_gateway_call_captures(server: &TestGatewayServer) -> Vec<Value> {
+        server.captures()
+    }
+
+    fn reserve_available_loopback_port() -> u16 {
+        TcpListener::bind("127.0.0.1:0")
+            .expect("reserve loopback port")
+            .local_addr()
+            .expect("loopback addr")
+            .port()
+    }
+
+    struct TestGatewayServer {
+        captures: Arc<Mutex<Vec<Value>>>,
+        stop: Arc<AtomicBool>,
+        handle: Option<JoinHandle<()>>,
+        port: u16,
+    }
+
+    impl TestGatewayServer {
+        fn spawn(port: u16) -> Self {
+            let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind gateway server");
+            listener
+                .set_nonblocking(true)
+                .expect("gateway listener nonblocking");
+
+            let captures = Arc::new(Mutex::new(Vec::new()));
+            let stop = Arc::new(AtomicBool::new(false));
+            let worker_captures = Arc::clone(&captures);
+            let worker_stop = Arc::clone(&stop);
+
+            let handle = thread::spawn(move || {
+                while !worker_stop.load(Ordering::SeqCst) {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            handle_gateway_request(&mut stream, &worker_captures);
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            Self {
+                captures,
+                stop,
+                handle: Some(handle),
+                port,
+            }
+        }
+
+        fn captures(&self) -> Vec<Value> {
+            self.captures.lock().expect("gateway captures lock").clone()
         }
     }
 
-    #[cfg(windows)]
-    fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for OpenClaw studio tests")
+    impl Drop for TestGatewayServer {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            let _ = TcpStream::connect(("127.0.0.1", self.port));
+            if let Some(handle) = self.handle.take() {
+                let _ = handle.join();
+            }
+        }
     }
 
-    #[cfg(not(windows))]
-    fn resolve_test_node_executable() -> std::path::PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node"))
-            .find(|candidate| candidate.exists())
-            .expect("node should be available on PATH for OpenClaw studio tests")
-    }
-
-    fn read_gateway_call_captures(paths: &crate::framework::paths::AppPaths) -> Vec<Value> {
-        let capture_path = paths.openclaw_state_dir.join("capture.jsonl");
-        fs::read_to_string(capture_path)
+    fn handle_gateway_request(stream: &mut TcpStream, captures: &Arc<Mutex<Vec<Value>>>) {
+        stream
+            .set_nonblocking(false)
+            .expect("gateway stream blocking mode");
+        let (path, headers, body) = read_http_request(stream);
+        let payload = serde_json::from_slice::<Value>(&body).expect("gateway request json");
+        let tool = payload
+            .get("tool")
+            .and_then(Value::as_str)
             .unwrap_or_default()
+            .to_string();
+        let method = payload
+            .get("action")
+            .and_then(Value::as_str)
+            .map(|action| format!("{tool}.{action}"))
+            .unwrap_or(tool);
+        let params = payload.get("args").cloned().unwrap_or(Value::Null);
+
+        captures.lock().expect("gateway captures lock").push(json!({
+            "path": path,
+            "method": method,
+            "params": params,
+            "authorization": headers.get("authorization").cloned(),
+        }));
+
+        let method = payload
+            .get("action")
+            .and_then(Value::as_str)
+            .map(|action| {
+                format!(
+                    "{}.{}",
+                    payload
+                        .get("tool")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                    action
+                )
+            })
+            .unwrap_or_else(|| {
+                payload
+                    .get("tool")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+
+        let params = payload.get("args").cloned().unwrap_or(Value::Null);
+        let result = match method.as_str() {
+            "cron.run" => json!({
+                "ok": true,
+                "enqueued": true,
+                "runId": "run-123",
+            }),
+            "cron.remove" => json!({
+                "removed": true,
+            }),
+            _ => json!({
+                "ok": true,
+                "method": method,
+                "params": params,
+            }),
+        };
+
+        write_json_response(
+            stream,
+            "200 OK",
+            &json!({
+                "ok": true,
+                "result": result,
+            }),
+        );
+    }
+
+    fn read_http_request(
+        stream: &mut TcpStream,
+    ) -> (String, std::collections::BTreeMap<String, String>, Vec<u8>) {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .expect("gateway read timeout");
+
+        let mut buffer = Vec::new();
+        let mut chunk = [0u8; 1024];
+        let mut header_end = None;
+        let mut content_length = 0usize;
+
+        loop {
+            let read = stream.read(&mut chunk).expect("read gateway request");
+            if read == 0 {
+                break;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+
+            if header_end.is_none() {
+                if let Some(index) = find_bytes(&buffer, b"\r\n\r\n") {
+                    let end = index + 4;
+                    let header_text = String::from_utf8_lossy(&buffer[..end]);
+                    content_length = parse_content_length(header_text.as_ref());
+                    header_end = Some(end);
+                    if buffer.len() >= end + content_length {
+                        break;
+                    }
+                }
+            } else if buffer.len() >= header_end.expect("header end") + content_length {
+                break;
+            }
+        }
+
+        let header_end = header_end.expect("gateway request headers");
+        let header_text = String::from_utf8_lossy(&buffer[..header_end]);
+        let mut lines = header_text.split("\r\n").filter(|line| !line.is_empty());
+        let request_line = lines.next().expect("request line");
+        let path = request_line
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .to_string();
+        let headers = lines
+            .filter_map(|line| line.split_once(':'))
+            .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_string()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let body = buffer[header_end..header_end + content_length].to_vec();
+
+        (path, headers, body)
+    }
+
+    fn parse_content_length(headers: &str) -> usize {
+        headers
             .lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| serde_json::from_str::<Value>(line).expect("capture json"))
-            .collect()
+            .filter_map(|line| line.split_once(':'))
+            .find_map(|(name, value)| {
+                if name.trim().eq_ignore_ascii_case("content-length") {
+                    value.trim().parse::<usize>().ok()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0)
+    }
+
+    fn find_bytes(buffer: &[u8], needle: &[u8]) -> Option<usize> {
+        buffer
+            .windows(needle.len())
+            .position(|window| window == needle)
+    }
+
+    fn write_json_response(stream: &mut TcpStream, status_line: &str, body: &Value) {
+        let body_text = serde_json::to_string(body).expect("response json");
+        let response = format!(
+            "HTTP/1.1 {status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body_text.len(),
+            body_text
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("write gateway response");
+        stream.flush().expect("flush gateway response");
     }
 
     #[test]
@@ -4243,6 +4531,25 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             instances[0].deployment_mode,
             StudioInstanceDeploymentMode::LocalManaged
         );
+        assert_eq!(instances[0].status, StudioInstanceStatus::Offline);
+    }
+
+    #[test]
+    fn start_instance_marks_built_in_openclaw_as_error_when_gateway_start_fails() {
+        let (_root, paths, config, storage, service) = studio_context();
+        let supervisor = SupervisorService::new();
+
+        let error = service
+            .start_instance(&paths, &config, &storage, &supervisor, DEFAULT_INSTANCE_ID)
+            .expect_err("built-in start should fail without configured runtime");
+
+        assert!(error.to_string().contains("configured openclaw runtime"));
+
+        let built_in = service
+            .get_instance(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
+            .expect("get built-in instance")
+            .expect("built-in instance");
+        assert_eq!(built_in.status, StudioInstanceStatus::Error);
     }
 
     #[test]
@@ -4517,6 +4824,7 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
     http: {
       endpoints: {
         chatCompletions: { enabled: true },
+        responses: { enabled: true },
       },
     },
   },
@@ -4561,6 +4869,12 @@ process.stdout.write(JSON.stringify({ ok: true, method, params }));
             .iter()
             .any(|endpoint| endpoint.id == "openai-http-chat"
                 && endpoint.url.as_deref() == Some("http://127.0.0.1:19876/v1/chat/completions")));
+        assert!(detail
+            .connectivity
+            .endpoints
+            .iter()
+            .any(|endpoint| endpoint.id == "openai-http-responses"
+                && endpoint.url.as_deref() == Some("http://127.0.0.1:19876/v1/responses")));
         assert!(detail.observability.log_available);
         assert!(detail.data_access.routes.iter().any(|route| route.scope
             == StudioInstanceDataAccessScope::Config
@@ -5371,7 +5685,7 @@ Reads runtime diagnostics and summarizes them.
     #[test]
     fn built_in_openclaw_task_controls_delegate_to_the_runtime_bridge() {
         let (_root, paths, config, storage, service) = studio_context();
-        let supervisor = configured_openclaw_supervisor(&paths);
+        let (supervisor, server) = configured_openclaw_supervisor(&paths);
 
         fs::create_dir_all(paths.openclaw_state_dir.join("cron").join("runs"))
             .expect("cron run dir");
@@ -5528,7 +5842,7 @@ Reads runtime diagnostics and summarizes them.
             )
             .expect("delete task");
 
-        let captures = read_gateway_call_captures(&paths);
+        let captures = read_gateway_call_captures(&server);
         assert_eq!(captures.len(), 6);
         assert_eq!(
             captures[0].get("method").and_then(Value::as_str),
@@ -5563,7 +5877,7 @@ Reads runtime diagnostics and summarizes them.
     #[test]
     fn remote_instances_reject_runtime_backed_openclaw_task_controls() {
         let (_root, paths, config, storage, service) = studio_context();
-        let supervisor = configured_openclaw_supervisor(&paths);
+        let (supervisor, _server) = configured_openclaw_supervisor(&paths);
         let remote = service
             .create_instance(
                 &paths,
@@ -5635,7 +5949,7 @@ Reads runtime diagnostics and summarizes them.
                     deployment_mode: StudioInstanceDeploymentMode::Remote,
                     transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
                     icon_type: None,
-                    version: Some("2026.3.13".to_string()),
+                    version: Some("2026.3.23-2".to_string()),
                     type_label: Some("Remote OpenClaw".to_string()),
                     host: Some("openclaw.example.com".to_string()),
                     port: Some(18789),

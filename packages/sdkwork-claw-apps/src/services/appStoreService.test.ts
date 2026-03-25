@@ -10,7 +10,7 @@ import {
   type RuntimeInfo,
   studioMockService,
 } from '@sdkwork/claw-infrastructure';
-import { appStoreService } from './appStoreService.ts';
+import { appStoreService, createAppStoreService } from './appStoreService.ts';
 import { resolveAppHostPlatform } from './appInstallCatalog.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -188,6 +188,121 @@ function blockStudioMockAppStoreAccess() {
   };
 }
 
+await runTest(
+  'getList, getCategories, and getApp delegate remote metadata reads to the shared app store catalog sdk wrapper',
+  async () => {
+    resetInstallerCatalogCache();
+    const restoreStudioMockService = blockStudioMockAppStoreAccess();
+    const listQueries: Array<Record<string, unknown> | undefined> = [];
+    const getAppCalls: string[] = [];
+    const service = createAppStoreService({
+      appStoreCatalogService: {
+        listApps: async (params) => {
+          listQueries.push(params as Record<string, unknown> | undefined);
+          return {
+            items: [
+              {
+                id: 'app-openclaw',
+                name: 'OpenClaw Desktop',
+                developer: 'SDKWork',
+                category: 'SDK',
+                description: 'Desktop automation app.',
+                iconUrl: 'https://cdn.sdkwork.com/openclaw/icon.png',
+              },
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+            hasMore: false,
+          };
+        },
+        listCategories: async () => [
+          {
+            code: 'sdk',
+            name: 'SDK',
+            count: 1,
+          },
+        ],
+        getApp: async (id) => {
+          getAppCalls.push(id);
+          return {
+            id,
+            name: 'OpenClaw Desktop',
+            developer: 'SDKWork',
+            category: 'SDK',
+            description: 'Desktop automation app.',
+            iconUrl: 'https://cdn.sdkwork.com/openclaw/icon.png',
+          };
+        },
+      } as any,
+    });
+
+    try {
+      configurePlatformBridge({
+        installer: {
+          async listHubInstallCatalog() {
+            return [
+              createCatalogEntry({
+                appId: 'app-openclaw',
+                title: 'OpenClaw Installer',
+                developer: 'SDKWork',
+                category: 'AI Agents',
+                summary: 'Rust catalog summary for OpenClaw.',
+                description: 'Rust-backed OpenClaw installer descriptor.',
+                homepage: 'https://docs.openclaw.ai/install',
+                tags: ['ai', 'desktop'],
+              }),
+            ];
+          },
+          async inspectHubInstall(request) {
+            return createAssessment(request);
+          },
+          async runHubDependencyInstall() {
+            throw new Error('not implemented');
+          },
+          async runHubInstall() {
+            throw new Error('not implemented');
+          },
+          async runHubUninstall() {
+            throw new Error('not implemented');
+          },
+          async subscribeHubInstallProgress() {
+            return () => {};
+          },
+          async installApiRouterClientSetup() {
+            throw new Error('not implemented');
+          },
+        },
+      });
+
+      const page = await service.getList({ page: 1, pageSize: 20, keyword: 'claw' });
+      const categories = await service.getCategories();
+      const app = await service.getApp('app-openclaw');
+
+      assert.equal(listQueries[0]?.keyword, 'claw');
+      assert.equal(listQueries[0]?.page, 1);
+      assert.equal(listQueries[0]?.pageSize, 20);
+      assert.ok(
+        listQueries.some(
+          (query) =>
+            query?.page === 1 &&
+            query?.pageSize === 100 &&
+            query?.keyword === undefined,
+        ),
+      );
+      assert.deepEqual(getAppCalls, ['app-openclaw']);
+      assert.equal(page.items[0]?.installSummary, 'Rust catalog summary for OpenClaw.');
+      assert.equal(categories[0]?.title, 'SDK');
+      assert.equal(categories[0]?.apps[0]?.id, 'app-openclaw');
+      assert.equal(app.id, 'app-openclaw');
+      assert.equal(app.developer, 'SDKWork');
+      assert.equal(app.installHomepage, 'https://docs.openclaw.ai/install');
+    } finally {
+      restoreStudioMockService();
+    }
+  },
+);
+
 await runTest('resolveAppHostPlatform normalizes host operating systems', () => {
   assert.equal(resolveAppHostPlatform('Windows 11 Pro'), 'windows');
   assert.equal(resolveAppHostPlatform('macOS 14.4'), 'macos');
@@ -240,6 +355,46 @@ await runTest(
     resetInstallerCatalogCache();
     let runtimeInfoCalls = 0;
     const restoreStudioMockService = blockStudioMockAppStoreAccess();
+    const service = createAppStoreService({
+      appStoreCatalogService: {
+        listApps: async () => ({
+          items: [
+            {
+              id: 'app-openclaw',
+              name: 'OpenClaw Desktop',
+              developer: 'SDKWork',
+              category: 'SDK',
+              description: 'Desktop automation app.',
+            },
+            {
+              id: 'app-codex',
+              name: 'Codex',
+              developer: 'OpenAI',
+              category: 'SDK',
+              description: 'Code automation app.',
+            },
+          ],
+          total: 2,
+          page: 1,
+          pageSize: 100,
+          hasMore: false,
+        }),
+        listCategories: async () => [
+          {
+            code: 'sdk',
+            name: 'SDK',
+            count: 2,
+          },
+        ],
+        getApp: async (id) => ({
+          id,
+          name: id === 'app-codex' ? 'Codex' : 'OpenClaw Desktop',
+          developer: id === 'app-codex' ? 'OpenAI' : 'SDKWork',
+          category: 'SDK',
+          description: 'Code automation app.',
+        }),
+      } as any,
+    });
 
     try {
       configurePlatformBridge({
@@ -325,9 +480,9 @@ await runTest(
       });
 
       await Promise.all([
-        appStoreService.getList({ page: 1, pageSize: 20 }),
-        appStoreService.getCategories(),
-        appStoreService.getApp('app-codex'),
+        service.getList({ page: 1, pageSize: 20 }),
+        service.getCategories(),
+        service.getApp('app-codex'),
       ]);
 
       assert.equal(runtimeInfoCalls, 1);
@@ -566,9 +721,46 @@ await runTest('getGuidedInstallNavigation routes claw runtimes into the step-bas
   );
 });
 
-await runTest('getList builds App Store entries directly from the Rust catalog without seeded mock content', async () => {
+await runTest('getList merges app sdk store metadata with the Rust installer catalog without seeded mock content', async () => {
   resetInstallerCatalogCache();
   const restoreStudioMockService = blockStudioMockAppStoreAccess();
+  const service = createAppStoreService({
+    appStoreCatalogService: {
+      listApps: async () => ({
+        items: [
+          {
+            id: 'app-nodejs',
+            name: 'Node.js',
+            developer: 'Node.js Foundation',
+            category: 'Runtimes',
+            description: 'Node.js runtime.',
+          },
+          {
+            id: 'app-pnpm',
+            name: 'pnpm',
+            developer: 'pnpm',
+            category: 'Package Managers',
+            description: 'pnpm package manager.',
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 10,
+        hasMore: false,
+      }),
+      listCategories: async () => [
+        { code: 'package-managers', name: 'Package Managers', count: 1 },
+        { code: 'runtimes', name: 'Runtimes', count: 1 },
+      ],
+      getApp: async (id) => ({
+        id,
+        name: id === 'app-pnpm' ? 'pnpm' : 'Node.js',
+        developer: id === 'app-pnpm' ? 'pnpm' : 'Node.js Foundation',
+        category: id === 'app-pnpm' ? 'Package Managers' : 'Runtimes',
+        description: id === 'app-pnpm' ? 'pnpm package manager.' : 'Node.js runtime.',
+      }),
+    } as any,
+  });
 
   try {
     configurePlatformBridge({
@@ -656,9 +848,9 @@ await runTest('getList builds App Store entries directly from the Rust catalog w
           throw new Error('not implemented');
         },
       },
-    });
+      });
 
-    const result = await appStoreService.getList({ page: 1, pageSize: 10 });
+    const result = await service.getList({ page: 1, pageSize: 10 });
 
     assert.equal(result.total, 2);
     assert.deepEqual(
@@ -673,9 +865,46 @@ await runTest('getList builds App Store entries directly from the Rust catalog w
   }
 });
 
-await runTest('getCategories groups Rust catalog entries without seeded App Store categories', async () => {
+await runTest('getCategories groups app sdk store entries with merged installer metadata', async () => {
   resetInstallerCatalogCache();
   const restoreStudioMockService = blockStudioMockAppStoreAccess();
+  const service = createAppStoreService({
+    appStoreCatalogService: {
+      listApps: async () => ({
+        items: [
+          {
+            id: 'app-pnpm',
+            name: 'pnpm',
+            developer: 'pnpm',
+            category: 'Package Managers',
+            description: 'pnpm package manager.',
+          },
+          {
+            id: 'app-nodejs',
+            name: 'Node.js',
+            developer: 'Node.js Foundation',
+            category: 'Runtimes',
+            description: 'Node.js runtime.',
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 100,
+        hasMore: false,
+      }),
+      listCategories: async () => [
+        { code: 'package-managers', name: 'Package Managers', count: 1 },
+        { code: 'runtimes', name: 'Runtimes', count: 1 },
+      ],
+      getApp: async (id) => ({
+        id,
+        name: id === 'app-pnpm' ? 'pnpm' : 'Node.js',
+        developer: id === 'app-pnpm' ? 'pnpm' : 'Node.js Foundation',
+        category: id === 'app-pnpm' ? 'Package Managers' : 'Runtimes',
+        description: id === 'app-pnpm' ? 'pnpm package manager.' : 'Node.js runtime.',
+      }),
+    } as any,
+  });
 
   try {
     configurePlatformBridge({
@@ -763,9 +992,9 @@ await runTest('getCategories groups Rust catalog entries without seeded App Stor
           throw new Error('not implemented');
         },
       },
-    });
+      });
 
-    const categories = await appStoreService.getCategories();
+    const categories = await service.getCategories();
 
     assert.equal(categories.length, 2);
     assert.deepEqual(
@@ -781,9 +1010,37 @@ await runTest('getCategories groups Rust catalog entries without seeded App Stor
   }
 });
 
-await runTest('getApp resolves details directly from the Rust catalog without seeded mock App Store items', async () => {
+await runTest('getApp resolves detail from app sdk store metadata and merges installer hints', async () => {
   resetInstallerCatalogCache();
   const restoreStudioMockService = blockStudioMockAppStoreAccess();
+  const service = createAppStoreService({
+    appStoreCatalogService: {
+      listApps: async () => ({
+        items: [
+          {
+            id: 'app-codex',
+            name: 'Codex',
+            developer: 'OpenAI',
+            category: 'SDK',
+            description: 'Code automation app.',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 100,
+        hasMore: false,
+      }),
+      listCategories: async () => [{ code: 'sdk', name: 'SDK', count: 1 }],
+      getApp: async (id) => ({
+        id,
+        name: 'Codex',
+        developer: 'OpenAI',
+        category: 'SDK',
+        description: 'Code automation app.',
+        iconUrl: 'https://cdn.sdkwork.com/codex/icon.png',
+      }),
+    } as any,
+  });
 
   try {
     configurePlatformBridge({
@@ -841,14 +1098,14 @@ await runTest('getApp resolves details directly from the Rust catalog without se
           throw new Error('not implemented');
         },
       },
-    });
+      });
 
-    const app = await appStoreService.getApp('app-codex');
+    const app = await service.getApp('app-codex');
 
     assert.equal(app.id, 'app-codex');
     assert.equal(app.name, 'Codex');
     assert.equal(app.installHomepage, 'https://openai.com/codex');
-    assert.match(app.icon, /^data:image\/svg\+xml/);
+    assert.equal(app.icon, 'https://cdn.sdkwork.com/codex/icon.png');
   } finally {
     restoreStudioMockService();
   }
@@ -857,6 +1114,25 @@ await runTest('getApp resolves details directly from the Rust catalog without se
 await runTest('inspectInstall delegates to the shared installer bridge with the resolved request', async () => {
   resetInstallerCatalogCache();
   const inspectCalls: HubInstallRequest[] = [];
+  const service = createAppStoreService({
+    appStoreCatalogService: {
+      listApps: async () => ({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 100,
+        hasMore: false,
+      }),
+      listCategories: async () => [],
+      getApp: async (id) => ({
+        id,
+        name: 'OpenClaw',
+        developer: 'SDKWork',
+        category: 'SDK',
+        description: 'Desktop automation app.',
+      }),
+    } as any,
+  });
   const runtimeInfo: RuntimeInfo = {
     platform: 'desktop',
     system: {
@@ -918,7 +1194,7 @@ await runTest('inspectInstall delegates to the shared installer bridge with the 
     },
   });
 
-  const result = await appStoreService.inspectInstall('app-openclaw');
+  const result = await service.inspectInstall('app-openclaw');
 
   assert.equal(inspectCalls.length, 1);
   assert.equal(inspectCalls[0]?.softwareName, 'openclaw-wsl');
@@ -929,6 +1205,25 @@ await runTest('inspectInstall delegates to the shared installer bridge with the 
 
 await runTest('inspectInstall preserves persistent install status from the Rust assessment bridge', async () => {
   resetInstallerCatalogCache();
+  const service = createAppStoreService({
+    appStoreCatalogService: {
+      listApps: async () => ({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 100,
+        hasMore: false,
+      }),
+      listCategories: async () => [],
+      getApp: async (id) => ({
+        id,
+        name: 'OpenClaw',
+        developer: 'SDKWork',
+        category: 'SDK',
+        description: 'Desktop automation app.',
+      }),
+    } as any,
+  });
 
   configurePlatformBridge({
     runtime: {
@@ -990,7 +1285,7 @@ await runTest('inspectInstall preserves persistent install status from the Rust 
     },
   });
 
-  const result = await appStoreService.inspectInstall('app-openclaw');
+  const result = await service.inspectInstall('app-openclaw');
 
   assert.equal(result.assessment.installStatus, 'installed');
 });

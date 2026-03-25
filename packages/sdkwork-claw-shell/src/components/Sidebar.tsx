@@ -24,6 +24,7 @@ import {
   Router,
   Server,
   Settings2,
+  Store,
   Waypoints,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -180,6 +181,7 @@ export function Sidebar() {
           icon: BriefcaseBusiness,
           label: t('sidebar.agentMarket'),
         },
+        { id: 'mall', to: '/mall', icon: Store, label: t('sidebar.clawMall') },
         {
           id: 'apps',
           to: '/apps',

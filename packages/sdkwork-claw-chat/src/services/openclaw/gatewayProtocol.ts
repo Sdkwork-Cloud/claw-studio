@@ -71,16 +71,21 @@ export type OpenClawGatewaySessionRow = {
   kind: 'direct' | 'group' | 'global' | 'unknown' | string;
   label?: string;
   displayName?: string;
+  derivedTitle?: string;
+  lastMessagePreview?: string;
   updatedAt?: number | null;
-  sessionId?: string;
-  thinkingLevel?: string;
-  fastMode?: boolean;
-  verboseLevel?: string;
-  reasoningLevel?: string;
-  model?: string;
-  modelProvider?: string;
-  contextTokens?: number;
+  sessionId?: string | null;
+  thinkingLevel?: string | null;
+  fastMode?: boolean | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
+  model?: string | null;
+  modelProvider?: string | null;
+  contextTokens?: number | null;
   totalTokens?: number;
+  systemSent?: boolean | null;
+  abortedLastRun?: boolean | null;
+  elevatedLevel?: boolean | null;
 };
 
 export type OpenClawGatewaySessionsListResult = {
@@ -97,9 +102,12 @@ export type OpenClawGatewayChatHistoryResult = {
 };
 
 export type OpenClawGatewayModelEntry = {
-  id: string;
-  name: string;
+  id?: string;
+  name?: string;
   provider?: string;
+  model?: string;
+  label?: string;
+  title?: string;
   contextWindow?: number | null;
 };
 
@@ -115,6 +123,11 @@ export type OpenClawGatewaySessionsPatchResult = {
   resolved?: {
     modelProvider?: string | null;
     model?: string | null;
+    thinkingLevel?: string | null;
+    fastMode?: boolean | null;
+    verboseLevel?: string | null;
+    reasoningLevel?: string | null;
+    contextTokens?: number | null;
   };
 };
 

@@ -8,6 +8,11 @@ const AuthPage = lazy(() =>
     default: module.AuthPage,
   })),
 );
+const AuthOAuthCallbackPage = lazy(() =>
+  import('@sdkwork/claw-auth').then((module) => ({
+    default: module.AuthOAuthCallbackPage,
+  })),
+);
 const ApiRouter = lazy(() =>
   import('@sdkwork/claw-apirouter').then((module) => ({
     default: module.ApiRouter,
@@ -26,6 +31,16 @@ const AppStore = lazy(() =>
 const AppDetail = lazy(() =>
   import('@sdkwork/claw-apps').then((module) => ({
     default: module.AppDetail,
+  })),
+);
+const ClawMall = lazy(() =>
+  import('@sdkwork/claw-mall').then((module) => ({
+    default: module.ClawMall,
+  })),
+);
+const ProductDetail = lazy(() =>
+  import('@sdkwork/claw-mall').then((module) => ({
+    default: module.ProductDetail,
   })),
 );
 const ClawCenter = lazy(() =>
@@ -228,6 +243,14 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="/login/oauth/callback/:provider"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AuthOAuthCallbackPage />
+            </Suspense>
+          }
+        />
+        <Route
           path="/dashboard"
           element={
             <PageWrapper>
@@ -373,6 +396,26 @@ export function AppRoutes() {
             <PageWrapper>
               <Suspense fallback={<RouteFallback />}>
                 <AppDetail />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/mall"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <ClawMall />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/mall/:id"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <ProductDetail />
               </Suspense>
             </PageWrapper>
           }

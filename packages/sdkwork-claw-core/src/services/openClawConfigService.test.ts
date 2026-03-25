@@ -696,3 +696,55 @@ await runTest('openClawConfigService persists skill entry overrides and removes 
     configurePlatformBridge(originalBridge);
   }
 });
+
+await runTest('openClawConfigService deletes a persisted skill entry without touching sibling skill config', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  let fileContent = `{
+  skills: {
+    entries: {
+      "research-skill": {
+        enabled: false,
+      },
+      "calendar-skill": {
+        env: {
+          CALDAV_URL: "https://calendar.example.com",
+        },
+      },
+    },
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+      writeFile: async (_path, content) => {
+        fileContent = content;
+      },
+    }),
+  });
+
+  try {
+    await openClawConfigService.deleteSkillEntry({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      skillKey: 'research-skill',
+    });
+
+    const snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    const entries = (((snapshot.root.skills as Record<string, any>) || {}).entries ||
+      {}) as Record<string, any>;
+
+    assert.equal(entries['research-skill'], undefined);
+    assert.deepEqual(entries['calendar-skill'], {
+      env: {
+        CALDAV_URL: 'https://calendar.example.com',
+      },
+    });
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});

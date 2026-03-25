@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  buildOpenClawMainSessionKey,
   resolveChatBootstrapAction,
   resolveOpenClawCreateSessionTarget,
 } from './chatSessionBootstrap.ts';
@@ -70,28 +71,36 @@ await runTest('chat bootstrap selects the first session when the active session 
   );
 });
 
-await runTest('openclaw explicit create-session always mints a fresh draft instead of reusing hydrated sessions', () => {
+await runTest('openclaw chat bootstrap resolves upstream agent main session keys', () => {
+  assert.equal(buildOpenClawMainSessionKey('research'), 'agent:research:main');
+  assert.equal(buildOpenClawMainSessionKey(), 'agent:main:main');
+});
+
+await runTest('openclaw explicit create-session targets the selected agent main session before creating a new draft', () => {
   assert.deepEqual(
     resolveOpenClawCreateSessionTarget({
+      agentId: 'research',
       activeSessionId: 'remote-session',
-      sessions: [{ id: 'remote-session' }, { id: 'draft-session', isDraft: true }],
+      sessions: [{ id: 'remote-session' }, { id: 'agent:research:main' }],
     }),
-    { type: 'draft' },
+    { type: 'select', sessionId: 'agent:research:main' },
   );
 
   assert.deepEqual(
     resolveOpenClawCreateSessionTarget({
+      agentId: 'research',
       activeSessionId: null,
       sessions: [{ id: 'remote-session' }],
     }),
-    { type: 'draft' },
+    { type: 'draft', sessionId: 'agent:research:main' },
   );
 
   assert.deepEqual(
     resolveOpenClawCreateSessionTarget({
+      agentId: null,
       activeSessionId: null,
       sessions: [],
     }),
-    { type: 'draft' },
+    { type: 'draft', sessionId: 'agent:main:main' },
   );
 });

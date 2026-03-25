@@ -247,6 +247,8 @@ await runTest('unifiedApiKeyService maps router tenants and gateway API keys int
   assert.equal(items[0]?.usage.spendUsd, 1);
   assert.equal(items[0]?.notes, 'Primary external tenant key');
   assert.equal(items[0]?.status, 'active');
+  assert.equal((items[0] as Record<string, unknown>)?.routeMode, 'sdkwork-remote');
+  assert.equal((items[0] as Record<string, unknown>)?.routeProviderId, undefined);
 });
 
 await runTest('unifiedApiKeyService hydrates plaintext router keys from admin list responses and keeps them copyable', async () => {
@@ -953,6 +955,127 @@ await runTest('unifiedApiKeyService updates router-backed key metadata and tenan
   assert.equal(
     (apiKeyUpdateRequest?.body as { notes?: unknown }).notes,
     'Moved to Globex tenant',
+  );
+});
+
+await runTest('unifiedApiKeyService persists local route preferences and model mapping overlays for hybrid routing', async () => {
+  globalThis.localStorage.clear();
+  configureRouterRuntime();
+  installRouterAdminSession();
+
+  const now = Date.now();
+  const apiKeys = [
+    {
+      tenant_id: 'tenant-acme',
+      project_id: 'project-routing-overlay',
+      environment: 'live',
+      hashed_key: 'hash-routing-overlay',
+      label: 'Routing Overlay Key',
+      notes: 'Hybrid routing demo key',
+      created_at_ms: now - 60 * 60 * 1000,
+      expires_at_ms: now + 5 * 24 * 60 * 60 * 1000,
+      active: true,
+    },
+  ];
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const method = init?.method ?? 'GET';
+    const parsedBody = init?.body ? JSON.parse(String(init.body)) : null;
+
+    if (method === 'GET' && url.pathname === '/api/admin/tenants') {
+      return new Response(
+        JSON.stringify([
+          { id: 'tenant-acme', name: 'Acme Workspace' },
+        ]),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    }
+
+    if (method === 'GET' && url.pathname === '/api/admin/projects') {
+      return new Response(
+        JSON.stringify([
+          {
+            tenant_id: 'tenant-acme',
+            id: 'project-routing-overlay',
+            name: 'Routing Overlay Project',
+          },
+        ]),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    }
+
+    if (method === 'GET' && url.pathname === '/api/admin/api-keys') {
+      return new Response(JSON.stringify(apiKeys), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    if (method === 'GET' && url.pathname === '/api/admin/usage/records') {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    if (method === 'POST' && url.pathname === '/api/admin/projects') {
+      return new Response(JSON.stringify(parsedBody), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    if (method === 'PUT' && url.pathname === '/api/admin/api-keys/hash-routing-overlay') {
+      return new Response(
+        JSON.stringify({
+          ...apiKeys[0],
+          tenant_id: parsedBody.tenant_id ?? apiKeys[0].tenant_id,
+          project_id: parsedBody.project_id ?? apiKeys[0].project_id,
+          label: parsedBody.label ?? apiKeys[0].label,
+          notes: parsedBody.notes ?? apiKeys[0].notes,
+          expires_at_ms:
+            typeof parsedBody.expires_at_ms === 'number'
+              ? parsedBody.expires_at_ms
+              : apiKeys[0].expires_at_ms,
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    }
+
+    return new Response('Not found', { status: 404 });
+  }) as typeof fetch;
+
+  const { unifiedApiKeyService } = await import('./unifiedApiKeyService.ts');
+
+  const updated = await unifiedApiKeyService.updateUnifiedApiKey('hash-routing-overlay', {
+    modelMappingId: 'mapping-local-overlay',
+    routeMode: 'custom',
+    routeProviderId: 'provider-openai-official',
+  } as Record<string, unknown> as never);
+
+  assert.equal((updated as Record<string, unknown>).modelMappingId, 'mapping-local-overlay');
+  assert.equal((updated as Record<string, unknown>).routeMode, 'custom');
+  assert.equal((updated as Record<string, unknown>).routeProviderId, 'provider-openai-official');
+
+  const reloaded = await unifiedApiKeyService.getUnifiedApiKeys();
+  assert.equal(
+    (reloaded[0] as Record<string, unknown>).modelMappingId,
+    'mapping-local-overlay',
+  );
+  assert.equal((reloaded[0] as Record<string, unknown>).routeMode, 'custom');
+  assert.equal(
+    (reloaded[0] as Record<string, unknown>).routeProviderId,
+    'provider-openai-official',
   );
 });
 

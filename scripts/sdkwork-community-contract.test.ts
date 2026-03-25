@@ -157,31 +157,40 @@ runTest(
   },
 );
 
-runTest('sdkwork-claw-community keeps a recruitment-first classified mock content model with retained news', () => {
+runTest('sdkwork-claw-community routes classifieds through the shared app sdk instead of local mock data', () => {
   const serviceSource = read('packages/sdkwork-claw-community/src/services/communityService.ts');
+  const coreServiceSource = read('packages/sdkwork-claw-core/src/services/communityService.ts');
   const recommendationSource = read(
     'packages/sdkwork-claw-community/src/services/communityRecommendations.ts',
   );
   const newPostSource = read('packages/sdkwork-claw-community/src/pages/community/NewPost.tsx');
   const detailSource = read('packages/sdkwork-claw-community/src/pages/community/CommunityPostDetail.tsx');
 
-  assert.match(serviceSource, /category:\s*'job-seeking'/);
-  assert.match(serviceSource, /category:\s*'recruitment'/);
-  assert.match(serviceSource, /category:\s*'news'/);
-  assert.match(serviceSource, /publisherType/);
-  assert.match(serviceSource, /location/);
-  assert.match(serviceSource, /compensation/);
-  assert.match(serviceSource, /serviceLine/);
-  assert.match(serviceSource, /deliveryMode/);
-  assert.match(serviceSource, /turnaround/);
-  assert.match(serviceSource, /serviceLine:\s*'legal'/);
-  assert.match(serviceSource, /serviceLine:\s*'consulting'/);
-  assert.match(serviceSource, /serviceLine:\s*'content'/);
-  assert.match(serviceSource, /serviceLine:\s*'data'/);
-  assert.match(serviceSource, /serviceLine:\s*'hr'/);
-  assert.match(serviceSource, /createdAt:\s*new Date\(\)\.toISOString\(\)/);
-  assert.match(serviceSource, /category === 'all'/);
-  assert.match(serviceSource, /category === 'news'/);
+  assert.match(serviceSource, /@sdkwork\/claw-core/);
+  assert.match(serviceSource, /communityService/);
+  assert.doesNotMatch(serviceSource, /getAppSdkClientWithSession/);
+  assert.doesNotMatch(serviceSource, /unwrapAppSdkResponse/);
+  assert.doesNotMatch(serviceSource, /client\.feed\.getFeedList/);
+  assert.doesNotMatch(serviceSource, /client\.feed\.getFeedDetail/);
+  assert.doesNotMatch(serviceSource, /client\.feed\.create/);
+  assert.doesNotMatch(serviceSource, /client\.comment\.getComments/);
+  assert.doesNotMatch(serviceSource, /client\.comment\.createComment/);
+  assert.doesNotMatch(serviceSource, /client\.category\.listCategories/);
+  assert.match(coreServiceSource, /createCommunityService/);
+  assert.match(coreServiceSource, /getAppSdkClientWithSession/);
+  assert.match(coreServiceSource, /unwrapAppSdkResponse/);
+  assert.match(coreServiceSource, /client\.feed\.getFeedList/);
+  assert.match(coreServiceSource, /client\.feed\.getFeedDetail/);
+  assert.match(coreServiceSource, /client\.feed\.create/);
+  assert.match(coreServiceSource, /client\.comment\.getComments/);
+  assert.match(coreServiceSource, /client\.comment\.createComment/);
+  assert.match(coreServiceSource, /client\.category\.listCategories/);
+  assert.match(coreServiceSource, /claw-community-meta/);
+  assert.doesNotMatch(serviceSource, /const postsData:\s*CommunityPost\[]/);
+  assert.doesNotMatch(serviceSource, /const commentsData:/);
+  assert.doesNotMatch(serviceSource, /i\.pravatar\.cc/);
+  assert.doesNotMatch(serviceSource, /picsum\.photos/);
+  assert.doesNotMatch(serviceSource, /delay\(/);
   assert.match(newPostSource, /community\.newPost\.entryTypes\.jobSeeking/);
   assert.match(newPostSource, /community\.newPost\.entryTypes\.recruitment/);
   assert.match(newPostSource, /community\.newPost\.fields\.location/);

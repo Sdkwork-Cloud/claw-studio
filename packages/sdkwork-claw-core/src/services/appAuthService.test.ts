@@ -1,0 +1,285 @@
+import assert from 'node:assert/strict';
+import { clearAppSdkSessionTokens, readAppSdkSessionTokens, resetAppSdkClient } from '../sdk/useAppSdkClient.ts';
+
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key) {
+      return store.get(key) ?? null;
+    },
+    key(index) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key) {
+      store.delete(key);
+    },
+    setItem(key, value) {
+      store.set(key, value);
+    },
+  };
+}
+
+const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  fetchCalls.push({ input, init });
+  const url = String(input);
+
+  if (url.endsWith('/app/v3/api/auth/oauth/url')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-oauth-url',
+        errorName: '',
+        data: {
+          authUrl: 'https://oauth.example.com/authorize?client_id=demo',
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/oauth/login')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-oauth-login',
+        errorName: '',
+        data: {
+          authToken: 'oauth-auth-token',
+          refreshToken: 'oauth-refresh-token',
+          tokenType: 'Bearer',
+          expiresIn: 3600,
+          userInfo: {
+            username: 'octocat',
+            email: 'octocat@example.com',
+            nickname: 'Octo Cat',
+            avatar: 'https://cdn.example.com/octocat.png',
+          },
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/qr/generate')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-qr-generate',
+        errorName: '',
+        data: {
+          type: 'WECHAT_OFFICIAL_ACCOUNT',
+          title: 'WeChat QR Login',
+          description: 'Scan with the official account.',
+          qrKey: 'qr-login-1',
+          qrUrl: 'https://cdn.example.com/qr-login-1.png',
+          qrContent: 'https://sdkwork.com/app/v3/api/auth/qr/entry/qr-login-1',
+          expireTime: 300,
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/qr/status/qr-login-1')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-qr-status',
+        errorName: '',
+        data: {
+          status: 'confirmed',
+          userInfo: {
+            username: 'wechat-user',
+            email: 'wechat-user@example.com',
+            nickname: 'WeChat User',
+            avatar: 'https://cdn.example.com/wechat-user.png',
+          },
+          token: {
+            authToken: 'qr-auth-token',
+            refreshToken: 'qr-refresh-token',
+            tokenType: 'Bearer',
+            expiresIn: 3600,
+            userInfo: {
+              username: 'wechat-user',
+              email: 'wechat-user@example.com',
+              nickname: 'WeChat User',
+              avatar: 'https://cdn.example.com/wechat-user.png',
+            },
+          },
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  return new Response(JSON.stringify({ code: 404, message: 'Not found' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}) as typeof fetch;
+
+async function runTest(name: string, fn: () => Promise<void> | void) {
+  try {
+    fetchCalls.length = 0;
+    resetAppSdkClient();
+    clearAppSdkSessionTokens();
+    await fn();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}
+
+await runTest('appAuthService requests OAuth authorization URLs through the generated app sdk auth client', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  const authUrl = await appAuthService.getOAuthAuthorizationUrl({
+    provider: 'github',
+    redirectUri: 'https://studio.example.com/login/oauth/callback/github?redirect=%2Fchat',
+    state: 'redirect:/chat',
+  });
+
+  assert.equal(authUrl, 'https://oauth.example.com/authorize?client_id=demo');
+
+  const oauthUrlRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/oauth/url'),
+  );
+
+  assert.ok(oauthUrlRequest);
+  assert.equal(oauthUrlRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(oauthUrlRequest.init?.body ?? '{}')), {
+    provider: 'GITHUB',
+    redirectUri: 'https://studio.example.com/login/oauth/callback/github?redirect=%2Fchat',
+    state: 'redirect:/chat',
+  });
+});
+
+await runTest('appAuthService maps Douyin OAuth authorization through the generated app sdk auth client', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  await appAuthService.getOAuthAuthorizationUrl({
+    provider: 'douyin',
+    redirectUri: 'https://studio.example.com/login/oauth/callback/douyin',
+    scope: 'user_info',
+    state: 'douyin:/chat',
+  });
+
+  const oauthUrlRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/oauth/url'),
+  );
+
+  assert.ok(oauthUrlRequest);
+  assert.deepEqual(JSON.parse(String(oauthUrlRequest.init?.body ?? '{}')), {
+    provider: 'DOUYIN',
+    redirectUri: 'https://studio.example.com/login/oauth/callback/douyin',
+    scope: 'user_info',
+    state: 'douyin:/chat',
+  });
+});
+
+await runTest('appAuthService completes OAuth login and persists returned session tokens', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  const session = await appAuthService.loginWithOAuth({
+    provider: 'github',
+    code: 'oauth-code',
+    state: 'oauth-state',
+    deviceType: 'web',
+  });
+
+  assert.equal(session.authToken, 'oauth-auth-token');
+  assert.equal(session.refreshToken, 'oauth-refresh-token');
+  assert.equal(session.userInfo?.nickname, 'Octo Cat');
+  assert.equal(readAppSdkSessionTokens().authToken, 'oauth-auth-token');
+  assert.equal(readAppSdkSessionTokens().refreshToken, 'oauth-refresh-token');
+
+  const oauthLoginRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/oauth/login'),
+  );
+
+  assert.ok(oauthLoginRequest);
+  assert.equal(oauthLoginRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(oauthLoginRequest.init?.body ?? '{}')), {
+    provider: 'GITHUB',
+    code: 'oauth-code',
+    state: 'oauth-state',
+    deviceType: 'web',
+  });
+});
+
+await runTest('appAuthService completes Douyin OAuth login through the generated app sdk auth client', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  await appAuthService.loginWithOAuth({
+    provider: 'douyin',
+    code: 'douyin-oauth-code',
+    state: 'douyin-state',
+    deviceType: 'web',
+  });
+
+  const oauthLoginRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/oauth/login'),
+  );
+
+  assert.ok(oauthLoginRequest);
+  assert.deepEqual(JSON.parse(String(oauthLoginRequest.init?.body ?? '{}')), {
+    provider: 'DOUYIN',
+    code: 'douyin-oauth-code',
+    state: 'douyin-state',
+    deviceType: 'web',
+  });
+});
+
+await runTest('appAuthService generates login qr payloads from backend qr metadata', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  const qrCode = await appAuthService.generateLoginQrCode();
+
+  assert.deepEqual(qrCode, {
+    type: 'WECHAT_OFFICIAL_ACCOUNT',
+    title: 'WeChat QR Login',
+    description: 'Scan with the official account.',
+    qrKey: 'qr-login-1',
+    qrUrl: 'https://cdn.example.com/qr-login-1.png',
+    qrContent: 'https://sdkwork.com/app/v3/api/auth/qr/entry/qr-login-1',
+    expireTime: 300,
+  });
+});
+
+await runTest('appAuthService persists confirmed qr login sessions while polling qr status', async () => {
+  const storage = createMemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  const result = await appAuthService.checkLoginQrCodeStatus('qr-login-1');
+
+  assert.equal(result.status, 'confirmed');
+  assert.equal(result.session?.authToken, 'qr-auth-token');
+  assert.equal(result.session?.userInfo?.nickname, 'WeChat User');
+  assert.equal(readAppSdkSessionTokens().authToken, 'qr-auth-token');
+  assert.equal(readAppSdkSessionTokens().refreshToken, 'qr-refresh-token');
+});

@@ -30,9 +30,11 @@ runTest('sdkwork-claw-account is implemented locally instead of re-exporting cla
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-account/package.json');
   const indexSource = read('packages/sdkwork-claw-account/src/index.ts');
   const accountServiceSource = read('packages/sdkwork-claw-account/src/services/accountService.ts');
+  const coreAccountServiceSource = read('packages/sdkwork-claw-core/src/services/accountService.ts');
 
   assert.ok(exists('packages/sdkwork-claw-account/src/Account.tsx'));
   assert.ok(exists('packages/sdkwork-claw-account/src/services/accountService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-core/src/services/accountService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-account']);
   assert.ok(pkg.dependencies?.['@sdkwork/claw-core']);
@@ -43,7 +45,10 @@ runTest('sdkwork-claw-account is implemented locally instead of re-exporting cla
   assert.match(accountSource, /useTranslation/);
   assert.match(accountSource, /t\('account\.title'\)/);
   assert.match(accountSource, /wallet/i);
-  assert.match(accountServiceSource, /@sdkwork\/claw-core\/sdk/);
-  assert.match(accountServiceSource, /getAppSdkClientWithSession/);
+  assert.match(accountServiceSource, /@sdkwork\/claw-core\/services\/accountService/);
+  assert.doesNotMatch(accountServiceSource, /getAppSdkClientWithSession/);
+  assert.doesNotMatch(accountServiceSource, /unwrapAppSdkResponse/);
+  assert.match(coreAccountServiceSource, /getAppSdkClientWithSession/);
+  assert.match(coreAccountServiceSource, /unwrapAppSdkResponse/);
   assert.doesNotMatch(accountServiceSource, /@sdkwork\/claw-infrastructure/);
 });

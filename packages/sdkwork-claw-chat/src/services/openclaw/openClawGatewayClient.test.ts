@@ -240,6 +240,8 @@ await runTest(
           {
             key: 'claw-studio:instance-alpha:session-1',
             label: 'Alpha Session',
+            derivedTitle: 'API Router Sync Audit',
+            lastMessagePreview: 'Summarize the current embedded OpenClaw upgrade state',
             updatedAt: 1,
             kind: 'direct',
           },
@@ -249,6 +251,11 @@ await runTest(
     const sessions = await sessionsPromise;
     assert.equal(sessions.count, 1);
     assert.equal(sessions.sessions[0]?.key, 'claw-studio:instance-alpha:session-1');
+    assert.equal(sessions.sessions[0]?.derivedTitle, 'API Router Sync Audit');
+    assert.equal(
+      sessions.sessions[0]?.lastMessagePreview,
+      'Summarize the current embedded OpenClaw upgrade state',
+    );
 
     const historyPromise = client.getChatHistory({
       sessionKey: 'claw-studio:instance-alpha:session-1',
@@ -291,17 +298,25 @@ await runTest(
       payload: {
         models: [
           {
-            id: 'gpt-4.1',
-            name: 'GPT-4.1',
             provider: 'openai',
+            model: 'gpt-5.4',
+            label: 'GPT-5.4',
+            contextWindow: 128_000,
+          },
+          {
+            id: 'anthropic/claude-3-7-sonnet',
+            title: 'Claude 3.7 Sonnet',
             contextWindow: 128_000,
           },
         ],
       },
     });
     const models = await modelsPromise;
-    assert.equal(models.models.length, 1);
-    assert.equal(models.models[0]?.id, 'gpt-4.1');
+    assert.equal(models.models.length, 2);
+    assert.equal(models.models[0]?.model, 'gpt-5.4');
+    assert.equal(models.models[0]?.label, 'GPT-5.4');
+    assert.equal(models.models[1]?.id, 'anthropic/claude-3-7-sonnet');
+    assert.equal(models.models[1]?.title, 'Claude 3.7 Sonnet');
 
     const sendPromise = client.sendChatMessage({
       sessionKey: 'claw-studio:instance-alpha:session-1',
@@ -344,16 +359,19 @@ await runTest(
     const sendResult = await sendPromise;
     assert.equal(sendResult.runId, 'run-1');
 
-    const patchPromise = client.patchSession({
+    const patchRequest: Parameters<OpenClawGatewayClient['patchSession']>[0] = {
       key: 'claw-studio:instance-alpha:session-1',
       model: 'openai/gpt-4.1',
-    });
+      thinkingLevel: 'high',
+    };
+    const patchPromise = client.patchSession(patchRequest);
     await waitFor(() => socket.sent.length === 6);
     const patchFrame = parseFrame(socket);
     assert.equal(patchFrame.method, 'sessions.patch');
     assert.deepEqual(patchFrame.params, {
       key: 'claw-studio:instance-alpha:session-1',
       model: 'openai/gpt-4.1',
+      thinkingLevel: 'high',
     });
     socket.emitMessage({
       type: 'res',
@@ -364,6 +382,7 @@ await runTest(
         resolved: {
           modelProvider: 'openai',
           model: 'gpt-4.1',
+          thinkingLevel: 'high',
         },
       },
     });
@@ -372,6 +391,7 @@ await runTest(
       resolved: {
         modelProvider: 'openai',
         model: 'gpt-4.1',
+        thinkingLevel: 'high',
       },
     });
 

@@ -1449,7 +1449,11 @@ mod tests {
         let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
         let runtime_dir = install_dir.join("runtime");
         let node_path = resolve_test_node_executable();
-        let cli_path = runtime_dir.join("package").join("openclaw.mjs");
+        let cli_path = runtime_dir
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("openclaw.mjs");
         let gateway_port = 18_789;
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
@@ -1494,7 +1498,11 @@ mod tests {
         let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
         let runtime_dir = install_dir.join("runtime");
         let node_path = resolve_test_node_executable();
-        let cli_path = runtime_dir.join("package").join("openclaw.mjs");
+        let cli_path = runtime_dir
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("openclaw.mjs");
         let gateway_port = 18_789;
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");

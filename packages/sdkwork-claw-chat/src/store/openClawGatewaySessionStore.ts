@@ -11,9 +11,11 @@ import type {
 import {
   buildGatewayAttachments,
   composeOutgoingChatText,
-  deriveUserMessageTitle,
+  DEFAULT_CHAT_SESSION_TITLE,
   isGatewayMethodUnavailableError,
+  resolveInitialChatSessionTitle,
   resolveGatewayMethodSupport,
+  selectReadableChatSessionTitleCandidates,
 } from '../services/store/index.ts';
 
 export type OpenClawGatewayRole = 'user' | 'assistant' | 'system';
@@ -70,6 +72,11 @@ export interface OpenClawGatewayClientLike {
     key: string;
     label?: string | null;
     model?: string | null;
+    thinkingLevel?: string | null;
+    fastMode?: boolean | null;
+    verboseLevel?: string | null;
+    reasoningLevel?: string | null;
+    contextTokens?: number | null;
   }) => Promise<OpenClawGatewaySessionsPatchResult>;
   sendChatMessage: (params: {
     sessionKey: string;
@@ -301,28 +308,25 @@ function deriveSessionTitle(
   attachments: StudioConversationAttachment[],
   isFirstUserMessage: boolean,
 ) {
-  if (!isFirstUserMessage) {
-    return existingTitle;
-  }
-
-  return deriveUserMessageTitle({
+  return resolveInitialChatSessionTitle({
+    existingTitle,
     text: messageContent,
     attachments,
+    isFirstUserMessage,
   });
 }
 
 function buildSessionTitle(row: Record<string, unknown>) {
-  const label = typeof row.label === 'string' ? row.label.trim() : '';
-  if (label) {
-    return label;
-  }
-
-  const displayName = typeof row.displayName === 'string' ? row.displayName.trim() : '';
-  if (displayName) {
-    return displayName;
-  }
-
-  return typeof row.key === 'string' ? row.key : 'OpenClaw Conversation';
+  return selectReadableChatSessionTitleCandidates(
+    [
+      typeof row.derivedTitle === 'string' ? row.derivedTitle : undefined,
+      typeof row.displayName === 'string' ? row.displayName : undefined,
+      typeof row.label === 'string' ? row.label : undefined,
+      typeof row.lastMessagePreview === 'string' ? row.lastMessagePreview : undefined,
+      typeof row.key === 'string' ? row.key : undefined,
+    ],
+    DEFAULT_CHAT_SESSION_TITLE,
+  );
 }
 
 function cloneSession(session: OpenClawGatewayChatSession): OpenClawGatewayChatSession {
@@ -395,12 +399,18 @@ export class OpenClawGatewaySessionStore {
     });
   }
 
-  createDraftSession(instanceId: string, model = 'OpenClaw Gateway') {
+  createDraftSession(
+    instanceId: string,
+    model = 'OpenClaw Gateway',
+    options?: {
+      sessionId?: string | null;
+    },
+  ) {
     const state = this.getOrCreatePlaceholderState(instanceId);
     const timestamp = this.now();
     const session: OpenClawGatewayChatSession = {
-      id: this.createSessionKey(instanceId),
-      title: 'New Conversation',
+      id: options?.sessionId?.trim() || this.createSessionKey(instanceId),
+      title: DEFAULT_CHAT_SESSION_TITLE,
       createdAt: timestamp,
       updatedAt: timestamp,
       messages: [],

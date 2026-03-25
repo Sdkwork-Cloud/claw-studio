@@ -587,9 +587,9 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
 
-        set_active_runtime_version(&paths, "openclaw", "2026.3.13-windows-x64")
-            .expect("first runtime activation");
         set_active_runtime_version(&paths, "openclaw", "2026.3.20-windows-x64")
+            .expect("first runtime activation");
+        set_active_runtime_version(&paths, "openclaw", "2026.3.23-2-windows-x64")
             .expect("second runtime activation");
 
         let active = serde_json::from_str::<ActiveState>(
@@ -603,11 +603,11 @@ mod tests {
 
         assert_eq!(
             openclaw.active_version.as_deref(),
-            Some("2026.3.20-windows-x64")
+            Some("2026.3.23-2-windows-x64")
         );
         assert_eq!(
             openclaw.fallback_version.as_deref(),
-            Some("2026.3.13-windows-x64")
+            Some("2026.3.20-windows-x64")
         );
     }
 }

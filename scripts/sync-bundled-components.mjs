@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  buildNonInteractiveInstallEnv,
+  resolveBundledApiRouterCargoTargetDir,
+  withSupportedWindowsCmakeGenerator,
+} from './prepare-sdkwork-api-router-runtime.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,7 +21,34 @@ const generatedRoot = path.join(
   'src-tauri',
   'generated',
 );
-const bundledRoot = path.join(generatedRoot, 'bundled');
+const bundledLinkRoot = path.join(generatedRoot, 'bundled');
+const bundledRoot = resolveBundledBuildRoot(rootDir, process.platform);
+const preparedApiRouterRuntimeDir = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-desktop',
+  'src-tauri',
+  'resources',
+  'sdkwork-api-router-runtime',
+  'runtime',
+);
+const windowsTauriConfigPath = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-desktop',
+  'src-tauri',
+  'tauri.windows.conf.json',
+);
+const openClawRuntimeBundleSourceRoot = resolveBundledResourceMirrorRoot(
+  rootDir,
+  'openclaw-runtime',
+  process.platform,
+);
+const apiRouterRuntimeBundleSourceRoot = resolveBundledResourceMirrorRoot(
+  rootDir,
+  'sdkwork-api-router-runtime',
+  process.platform,
+);
 const sourceFoundationDir = path.join(
   rootDir,
   'packages',
@@ -112,7 +144,7 @@ const componentSources = [
       return `${baseVersion}+${sha}`;
     },
     build(repoDir) {
-      const targetDir = rustTargetDir('sdkwork-api-router');
+      const targetDir = resolveBundledApiRouterCargoTargetDir(rootDir, process.platform);
       runCommand(
         cargoCmd,
         [
@@ -131,9 +163,14 @@ const componentSources = [
         ],
         {
           cwd: repoDir,
-          env: { CARGO_TARGET_DIR: targetDir },
+          env: withSupportedWindowsCmakeGenerator({
+            CARGO_TARGET_DIR: targetDir,
+          }),
         },
       );
+      if (hasPreparedApiRouterSiteBundle('admin') && hasPreparedApiRouterSiteBundle('portal')) {
+        return;
+      }
       for (const appDir of [
         path.join(repoDir, 'apps', 'sdkwork-router-admin'),
         path.join(repoDir, 'apps', 'sdkwork-router-portal'),
@@ -143,7 +180,13 @@ const componentSources = [
       }
     },
     stage(repoDir, version) {
-      const targetDir = rustTargetDir('sdkwork-api-router');
+      const targetDir = resolveBundledApiRouterCargoTargetDir(rootDir, process.platform);
+      const adminWebSourceDir =
+        resolvePreparedApiRouterSiteBundle('admin')
+        ?? path.join(repoDir, 'apps', 'sdkwork-router-admin', 'dist');
+      const portalWebSourceDir =
+        resolvePreparedApiRouterSiteBundle('portal')
+        ?? path.join(repoDir, 'apps', 'sdkwork-router-portal', 'dist');
       const binDir = path.join(bundledRoot, 'modules', 'sdkwork-api-router', version, 'bin');
       const webDir = path.join(bundledRoot, 'modules', 'sdkwork-api-router', version, 'web');
       fs.mkdirSync(binDir, { recursive: true });
@@ -162,11 +205,11 @@ const componentSources = [
       }
 
       copyDirectoryContents(
-        path.join(repoDir, 'apps', 'sdkwork-router-admin', 'dist'),
+        adminWebSourceDir,
         path.join(webDir, 'admin'),
       );
       copyDirectoryContents(
-        path.join(repoDir, 'apps', 'sdkwork-router-portal', 'dist'),
+        portalWebSourceDir,
         path.join(webDir, 'portal'),
       );
     },
@@ -215,6 +258,8 @@ function main() {
   fs.mkdirSync(path.join(bundledRoot, 'foundation', 'components'), { recursive: true });
   fs.mkdirSync(path.join(bundledRoot, 'modules'), { recursive: true });
   fs.mkdirSync(path.join(bundledRoot, 'runtimes'), { recursive: true });
+  ensureBundledLinkRoot();
+  writeWindowsTauriBundleConfig();
 
   const bundleManifest = {
     generatedAt: new Date().toISOString(),
@@ -271,7 +316,7 @@ function main() {
   writeJson(path.join(bundledRoot, 'foundation', 'components', 'upgrade-policy.json'), upgradePolicy);
   writeJson(path.join(bundledRoot, 'foundation', 'components', 'bundle-manifest.json'), bundleManifest);
 
-  console.log('[bundled-components] generated bundled assets at', path.relative(rootDir, bundledRoot));
+  console.log('[bundled-components] generated bundled assets at', path.relative(rootDir, bundledLinkRoot));
 }
 
 function ensureRepository(component) {
@@ -291,7 +336,15 @@ function ensureRepository(component) {
 
 function installPnpmWorkspace(cwd) {
   if (!fs.existsSync(path.join(cwd, 'node_modules'))) {
-    runCommand(pnpmCmd, ['install', '--frozen-lockfile'], { cwd });
+    const installEnv = buildNonInteractiveInstallEnv(commandEnv);
+    try {
+      runCommand(pnpmCmd, ['install', '--frozen-lockfile'], { cwd, env: installEnv });
+    } catch (error) {
+      console.warn(
+        `[bundled-components] retrying pnpm install without frozen lockfile in ${path.relative(rootDir, cwd) || cwd}`,
+      );
+      runCommand(pnpmCmd, ['install', '--lockfile=false', '--force'], { cwd, env: installEnv });
+    }
   }
 }
 
@@ -363,6 +416,101 @@ function readWorkspaceCargoVersion(manifestPath) {
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n', 'utf8');
+}
+
+function resolvePreparedApiRouterSiteBundle(siteLabel) {
+  const siteDir = path.join(preparedApiRouterRuntimeDir, 'sites', siteLabel);
+  if (!fs.existsSync(path.join(siteDir, 'index.html'))) {
+    return null;
+  }
+  return siteDir;
+}
+
+function hasPreparedApiRouterSiteBundle(siteLabel) {
+  return resolvePreparedApiRouterSiteBundle(siteLabel) !== null;
+}
+
+function resolveBundledBuildRoot(workspaceRootDir, platform = process.platform) {
+  if (platform !== 'win32') {
+    return path.join(generatedRoot, 'bundled');
+  }
+
+  return path.win32.join(
+    path.win32.parse(workspaceRootDir).root,
+    '.sdkwork-bc',
+    path.win32.basename(workspaceRootDir),
+    'bundled',
+  );
+}
+
+function ensureBundledLinkRoot() {
+  if (path.resolve(bundledRoot) === path.resolve(bundledLinkRoot)) {
+    return;
+  }
+
+  const existingResolvedPath = resolveExistingPathTarget(bundledLinkRoot);
+  if (existingResolvedPath && path.resolve(existingResolvedPath) === path.resolve(bundledRoot)) {
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(bundledLinkRoot), { recursive: true });
+  fs.rmSync(bundledLinkRoot, { recursive: true, force: true });
+  fs.symlinkSync(
+    bundledRoot,
+    bundledLinkRoot,
+    process.platform === 'win32' ? 'junction' : 'dir',
+  );
+}
+
+function resolveExistingPathTarget(candidatePath) {
+  try {
+    return fs.realpathSync.native(candidatePath);
+  } catch {
+    return null;
+  }
+}
+
+function writeWindowsTauriBundleConfig() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  writeJson(windowsTauriConfigPath, {
+    bundle: {
+      targets: ['nsis'],
+      resources: {
+        'foundation/components/': 'foundation/components/',
+        [`${bundledRoot.replaceAll('\\', '/')}/`]: 'generated/bundled/',
+        'vendor/hub-installer/registry/': 'vendor/hub-installer/registry/',
+        [`${openClawRuntimeBundleSourceRoot.replaceAll('\\', '/')}/`]: 'resources/openclaw-runtime/',
+        [`${apiRouterRuntimeBundleSourceRoot.replaceAll('\\', '/')}/`]: 'resources/sdkwork-api-router-runtime/',
+      },
+    },
+  });
+}
+
+function resolveBundledResourceMirrorRoot(
+  workspaceRootDir,
+  resourceId,
+  platform = process.platform,
+) {
+  if (platform !== 'win32') {
+    return path.join(
+      workspaceRootDir,
+      'packages',
+      'sdkwork-claw-desktop',
+      'src-tauri',
+      'resources',
+      resourceId,
+    );
+  }
+
+  return path.win32.join(
+    path.win32.parse(workspaceRootDir).root,
+    '.sdkwork-bc',
+    path.win32.basename(workspaceRootDir),
+    resourceId,
+  );
 }
 
 function copyFile(sourcePath, targetPath) {

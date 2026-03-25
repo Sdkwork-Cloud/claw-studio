@@ -19,6 +19,8 @@ import { Button, Textarea } from '@sdkwork/claw-ui';
 import {
   buildCommunityRecommendations,
   communityService,
+  buildCommunitySharePayload,
+  mergeCommunityComments,
   type CommunityCategory,
   type CommunityComment,
   type CommunityCompanyRecommendation,
@@ -28,7 +30,9 @@ import {
   type CommunityRecommendationReason,
   type CommunityServiceRecommendation,
   type CommunityServiceLine,
+  toggleCommunityPostBookmark,
 } from '../../services';
+import { toast } from 'sonner';
 
 const SERVICE_LINE_LABEL_KEYS: Record<CommunityServiceLine, string> = {
   legal: 'community.postDetail.listingMeta.serviceLines.legal',
@@ -105,6 +109,22 @@ function getInitials(name: string) {
   return initials.slice(0, 2) || 'OC';
 }
 
+function getCommunityShareUrl(postId: string) {
+  if (typeof window === 'undefined') {
+    return `/community/${postId}`;
+  }
+
+  return window.location.href;
+}
+
+async function writeCommunityShareClipboard(text: string) {
+  if (!globalThis.navigator?.clipboard?.writeText) {
+    throw new Error('Clipboard is not available.');
+  }
+
+  await globalThis.navigator.clipboard.writeText(text);
+}
+
 export function CommunityPostDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -115,6 +135,8 @@ export function CommunityPostDetail() {
   const [commentDraft, setCommentDraft] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -185,10 +207,92 @@ export function CommunityPostDetail() {
 
     try {
       const nextComment = await communityService.addComment(post.id, commentDraft.trim());
-      setComments((previous) => [...previous, nextComment]);
+      const alreadyExists = comments.some((comment) => comment.id === nextComment.id);
+      setComments((previous) => mergeCommunityComments(previous, nextComment));
+      if (!alreadyExists) {
+        setPost((previous) =>
+          previous
+            ? {
+                ...previous,
+                stats: {
+                  ...previous.stats,
+                  comments: previous.stats.comments + 1,
+                },
+              }
+            : previous,
+        );
+      }
       setCommentDraft('');
+    } catch {
+      toast.error(t('community.postDetail.toasts.commentFailed'));
     } finally {
       setIsSubmittingComment(false);
+    }
+  }
+
+  async function handleBookmark() {
+    if (!post || isBookmarking) {
+      return;
+    }
+
+    const nextIsBookmarked = !post.isBookmarked;
+    setIsBookmarking(true);
+
+    try {
+      await communityService.bookmarkPost(post.id);
+      setPost((previous) => (previous ? toggleCommunityPostBookmark(previous) : previous));
+      toast.success(
+        t(
+          nextIsBookmarked
+            ? 'community.postDetail.toasts.bookmarkAdded'
+            : 'community.postDetail.toasts.bookmarkRemoved',
+        ),
+      );
+    } catch {
+      toast.error(t('community.postDetail.toasts.bookmarkFailed'));
+    } finally {
+      setIsBookmarking(false);
+    }
+  }
+
+  async function handleShare() {
+    if (!post || isSharing) {
+      return;
+    }
+
+    const sharePayload = buildCommunitySharePayload(post, getCommunityShareUrl(post.id));
+    setIsSharing(true);
+
+    try {
+      let usedNativeShare = false;
+
+      if (typeof globalThis.navigator?.share === 'function') {
+        try {
+          await globalThis.navigator.share(sharePayload);
+          usedNativeShare = true;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            return;
+          }
+
+          await writeCommunityShareClipboard(`${sharePayload.text}\n${sharePayload.url}`);
+        }
+      } else {
+        await writeCommunityShareClipboard(`${sharePayload.text}\n${sharePayload.url}`);
+      }
+
+      await communityService.sharePost(post.id);
+      toast.success(
+        t(
+          usedNativeShare
+            ? 'community.postDetail.toasts.shareReady'
+            : 'community.postDetail.toasts.shareCopied',
+        ),
+      );
+    } catch {
+      toast.error(t('community.postDetail.toasts.shareFailed'));
+    } finally {
+      setIsSharing(false);
     }
   }
 
@@ -225,35 +329,48 @@ export function CommunityPostDetail() {
         </Button>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline">
+          <Button type="button" variant="outline" disabled={isSharing} onClick={() => {
+            void handleShare();
+          }}>
             <Share2 className="h-4 w-4" />
             {t('community.postDetail.actions.share')}
           </Button>
-          <Button type="button" variant="outline">
-            <Bookmark className="h-4 w-4" />
-            {t('community.postDetail.actions.bookmark')}
+          <Button
+            type="button"
+            variant={post.isBookmarked ? 'default' : 'outline'}
+            disabled={isBookmarking}
+            onClick={() => {
+              void handleBookmark();
+            }}
+          >
+            <Bookmark className={`h-4 w-4 ${post.isBookmarked ? 'fill-current' : ''}`} />
+            {t(
+              post.isBookmarked
+                ? 'community.postDetail.actions.bookmarked'
+                : 'community.postDetail.actions.bookmark',
+            )}
           </Button>
         </div>
       </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-6">
-            <section className="rounded-[32px] border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {t('community.postDetail.overviewEyebrow')}
-              </div>
-              <div className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-                {t('community.postDetail.overviewTitle')}
-              </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          <section className="rounded-[32px] border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {t('community.postDetail.overviewEyebrow')}
+            </div>
+            <div className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">
+              {t('community.postDetail.overviewTitle')}
+            </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
-                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
-                  {t(CATEGORY_LABEL_KEYS[post.category])}
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full bg-primary-500/10 px-3 py-1 font-medium text-primary-600 dark:text-primary-300">
-                  <Clock3 className="h-4 w-4" />
-                  {formatDate(post.createdAt, i18n.language)}
-                </span>
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+              <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                {t(CATEGORY_LABEL_KEYS[post.category])}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-primary-500/10 px-3 py-1 font-medium text-primary-600 dark:text-primary-300">
+                <Clock3 className="h-4 w-4" />
+                {formatDate(post.createdAt, i18n.language)}
+              </span>
               <span>{t('community.postDetail.meta.views', { count: post.stats.views })}</span>
               {post.isFeatured ? (
                 <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
@@ -346,24 +463,30 @@ export function CommunityPostDetail() {
             </div>
 
             <div className="mt-6 space-y-4">
-              {comments.map((comment) => (
-                <div
-                  key={comment.id}
-                  className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium text-zinc-950 dark:text-zinc-50">
-                      {comment.author.name}
+              {comments.length > 0 ? (
+                comments.map((comment) => (
+                  <div
+                    key={comment.id}
+                    className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-medium text-zinc-950 dark:text-zinc-50">
+                        {comment.author.name}
+                      </div>
+                      <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {formatDate(comment.createdAt, i18n.language)}
+                      </div>
                     </div>
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {formatDate(comment.createdAt, i18n.language)}
-                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                      {comment.content}
+                    </p>
                   </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                    {comment.content}
-                  </p>
+                ))
+              ) : (
+                <div className="rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-zinc-400">
+                  {t('community.postDetail.emptyComments')}
                 </div>
-              ))}
+              )}
             </div>
           </section>
         </div>

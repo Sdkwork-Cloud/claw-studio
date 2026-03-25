@@ -19,13 +19,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
+import { useAuthStore, useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
 import type { Skill, SkillPack } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
 
 export function SkillPackDetail() {
   const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedInstance, setSelectedInstance] = useState<string>('');
@@ -33,8 +34,9 @@ export function SkillPackDetail() {
   const { activeInstanceId } = useInstanceStore();
 
   const { data: pack, isLoading: isLoadingPack } = useQuery<SkillPack>({
-    queryKey: ['pack', id],
+    queryKey: ['pack', id, isAuthenticated],
     queryFn: () => marketService.getPack(id!),
+    enabled: isAuthenticated && Boolean(id),
   });
 
   const { data: instances = [], isLoading: isLoadingInstances } = useQuery<Instance[]>({
@@ -163,6 +165,33 @@ export function SkillPackDetail() {
           <div className="flex-1 space-y-4 pt-4">
             <div className="h-10 w-1/3 rounded bg-zinc-200 dark:bg-zinc-800" />
             <div className="h-6 w-1/4 rounded bg-zinc-200 dark:bg-zinc-800" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
+        <button
+          onClick={() => navigate('/market')}
+          className="mb-8 flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t('market.skillPackDetail.backToMarket')}
+        </button>
+        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
+          <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-16 text-center dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-zinc-500 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-800">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
+              {t('market.empty.signInRequiredTitle')}
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              {t('market.empty.signInRequiredDescription')}
+            </p>
           </div>
         </div>
       </div>

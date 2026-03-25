@@ -9,6 +9,7 @@ import {
   Server,
   Sparkles,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { resolveOpenClawInstallDetail, type OpenClawInstallDetail } from '../../services';
 
@@ -38,16 +39,19 @@ function renderDetailIcon(detail: OpenClawInstallDetail) {
   return <Sparkles className="h-7 w-7" />;
 }
 
-function formatHost(host: OpenClawInstallDetail['supportedHosts'][number]) {
+function formatHost(
+  host: OpenClawInstallDetail['supportedHosts'][number],
+  translate: (key: string) => string,
+) {
   if (host === 'macos') {
-    return 'macOS';
+    return translate('install.detail.hosts.macos');
   }
 
   if (host === 'linux') {
-    return 'Linux';
+    return translate('install.detail.hosts.linux');
   }
 
-  return 'Windows';
+  return translate('install.detail.hosts.windows');
 }
 
 function DetailSection({
@@ -79,6 +83,7 @@ function DetailSection({
 }
 
 export function InstallDetail() {
+  const { t } = useTranslation();
   const { method } = useParams<{ method: string }>();
   const navigate = useNavigate();
   const detail = resolveOpenClawInstallDetail(method);
@@ -88,10 +93,10 @@ export function InstallDetail() {
       <div className="min-h-full bg-zinc-50 p-4 dark:bg-zinc-950 md:p-8">
         <div className="mx-auto max-w-3xl rounded-[1.75rem] border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            Install guide not found
+            {t('install.detail.notFound.title')}
           </h1>
           <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-            This route no longer maps to a supported OpenClaw install profile.
+            {t('install.detail.notFound.description')}
           </p>
           <button
             type="button"
@@ -99,7 +104,7 @@ export function InstallDetail() {
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to install
+            {t('install.detail.notFound.back')}
           </button>
         </div>
       </div>
@@ -115,7 +120,7 @@ export function InstallDetail() {
           className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to install
+          {t('install.detail.back')}
         </button>
 
         <section className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
@@ -123,7 +128,7 @@ export function InstallDetail() {
             <div className="min-w-0">
               <div className="mb-4 inline-flex items-center gap-3 rounded-full border border-primary-500/20 bg-primary-500/10 px-3 py-1.5 text-sm font-semibold text-primary-700 dark:text-primary-300">
                 {renderDetailIcon(detail)}
-                OpenClaw install guide
+                {t('install.detail.eyebrow')}
               </div>
 
               <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
@@ -139,7 +144,7 @@ export function InstallDetail() {
                     key={host}
                     className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
                   >
-                    {formatHost(host)}
+                    {formatHost(host, t)}
                   </span>
                 ))}
               </div>
@@ -152,24 +157,22 @@ export function InstallDetail() {
                 rel="noreferrer"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
               >
-                Open official guide
+                {t('install.detail.actions.openOfficialGuide')}
                 <ExternalLink className="h-4 w-4" />
               </a>
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                Claw Studio uses the same hub-installer profile family shown here. Use this page
-                when you want the official docs, platform caveats, and method fit before running
-                the guided installer.
+                {t('install.detail.profileHint')}
               </div>
             </div>
           </div>
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <DetailSection title="Best fit" items={detail.bestFor} />
+          <DetailSection title={t('install.detail.sections.bestFit')} items={detail.bestFor} />
 
           <section className="rounded-[1.75rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Official docs
+              {t('install.detail.sections.officialDocs')}
             </h2>
             <div className="mt-4 space-y-3">
               {detail.docs.map((link) => (
@@ -198,17 +201,24 @@ export function InstallDetail() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          <DetailSection title="Before you start" items={detail.prerequisites} />
-          <DetailSection title="Platform notes" items={detail.platformNotes} />
-          <DetailSection title="After install" items={detail.followUp} />
+          <DetailSection
+            title={t('install.detail.sections.beforeYouStart')}
+            items={detail.prerequisites}
+          />
+          <DetailSection
+            title={t('install.detail.sections.platformNotes')}
+            items={detail.platformNotes}
+          />
+          <DetailSection
+            title={t('install.detail.sections.afterInstall')}
+            items={detail.followUp}
+          />
         </div>
 
         <section className="flex items-start gap-4 rounded-[1.75rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <Info className="mt-0.5 h-5 w-5 shrink-0 text-zinc-400" />
           <div className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            The exact commands can evolve with upstream docs and platform policy. This page stays
-            intentionally high level and links out to the official OpenClaw guides instead of
-            freezing a second command reference inside Claw Studio.
+            {t('install.detail.footerNote')}
           </div>
         </section>
       </div>
