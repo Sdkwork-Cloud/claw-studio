@@ -87,9 +87,18 @@ function getApiStatusTone(status: 'success' | 'failed') {
   return status === 'success' ? 'positive' : 'critical';
 }
 
-function getRevenueStatusTone(status: 'paid' | 'pending' | 'refunded') {
-  if (status === 'paid') return 'positive';
-  if (status === 'pending') return 'warning';
+function getRevenueStatusTone(
+  status:
+    | 'paid'
+    | 'pending'
+    | 'refunded'
+    | 'completed'
+    | 'delivered'
+    | 'cancelled'
+    | 'refunding',
+) {
+  if (status === 'paid' || status === 'completed' || status === 'delivered') return 'positive';
+  if (status === 'pending' || status === 'refunding') return 'warning';
   return 'critical';
 }
 
@@ -479,7 +488,7 @@ export function DashboardPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
                                 <span className={`h-2.5 w-2.5 rounded-full ${chartPalette[index % chartPalette.length].dotClassName}`} />
-                                <span className="font-semibold text-zinc-950 dark:text-zinc-50">{t(`dashboard.products.${row.id}`)}</span>
+                                <span className="font-semibold text-zinc-950 dark:text-zinc-50">{row.productName}</span>
                               </div>
                             </td>
                             <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatInteger(row.orders)}</td>

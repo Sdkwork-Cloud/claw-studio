@@ -9,7 +9,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { createWriteStream, existsSync } from 'node:fs';
+import { createWriteStream, existsSync, realpathSync, symlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -30,7 +30,7 @@ const PREPARED_RUNTIME_MANIFEST_KEYS = [
   'cliRelativePath',
 ];
 
-export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.13';
+export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.23-2';
 export const DEFAULT_NODE_VERSION = process.env.OPENCLAW_NODE_VERSION ?? '22.16.0';
 export const DEFAULT_OPENCLAW_PACKAGE = process.env.OPENCLAW_PACKAGE_NAME ?? 'openclaw';
 export const DEFAULT_RESOURCE_DIR = path.join(
@@ -42,6 +42,30 @@ export const DEFAULT_RESOURCE_DIR = path.join(
   'openclaw-runtime',
 );
 export const DEFAULT_PREPARE_CACHE_DIR = resolveDefaultOpenClawPrepareCacheDir();
+
+export function resolveBundledResourceMirrorRoot(
+  workspaceRootDir = rootDir,
+  resourceId = 'openclaw-runtime',
+  platform = process.platform,
+) {
+  if (platform !== 'win32') {
+    return path.join(
+      workspaceRootDir,
+      'packages',
+      'sdkwork-claw-desktop',
+      'src-tauri',
+      'resources',
+      resourceId,
+    );
+  }
+
+  return path.win32.join(
+    path.win32.parse(workspaceRootDir).root,
+    '.sdkwork-bc',
+    path.win32.basename(workspaceRootDir),
+    resourceId,
+  );
+}
 
 export function resolveOpenClawTarget(platform = process.platform, arch = process.arch) {
   const platformId =
@@ -328,11 +352,11 @@ export async function prepareOpenClawRuntime({
     });
 
     if (shouldReusePreparedOpenClawRuntime({ inspection, forcePrepare })) {
-      return {
+      return await finalizePreparedOpenClawRuntime({
         manifest,
         resourceDir,
         strategy: inspection.repairedManifest ? 'repaired-existing-manifest' : 'reused-existing',
-      };
+      });
     }
 
     const cachedRuntime = await inspectCachedOpenClawRuntimeArtifacts({
@@ -351,10 +375,10 @@ export async function prepareOpenClawRuntime({
         target,
       });
 
-      return {
+      return await finalizePreparedOpenClawRuntime({
         ...result,
         strategy: 'prepared-cache',
-      };
+      });
     }
   }
 
@@ -367,10 +391,10 @@ export async function prepareOpenClawRuntime({
       target,
     });
 
-    return {
+    return await finalizePreparedOpenClawRuntime({
       ...result,
       strategy: 'prepared-source',
-    };
+    });
   }
 
   if (typeof fetchImpl !== 'function') {
@@ -429,14 +453,31 @@ export async function prepareOpenClawRuntime({
     );
     await validatePreparedRuntimeSource(path.join(resourceDir, 'runtime'), manifest);
 
-    return {
+    return await finalizePreparedOpenClawRuntime({
       manifest,
       resourceDir,
       strategy: 'prepared-download',
-    };
+    });
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
   }
+}
+
+async function finalizePreparedOpenClawRuntime(result) {
+  if (shouldSyncBundledResourceMirror({ resourceDir: result.resourceDir })) {
+    await ensureBundledResourceMirror({
+      resourceDir: result.resourceDir,
+      resourceId: 'openclaw-runtime',
+    });
+  }
+  return result;
+}
+
+export function shouldSyncBundledResourceMirror({
+  resourceDir = DEFAULT_RESOURCE_DIR,
+  defaultResourceDir = DEFAULT_RESOURCE_DIR,
+} = {}) {
+  return path.resolve(resourceDir) === path.resolve(defaultResourceDir);
 }
 
 export async function validatePreparedRuntimeSource(sourceRuntimeDir, manifest) {
@@ -702,6 +743,36 @@ async function repairPreparedOpenClawRuntimeManifest({
     manifestPath,
     manifest,
   };
+}
+
+async function ensureBundledResourceMirror({
+  resourceDir,
+  resourceId,
+  workspaceRootDir = rootDir,
+  platform = process.platform,
+}) {
+  const mirrorRoot = resolveBundledResourceMirrorRoot(workspaceRootDir, resourceId, platform);
+  if (path.resolve(mirrorRoot) === path.resolve(resourceDir)) {
+    return mirrorRoot;
+  }
+
+  const existingResolvedPath = resolveExistingPathTarget(mirrorRoot);
+  if (existingResolvedPath && path.resolve(existingResolvedPath) === path.resolve(resourceDir)) {
+    return mirrorRoot;
+  }
+
+  await rm(mirrorRoot, { recursive: true, force: true });
+  await mkdir(path.dirname(mirrorRoot), { recursive: true });
+  symlinkSync(resourceDir, mirrorRoot, platform === 'win32' ? 'junction' : 'dir');
+  return mirrorRoot;
+}
+
+function resolveExistingPathTarget(candidatePath) {
+  try {
+    return realpathSync.native(candidatePath);
+  } catch {
+    return null;
+  }
 }
 
 async function refreshCachedOpenClawRuntimeArtifacts({

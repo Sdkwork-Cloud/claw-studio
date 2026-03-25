@@ -5,6 +5,7 @@ import {
   type ApiRouterAdminSession,
   writeApiRouterAdminSession,
 } from '../auth/apiRouterAdminSession.ts';
+import { getRuntimePlatform, type RuntimeApiRouterRuntimeStatus } from '../platform/index.ts';
 import { resolveApiRouterResolvedEndpoints } from './sdkworkApiRouterAccess.ts';
 
 export interface ApiRouterAdminLoginRequest {
@@ -295,6 +296,51 @@ function isAuthResponseStatus(status: number) {
   return status === 401 || status === 403;
 }
 
+function isLoopbackHttpBaseUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' && (
+      url.hostname === '127.0.0.1'
+      || url.hostname === 'localhost'
+      || url.hostname === '::1'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function shouldRetryManagedRuntimeStartup(
+  runtimeStatus: RuntimeApiRouterRuntimeStatus | null,
+  baseUrl: string,
+) {
+  if (!runtimeStatus || !isLoopbackHttpBaseUrl(baseUrl)) {
+    return false;
+  }
+
+  return runtimeStatus.mode === 'needsManagedStart' || runtimeStatus.mode === 'conflicted';
+}
+
+async function recoverManagedRuntimeFromGatewayFailure(
+  runtimeStatus: RuntimeApiRouterRuntimeStatus | null,
+  baseUrl: string,
+) {
+  if (!shouldRetryManagedRuntimeStartup(runtimeStatus, baseUrl)) {
+    return false;
+  }
+
+  try {
+    const runtimePlatform = getRuntimePlatform();
+    if (!runtimePlatform.ensureApiRouterRuntimeStarted) {
+      return false;
+    }
+
+    await runtimePlatform.ensureApiRouterRuntimeStarted();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function performApiRouterAdminFetch(
   baseUrl: string,
   path: string,
@@ -344,7 +390,10 @@ async function requestApiRouterAdmin<T>(
   } = {},
 ): Promise<T> {
   const env = options.env ?? APP_ENV;
-  const { adminBaseUrl: baseUrl } = await resolveApiRouterResolvedEndpoints({
+  const {
+    adminBaseUrl: baseUrl,
+    runtimeStatus,
+  } = await resolveApiRouterResolvedEndpoints({
     adminBaseUrl: options.baseUrl,
     env,
   });
@@ -365,6 +414,29 @@ async function requestApiRouterAdmin<T>(
     };
     message?: string;
   }>(response);
+
+  if (!response.ok && response.status === 502) {
+    const recovered = await recoverManagedRuntimeFromGatewayFailure(runtimeStatus, baseUrl);
+    if (recovered) {
+      requestToken =
+        options.requireAuth === false
+          ? ''
+          : (await ensureApiRouterAdminSessionToken({ forceBootstrap: true })) || env.apiRouter.adminToken;
+      response = await performApiRouterAdminFetch(
+        baseUrl,
+        path,
+        options,
+        env,
+        requestToken,
+      );
+      payload = await readResponseJson<{
+        error?: {
+          message?: string;
+        };
+        message?: string;
+      }>(response);
+    }
+  }
 
   if (!response.ok && options.requireAuth !== false && isAuthResponseStatus(response.status)) {
     const retryToken = await refreshManagedBootstrapToken(requestToken);

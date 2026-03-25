@@ -32,6 +32,7 @@ const requiredPackages = [
   ['packages/sdkwork-claw-install', '@sdkwork/claw-install'],
   ['packages/sdkwork-claw-instances', '@sdkwork/claw-instances'],
   ['packages/sdkwork-claw-market', '@sdkwork/claw-market'],
+  ['packages/sdkwork-claw-mall', '@sdkwork/claw-mall'],
   ['packages/sdkwork-claw-model-purchase', '@sdkwork/claw-model-purchase'],
   ['packages/sdkwork-claw-points', '@sdkwork/claw-points'],
   ['packages/sdkwork-claw-settings', '@sdkwork/claw-settings'],

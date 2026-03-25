@@ -11,6 +11,8 @@ import {
   prepareApiRouterRuntimeFromSource,
   resolveDefaultApiRouterWorkspaceDir,
   resolveApiRouterTarget,
+  resolveBundledApiRouterCargoTargetDir,
+  withSupportedWindowsCmakeGenerator,
   shouldRetryWorkspaceInstallAfterTransientLock,
   shouldRetryWorkspaceInstallWithoutLockfile,
   shouldReusePreparedApiRouterRuntime,
@@ -241,6 +243,58 @@ try {
   }
   if (nonInteractiveEnv.PATH !== 'C:/pnpm') {
     throw new Error(`Expected non-interactive install env to preserve PATH, received ${nonInteractiveEnv.PATH}`);
+  }
+
+  const windowsCmakeEnv = withSupportedWindowsCmakeGenerator({ PATH: 'C:/cmake' }, 'win32');
+  if (windowsCmakeEnv.CMAKE_GENERATOR !== 'Visual Studio 17 2022') {
+    throw new Error(
+      `Expected Windows bundled api-router builds to default CMAKE_GENERATOR=Visual Studio 17 2022, received ${windowsCmakeEnv.CMAKE_GENERATOR}`,
+    );
+  }
+  if (windowsCmakeEnv.HOST_CMAKE_GENERATOR !== 'Visual Studio 17 2022') {
+    throw new Error(
+      `Expected Windows bundled api-router builds to default HOST_CMAKE_GENERATOR=Visual Studio 17 2022, received ${windowsCmakeEnv.HOST_CMAKE_GENERATOR}`,
+    );
+  }
+
+  const rewrittenGeneratorEnv = withSupportedWindowsCmakeGenerator(
+    { CMAKE_GENERATOR: 'Visual Studio 18 2026' },
+    'win32',
+  );
+  if (rewrittenGeneratorEnv.CMAKE_GENERATOR !== 'Visual Studio 17 2022') {
+    throw new Error(
+      `Expected unsupported Visual Studio 18 2026 generator values to be rewritten, received ${rewrittenGeneratorEnv.CMAKE_GENERATOR}`,
+    );
+  }
+
+  const preservedNinjaEnv = withSupportedWindowsCmakeGenerator(
+    { CMAKE_GENERATOR: 'Ninja' },
+    'win32',
+  );
+  if (preservedNinjaEnv.CMAKE_GENERATOR !== 'Ninja') {
+    throw new Error(
+      `Expected explicit non-Visual-Studio generators to be preserved, received ${preservedNinjaEnv.CMAKE_GENERATOR}`,
+    );
+  }
+
+  const windowsCargoTargetDir = resolveBundledApiRouterCargoTargetDir(
+    'D:\\workspace\\claw-studio',
+    'win32',
+  );
+  if (windowsCargoTargetDir !== 'D:\\.sdkwork-bc\\claw-studio\\sdkrouter') {
+    throw new Error(
+      `Expected Windows bundled api-router cargo targets to use a short root-level cache, received ${windowsCargoTargetDir}`,
+    );
+  }
+
+  const linuxCargoTargetDir = resolveBundledApiRouterCargoTargetDir(
+    '/workspace/claw-studio',
+    'linux',
+  );
+  if (linuxCargoTargetDir !== '/workspace/claw-studio/.cache/bundled-components/targets/sdkwork-api-router') {
+    throw new Error(
+      `Expected non-Windows bundled api-router cargo targets to stay under the repo cache, received ${linuxCargoTargetDir}`,
+    );
   }
 
   const incompleteWorkspaceDir = path.join(tempRoot, 'incomplete-workspace');

@@ -148,6 +148,52 @@ await runTest('sdkwork-claw-chat store tolerates migrated sessions without messa
   }
 });
 
+await runTest('sdkwork-claw-chat derives a readable local session title from the first user message', async () => {
+  const storeModuleUrl = pathToFileURL(
+    path.join(root, 'packages/sdkwork-claw-chat/src/store/useChatStore.ts'),
+  ).href;
+  const { useChatStore } = (await import(storeModuleUrl)) as typeof import('../packages/sdkwork-claw-chat/src/store/useChatStore');
+
+  const initialState = useChatStore.getState();
+
+  try {
+    useChatStore.setState({
+      ...initialState,
+      sessions: [
+        {
+          id: 'fresh-session',
+          title: 'New Conversation',
+          createdAt: 1,
+          updatedAt: 1,
+          model: 'Gemini 3 Flash',
+          messages: [],
+        } as any,
+      ],
+      activeSessionIdByInstance: {
+        __direct__: 'fresh-session',
+      },
+    });
+
+    useChatStore.getState().addMessage('fresh-session', {
+      role: 'user',
+      content:
+        '  Build   an install checklist\n\nfor OpenClaw across macOS   and Windows, then summarize blockers  ',
+    });
+
+    const session = useChatStore
+      .getState()
+      .sessions.find((entry) => entry.id === 'fresh-session');
+
+    assert.ok(session);
+    assert.equal(
+      session.title,
+      'Build an install checklist for OpenClaw across macOS and Windows, then summar...',
+    );
+  } finally {
+    useChatStore.setState(initialState, true);
+  }
+});
+
 await runTest('sdkwork-claw-chat keeps active session state isolated per instance and blocks local persistence for openclaw gateway sessions', () => {
   const chatStoreSource = read('packages/sdkwork-claw-chat/src/store/useChatStore.ts');
   const localGatewaySource = read('packages/sdkwork-claw-chat/src/store/studioConversationGateway.ts');
@@ -168,6 +214,8 @@ await runTest('sdkwork-claw-chat keeps active session state isolated per instanc
   assert.match(chatPageSource, /sendGatewayMessage/);
   assert.match(chatPageSource, /abortSession/);
   assert.match(chatSidebarSource, /activeSessionIdByInstance/);
+  assert.match(chatSidebarSource, /getChatSessionDisplayTitle/);
+  assert.doesNotMatch(chatSidebarSource, /\{session\.title\}/);
 });
 
 await runTest('sdkwork-claw-chat does not fall back to local HTTP while an instance route is still unresolved', () => {

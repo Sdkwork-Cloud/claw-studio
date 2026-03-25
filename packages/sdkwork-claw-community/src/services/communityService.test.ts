@@ -1,86 +1,234 @@
 import assert from 'node:assert/strict';
-import { communityService } from './communityService.ts';
+import { createCommunityService } from './communityService.ts';
 
-async function runTest(name: string, callback: () => Promise<void> | void) {
-  try {
-    await callback();
-    console.log(`ok - ${name}`);
-  } catch (error) {
-    console.error(`not ok - ${name}`);
-    throw error;
-  }
+function runTest(name: string, callback: () => Promise<void> | void) {
+  return Promise.resolve()
+    .then(callback)
+    .then(() => {
+      console.log(`ok - ${name}`);
+    })
+    .catch((error) => {
+      console.error(`not ok - ${name}`);
+      throw error;
+    });
 }
 
-await runTest('getList returns recruitment entries with structured listing metadata', async () => {
-  const result = await communityService.getList({ category: 'recruitment', page: 1, pageSize: 10 });
+await runTest(
+  'communityService maps feed, category, and comment sdk payloads into classifieds entries',
+  async () => {
+    const service = createCommunityService({
+      getClient: () =>
+        ({
+          category: {
+            listCategories: async () => ({
+              code: '2000',
+              data: [
+                { id: 11, code: 'legal-services', name: 'Legal Services' },
+                { id: 12, code: 'platform-news', name: 'Platform News' },
+              ],
+            }),
+          },
+          feed: {
+            getFeedList: async () => ({
+              code: '2000',
+              data: [
+                {
+                  id: 101,
+                  categoryId: 11,
+                  title: 'Remote legal contract review for AI startups',
+                  content:
+                    '<!-- claw-community-meta {\"publisherType\":\"company\",\"location\":\"Remote\",\"compensation\":\"From 899 CNY\",\"company\":\"Claw Legal Desk\",\"serviceLine\":\"legal\",\"deliveryMode\":\"online\",\"turnaround\":\"48 hours\",\"contactPreference\":\"Book through OpenClaw\"} -->\n\n# Service scope\n\nContract review and compliance support.',
+                  tags: ['legal', 'contracts', 'remote'],
+                  author: {
+                    name: 'Claw Legal Desk',
+                    avatar: 'https://cdn.sdkwork.test/legal.png',
+                    bio: 'Remote legal counsel for AI teams.',
+                  },
+                  viewCount: 120,
+                  likeCount: 8,
+                  commentCount: 2,
+                  shareCount: 3,
+                  isRecommended: true,
+                  createdAt: '2026-03-24T09:00:00Z',
+                },
+                {
+                  id: 102,
+                  categoryId: 12,
+                  title: 'Platform weekly update',
+                  content: 'This week in OpenClaw.',
+                  tags: ['news'],
+                  author: {
+                    name: 'OpenClaw Official',
+                  },
+                  createdAt: '2026-03-23T09:00:00Z',
+                },
+              ],
+            }),
+            getFeedDetail: async (id: string | number) => {
+              assert.equal(id, '101');
+              return {
+                code: '2000',
+                data: {
+                  id: 101,
+                  categoryId: 11,
+                  title: 'Remote legal contract review for AI startups',
+                  content:
+                    '<!-- claw-community-meta {\"publisherType\":\"company\",\"location\":\"Remote\",\"compensation\":\"From 899 CNY\",\"company\":\"Claw Legal Desk\",\"serviceLine\":\"legal\",\"deliveryMode\":\"online\",\"turnaround\":\"48 hours\",\"contactPreference\":\"Book through OpenClaw\"} -->\n\n# Service scope\n\nContract review and compliance support.',
+                  tags: ['legal', 'contracts', 'remote'],
+                  author: {
+                    name: 'Claw Legal Desk',
+                    avatar: 'https://cdn.sdkwork.test/legal.png',
+                    bio: 'Remote legal counsel for AI teams.',
+                  },
+                  viewCount: 120,
+                  likeCount: 8,
+                  commentCount: 2,
+                  shareCount: 3,
+                  isRecommended: true,
+                  createdAt: '2026-03-24T09:00:00Z',
+                },
+              };
+            },
+          },
+          comment: {
+            getComments: async () => ({
+              code: '2000',
+              data: {
+                content: [
+                  {
+                    commentId: 'c-1',
+                    content: 'Can you review contractor agreements as well?',
+                    createdAt: '2026-03-24T10:00:00Z',
+                    likes: 4,
+                    author: {
+                      name: 'Alice',
+                      avatar: 'https://cdn.sdkwork.test/alice.png',
+                    },
+                  },
+                ],
+              },
+            }),
+          },
+        }) as any,
+    });
 
-  assert.ok(result.total >= 1);
-  assert.equal(result.items[0]?.category, 'recruitment');
-  assert.equal(typeof result.items[0]?.location, 'string');
-  assert.equal(typeof result.items[0]?.compensation, 'string');
-  assert.equal(result.items[0]?.publisherType, 'company');
-});
+    const serviceEntries = await service.getPosts('services');
+    const newsEntries = await service.getPosts('news');
+    const detail = await service.getPost('101');
+    const comments = await service.getComments('101');
 
-await runTest('news filtering preserves official platform news entries', async () => {
-  const newsEntries = await communityService.getPosts('news');
+    assert.equal(serviceEntries.length, 1);
+    assert.equal(serviceEntries[0]?.category, 'services');
+    assert.equal(serviceEntries[0]?.company, 'Claw Legal Desk');
+    assert.equal(serviceEntries[0]?.serviceLine, 'legal');
+    assert.equal(serviceEntries[0]?.deliveryMode, 'online');
+    assert.equal(serviceEntries[0]?.turnaround, '48 hours');
+    assert.equal(serviceEntries[0]?.author.role, 'Service Partner');
+    assert.equal(serviceEntries[0]?.stats.likes, 8);
+    assert.equal(serviceEntries[0]?.content.includes('claw-community-meta'), false);
 
-  assert.ok(newsEntries.length >= 1);
-  assert.equal(newsEntries[0]?.category, 'news');
-  assert.equal(newsEntries[0]?.publisherType, 'official');
-  assert.equal(newsEntries[0]?.author.role, 'Official');
-});
+    assert.equal(newsEntries.length, 1);
+    assert.equal(newsEntries[0]?.category, 'news');
+    assert.equal(newsEntries[0]?.publisherType, 'official');
 
-await runTest('services include online legal support and broader online-deliverable coverage', async () => {
-  const serviceEntries = await communityService.getPosts('services');
-  const legalEntries = serviceEntries.filter((post) => post.serviceLine === 'legal');
-  const legalEntry = legalEntries[0];
+    assert.equal(detail.category, 'services');
+    assert.equal(detail.location, 'Remote');
+    assert.equal(detail.compensation, 'From 899 CNY');
+    assert.equal(detail.contactPreference, 'Book through OpenClaw');
 
-  assert.ok(serviceEntries.length >= 12);
-  assert.ok(legalEntry);
-  assert.ok(legalEntries.length >= 2);
-  assert.equal(legalEntry?.deliveryMode, 'online');
-  assert.equal(typeof legalEntry?.turnaround, 'string');
-  assert.ok(serviceEntries.some((post) => post.serviceLine === 'development'));
-  assert.ok(serviceEntries.some((post) => post.serviceLine === 'translation'));
-  assert.ok(serviceEntries.some((post) => post.serviceLine === 'consulting'));
-  assert.ok(serviceEntries.some((post) => post.serviceLine === 'content'));
-  assert.ok(serviceEntries.some((post) => post.serviceLine === 'data'));
-  assert.ok(serviceEntries.some((post) => post.serviceLine === 'hr'));
+    assert.equal(comments.length, 1);
+    assert.equal(comments[0]?.author.name, 'Alice');
+    assert.equal(comments[0]?.likes, 4);
+  },
+);
 
-  const legalSearch = await communityService.getPosts('services', 'legal');
-  assert.ok(legalSearch.some((post) => post.serviceLine === 'legal'));
+await runTest(
+  'communityService creates feeds through the app sdk and persists classifieds metadata inside feed content',
+  async () => {
+    let capturedPayload: Record<string, unknown> | null = null;
 
-  const trademarkSearch = await communityService.getPosts('services', 'trademark');
-  assert.ok(trademarkSearch.some((post) => post.serviceLine === 'legal'));
+    const service = createCommunityService({
+      getClient: () =>
+        ({
+          category: {
+            listCategories: async () => ({
+              code: '2000',
+              data: [
+                { id: 11, code: 'services', name: 'Services' },
+                { id: 12, code: 'job-seeking', name: 'Job Seeking' },
+              ],
+            }),
+          },
+          feed: {
+            getFeedList: async () => ({
+              code: '2000',
+              data: [],
+            }),
+            create: async (body: Record<string, unknown>) => {
+              capturedPayload = body;
+              return {
+                code: '2000',
+                data: {
+                  id: 201,
+                  categoryId: 11,
+                  title: body.title,
+                  content: body.content,
+                  tags: body.tags,
+                  coverImage: 'https://cdn.sdkwork.test/service-cover.png',
+                  author: {
+                    name: 'FlowForge Studio',
+                    bio: 'Automation delivery partner.',
+                  },
+                  viewCount: 0,
+                  likeCount: 0,
+                  commentCount: 0,
+                  shareCount: 0,
+                  createdAt: '2026-03-24T11:00:00Z',
+                },
+              };
+            },
+          },
+          comment: {
+            getComments: async () => ({
+              code: '2000',
+              data: { content: [] },
+            }),
+          },
+        }) as any,
+    });
 
-  const dashboardSearch = await communityService.getPosts('services', 'dashboard');
-  assert.ok(dashboardSearch.some((post) => post.serviceLine === 'data'));
-});
+    const created = await service.create({
+      title: 'Automation landing page sprint',
+      content: 'Build a launch-ready landing page and workflow automation.',
+      category: 'services',
+      publisherType: 'company',
+      company: 'FlowForge Studio',
+      location: 'Remote',
+      compensation: 'From 8k CNY',
+      serviceLine: 'development',
+      deliveryMode: 'online',
+      turnaround: '7 days',
+      contactPreference: 'Route leads through OpenClaw',
+      tags: ['automation', 'landing-page'],
+      coverImage: 'https://cdn.sdkwork.test/service-cover.png',
+    });
 
-await runTest('create prepends a new service entry and preserves online-service fields', async () => {
-  const created = await communityService.create({
-    title: 'Remote legal contract review service',
-    content: 'Review SaaS contracts, labor agreements, and privacy policies online.',
-    category: 'services',
-    publisherType: 'company',
-    location: 'Remote',
-    compensation: 'From 899 CNY',
-    company: 'Claw Legal Desk',
-    serviceLine: 'legal',
-    deliveryMode: 'online',
-    turnaround: '48 hours',
-    tags: ['legal', 'contracts', 'online'],
-  });
+    assert.ok(capturedPayload);
+    assert.equal(capturedPayload?.categoryId, 11);
+    assert.deepEqual(capturedPayload?.tags, ['automation', 'landing-page']);
+    assert.deepEqual(capturedPayload?.images, ['https://cdn.sdkwork.test/service-cover.png']);
+    assert.equal(capturedPayload?.source, 'claw-studio-community');
+    assert.equal(typeof capturedPayload?.content, 'string');
+    assert.match(String(capturedPayload?.content), /claw-community-meta/);
+    assert.match(String(capturedPayload?.content), /"serviceLine":"development"/);
+    assert.match(String(capturedPayload?.content), /"deliveryMode":"online"/);
 
-  assert.equal(Number.isNaN(Date.parse(created.createdAt)), false);
-  assert.match(created.id, /^p\d+$/);
-  assert.equal(created.publisherType, 'company');
-  assert.equal(created.location, 'Remote');
-  assert.equal(created.compensation, 'From 899 CNY');
-  assert.equal(created.serviceLine, 'legal');
-  assert.equal(created.deliveryMode, 'online');
-  assert.equal(created.turnaround, '48 hours');
-
-  const posts = await communityService.getPosts('services');
-  assert.ok(posts.some((post) => post.id === created.id));
-});
+    assert.equal(created.id, '201');
+    assert.equal(created.category, 'services');
+    assert.equal(created.company, 'FlowForge Studio');
+    assert.equal(created.serviceLine, 'development');
+    assert.equal(created.deliveryMode, 'online');
+    assert.equal(created.turnaround, '7 days');
+    assert.equal(created.coverImage, 'https://cdn.sdkwork.test/service-cover.png');
+  },
+);

@@ -2,6 +2,8 @@ import { create, type StateCreator } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { appAuthService } from '../services/index.ts';
+import type { AppAuthOAuthDeviceType, AppAuthSession, AppAuthSocialProvider } from '../services/index.ts';
+import { readAppSdkSessionTokens } from '../sdk/useAppSdkClient.ts';
 
 const STORAGE_KEY = 'claw-studio-auth-storage';
 
@@ -25,11 +27,21 @@ export interface RegisterInput {
   password: string;
 }
 
+export interface OAuthSignInInput {
+  provider: AppAuthSocialProvider;
+  code: string;
+  state?: string;
+  deviceId?: string;
+  deviceType?: AppAuthOAuthDeviceType;
+}
+
 export interface AuthStoreState {
   isAuthenticated: boolean;
   user: AuthUser | null;
   signIn: (credentials: SignInInput) => Promise<AuthUser>;
   register: (payload: RegisterInput) => Promise<AuthUser>;
+  signInWithOAuth: (payload: OAuthSignInInput) => Promise<AuthUser>;
+  applySession: (session: AppAuthSession) => AuthUser;
   sendPasswordReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   syncUserProfile: (profile: {
@@ -100,6 +112,24 @@ function toAuthUserFromIdentity(profile: {
   });
 }
 
+function buildAuthUserFromSession(
+  session: AppAuthSession,
+  fallback?: {
+    nickname?: string;
+    username?: string;
+    email?: string;
+    avatar?: string;
+  },
+): AuthUser {
+  const profile = session.userInfo ?? fallback ?? {};
+  return toAuthUserFromIdentity({
+    nickname: profile.nickname,
+    username: profile.username,
+    email: profile.email,
+    avatar: profile.avatar,
+  });
+}
+
 const createAuthStoreState: StateCreator<AuthStoreState, [], [], AuthStoreState> = (set) => ({
   isAuthenticated: false,
   user: null,
@@ -130,6 +160,23 @@ const createAuthStoreState: StateCreator<AuthStoreState, [], [], AuthStoreState>
         email: payload.email.trim(),
       },
     );
+    set({ isAuthenticated: true, user });
+    return user;
+  },
+  async signInWithOAuth(payload) {
+    const result = await appAuthService.loginWithOAuth({
+      provider: payload.provider,
+      code: payload.code,
+      state: payload.state,
+      deviceId: payload.deviceId,
+      deviceType: payload.deviceType,
+    });
+    const user = buildAuthUserFromSession(result);
+    set({ isAuthenticated: true, user });
+    return user;
+  },
+  applySession(session) {
+    const user = buildAuthUserFromSession(session);
     set({ isAuthenticated: true, user });
     return user;
   },
@@ -175,10 +222,32 @@ function createPersistOptions(storage?: StateStorage) {
       };
 }
 
-export function createAuthStore(storage?: StateStorage) {
-  return createStore<AuthStoreState>()(persist(createAuthStoreState, createPersistOptions(storage)));
+type AuthStoreApi = {
+  getState: () => AuthStoreState;
+  setState: (partial: Partial<AuthStoreState>) => void;
+};
+
+function synchronizeAuthStoreSession(store: AuthStoreApi) {
+  const { isAuthenticated } = store.getState();
+  const authToken = (readAppSdkSessionTokens().authToken || '').trim();
+
+  if (isAuthenticated && !authToken) {
+    store.setState({ isAuthenticated: false, user: null });
+  }
 }
 
-export const useAuthStore = create<AuthStoreState>()(
+export function createAuthStore(storage?: StateStorage) {
+  const store = createStore<AuthStoreState>()(
+    persist(createAuthStoreState, createPersistOptions(storage)),
+  );
+  synchronizeAuthStoreSession(store);
+  return store;
+}
+
+const authStore = create<AuthStoreState>()(
   persist(createAuthStoreState, createPersistOptions()),
 );
+
+synchronizeAuthStoreSession(authStore);
+
+export const useAuthStore = authStore;

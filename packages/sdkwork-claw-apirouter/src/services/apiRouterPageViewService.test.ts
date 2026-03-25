@@ -17,12 +17,10 @@ await runTest('apiRouterPageViewService keeps the page shell visible when there 
     resolveApiRouterPageViewState({
       channelIds: [],
       selectedChannelId: null,
-      canManageRouter: true,
     }),
     {
       hasChannels: false,
       resolvedChannelId: null,
-      showManagementPanels: true,
       showPageTabs: true,
       showRouteConfigEmptyState: true,
     },
@@ -36,32 +34,28 @@ await runTest('apiRouterPageViewService falls back to the first available channe
     resolveApiRouterPageViewState({
       channelIds: ['openai', 'anthropic'],
       selectedChannelId: 'google',
-      canManageRouter: true,
     }),
     {
       hasChannels: true,
       resolvedChannelId: 'openai',
-      showManagementPanels: true,
       showPageTabs: true,
       showRouteConfigEmptyState: false,
     },
   );
 });
 
-await runTest('apiRouterPageViewService hides management panels until router admin access is available', async () => {
+await runTest('apiRouterPageViewService keeps the tab workspace available without page-level admin gating', async () => {
   const { resolveApiRouterPageViewState } = await import('./apiRouterPageViewService.ts');
 
   assert.deepEqual(
     resolveApiRouterPageViewState({
       channelIds: ['openai'],
       selectedChannelId: 'openai',
-      canManageRouter: false,
     }),
     {
       hasChannels: true,
       resolvedChannelId: 'openai',
-      showManagementPanels: false,
-      showPageTabs: false,
+      showPageTabs: true,
       showRouteConfigEmptyState: false,
     },
   );

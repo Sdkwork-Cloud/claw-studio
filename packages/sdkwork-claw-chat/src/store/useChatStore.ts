@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import { studio } from '@sdkwork/claw-infrastructure';
 import type { StudioConversationAttachment } from '@sdkwork/claw-types';
 import {
-  deriveUserMessageTitle,
+  buildOpenClawMainSessionKey,
+  DEFAULT_CHAT_SESSION_TITLE,
   getSharedOpenClawGatewayClient,
   resolveInstanceChatRoute,
+  resolveInitialChatSessionTitle,
   type InstanceChatRouteMode,
 } from '../services/store/index.ts';
 import { connectGatewayInstancesBestEffort } from './connectGatewayInstances.ts';
@@ -52,7 +54,14 @@ export interface ChatState {
   hydrateInstance: (instanceId: string | null | undefined) => Promise<void>;
   connectGatewayInstances: (instanceIds: string[]) => Promise<void>;
   loadSession: (id: string) => Promise<void>;
-  createSession: (model?: string, instanceId?: string) => Promise<string>;
+  createSession: (
+    model?: string,
+    instanceId?: string,
+    options?: {
+      openClawAgentId?: string | null;
+      openClawSessionId?: string | null;
+    },
+  ) => Promise<string>;
   deleteSession: (id: string, instanceId?: string) => Promise<void>;
   setActiveSession: (id: string | null, instanceId?: string) => Promise<void>;
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => void;
@@ -76,7 +85,7 @@ export interface ChatState {
 }
 
 const DEFAULT_MODEL = 'Llama-3-8B-Instruct';
-const DEFAULT_TITLE = 'New Conversation';
+const DEFAULT_TITLE = DEFAULT_CHAT_SESSION_TITLE;
 const DIRECT_SCOPE_KEY = '__direct__';
 
 function createId(prefix: string) {
@@ -393,7 +402,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }));
     }
   },
-  async createSession(model = DEFAULT_MODEL, instanceId) {
+  async createSession(model = DEFAULT_MODEL, instanceId, options) {
     if (instanceId) {
       const routeMode =
         get().instanceRouteModeById[instanceId] ??
@@ -407,7 +416,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
       if (routeMode === 'instanceOpenClawGatewayWs') {
         await openClawGatewaySessions.hydrateInstance(instanceId);
-        return openClawGatewaySessions.createDraftSession(instanceId, model).id;
+        return openClawGatewaySessions.createDraftSession(instanceId, model, {
+          sessionId:
+            options?.openClawSessionId?.trim() ||
+            buildOpenClawMainSessionKey(options?.openClawAgentId),
+        }).id;
       }
     }
 
@@ -545,13 +558,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           timestamp,
           attachments: cloneAttachments(message.attachments),
         };
-        const derivedTitle = deriveUserMessageTitle({
-          text: message.content,
-          attachments: message.attachments ?? [],
-        });
         const nextTitle =
           currentMessages.length === 0 && message.role === 'user'
-            ? `${derivedTitle.slice(0, 80)}${derivedTitle.length > 80 ? '...' : ''}`
+            ? resolveInitialChatSessionTitle({
+                existingTitle: session.title,
+                text: message.content,
+                attachments: message.attachments ?? [],
+                isFirstUserMessage: true,
+              })
             : session.title;
 
         nextSession = {

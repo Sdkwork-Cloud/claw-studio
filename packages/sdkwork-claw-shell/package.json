@@ -24,6 +24,7 @@
     "@sdkwork/claw-install": "workspace:*",
     "@sdkwork/claw-instances": "workspace:*",
     "@sdkwork/claw-market": "workspace:*",
+    "@sdkwork/claw-mall": "workspace:*",
     "@sdkwork/claw-model-purchase": "workspace:*",
     "@sdkwork/claw-points": "workspace:*",
     "@sdkwork/claw-settings": "workspace:*",

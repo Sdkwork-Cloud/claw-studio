@@ -1,5 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import type { ModelMapping, ProxyProviderGroup, UnifiedApiKey } from '@sdkwork/claw-types';
+import type {
+  ApiRouterChannel,
+  ModelMapping,
+  ProxyProvider,
+  ProxyProviderGroup,
+  UnifiedApiKey,
+} from '@sdkwork/claw-types';
 import {
   Button,
   Select,
@@ -8,17 +14,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@sdkwork/claw-ui';
+import { resolveUnifiedApiKeyRouteConfigMeta } from '../services';
 import { ProxyProviderStatusBadge } from './ProxyProviderStatusBadge';
 
 interface UnifiedApiKeyTableProps {
   items: UnifiedApiKey[];
+  channels: ApiRouterChannel[];
+  providers: ProxyProvider[];
   modelMappings: ModelMapping[];
   groups: ProxyProviderGroup[];
   onCopyApiKey: (item: UnifiedApiKey) => void;
   onGroupChange: (itemId: string, groupId: string) => void;
   onOpenUsage: (item: UnifiedApiKey) => void;
   onOpenEdit: (item: UnifiedApiKey) => void;
-  onOpenAssociateMapping: (item: UnifiedApiKey) => void;
+  onOpenRouteConfig: (item: UnifiedApiKey) => void;
   onToggleStatus: (item: UnifiedApiKey) => void;
   onDelete: (item: UnifiedApiKey) => void;
 }
@@ -72,18 +81,21 @@ function formatCurrency(value: number, language: string) {
 
 export function UnifiedApiKeyTable({
   items,
+  channels,
+  providers,
   modelMappings,
   groups,
   onCopyApiKey,
   onGroupChange,
   onOpenUsage,
   onOpenEdit,
-  onOpenAssociateMapping,
+  onOpenRouteConfig,
   onToggleStatus,
   onDelete,
 }: UnifiedApiKeyTableProps) {
   const { t, i18n } = useTranslation();
   const modelMappingsById = new Map(modelMappings.map((item) => [item.id, item]));
+  const channelsById = new Map(channels.map((item) => [item.id, item]));
 
   if (items.length === 0) {
     return (
@@ -119,164 +131,189 @@ export function UnifiedApiKeyTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {items.map((item) => (
-              <tr key={item.id} className="align-top">
-                <td className="px-5 py-5">
-                  <div className="min-w-[16rem]">
-                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                      {item.name}
-                    </div>
-                    {item.modelMappingId ? (
-                      <div className="mt-2">
-                        <span className="inline-flex items-center rounded-full border border-primary-500/20 bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-500">
-                          {t('apiRouterPage.unifiedApiKey.values.mappedTo', {
-                            name:
-                              modelMappingsById.get(item.modelMappingId)?.name ||
-                              t('apiRouterPage.unifiedApiKey.values.mappingUnavailable'),
-                          })}
-                        </span>
+            {items.map((item) => {
+              const routeConfigMeta = resolveUnifiedApiKeyRouteConfigMeta(item, providers);
+              const routeChannel = routeConfigMeta.routeProvider
+                ? channelsById.get(routeConfigMeta.routeProvider.channelId)
+                : null;
+
+              return (
+                <tr key={item.id} className="align-top">
+                  <td className="px-5 py-5">
+                    <div className="min-w-[16rem]">
+                      <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                        {item.name}
                       </div>
-                    ) : null}
-                    {item.notes ? (
-                      <div className="mt-2 max-w-[24rem] text-xs leading-6 text-zinc-500 dark:text-zinc-400">
-                        {item.notes}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {routeConfigMeta.routeMode === 'custom' ? (
+                          <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
+                            {t('apiRouterPage.unifiedApiKey.values.customRouteTo', {
+                              name:
+                                routeConfigMeta.routeProvider?.name ||
+                                t('apiRouterPage.unifiedApiKey.values.routeConfigUnavailable'),
+                            })}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full border border-zinc-300/80 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                            {t('apiRouterPage.unifiedApiKey.values.sdkworkRemoteRoute')}
+                          </span>
+                        )}
+                        {routeChannel ? (
+                          <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                            {routeChannel.name}
+                          </span>
+                        ) : null}
+                        {item.modelMappingId ? (
+                          <span className="inline-flex items-center rounded-full border border-primary-500/20 bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-500">
+                            {t('apiRouterPage.unifiedApiKey.values.mappedTo', {
+                              name:
+                                modelMappingsById.get(item.modelMappingId)?.name ||
+                                t('apiRouterPage.unifiedApiKey.values.mappingUnavailable'),
+                            })}
+                          </span>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                </td>
-
-                <td className="px-5 py-5">
-                  <div className="flex min-w-[14rem] items-start gap-3">
-                    <div className="flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-                      {getDisplayApiKey(
-                        item,
-                        t('apiRouterPage.unifiedApiKey.values.hiddenAfterCreation'),
-                      )}
+                      {item.notes ? (
+                        <div className="mt-2 max-w-[24rem] text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                          {item.notes}
+                        </div>
+                      ) : null}
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={item.canCopyApiKey === false || !item.apiKey}
-                      onClick={() => onCopyApiKey(item)}
-                    >
-                      {t('apiRouterPage.unifiedApiKey.actions.copyKey')}
-                    </Button>
-                  </div>
-                </td>
+                  </td>
 
-                <td className="px-5 py-5">
-                  <span className="inline-flex min-w-[8rem] items-center justify-center rounded-full border border-primary-500/15 bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-600 dark:border-primary-500/20 dark:text-primary-300">
-                    {t(`apiRouterPage.unifiedApiKey.sources.${item.source}`)}
-                  </span>
-                </td>
-
-                <td className="px-5 py-5">
-                  <div className="min-w-[11rem]">
-                    <Select
-                      value={item.groupId}
-                      onValueChange={(value) => onGroupChange(item.id, value)}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </td>
-
-                <td className="px-5 py-5">
-                  <div className="min-w-[10rem]">
-                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                      {t('apiRouterPage.values.requestCountShort', {
-                        value: formatNumber(item.usage.requestCount, i18n.language),
-                      })}
+                  <td className="px-5 py-5">
+                    <div className="flex min-w-[14rem] items-start gap-3">
+                      <div className="flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                        {getDisplayApiKey(
+                          item,
+                          t('apiRouterPage.unifiedApiKey.values.hiddenAfterCreation'),
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={item.canCopyApiKey === false || !item.apiKey}
+                        onClick={() => onCopyApiKey(item)}
+                      >
+                        {t('apiRouterPage.unifiedApiKey.actions.copyKey')}
+                      </Button>
                     </div>
-                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                      {t('apiRouterPage.values.tokenCountShort', {
-                        value: formatNumber(item.usage.tokenCount, i18n.language),
-                      })}
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <span className="inline-flex min-w-[8rem] items-center justify-center rounded-full border border-primary-500/15 bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-600 dark:border-primary-500/20 dark:text-primary-300">
+                      {t(`apiRouterPage.unifiedApiKey.sources.${item.source}`)}
+                    </span>
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <div className="min-w-[11rem]">
+                      <Select
+                        value={item.groupId}
+                        onValueChange={(value) => onGroupChange(item.id, value)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="mt-2 text-xs font-semibold text-primary-500">
-                      {formatCurrency(item.usage.spendUsd, i18n.language)} / {item.usage.period}
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <div className="min-w-[10rem]">
+                      <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                        {t('apiRouterPage.values.requestCountShort', {
+                          value: formatNumber(item.usage.requestCount, i18n.language),
+                        })}
+                      </div>
+                      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {t('apiRouterPage.values.tokenCountShort', {
+                          value: formatNumber(item.usage.tokenCount, i18n.language),
+                        })}
+                      </div>
+                      <div className="mt-2 text-xs font-semibold text-primary-500">
+                        {formatCurrency(item.usage.spendUsd, i18n.language)} / {item.usage.period}
+                      </div>
                     </div>
-                  </div>
-                </td>
+                  </td>
 
-                <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
-                  {formatDate(
-                    item.expiresAt,
-                    i18n.language,
-                    t('apiRouterPage.unifiedApiKey.values.never'),
-                  )}
-                </td>
+                  <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
+                    {formatDate(
+                      item.expiresAt,
+                      i18n.language,
+                      t('apiRouterPage.unifiedApiKey.values.never'),
+                    )}
+                  </td>
 
-                <td className="px-5 py-5">
-                  <ProxyProviderStatusBadge status={item.status} />
-                </td>
+                  <td className="px-5 py-5">
+                    <ProxyProviderStatusBadge status={item.status} />
+                  </td>
 
-                <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
-                  {formatDate(
-                    item.createdAt,
-                    i18n.language,
-                    t('apiRouterPage.unifiedApiKey.values.never'),
-                  )}
-                </td>
+                  <td className="px-5 py-5 text-sm text-zinc-600 dark:text-zinc-300">
+                    {formatDate(
+                      item.createdAt,
+                      i18n.language,
+                      t('apiRouterPage.unifiedApiKey.values.never'),
+                    )}
+                  </td>
 
-                <td className="px-5 py-5">
-                  <div className="flex min-w-[24rem] flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onOpenUsage(item)}
-                    >
-                      {t('apiRouterPage.unifiedApiKey.actions.usageMethod')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onOpenAssociateMapping(item)}
-                    >
-                      {t('apiRouterPage.unifiedApiKey.actions.associateModelMapping')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onToggleStatus(item)}
-                    >
-                      {item.status === 'disabled'
-                        ? t('apiRouterPage.unifiedApiKey.actions.enable')
-                        : t('apiRouterPage.unifiedApiKey.actions.disable')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onOpenEdit(item)}
-                    >
-                      {t('apiRouterPage.unifiedApiKey.actions.edit')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => onDelete(item)}
-                    >
-                      {t('apiRouterPage.unifiedApiKey.actions.delete')}
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  <td className="px-5 py-5">
+                    <div className="flex min-w-[24rem] flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onOpenUsage(item)}
+                      >
+                        {t('apiRouterPage.unifiedApiKey.actions.usageMethod')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onOpenRouteConfig(item)}
+                      >
+                        {t('apiRouterPage.unifiedApiKey.actions.routeConfig')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onToggleStatus(item)}
+                      >
+                        {item.status === 'disabled'
+                          ? t('apiRouterPage.unifiedApiKey.actions.enable')
+                          : t('apiRouterPage.unifiedApiKey.actions.disable')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onOpenEdit(item)}
+                      >
+                        {t('apiRouterPage.unifiedApiKey.actions.edit')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => onDelete(item)}
+                      >
+                        {t('apiRouterPage.unifiedApiKey.actions.delete')}
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -22,7 +22,7 @@ import Markdown from 'react-markdown';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
+import { useAuthStore, useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
 import { Modal } from '@sdkwork/claw-ui';
 import type { Review, Skill } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
@@ -30,6 +30,7 @@ import { instanceService, marketService, mySkillService, type Instance } from '.
 export function SkillDetail() {
   const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -41,13 +42,15 @@ export function SkillDetail() {
   const { activeInstanceId } = useInstanceStore();
 
   const { data: skill, isLoading: isLoadingSkill } = useQuery<Skill>({
-    queryKey: ['skill', id],
+    queryKey: ['skill', id, isAuthenticated],
     queryFn: () => marketService.getSkill(id!),
+    enabled: isAuthenticated && Boolean(id),
   });
 
   const { data: reviews = [] } = useQuery<Review[]>({
-    queryKey: ['reviews', id],
+    queryKey: ['reviews', id, isAuthenticated, activeTab],
     queryFn: () => marketService.getSkillReviews(id!),
+    enabled: isAuthenticated && Boolean(id) && activeTab === 'reviews',
   });
 
   const { data: instances = [], isLoading: isLoadingInstances } = useQuery<Instance[]>({
@@ -171,6 +174,33 @@ export function SkillDetail() {
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
+        <button
+          onClick={() => navigate('/market')}
+          className="mb-8 flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t('market.skillDetail.backToMarket')}
+        </button>
+        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
+          <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-16 text-center dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-zinc-500 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-800">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
+              {t('market.empty.signInRequiredTitle')}
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              {t('market.empty.signInRequiredDescription')}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!skill) {
     return (
       <div className="p-8 text-center">
@@ -188,6 +218,24 @@ export function SkillDetail() {
   }
 
   const isInstalling = installMutation.isPending;
+  const reviewCount = skill.ratingCount ?? reviews.length;
+  const skillLinks = [
+    {
+      href: skill.homepageUrl,
+      label: t('market.skillDetail.links.developerWebsite'),
+      icon: Globe,
+    },
+    {
+      href: skill.repositoryUrl,
+      label: t('market.skillDetail.links.sourceCode'),
+      icon: Github,
+    },
+    {
+      href: skill.documentationUrl,
+      label: t('market.skillDetail.links.documentation'),
+      icon: FileText,
+    },
+  ].filter((link) => Boolean(link.href));
 
   return (
     <div className="mx-auto max-w-6xl p-4 md:p-8">
@@ -226,7 +274,7 @@ export function SkillDetail() {
                   {skill.rating.toFixed(1)}
                 </span>
                 <span className="font-normal text-zinc-400 dark:text-zinc-500">
-                  {t('market.skillDetail.metrics.ratings', { count: reviews.length })}
+                  {t('market.skillDetail.metrics.ratings', { count: reviewCount })}
                 </span>
               </div>
               <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
@@ -533,35 +581,27 @@ export function SkillDetail() {
               </div>
             </div>
 
-            <div className="mt-8 space-y-4 border-t border-zinc-100 pt-6 dark:border-zinc-800">
-              <a
-                href="#"
-                className="flex items-center justify-between text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-              >
-                <span className="flex items-center gap-2">
-                  <Globe className="h-4 w-4" /> {t('market.skillDetail.links.developerWebsite')}
-                </span>
-                <ArrowLeft className="h-4 w-4 rotate-135" />
-              </a>
-              <a
-                href="#"
-                className="flex items-center justify-between text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-              >
-                <span className="flex items-center gap-2">
-                  <Github className="h-4 w-4" /> {t('market.skillDetail.links.sourceCode')}
-                </span>
-                <ArrowLeft className="h-4 w-4 rotate-135" />
-              </a>
-              <a
-                href="#"
-                className="flex items-center justify-between text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-              >
-                <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> {t('market.skillDetail.links.privacyPolicy')}
-                </span>
-                <ArrowLeft className="h-4 w-4 rotate-135" />
-              </a>
-            </div>
+            {skillLinks.length > 0 ? (
+              <div className="mt-8 space-y-4 border-t border-zinc-100 pt-6 dark:border-zinc-800">
+                {skillLinks.map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" /> {link.label}
+                      </span>
+                      <ArrowLeft className="h-4 w-4 rotate-135" />
+                    </a>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

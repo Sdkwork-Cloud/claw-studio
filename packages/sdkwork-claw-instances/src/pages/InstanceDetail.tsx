@@ -75,6 +75,7 @@ import { buildInstanceDetailBadgeDescriptors } from './instanceDetailBadgeDescri
 import {
   agentWorkbenchService,
   agentSkillManagementService,
+  type AgentWorkbenchSnapshot,
   buildInstanceManagementSummary,
   instanceService,
   instanceWorkbenchService,
@@ -370,6 +371,7 @@ function formatWorkbenchLabel(value: string) {
     remoteService: 'Remote Service',
     configurationRequired: 'Configuration Required',
     openaiChatCompletions: 'OpenAI Chat Completions',
+    openaiResponses: 'OpenAI Responses',
     localManaged: 'Local Managed',
     localExternal: 'Local External',
     customHttp: 'Custom HTTP',
@@ -613,6 +615,7 @@ export function InstanceDetail() {
   const [agentDeleteId, setAgentDeleteId] = useState<string | null>(null);
   const [isInstallingAgentSkill, setIsInstallingAgentSkill] = useState(false);
   const [updatingAgentSkillKeys, setUpdatingAgentSkillKeys] = useState<string[]>([]);
+  const [removingAgentSkillKeys, setRemovingAgentSkillKeys] = useState<string[]>([]);
   const [taskExecutionsById, setTaskExecutionsById] = useState<Record<string, InstanceWorkbenchTaskExecution[]>>({});
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -1380,6 +1383,34 @@ export function InstanceDetail() {
       );
     } finally {
       setUpdatingAgentSkillKeys((current) => removePendingId(current, skillKey));
+    }
+  };
+
+  const handleRemoveAgentSkill = async (
+    skill: NonNullable<AgentWorkbenchSnapshot['skills'][number]>,
+  ) => {
+    if (!id || !selectedAgentWorkbench) {
+      return;
+    }
+
+    setRemovingAgentSkillKeys((current) => addPendingId(current, skill.skillKey));
+    try {
+      await agentSkillManagementService.removeSkill({
+        instanceId: id,
+        skillKey: skill.skillKey,
+        scope: skill.scope,
+        workspacePath: selectedAgentWorkbench.paths.workspacePath,
+        baseDir: skill.baseDir,
+        filePath: skill.filePath,
+      });
+      toast.success(t('instances.detail.instanceWorkbench.agents.toasts.skillRemoved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(
+        error?.message || t('instances.detail.instanceWorkbench.agents.toasts.skillRemoveFailed'),
+      );
+    } finally {
+      setRemovingAgentSkillKeys((current) => removePendingId(current, skill.skillKey));
     }
   };
 
@@ -2248,10 +2279,12 @@ export function InstanceDetail() {
           onDeleteAgent={setAgentDeleteId}
           onInstallSkill={handleInstallAgentSkill}
           onSetSkillEnabled={handleSetAgentSkillEnabled}
+          onRemoveSkill={handleRemoveAgentSkill}
           isReadonly={!isOpenClawConfigWritable}
           isLoading={isAgentWorkbenchLoading}
           isInstallingSkill={isInstallingAgentSkill}
           updatingSkillKeys={updatingAgentSkillKeys}
+          removingSkillKeys={removingAgentSkillKeys}
         />
 
         <Dialog open={isAgentDialogOpen} onOpenChange={setIsAgentDialogOpen}>

@@ -62,12 +62,86 @@ runTest('notification settings SDK contract exposes the app-api notification set
   assert.match(notificationSettingsType, /typeSettings\?/);
 });
 
+runTest('feedback SDK contract exposes feedback center resources needed by settings', () => {
+  const feedbackApiSource = readFromRepo(
+    'spring-ai-plus-app-api',
+    'sdkwork-sdk-app',
+    'sdkwork-app-sdk-typescript',
+    'src',
+    'api',
+    'feedback.ts',
+  );
+  const feedbackTypeSource = readFromRepo(
+    'spring-ai-plus-app-api',
+    'sdkwork-sdk-app',
+    'sdkwork-app-sdk-typescript',
+    'src',
+    'types',
+    'feedback-submit-form.ts',
+  );
+
+  assert.ok(
+    existsInRepo(
+      'spring-ai-plus-app-api',
+      'sdkwork-sdk-app',
+      'sdkwork-app-sdk-typescript',
+      'src',
+      'types',
+      'feedback-detail-vo.ts',
+    ),
+    'generated feedback detail VO should exist',
+  );
+  assert.match(feedbackApiSource, /listFeedback/);
+  assert.match(feedbackApiSource, /submit/);
+  assert.match(feedbackApiSource, /getFeedbackDetail/);
+  assert.match(feedbackApiSource, /followUp/);
+  assert.match(feedbackApiSource, /close/);
+  assert.match(feedbackApiSource, /listFaqCategories/);
+  assert.match(feedbackApiSource, /listFaqs/);
+  assert.match(feedbackApiSource, /searchFaqs/);
+  assert.match(feedbackApiSource, /getSupportInfo/);
+  assert.match(feedbackTypeSource, /type: string/);
+  assert.match(feedbackTypeSource, /content: string/);
+});
+
 runTest('sdkwork-claw-settings service uses shared app sdk wrapper instead of infrastructure business http', () => {
   const settingsServiceSource = read('packages/sdkwork-claw-settings/src/services/settingsService.ts');
+  const coreSettingsServiceSource = read('packages/sdkwork-claw-core/src/services/settingsService.ts');
 
-  assert.match(settingsServiceSource, /@sdkwork\/claw-core\/sdk/);
-  assert.match(settingsServiceSource, /getAppSdkClientWithSession/);
-  assert.match(settingsServiceSource, /unwrapAppSdkResponse/);
+  assert.ok(exists('packages/sdkwork-claw-core/src/services/settingsService.ts'));
+  assert.match(settingsServiceSource, /@sdkwork\/claw-core\/services\/settingsService/);
+  assert.doesNotMatch(settingsServiceSource, /getAppSdkClientWithSession/);
+  assert.doesNotMatch(settingsServiceSource, /unwrapAppSdkResponse/);
+  assert.match(coreSettingsServiceSource, /getAppSdkClientWithSession/);
+  assert.match(coreSettingsServiceSource, /unwrapAppSdkResponse/);
   assert.doesNotMatch(settingsServiceSource, /@sdkwork\/claw-infrastructure/);
   assert.doesNotMatch(settingsServiceSource, /studioMockService/);
+});
+
+runTest('sdkwork-claw-settings exposes a feedback settings entry backed by claw-core feedbackCenterService', () => {
+  const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
+  const enLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+
+  assert.ok(
+    exists('packages/sdkwork-claw-settings/src/FeedbackSettings.tsx'),
+    'Feedback settings page should exist',
+  );
+
+  const feedbackSettingsSource = read('packages/sdkwork-claw-settings/src/FeedbackSettings.tsx');
+
+  assert.match(settingsSource, /FeedbackSettings/);
+  assert.match(settingsSource, /id: 'feedback'/);
+  assert.match(settingsSource, /settings\.tabs\.feedback/);
+  assert.match(settingsSource, /activeTab === 'feedback' && <FeedbackSettings \/>/);
+
+  assert.match(feedbackSettingsSource, /@sdkwork\/claw-core/);
+  assert.match(feedbackSettingsSource, /feedbackCenterService/);
+  assert.doesNotMatch(feedbackSettingsSource, /@sdkwork\/claw-infrastructure/);
+  assert.doesNotMatch(feedbackSettingsSource, /\bfetch\(/);
+  assert.doesNotMatch(feedbackSettingsSource, /\baxios\./);
+  assert.doesNotMatch(feedbackSettingsSource, /getAppSdkClientWithSession/);
+
+  assert.match(enLocaleSource, /"feedback": "Feedback"/);
+  assert.match(zhLocaleSource, /"feedback": "反馈"/);
 });

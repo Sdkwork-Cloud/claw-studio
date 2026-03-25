@@ -8,12 +8,24 @@ import type { LLMChannel, LLMModel } from '@sdkwork/claw-settings';
 import type { StudioInstanceDetailRecord, StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
 
+type GatewayModelRecord = {
+  id?: string;
+  name?: string;
+  provider?: string;
+  model?: string;
+  label?: string;
+  title?: string;
+};
+
 type GatewayModelsListResult = {
-  models: Array<{
-    id: string;
-    name: string;
-    provider?: string;
-  }>;
+  models: GatewayModelRecord[];
+};
+
+type GatewayModelIdentity = {
+  providerId: string;
+  modelId: string;
+  modelRef: string;
+  displayName: string;
 };
 
 type RouterCatalogModelEntry = {
@@ -30,10 +42,11 @@ type RouterCatalogModelEntry = {
 
 export interface InstanceEffectiveModelCatalog {
   channels: LLMChannel[];
+  preferredModelId?: string | null;
 }
 
 export interface InstanceEffectiveModelCatalogService {
-  getCatalog(instanceId: string): Promise<InstanceEffectiveModelCatalog>;
+  getCatalog(instanceId: string, agentId?: string | null): Promise<InstanceEffectiveModelCatalog>;
 }
 
 export interface InstanceEffectiveModelCatalogDependencies {
@@ -89,6 +102,11 @@ function normalizePreferredModelId(modelId?: string | null) {
   return trimmed ? trimmed : null;
 }
 
+function trimString(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 function sortChannels(channels: LLMChannel[]) {
   return [...channels].sort((left, right) => left.name.localeCompare(right.name));
 }
@@ -133,18 +151,39 @@ function readModelPrimary(value: unknown) {
   return readStringValue(value, 'primary');
 }
 
-function resolvePreferredOpenClawModelId(configSnapshot: OpenClawConfigSnapshot) {
+function resolvePreferredOpenClawModelId(
+  configSnapshot: OpenClawConfigSnapshot,
+  agentId?: string | null,
+) {
+  const normalizedAgentId = agentId?.trim() || null;
   const agentSnapshots = Array.isArray(configSnapshot.agentSnapshots)
     ? configSnapshot.agentSnapshots
     : [];
+  if (normalizedAgentId) {
+    const selectedAgentSnapshot = agentSnapshots.find((agent) => agent.id === normalizedAgentId);
+    if (selectedAgentSnapshot?.model?.primary) {
+      return normalizePreferredModelId(selectedAgentSnapshot.model.primary);
+    }
+  }
+
+  const agentsRoot = readObjectValue(configSnapshot.root, 'agents');
+  const agentList = readArrayValue(agentsRoot, 'list');
+  if (normalizedAgentId) {
+    const selectedAgentEntry = agentList.find(
+      (entry) => readStringValue(entry, 'id') === normalizedAgentId,
+    );
+    const selectedAgentModelId = readModelPrimary(readObjectValue(selectedAgentEntry, 'model'));
+    if (selectedAgentModelId) {
+      return normalizePreferredModelId(selectedAgentModelId);
+    }
+  }
+
   const defaultAgentSnapshot =
     agentSnapshots.find((agent) => agent.isDefault) || agentSnapshots[0];
   if (defaultAgentSnapshot?.model?.primary) {
     return normalizePreferredModelId(defaultAgentSnapshot.model.primary);
   }
 
-  const agentsRoot = readObjectValue(configSnapshot.root, 'agents');
-  const agentList = readArrayValue(agentsRoot, 'list');
   const defaultAgentEntry =
     agentList.find((entry) => readStringValue(entry, 'id') && (entry as Record<string, unknown>).default === true) ||
     agentList[0];
@@ -181,14 +220,43 @@ function sortModels(models: LLMModel[], preferredModelId?: string | null) {
   });
 }
 
-function buildGatewayModelRef(entry: { id: string; provider?: string }) {
-  const provider = entry.provider?.trim();
-  const id = entry.id.trim();
-  if (!provider || id.startsWith(`${provider}/`)) {
-    return id;
+function resolveGatewayModelIdentity(entry: GatewayModelRecord): GatewayModelIdentity | null {
+  const explicitId = trimString(entry.id);
+  const explicitModel = trimString(entry.model);
+  const explicitName =
+    trimString(entry.name) ?? trimString(entry.label) ?? trimString(entry.title);
+  let providerId = trimString(entry.provider);
+  let modelId = explicitModel ?? explicitId;
+  let modelRef = explicitId ?? explicitModel;
+
+  if (explicitId?.includes('/')) {
+    const separatorIndex = explicitId.indexOf('/');
+    const refProvider = trimString(explicitId.slice(0, separatorIndex));
+    const refModel = trimString(explicitId.slice(separatorIndex + 1));
+    if (refProvider && !providerId) {
+      providerId = refProvider;
+    }
+    if (refModel) {
+      modelId = explicitModel ?? refModel;
+      modelRef = explicitId;
+    }
+  } else if (providerId && modelId) {
+    modelRef = `${providerId}/${modelId}`;
   }
 
-  return `${provider}/${id}`;
+  if (!modelId || !modelRef) {
+    return null;
+  }
+
+  const normalizedProviderId = normalizeProviderId(
+    providerId ?? trimString(modelRef.split('/')[0]) ?? 'openclaw',
+  );
+  return {
+    providerId: normalizedProviderId,
+    modelId,
+    modelRef,
+    displayName: explicitName ?? modelId,
+  };
 }
 
 function buildRouterCatalog(params: {
@@ -285,8 +353,12 @@ function buildRuntimeFallbackChannels(
   const channelMap = new Map<string, LLMChannel>();
 
   for (const model of result.models) {
-    const providerId = normalizeProviderId(model.provider?.trim() || 'openclaw');
-    const modelRef = buildGatewayModelRef(model);
+    const identity = resolveGatewayModelIdentity(model);
+    if (!identity) {
+      continue;
+    }
+
+    const providerId = identity.providerId;
     const channel =
       channelMap.get(providerId) ||
       ({
@@ -298,10 +370,10 @@ function buildRuntimeFallbackChannels(
         icon: resolveChannelIcon(providerId, providerId),
         models: [],
       } satisfies LLMChannel);
-    if (!channel.models.some((entry) => entry.id === modelRef)) {
+    if (!channel.models.some((entry) => entry.id === identity.modelRef)) {
       channel.models.push({
-        id: modelRef,
-        name: model.name || model.id,
+        id: identity.modelRef,
+        name: identity.displayName,
       });
     }
     channelMap.set(providerId, channel);
@@ -331,7 +403,7 @@ class DefaultInstanceEffectiveModelCatalogService
     this.dependencies = dependencies;
   }
 
-  async getCatalog(instanceId: string) {
+  async getCatalog(instanceId: string, agentId?: string | null) {
     const instance = await this.dependencies.getInstance(instanceId);
     if (!instance) {
       return { channels: [] };
@@ -354,25 +426,30 @@ class DefaultInstanceEffectiveModelCatalogService
         channels: groupEntriesToChannels(routerCatalog, {
           useModelRefAsId: false,
         }),
+        preferredModelId: null,
       };
     }
 
     const detail = await this.dependencies.getInstanceDetail(instanceId);
     const configPath = this.dependencies.resolveOpenClawConfigPath(detail);
     const gatewayModels = await this.dependencies.listGatewayModels(instanceId);
-    const runtimeModelRefs = new Set(gatewayModels.models.map((model) => buildGatewayModelRef(model)));
+    const runtimeModelEntries = gatewayModels.models
+      .map((model) => resolveGatewayModelIdentity(model))
+      .filter((model): model is GatewayModelIdentity => model !== null);
+    const runtimeModelRefs = new Set(runtimeModelEntries.map((model) => model.modelRef));
     const runtimeNamesByRef = new Map(
-      gatewayModels.models.map((model) => [buildGatewayModelRef(model), model.name || model.id] as const),
+      runtimeModelEntries.map((model) => [model.modelRef, model.displayName] as const),
     );
 
     if (!configPath) {
       return {
         channels: buildRuntimeFallbackChannels(gatewayModels),
+        preferredModelId: null,
       };
     }
 
     const configSnapshot = await this.dependencies.readOpenClawConfigSnapshot(configPath);
-    const preferredModelId = resolvePreferredOpenClawModelId(configSnapshot);
+    const preferredModelId = resolvePreferredOpenClawModelId(configSnapshot, agentId);
     const configuredProviderIds = new Set(
       configSnapshot.providerSnapshots.map((provider) => normalizeProviderId(provider.id)),
     );
@@ -390,6 +467,7 @@ class DefaultInstanceEffectiveModelCatalogService
               preferredModelId,
             })
           : buildRuntimeFallbackChannels(gatewayModels, preferredModelId),
+      preferredModelId,
     };
   }
 }

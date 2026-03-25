@@ -561,6 +561,134 @@ await runTest(
 );
 
 await runTest(
+  'openclaw gateway session store prefers derived titles or readable previews over opaque session ids during hydration',
+  async () => {
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-readable.json',
+        count: 3,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [
+          {
+            key: 'agent:research:main',
+            derivedTitle: 'Weekly API Router audit',
+            updatedAt: 310,
+            kind: 'direct',
+            model: 'OpenClaw A',
+          },
+          {
+            key: 'claw-studio:instance-a:session-2',
+            lastMessagePreview: '  Summarize the current install flow issues across macOS and Windows  ',
+            updatedAt: 300,
+            kind: 'direct',
+            model: 'OpenClaw A',
+          },
+          {
+            key: 'claw-studio:instance-a:session-3',
+            updatedAt: 290,
+            kind: 'direct',
+            model: 'OpenClaw A',
+          },
+        ],
+      },
+      {
+        'agent:research:main': {
+          thinkingLevel: 'low',
+          messages: [],
+        },
+      },
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 510,
+    });
+
+    await store.hydrateInstance('instance-a');
+    const snapshot = store.getSnapshot('instance-a');
+
+    assert.deepEqual(
+      snapshot.sessions.map((session) => ({
+        id: session.id,
+        title: session.title,
+      })),
+      [
+        {
+          id: 'agent:research:main',
+          title: 'Weekly API Router audit',
+        },
+        {
+          id: 'claw-studio:instance-a:session-2',
+          title: 'Summarize the current install flow issues across macOS and Windows',
+        },
+        {
+          id: 'claw-studio:instance-a:session-3',
+          title: 'New Conversation',
+        },
+      ],
+    );
+  },
+);
+
+await runTest(
+  'openclaw gateway session store ignores weak technical runtime labels and shows readable preview titles during hydration',
+  async () => {
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-technical-labels.json',
+        count: 1,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [
+          {
+            key: 'thread:claw-studio:install-audit',
+            displayName: 'openclaw-tui',
+            label: 'main',
+            lastMessagePreview:
+              '  Use the first user message as a ChatGPT-style title instead of runtime labels  ',
+            updatedAt: 315,
+            kind: 'direct',
+            model: 'OpenClaw A',
+          },
+        ],
+      },
+      {
+        'thread:claw-studio:install-audit': {
+          thinkingLevel: 'medium',
+          messages: [],
+        },
+      },
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 520,
+    });
+
+    await store.hydrateInstance('instance-a');
+    const snapshot = store.getSnapshot('instance-a');
+
+    assert.equal(
+      snapshot.sessions[0]?.title,
+      'Use the first user message as a ChatGPT-style title instead of runtime labels',
+    );
+  },
+);
+
+await runTest(
   'openclaw gateway session store skips sessions.subscribe when hello capabilities say it is unavailable',
   async () => {
     const client = new MockGatewayClient(
@@ -864,6 +992,58 @@ await runTest(
             objectKey: 'chat/2026/03/22/dashboard-shot.png',
           },
         ],
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'openclaw gateway session store accepts explicit upstream agent main session ids for new drafts',
+  async () => {
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-a.json',
+        count: 0,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [],
+      },
+      {},
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 720,
+      createSessionKey(instanceId) {
+        return `claw-studio:${instanceId}:should-not-be-used`;
+      },
+    });
+
+    await store.hydrateInstance('instance-a');
+    const draft = store.createDraftSession('instance-a', 'OpenClaw A', {
+      sessionId: 'agent:research:main',
+    });
+    assert.equal(draft.id, 'agent:research:main');
+
+    await store.sendMessage({
+      instanceId: 'instance-a',
+      sessionId: draft.id,
+      content: 'hello research',
+      model: 'anthropic/claude-3-7-sonnet',
+    });
+
+    assert.deepEqual(client.sendCalls, [
+      {
+        sessionKey: 'agent:research:main',
+        message: 'hello research',
+        deliver: false,
+        idempotencyKey: 'run-1',
       },
     ]);
   },

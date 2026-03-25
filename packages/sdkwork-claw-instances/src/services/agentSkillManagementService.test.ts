@@ -269,3 +269,69 @@ await runTest(
     );
   },
 );
+
+await runTest(
+  'agentSkillManagementService removes workspace-installed skills and clears local config plus ClawHub tracking metadata',
+  async () => {
+    const removedPaths: string[] = [];
+    const deletedConfigEntries: string[] = [];
+    let lockfileContent = JSON.stringify(
+      {
+        version: 1,
+        skills: {
+          'research-skill': {
+            version: '1.0.0',
+            installedAt: 1,
+          },
+          'calendar-skill': {
+            version: '1.1.0',
+            installedAt: 2,
+          },
+        },
+      },
+      null,
+      2,
+    );
+
+    const service = createAgentSkillManagementService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+        saveSkillEntry: async () => null,
+        deleteSkillEntry: async ({ skillKey }: any) => {
+          deletedConfigEntries.push(skillKey);
+          return null;
+        },
+      } as any,
+      platform: {
+        pathExists: async (path: string) =>
+          path === 'D:/OpenClaw/.openclaw/workspace/skills/research-skill' ||
+          path === 'D:/OpenClaw/.openclaw/workspace/.clawhub/lock.json',
+        removePath: async (path: string) => {
+          removedPaths.push(path);
+        },
+        readFile: async () => lockfileContent,
+        writeFile: async (_path: string, content: string) => {
+          lockfileContent = content;
+        },
+      } as any,
+    } as any);
+
+    await service.removeSkill({
+      instanceId: 'openclaw-instance',
+      skillKey: 'research-skill',
+      scope: 'workspace',
+      baseDir: 'D:/OpenClaw/.openclaw/workspace/skills/research-skill',
+      workspacePath: 'D:/OpenClaw/.openclaw/workspace',
+    });
+
+    assert.deepEqual(removedPaths, [
+      'D:/OpenClaw/.openclaw/workspace/skills/research-skill',
+    ]);
+    assert.deepEqual(deletedConfigEntries, ['research-skill']);
+    assert.equal(lockfileContent.includes('research-skill'), false);
+    assert.equal(lockfileContent.includes('calendar-skill'), true);
+  },
+);

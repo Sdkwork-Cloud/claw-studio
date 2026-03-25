@@ -118,10 +118,21 @@ runTest('sdkwork-claw-apirouter page keeps the management workspace without the 
   assert.match(pageSource, /<UnifiedApiKeyManager/);
   assert.match(pageSource, /<ModelMappingManager/);
   assert.match(pageSource, /<ApiRouterUsageRecordsPage/);
-  assert.match(pageSource, /apiRouterAdminService\.getStatus/);
-  assert.match(pageSource, /adminStatusQuery/);
-  assert.match(pageSource, /showManagementPanels = Boolean\(adminStatusQuery\.data\?\.authenticated\)/);
-  assert.match(pageSource, /showManagementPanels/);
+  assert.match(pageSource, /queryFn: \(\) => apiRouterService\.getChannels\(\)/);
+  assert.match(pageSource, /queryFn: \(\) => apiRouterService\.getGroups\(\)/);
+  assert.match(pageSource, /resolveApiRouterPageViewState\(\{/);
+  assert.match(pageSource, /selectedChannelId: routeConfigChannelId/);
+  assert.match(pageSource, /activePageTab === 'unified-api-key'/);
+  assert.match(pageSource, /activePageTab === 'route-config'/);
+  assert.match(pageSource, /activePageTab === 'model-mapping'/);
+  assert.doesNotMatch(pageSource, /apiRouterAdminService\.getStatus/);
+  assert.doesNotMatch(pageSource, /adminStatusQuery/);
+  assert.doesNotMatch(pageSource, /showManagementPanels/);
+  assert.doesNotMatch(pageSource, /data-slot="api-router-page-status"/);
+  assert.doesNotMatch(pageSource, /apiRouterPage\.admin\.messages\./);
+  assert.doesNotMatch(pageSource, /canLoadRouteConfigMetadata/);
+  assert.doesNotMatch(pageSource, /routeConfigViewState\.showManagementPanels/);
+  assert.doesNotMatch(pageSource, /routeConfigViewState\.showPageTabs \?/);
   assert.match(adminStatusServiceSource, /allowsManualLogin/);
   assert.match(adminStatusServiceSource, /allowsManualDisconnect/);
   assert.match(adminStatusServiceSource, /'needsConfiguration'/);
@@ -236,9 +247,16 @@ runTest('sdkwork-claw-apirouter page keeps the management workspace without the 
   assert.match(unifiedTableSource, /apiRouterPage\.unifiedApiKey\.table\.createdAt/);
   assert.match(unifiedTableSource, /apiRouterPage\.unifiedApiKey\.table\.source/);
   assert.match(unifiedTableSource, /apiRouterPage\.unifiedApiKey\.actions\.usageMethod/);
-  assert.match(unifiedTableSource, /apiRouterPage\.unifiedApiKey\.actions\.associateModelMapping/);
+  assert.match(unifiedTableSource, /apiRouterPage\.unifiedApiKey\.actions\.routeConfig/);
   assert.match(unifiedDialogSource, /apiRouterPage\.unifiedApiKey\.fields\.keyMode/);
-  assert.match(unifiedDialogSource, /apiRouterPage\.unifiedApiKey\.dialogs\.associateModelMappingTitle/);
+  assert.match(unifiedDialogSource, /apiRouterPage\.unifiedApiKey\.dialogs\.routeConfigTitle/);
+  assert.match(unifiedDialogSource, /buildUnifiedApiKeyRouteConfigOptions/);
+  assert.match(unifiedDialogSource, /resolveUnifiedApiKeyRouteConfigMeta/);
+  assert.match(
+    unifiedDialogSource,
+    /apiRouterPage\.unifiedApiKey\.routeConfig\.sidebar\.sdkworkRemote\.title/,
+  );
+  assert.match(unifiedDialogSource, /apiRouterPage\.unifiedApiKey\.routeConfig\.custom\.title/);
   assert.match(unifiedDialogSource, /apiRouterPage\.unifiedApiKey\.fields\.generateKey/);
   assert.match(unifiedDialogSource, /apiRouterPage\.unifiedApiKey\.fields\.customKey/);
   assert.match(unifiedDialogSource, /buildUnifiedApiKeyAccessClientConfigs/);

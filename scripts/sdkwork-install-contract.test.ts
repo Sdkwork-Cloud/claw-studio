@@ -74,8 +74,8 @@ runTest('sdkwork-claw-install renders a simplified product-first page and launch
   assert.doesNotMatch(installSource, /guidedInstallComplete/);
 
   assert.match(pageModelSource, /openclaw/);
-  assert.match(pageModelSource, /zeroclaw/);
-  assert.match(pageModelSource, /ironclaw/);
+  assert.doesNotMatch(pageModelSource, /zeroclaw/);
+  assert.doesNotMatch(pageModelSource, /ironclaw/);
   assert.match(pageModelSource, /GUIDED_INSTALL_STEPS/);
   assert.match(pageModelSource, /dependencies/);
   assert.match(pageModelSource, /configure/);
@@ -159,7 +159,8 @@ runTest('sdkwork-claw-install gives OpenClaw a dedicated file-backed guided wiza
   );
 
   assert.match(installSource, /OpenClawGuidedInstallWizard/);
-  assert.match(installSource, /product\.id === 'openclaw'/);
+  assert.match(installSource, /shouldShowProductSidebar/);
+  assert.match(installSource, /navigate\(`\/install\/\$\{choice\.id\}`\)/);
   assert.match(openClawWizardSource, /ChannelCatalog/);
   assert.match(openClawWizardSource, /Dialog(Content|Header|Footer|Title|Description)?/);
   assert.match(openClawWizardSource, /configurationStatus === 'skipped'|setConfigurationStatus\('skipped'\)/);
@@ -258,25 +259,25 @@ runTest('sdkwork-claw-install keeps hub-installer as an updateable git submodule
     /migration:/,
   );
   assert.match(
-    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/zeroclaw-source.hub.yaml'),
-    /previewCommands:/,
+    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-source.hub.yaml'),
+    /pnpm link --global/,
   );
   assert.match(
-    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/ironclaw-source.hub.yaml'),
-    /uninstallByDefault: "manual"/,
+    read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw.hub.yaml'),
+    /documentationUrl: "https:\/\/docs\.openclaw\.ai\/install\/installer"/,
   );
 });
 
-runTest('sdkwork-claw-install keeps uninstall and migration flows simple and truthful for every product', () => {
+runTest('sdkwork-claw-install keeps uninstall and migration flows simple and truthful for OpenClaw', () => {
   const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
   const pageModelSource = read(
     'packages/sdkwork-claw-install/src/pages/install/installPageModel.ts',
   );
-  const zeroclawManifest = read(
-    'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/zeroclaw-source.hub.yaml',
+  const openclawSourceManifest = read(
+    'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-source.hub.yaml',
   );
-  const ironclawManifest = read(
-    'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/ironclaw-source.hub.yaml',
+  const openclawInstallerManifest = read(
+    'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw.hub.yaml',
   );
   const enLocale = read('packages/sdkwork-claw-i18n/src/locales/en.json');
   const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
@@ -285,8 +286,10 @@ runTest('sdkwork-claw-install keeps uninstall and migration flows simple and tru
   assert.match(installSource, /selectedMigrationIds/);
   assert.match(pageModelSource, /migrationDefinitions/);
   assert.match(pageModelSource, /uninstallMethods/);
-  assert.match(zeroclawManifest, /uninstall:/);
-  assert.match(ironclawManifest, /uninstall:/);
+  assert.match(openclawSourceManifest, /openclaw-source-unlink/);
+  assert.match(openclawInstallerManifest, /uninstallByDefault: "preserve"/);
+  assert.doesNotMatch(pageModelSource, /zeroclaw/);
+  assert.doesNotMatch(pageModelSource, /ironclaw/);
 
   assert.match(enLocale, /Uninstall {{product}}/);
   assert.match(enLocale, /Migrate {{product}}/);

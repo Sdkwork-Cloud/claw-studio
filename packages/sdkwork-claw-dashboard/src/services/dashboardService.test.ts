@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { sdkworkApiRouterAdminClient } from '@sdkwork/claw-infrastructure';
+import { dashboardCommerceService } from '@sdkwork/claw-core';
 import { dashboardService } from './dashboardService.ts';
 
 async function runTest(name: string, fn: () => Promise<void>) {
@@ -13,6 +14,7 @@ async function runTest(name: string, fn: () => Promise<void>) {
 }
 
 const originalListUsageRecords = sdkworkApiRouterAdminClient.listUsageRecords;
+const originalGetCommerceSnapshot = dashboardCommerceService.getCommerceSnapshot;
 
 function buildUsageRecord(
   projectId: string,
@@ -113,7 +115,7 @@ await runTest('dashboardService builds token analytics for the dashboard snapsho
   assert.equal(customSnapshot.tokenAnalytics.customRange?.start, '2026-03-01');
   assert.equal(customSnapshot.tokenAnalytics.customRange?.end, '2026-03-18');
   assert.equal(customSnapshot.tokenAnalytics.totalTokens, 500);
-  assert.ok(customSnapshot.revenueAnalytics.revenueTrend.length > 0);
+  assert.equal(customSnapshot.revenueAnalytics.totalRevenue, 0);
 });
 
 await runTest('dashboardService returns an empty token snapshot when router usage records are unavailable', async () => {
@@ -136,4 +138,107 @@ await runTest('dashboardService returns an empty token snapshot when router usag
   assert.equal(snapshot.activityFeed.recentApiCalls.length, 0);
 });
 
+await runTest('dashboardService surfaces commerce data from claw-core app sdk wrapper', async () => {
+  sdkworkApiRouterAdminClient.listUsageRecords = async () => [
+    buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 24, 9)),
+  ];
+  dashboardCommerceService.getCommerceSnapshot = async () => ({
+    businessSummary: {
+      todayRevenue: 120,
+      weekRevenue: 200,
+      monthRevenue: 240,
+      yearRevenue: 240,
+      todayOrders: 1,
+      weekOrders: 3,
+      monthOrders: 4,
+      yearOrders: 4,
+      averageOrderValue: 66.67,
+      conversionRate: 33.3,
+      revenueDelta: 400,
+    },
+    revenueAnalytics: {
+      granularity: 'day',
+      rangeMode: 'seven_days',
+      totalRevenue: 200,
+      dailyRevenue: 28.57,
+      projectedMonthlyRevenue: 857.1,
+      totalOrders: 3,
+      averageOrderValue: 66.67,
+      peakRevenueLabel: '03-24',
+      peakRevenueValue: 120,
+      deltaPercentage: 400,
+      revenueTrend: [
+        {
+          label: '03-24',
+          bucketKey: '2026-03-24',
+          revenue: 120,
+          orders: 1,
+          averageOrderValue: 120,
+        },
+      ],
+      productBreakdown: [
+        {
+          id: '11',
+          productName: 'VIP Membership',
+          orders: 1,
+          revenue: 120,
+          share: 60,
+          dailyRevenue: 17.14,
+        },
+      ],
+    },
+    recentRevenueRecords: [
+      {
+        id: 'record-1',
+        timestamp: '2026-03-24T09:00:00Z',
+        productName: 'VIP Membership',
+        orderNo: 'SN-001',
+        revenueAmount: 120,
+        channel: 'app',
+        status: 'completed',
+      },
+    ],
+    productPerformance: [
+      {
+        id: '11',
+        productName: 'VIP Membership',
+        revenue: 120,
+        orders: 1,
+        share: 60,
+        trendDelta: 200,
+      },
+    ],
+  });
+
+  const snapshot = await dashboardService.getSnapshot({
+    granularity: 'day',
+    rangeMode: 'seven_days',
+  });
+
+  assert.equal(snapshot.businessSummary.todayRevenue, 120);
+  assert.equal(snapshot.revenueAnalytics.productBreakdown[0]?.productName, 'VIP Membership');
+  assert.equal(snapshot.activityFeed.recentRevenueRecords[0]?.status, 'completed');
+  assert.equal(snapshot.activityFeed.productPerformance[0]?.productName, 'VIP Membership');
+});
+
+await runTest('dashboardService keeps token analytics available when commerce sdk loading fails', async () => {
+  sdkworkApiRouterAdminClient.listUsageRecords = async () => [
+    buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 24, 9)),
+  ];
+  dashboardCommerceService.getCommerceSnapshot = async () => {
+    throw new Error('commerce unavailable');
+  };
+
+  const snapshot = await dashboardService.getSnapshot({
+    granularity: 'day',
+    rangeMode: 'seven_days',
+  });
+
+  assert.equal(snapshot.tokenAnalytics.totalTokens, 140);
+  assert.equal(snapshot.revenueAnalytics.totalRevenue, 0);
+  assert.deepEqual(snapshot.activityFeed.recentRevenueRecords, []);
+  assert.deepEqual(snapshot.activityFeed.productPerformance, []);
+});
+
 sdkworkApiRouterAdminClient.listUsageRecords = originalListUsageRecords;
+dashboardCommerceService.getCommerceSnapshot = originalGetCommerceSnapshot;

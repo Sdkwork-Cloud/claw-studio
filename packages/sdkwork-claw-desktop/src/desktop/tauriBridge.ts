@@ -1120,6 +1120,19 @@ export async function getApiRouterRuntimeStatus(): Promise<DesktopApiRouterRunti
   );
 }
 
+export async function ensureApiRouterRuntimeStarted(): Promise<DesktopApiRouterRuntimeStatus | null> {
+  return runDesktopOrFallback(
+    'runtime.ensureApiRouterRuntimeStarted',
+    () =>
+      invokeDesktopCommand<DesktopApiRouterRuntimeStatus>(
+        DESKTOP_COMMANDS.ensureApiRouterRuntimeStarted,
+        undefined,
+        { operation: 'runtime.ensureApiRouterRuntimeStarted' },
+      ),
+    async () => null,
+  );
+}
+
 export async function getApiRouterAdminBootstrapSession(): Promise<DesktopApiRouterAdminBootstrapSession | null> {
   return runDesktopOrFallback(
     'runtime.getApiRouterAdminBootstrapSession',
@@ -1251,6 +1264,7 @@ export const desktopTemplateApi = {
   },
   runtime: {
     getInfo: getRuntimeInfo,
+    ensureApiRouterRuntimeStarted,
     getApiRouterAdminBootstrapSession,
     getApiRouterRuntimeStatus,
     setAppLanguage,
@@ -1362,6 +1376,7 @@ export function configureDesktopPlatformBridge() {
     },
     runtime: {
       getRuntimeInfo: () => getRuntimeInfo(),
+      ensureApiRouterRuntimeStarted: () => ensureApiRouterRuntimeStarted(),
       getApiRouterAdminBootstrapSession: () => getApiRouterAdminBootstrapSession(),
       getApiRouterRuntimeStatus: () => getApiRouterRuntimeStatus(),
       setAppLanguage: (language) => setAppLanguage(language),

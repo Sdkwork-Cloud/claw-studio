@@ -1,6 +1,9 @@
 import type {
   StudioConversationAttachment,
 } from '@sdkwork/claw-types';
+import {
+  deriveChatSessionTitleFromMessage,
+} from './chatSessionTitlePresentation.ts';
 
 export function buildGatewayAttachments(
   attachments: StudioConversationAttachment[],
@@ -54,15 +57,5 @@ export function deriveUserMessageTitle(params: {
   text: string;
   attachments: StudioConversationAttachment[];
 }) {
-  const trimmedText = params.text.trim();
-  if (trimmedText) {
-    return trimmedText;
-  }
-
-  const attachmentLabel = params.attachments
-    .map((attachment) => attachment.name.trim())
-    .filter(Boolean)
-    .join(', ');
-
-  return attachmentLabel || 'New Conversation';
+  return deriveChatSessionTitleFromMessage(params);
 }

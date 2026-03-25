@@ -534,6 +534,11 @@ export class OpenClawGatewayClient {
     key: string;
     label?: string | null;
     model?: string | null;
+    thinkingLevel?: string | null;
+    fastMode?: boolean | null;
+    verboseLevel?: string | null;
+    reasoningLevel?: string | null;
+    contextTokens?: number | null;
   }) {
     return this.request<OpenClawGatewaySessionsPatchResult>('sessions.patch', params);
   }

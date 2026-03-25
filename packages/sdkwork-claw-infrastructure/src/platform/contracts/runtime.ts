@@ -425,6 +425,7 @@ export interface RuntimeInfo {
 export interface RuntimePlatformAPI {
   getRuntimeInfo(): Promise<RuntimeInfo>;
   getApiRouterRuntimeStatus(): Promise<RuntimeApiRouterRuntimeStatus | null>;
+  ensureApiRouterRuntimeStarted?(): Promise<RuntimeApiRouterRuntimeStatus | null>;
   getApiRouterAdminBootstrapSession(): Promise<RuntimeApiRouterAdminBootstrapSession | null>;
   setAppLanguage(language: RuntimeLanguagePreference): Promise<void>;
   submitProcessJob(profileId: string): Promise<string>;

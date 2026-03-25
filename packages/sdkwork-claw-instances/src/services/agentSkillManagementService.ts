@@ -1,5 +1,6 @@
 import {
   openClawGatewayClient,
+  platform,
   studio,
 } from '@sdkwork/claw-infrastructure';
 import { openClawConfigService } from '@sdkwork/claw-core';
@@ -28,6 +29,16 @@ interface AgentSkillManagementDependencies {
       apiKey?: string;
       env?: Record<string, string>;
     }): Promise<unknown>;
+    deleteSkillEntry(input: {
+      configPath: string;
+      skillKey: string;
+    }): Promise<unknown>;
+  };
+  platform: {
+    pathExists(path: string): Promise<boolean>;
+    removePath(path: string): Promise<void>;
+    readFile(path: string): Promise<string>;
+    writeFile(path: string, content: string): Promise<void>;
   };
 }
 
@@ -35,6 +46,7 @@ export interface AgentSkillManagementServiceDependencyOverrides {
   studioApi?: Partial<AgentSkillManagementDependencies['studioApi']>;
   openClawGatewayClient?: Partial<AgentSkillManagementDependencies['openClawGatewayClient']>;
   openClawConfigService?: Partial<AgentSkillManagementDependencies['openClawConfigService']>;
+  platform?: Partial<AgentSkillManagementDependencies['platform']>;
 }
 
 export interface InstallAgentSkillInput {
@@ -50,6 +62,125 @@ export interface SetAgentSkillEnabledInput {
   instanceId: string;
   skillKey: string;
   enabled: boolean;
+}
+
+export interface RemoveAgentSkillInput {
+  instanceId: string;
+  skillKey: string;
+  scope: 'workspace' | 'managed' | 'bundled' | 'unknown';
+  workspacePath?: string | null;
+  baseDir?: string | null;
+  filePath?: string | null;
+}
+
+function normalizePath(path?: string | null) {
+  const trimmed = path?.trim();
+  return trimmed ? trimmed.replace(/\\/g, '/') : null;
+}
+
+function getParentDirectory(path?: string | null) {
+  const normalized = normalizePath(path)?.replace(/\/+$/g, '');
+  if (!normalized) {
+    return null;
+  }
+
+  const lastSlashIndex = normalized.lastIndexOf('/');
+  if (lastSlashIndex <= 0) {
+    return normalized;
+  }
+
+  return normalized.slice(0, lastSlashIndex);
+}
+
+function joinPath(root?: string | null, ...segments: string[]) {
+  const normalizedRoot = normalizePath(root);
+  if (!normalizedRoot) {
+    return null;
+  }
+
+  return [normalizedRoot.replace(/\/+$/g, ''), ...segments].join('/');
+}
+
+function resolveWorkspacePath(input: RemoveAgentSkillInput) {
+  const explicitWorkspacePath = normalizePath(input.workspacePath);
+  if (explicitWorkspacePath) {
+    return explicitWorkspacePath;
+  }
+
+  const baseDir = normalizePath(input.baseDir) || getParentDirectory(input.filePath);
+  const skillsDirectory = getParentDirectory(baseDir);
+  if (!skillsDirectory?.endsWith('/skills')) {
+    return null;
+  }
+
+  return getParentDirectory(skillsDirectory);
+}
+
+function resolveRemovalTargetPath(input: RemoveAgentSkillInput) {
+  return normalizePath(input.baseDir) || getParentDirectory(input.filePath);
+}
+
+async function updateTrackedClawHubLockfile(params: {
+  platform: AgentSkillManagementDependencies['platform'];
+  workspacePath: string | null;
+  skillKey: string;
+}) {
+  const workspacePath = normalizePath(params.workspacePath);
+  if (!workspacePath) {
+    return;
+  }
+
+  const candidatePaths = [
+    joinPath(workspacePath, '.clawhub', 'lock.json'),
+    joinPath(workspacePath, '.clawdhub', 'lock.json'),
+  ].filter((value): value is string => Boolean(value));
+
+  let lockfilePath: string | null = null;
+  for (const candidatePath of candidatePaths) {
+    if (await params.platform.pathExists(candidatePath)) {
+      lockfilePath = candidatePath;
+      break;
+    }
+  }
+
+  if (!lockfilePath) {
+    return;
+  }
+
+  const rawContent = await params.platform.readFile(lockfilePath);
+  let parsed: Record<string, unknown>;
+  try {
+    const candidate = JSON.parse(rawContent);
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      throw new Error('invalid lockfile payload');
+    }
+    parsed = candidate as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(
+      `Failed to update the tracked ClawHub installs for "${params.skillKey}": ${
+        error instanceof Error ? error.message : 'invalid lockfile'
+      }`,
+    );
+  }
+
+  const skillsRoot =
+    parsed.skills && typeof parsed.skills === 'object' && !Array.isArray(parsed.skills)
+      ? { ...(parsed.skills as Record<string, unknown>) }
+      : {};
+  delete skillsRoot[params.skillKey];
+
+  await params.platform.writeFile(
+    lockfilePath,
+    `${JSON.stringify(
+      {
+        ...parsed,
+        version: typeof parsed.version === 'number' ? parsed.version : 1,
+        skills: skillsRoot,
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
@@ -145,6 +276,49 @@ class AgentSkillManagementService {
       throw new Error(readErrorMessage(result) || 'Failed to update the selected OpenClaw skill.');
     }
   }
+
+  async removeSkill(input: RemoveAgentSkillInput) {
+    const skillKey = input.skillKey.trim();
+    if (!skillKey) {
+      throw new Error('Skill key is required before removing a skill.');
+    }
+
+    if (input.scope !== 'workspace') {
+      throw new Error(
+        'Only workspace-installed OpenClaw skills can be removed directly. Shared managed and bundled skills must be handled outside the current workspace.',
+      );
+    }
+
+    const detail = await this.dependencies.studioApi.getInstanceDetail(input.instanceId);
+    if (!isOpenClawDetail(detail)) {
+      throw new Error('Only OpenClaw instances support skill removal.');
+    }
+
+    const removalTargetPath = resolveRemovalTargetPath(input);
+    if (!removalTargetPath) {
+      throw new Error('Workspace skill path is required before removing the selected skill.');
+    }
+
+    if (await this.dependencies.platform.pathExists(removalTargetPath)) {
+      await this.dependencies.platform.removePath(removalTargetPath);
+    }
+
+    await updateTrackedClawHubLockfile({
+      platform: this.dependencies.platform,
+      workspacePath: resolveWorkspacePath(input),
+      skillKey,
+    });
+
+    const configPath = detail.lifecycle.configWritable
+      ? this.dependencies.openClawConfigService.resolveInstanceConfigPath(detail)
+      : null;
+    if (configPath) {
+      await this.dependencies.openClawConfigService.deleteSkillEntry({
+        configPath,
+        skillKey,
+      });
+    }
+  }
 }
 
 function createDefaultDependencies(): AgentSkillManagementDependencies {
@@ -159,6 +333,13 @@ function createDefaultDependencies(): AgentSkillManagementDependencies {
     openClawConfigService: {
       resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
       saveSkillEntry: (input) => openClawConfigService.saveSkillEntry(input),
+      deleteSkillEntry: (input) => openClawConfigService.deleteSkillEntry(input),
+    },
+    platform: {
+      pathExists: (path) => platform.pathExists(path),
+      removePath: (path) => platform.removePath(path),
+      readFile: (path) => platform.readFile(path),
+      writeFile: (path, content) => platform.writeFile(path, content),
     },
   };
 }
@@ -180,6 +361,10 @@ export function createAgentSkillManagementService(
     openClawConfigService: {
       ...defaults.openClawConfigService,
       ...(overrides.openClawConfigService || {}),
+    },
+    platform: {
+      ...defaults.platform,
+      ...(overrides.platform || {}),
     },
   });
 }

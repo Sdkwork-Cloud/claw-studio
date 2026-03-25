@@ -159,6 +159,9 @@ importers:
 
   packages/sdkwork-claw-apps:
     dependencies:
+      '@sdkwork/claw-core':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-core
       '@sdkwork/claw-infrastructure':
         specifier: workspace:*
         version: link:../sdkwork-claw-infrastructure
@@ -192,9 +195,15 @@ importers:
       '@sdkwork/claw-core':
         specifier: workspace:*
         version: link:../sdkwork-claw-core
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
       lucide-react:
         specifier: ^0.546.0
         version: 0.546.0(react@19.2.4)
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       react:
         specifier: ^19.0.0
         version: 19.2.4
@@ -204,6 +213,9 @@ importers:
       react-router-dom:
         specifier: ^7.13.1
         version: 7.13.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
   packages/sdkwork-claw-center:
     dependencies:
@@ -465,6 +477,9 @@ importers:
 
   packages/sdkwork-claw-dashboard:
     dependencies:
+      '@sdkwork/claw-core':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-core
       '@sdkwork/claw-infrastructure':
         specifier: workspace:*
         version: link:../sdkwork-claw-infrastructure
@@ -811,6 +826,33 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
+  packages/sdkwork-claw-mall:
+    dependencies:
+      '@sdkwork/claw-core':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-core
+      '@types/react':
+        specifier: ^19.2.2
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.2
+        version: 19.2.3(@types/react@19.2.14)
+      lucide-react:
+        specifier: ^0.546.0
+        version: 0.546.0(react@19.2.4)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.4(react@19.2.4)
+      react-i18next:
+        specifier: ^16.1.0
+        version: 16.5.8(i18next@25.8.18(typescript@5.8.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.8.3)
+      react-router-dom:
+        specifier: ^7.13.1
+        version: 7.13.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+
   packages/sdkwork-claw-market:
     dependencies:
       '@sdkwork/claw-core':
@@ -1017,6 +1059,9 @@ importers:
       '@sdkwork/claw-instances':
         specifier: workspace:*
         version: link:../sdkwork-claw-instances
+      '@sdkwork/claw-mall':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-mall
       '@sdkwork/claw-market':
         specifier: workspace:*
         version: link:../sdkwork-claw-market

@@ -1,0 +1,19 @@
+{
+  "name": "@sdkwork/claw-mall",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@sdkwork/claw-core": "workspace:*",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-i18next": "^16.1.0",
+    "react-router-dom": "^7.13.1"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

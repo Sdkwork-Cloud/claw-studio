@@ -127,6 +127,16 @@ pub fn resolve_paths<R: Runtime>(app: &AppHandle<R>) -> Result<AppPaths> {
     Ok(paths)
 }
 
+pub(crate) fn resolve_paths_from_current_process() -> Result<AppPaths> {
+    let paths = build_paths(
+        resolve_install_root()?,
+        resolve_machine_root_from_current_process()?,
+        resolve_user_root_from_current_process()?,
+    );
+    ensure_runtime_directories(&paths)?;
+    Ok(paths)
+}
+
 #[cfg(test)]
 pub fn resolve_paths_for_root(root: &std::path::Path) -> Result<AppPaths> {
     let paths = build_paths(
@@ -276,11 +286,21 @@ fn resolve_install_root() -> Result<PathBuf> {
 
 #[cfg(windows)]
 fn resolve_machine_root<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf> {
+    resolve_machine_root_from_env()
+}
+
+#[cfg(windows)]
+fn resolve_machine_root_from_env() -> Result<PathBuf> {
     let base = std::env::var_os("ProgramData")
         .map(PathBuf::from)
         .ok_or_else(|| FrameworkError::NotFound("ProgramData environment variable".to_string()))?;
 
     Ok(base.join("SdkWork").join("CrawStudio"))
+}
+
+#[cfg(windows)]
+fn resolve_machine_root_from_current_process() -> Result<PathBuf> {
+    resolve_machine_root_from_env()
 }
 
 #[cfg(not(windows))]
@@ -292,13 +312,34 @@ fn resolve_machine_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
         .map_err(FrameworkError::from)
 }
 
+#[cfg(not(windows))]
+fn resolve_machine_root_from_current_process() -> Result<PathBuf> {
+    let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+    dirs::data_dir()
+        .map(|path| {
+            path.join(context.config().identifier.as_str())
+                .join("machine")
+        })
+        .ok_or_else(|| FrameworkError::NotFound("platform app data directory".to_string()))
+}
+
 #[cfg(windows)]
 fn resolve_user_root<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf> {
+    resolve_user_root_from_env()
+}
+
+#[cfg(windows)]
+fn resolve_user_root_from_env() -> Result<PathBuf> {
     let base = std::env::var_os("USERPROFILE")
         .map(PathBuf::from)
         .ok_or_else(|| FrameworkError::NotFound("USERPROFILE environment variable".to_string()))?;
 
     Ok(base.join(".sdkwork").join("crawstudio"))
+}
+
+#[cfg(windows)]
+fn resolve_user_root_from_current_process() -> Result<PathBuf> {
+    resolve_user_root_from_env()
 }
 
 #[cfg(not(windows))]
@@ -308,6 +349,13 @@ fn resolve_user_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
         .home_dir()
         .map(|path| path.join(".sdkwork").join("crawstudio"))
         .map_err(FrameworkError::from)
+}
+
+#[cfg(not(windows))]
+fn resolve_user_root_from_current_process() -> Result<PathBuf> {
+    dirs::home_dir()
+        .map(|path| path.join(".sdkwork").join("crawstudio"))
+        .ok_or_else(|| FrameworkError::NotFound("user home directory".to_string()))
 }
 
 pub fn ensure_runtime_directories(paths: &AppPaths) -> Result<()> {

@@ -14,7 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { useInstanceStore } from '@sdkwork/claw-core';
+import { useAuthStore, useInstanceStore } from '@sdkwork/claw-core';
 import { Input, Modal } from '@sdkwork/claw-ui';
 import type { Skill, SkillPack } from '@sdkwork/claw-types';
 import {
@@ -38,7 +38,13 @@ import {
   SkillAvatar,
   SkillCard,
 } from './marketViewComponents';
-import { instanceService, marketService, mySkillService, type Instance } from '../services';
+import {
+  instanceService,
+  marketService,
+  mySkillService,
+  type Instance,
+  type MarketCategory,
+} from '../services';
 
 type MarketTab = 'skills' | 'packages' | 'mySkills';
 
@@ -58,6 +64,7 @@ function areIdListsEqual(left: string[], right: string[]) {
 
 export function Market() {
   const { t, i18n } = useTranslation();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { activeInstanceId } = useInstanceStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -80,14 +87,34 @@ export function Market() {
   const formatInstanceStatus = (status: Instance['status']) =>
     status === 'online' ? t('market.status.online') : t('market.status.offline');
 
+  const { data: marketCategories = [] } = useQuery<MarketCategory[]>({
+    queryKey: ['skillCategories', isAuthenticated],
+    queryFn: marketService.getCategories,
+    enabled: isAuthenticated,
+  });
+  const selectedCategory = React.useMemo(
+    () => marketCategories.find((category) => category.name === activeCategory),
+    [activeCategory, marketCategories],
+  );
+
   const { data: skills = [], isLoading: isLoadingSkills } = useQuery<Skill[]>({
-    queryKey: ['skills'],
-    queryFn: marketService.getSkills,
+    queryKey: ['skills', isAuthenticated, activeTab, deferredSearchQuery, selectedCategory?.id],
+    queryFn: () =>
+      marketService.getSkills({
+        keyword: deferredSearchQuery || undefined,
+        categoryId: selectedCategory?.id,
+      }),
+    enabled: isAuthenticated && activeTab === 'skills',
   });
 
   const { data: packs = [], isLoading: isLoadingPacks } = useQuery<SkillPack[]>({
-    queryKey: ['packs'],
-    queryFn: marketService.getPacks,
+    queryKey: ['packs', isAuthenticated, activeTab, deferredSearchQuery, selectedCategory?.id],
+    queryFn: () =>
+      marketService.getPacks({
+        keyword: deferredSearchQuery || undefined,
+        categoryId: selectedCategory?.id,
+      }),
+    enabled: isAuthenticated && activeTab === 'packages',
   });
 
   const { data: mySkills = [], isLoading: isLoadingMySkills } = useQuery<Skill[]>({
@@ -276,13 +303,13 @@ export function Market() {
 
   const skillCatalog = createSkillCatalog({
     skills,
-    keyword: deferredSearchQuery,
-    activeCategory,
+    keyword: '',
+    activeCategory: 'All',
   });
   const packCatalog = createPackCatalog({
     packs,
-    keyword: deferredSearchQuery,
-    activeCategory,
+    keyword: '',
+    activeCategory: 'All',
   });
   const mySkillsCatalog = createMySkillsCatalog({
     skills: mySkills,
@@ -292,13 +319,27 @@ export function Market() {
   const skillGridStyle = createSkillCatalogGridStyle(skillCatalog.skills.length);
   const packGridStyle = createPackCatalogGridStyle(packCatalog.packs.length);
   const mySkillsGridStyle = createMySkillsCatalogGridStyle(mySkillsCatalog.skills.length);
+  const marketCategoryOptions = React.useMemo(() => {
+    const normalized = Array.from(
+      new Set(
+        marketCategories
+          .map((category) => category.name.trim())
+          .filter((category) => Boolean(category) && category !== 'All'),
+      ),
+    );
+    return normalized.length > 0 ? ['All', ...normalized] : [];
+  }, [marketCategories]);
 
   const activeCategories =
     activeTab === 'packages'
-      ? packCatalog.categories
+      ? marketCategoryOptions.length > 0
+        ? marketCategoryOptions
+        : packCatalog.categories
       : activeTab === 'mySkills'
         ? mySkillsCatalog.categories
-        : skillCatalog.categories;
+        : marketCategoryOptions.length > 0
+          ? marketCategoryOptions
+          : skillCatalog.categories;
 
   React.useEffect(() => {
     if (!activeCategories.includes(activeCategory)) {
@@ -311,6 +352,8 @@ export function Market() {
     (activeTab === 'skills' && isLoadingSkills) ||
     (activeTab === 'packages' && isLoadingPacks) ||
     (activeTab === 'mySkills' && !!activeInstanceId && isLoadingMySkills);
+  const showCatalogAuthState =
+    !isAuthenticated && (activeTab === 'skills' || activeTab === 'packages');
   const searchPlaceholder =
     activeTab === 'packages'
       ? t('market.search.placeholders.packages')
@@ -405,7 +448,13 @@ export function Market() {
                 count={skillCatalog.skills.length}
               />
 
-              {skillCatalog.skills.length > 0 ? (
+              {showCatalogAuthState ? (
+                <EmptyState
+                  icon={<AlertCircle className="h-6 w-6" />}
+                  title={t('market.empty.signInRequiredTitle')}
+                  description={t('market.empty.signInRequiredDescription')}
+                />
+              ) : skillCatalog.skills.length > 0 ? (
                 <div className="grid items-stretch gap-4" style={skillGridStyle}>
                   {skillCatalog.skills.map((skill) => (
                     <SkillCard
@@ -438,7 +487,13 @@ export function Market() {
                 count={packCatalog.packs.length}
               />
 
-              {packCatalog.packs.length > 0 ? (
+              {showCatalogAuthState ? (
+                <EmptyState
+                  icon={<AlertCircle className="h-6 w-6" />}
+                  title={t('market.empty.signInRequiredTitle')}
+                  description={t('market.empty.signInRequiredDescription')}
+                />
+              ) : packCatalog.packs.length > 0 ? (
                 <div className="grid items-stretch gap-4" style={packGridStyle}>
                   {packCatalog.packs.map((pack) => (
                     <PackCard

@@ -35,10 +35,12 @@ export interface InstalledSkill {
 
 export interface Skill {
   id: string;
+  skillKey?: string;
   name: string;
   description: string;
   author: string;
   rating: number;
+  ratingCount?: number;
   downloads: number;
   category: string;
   icon?: string;
@@ -46,10 +48,14 @@ export interface Skill {
   size?: string;
   updatedAt?: string;
   readme?: string;
+  repositoryUrl?: string;
+  homepageUrl?: string;
+  documentationUrl?: string;
 }
 
 export interface SkillPack {
   id: string;
+  packageKey?: string;
   name: string;
   description: string;
   author: string;
@@ -130,6 +136,7 @@ export interface ProxyProviderUpdate {
 }
 
 export type UnifiedApiKeySource = 'system-generated' | 'custom';
+export type UnifiedApiKeyRouteMode = 'sdkwork-remote' | 'custom';
 
 export interface UnifiedApiKey {
   id: string;
@@ -142,6 +149,8 @@ export interface UnifiedApiKey {
   status: ProxyProviderStatus;
   createdAt: string;
   modelMappingId?: string;
+  routeMode?: UnifiedApiKeyRouteMode;
+  routeProviderId?: string | null;
   notes?: string;
   canCopyApiKey?: boolean;
   hashedKey?: string;
@@ -168,6 +177,8 @@ export interface UnifiedApiKeyUpdate {
   expiresAt?: string | null;
   status?: ProxyProviderStatus;
   modelMappingId?: string | null;
+  routeMode?: UnifiedApiKeyRouteMode;
+  routeProviderId?: string | null;
   notes?: string;
 }
 
@@ -462,6 +473,7 @@ export type StudioInstanceEndpointKind =
   | 'http'
   | 'websocket'
   | 'openaiChatCompletions'
+  | 'openaiResponses'
   | 'dashboard'
   | 'sse';
 

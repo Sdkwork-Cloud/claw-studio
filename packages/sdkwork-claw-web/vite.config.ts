@@ -79,6 +79,10 @@ export default defineConfig(({ mode }) => {
     __dirname,
     '../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts',
   );
+  const sharedSdkCommonEntry = path.resolve(
+    __dirname,
+    '../../../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/src/index.ts',
+  );
 
   return {
     plugins: [workspacePackageResolver(packagesRootDir), react(), tailwindcss()],
@@ -87,10 +91,17 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_ACCESS_TOKEN': JSON.stringify(env.VITE_ACCESS_TOKEN || ''),
     },
     resolve: {
-      dedupe: ['react', 'react-dom', '@sdkwork/claw-infrastructure', '@sdkwork/claw-i18n'],
+      dedupe: [
+        'react',
+        'react-dom',
+        '@sdkwork/claw-infrastructure',
+        '@sdkwork/claw-i18n',
+        '@sdkwork/sdk-common',
+      ],
       alias: [
         { find: '@', replacement: path.resolve(__dirname, '.') },
         { find: '@sdkwork/app-sdk', replacement: sharedAppSdkEntry },
+        { find: '@sdkwork/sdk-common', replacement: sharedSdkCommonEntry },
       ],
     },
     server: {

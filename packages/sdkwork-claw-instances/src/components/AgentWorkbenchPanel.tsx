@@ -17,10 +17,12 @@ interface AgentWorkbenchPanelProps {
   onDeleteAgent: (agentId: string) => void;
   onInstallSkill: (slug: string) => void;
   onSetSkillEnabled: (skillKey: string, enabled: boolean) => void;
+  onRemoveSkill: (skill: AgentWorkbenchSnapshot['skills'][number]) => void;
   isReadonly: boolean;
   isLoading: boolean;
   isInstallingSkill: boolean;
   updatingSkillKeys: string[];
+  removingSkillKeys: string[];
 }
 
 function getTone(status: string) {
@@ -128,10 +130,12 @@ export function AgentWorkbenchPanel({
   onDeleteAgent,
   onInstallSkill,
   onSetSkillEnabled,
+  onRemoveSkill,
   isReadonly,
   isLoading,
   isInstallingSkill,
   updatingSkillKeys,
+  removingSkillKeys,
 }: AgentWorkbenchPanelProps) {
   const { t } = useTranslation();
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
@@ -457,7 +461,9 @@ export function AgentWorkbenchPanel({
                         <Input
                           value={skillInstallSlug}
                           onChange={(event) => setSkillInstallSlug(event.target.value)}
-                          placeholder="calendar"
+                          placeholder={t(
+                            'instances.detail.instanceWorkbench.agents.panel.skillSlugPlaceholder',
+                          )}
                           className="flex-1"
                         />
                         <Button
@@ -502,7 +508,9 @@ export function AgentWorkbenchPanel({
                             {t('instances.detail.instanceWorkbench.agents.panel.sharedSkills')}
                           </div>
                           <div className="mt-1 break-all font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
-                            ~/.openclaw/skills
+                            {t(
+                              'instances.detail.instanceWorkbench.agents.panel.sharedSkillsDefaultPath',
+                            )}
                           </div>
                         </div>
                       </div>
@@ -531,22 +539,39 @@ export function AgentWorkbenchPanel({
                                 </span>
                               </div>
                               {!isReadonly ? (
-                                <Button
-                                  variant="outline"
-                                  onClick={() => onSetSkillEnabled(skill.skillKey, skill.disabled)}
-                                  disabled={updatingSkillKeys.includes(skill.skillKey)}
-                                  className="rounded-2xl px-3 py-2"
-                                >
-                                  {updatingSkillKeys.includes(skill.skillKey)
-                                    ? t('common.loading')
-                                    : skill.disabled
-                                      ? t(
-                                          'instances.detail.instanceWorkbench.agents.panel.enableSkill',
-                                        )
-                                      : t(
-                                          'instances.detail.instanceWorkbench.agents.panel.disableSkill',
-                                        )}
-                                </Button>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => onSetSkillEnabled(skill.skillKey, skill.disabled)}
+                                    disabled={
+                                      updatingSkillKeys.includes(skill.skillKey) ||
+                                      removingSkillKeys.includes(skill.skillKey)
+                                    }
+                                    className="rounded-2xl px-3 py-2"
+                                  >
+                                    {updatingSkillKeys.includes(skill.skillKey)
+                                      ? t('common.loading')
+                                      : skill.disabled
+                                        ? t(
+                                            'instances.detail.instanceWorkbench.agents.panel.enableSkill',
+                                          )
+                                        : t(
+                                            'instances.detail.instanceWorkbench.agents.panel.disableSkill',
+                                          )}
+                                  </Button>
+                                  {skill.scope === 'workspace' ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => onRemoveSkill(skill)}
+                                      disabled={removingSkillKeys.includes(skill.skillKey)}
+                                      className="rounded-2xl px-3 py-2 text-rose-600 hover:text-rose-600 dark:text-rose-300"
+                                    >
+                                      {removingSkillKeys.includes(skill.skillKey)
+                                        ? t('common.loading')
+                                        : t('common.uninstall')}
+                                    </Button>
+                                  ) : null}
+                                </div>
                               ) : null}
                             </div>
                             <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">

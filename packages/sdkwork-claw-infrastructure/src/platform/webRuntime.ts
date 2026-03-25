@@ -19,6 +19,10 @@ export class WebRuntimePlatform implements RuntimePlatformAPI {
     return null;
   }
 
+  async ensureApiRouterRuntimeStarted(): Promise<RuntimeApiRouterRuntimeStatus | null> {
+    return null;
+  }
+
   async getApiRouterAdminBootstrapSession(): Promise<RuntimeApiRouterAdminBootstrapSession | null> {
     return null;
   }

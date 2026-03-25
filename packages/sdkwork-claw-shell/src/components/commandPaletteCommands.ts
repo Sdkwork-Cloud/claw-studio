@@ -11,6 +11,7 @@ import {
   Router,
   Server,
   Settings,
+  Store,
   Terminal,
   Waypoints,
 } from 'lucide-react';
@@ -68,6 +69,14 @@ export function buildCommandPaletteCommands({
       icon: LayoutGrid,
       category: t('commandPalette.categories.navigation'),
       action: () => navigate('/apps'),
+    },
+    {
+      id: 'nav-mall',
+      title: t('commandPalette.commands.mall.title'),
+      subtitle: t('commandPalette.commands.mall.subtitle'),
+      icon: Store,
+      category: t('commandPalette.categories.navigation'),
+      action: () => navigate('/mall'),
     },
     {
       id: 'nav-agents',

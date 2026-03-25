@@ -6,6 +6,10 @@ import {
   type MockInstance,
   type MockTask,
 } from '@sdkwork/claw-infrastructure';
+import {
+  createEmptyDashboardCommerceSnapshot,
+  dashboardCommerceService,
+} from '@sdkwork/claw-core';
 import type { Agent, Skill } from '@sdkwork/claw-types';
 import type {
   DashboardActivityFeed,
@@ -19,9 +23,7 @@ import type {
   DashboardInstanceSummary,
   DashboardProductPerformanceRow,
   DashboardRevenueAnalytics,
-  DashboardRevenueProductBreakdown,
   DashboardRevenueRecord,
-  DashboardRevenueTrendPoint,
   DashboardRecommendation,
   DashboardSnapshot,
   DashboardTokenAnalytics,
@@ -47,11 +49,6 @@ interface TokenAnalyticsInput {
   usageRecords: ApiRouterUsageRecordDto[];
 }
 
-interface RevenueAnalyticsInput extends CapabilityCoverageScoreInput {
-  analyticsQuery: ResolvedAnalyticsQuery;
-  tokenAnalytics: DashboardTokenAnalytics;
-}
-
 interface ResolvedAnalyticsQuery {
   granularity: DashboardAnalyticsGranularity;
   rangeMode: DashboardAnalyticsRangeMode;
@@ -71,12 +68,6 @@ interface ModelProfile {
   avgTokensPerRequest: number;
   actualRate: number;
   standardRate: number;
-}
-
-interface ProductProfile {
-  id: string;
-  weight: number;
-  averageOrderValue: number;
 }
 
 const REFERENCE_DATE = new Date(Date.UTC(2026, 2, 18, 12, 0, 0));
@@ -121,33 +112,6 @@ const MODEL_PROFILES: ModelProfile[] = [
     avgTokensPerRequest: 4000,
     actualRate: 0.0000086,
     standardRate: 0.0000098,
-  },
-];
-const PRODUCT_PROFILES: ProductProfile[] = [
-  {
-    id: 'memberships',
-    weight: 0.27,
-    averageOrderValue: 188,
-  },
-  {
-    id: 'apiPackages',
-    weight: 0.24,
-    averageOrderValue: 132,
-  },
-  {
-    id: 'extensionMarket',
-    weight: 0.18,
-    averageOrderValue: 96,
-  },
-  {
-    id: 'enterpriseServices',
-    weight: 0.19,
-    averageOrderValue: 356,
-  },
-  {
-    id: 'digitalGoods',
-    weight: 0.12,
-    averageOrderValue: 74,
   },
 ];
 
@@ -568,31 +532,6 @@ function calculateValueDeltaPercentage(values: number[]) {
   return roundPercentage(((lastWindow - firstWindow) / firstWindow) * 100);
 }
 
-function calculateWindowDayCount(analyticsQuery: ResolvedAnalyticsQuery) {
-  if (analyticsQuery.granularity === 'day') {
-    return Math.max(1, analyticsQuery.bucketCount);
-  }
-
-  return Math.max(1, Math.ceil(analyticsQuery.bucketCount / 24));
-}
-
-function toDisplayProductName(productId: string) {
-  switch (productId) {
-    case 'memberships':
-      return 'Memberships';
-    case 'apiPackages':
-      return 'API Packages';
-    case 'extensionMarket':
-      return 'Extension Market';
-    case 'enterpriseServices':
-      return 'Enterprise Services';
-    case 'digitalGoods':
-      return 'Digital Goods';
-    default:
-      return productId;
-  }
-}
-
 function toProviderName(modelName: string) {
   if (modelName.toLowerCase().includes('gpt')) {
     return 'OpenAI';
@@ -611,10 +550,6 @@ function toProviderName(modelName: string) {
   }
 
   return 'Model Provider';
-}
-
-function buildRecentTimestamp(offsetMinutes: number) {
-  return new Date(REFERENCE_DATE.getTime() - offsetMinutes * 60 * 1000).toISOString();
 }
 
 function calculateInstanceBaseWeight(summary: DashboardInstanceSummary, agents: Agent[]) {
@@ -955,144 +890,6 @@ function buildTokenAnalytics({
   };
 }
 
-function buildRevenueAnalytics({
-  instances,
-  tasks,
-  channels,
-  agents,
-  installedSkills,
-  analyticsQuery,
-  tokenAnalytics,
-}: RevenueAnalyticsInput): DashboardRevenueAnalytics {
-  const activeSkillTasks = tasks.filter(
-    (task) => task.status === 'active' && task.actionType === 'skill',
-  ).length;
-  const activeInstanceCount = instances.filter((instance) => instance.status === 'online').length;
-  const enabledChannels = channels.filter((channel) => channel.enabled).length;
-  const averageRequestsPerBucket = Math.max(
-    1,
-    Math.round(tokenAnalytics.totalRequestCount / Math.max(analyticsQuery.bucketCount, 1)),
-  );
-  const baseRevenuePerBucket =
-    analyticsQuery.granularity === 'hour'
-      ? 180 +
-        activeInstanceCount * 68 +
-        enabledChannels * 54 +
-        activeSkillTasks * 28 +
-        installedSkills.length * 11 +
-        agents.length * 17 +
-        averageRequestsPerBucket * 2
-      : 4100 +
-        activeInstanceCount * 1450 +
-        enabledChannels * 980 +
-        activeSkillTasks * 560 +
-        installedSkills.length * 140 +
-        agents.length * 210 +
-        averageRequestsPerBucket * 15;
-
-  const revenueTrend = analyticsQuery.bucketDates.map((bucketDate, index) => {
-    const hour = bucketDate.getUTCHours();
-    const dayOfWeek = bucketDate.getUTCDay();
-    const weekdayFactor = [0.78, 0.94, 1.03, 1.11, 1.19, 1.07, 0.85][dayOfWeek];
-    const hourFactor =
-      analyticsQuery.granularity === 'hour'
-        ? 0.7 +
-          (hour >= 9 && hour <= 21 ? 0.28 : 0.06) +
-          Math.sin((index + 3) / 6) * 0.07
-        : 1;
-    const campaignFactor =
-      1 +
-      Math.max(0, enabledChannels - 1) * 0.035 +
-      Math.max(0, activeSkillTasks - 1) * 0.02;
-    const revenue = Math.max(
-      analyticsQuery.granularity === 'hour' ? 92 : 1500,
-      Math.round(baseRevenuePerBucket * weekdayFactor * hourFactor * campaignFactor),
-    );
-    const averageOrderBaseline =
-      98 +
-      enabledChannels * 4 +
-      activeInstanceCount * 6 +
-      Math.max(0, installedSkills.length - 2) * 3 +
-      (dayOfWeek === 4 || dayOfWeek === 5 ? 12 : 0);
-    const orders = Math.max(1, Math.round(revenue / averageOrderBaseline));
-
-    return {
-      label:
-        analyticsQuery.granularity === 'day'
-          ? `${`${bucketDate.getUTCMonth() + 1}`.padStart(2, '0')}-${`${bucketDate.getUTCDate()}`.padStart(2, '0')}`
-          : `${`${bucketDate.getUTCMonth() + 1}`.padStart(2, '0')}-${`${bucketDate.getUTCDate()}`.padStart(2, '0')} ${`${bucketDate.getUTCHours()}`.padStart(2, '0')}:00`,
-      bucketKey:
-        analyticsQuery.granularity === 'day'
-          ? formatDayKey(bucketDate)
-          : `${formatDayKey(bucketDate)}T${`${bucketDate.getUTCHours()}`.padStart(2, '0')}:00`,
-      revenue,
-      orders,
-      averageOrderValue: roundCurrency(revenue / orders),
-    } satisfies DashboardRevenueTrendPoint;
-  });
-
-  const totalRevenue = revenueTrend.reduce((sum, point) => sum + point.revenue, 0);
-  const totalOrders = revenueTrend.reduce((sum, point) => sum + point.orders, 0);
-  const windowDayCount = calculateWindowDayCount(analyticsQuery);
-  const projectedFactor =
-    analyticsQuery.rangeMode === 'month' ? 1 : 30 / Math.max(windowDayCount, 1);
-  const productWeights = PRODUCT_PROFILES.map((profile, index) => {
-    if (profile.id === 'memberships') {
-      return profile.weight * (1 + Math.max(0, activeSkillTasks - 1) * 0.05);
-    }
-    if (profile.id === 'apiPackages') {
-      return profile.weight * (1 + enabledChannels * 0.04);
-    }
-    if (profile.id === 'extensionMarket') {
-      return profile.weight * (1 + Math.max(0, installedSkills.length - 3) * 0.03);
-    }
-    if (profile.id === 'enterpriseServices') {
-      return profile.weight * (1 + Math.max(0, activeInstanceCount - 1) * 0.06);
-    }
-
-    return profile.weight * (1 + index * 0.015);
-  });
-  const revenueDistribution = distributeTotal(totalRevenue, productWeights);
-  const orderWeights = PRODUCT_PROFILES.map((profile, index) => {
-    return profile.weight * (profile.id === 'digitalGoods' ? 1.2 : 1 + index * 0.03);
-  });
-  const orderDistribution = distributeTotal(totalOrders, orderWeights);
-  const productBreakdown = PRODUCT_PROFILES.map((profile, index) => {
-    const revenue = revenueDistribution[index];
-    const orders = Math.max(1, orderDistribution[index]);
-
-    return {
-      id: profile.id,
-      orders,
-      revenue,
-      share: totalRevenue === 0 ? 0 : roundPercentage((revenue / totalRevenue) * 100),
-      dailyRevenue: roundCurrency(revenue / windowDayCount),
-    } satisfies DashboardRevenueProductBreakdown;
-  }).sort((left, right) => right.revenue - left.revenue);
-  const peakPoint = revenueTrend.reduce((currentPeak, point) => {
-    return point.revenue > currentPeak.revenue ? point : currentPeak;
-  }, revenueTrend[0]);
-
-  return {
-    granularity: analyticsQuery.granularity,
-    rangeMode: analyticsQuery.rangeMode,
-    selectedMonthKey: analyticsQuery.selectedMonthKey,
-    customRange: analyticsQuery.customRange,
-    totalRevenue,
-    dailyRevenue: roundCurrency(totalRevenue / windowDayCount),
-    projectedMonthlyRevenue: roundCurrency(totalRevenue * projectedFactor),
-    totalOrders,
-    averageOrderValue: roundCurrency(totalRevenue / Math.max(totalOrders, 1)),
-    peakRevenueLabel: peakPoint.label,
-    peakRevenueValue: peakPoint.revenue,
-    deltaPercentage: calculateValueDeltaPercentage(
-      revenueTrend.map((point) => point.revenue),
-    ),
-    revenueTrend,
-    productBreakdown,
-  };
-}
-
 function buildTokenSummary(
   tokenAnalytics: DashboardTokenAnalytics,
   usageRecords: ApiRouterUsageRecordDto[],
@@ -1147,43 +944,6 @@ function buildTokenSummary(
   };
 }
 
-function buildBusinessSummary(
-  revenueAnalytics: DashboardRevenueAnalytics,
-  tokenSummary: DashboardTokenSummary,
-): DashboardBusinessSummary {
-  const todayRevenue = revenueAnalytics.dailyRevenue;
-  const weekRevenue = roundCurrency(todayRevenue * 7);
-  const monthRevenue = revenueAnalytics.projectedMonthlyRevenue;
-  const yearRevenue = roundCurrency(monthRevenue * 12);
-  const todayOrders = Math.max(
-    1,
-    Math.round(todayRevenue / Math.max(revenueAnalytics.averageOrderValue, 1)),
-  );
-  const weekOrders = Math.max(1, Math.round(weekRevenue / Math.max(revenueAnalytics.averageOrderValue, 1)));
-  const monthOrders = Math.max(
-    1,
-    Math.round(monthRevenue / Math.max(revenueAnalytics.averageOrderValue, 1)),
-  );
-  const yearOrders = Math.max(1, Math.round(yearRevenue / Math.max(revenueAnalytics.averageOrderValue, 1)));
-  const conversionRate = roundPercentage(
-    Math.min(100, (todayOrders / Math.max(tokenSummary.dailyRequestCount, 1)) * 100),
-  );
-
-  return {
-    todayRevenue,
-    weekRevenue,
-    monthRevenue,
-    yearRevenue,
-    todayOrders,
-    weekOrders,
-    monthOrders,
-    yearOrders,
-    averageOrderValue: revenueAnalytics.averageOrderValue,
-    conversionRate,
-    revenueDelta: revenueAnalytics.deltaPercentage,
-  };
-}
-
 function buildRecentApiCalls(
   usageRecords: ApiRouterUsageRecordDto[],
 ): DashboardApiCallRecord[] {
@@ -1201,47 +961,6 @@ function buildRecentApiCalls(
       latencyMs: 0,
       status: 'success',
     }));
-}
-
-function buildRecentRevenueRecords(
-  revenueAnalytics: DashboardRevenueAnalytics,
-): DashboardRevenueRecord[] {
-  const channels = ['web', 'partner', 'direct'];
-
-  return revenueAnalytics.productBreakdown.flatMap((row, rowIndex) => {
-    return Array.from({ length: 2 }, (_, recordIndex) => {
-      const revenueAmount = roundCurrency(row.revenue / (recordIndex === 0 ? 5 : 8));
-      const status: DashboardRevenueRecord['status'] =
-        rowIndex === 2 && recordIndex === 1
-          ? 'pending'
-          : rowIndex === 4 && recordIndex === 1
-            ? 'refunded'
-            : 'paid';
-
-      return {
-        id: `${row.id}-${recordIndex}`,
-        timestamp: buildRecentTimestamp(rowIndex * 126 + recordIndex * 58),
-        productName: toDisplayProductName(row.id),
-        orderNo: `ORD-20260319-${`${rowIndex * 2 + recordIndex + 1012}`.padStart(4, '0')}`,
-        revenueAmount,
-        channel: channels[(rowIndex + recordIndex) % channels.length]!,
-        status,
-      } satisfies DashboardRevenueRecord;
-    });
-  }).sort((left, right) => right.timestamp.localeCompare(left.timestamp));
-}
-
-function buildProductPerformance(
-  revenueAnalytics: DashboardRevenueAnalytics,
-): DashboardProductPerformanceRow[] {
-  return revenueAnalytics.productBreakdown.map((row, index) => ({
-    id: row.id,
-    productName: toDisplayProductName(row.id),
-    revenue: row.revenue,
-    orders: row.orders,
-    share: row.share,
-    trendDelta: roundPercentage(revenueAnalytics.deltaPercentage - index * 1.8 + 3.2),
-  }));
 }
 
 function buildAlerts(
@@ -1265,11 +984,12 @@ function buildAlerts(
   }
 
   if (topProduct) {
+    const topProductName = topProduct.productName || topProduct.id;
     alerts.push({
       id: 'revenue-concentration',
       severity: topProduct.share >= 36 ? 'warning' : 'info',
-      title: `${toDisplayProductName(topProduct.id)} drives the largest revenue share`,
-      description: `Revenue is currently concentrated in ${toDisplayProductName(topProduct.id)}. Keep diversification visible as volume scales.`,
+      title: `${topProductName} drives the largest revenue share`,
+      description: `Revenue is currently concentrated in ${topProductName}. Keep diversification visible as volume scales.`,
       value: `${topProduct.share}%`,
     });
   }
@@ -1299,11 +1019,13 @@ function buildActivityFeed(
   revenueAnalytics: DashboardRevenueAnalytics,
   tokenSummary: DashboardTokenSummary,
   businessSummary: DashboardBusinessSummary,
+  recentRevenueRecords: DashboardRevenueRecord[],
+  productPerformance: DashboardProductPerformanceRow[],
 ): DashboardActivityFeed {
   return {
     recentApiCalls: recentApiCalls.slice(0, 10),
-    recentRevenueRecords: buildRecentRevenueRecords(revenueAnalytics).slice(0, 10),
-    productPerformance: buildProductPerformance(revenueAnalytics),
+    recentRevenueRecords: recentRevenueRecords.slice(0, 10),
+    productPerformance,
     alerts: buildAlerts(tokenSummary, businessSummary, tokenAnalytics, revenueAnalytics),
   };
 }
@@ -1378,10 +1100,13 @@ function buildRecommendations({
 
 class DashboardService {
   async getSnapshot(analyticsQuery: DashboardAnalyticsQuery = {}): Promise<DashboardSnapshot> {
-    const [usageRecords, instances, agents] = await Promise.all([
+    const [usageRecords, instances, agents, commerceSnapshot] = await Promise.all([
       loadRouterUsageRecords(),
       studioMockService.listInstances(),
       studioMockService.listAgents(),
+      dashboardCommerceService
+        .getCommerceSnapshot(analyticsQuery)
+        .catch(() => createEmptyDashboardCommerceSnapshot(analyticsQuery)),
     ]);
     const referenceDate = getAnalyticsReferenceDate(usageRecords);
     const resolvedAnalyticsQuery = resolveAnalyticsQuery(analyticsQuery, referenceDate);
@@ -1440,24 +1165,18 @@ class DashboardService {
       analyticsQuery: resolvedAnalyticsQuery,
       usageRecords,
     });
-    const revenueAnalytics = buildRevenueAnalytics({
-      instances,
-      tasks,
-      channels,
-      agents,
-      installedSkills,
-      analyticsQuery: resolvedAnalyticsQuery,
-      tokenAnalytics,
-    });
+    const revenueAnalytics: DashboardRevenueAnalytics = commerceSnapshot.revenueAnalytics;
     const recentApiCalls = buildRecentApiCalls(usageRecords);
     const tokenSummary = buildTokenSummary(tokenAnalytics, usageRecords, referenceDate);
-    const businessSummary = buildBusinessSummary(revenueAnalytics, tokenSummary);
+    const businessSummary: DashboardBusinessSummary = commerceSnapshot.businessSummary;
     const activityFeed = buildActivityFeed(
       recentApiCalls,
       tokenAnalytics,
       revenueAnalytics,
       tokenSummary,
       businessSummary,
+      commerceSnapshot.recentRevenueRecords,
+      commerceSnapshot.productPerformance,
     );
     const recommendations = buildRecommendations({
       instances,
