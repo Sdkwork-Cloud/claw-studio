@@ -28,6 +28,9 @@
 | `pnpm tauri:icon` | Regenerate desktop app icons from the source asset |
 | `pnpm tauri:info` | Print Tauri environment information |
 | `pnpm check:desktop` | Validate desktop runtime and command contracts |
+| `pnpm release:desktop` | Run the desktop release build entry used by CI |
+| `pnpm release:package:desktop` | Collect built desktop installers and checksum files into `artifacts/release` |
+| `pnpm release:package:web` | Archive built web and docs assets into `artifacts/release` |
 
 ## Documentation Commands
 
@@ -46,3 +49,11 @@ pnpm --filter @sdkwork/claw-web build
 pnpm --filter @sdkwork/claw-desktop tauri:info
 pnpm --filter @sdkwork/claw-market lint
 ```
+
+## GitHub Release Flow
+
+The repository release workflow lives at `.github/workflows/release.yml`.
+
+- `push` tags matching `release-*` trigger a full Claw Studio release
+- `workflow_dispatch` can rebuild assets for an existing tag or explicit git ref
+- published assets include desktop bundles for Windows, Linux, and macOS plus a web/docs archive
