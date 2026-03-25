@@ -63,7 +63,10 @@
     "tauri:dev": "pnpm --filter @sdkwork/claw-desktop run tauri:dev",
     "tauri:build": "pnpm --filter @sdkwork/claw-desktop run tauri:build",
     "tauri:icon": "pnpm --filter @sdkwork/claw-desktop run tauri:icon",
-    "tauri:info": "pnpm --filter @sdkwork/claw-desktop run tauri:info"
+    "tauri:info": "pnpm --filter @sdkwork/claw-desktop run tauri:info",
+    "release:desktop": "node scripts/run-desktop-release-build.mjs",
+    "release:package:desktop": "node scripts/release/package-release-assets.mjs desktop",
+    "release:package:web": "node scripts/release/package-release-assets.mjs web"
   },
   "devDependencies": {
     "@types/react": "^19.2.2",

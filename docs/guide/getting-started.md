@@ -50,6 +50,15 @@ pnpm docs:build
 
 Use `pnpm build` for the web shell, `pnpm tauri:build` for desktop packaging, and `pnpm docs:build` for the public documentation site.
 
+## Automated Releases
+
+Claw Studio release packaging is automated through GitHub Actions.
+
+- push a `release-*` tag to build and publish a full release
+- use the `release` workflow with `workflow_dispatch` to rebuild assets for an existing tag or ref
+- desktop release jobs package Windows, Linux, and macOS installers or bundles
+- companion web and docs assets are published as a versioned archive on the same GitHub release
+
 ## Environment Setup
 
 Start from the root `.env.example`.

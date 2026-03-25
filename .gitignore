@@ -9,6 +9,7 @@ coverage/
 out/
 tmp/
 temp/
+artifacts/
 %TEMP%/
 tmp-dashboard-encoding-test.txt
 

@@ -1,0 +1,189 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'release-*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
+      git_ref:
+        description: Git ref to build; defaults to refs/tags/<release_tag>
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+      git_ref: ${{ steps.resolve.outputs.git_ref }}
+    steps:
+      - name: Resolve release target
+        id: resolve
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            git_ref="${GITHUB_REF}"
+          else
+            release_tag="${{ github.event.inputs.release_tag }}"
+            git_ref="${{ github.event.inputs.git_ref }}"
+            if [[ -z "$git_ref" ]]; then
+              git_ref="refs/tags/$release_tag"
+            fi
+          fi
+
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "git_ref=$git_ref" >> "$GITHUB_OUTPUT"
+
+  desktop-release:
+    name: Desktop release (${{ matrix.platform }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: ubuntu-22.04
+            platform: linux
+          - os: macos-latest
+            platform: macos
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.git_ref }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux desktop dependencies
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Claw Studio desktop release on Windows
+        if: matrix.platform == 'windows'
+        env:
+          CMAKE_GENERATOR: Visual Studio 17 2022
+          HOST_CMAKE_GENERATOR: Visual Studio 17 2022
+        run: node scripts/run-desktop-release-build.mjs
+
+      - name: Build Claw Studio desktop release on Unix
+        if: matrix.platform != 'windows'
+        run: node scripts/run-desktop-release-build.mjs
+
+      - name: Collect desktop release assets
+        run: node scripts/release/package-release-assets.mjs desktop --platform ${{ matrix.platform }} --output-dir artifacts/release
+
+      - name: Upload desktop release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-desktop-${{ matrix.platform }}
+          path: artifacts/release/**/*
+          if-no-files-found: error
+
+  web-release:
+    name: Web and docs release assets
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.git_ref }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web and docs
+        shell: bash
+        run: |
+          pnpm build
+          pnpm docs:build
+
+      - name: Package web release assets
+        run: node scripts/release/package-release-assets.mjs web --release-tag ${{ needs.prepare.outputs.release_tag }} --output-dir artifacts/release
+
+      - name: Upload web release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-web
+          path: artifacts/release/**/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - prepare
+      - desktop-release
+      - web-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packaged release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          name: Claw Studio ${{ needs.prepare.outputs.release_tag }}
+          generate_release_notes: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/**/*
