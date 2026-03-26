@@ -41,6 +41,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
   assert.match(workflow, /node scripts\/prepare-shared-sdk-git-sources\.mjs/);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
+  assert.match(workflow, /submodules:\s*recursive/);
   assert.match(workflow, /libgtk-3-dev/);
   assert.match(workflow, /libssl-dev/);
   assert.match(workflow, /libfuse2/);
