@@ -525,7 +525,7 @@ mod tests {
     use serde_json::Value;
     use std::fs;
 
-    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.23-2";
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.24";
 
     #[test]
     fn installs_bundled_runtime_into_managed_directory_and_activates_it() {

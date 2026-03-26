@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveDesktopReleaseTarget } from './release/desktop-targets.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
@@ -79,6 +81,13 @@ export function resolveApiRouterTarget(platform = process.platform, arch = proce
     adminRelativePath: `runtime/admin-api-service${executableExt}`,
     portalRelativePath: `runtime/portal-api-service${executableExt}`,
   };
+}
+
+export function resolveRequestedApiRouterTarget({
+  env = process.env,
+} = {}) {
+  const target = resolveDesktopReleaseTarget({ env });
+  return resolveApiRouterTarget(target.platform, target.arch);
 }
 
 export function buildApiRouterManifest({
@@ -240,7 +249,7 @@ export async function prepareApiRouterRuntime({
   sourceRepoDir = process.env.SDKWORK_API_ROUTER_SOURCE_REPO_DIR ?? resolveDefaultApiRouterWorkspaceDir(),
   forcePrepare = parseBooleanFlag(process.env.SDKWORK_API_ROUTER_FORCE_PREPARE),
   profile = process.env.SDKWORK_API_ROUTER_BUILD_PROFILE ?? 'release',
-  target = resolveApiRouterTarget(),
+  target = resolveRequestedApiRouterTarget(),
 } = {}) {
   const manifest = buildApiRouterManifest({ apiRouterVersion, target });
 

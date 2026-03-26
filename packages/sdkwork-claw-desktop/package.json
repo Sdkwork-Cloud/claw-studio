@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:tauri": "vite --host 127.0.0.1 --port 1420 --strictPort",
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/verify-desktop-build-assets.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "node ../../scripts/run-workspace-tsc.mjs --noEmit",
