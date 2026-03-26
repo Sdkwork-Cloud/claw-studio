@@ -25,8 +25,8 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /windows-11-arm/);
   assert.match(workflow, /ubuntu-22\.04/);
   assert.match(workflow, /ubuntu-22\.04-arm/);
-  assert.match(workflow, /macos-13/);
-  assert.match(workflow, /macos-14/);
+  assert.match(workflow, /macos-15-intel/);
+  assert.match(workflow, /macos-15/);
   assert.match(workflow, /arch:\s*x64/);
   assert.match(workflow, /arch:\s*arm64/);
   assert.match(workflow, /target:\s*x86_64-pc-windows-msvc/);
