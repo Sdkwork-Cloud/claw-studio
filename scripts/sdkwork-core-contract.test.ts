@@ -154,12 +154,16 @@ runTest('claw host vite configs switch shared sdk resolution by explicit mode wh
   const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
   const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
 
-  for (const source of [webViteConfig, desktopViteConfig]) {
-    assert.match(source, /resolveSharedSdkMode/);
-    assert.match(source, /@sdkwork\/app-sdk/);
-    assert.match(source, /sdkwork-app-sdk-typescript/);
-    assert.match(source, /src\/index\.ts/);
-  }
+  assert.match(webViteConfig, /isSharedSdkSourceMode/);
+  assert.match(webViteConfig, /resolvePnpmPackageDistEntry/);
+  assert.match(webViteConfig, /@sdkwork\/app-sdk/);
+  assert.match(webViteConfig, /sdkwork-app-sdk-typescript/);
+  assert.match(webViteConfig, /src\/index\.ts/);
+
+  assert.match(desktopViteConfig, /isSharedSdkSourceMode/);
+  assert.match(desktopViteConfig, /@sdkwork\/app-sdk/);
+  assert.match(desktopViteConfig, /sdkwork-app-sdk-typescript/);
+  assert.match(desktopViteConfig, /src\/index\.ts/);
 });
 
 runTest('claw hosts resolve @sdkwork/sdk-common from shared SDK source only in source mode', () => {
@@ -173,8 +177,20 @@ runTest('claw hosts resolve @sdkwork/sdk-common from shared SDK source only in s
   }
 });
 
+runTest('claw hosts restrict relative shared sdk aliases to source mode and keep git mode on installed package resolution', () => {
+  const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
+  const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
+
+  for (const source of [webViteConfig, desktopViteConfig]) {
+    assert.match(source, /isSharedSdkSourceMode/);
+    assert.doesNotMatch(source, /sharedSdkMode === 'source' \|\| sharedSdkMode === 'git'/);
+  }
+});
+
 runTest('claw workspace prefers workspace-linked shared sdk sources locally while allowing git-trunk release sourcing', () => {
   const workspacePackageJson = read('package.json');
+  const webPackageJson = read('packages/sdkwork-claw-web/package.json');
+  const desktopPackageJson = read('packages/sdkwork-claw-desktop/package.json');
   const workspaceManifest = read('pnpm-workspace.yaml');
   const npmrc = read('.npmrc');
   const coreCheckRunner = read('scripts/run-sdkwork-core-check.mjs');
@@ -186,6 +202,8 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
+  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build"/);
+  assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
   assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"pnpm prepare:shared-sdk && node scripts\/run-sdkwork-core-check\.mjs"/);
   assert.match(prepareSharedSdkScript, /SDKWORK_SHARED_SDK_MODE/);
   assert.match(prepareSharedSdkScript, /resolveSharedSdkMode/);
@@ -194,6 +212,9 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(prepareGitSourcesScript, /git ls-remote --symref/);
   assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_APP_REPO_URL/);
   assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_COMMON_REPO_URL/);
+  assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
+  assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
+  assert.match(prepareGitSourcesScript, /branch', '--show-current/);
   assert.match(coreCheckRunner, /sdkwork-core-contract\.test\.ts/);
   assert.match(coreCheckRunner, /accountService\.test\.ts/);
   assert.match(coreCheckRunner, /communityService\.test\.ts/);

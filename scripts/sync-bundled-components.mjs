@@ -75,6 +75,7 @@ const componentSources = [
     id: 'openclaw',
     repoUrl: 'https://github.com/openclaw/openclaw.git',
     checkoutDir: 'openclaw',
+    buildAttempts: 3,
     resolveVersion(repoDir, sha) {
       const pkg = readJson(path.join(repoDir, 'package.json'));
       return `${pkg.version}+${sha}`;
@@ -279,7 +280,7 @@ function main() {
     const version = component.resolveVersion(repoDir, shortSha);
 
     if (!devMode) {
-      component.build(repoDir);
+      buildComponentWithRetry(component, repoDir);
       component.stage(repoDir, version);
     } else {
       try {
@@ -317,6 +318,27 @@ function main() {
   writeJson(path.join(bundledRoot, 'foundation', 'components', 'bundle-manifest.json'), bundleManifest);
 
   console.log('[bundled-components] generated bundled assets at', path.relative(rootDir, bundledLinkRoot));
+}
+
+function buildComponentWithRetry(component, repoDir) {
+  const maxAttempts = Math.max(1, Number(component.buildAttempts ?? 1));
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      component.build(repoDir);
+      return;
+    } catch (error) {
+      if (attempt >= maxAttempts) {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[bundled-components] ${component.id} build attempt ${attempt}/${maxAttempts} failed; retrying after cleaning dist: ${message}`,
+      );
+      fs.rmSync(path.join(repoDir, 'dist'), { recursive: true, force: true });
+    }
+  }
 }
 
 function ensureRepository(component) {

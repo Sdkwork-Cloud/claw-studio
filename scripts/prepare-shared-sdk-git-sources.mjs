@@ -9,6 +9,8 @@ export const SHARED_SDK_APP_REPO_URL_ENV_VAR = 'SDKWORK_SHARED_SDK_APP_REPO_URL'
 export const SHARED_SDK_COMMON_REPO_URL_ENV_VAR = 'SDKWORK_SHARED_SDK_COMMON_REPO_URL';
 export const SHARED_SDK_GIT_REF_ENV_VAR = 'SDKWORK_SHARED_SDK_GIT_REF';
 export const SHARED_SDK_GIT_FORCE_SYNC_ENV_VAR = 'SDKWORK_SHARED_SDK_GIT_FORCE_SYNC';
+export const DEFAULT_SHARED_SDK_APP_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git';
+export const DEFAULT_SHARED_SDK_COMMON_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git';
 
 function run(command, args, { cwd = process.cwd(), captureStdout = false } = {}) {
   const result = spawnSync(command, args, {
@@ -49,6 +51,7 @@ function createSourceSpecs(workspaceRootDir) {
       packageDirName: 'sdkwork-app-sdk-typescript',
       monorepoSubmodulePath: 'spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app',
       repoUrlEnvVar: SHARED_SDK_APP_REPO_URL_ENV_VAR,
+      defaultRepoUrl: DEFAULT_SHARED_SDK_APP_REPO_URL,
     },
     {
       id: 'sdk-common',
@@ -58,6 +61,7 @@ function createSourceSpecs(workspaceRootDir) {
       packageDirName: 'sdkwork-sdk-common-typescript',
       monorepoSubmodulePath: 'spring-ai-plus-business/sdk/sdkwork-sdk-commons',
       repoUrlEnvVar: SHARED_SDK_COMMON_REPO_URL_ENV_VAR,
+      defaultRepoUrl: DEFAULT_SHARED_SDK_COMMON_REPO_URL,
     },
   ];
 }
@@ -76,6 +80,45 @@ export function resolveMonorepoSubmoduleRoot(spec) {
 
 export function resolveMonorepoPackageRoot(spec) {
   return path.join(resolveMonorepoSubmoduleRoot(spec), spec.packageDirName);
+}
+
+function extractRepoName(repoUrl) {
+  const normalizedRepoUrl = String(repoUrl ?? '')
+    .trim()
+    .replace(/[?#].*$/, '')
+    .replace(/\/+$/, '');
+
+  if (normalizedRepoUrl.length === 0) {
+    return '';
+  }
+
+  const repoName = normalizedRepoUrl.split('/').at(-1) ?? '';
+  return repoName.replace(/\.git$/i, '');
+}
+
+export function resolveCheckoutRootForRepoUrl(spec, repoUrl) {
+  const repoName = extractRepoName(repoUrl);
+
+  if (repoName === spec.packageDirName) {
+    return resolveSourcePackageRoot(spec);
+  }
+
+  if (repoName === spec.packageContainerDirName) {
+    return resolveSourcePackageContainerRoot(spec);
+  }
+
+  return spec.repoRoot;
+}
+
+export function resolvePackageRootForCheckoutRoot(spec, checkoutRoot) {
+  const normalizedCheckoutRoot = path.resolve(checkoutRoot);
+  const packageRoot = path.resolve(resolveSourcePackageRoot(spec));
+
+  if (normalizedCheckoutRoot === packageRoot) {
+    return packageRoot;
+  }
+
+  return packageRoot;
 }
 
 export function parseGitSubmodulePaths(gitmodulesContent) {
@@ -213,9 +256,19 @@ function resolveRepoUrl(spec, env) {
     return explicitUrl;
   }
 
-  const existingOriginUrl = detectExistingOriginUrl(spec.repoRoot);
-  if (existingOriginUrl.length > 0) {
-    return existingOriginUrl;
+  for (const checkoutRoot of [
+    resolveSourcePackageRoot(spec),
+    resolveSourcePackageContainerRoot(spec),
+    spec.repoRoot,
+  ]) {
+    const existingOriginUrl = detectExistingOriginUrl(checkoutRoot);
+    if (existingOriginUrl.length > 0) {
+      return existingOriginUrl;
+    }
+  }
+
+  if (typeof spec.defaultRepoUrl === 'string' && spec.defaultRepoUrl.trim().length > 0) {
+    return spec.defaultRepoUrl.trim();
   }
 
   throw new Error(
@@ -224,12 +277,33 @@ function resolveRepoUrl(spec, env) {
   );
 }
 
-function resolveTargetRef(repoUrl, env) {
+function resolveCurrentCheckoutRef(repoRoot) {
+  if (!isGitCheckout(repoRoot)) {
+    return '';
+  }
+
+  try {
+    return run('git', ['-C', repoRoot, 'branch', '--show-current'], {
+      captureStdout: true,
+    });
+  } catch {
+    return '';
+  }
+}
+
+function resolveTargetRef({ repoUrl, env, checkoutRoot, syncExistingRepos }) {
   const explicitRef = typeof env?.[SHARED_SDK_GIT_REF_ENV_VAR] === 'string'
     ? env[SHARED_SDK_GIT_REF_ENV_VAR].trim()
     : '';
   if (explicitRef.length > 0) {
     return explicitRef;
+  }
+
+  if (!syncExistingRepos) {
+    const currentCheckoutRef = resolveCurrentCheckoutRef(checkoutRoot);
+    if (currentCheckoutRef.length > 0) {
+      return currentCheckoutRef;
+    }
   }
 
   return resolveRemoteDefaultBranch(repoUrl);
@@ -264,31 +338,41 @@ function syncExistingSourceRepo({ repoRoot, repoUrl, targetRef, label }) {
 
 function ensureSourceSpecReady(spec, env, syncExistingRepos) {
   const repoUrl = resolveRepoUrl(spec, env);
-  const targetRef = resolveTargetRef(repoUrl, env);
-  const hasGitCheckout = isGitCheckout(spec.repoRoot);
+  const checkoutRoot = resolveCheckoutRootForRepoUrl(spec, repoUrl);
+  const hasGitCheckout = isGitCheckout(checkoutRoot);
+  const targetRef = resolveTargetRef({
+    repoUrl,
+    env,
+    checkoutRoot,
+    syncExistingRepos,
+  });
 
   if (!hasGitCheckout) {
-    if (fs.existsSync(spec.repoRoot) && fs.readdirSync(spec.repoRoot).length > 0) {
+    if (fs.existsSync(checkoutRoot) && fs.readdirSync(checkoutRoot).length > 0) {
       throw new Error(
-        `[prepare-shared-sdk-git-sources] Expected ${spec.repoRoot} to be a git checkout for ${spec.label}.`,
+        `[prepare-shared-sdk-git-sources] Expected ${checkoutRoot} to be a git checkout for ${spec.label}.`,
       );
     }
 
     cloneSourceRepo({
-      repoRoot: spec.repoRoot,
+      repoRoot: checkoutRoot,
       repoUrl,
       targetRef,
     });
   } else if (syncExistingRepos) {
     syncExistingSourceRepo({
-      repoRoot: spec.repoRoot,
+      repoRoot: checkoutRoot,
       repoUrl,
       targetRef,
       label: spec.label,
     });
   }
 
-  const packageRoot = materializePackageRootFromMonorepo(spec);
+  let packageRoot = resolvePackageRootForCheckoutRoot(spec, checkoutRoot);
+
+  if (!fs.existsSync(packageRoot) && path.resolve(checkoutRoot) === path.resolve(spec.repoRoot)) {
+    packageRoot = materializePackageRootFromMonorepo(spec);
+  }
 
   if (!fs.existsSync(packageRoot)) {
     throw new Error(

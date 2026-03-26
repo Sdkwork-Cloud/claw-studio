@@ -1,19 +1,64 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 import { ensureSharedSdkGitSources } from './prepare-shared-sdk-git-sources.mjs';
 import { resolveSharedSdkMode } from './shared-sdk-mode.mjs';
 
-const workspaceRoot = process.cwd();
-const sharedAppSdkRoot = path.resolve(
-  workspaceRoot,
-  '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript',
-);
-const sharedSdkCommonRoot = path.resolve(
-  workspaceRoot,
-  '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
-);
-const mode = resolveSharedSdkMode(process.env);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const scriptWorkspaceRoot = path.resolve(__dirname, '..');
+
+export function resolveWorkspaceRootDir(currentWorkingDir = process.cwd()) {
+  let candidateDir = path.resolve(currentWorkingDir);
+
+  while (true) {
+    const packageJsonPath = path.join(candidateDir, 'package.json');
+    const workspaceManifestPath = path.join(candidateDir, 'pnpm-workspace.yaml');
+
+    if (fs.existsSync(packageJsonPath) && fs.existsSync(workspaceManifestPath)) {
+      try {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (packageJson?.name === '@sdkwork/claw-workspace') {
+          return candidateDir;
+        }
+      } catch {
+        // Ignore parse failures and continue walking upward.
+      }
+    }
+
+    const parentDir = path.dirname(candidateDir);
+    if (parentDir === candidateDir) {
+      break;
+    }
+
+    candidateDir = parentDir;
+  }
+
+  return scriptWorkspaceRoot;
+}
+
+export function createSharedSdkPackageContext({
+  currentWorkingDir = process.cwd(),
+  env = process.env,
+} = {}) {
+  const workspaceRoot = resolveWorkspaceRootDir(currentWorkingDir);
+
+  return {
+    workspaceRoot,
+    sharedAppSdkRoot: path.resolve(
+      workspaceRoot,
+      '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript',
+    ),
+    sharedSdkCommonRoot: path.resolve(
+      workspaceRoot,
+      '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
+    ),
+    mode: resolveSharedSdkMode(env),
+  };
+}
 
 function exists(targetPath) {
   return fs.existsSync(targetPath);
@@ -38,7 +83,7 @@ function latestMtimeMs(targetPath) {
   }, stat.mtimeMs);
 }
 
-function run(command, args) {
+function run(command, args, workspaceRoot) {
   const result = spawnSync(command, args, {
     cwd: workspaceRoot,
     stdio: 'inherit',
@@ -61,7 +106,7 @@ function assertPackageRootExists(packageRoot, packageName) {
   );
 }
 
-function ensureWorkspaceLinks() {
+function ensureWorkspaceLinks(workspaceRoot, sharedAppSdkRoot) {
   const appSdkCommonLink = path.join(
     sharedAppSdkRoot,
     'node_modules',
@@ -74,7 +119,7 @@ function ensureWorkspaceLinks() {
   }
 
   console.log('[prepare-shared-sdk-packages] Refreshing pnpm workspace links.');
-  run('pnpm', ['install']);
+  run('pnpm', ['install'], workspaceRoot);
 }
 
 function shouldBuildPackage(packageRoot) {
@@ -93,26 +138,47 @@ function shouldBuildPackage(packageRoot) {
   return sourceMtimeMs > statMtimeMs(distEntry);
 }
 
-function ensurePackageBuilt(filterName, packageRoot) {
+function ensurePackageBuilt(filterName, packageRoot, workspaceRoot) {
   if (!shouldBuildPackage(packageRoot)) {
     return;
   }
 
   console.log(`[prepare-shared-sdk-packages] Building ${filterName}.`);
-  run('pnpm', ['--filter', filterName, 'build']);
+  run('pnpm', ['--filter', filterName, 'build'], workspaceRoot);
 }
 
-if (mode === 'git') {
-  console.log('[prepare-shared-sdk-packages] Ensuring git-backed shared SDK sources are available.');
-  ensureSharedSdkGitSources({
-    workspaceRootDir: workspaceRoot,
-    env: process.env,
-    syncExistingRepos: false,
+export function prepareSharedSdkPackages({
+  currentWorkingDir = process.cwd(),
+  env = process.env,
+  syncExistingRepos = false,
+} = {}) {
+  const context = createSharedSdkPackageContext({
+    currentWorkingDir,
+    env,
   });
+
+  if (context.mode === 'git') {
+    console.log('[prepare-shared-sdk-packages] Ensuring git-backed shared SDK sources are available.');
+    ensureSharedSdkGitSources({
+      workspaceRootDir: context.workspaceRoot,
+      env,
+      syncExistingRepos,
+    });
+  }
+
+  assertPackageRootExists(context.sharedSdkCommonRoot, '@sdkwork/sdk-common');
+  assertPackageRootExists(context.sharedAppSdkRoot, '@sdkwork/app-sdk');
+  ensureWorkspaceLinks(context.workspaceRoot, context.sharedAppSdkRoot);
+  ensurePackageBuilt('@sdkwork/sdk-common', context.sharedSdkCommonRoot, context.workspaceRoot);
+  ensurePackageBuilt('@sdkwork/app-sdk', context.sharedAppSdkRoot, context.workspaceRoot);
+
+  return context;
 }
 
-assertPackageRootExists(sharedSdkCommonRoot, '@sdkwork/sdk-common');
-assertPackageRootExists(sharedAppSdkRoot, '@sdkwork/app-sdk');
-ensureWorkspaceLinks();
-ensurePackageBuilt('@sdkwork/sdk-common', sharedSdkCommonRoot);
-ensurePackageBuilt('@sdkwork/app-sdk', sharedAppSdkRoot);
+function main() {
+  prepareSharedSdkPackages();
+}
+
+if (path.resolve(process.argv[1] ?? '') === __filename) {
+  main();
+}
