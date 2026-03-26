@@ -41,9 +41,17 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
   assert.match(workflow, /node scripts\/prepare-shared-sdk-git-sources\.mjs/);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
+  assert.match(workflow, /libgtk-3-dev/);
+  assert.match(workflow, /libssl-dev/);
+  assert.match(workflow, /libfuse2/);
+  assert.match(workflow, /file/);
   assert.match(workflow, /pnpm build/);
   assert.match(workflow, /pnpm docs:build/);
-  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --target \$\{\{ matrix\.target \}\}/);
+  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase sync --target \$\{\{ matrix\.target \}\}/);
+  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
+  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
+  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-api-router --target \$\{\{ matrix\.target \}\}/);
+  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase bundle --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /node scripts\/release\/package-release-assets\.mjs desktop --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /release-assets-desktop-\$\{\{ matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}/);
   assert.match(workflow, /node scripts\/release\/package-release-assets\.mjs web/);
@@ -328,6 +336,59 @@ test('desktop release build runner forwards explicit target triples to tauri bui
   assert.equal(arm64WindowsPlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
 });
 
+test('desktop release build runner exposes granular release phases for CI diagnostics', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  const syncPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+    phase: 'sync',
+    targetTriple: 'aarch64-unknown-linux-gnu',
+  });
+  const prepareTargetPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+    phase: 'prepare-target',
+    targetTriple: 'aarch64-unknown-linux-gnu',
+  });
+  const openClawPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+    phase: 'prepare-openclaw',
+    targetTriple: 'aarch64-unknown-linux-gnu',
+  });
+  const apiRouterPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+    phase: 'prepare-api-router',
+    targetTriple: 'aarch64-unknown-linux-gnu',
+  });
+  const bundlePlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+    phase: 'bundle',
+    targetTriple: 'aarch64-unknown-linux-gnu',
+  });
+
+  assert.match(syncPlan.args.join(' '), /sync-bundled-components\.mjs --no-fetch/);
+  assert.match(prepareTargetPlan.args.join(' '), /ensure-tauri-target-clean\.mjs/);
+  assert.match(openClawPlan.args.join(' '), /prepare-openclaw-runtime\.mjs/);
+  assert.match(apiRouterPlan.args.join(' '), /prepare-sdkwork-api-router-runtime\.mjs/);
+  assert.deepEqual(bundlePlan.args, [
+    '--filter',
+    '@sdkwork/claw-desktop',
+    'exec',
+    'tauri',
+    'build',
+    '--target',
+    'aarch64-unknown-linux-gnu',
+  ]);
+  assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET, 'aarch64-unknown-linux-gnu');
+  assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'linux');
+  assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
+});
+
 test('release asset packager knows how to filter desktop bundle outputs, resolve target roots, and name web archives', async () => {
   const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
   assert.equal(existsSync(packagerPath), true, 'missing scripts/release/package-release-assets.mjs');
@@ -431,4 +492,7 @@ test('bundled component sync resolves the npm global node_modules root for Unix 
     syncModule.resolveGlobalNodeModulesDir('C:/openclaw-prefix', 'win32'),
     'C:\\openclaw-prefix\\node_modules',
   );
+  assert.doesNotMatch(syncSource, /'router-web-service',/);
+  assert.doesNotMatch(syncSource, /"router-web-service",/);
+  assert.doesNotMatch(syncSource, /-p'\s*,\s*'router-web-service'/);
 });

@@ -159,8 +159,6 @@ const componentSources = [
           'admin-api-service',
           '-p',
           'portal-api-service',
-          '-p',
-          'router-web-service',
         ],
         {
           cwd: repoDir,
@@ -193,11 +191,13 @@ const componentSources = [
       fs.mkdirSync(binDir, { recursive: true });
       fs.mkdirSync(webDir, { recursive: true });
 
+      // Claw Studio serves the bundled admin and portal sites through its own
+      // built-in web host, so the upstream router-web-service binary is not
+      // part of the packaged desktop runtime contract.
       for (const binaryName of [
         'gateway-service',
         'admin-api-service',
         'portal-api-service',
-        'router-web-service',
       ]) {
         copyFile(
           path.join(targetDir, 'release', withExe(binaryName)),
