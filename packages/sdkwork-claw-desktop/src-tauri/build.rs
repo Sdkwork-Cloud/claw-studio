@@ -26,34 +26,59 @@ fn main() {
     println!("cargo:rerun-if-changed={MANIFEST_RELATIVE_PATH}");
     println!("cargo:rerun-if-changed={ARTIFACTS_DIR_RELATIVE_PATH}");
 
+    emit_optional_artifact_metadata();
+    tauri_build::build();
+}
+
+fn emit_optional_artifact_metadata() {
     let manifest_dir = PathBuf::from(
         env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is always set by Cargo"),
     );
     let manifest_path = manifest_dir.join(MANIFEST_RELATIVE_PATH);
-    let manifest = load_artifact_manifest(&manifest_path);
+    let manifest = match load_artifact_manifest(&manifest_path) {
+        Ok(manifest) => manifest,
+        Err(message) => {
+            cargo_warn(&message);
+            return;
+        }
+    };
     let target_key = resolve_target_key();
-    let archive = manifest.archives.get(&target_key).unwrap_or_else(|| {
-        panic!(
-            "sdkwork-api-router artifact manifest {} does not declare target {}",
-            manifest_path.display(),
-            target_key
-        )
-    });
+    let archive = match manifest.archives.get(&target_key) {
+        Some(archive) => archive,
+        None => {
+            cargo_warn(&format!(
+                "sdkwork-api-router artifact manifest {} does not declare target {}; continuing without embedded prebuilt archive metadata",
+                manifest_path.display(),
+                target_key
+            ));
+            return;
+        }
+    };
 
-    validate_archive_metadata(&target_key, archive);
+    if let Err(message) = validate_archive_metadata(&target_key, archive) {
+        cargo_warn(&message);
+        return;
+    }
 
-    let archive_relative_path = normalize_relative_artifact_path(&archive.path);
+    let archive_relative_path = match normalize_relative_artifact_path(&archive.path) {
+        Ok(relative_path) => relative_path,
+        Err(message) => {
+            cargo_warn(&message);
+            return;
+        }
+    };
     let archive_path = manifest_dir
         .join(ARTIFACTS_DIR_RELATIVE_PATH)
         .join(&archive_relative_path);
     println!("cargo:rerun-if-changed={}", archive_path.display());
 
     if !archive_path.is_file() {
-        panic!(
-            "missing sdkwork-api-router prebuilt archive for target {}: {}",
+        cargo_warn(&format!(
+            "missing sdkwork-api-router prebuilt archive for target {}: {}; continuing without embedded prebuilt archive metadata",
             target_key,
             archive_path.display()
-        );
+        ));
+        return;
     }
 
     let bundled_archive_relative_path =
@@ -69,57 +94,67 @@ fn main() {
     println!(
         "cargo:rustc-env=SDKWORK_API_ROUTER_ARCHIVE_RELATIVE_PATH={bundled_archive_relative_path}"
     );
-
-    tauri_build::build();
 }
 
-fn load_artifact_manifest(path: &Path) -> ArtifactManifest {
-    let content = fs::read_to_string(path).unwrap_or_else(|error| {
-        panic!(
+fn cargo_warn(message: &str) {
+    println!("cargo:warning={message}");
+}
+
+fn load_artifact_manifest(path: &Path) -> Result<ArtifactManifest, String> {
+    let content = fs::read_to_string(path).map_err(|error| {
+        format!(
             "failed to read sdkwork-api-router artifact manifest {}: {}",
             path.display(),
             error
         )
-    });
-    let manifest: ArtifactManifest = serde_json::from_str(&content).unwrap_or_else(|error| {
-        panic!(
+    })?;
+    let manifest: ArtifactManifest = serde_json::from_str(&content).map_err(|error| {
+        format!(
             "failed to parse sdkwork-api-router artifact manifest {}: {}",
             path.display(),
             error
         )
-    });
+    })?;
 
     if manifest.version.trim().is_empty() {
-        panic!(
+        return Err(format!(
             "sdkwork-api-router artifact manifest {} must include a non-empty version",
             path.display()
-        );
+        ));
     }
 
     if manifest.archives.is_empty() {
-        panic!(
+        return Err(format!(
             "sdkwork-api-router artifact manifest {} must include at least one archive entry",
             path.display()
-        );
+        ));
     }
 
-    manifest
+    Ok(manifest)
 }
 
-fn validate_archive_metadata(target_key: &str, archive: &ArtifactArchive) {
+fn validate_archive_metadata(target_key: &str, archive: &ArtifactArchive) -> Result<(), String> {
     if archive.path.trim().is_empty() {
-        panic!("sdkwork-api-router archive path must not be empty for target {target_key}");
+        return Err(format!(
+            "sdkwork-api-router archive path must not be empty for target {target_key}"
+        ));
     }
 
     if archive.binaries.is_empty() {
-        panic!("sdkwork-api-router archive binaries must not be empty for target {target_key}");
+        return Err(format!(
+            "sdkwork-api-router archive binaries must not be empty for target {target_key}"
+        ));
     }
+
+    Ok(())
 }
 
-fn normalize_relative_artifact_path(path: &str) -> String {
+fn normalize_relative_artifact_path(path: &str) -> Result<String, String> {
     let candidate = Path::new(path);
     if candidate.is_absolute() {
-        panic!("sdkwork-api-router archive path must stay relative: {path}");
+        return Err(format!(
+            "sdkwork-api-router archive path must stay relative: {path}"
+        ));
     }
 
     let mut segments = Vec::new();
@@ -128,16 +163,18 @@ fn normalize_relative_artifact_path(path: &str) -> String {
             Component::Normal(segment) => segments.push(segment.to_string_lossy().into_owned()),
             Component::CurDir => {}
             Component::ParentDir | Component::Prefix(_) | Component::RootDir => {
-                panic!("sdkwork-api-router archive path must not escape the artifact root: {path}");
+                return Err(format!(
+                    "sdkwork-api-router archive path must not escape the artifact root: {path}"
+                ));
             }
         }
     }
 
     if segments.is_empty() {
-        panic!("sdkwork-api-router archive path resolved to an empty relative path");
+        return Err("sdkwork-api-router archive path resolved to an empty relative path".into());
     }
 
-    segments.join("/")
+    Ok(segments.join("/"))
 }
 
 fn resolve_target_key() -> String {
@@ -149,10 +186,9 @@ fn resolve_target_key() -> String {
         ("windows", "x86_64") => "windows-x64".to_string(),
         ("windows", "aarch64") => "windows-arm64".to_string(),
         ("linux", "x86_64") => "linux-x64".to_string(),
+        ("linux", "aarch64") => "linux-arm64".to_string(),
+        ("macos", "x86_64") => "macos-x64".to_string(),
         ("macos", "aarch64") => "macos-aarch64".to_string(),
-        _ => panic!(
-            "sdkwork-api-router prebuilt integration does not yet support target {}-{}",
-            target_os, target_arch
-        ),
+        _ => format!("{target_os}-{target_arch}"),
     }
 }

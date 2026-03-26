@@ -51,6 +51,15 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /CMAKE_GENERATOR:\s*Visual Studio 17 2022/);
 });
 
+test('desktop tauri build script treats sdkwork-api-router prebuilt artifacts as optional metadata across the full release matrix', () => {
+  const buildScript = read('packages/sdkwork-claw-desktop/src-tauri/build.rs');
+
+  assert.match(buildScript, /\("linux", "aarch64"\)\s*=>\s*"linux-arm64"/);
+  assert.match(buildScript, /\("macos", "x86_64"\)\s*=>\s*"macos-x64"/);
+  assert.match(buildScript, /cargo:warning=/);
+  assert.doesNotMatch(buildScript, /prebuilt integration does not yet support target/);
+});
+
 test('root package exposes release helper scripts for desktop and asset packaging', () => {
   const rootPackage = JSON.parse(read('package.json'));
 
