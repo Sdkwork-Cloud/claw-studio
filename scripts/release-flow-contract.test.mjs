@@ -43,6 +43,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /pnpm install --frozen-lockfile/);
   assert.match(workflow, /submodules:\s*recursive/);
   assert.match(workflow, /libgtk-3-dev/);
+  assert.match(workflow, /libpipewire-0\.3-dev/);
   assert.match(workflow, /libssl-dev/);
   assert.match(workflow, /libfuse2/);
   assert.match(workflow, /file/);

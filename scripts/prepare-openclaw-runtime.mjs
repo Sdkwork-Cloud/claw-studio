@@ -757,11 +757,17 @@ export async function copyDirectoryWithWindowsFallback(
   {
     copyImpl = cp,
     robocopyImpl = runRobocopyCopy,
+    copyOptions = {
+      recursive: true,
+      // Preserve relative symlink targets from Unix Node runtimes so staged shims
+      // like bin/corepack do not get rewritten to deleted temp directories.
+      verbatimSymlinks: true,
+    },
     platform = process.platform,
   } = {},
 ) {
   try {
-    await copyImpl(sourceDir, targetDir, { recursive: true });
+    await copyImpl(sourceDir, targetDir, copyOptions);
   } catch (error) {
     if (!shouldUseWindowsDirectoryCopyFallback(error, platform)) {
       throw error;

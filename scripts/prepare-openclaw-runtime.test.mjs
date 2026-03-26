@@ -1,3 +1,4 @@
+import { readlinkSync, symlinkSync } from 'node:fs';
 import { copyFile, cp, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -402,6 +403,35 @@ try {
   if (!(nonWindowsCopyError instanceof Error) || nonWindowsCopyError.message !== 'copy failed') {
     throw new Error(`Expected non-Windows copy failure to be preserved, received ${String(nonWindowsCopyError)}`);
   }
+
+  const symlinkSourceDir = path.join(tempRoot, 'symlink-source');
+  const symlinkTargetDir = path.join(tempRoot, 'symlink-target');
+  const symlinkShimTarget = path.join(
+    symlinkSourceDir,
+    'lib',
+    'node_modules',
+    'corepack',
+    'dist',
+    'corepack.js',
+  );
+  const symlinkShimPath = path.join(symlinkSourceDir, 'bin', 'corepack');
+
+  await mkdir(path.dirname(symlinkShimTarget), { recursive: true });
+  await mkdir(path.dirname(symlinkShimPath), { recursive: true });
+  await writeFile(symlinkShimTarget, 'console.log("corepack");\n');
+  symlinkSync('../lib/node_modules/corepack/dist/corepack.js', symlinkShimPath);
+
+  await copyDirectoryWithWindowsFallback(symlinkSourceDir, symlinkTargetDir, {
+    platform: 'linux',
+  });
+
+  const copiedSymlinkPath = path.join(symlinkTargetDir, 'bin', 'corepack');
+  const copiedSymlinkTarget = readlinkSync(copiedSymlinkPath).replaceAll('\\', '/');
+  if (copiedSymlinkTarget !== '../lib/node_modules/corepack/dist/corepack.js') {
+    throw new Error(`Expected copied symlink to preserve its relative target, received ${copiedSymlinkTarget}`);
+  }
+
+  await stat(path.join(symlinkTargetDir, 'bin', copiedSymlinkTarget));
 
   console.log('ok - bundled OpenClaw runtime preparation copies runtime files and writes manifest');
 } finally {
