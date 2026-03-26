@@ -6,7 +6,12 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { withSupportedWindowsCmakeGenerator } from './prepare-sdkwork-api-router-runtime.mjs';
-import { buildDesktopReleaseEnv } from './release/desktop-targets.mjs';
+import {
+  buildDesktopReleaseEnv,
+  normalizeDesktopArch,
+  normalizeDesktopPlatform,
+  parseDesktopTargetTriple,
+} from './release/desktop-targets.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +23,8 @@ function resolveReleasePhasePlan({
   phase,
   requestedTargetTriple,
   releaseMode,
+  platform,
+  hostArch,
 }) {
   switch (phase) {
     case 'sync':
@@ -46,7 +53,14 @@ function resolveReleasePhasePlan({
       };
     case 'bundle': {
       const args = ['--filter', desktopPackageName, 'exec', 'tauri', 'build'];
-      if (requestedTargetTriple) {
+      if (
+        requestedTargetTriple
+        && shouldPassExplicitTauriTarget({
+          requestedTargetTriple,
+          platform,
+          hostArch,
+        })
+      ) {
         args.push('--target', requestedTargetTriple);
       }
       return {
@@ -71,6 +85,7 @@ function resolveReleasePhasePlan({
 
 export function createDesktopReleaseBuildPlan({
   platform = process.platform,
+  hostArch = process.arch,
   env = process.env,
   targetTriple = '',
   phase = 'all',
@@ -90,6 +105,8 @@ export function createDesktopReleaseBuildPlan({
     phase: normalizedPhase,
     requestedTargetTriple,
     releaseMode: effectiveReleaseMode,
+    platform,
+    hostArch,
   });
 
   return {
@@ -98,6 +115,22 @@ export function createDesktopReleaseBuildPlan({
     cwd: rootDir,
     env: withSupportedWindowsCmakeGenerator(resolvedEnv, platform),
   };
+}
+
+function shouldPassExplicitTauriTarget({
+  requestedTargetTriple,
+  platform,
+  hostArch,
+}) {
+  if (!requestedTargetTriple) {
+    return false;
+  }
+
+  const requestedTarget = parseDesktopTargetTriple(requestedTargetTriple);
+  const nativePlatform = normalizeDesktopPlatform(platform);
+  const nativeArch = normalizeDesktopArch(hostArch);
+
+  return requestedTarget.platform !== nativePlatform || requestedTarget.arch !== nativeArch;
 }
 
 function parseCliArgs(argv) {
