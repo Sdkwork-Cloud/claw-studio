@@ -88,6 +88,7 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.git_ref }}
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -174,6 +175,7 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.git_ref }}
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

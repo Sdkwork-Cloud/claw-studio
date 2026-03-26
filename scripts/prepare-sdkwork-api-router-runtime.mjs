@@ -532,7 +532,7 @@ async function buildWorkspaceApiRouterSiteBundle({ appDir, siteLabel }) {
   }
 
   await ensureWorkspaceInstallReady({ appDir, siteLabel });
-  await runCommand('pnpm', ['build'], { cwd: appDir });
+  await runCommand(resolveWorkspacePackageManagerCommand('pnpm'), ['build'], { cwd: appDir });
 }
 
 export async function inspectWorkspaceInstall(appDir) {
@@ -646,6 +646,29 @@ export function buildNonInteractiveInstallEnv(baseEnv = process.env) {
   };
 }
 
+export function resolveWorkspacePackageManagerCommand(
+  command,
+  platform = process.platform,
+) {
+  if (platform === 'win32' && command === 'pnpm') {
+    return 'pnpm.cmd';
+  }
+
+  return command;
+}
+
+export function shouldUseShellForWorkspaceCommand(
+  command,
+  platform = process.platform,
+) {
+  if (platform !== 'win32') {
+    return false;
+  }
+
+  const extension = path.extname(String(command ?? '')).toLowerCase();
+  return extension === '.cmd' || extension === '.bat';
+}
+
 export function withSupportedWindowsCmakeGenerator(
   baseEnv = process.env,
   platform = process.platform,
@@ -724,10 +747,11 @@ async function installWorkspaceDependencies(appDir) {
 
 async function runWorkspaceInstall(args, options) {
   let lastError;
+  const packageManagerCommand = resolveWorkspacePackageManagerCommand('pnpm');
 
   for (let attempt = 1; attempt <= DEFAULT_WORKSPACE_INSTALL_RETRY_COUNT; attempt += 1) {
     try {
-      return await runCommandCapture('pnpm', args, options);
+      return await runCommandCapture(packageManagerCommand, args, options);
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
@@ -906,11 +930,12 @@ export function resolveDefaultApiRouterWorkspaceDir(workspaceRootDir = rootDir) 
 
 async function runCommand(command, args, options = {}) {
   await new Promise((resolve, reject) => {
+    const shell = shouldUseShellForWorkspaceCommand(command);
     const child = spawn(command, args, {
       cwd: options.cwd ?? rootDir,
       stdio: 'inherit',
       env: options.env ?? process.env,
-      shell: false,
+      shell,
     });
 
     child.on('error', reject);
@@ -931,11 +956,12 @@ async function runCommandCapture(command, args, options = {}) {
   const result = await new Promise((resolve, reject) => {
     const stdoutChunks = [];
     const stderrChunks = [];
+    const shell = shouldUseShellForWorkspaceCommand(command);
     const child = spawn(command, args, {
       cwd: options.cwd ?? rootDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: options.env ?? process.env,
-      shell: false,
+      shell,
     });
 
     child.stdout?.on('data', (chunk) => {

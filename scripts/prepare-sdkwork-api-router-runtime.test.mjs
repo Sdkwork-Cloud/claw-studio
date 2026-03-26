@@ -9,6 +9,8 @@ import {
   inspectPreparedApiRouterRuntime,
   prepareApiRouterRuntime,
   prepareApiRouterRuntimeFromSource,
+  resolveWorkspacePackageManagerCommand,
+  shouldUseShellForWorkspaceCommand,
   resolveDefaultApiRouterWorkspaceDir,
   resolveApiRouterTarget,
   resolveBundledApiRouterCargoTargetDir,
@@ -295,6 +297,19 @@ try {
     throw new Error(
       `Expected non-Windows bundled api-router cargo targets to stay under the repo cache, received ${linuxCargoTargetDir}`,
     );
+  }
+
+  if (resolveWorkspacePackageManagerCommand('pnpm', 'win32') !== 'pnpm.cmd') {
+    throw new Error('Expected Windows workspace package manager commands to use pnpm.cmd');
+  }
+  if (resolveWorkspacePackageManagerCommand('pnpm', 'linux') !== 'pnpm') {
+    throw new Error('Expected non-Windows workspace package manager commands to keep pnpm');
+  }
+  if (!shouldUseShellForWorkspaceCommand('pnpm.cmd', 'win32')) {
+    throw new Error('Expected Windows .cmd workspace commands to require shell execution');
+  }
+  if (shouldUseShellForWorkspaceCommand('pnpm', 'linux')) {
+    throw new Error('Expected non-Windows workspace commands to avoid shell execution');
   }
 
   const incompleteWorkspaceDir = path.join(tempRoot, 'incomplete-workspace');
