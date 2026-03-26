@@ -389,6 +389,30 @@ test('desktop release build runner exposes granular release phases for CI diagno
   assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
 });
 
+test('desktop release build runner avoids explicit tauri target flags on native architecture runners', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  const nativeLinuxArmPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    hostArch: 'arm64',
+    env: {},
+    phase: 'bundle',
+    targetTriple: 'aarch64-unknown-linux-gnu',
+  });
+
+  assert.deepEqual(nativeLinuxArmPlan.args, [
+    '--filter',
+    '@sdkwork/claw-desktop',
+    'exec',
+    'tauri',
+    'build',
+  ]);
+  assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET, 'aarch64-unknown-linux-gnu');
+  assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'linux');
+  assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
+});
+
 test('release asset packager knows how to filter desktop bundle outputs, resolve target roots, and name web archives', async () => {
   const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
   assert.equal(existsSync(packagerPath), true, 'missing scripts/release/package-release-assets.mjs');
