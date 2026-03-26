@@ -17,12 +17,17 @@ const desktopPackageName = '@sdkwork/claw-desktop';
 function resolveReleasePhasePlan({
   phase,
   requestedTargetTriple,
+  releaseMode,
 }) {
   switch (phase) {
     case 'sync':
       return {
         command: process.execPath,
-        args: ['scripts/sync-bundled-components.mjs', '--no-fetch'],
+        args: [
+          'scripts/sync-bundled-components.mjs',
+          '--no-fetch',
+          ...(releaseMode ? ['--release'] : []),
+        ],
       };
     case 'prepare-target':
       return {
@@ -69,6 +74,7 @@ export function createDesktopReleaseBuildPlan({
   env = process.env,
   targetTriple = '',
   phase = 'all',
+  releaseMode = false,
 } = {}) {
   const requestedTargetTriple = String(targetTriple ?? '').trim();
   const resolvedEnv = requestedTargetTriple
@@ -79,9 +85,11 @@ export function createDesktopReleaseBuildPlan({
     : { ...env };
 
   const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
+  const effectiveReleaseMode = releaseMode || normalizedPhase === 'sync';
   const plan = resolveReleasePhasePlan({
     phase: normalizedPhase,
     requestedTargetTriple,
+    releaseMode: effectiveReleaseMode,
   });
 
   return {
@@ -96,6 +104,7 @@ function parseCliArgs(argv) {
   const options = {
     targetTriple: '',
     phase: 'all',
+    releaseMode: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -111,6 +120,11 @@ function parseCliArgs(argv) {
     if (token === '--phase') {
       options.phase = next ?? 'all';
       index += 1;
+      continue;
+    }
+
+    if (token === '--release') {
+      options.releaseMode = true;
     }
   }
 
@@ -122,6 +136,7 @@ function runCli() {
   const plan = createDesktopReleaseBuildPlan({
     phase: options.phase,
     targetTriple: options.targetTriple,
+    releaseMode: options.releaseMode,
   });
   const child = spawn(plan.command, plan.args, {
     cwd: plan.cwd,

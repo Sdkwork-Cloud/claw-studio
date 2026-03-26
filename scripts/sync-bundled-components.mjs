@@ -61,6 +61,7 @@ const sourceFoundationDir = path.join(
 const args = new Set(process.argv.slice(2));
 const devMode = args.has('--dev');
 const noFetch = args.has('--no-fetch');
+const releaseMode = args.has('--release');
 const skipOpenClaw = args.has('--skip-openclaw');
 
 const gitCmd = process.platform === 'win32' ? 'git.exe' : 'git';
@@ -278,16 +279,43 @@ function main() {
     const fullSha = gitOutput(repoDir, ['rev-parse', 'HEAD']).trim();
     const shortSha = fullSha.slice(0, 12);
     const version = component.resolveVersion(repoDir, shortSha);
+    const executionPlan = createComponentExecutionPlan({
+      componentId: component.id,
+      devMode,
+      releaseMode,
+    });
+    const executionPlanLabel = describeComponentExecutionPlan({
+      componentId: component.id,
+      devMode,
+      releaseMode,
+    });
 
-    if (!devMode) {
+    console.log(
+      `[bundled-components] processing ${component.id} ${version} from ${component.repoUrl}`,
+    );
+
+    if (executionPlan.shouldBuild) {
       buildComponentWithRetry(component, repoDir);
-      component.stage(repoDir, version);
     } else {
-      try {
+      console.log(
+        `[bundled-components] skipping build for ${component.id} (${executionPlanLabel})`,
+      );
+    }
+
+    if (executionPlan.shouldStage) {
+      if (devMode) {
+        try {
+          component.stage(repoDir, version);
+        } catch (error) {
+          console.warn(`[bundled-components] skipped staging ${component.id} in dev mode: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      } else {
         component.stage(repoDir, version);
-      } catch (error) {
-        console.warn(`[bundled-components] skipped staging ${component.id} in dev mode: ${error instanceof Error ? error.message : String(error)}`);
       }
+    } else {
+      console.log(
+        `[bundled-components] skipping staging for ${component.id} (${executionPlanLabel})`,
+      );
     }
 
     bundleManifest.components.push({
@@ -318,6 +346,53 @@ function main() {
   writeJson(path.join(bundledRoot, 'foundation', 'components', 'bundle-manifest.json'), bundleManifest);
 
   console.log('[bundled-components] generated bundled assets at', path.relative(rootDir, bundledLinkRoot));
+}
+
+export function createComponentExecutionPlan({
+  componentId,
+  devMode = false,
+  releaseMode = false,
+} = {}) {
+  if (devMode) {
+    return {
+      shouldBuild: false,
+      shouldStage: true,
+    };
+  }
+
+  if (
+    releaseMode
+    && ['openclaw', 'sdkwork-api-router'].includes(String(componentId ?? '').trim())
+  ) {
+    return {
+      shouldBuild: false,
+      shouldStage: false,
+    };
+  }
+
+  return {
+    shouldBuild: true,
+    shouldStage: true,
+  };
+}
+
+function describeComponentExecutionPlan({
+  componentId,
+  devMode = false,
+  releaseMode = false,
+} = {}) {
+  if (devMode) {
+    return 'dev-mode';
+  }
+
+  if (
+    releaseMode
+    && ['openclaw', 'sdkwork-api-router'].includes(String(componentId ?? '').trim())
+  ) {
+    return 'deferred-to-dedicated-release-phase';
+  }
+
+  return releaseMode ? 'release-sync-required' : 'standard-sync';
 }
 
 function buildComponentWithRetry(component, repoDir) {
