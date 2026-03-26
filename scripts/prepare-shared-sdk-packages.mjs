@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { ensureSharedSdkGitSources } from './prepare-shared-sdk-git-sources.mjs';
+import { resolveSharedSdkMode } from './shared-sdk-mode.mjs';
 
 const workspaceRoot = process.cwd();
 const sharedAppSdkRoot = path.resolve(
@@ -11,6 +13,7 @@ const sharedSdkCommonRoot = path.resolve(
   workspaceRoot,
   '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
 );
+const mode = resolveSharedSdkMode(process.env);
 
 function exists(targetPath) {
   return fs.existsSync(targetPath);
@@ -45,6 +48,17 @@ function run(command, args) {
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
+}
+
+function assertPackageRootExists(packageRoot, packageName) {
+  if (exists(packageRoot)) {
+    return;
+  }
+
+  throw new Error(
+    `[prepare-shared-sdk-packages] Missing ${packageName} source at ${packageRoot}. ` +
+      'Clone the sibling SDK workspace locally or set SDKWORK_SHARED_SDK_MODE=git to materialize it from the remote trunk.',
+  );
 }
 
 function ensureWorkspaceLinks() {
@@ -88,7 +102,17 @@ function ensurePackageBuilt(filterName, packageRoot) {
   run('pnpm', ['--filter', filterName, 'build']);
 }
 
+if (mode === 'git') {
+  console.log('[prepare-shared-sdk-packages] Ensuring git-backed shared SDK sources are available.');
+  ensureSharedSdkGitSources({
+    workspaceRootDir: workspaceRoot,
+    env: process.env,
+    syncExistingRepos: false,
+  });
+}
+
+assertPackageRootExists(sharedSdkCommonRoot, '@sdkwork/sdk-common');
+assertPackageRootExists(sharedAppSdkRoot, '@sdkwork/app-sdk');
 ensureWorkspaceLinks();
 ensurePackageBuilt('@sdkwork/sdk-common', sharedSdkCommonRoot);
 ensurePackageBuilt('@sdkwork/app-sdk', sharedAppSdkRoot);
-

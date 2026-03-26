@@ -124,7 +124,7 @@ const componentSources = [
         { cwd: repoDir },
       );
 
-      const installedModulesDir = path.join(prefixDir, 'node_modules');
+      const installedModulesDir = resolveGlobalNodeModulesDir(prefixDir);
       const stageDir = path.join(bundledRoot, 'modules', 'openclaw', version, 'app');
       fs.mkdirSync(stageDir, { recursive: true });
       copyDirectoryContents(path.join(installedModulesDir, 'openclaw'), stageDir);
@@ -426,6 +426,14 @@ function resolvePreparedApiRouterSiteBundle(siteLabel) {
   return siteDir;
 }
 
+export function resolveGlobalNodeModulesDir(prefixDir, platform = process.platform) {
+  if (platform === 'win32') {
+    return path.win32.join(prefixDir, 'node_modules');
+  }
+
+  return path.posix.join(prefixDir, 'lib', 'node_modules');
+}
+
 function hasPreparedApiRouterSiteBundle(siteLabel) {
   return resolvePreparedApiRouterSiteBundle(siteLabel) !== null;
 }
@@ -631,4 +639,6 @@ function rustTargetDir(componentId) {
   return path.join(cacheRoot, 'targets', componentId);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  main();
+}

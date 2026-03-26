@@ -2,6 +2,7 @@ import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
+import { resolveSharedSdkMode } from '../../scripts/shared-sdk-mode.mjs';
 import {
   remapWorktreeWorkspaceImport,
   resolveWorkspacePackageEntry,
@@ -72,6 +73,8 @@ function createManualChunks(sharedAppSdkEntry: string) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  const sharedSdkMode = resolveSharedSdkMode(process.env);
+  const useSharedSdkSourceMode = sharedSdkMode === 'source' || sharedSdkMode === 'git';
   // Allow pnpm workspace-linked SDK packages that live above apps/claw-studio.
   const monorepoRoot = path.resolve(__dirname, '../../../../..');
   const packagesRootDir = path.resolve(__dirname, '../../packages');
@@ -100,8 +103,12 @@ export default defineConfig(({ mode }) => {
       ],
       alias: [
         { find: '@', replacement: path.resolve(__dirname, '.') },
-        { find: '@sdkwork/app-sdk', replacement: sharedAppSdkEntry },
-        { find: '@sdkwork/sdk-common', replacement: sharedSdkCommonEntry },
+        ...(useSharedSdkSourceMode
+          ? [
+              { find: '@sdkwork/app-sdk', replacement: sharedAppSdkEntry },
+              { find: '@sdkwork/sdk-common', replacement: sharedSdkCommonEntry },
+            ]
+          : []),
       ],
     },
     server: {

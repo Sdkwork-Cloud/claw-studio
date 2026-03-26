@@ -141,6 +141,7 @@ const requiredPaths = [
   ['scripts/prepare-openclaw-runtime.test.mjs', 'bundled openclaw runtime prepare test'],
   ['scripts/prepare-sdkwork-api-router-runtime.mjs', 'bundled sdkwork-api-router runtime prepare script'],
   ['scripts/prepare-sdkwork-api-router-runtime.test.mjs', 'bundled sdkwork-api-router runtime prepare test'],
+  ['scripts/verify-desktop-build-assets.mjs', 'desktop bundled asset verification script'],
   ['scripts/ensure-tauri-dev-binary-unlocked.mjs', 'tauri dev binary unlock guard script'],
   ['scripts/ensure-tauri-dev-binary-unlocked.test.mjs', 'tauri dev binary unlock guard test'],
   ['packages/sdkwork-claw-distribution/package.json', 'distribution package'],

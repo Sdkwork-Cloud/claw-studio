@@ -442,7 +442,7 @@ importers:
         specifier: ^1.30.0
         version: 1.45.0
       '@sdkwork/app-sdk':
-        specifier: workspace:*
+        specifier: ^1.0.34
         version: link:../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript
       '@sdkwork/claw-i18n':
         specifier: workspace:*

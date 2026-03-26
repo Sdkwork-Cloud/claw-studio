@@ -18,18 +18,14 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import {
+  normalizeDesktopArch,
+  resolveDesktopReleaseTarget,
+} from './desktop-targets.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
-const desktopBundleRoot = path.join(
-  rootDir,
-  'packages',
-  'sdkwork-claw-desktop',
-  'src-tauri',
-  'target',
-  'release',
-  'bundle',
-);
 const webDistDir = path.join(rootDir, 'packages', 'sdkwork-claw-web', 'dist');
 const docsDistDir = path.join(rootDir, 'docs', '.vitepress', 'dist');
 
@@ -83,11 +79,31 @@ export function buildWebArchiveBaseName(releaseTag) {
   return `claw-studio-web-assets-${releaseTag.trim()}`;
 }
 
+export function resolveDesktopBundleRoot({ targetTriple = '' } = {}) {
+  const normalizedTargetTriple = String(targetTriple ?? '').trim();
+  const targetSegments = normalizedTargetTriple.length > 0
+    ? [normalizedTargetTriple]
+    : [];
+
+  return path.join(
+    rootDir,
+    'packages',
+    'sdkwork-claw-desktop',
+    'src-tauri',
+    'target',
+    ...targetSegments,
+    'release',
+    'bundle',
+  );
+}
+
 function parseArgs(argv) {
   const [mode, ...rest] = argv;
   const options = {
     mode,
     platform: process.platform,
+    arch: process.arch,
+    target: '',
     outputDir: path.join(rootDir, 'artifacts', 'release'),
     releaseTag: '',
   };
@@ -104,6 +120,18 @@ function parseArgs(argv) {
 
     if (token === '--output-dir') {
       options.outputDir = path.resolve(next);
+      index += 1;
+      continue;
+    }
+
+    if (token === '--arch') {
+      options.arch = next;
+      index += 1;
+      continue;
+    }
+
+    if (token === '--target') {
+      options.target = next;
       index += 1;
       continue;
     }
@@ -154,8 +182,18 @@ function writeSha256File(filePath) {
   );
 }
 
-function packageDesktopAssets({ platform, outputDir }) {
-  const platformId = normalizePlatformId(platform);
+function packageDesktopAssets({ platform, arch, target, outputDir }) {
+  const targetSpec = resolveDesktopReleaseTarget({
+    targetTriple: target,
+    platform,
+    arch,
+  });
+  const platformId = normalizePlatformId(targetSpec.platform);
+  const archId = normalizeDesktopArch(targetSpec.arch);
+  const desktopBundleRoot = resolveDesktopBundleRoot({
+    targetTriple: targetSpec.targetTriple,
+  });
+
   if (!existsSync(desktopBundleRoot)) {
     throw new Error(`Missing desktop bundle output directory: ${desktopBundleRoot}`);
   }
@@ -169,7 +207,7 @@ function packageDesktopAssets({ platform, outputDir }) {
     );
   }
 
-  const platformOutputDir = path.join(outputDir, 'desktop', platformId);
+  const platformOutputDir = path.join(outputDir, 'desktop', platformId, archId);
   rmSync(platformOutputDir, { recursive: true, force: true });
   ensureDirectory(platformOutputDir);
 
@@ -230,7 +268,7 @@ function printUsage() {
   console.error(
     [
       'Usage:',
-      '  node scripts/release/package-release-assets.mjs desktop --platform <windows|linux|macos> --output-dir <dir>',
+      '  node scripts/release/package-release-assets.mjs desktop --platform <windows|linux|macos> --arch <x64|arm64> --target <triple> --output-dir <dir>',
       '  node scripts/release/package-release-assets.mjs web --release-tag <tag> --output-dir <dir>',
     ].join('\n'),
   );

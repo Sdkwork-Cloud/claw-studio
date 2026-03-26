@@ -15,9 +15,6 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
-    "paths": {
-      "@sdkwork/app-sdk": ["../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts"]
-    },
     "noEmit": true
   }
 }

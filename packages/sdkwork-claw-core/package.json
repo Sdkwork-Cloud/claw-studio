@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@google/genai": "^1.30.0",
-    "@sdkwork/app-sdk": "workspace:*",
+    "@sdkwork/app-sdk": "^1.0.34",
     "@sdkwork/claw-i18n": "workspace:*",
     "@sdkwork/claw-infrastructure": "workspace:*",
     "fuse.js": "^7.1.0",

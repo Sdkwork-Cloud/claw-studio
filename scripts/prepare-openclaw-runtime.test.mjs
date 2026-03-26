@@ -4,23 +4,29 @@ import path from 'node:path';
 
 import {
   buildOpenClawManifest,
+  copyDirectoryWithWindowsFallback,
   DEFAULT_OPENCLAW_VERSION,
   DEFAULT_RESOURCE_DIR,
   inspectPreparedOpenClawRuntime,
   prepareOpenClawRuntime,
   prepareOpenClawRuntimeFromStagedDirs,
   prepareOpenClawRuntimeFromSource,
+  removeDirectoryWithRetries,
+  refreshCachedOpenClawRuntimeArtifacts,
   resolveNodeArchiveExtractionCommand,
   resolveBundledNpmCommand,
+  resolveDefaultOpenClawPrepareCacheDir,
   resolveOpenClawPrepareCachePaths,
   resolveOpenClawTarget,
+  resolveRequestedOpenClawTarget,
+  shouldRetryDirectoryCleanup,
   shouldSyncBundledResourceMirror,
   shouldReusePreparedOpenClawRuntime,
 } from './prepare-openclaw-runtime.mjs';
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'prepare-openclaw-runtime-test-'));
 const actualNodeVersion = process.version.replace(/^v/i, '');
-const expectedOpenClawVersion = '2026.3.23-2';
+const expectedOpenClawVersion = '2026.3.24';
 
 try {
   if (DEFAULT_OPENCLAW_VERSION !== expectedOpenClawVersion) {
@@ -109,6 +115,29 @@ try {
   }
   if (linuxNpm.args.length !== 0) {
     throw new Error(`Expected no extra Unix npm arguments, received ${linuxNpm.args.join(' ')}`);
+  }
+
+  const requestedWindowsTarget = resolveRequestedOpenClawTarget({
+    env: {
+      SDKWORK_DESKTOP_TARGET: 'x86_64-pc-windows-msvc',
+      SDKWORK_DESKTOP_TARGET_PLATFORM: 'windows',
+      SDKWORK_DESKTOP_TARGET_ARCH: 'x64',
+    },
+  });
+  if (requestedWindowsTarget.platformId !== 'windows' || requestedWindowsTarget.archId !== 'x64') {
+    throw new Error(
+      `Expected release env target resolution to return windows-x64, received ${requestedWindowsTarget.platformId}-${requestedWindowsTarget.archId}`,
+    );
+  }
+
+  const windowsCacheDir = resolveDefaultOpenClawPrepareCacheDir({
+    workspaceRootDir: 'C:\\workspaces\\claw-studio',
+    platform: 'win32',
+    localAppData: 'C:\\Users\\admin\\AppData\\Local',
+    homeDir: 'C:\\Users\\admin',
+  });
+  if (windowsCacheDir.toLowerCase() !== 'c:\\.sdkwork-bc\\claw-studio\\openclaw-cache') {
+    throw new Error(`Expected short Windows cache dir, received ${windowsCacheDir}`);
   }
 
   const stagedNodeDir = path.join(tempRoot, 'staged-node');
@@ -261,6 +290,117 @@ try {
   });
   if (windowsExtractor.command.toLowerCase() !== 'tar') {
     throw new Error(`Expected Windows zip extraction to prefer tar, received ${windowsExtractor.command}`);
+  }
+
+  if (!shouldRetryDirectoryCleanup(Object.assign(new Error('directory not empty'), { code: 'ENOTEMPTY' }))) {
+    throw new Error('Expected ENOTEMPTY cleanup failures to be retried');
+  }
+
+  if (shouldRetryDirectoryCleanup(Object.assign(new Error('missing'), { code: 'ENOENT' }))) {
+    throw new Error('Expected ENOENT cleanup failures to skip retries');
+  }
+
+  let transientCleanupAttempts = 0;
+  await removeDirectoryWithRetries(path.join(tempRoot, 'transient-cleanup'), {
+    retryCount: 3,
+    retryDelayMs: 0,
+    logger: () => {},
+    removeImpl: async () => {
+      transientCleanupAttempts += 1;
+      if (transientCleanupAttempts === 1) {
+        throw Object.assign(new Error('directory not empty'), { code: 'ENOTEMPTY' });
+      }
+    },
+  });
+
+  if (transientCleanupAttempts !== 2) {
+    throw new Error(`Expected transient cleanup to retry once, received ${transientCleanupAttempts} attempts`);
+  }
+
+  let fatalCleanupAttempts = 0;
+  let fatalCleanupError;
+  try {
+    await removeDirectoryWithRetries(path.join(tempRoot, 'fatal-cleanup'), {
+      retryCount: 3,
+      retryDelayMs: 0,
+      logger: () => {},
+      removeImpl: async () => {
+        fatalCleanupAttempts += 1;
+        throw Object.assign(new Error('bad cleanup'), { code: 'EINVAL' });
+      },
+    });
+    throw new Error('Expected invalid cleanup failures to surface without retries');
+  } catch (error) {
+    fatalCleanupError = error;
+  }
+
+  if (fatalCleanupAttempts !== 1) {
+    throw new Error(`Expected fatal cleanup failures to avoid retries, received ${fatalCleanupAttempts} attempts`);
+  }
+
+  if (!(fatalCleanupError instanceof Error) || fatalCleanupError.message !== 'bad cleanup') {
+    throw new Error(`Expected fatal cleanup error to be preserved, received ${String(fatalCleanupError)}`);
+  }
+
+  const aliasedNodeCacheDir = path.join(tempRoot, 'aliased-node-cache');
+  const aliasedPackageSourceDir = path.join(tempRoot, 'aliased-package-source');
+  const aliasedPackageCacheDir = path.join(tempRoot, 'aliased-package-cache');
+  const aliasedNodeExecutable = path.join(aliasedNodeCacheDir, 'node.exe');
+  const aliasedPackageJson = path.join(aliasedPackageSourceDir, 'package.json');
+
+  await mkdir(path.dirname(aliasedNodeExecutable), { recursive: true });
+  await mkdir(path.dirname(aliasedPackageJson), { recursive: true });
+  await writeFile(aliasedNodeExecutable, 'node');
+  await writeFile(aliasedPackageJson, '{"name":"openclaw-runtime-cache"}\n');
+
+  await refreshCachedOpenClawRuntimeArtifacts({
+    nodeSourceDir: aliasedNodeCacheDir,
+    packageSourceDir: aliasedPackageSourceDir,
+    cachePaths: {
+      nodeCacheDir: aliasedNodeCacheDir,
+      packageCacheDir: aliasedPackageCacheDir,
+    },
+  });
+
+  await stat(aliasedNodeExecutable);
+  await stat(path.join(aliasedPackageCacheDir, 'package.json'));
+
+  let fallbackCopyAttempts = 0;
+  await copyDirectoryWithWindowsFallback('C:\\temp\\source-package', 'C:\\temp\\target-package', {
+    platform: 'win32',
+    copyImpl: async () => {
+      throw Object.assign(new Error('copy failed'), { code: 'ENOENT' });
+    },
+    robocopyImpl: async (sourceDir, targetDir) => {
+      fallbackCopyAttempts += 1;
+      if (sourceDir !== 'C:\\temp\\source-package' || targetDir !== 'C:\\temp\\target-package') {
+        throw new Error(`Expected Windows fallback copy paths to be preserved, received ${sourceDir} -> ${targetDir}`);
+      }
+    },
+  });
+
+  if (fallbackCopyAttempts !== 1) {
+    throw new Error(`Expected Windows fallback copy to run once, received ${fallbackCopyAttempts}`);
+  }
+
+  let nonWindowsCopyError;
+  try {
+    await copyDirectoryWithWindowsFallback('/tmp/source-package', '/tmp/target-package', {
+      platform: 'linux',
+      copyImpl: async () => {
+        throw Object.assign(new Error('copy failed'), { code: 'ENOENT' });
+      },
+      robocopyImpl: async () => {
+        throw new Error('Non-Windows copies should not invoke robocopy fallback');
+      },
+    });
+    throw new Error('Expected non-Windows copy failures to surface without fallback');
+  } catch (error) {
+    nonWindowsCopyError = error;
+  }
+
+  if (!(nonWindowsCopyError instanceof Error) || nonWindowsCopyError.message !== 'copy failed') {
+    throw new Error(`Expected non-Windows copy failure to be preserved, received ${String(nonWindowsCopyError)}`);
   }
 
   console.log('ok - bundled OpenClaw runtime preparation copies runtime files and writes manifest');

@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { clearAppSdkSessionTokens, readAppSdkSessionTokens, resetAppSdkClient } from '../sdk/useAppSdkClient.ts';
+import {
+  clearAppSdkSessionTokens,
+  initAppSdkClient,
+  readAppSdkSessionTokens,
+  resetAppSdkClient,
+} from '../sdk/useAppSdkClient.ts';
 
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();
@@ -56,6 +61,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         errorName: '',
         data: {
           authToken: 'oauth-auth-token',
+          accessToken: 'oauth-payload-access-token',
           refreshToken: 'oauth-refresh-token',
           tokenType: 'Bearer',
           expiresIn: 3600,
@@ -109,6 +115,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
           },
           token: {
             authToken: 'qr-auth-token',
+            accessToken: 'qr-payload-access-token',
             refreshToken: 'qr-refresh-token',
             tokenType: 'Bearer',
             expiresIn: 3600,
@@ -198,6 +205,7 @@ await runTest('appAuthService maps Douyin OAuth authorization through the genera
 await runTest('appAuthService completes OAuth login and persists returned session tokens', async () => {
   const storage = createMemoryStorage();
   Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  initAppSdkClient({ accessToken: 'configured-access-token' });
   const { appAuthService } = await import('./appAuthService.ts');
 
   const session = await appAuthService.loginWithOAuth({
@@ -208,9 +216,11 @@ await runTest('appAuthService completes OAuth login and persists returned sessio
   });
 
   assert.equal(session.authToken, 'oauth-auth-token');
+  assert.equal(session.accessToken, 'configured-access-token');
   assert.equal(session.refreshToken, 'oauth-refresh-token');
   assert.equal(session.userInfo?.nickname, 'Octo Cat');
   assert.equal(readAppSdkSessionTokens().authToken, 'oauth-auth-token');
+  assert.equal(readAppSdkSessionTokens().accessToken, 'configured-access-token');
   assert.equal(readAppSdkSessionTokens().refreshToken, 'oauth-refresh-token');
 
   const oauthLoginRequest = fetchCalls.find(({ input }) =>
@@ -273,13 +283,16 @@ await runTest('appAuthService generates login qr payloads from backend qr metada
 await runTest('appAuthService persists confirmed qr login sessions while polling qr status', async () => {
   const storage = createMemoryStorage();
   Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  initAppSdkClient({ accessToken: 'configured-access-token' });
   const { appAuthService } = await import('./appAuthService.ts');
 
   const result = await appAuthService.checkLoginQrCodeStatus('qr-login-1');
 
   assert.equal(result.status, 'confirmed');
   assert.equal(result.session?.authToken, 'qr-auth-token');
+  assert.equal(result.session?.accessToken, 'configured-access-token');
   assert.equal(result.session?.userInfo?.nickname, 'WeChat User');
   assert.equal(readAppSdkSessionTokens().authToken, 'qr-auth-token');
+  assert.equal(readAppSdkSessionTokens().accessToken, 'configured-access-token');
   assert.equal(readAppSdkSessionTokens().refreshToken, 'qr-refresh-token');
 });

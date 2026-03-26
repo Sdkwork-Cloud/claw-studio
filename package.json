@@ -22,7 +22,7 @@
     "check:sdkwork-routes": "node scripts/check-sdkwork-claw-route-surface.mjs",
     "check:sdkwork-hosts": "node scripts/check-sdkwork-claw-hosts.mjs",
     "check:sdkwork-foundation": "node --experimental-strip-types scripts/sdkwork-foundation-contract.test.ts",
-    "check:sdkwork-core": "node scripts/run-sdkwork-core-check.mjs",
+    "check:sdkwork-core": "pnpm prepare:shared-sdk && node scripts/run-sdkwork-core-check.mjs",
     "check:sdkwork-auth": "pnpm prepare:shared-sdk && node --experimental-strip-types packages/sdkwork-claw-core/src/services/appAuthService.test.ts && node --experimental-strip-types packages/sdkwork-claw-core/src/stores/useAuthStore.test.ts && node --experimental-strip-types scripts/sdkwork-auth-contract.test.ts",
     "check:sdkwork-settings": "node --experimental-strip-types scripts/sdkwork-settings-contract.test.ts",
     "check:sdkwork-account": "node --experimental-strip-types scripts/sdkwork-account-contract.test.ts",

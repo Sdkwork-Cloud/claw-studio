@@ -28,6 +28,7 @@ const devBinaryUnlockGuardCommand =
 const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420';
 const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runtime.mjs';
 const bundledApiRouterPrepareCommand = 'node ../../scripts/prepare-sdkwork-api-router-runtime.mjs';
+const desktopBuildVerifyCommand = 'node ../../scripts/verify-desktop-build-assets.mjs';
 
 function assertCommandsAppearInOrder(script, commands, label) {
   let lastIndex = -1;
@@ -105,6 +106,15 @@ assertCommandsAppearInOrder(
 const tauriCliBuildScript = desktopPackage.scripts?.['tauri:build'];
 if (typeof tauriCliBuildScript !== 'string' || tauriCliBuildScript.trim().length === 0) {
   fail('Desktop package must define a "tauri:build" script.');
+}
+
+const desktopBuildScript = desktopPackage.scripts?.build;
+if (typeof desktopBuildScript !== 'string' || desktopBuildScript.trim().length === 0) {
+  fail('Desktop package must define a "build" script.');
+}
+
+if (!desktopBuildScript.includes(desktopBuildVerifyCommand)) {
+  fail(`Desktop "build" must verify bundled frontend assets with "${desktopBuildVerifyCommand}".`);
 }
 
 assertCommandsAppearInOrder(

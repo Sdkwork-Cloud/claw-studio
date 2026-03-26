@@ -16,9 +16,13 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
+import { resolveDesktopReleaseTarget } from './release/desktop-targets.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
+const DEFAULT_DIRECTORY_CLEANUP_RETRY_COUNT = 3;
+const DEFAULT_DIRECTORY_CLEANUP_RETRY_DELAY_MS = 500;
 const PREPARED_RUNTIME_MANIFEST_KEYS = [
   'schemaVersion',
   'runtimeId',
@@ -30,7 +34,7 @@ const PREPARED_RUNTIME_MANIFEST_KEYS = [
   'cliRelativePath',
 ];
 
-export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.23-2';
+export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.24';
 export const DEFAULT_NODE_VERSION = process.env.OPENCLAW_NODE_VERSION ?? '22.16.0';
 export const DEFAULT_OPENCLAW_PACKAGE = process.env.OPENCLAW_PACKAGE_NAME ?? 'openclaw';
 export const DEFAULT_RESOURCE_DIR = path.join(
@@ -68,8 +72,15 @@ export function resolveBundledResourceMirrorRoot(
 }
 
 export function resolveOpenClawTarget(platform = process.platform, arch = process.arch) {
+  const normalizedPlatform = String(platform ?? '').trim().toLowerCase();
   const platformId =
-    platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux';
+    normalizedPlatform === 'win32' || normalizedPlatform === 'windows'
+      ? 'windows'
+      : normalizedPlatform === 'darwin' || normalizedPlatform === 'macos'
+        ? 'macos'
+        : normalizedPlatform === 'linux'
+          ? 'linux'
+          : normalizedPlatform;
   const archId = arch === 'x64' ? 'x64' : arch === 'arm64' ? 'arm64' : arch;
 
   if (!['windows', 'macos', 'linux'].includes(platformId)) {
@@ -113,6 +124,13 @@ export function resolveOpenClawTarget(platform = process.platform, arch = proces
   };
 }
 
+export function resolveRequestedOpenClawTarget({
+  env = process.env,
+} = {}) {
+  const target = resolveDesktopReleaseTarget({ env });
+  return resolveOpenClawTarget(target.platform, target.arch);
+}
+
 export function resolveBundledNpmCommand(nodeRuntimeDir, platform = process.platform) {
   const normalizedPlatform =
     platform === 'win32' || platform === 'windows'
@@ -134,20 +152,35 @@ export function resolveBundledNpmCommand(nodeRuntimeDir, platform = process.plat
   };
 }
 
-function resolveDefaultOpenClawPrepareCacheDir() {
-  if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, 'sdkwork-claw', 'openclaw-runtime-cache');
+export function resolveDefaultOpenClawPrepareCacheDir({
+  workspaceRootDir = rootDir,
+  platform = process.platform,
+  localAppData = process.env.LOCALAPPDATA,
+  xdgCacheHome = process.env.XDG_CACHE_HOME,
+  homeDir = os.homedir(),
+} = {}) {
+  if (platform === 'win32') {
+    const workspaceName = sanitizePathSegment(path.win32.basename(workspaceRootDir)) || 'workspace';
+    const driveRoot = path.win32.parse(workspaceRootDir).root || path.win32.parse(localAppData ?? '').root;
+
+    if (driveRoot) {
+      return path.win32.join(driveRoot, '.sdkwork-bc', workspaceName, 'openclaw-cache');
+    }
+
+    if (localAppData) {
+      return path.join(localAppData, 'sdkwork-claw', 'openclaw-runtime-cache');
+    }
   }
 
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Caches', 'sdkwork-claw', 'openclaw-runtime-cache');
+  if (platform === 'darwin') {
+    return path.join(homeDir, 'Library', 'Caches', 'sdkwork-claw', 'openclaw-runtime-cache');
   }
 
-  if (process.env.XDG_CACHE_HOME) {
-    return path.join(process.env.XDG_CACHE_HOME, 'sdkwork-claw', 'openclaw-runtime-cache');
+  if (xdgCacheHome) {
+    return path.join(xdgCacheHome, 'sdkwork-claw', 'openclaw-runtime-cache');
   }
 
-  return path.join(os.homedir(), '.cache', 'sdkwork-claw', 'openclaw-runtime-cache');
+  return path.join(homeDir, '.cache', 'sdkwork-claw', 'openclaw-runtime-cache');
 }
 
 export function resolveOpenClawPrepareCachePaths({
@@ -282,9 +315,9 @@ export async function prepareOpenClawRuntimeFromSource({
 }) {
   const manifest = buildOpenClawManifest({ openclawVersion, nodeVersion, target });
   await validatePreparedRuntimeSource(sourceRuntimeDir, manifest);
-  await rm(resourceDir, { recursive: true, force: true });
+  await removeDirectoryWithRetries(resourceDir);
   await mkdir(resourceDir, { recursive: true });
-  await cp(sourceRuntimeDir, path.join(resourceDir, 'runtime'), { recursive: true });
+  await copyDirectoryWithWindowsFallback(sourceRuntimeDir, path.join(resourceDir, 'runtime'));
   await writeFile(
     path.join(resourceDir, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -307,10 +340,10 @@ export async function prepareOpenClawRuntimeFromStagedDirs({
 }) {
   const manifest = buildOpenClawManifest({ openclawVersion, nodeVersion, target });
   await validatePreparedRuntimeArtifacts({ nodeSourceDir, packageSourceDir, manifest });
-  await rm(resourceDir, { recursive: true, force: true });
+  await removeDirectoryWithRetries(resourceDir);
   await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
-  await cp(nodeSourceDir, path.join(resourceDir, 'runtime', 'node'), { recursive: true });
-  await cp(packageSourceDir, path.join(resourceDir, 'runtime', 'package'), { recursive: true });
+  await copyDirectoryWithWindowsFallback(nodeSourceDir, path.join(resourceDir, 'runtime', 'node'));
+  await copyDirectoryWithWindowsFallback(packageSourceDir, path.join(resourceDir, 'runtime', 'package'));
   await writeFile(
     path.join(resourceDir, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -334,7 +367,7 @@ export async function prepareOpenClawRuntime({
   packageTarball = process.env.OPENCLAW_PACKAGE_TARBALL,
   forcePrepare = parseBooleanFlag(process.env.OPENCLAW_FORCE_PREPARE),
   fetchImpl = globalThis.fetch,
-  target = resolveOpenClawTarget(),
+  target = resolveRequestedOpenClawTarget(),
 } = {}) {
   const manifest = buildOpenClawManifest({ openclawVersion, nodeVersion, target });
   const canReusePreparedRuntime = !sourceRuntimeDir && !packageTarball;
@@ -419,9 +452,9 @@ export async function prepareOpenClawRuntime({
       nodeVersion,
       cachedNodeDir: cachePaths.nodeCacheDir,
     });
-    await rm(resourceDir, { recursive: true, force: true });
+    await removeDirectoryWithRetries(resourceDir);
     await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
-    await cp(extractedNodeDir, path.join(resourceDir, 'runtime', 'node'), { recursive: true });
+    await copyDirectoryWithWindowsFallback(extractedNodeDir, path.join(resourceDir, 'runtime', 'node'));
 
     await mkdir(packageDir, { recursive: true });
     await writeFile(
@@ -440,7 +473,7 @@ export async function prepareOpenClawRuntime({
       installSpec,
     ], { cwd: packageDir });
 
-    await cp(packageDir, path.join(resourceDir, 'runtime', 'package'), { recursive: true });
+    await copyDirectoryWithWindowsFallback(packageDir, path.join(resourceDir, 'runtime', 'package'));
     await refreshCachedOpenClawRuntimeArtifacts({
       nodeSourceDir: extractedNodeDir,
       packageSourceDir: packageDir,
@@ -459,7 +492,7 @@ export async function prepareOpenClawRuntime({
       strategy: 'prepared-download',
     });
   } finally {
-    await rm(stagingRoot, { recursive: true, force: true });
+    await removeDirectoryWithRetries(stagingRoot);
   }
 }
 
@@ -545,6 +578,9 @@ async function inspectCachedNodeRuntimeDir({
       nodeSourceDir,
       target.bundledNodePath.replace(/^runtime[\\/]node[\\/]/, ''),
     );
+    for (const dependencyPath of resolveBundledNodeInstallDependencyPaths(nodeSourceDir, target)) {
+      await stat(dependencyPath);
+    }
     const preparedNodeVersion = await readPreparedNodeVersion(nodeExecutablePath);
     return {
       reusable: preparedNodeVersion === nodeVersion,
@@ -651,17 +687,140 @@ async function extractNodeRuntimeArchive({ archivePath, stagingRoot, target, nod
   const extractedNodeDir = path.join(extractRoot, firstDirectory.name);
 
   if (cachedNodeDir) {
-    await rm(cachedNodeDir, { recursive: true, force: true });
+    await removeDirectoryWithRetries(cachedNodeDir);
     await mkdir(path.dirname(cachedNodeDir), { recursive: true });
-    await cp(extractedNodeDir, cachedNodeDir, { recursive: true });
+    await copyDirectoryContents(extractedNodeDir, cachedNodeDir);
     return cachedNodeDir;
   }
 
   return extractedNodeDir;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export function shouldRetryDirectoryCleanup(error) {
+  const errorCode = typeof error === 'object' && error !== null ? error.code : undefined;
+  return errorCode === 'EPERM' || errorCode === 'EBUSY' || errorCode === 'ENOTEMPTY';
+}
+
+export async function removeDirectoryWithRetries(
+  directoryPath,
+  {
+    removeImpl = rm,
+    retryCount = DEFAULT_DIRECTORY_CLEANUP_RETRY_COUNT,
+    retryDelayMs = DEFAULT_DIRECTORY_CLEANUP_RETRY_DELAY_MS,
+    logger = console.warn,
+  } = {},
+) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= retryCount; attempt += 1) {
+    try {
+      await removeImpl(directoryPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      const canRetry = attempt < retryCount && shouldRetryDirectoryCleanup(error);
+      if (!canRetry) {
+        throw error;
+      }
+
+      if (typeof logger === 'function') {
+        logger(
+          `[prepare-openclaw-runtime] Retrying cleanup of ${directoryPath} after transient Windows file lock (${attempt}/${retryCount - 1}).`,
+        );
+      }
+      await sleep(retryDelayMs * attempt);
+    }
+  }
+
+  throw lastError;
+}
+
+function shouldUseWindowsDirectoryCopyFallback(error, platform = process.platform) {
+  const normalizedPlatform = platform === 'windows' ? 'win32' : platform;
+  if (normalizedPlatform !== 'win32') {
+    return false;
+  }
+
+  const errorCode = typeof error === 'object' && error !== null ? error.code : undefined;
+  return errorCode === 'ENOENT' || errorCode === 'ENAMETOOLONG' || errorCode === 'EPERM';
+}
+
+export async function copyDirectoryWithWindowsFallback(
+  sourceDir,
+  targetDir,
+  {
+    copyImpl = cp,
+    robocopyImpl = runRobocopyCopy,
+    platform = process.platform,
+  } = {},
+) {
+  try {
+    await copyImpl(sourceDir, targetDir, { recursive: true });
+  } catch (error) {
+    if (!shouldUseWindowsDirectoryCopyFallback(error, platform)) {
+      throw error;
+    }
+
+    console.warn(
+      `[prepare-openclaw-runtime] Falling back to robocopy for ${sourceDir} -> ${targetDir} after fs.cp failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    await robocopyImpl(sourceDir, targetDir);
+  }
+}
+
+async function runRobocopyCopy(sourceDir, targetDir) {
+  await mkdir(path.dirname(targetDir), { recursive: true });
+  await new Promise((resolve, reject) => {
+    const child = spawn('robocopy', [
+      sourceDir,
+      targetDir,
+      '/E',
+      '/NFL',
+      '/NDL',
+      '/NJH',
+      '/NJS',
+      '/NP',
+      '/R:2',
+      '/W:1',
+    ], {
+      cwd: rootDir,
+      stdio: 'inherit',
+      env: process.env,
+      shell: false,
+    });
+
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (typeof code === 'number' && code >= 0 && code <= 7) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`Command failed: robocopy ${sourceDir} ${targetDir} (exit ${code ?? 'unknown'})`));
+    });
+  });
+}
+
 async function streamToFile(body, destinationPath) {
   await pipeline(Readable.fromWeb(body), createWriteStream(destinationPath));
+}
+
+function resolveBundledNodeInstallDependencyPaths(nodeSourceDir, target) {
+  if (target.platformId === 'windows') {
+    return [
+      path.join(nodeSourceDir, 'npm.cmd'),
+      path.join(nodeSourceDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+      path.join(nodeSourceDir, 'node_modules', 'npm', 'bin', 'npm-prefix.js'),
+    ];
+  }
+
+  return [path.join(nodeSourceDir, 'bin', 'npm')];
 }
 
 async function repairPreparedOpenClawRuntimeManifest({
@@ -761,7 +920,7 @@ async function ensureBundledResourceMirror({
     return mirrorRoot;
   }
 
-  await rm(mirrorRoot, { recursive: true, force: true });
+  await removeDirectoryWithRetries(mirrorRoot);
   await mkdir(path.dirname(mirrorRoot), { recursive: true });
   symlinkSync(resourceDir, mirrorRoot, platform === 'win32' ? 'junction' : 'dir');
   return mirrorRoot;
@@ -775,17 +934,45 @@ function resolveExistingPathTarget(candidatePath) {
   }
 }
 
-async function refreshCachedOpenClawRuntimeArtifacts({
+function sanitizePathSegment(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
+}
+
+export async function refreshCachedOpenClawRuntimeArtifacts({
   nodeSourceDir,
   packageSourceDir,
   cachePaths,
 }) {
-  await rm(cachePaths.nodeCacheDir, { recursive: true, force: true });
-  await rm(cachePaths.packageCacheDir, { recursive: true, force: true });
-  await mkdir(path.dirname(cachePaths.nodeCacheDir), { recursive: true });
-  await mkdir(path.dirname(cachePaths.packageCacheDir), { recursive: true });
-  await cp(nodeSourceDir, cachePaths.nodeCacheDir, { recursive: true });
-  await cp(packageSourceDir, cachePaths.packageCacheDir, { recursive: true });
+  const refreshNodeCache = path.resolve(nodeSourceDir) !== path.resolve(cachePaths.nodeCacheDir);
+  const refreshPackageCache = path.resolve(packageSourceDir) !== path.resolve(cachePaths.packageCacheDir);
+
+  if (refreshNodeCache) {
+    await removeDirectoryWithRetries(cachePaths.nodeCacheDir);
+    await mkdir(path.dirname(cachePaths.nodeCacheDir), { recursive: true });
+    await copyDirectoryContents(nodeSourceDir, cachePaths.nodeCacheDir);
+  }
+
+  if (refreshPackageCache) {
+    await removeDirectoryWithRetries(cachePaths.packageCacheDir);
+    await mkdir(path.dirname(cachePaths.packageCacheDir), { recursive: true });
+    await copyDirectoryContents(packageSourceDir, cachePaths.packageCacheDir);
+  }
+}
+
+async function copyDirectoryContents(sourceDir, destinationDir) {
+  await mkdir(destinationDir, { recursive: true });
+  const entries = await readdir(sourceDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    await copyDirectoryWithWindowsFallback(
+      path.join(sourceDir, entry.name),
+      path.join(destinationDir, entry.name),
+    );
+  }
 }
 
 async function readPreparedNodeVersion(nodeExecutablePath) {

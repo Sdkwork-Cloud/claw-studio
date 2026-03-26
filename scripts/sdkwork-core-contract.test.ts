@@ -52,7 +52,7 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.ok(exists('packages/sdkwork-claw-core/src/services/settingsService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-business']);
-  assert.ok(pkg.dependencies?.['@sdkwork/app-sdk']);
+  assert.equal(pkg.dependencies?.['@sdkwork/app-sdk'], '^1.0.34');
   assert.ok(pkg.dependencies?.json5);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-business/);
   assert.match(indexSource, /\.\/platform/);
@@ -150,32 +150,50 @@ runTest('sdkwork-claw-core exports shared desktop window controls for shell and 
   assert.match(controlsSource, /common\.closeWindow/);
 });
 
-runTest('claw host vite configs resolve @sdkwork/app-sdk from shared SDK source during development', () => {
+runTest('claw host vite configs switch shared sdk resolution by explicit mode while keeping source mode for development', () => {
   const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
   const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
 
   for (const source of [webViteConfig, desktopViteConfig]) {
+    assert.match(source, /resolveSharedSdkMode/);
     assert.match(source, /@sdkwork\/app-sdk/);
     assert.match(source, /sdkwork-app-sdk-typescript/);
     assert.match(source, /src\/index\.ts/);
   }
 });
 
-runTest('claw web host resolves @sdkwork/sdk-common from the shared SDK source entry', () => {
+runTest('claw hosts resolve @sdkwork/sdk-common from shared SDK source only in source mode', () => {
   const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
+  const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
 
-  assert.match(webViteConfig, /@sdkwork\/sdk-common/);
-  assert.match(webViteConfig, /sdkwork-sdk-common-typescript/);
-  assert.match(webViteConfig, /src\/index\.ts/);
+  for (const source of [webViteConfig, desktopViteConfig]) {
+    assert.match(source, /@sdkwork\/sdk-common/);
+    assert.match(source, /sdkwork-sdk-common-typescript/);
+    assert.match(source, /src\/index\.ts/);
+  }
 });
 
-runTest('claw workspace prepares shared sdk packages before auth runtime checks and production builds', () => {
+runTest('claw workspace prefers workspace-linked shared sdk sources locally while allowing git-trunk release sourcing', () => {
   const workspacePackageJson = read('package.json');
+  const workspaceManifest = read('pnpm-workspace.yaml');
+  const npmrc = read('.npmrc');
   const coreCheckRunner = read('scripts/run-sdkwork-core-check.mjs');
+  const prepareSharedSdkScript = read('scripts/prepare-shared-sdk-packages.mjs');
+  const prepareGitSourcesScript = read('scripts/prepare-shared-sdk-git-sources.mjs');
 
+  assert.match(npmrc, /link-workspace-packages\s*=\s*true/);
+  assert.match(workspaceManifest, /spring-ai-plus-app-api/);
+  assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
-  assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"node scripts\/run-sdkwork-core-check\.mjs"/);
+  assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"pnpm prepare:shared-sdk && node scripts\/run-sdkwork-core-check\.mjs"/);
+  assert.match(prepareSharedSdkScript, /SDKWORK_SHARED_SDK_MODE/);
+  assert.match(prepareSharedSdkScript, /resolveSharedSdkMode/);
+  assert.match(prepareSharedSdkScript, /mode === 'git'/);
+  assert.match(prepareGitSourcesScript, /git clone/);
+  assert.match(prepareGitSourcesScript, /git ls-remote --symref/);
+  assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_APP_REPO_URL/);
+  assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_COMMON_REPO_URL/);
   assert.match(coreCheckRunner, /sdkwork-core-contract\.test\.ts/);
   assert.match(coreCheckRunner, /accountService\.test\.ts/);
   assert.match(coreCheckRunner, /communityService\.test\.ts/);
@@ -184,9 +202,9 @@ runTest('claw workspace prepares shared sdk packages before auth runtime checks 
   assert.match(workspacePackageJson, /"check:sdkwork-auth"\s*:\s*"pnpm prepare:shared-sdk && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/services\/appAuthService\.test\.ts && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/stores\/useAuthStore\.test\.ts && node --experimental-strip-types scripts\/sdkwork-auth-contract\.test\.ts"/);
 });
 
-runTest('claw workspace tsconfig maps @sdkwork/app-sdk to the shared SDK source entry', () => {
+runTest('claw workspace tsconfig no longer hard-pins @sdkwork/app-sdk to an external source path', () => {
   const tsconfigBase = read('tsconfig.base.json');
 
   assert.match(tsconfigBase, /"baseUrl"\s*:\s*"\."/);
-  assert.match(tsconfigBase, /"@sdkwork\/app-sdk"\s*:\s*\[\s*"\.\.\/\.\.\/spring-ai-plus-app-api\/sdkwork-sdk-app\/sdkwork-app-sdk-typescript\/src\/index\.ts"\s*\]/);
+  assert.doesNotMatch(tsconfigBase, /"@sdkwork\/app-sdk"/);
 });
