@@ -23,8 +23,8 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /push:\s*[\s\S]*tags:\s*[\s\S]*release-\*/);
   assert.match(workflow, /windows-2022/);
   assert.match(workflow, /windows-11-arm/);
-  assert.match(workflow, /ubuntu-22\.04/);
-  assert.match(workflow, /ubuntu-22\.04-arm/);
+  assert.match(workflow, /ubuntu-24\.04/);
+  assert.match(workflow, /ubuntu-24\.04-arm/);
   assert.match(workflow, /macos-15-intel/);
   assert.match(workflow, /macos-15/);
   assert.match(workflow, /arch:\s*x64/);
@@ -45,7 +45,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /libgtk-3-dev/);
   assert.match(workflow, /libpipewire-0\.3-dev/);
   assert.match(workflow, /libssl-dev/);
-  assert.match(workflow, /libfuse2/);
+  assert.match(workflow, /libfuse2t64/);
   assert.match(workflow, /file/);
   assert.match(workflow, /pnpm build/);
   assert.match(workflow, /pnpm docs:build/);
