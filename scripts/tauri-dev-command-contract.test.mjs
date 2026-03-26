@@ -124,6 +124,7 @@ assertCommandsAppearInOrder(
     staleTargetGuardCommand,
     bundledOpenClawPrepareCommand,
     bundledApiRouterPrepareCommand,
+    devBinaryUnlockGuardCommand,
     'tauri build',
   ],
   'Desktop "tauri:build"',

@@ -36,6 +36,9 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /target:\s*x86_64-apple-darwin/);
   assert.match(workflow, /target:\s*aarch64-apple-darwin/);
   assert.match(workflow, /SDKWORK_SHARED_SDK_MODE:\s*git/);
+  assert.match(workflow, /SDKWORK_SHARED_SDK_GIT_REF:\s*main/);
+  assert.match(workflow, /SDKWORK_SHARED_SDK_APP_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
+  assert.match(workflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
   assert.match(workflow, /node scripts\/prepare-shared-sdk-git-sources\.mjs/);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
   assert.match(workflow, /pnpm build/);
@@ -71,6 +74,38 @@ test('shared sdk mode helper defaults to source mode and supports git trunk rele
   assert.equal(helper.resolveSharedSdkMode({ SDKWORK_SHARED_SDK_MODE: 'git' }), 'git');
   assert.equal(helper.isSharedSdkSourceMode({}), true);
   assert.equal(helper.isSharedSdkSourceMode({ SDKWORK_SHARED_SDK_MODE: 'git' }), false);
+});
+
+test('shared sdk package preparation resolves the workspace root consistently from repo root and package directories', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-packages.mjs');
+  assert.equal(existsSync(helperPath), true, 'missing scripts/prepare-shared-sdk-packages.mjs');
+
+  const helper = await import(pathToFileURL(helperPath).href);
+  assert.equal(typeof helper.resolveWorkspaceRootDir, 'function');
+  assert.equal(typeof helper.createSharedSdkPackageContext, 'function');
+
+  const packageDir = path.join(rootDir, 'packages', 'sdkwork-claw-web');
+  assert.equal(helper.resolveWorkspaceRootDir(rootDir), rootDir);
+  assert.equal(helper.resolveWorkspaceRootDir(packageDir), rootDir);
+
+  assert.deepEqual(
+    helper.createSharedSdkPackageContext({
+      currentWorkingDir: packageDir,
+      env: { SDKWORK_SHARED_SDK_MODE: 'git' },
+    }),
+    {
+      workspaceRoot: rootDir,
+      sharedAppSdkRoot: path.resolve(
+        rootDir,
+        '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript',
+      ),
+      sharedSdkCommonRoot: path.resolve(
+        rootDir,
+        '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
+      ),
+      mode: 'git',
+    },
+  );
 });
 
 test('git-backed shared sdk source detection resolves origin from nested directories inside an existing git checkout', async () => {
@@ -119,8 +154,12 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
   assert.equal(typeof helper.resolveSourcePackageRoot, 'function');
   assert.equal(typeof helper.resolveMonorepoSubmoduleRoot, 'function');
   assert.equal(typeof helper.resolveMonorepoPackageRoot, 'function');
+  assert.equal(typeof helper.resolveCheckoutRootForRepoUrl, 'function');
+  assert.equal(typeof helper.resolvePackageRootForCheckoutRoot, 'function');
   assert.equal(typeof helper.parseGitSubmodulePaths, 'function');
   assert.equal(typeof helper.materializePackageRootFromMonorepo, 'function');
+  assert.equal(helper.DEFAULT_SHARED_SDK_APP_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git');
 
   const repoRoot = path.join(rootDir, '.tmp', 'shared-sdk-layout');
   const spec = {
@@ -151,6 +190,27 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
       'sdkwork-sdk-app',
       'sdkwork-app-sdk-typescript',
     ).replaceAll('\\', '/'),
+  );
+  assert.equal(
+    helper.resolveCheckoutRootForRepoUrl(
+      spec,
+      'https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git',
+    ).replaceAll('\\', '/'),
+    path.join(repoRoot, 'sdkwork-sdk-app').replaceAll('\\', '/'),
+  );
+  assert.equal(
+    helper.resolveCheckoutRootForRepoUrl(
+      spec,
+      'https://github.com/Sdkwork-Cloud/sdkwork-app-sdk-typescript.git',
+    ).replaceAll('\\', '/'),
+    path.join(repoRoot, 'sdkwork-sdk-app', 'sdkwork-app-sdk-typescript').replaceAll('\\', '/'),
+  );
+  assert.equal(
+    helper.resolvePackageRootForCheckoutRoot(
+      spec,
+      path.join(repoRoot, 'sdkwork-sdk-app'),
+    ).replaceAll('\\', '/'),
+    path.join(repoRoot, 'sdkwork-sdk-app', 'sdkwork-app-sdk-typescript').replaceAll('\\', '/'),
   );
 
   const parsedPaths = helper.parseGitSubmodulePaths(`
@@ -344,8 +404,11 @@ test('release asset packager knows how to filter desktop bundle outputs, resolve
 test('bundled component sync resolves the npm global node_modules root for Unix and Windows layouts', async () => {
   const syncPath = path.join(rootDir, 'scripts', 'sync-bundled-components.mjs');
   const syncModule = await import(pathToFileURL(syncPath).href);
+  const syncSource = read('scripts/sync-bundled-components.mjs');
 
   assert.equal(typeof syncModule.resolveGlobalNodeModulesDir, 'function');
+  assert.match(syncSource, /buildAttempts:\s*3/);
+  assert.match(syncSource, /retrying after cleaning dist/);
 
   assert.equal(
     syncModule.resolveGlobalNodeModulesDir('/tmp/openclaw-prefix', 'linux'),

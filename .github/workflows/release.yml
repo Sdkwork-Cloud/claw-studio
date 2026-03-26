@@ -21,8 +21,9 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   SDKWORK_SHARED_SDK_MODE: git
-  SDKWORK_SHARED_SDK_APP_REPO_URL: https://gitee.com/zowalk/spring-ai-plus2.git
-  SDKWORK_SHARED_SDK_COMMON_REPO_URL: https://gitee.com/zowalk/spring-ai-plus2.git
+  SDKWORK_SHARED_SDK_GIT_REF: main
+  SDKWORK_SHARED_SDK_APP_REPO_URL: https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git
+  SDKWORK_SHARED_SDK_COMMON_REPO_URL: https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git
 
 jobs:
   prepare:
