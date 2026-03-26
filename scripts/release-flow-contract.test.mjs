@@ -206,7 +206,9 @@ test('release asset packager knows how to filter desktop bundle outputs, resolve
   const packager = await import(pathToFileURL(packagerPath).href);
   assert.equal(typeof packager.normalizePlatformId, 'function');
   assert.equal(typeof packager.shouldIncludeDesktopBundleFile, 'function');
+  assert.equal(typeof packager.buildDesktopBundleRootCandidates, 'function');
   assert.equal(typeof packager.resolveDesktopBundleRoot, 'function');
+  assert.equal(typeof packager.resolveExistingDesktopBundleRoot, 'function');
   assert.equal(typeof packager.buildWebArchiveBaseName, 'function');
 
   assert.equal(packager.normalizePlatformId('win32'), 'windows');
@@ -242,6 +244,36 @@ test('release asset packager knows how to filter desktop bundle outputs, resolve
       'bundle',
     ).replaceAll('\\', '/'),
   );
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-bundle-root-'));
+
+  try {
+    const tempTargetDir = path.join(tempRoot, 'target');
+    const fallbackBundleRoot = path.join(tempTargetDir, 'release', 'bundle');
+
+    mkdirSync(fallbackBundleRoot, { recursive: true });
+
+    assert.deepEqual(
+      packager.buildDesktopBundleRootCandidates({
+        targetTriple: 'x86_64-pc-windows-msvc',
+        targetDir: tempTargetDir,
+      }).map((candidate) => candidate.replaceAll('\\', '/')),
+      [
+        path.join(tempTargetDir, 'x86_64-pc-windows-msvc', 'release', 'bundle').replaceAll('\\', '/'),
+        fallbackBundleRoot.replaceAll('\\', '/'),
+      ],
+    );
+
+    assert.equal(
+      packager.resolveExistingDesktopBundleRoot({
+        targetTriple: 'x86_64-pc-windows-msvc',
+        targetDir: tempTargetDir,
+      }).replaceAll('\\', '/'),
+      fallbackBundleRoot.replaceAll('\\', '/'),
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 
   assert.equal(
     packager.buildWebArchiveBaseName('release-2026-03-26'),
