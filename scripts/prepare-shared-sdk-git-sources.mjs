@@ -45,23 +45,120 @@ function createSourceSpecs(workspaceRootDir) {
       id: 'app-sdk',
       label: '@sdkwork/app-sdk',
       repoRoot: path.resolve(workspaceRootDir, '../../spring-ai-plus-app-api'),
-      packageRoot: path.resolve(
-        workspaceRootDir,
-        '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript',
-      ),
+      packageContainerDirName: 'sdkwork-sdk-app',
+      packageDirName: 'sdkwork-app-sdk-typescript',
+      monorepoSubmodulePath: 'spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app',
       repoUrlEnvVar: SHARED_SDK_APP_REPO_URL_ENV_VAR,
     },
     {
       id: 'sdk-common',
       label: '@sdkwork/sdk-common',
       repoRoot: path.resolve(workspaceRootDir, '../../sdk'),
-      packageRoot: path.resolve(
-        workspaceRootDir,
-        '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
-      ),
+      packageContainerDirName: 'sdkwork-sdk-commons',
+      packageDirName: 'sdkwork-sdk-common-typescript',
+      monorepoSubmodulePath: 'spring-ai-plus-business/sdk/sdkwork-sdk-commons',
       repoUrlEnvVar: SHARED_SDK_COMMON_REPO_URL_ENV_VAR,
     },
   ];
+}
+
+export function resolveSourcePackageContainerRoot(spec) {
+  return path.join(spec.repoRoot, spec.packageContainerDirName);
+}
+
+export function resolveSourcePackageRoot(spec) {
+  return path.join(resolveSourcePackageContainerRoot(spec), spec.packageDirName);
+}
+
+export function resolveMonorepoSubmoduleRoot(spec) {
+  return path.join(spec.repoRoot, spec.monorepoSubmodulePath);
+}
+
+export function resolveMonorepoPackageRoot(spec) {
+  return path.join(resolveMonorepoSubmoduleRoot(spec), spec.packageDirName);
+}
+
+export function parseGitSubmodulePaths(gitmodulesContent) {
+  const submodulePaths = new Set();
+  const matches = String(gitmodulesContent ?? '').matchAll(/^\s*path\s*=\s*(.+)\s*$/gm);
+
+  for (const match of matches) {
+    if (match[1]) {
+      submodulePaths.add(match[1].trim());
+    }
+  }
+
+  return submodulePaths;
+}
+
+function readGitSubmodulePaths(repoRoot) {
+  const gitmodulesPath = path.join(repoRoot, '.gitmodules');
+  if (!fs.existsSync(gitmodulesPath)) {
+    return new Set();
+  }
+
+  return parseGitSubmodulePaths(fs.readFileSync(gitmodulesPath, 'utf8'));
+}
+
+function ensureDirectoryLink(linkPath, targetPath) {
+  const normalizedTargetPath = path.resolve(targetPath);
+
+  if (fs.existsSync(linkPath)) {
+    const linkStat = fs.lstatSync(linkPath);
+    const resolvedExistingPath = path.resolve(fs.realpathSync(linkPath));
+
+    if (resolvedExistingPath === normalizedTargetPath) {
+      return;
+    }
+
+    if (linkStat.isSymbolicLink()) {
+      throw new Error(
+        `[prepare-shared-sdk-git-sources] Existing symbolic link at ${linkPath} does not point to ${targetPath}.`,
+      );
+    }
+
+    throw new Error(
+      `[prepare-shared-sdk-git-sources] Cannot materialize ${linkPath} because it already exists and does not point to ${targetPath}.`,
+    );
+  }
+
+  fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+  fs.symlinkSync(targetPath, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+}
+
+export function materializePackageRootFromMonorepo(spec) {
+  const packageRoot = resolveSourcePackageRoot(spec);
+  if (fs.existsSync(packageRoot)) {
+    return packageRoot;
+  }
+
+  const submodulePaths = readGitSubmodulePaths(spec.repoRoot);
+  if (!submodulePaths.has(spec.monorepoSubmodulePath)) {
+    return packageRoot;
+  }
+
+  run('git', [
+    '-C',
+    spec.repoRoot,
+    'submodule',
+    'update',
+    '--init',
+    '--depth',
+    '1',
+    '--',
+    spec.monorepoSubmodulePath,
+  ]);
+
+  const monorepoSubmoduleRoot = resolveMonorepoSubmoduleRoot(spec);
+  const monorepoPackageRoot = resolveMonorepoPackageRoot(spec);
+  if (!fs.existsSync(monorepoPackageRoot)) {
+    throw new Error(
+      `[prepare-shared-sdk-git-sources] Expected ${spec.label} monorepo package root at ${monorepoPackageRoot}.`,
+    );
+  }
+
+  ensureDirectoryLink(resolveSourcePackageContainerRoot(spec), monorepoSubmoduleRoot);
+  return packageRoot;
 }
 
 export function isGitCheckout(repoRoot) {
@@ -191,9 +288,11 @@ function ensureSourceSpecReady(spec, env, syncExistingRepos) {
     });
   }
 
-  if (!fs.existsSync(spec.packageRoot)) {
+  const packageRoot = materializePackageRootFromMonorepo(spec);
+
+  if (!fs.existsSync(packageRoot)) {
     throw new Error(
-      `[prepare-shared-sdk-git-sources] Expected ${spec.label} package root at ${spec.packageRoot}.`,
+      `[prepare-shared-sdk-git-sources] Expected ${spec.label} package root at ${packageRoot}.`,
     );
   }
 
@@ -205,6 +304,7 @@ function ensureSourceSpecReady(spec, env, syncExistingRepos) {
     ...spec,
     repoUrl,
     targetRef,
+    packageRoot,
   };
 }
 

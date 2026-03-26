@@ -111,6 +111,66 @@ test('git-backed shared sdk source detection resolves origin from nested directo
   }
 });
 
+test('git-backed shared sdk source helper parses monorepo submodule layouts and resolves legacy package roots', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-git-sources.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  assert.equal(typeof helper.resolveSourcePackageContainerRoot, 'function');
+  assert.equal(typeof helper.resolveSourcePackageRoot, 'function');
+  assert.equal(typeof helper.resolveMonorepoSubmoduleRoot, 'function');
+  assert.equal(typeof helper.resolveMonorepoPackageRoot, 'function');
+  assert.equal(typeof helper.parseGitSubmodulePaths, 'function');
+  assert.equal(typeof helper.materializePackageRootFromMonorepo, 'function');
+
+  const repoRoot = path.join(rootDir, '.tmp', 'shared-sdk-layout');
+  const spec = {
+    repoRoot,
+    packageContainerDirName: 'sdkwork-sdk-app',
+    packageDirName: 'sdkwork-app-sdk-typescript',
+    monorepoSubmodulePath: 'spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app',
+  };
+
+  assert.equal(
+    helper.resolveSourcePackageContainerRoot(spec).replaceAll('\\', '/'),
+    path.join(repoRoot, 'sdkwork-sdk-app').replaceAll('\\', '/'),
+  );
+  assert.equal(
+    helper.resolveSourcePackageRoot(spec).replaceAll('\\', '/'),
+    path.join(repoRoot, 'sdkwork-sdk-app', 'sdkwork-app-sdk-typescript').replaceAll('\\', '/'),
+  );
+  assert.equal(
+    helper.resolveMonorepoSubmoduleRoot(spec).replaceAll('\\', '/'),
+    path.join(repoRoot, 'spring-ai-plus-business', 'spring-ai-plus-app-api', 'sdkwork-sdk-app').replaceAll('\\', '/'),
+  );
+  assert.equal(
+    helper.resolveMonorepoPackageRoot(spec).replaceAll('\\', '/'),
+    path.join(
+      repoRoot,
+      'spring-ai-plus-business',
+      'spring-ai-plus-app-api',
+      'sdkwork-sdk-app',
+      'sdkwork-app-sdk-typescript',
+    ).replaceAll('\\', '/'),
+  );
+
+  const parsedPaths = helper.parseGitSubmodulePaths(`
+[submodule "spring-ai-plus-business/sdk/sdkwork-sdk-commons"]
+    path = spring-ai-plus-business/sdk/sdkwork-sdk-commons
+[submodule "spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app"]
+    path = spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app
+`);
+  assert.deepEqual([...parsedPaths], [
+    'spring-ai-plus-business/sdk/sdkwork-sdk-commons',
+    'spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app',
+  ]);
+
+  const helperSource = read('scripts/prepare-shared-sdk-git-sources.mjs');
+  assert.match(helperSource, /submodule/);
+  assert.match(helperSource, /--init/);
+  assert.match(helperSource, /symlinkSync/);
+  assert.match(helperSource, /monorepoSubmodulePath/);
+});
+
 test('desktop release build runner injects the supported Visual Studio generator only on Windows', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   assert.equal(existsSync(runnerPath), true, 'missing scripts/run-desktop-release-build.mjs');
