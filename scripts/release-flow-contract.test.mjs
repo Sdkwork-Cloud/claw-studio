@@ -47,7 +47,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /file/);
   assert.match(workflow, /pnpm build/);
   assert.match(workflow, /pnpm docs:build/);
-  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase sync --target \$\{\{ matrix\.target \}\}/);
+  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase sync --target \$\{\{ matrix\.target \}\} --release/);
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-api-router --target \$\{\{ matrix\.target \}\}/);
@@ -371,7 +371,7 @@ test('desktop release build runner exposes granular release phases for CI diagno
     targetTriple: 'aarch64-unknown-linux-gnu',
   });
 
-  assert.match(syncPlan.args.join(' '), /sync-bundled-components\.mjs --no-fetch/);
+  assert.match(syncPlan.args.join(' '), /sync-bundled-components\.mjs --no-fetch --release/);
   assert.match(prepareTargetPlan.args.join(' '), /ensure-tauri-target-clean\.mjs/);
   assert.match(openClawPlan.args.join(' '), /prepare-openclaw-runtime\.mjs/);
   assert.match(apiRouterPlan.args.join(' '), /prepare-sdkwork-api-router-runtime\.mjs/);
@@ -495,4 +495,56 @@ test('bundled component sync resolves the npm global node_modules root for Unix 
   assert.doesNotMatch(syncSource, /'router-web-service',/);
   assert.doesNotMatch(syncSource, /"router-web-service",/);
   assert.doesNotMatch(syncSource, /-p'\s*,\s*'router-web-service'/);
+});
+
+test('release sync defers heavyweight openclaw and api-router builds to later dedicated phases', async () => {
+  const syncPath = path.join(rootDir, 'scripts', 'sync-bundled-components.mjs');
+  const syncModule = await import(pathToFileURL(syncPath).href);
+
+  assert.equal(typeof syncModule.createComponentExecutionPlan, 'function');
+
+  assert.deepEqual(
+    syncModule.createComponentExecutionPlan({
+      componentId: 'openclaw',
+      devMode: false,
+      releaseMode: true,
+    }),
+    {
+      shouldBuild: false,
+      shouldStage: false,
+    },
+  );
+  assert.deepEqual(
+    syncModule.createComponentExecutionPlan({
+      componentId: 'sdkwork-api-router',
+      devMode: false,
+      releaseMode: true,
+    }),
+    {
+      shouldBuild: false,
+      shouldStage: false,
+    },
+  );
+  assert.deepEqual(
+    syncModule.createComponentExecutionPlan({
+      componentId: 'hub-installer',
+      devMode: false,
+      releaseMode: true,
+    }),
+    {
+      shouldBuild: true,
+      shouldStage: true,
+    },
+  );
+  assert.deepEqual(
+    syncModule.createComponentExecutionPlan({
+      componentId: 'sdkwork-api-router',
+      devMode: false,
+      releaseMode: false,
+    }),
+    {
+      shouldBuild: true,
+      shouldStage: true,
+    },
+  );
 });

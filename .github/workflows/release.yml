@@ -132,7 +132,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync bundled desktop components
-        run: node scripts/run-desktop-release-build.mjs --phase sync --target ${{ matrix.target }}
+        run: node scripts/run-desktop-release-build.mjs --phase sync --target ${{ matrix.target }} --release
 
       - name: Clean stale Tauri target cache
         run: node scripts/run-desktop-release-build.mjs --phase prepare-target --target ${{ matrix.target }}
