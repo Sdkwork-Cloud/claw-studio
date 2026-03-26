@@ -381,6 +381,8 @@ test('desktop release build runner exposes granular release phases for CI diagno
     'exec',
     'tauri',
     'build',
+    '--bundles',
+    'deb',
     '--target',
     'aarch64-unknown-linux-gnu',
   ]);
@@ -407,6 +409,8 @@ test('desktop release build runner avoids explicit tauri target flags on native 
     'exec',
     'tauri',
     'build',
+    '--bundles',
+    'deb',
   ]);
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET, 'aarch64-unknown-linux-gnu');
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'linux');
