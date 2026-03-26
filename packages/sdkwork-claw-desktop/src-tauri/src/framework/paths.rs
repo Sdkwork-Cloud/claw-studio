@@ -1,6 +1,8 @@
 use crate::framework::{FrameworkError, Result};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Runtime};
+#[cfg(not(windows))]
+use tauri::Manager;
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
