@@ -53,8 +53,11 @@ function resolveReleasePhasePlan({
       };
     case 'bundle': {
       const args = ['--filter', desktopPackageName, 'exec', 'tauri', 'build'];
-      if (normalizeDesktopPlatform(platform) === 'linux') {
+      const normalizedPlatform = normalizeDesktopPlatform(platform);
+      if (normalizedPlatform === 'linux') {
         args.push('--bundles', 'deb');
+      } else if (normalizedPlatform === 'macos') {
+        args.push('--bundles', 'app');
       }
       if (
         requestedTargetTriple

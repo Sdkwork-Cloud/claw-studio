@@ -35,6 +35,13 @@ const desktopTargetDir = path.join(
   'src-tauri',
   'target',
 );
+const desktopTauriConfigPath = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-desktop',
+  'src-tauri',
+  'tauri.conf.json',
+);
 
 const desktopBundleRules = {
   windows: {
@@ -209,7 +216,138 @@ function writeSha256File(filePath) {
   );
 }
 
-function packageDesktopAssets({ platform, arch, target, outputDir }) {
+export function readDesktopTauriBundleMetadata(tauriConfigPath = desktopTauriConfigPath) {
+  const tauriConfig = JSON.parse(readFileSync(tauriConfigPath, 'utf8'));
+  const productName = String(tauriConfig?.productName ?? '').trim();
+  const version = String(tauriConfig?.version ?? '').trim();
+
+  if (!productName) {
+    throw new Error(`Missing productName in desktop Tauri config: ${tauriConfigPath}`);
+  }
+  if (!version) {
+    throw new Error(`Missing version in desktop Tauri config: ${tauriConfigPath}`);
+  }
+
+  return {
+    productName,
+    version,
+  };
+}
+
+export function buildMacosAppArchiveBaseName({ appBundleName, version, arch }) {
+  const normalizedAppBundleName = String(appBundleName ?? '').trim().replace(/\.app$/i, '');
+  const normalizedVersion = String(version ?? '').trim();
+  const normalizedArch = normalizeDesktopArch(arch);
+
+  if (!normalizedAppBundleName) {
+    throw new Error('appBundleName is required to archive macOS app bundles.');
+  }
+  if (!normalizedVersion) {
+    throw new Error('version is required to archive macOS app bundles.');
+  }
+
+  return `${normalizedAppBundleName}_${normalizedVersion}_${normalizedArch}`;
+}
+
+function listMacosAppBundleDirectories(macosBundleRoot) {
+  if (!existsSync(macosBundleRoot)) {
+    return [];
+  }
+
+  return readdirSync(macosBundleRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.endsWith('.app'))
+    .map((entry) => ({
+      name: entry.name,
+      absolutePath: path.join(macosBundleRoot, entry.name),
+    }));
+}
+
+function runZipCommand(archivePath, workingDirectory, entryName) {
+  const normalizedEntryName = String(entryName ?? '').trim();
+  if (!normalizedEntryName) {
+    throw new Error('entryName is required to create a zip archive.');
+  }
+
+  const zipResult =
+    process.platform === 'win32'
+      ? spawnSync(
+          'powershell',
+          [
+            '-NoLogo',
+            '-NoProfile',
+            '-Command',
+            'Compress-Archive -LiteralPath $env:SDKWORK_ZIP_SOURCE -DestinationPath $env:SDKWORK_ZIP_DESTINATION -Force',
+          ],
+          {
+            cwd: rootDir,
+            stdio: 'inherit',
+            env: {
+              ...process.env,
+              SDKWORK_ZIP_SOURCE: path.join(workingDirectory, normalizedEntryName),
+              SDKWORK_ZIP_DESTINATION: archivePath,
+            },
+          },
+        )
+      : spawnSync(
+          process.platform === 'darwin' ? 'ditto' : 'zip',
+          process.platform === 'darwin'
+            ? ['-c', '-k', '--sequesterRsrc', '--keepParent', normalizedEntryName, archivePath]
+            : ['-r', '-y', archivePath, normalizedEntryName],
+          {
+            cwd: workingDirectory,
+            stdio: 'inherit',
+          },
+        );
+
+  if (zipResult.error) {
+    throw new Error(`zip failed while packaging ${archivePath}: ${zipResult.error.message}`);
+  }
+  if (zipResult.status !== 0) {
+    throw new Error(`zip failed while packaging ${archivePath} with exit code ${zipResult.status ?? 'unknown'}`);
+  }
+}
+
+function packageMacosAppArchives({
+  desktopBundleRoot,
+  platformOutputDir,
+  archId,
+  tauriConfigPath = desktopTauriConfigPath,
+} = {}) {
+  const macosBundleRoot = path.join(desktopBundleRoot, 'macos');
+  const appBundles = listMacosAppBundleDirectories(macosBundleRoot);
+  if (appBundles.length === 0) {
+    return [];
+  }
+
+  const { version } = readDesktopTauriBundleMetadata(tauriConfigPath);
+  const emittedFiles = [];
+
+  for (const appBundle of appBundles) {
+    const archiveBaseName = buildMacosAppArchiveBaseName({
+      appBundleName: appBundle.name,
+      version,
+      arch: archId,
+    });
+    const archivePath = path.join(platformOutputDir, 'macos', `${archiveBaseName}.app.zip`);
+    ensureDirectory(path.dirname(archivePath));
+    rmSync(archivePath, { force: true });
+    rmSync(`${archivePath}.sha256.txt`, { force: true });
+    runZipCommand(archivePath, macosBundleRoot, appBundle.name);
+    writeSha256File(archivePath);
+    emittedFiles.push(archivePath);
+  }
+
+  return emittedFiles;
+}
+
+export function packageDesktopAssets({
+  platform,
+  arch,
+  target,
+  outputDir,
+  targetDir = desktopTargetDir,
+  tauriConfigPath = desktopTauriConfigPath,
+}) {
   const targetSpec = resolveDesktopReleaseTarget({
     targetTriple: target,
     platform,
@@ -219,11 +357,13 @@ function packageDesktopAssets({ platform, arch, target, outputDir }) {
   const archId = normalizeDesktopArch(targetSpec.arch);
   const desktopBundleRoot = resolveExistingDesktopBundleRoot({
     targetTriple: targetSpec.targetTriple,
+    targetDir,
   });
 
   if (!existsSync(desktopBundleRoot)) {
     const candidateMessage = buildDesktopBundleRootCandidates({
       targetTriple: targetSpec.targetTriple,
+      targetDir,
     }).join(', ');
     throw new Error(`Missing desktop bundle output directory. Checked: ${candidateMessage}`);
   }
@@ -231,21 +371,34 @@ function packageDesktopAssets({ platform, arch, target, outputDir }) {
   const bundleFiles = listFilesRecursively(desktopBundleRoot)
     .filter((file) => shouldIncludeDesktopBundleFile(platformId, file.relativePath));
 
-  if (bundleFiles.length === 0) {
-    throw new Error(
-      `No desktop release assets matched ${platformId} under ${desktopBundleRoot}`,
-    );
-  }
-
   const platformOutputDir = path.join(outputDir, 'desktop', platformId, archId);
   rmSync(platformOutputDir, { recursive: true, force: true });
   ensureDirectory(platformOutputDir);
+  const emittedFiles = [];
+
+  if (platformId === 'macos') {
+    emittedFiles.push(
+      ...packageMacosAppArchives({
+        desktopBundleRoot,
+        platformOutputDir,
+        archId,
+        tauriConfigPath,
+      }),
+    );
+  }
 
   for (const bundleFile of bundleFiles) {
     const targetPath = path.join(platformOutputDir, bundleFile.relativePath);
     ensureDirectory(path.dirname(targetPath));
     cpSync(bundleFile.absolutePath, targetPath);
     writeSha256File(targetPath);
+    emittedFiles.push(targetPath);
+  }
+
+  if (emittedFiles.length === 0) {
+    throw new Error(
+      `No desktop release assets matched ${platformId} under ${desktopBundleRoot}`,
+    );
   }
 }
 
