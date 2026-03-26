@@ -394,6 +394,32 @@ test('desktop release build runner exposes granular release phases for CI diagno
   assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
 });
 
+test('desktop release build runner requests app-only macOS bundles to avoid flaky dmg generation in CI', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  const macosBundlePlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'darwin',
+    hostArch: 'x64',
+    env: {},
+    phase: 'bundle',
+    targetTriple: 'x86_64-apple-darwin',
+  });
+
+  assert.deepEqual(macosBundlePlan.args, [
+    '--filter',
+    '@sdkwork/claw-desktop',
+    'exec',
+    'tauri',
+    'build',
+    '--bundles',
+    'app',
+  ]);
+  assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET, 'x86_64-apple-darwin');
+  assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'macos');
+  assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'x64');
+});
+
 test('desktop release build runner avoids explicit tauri target flags on native architecture runners', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const runner = await import(pathToFileURL(runnerPath).href);
