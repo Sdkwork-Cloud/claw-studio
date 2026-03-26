@@ -28,6 +28,13 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
 const webDistDir = path.join(rootDir, 'packages', 'sdkwork-claw-web', 'dist');
 const docsDistDir = path.join(rootDir, 'docs', '.vitepress', 'dist');
+const desktopTargetDir = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-desktop',
+  'src-tauri',
+  'target',
+);
 
 const desktopBundleRules = {
   windows: {
@@ -79,22 +86,42 @@ export function buildWebArchiveBaseName(releaseTag) {
   return `claw-studio-web-assets-${releaseTag.trim()}`;
 }
 
-export function resolveDesktopBundleRoot({ targetTriple = '' } = {}) {
+export function buildDesktopBundleRootCandidates({
+  targetTriple = '',
+  targetDir = desktopTargetDir,
+} = {}) {
   const normalizedTargetTriple = String(targetTriple ?? '').trim();
-  const targetSegments = normalizedTargetTriple.length > 0
-    ? [normalizedTargetTriple]
-    : [];
+  const candidates = [];
 
-  return path.join(
-    rootDir,
-    'packages',
-    'sdkwork-claw-desktop',
-    'src-tauri',
-    'target',
-    ...targetSegments,
-    'release',
-    'bundle',
-  );
+  if (normalizedTargetTriple.length > 0) {
+    candidates.push(path.join(targetDir, normalizedTargetTriple, 'release', 'bundle'));
+  }
+
+  candidates.push(path.join(targetDir, 'release', 'bundle'));
+
+  return [...new Set(candidates)];
+}
+
+export function resolveDesktopBundleRoot({
+  targetTriple = '',
+  targetDir = desktopTargetDir,
+} = {}) {
+  return buildDesktopBundleRootCandidates({
+    targetTriple,
+    targetDir,
+  })[0];
+}
+
+export function resolveExistingDesktopBundleRoot({
+  targetTriple = '',
+  targetDir = desktopTargetDir,
+} = {}) {
+  const candidates = buildDesktopBundleRootCandidates({
+    targetTriple,
+    targetDir,
+  });
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
 }
 
 function parseArgs(argv) {
@@ -190,12 +217,15 @@ function packageDesktopAssets({ platform, arch, target, outputDir }) {
   });
   const platformId = normalizePlatformId(targetSpec.platform);
   const archId = normalizeDesktopArch(targetSpec.arch);
-  const desktopBundleRoot = resolveDesktopBundleRoot({
+  const desktopBundleRoot = resolveExistingDesktopBundleRoot({
     targetTriple: targetSpec.targetTriple,
   });
 
   if (!existsSync(desktopBundleRoot)) {
-    throw new Error(`Missing desktop bundle output directory: ${desktopBundleRoot}`);
+    const candidateMessage = buildDesktopBundleRootCandidates({
+      targetTriple: targetSpec.targetTriple,
+    }).join(', ');
+    throw new Error(`Missing desktop bundle output directory. Checked: ${candidateMessage}`);
   }
 
   const bundleFiles = listFilesRecursively(desktopBundleRoot)
