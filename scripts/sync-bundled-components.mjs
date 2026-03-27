@@ -32,12 +32,13 @@ const preparedApiRouterRuntimeDir = path.join(
   'sdkwork-api-router-runtime',
   'runtime',
 );
-const windowsTauriConfigPath = path.join(
+const tauriBundleOverlayConfigPath = path.join(
   rootDir,
   'packages',
   'sdkwork-claw-desktop',
   'src-tauri',
-  'tauri.windows.conf.json',
+  'generated',
+  'tauri.bundle.overlay.json',
 );
 const openClawRuntimeBundleSourceRoot = resolveBundledResourceMirrorRoot(
   rootDir,
@@ -63,6 +64,12 @@ const devMode = args.has('--dev');
 const noFetch = args.has('--no-fetch');
 const releaseMode = args.has('--release');
 const skipOpenClaw = args.has('--skip-openclaw');
+const desktopSrcTauriPathSegments = ['packages', 'sdkwork-claw-desktop', 'src-tauri'];
+const windowsTauriBundleBridgeRoots = {
+  bundled: ['generated', 'br', 'b'],
+  'openclaw-runtime': ['generated', 'br', 'o'],
+  'sdkwork-api-router-runtime': ['generated', 'br', 'a'],
+};
 
 const gitCmd = process.platform === 'win32' ? 'git.exe' : 'git';
 const cargoCmd = process.platform === 'win32' ? 'cargo.exe' : 'cargo';
@@ -261,7 +268,8 @@ function main() {
   fs.mkdirSync(path.join(bundledRoot, 'modules'), { recursive: true });
   fs.mkdirSync(path.join(bundledRoot, 'runtimes'), { recursive: true });
   ensureBundledLinkRoot();
-  writeWindowsTauriBundleConfig();
+  ensureWindowsTauriBundleBridgeRoots();
+  writeTauriBundleOverlayConfig();
 
   const bundleManifest = {
     generatedAt: new Date().toISOString(),
@@ -537,7 +545,7 @@ function hasPreparedApiRouterSiteBundle(siteLabel) {
 
 function resolveBundledBuildRoot(workspaceRootDir, platform = process.platform) {
   if (platform !== 'win32') {
-    return path.join(generatedRoot, 'bundled');
+    return path.join(workspaceRootDir, ...desktopSrcTauriPathSegments, 'generated', 'bundled');
   }
 
   return path.win32.join(
@@ -549,22 +557,7 @@ function resolveBundledBuildRoot(workspaceRootDir, platform = process.platform) 
 }
 
 function ensureBundledLinkRoot() {
-  if (path.resolve(bundledRoot) === path.resolve(bundledLinkRoot)) {
-    return;
-  }
-
-  const existingResolvedPath = resolveExistingPathTarget(bundledLinkRoot);
-  if (existingResolvedPath && path.resolve(existingResolvedPath) === path.resolve(bundledRoot)) {
-    return;
-  }
-
-  fs.mkdirSync(path.dirname(bundledLinkRoot), { recursive: true });
-  fs.rmSync(bundledLinkRoot, { recursive: true, force: true });
-  fs.symlinkSync(
-    bundledRoot,
-    bundledLinkRoot,
-    process.platform === 'win32' ? 'junction' : 'dir',
-  );
+  ensureDirectoryLinkRoot(bundledLinkRoot, bundledRoot, process.platform);
 }
 
 function resolveExistingPathTarget(candidatePath) {
@@ -575,23 +568,14 @@ function resolveExistingPathTarget(candidatePath) {
   }
 }
 
-function writeWindowsTauriBundleConfig() {
-  if (process.platform !== 'win32') {
-    return;
-  }
-
-  writeJson(windowsTauriConfigPath, {
-    bundle: {
-      targets: ['nsis'],
-      resources: {
-        'foundation/components/': 'foundation/components/',
-        [`${bundledRoot.replaceAll('\\', '/')}/`]: 'generated/bundled/',
-        'vendor/hub-installer/registry/': 'vendor/hub-installer/registry/',
-        [`${openClawRuntimeBundleSourceRoot.replaceAll('\\', '/')}/`]: 'resources/openclaw-runtime/',
-        [`${apiRouterRuntimeBundleSourceRoot.replaceAll('\\', '/')}/`]: 'resources/sdkwork-api-router-runtime/',
-      },
-    },
-  });
+function writeTauriBundleOverlayConfig() {
+  writeJson(
+    tauriBundleOverlayConfigPath,
+    createTauriBundleOverlayConfig({
+      workspaceRootDir: rootDir,
+      platform: process.platform,
+    }),
+  );
 }
 
 function resolveBundledResourceMirrorRoot(
@@ -615,6 +599,103 @@ function resolveBundledResourceMirrorRoot(
     '.sdkwork-bc',
     path.win32.basename(workspaceRootDir),
     resourceId,
+  );
+}
+
+function resolveDesktopSrcTauriDir(workspaceRootDir, platform = process.platform) {
+  if (platform === 'win32') {
+    return path.win32.join(workspaceRootDir, ...desktopSrcTauriPathSegments);
+  }
+
+  return path.join(workspaceRootDir, ...desktopSrcTauriPathSegments);
+}
+
+function resolveWindowsTauriBundleBridgeDir(
+  workspaceRootDir,
+  resourceId,
+  platform = process.platform,
+) {
+  const relativeSegments = windowsTauriBundleBridgeRoots[resourceId];
+  if (!relativeSegments) {
+    throw new Error(`unsupported Windows Tauri bridge resource: ${resourceId}`);
+  }
+
+  const pathApi = platform === 'win32' ? path.win32 : path;
+  return pathApi.join(resolveDesktopSrcTauriDir(workspaceRootDir, platform), ...relativeSegments);
+}
+
+function resolveWindowsTauriBundleBridgeSource(resourceId) {
+  const relativeSegments = windowsTauriBundleBridgeRoots[resourceId];
+  if (!relativeSegments) {
+    throw new Error(`unsupported Windows Tauri bridge resource: ${resourceId}`);
+  }
+
+  return `${relativeSegments.join('/')}/`;
+}
+
+function ensureWindowsTauriBundleBridgeRoots() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  ensureDirectoryLinkRoot(
+    resolveWindowsTauriBundleBridgeDir(rootDir, 'bundled', process.platform),
+    bundledRoot,
+    process.platform,
+  );
+  ensureDirectoryLinkRoot(
+    resolveWindowsTauriBundleBridgeDir(rootDir, 'openclaw-runtime', process.platform),
+    openClawRuntimeBundleSourceRoot,
+    process.platform,
+  );
+  ensureDirectoryLinkRoot(
+    resolveWindowsTauriBundleBridgeDir(rootDir, 'sdkwork-api-router-runtime', process.platform),
+    apiRouterRuntimeBundleSourceRoot,
+    process.platform,
+  );
+}
+
+export function createTauriBundleOverlayConfig({
+  workspaceRootDir = rootDir,
+  platform = process.platform,
+} = {}) {
+  if (platform !== 'win32') {
+    return {};
+  }
+
+  return {
+    bundle: {
+      resources: {
+        'foundation/components/': 'foundation/components/',
+        // Use short in-tree bridge junctions so Windows bundling avoids both
+        // lost drive prefixes and MAX_PATH expansion through repo-relative roots.
+        [resolveWindowsTauriBundleBridgeSource('bundled')]: 'generated/bundled/',
+        'vendor/hub-installer/registry/': 'vendor/hub-installer/registry/',
+        [resolveWindowsTauriBundleBridgeSource('openclaw-runtime')]:
+          'resources/openclaw-runtime/',
+        [resolveWindowsTauriBundleBridgeSource('sdkwork-api-router-runtime')]:
+          'resources/sdkwork-api-router-runtime/',
+      },
+    },
+  };
+}
+
+function ensureDirectoryLinkRoot(linkRoot, targetRoot, platform = process.platform) {
+  if (path.resolve(targetRoot) === path.resolve(linkRoot)) {
+    return;
+  }
+
+  const existingResolvedPath = resolveExistingPathTarget(linkRoot);
+  if (existingResolvedPath && path.resolve(existingResolvedPath) === path.resolve(targetRoot)) {
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(linkRoot), { recursive: true });
+  fs.rmSync(linkRoot, { recursive: true, force: true });
+  fs.symlinkSync(
+    targetRoot,
+    linkRoot,
+    platform === 'win32' ? 'junction' : 'dir',
   );
 }
 

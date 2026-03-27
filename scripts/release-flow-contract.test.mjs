@@ -8,6 +8,12 @@ import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
+const desktopBundleOverlayConfig = path.join(
+  'src-tauri',
+  'generated',
+  'tauri.bundle.overlay.json',
+);
+const desktopPackageDir = path.join('packages', 'sdkwork-claw-desktop');
 
 function read(relativePath) {
   return readFileSync(path.join(rootDir, relativePath), 'utf8');
@@ -21,6 +27,8 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /push:\s*[\s\S]*tags:\s*[\s\S]*release-\*/);
+  assert.match(workflow, /concurrency:/);
+  assert.match(workflow, /verify-release:/);
   assert.match(workflow, /windows-2022/);
   assert.match(workflow, /windows-11-arm/);
   assert.match(workflow, /ubuntu-24\.04/);
@@ -60,6 +68,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /node scripts\/release\/package-release-assets\.mjs web/);
   assert.match(workflow, /softprops\/action-gh-release@/);
   assert.match(workflow, /CMAKE_GENERATOR:\s*Visual Studio 17 2022/);
+  assert.match(workflow, /needs:\s*\[\s*prepare,\s*verify-release\s*\]/);
 });
 
 test('desktop tauri build script treats sdkwork-api-router prebuilt artifacts as optional metadata across the full release matrix', () => {
@@ -74,6 +83,10 @@ test('desktop tauri build script treats sdkwork-api-router prebuilt artifacts as
 test('root package exposes release helper scripts for desktop and asset packaging', () => {
   const rootPackage = JSON.parse(read('package.json'));
 
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-flow-contract\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:automation'], /pnpm check:release-flow && pnpm check:ci-flow/);
+  assert.match(rootPackage.scripts['lint'], /pnpm check:automation/);
   assert.match(rootPackage.scripts['release:desktop'], /node scripts\/run-desktop-release-build\.mjs/);
   assert.match(rootPackage.scripts['release:package:desktop'], /node scripts\/release\/package-release-assets\.mjs desktop/);
   assert.match(rootPackage.scripts['release:package:web'], /node scripts\/release\/package-release-assets\.mjs web/);
@@ -339,6 +352,25 @@ test('desktop release build runner forwards explicit target triples to tauri bui
   assert.equal(arm64WindowsPlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
 });
 
+test('desktop release bundle phase merges the generated Windows bundle overlay config', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  const windowsBundlePlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'win32',
+    env: {},
+    phase: 'bundle',
+    targetTriple: 'x86_64-pc-windows-msvc',
+  });
+
+  assert.equal(windowsBundlePlan.command, process.execPath);
+  assert.deepEqual(windowsBundlePlan.args, [
+    'scripts/run-windows-tauri-bundle.mjs',
+    '--config',
+    path.join(desktopPackageDir, desktopBundleOverlayConfig),
+  ]);
+});
+
 test('desktop release build runner exposes granular release phases for CI diagnostics', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const runner = await import(pathToFileURL(runnerPath).href);
@@ -379,11 +411,13 @@ test('desktop release build runner exposes granular release phases for CI diagno
   assert.match(openClawPlan.args.join(' '), /prepare-openclaw-runtime\.mjs/);
   assert.match(apiRouterPlan.args.join(' '), /prepare-sdkwork-api-router-runtime\.mjs/);
   assert.deepEqual(bundlePlan.args, [
-    '--filter',
-    '@sdkwork/claw-desktop',
+    '--dir',
+    desktopPackageDir,
     'exec',
     'tauri',
     'build',
+    '--config',
+    desktopBundleOverlayConfig,
     '--bundles',
     'deb',
     '--target',
@@ -407,11 +441,13 @@ test('desktop release build runner requests app-only macOS bundles to avoid flak
   });
 
   assert.deepEqual(macosBundlePlan.args, [
-    '--filter',
-    '@sdkwork/claw-desktop',
+    '--dir',
+    desktopPackageDir,
     'exec',
     'tauri',
     'build',
+    '--config',
+    desktopBundleOverlayConfig,
     '--bundles',
     'app',
   ]);
@@ -433,11 +469,13 @@ test('desktop release build runner avoids explicit tauri target flags on native 
   });
 
   assert.deepEqual(nativeLinuxArmPlan.args, [
-    '--filter',
-    '@sdkwork/claw-desktop',
+    '--dir',
+    desktopPackageDir,
     'exec',
     'tauri',
     'build',
+    '--config',
+    desktopBundleOverlayConfig,
     '--bundles',
     'deb',
   ]);

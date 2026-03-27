@@ -41,6 +41,7 @@ xcap = "0.9.3"
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
+windows-service = "0.8.0"
 winreg = "0.52"
 
 [target.'cfg(unix)'.dependencies]
