@@ -11,6 +11,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
+const desktopSrcTauriPathSegments = ['packages', 'sdkwork-claw-desktop', 'src-tauri'];
 const cacheRoot = path.join(rootDir, '.cache', 'bundled-components');
 const upstreamRoot = path.join(cacheRoot, 'upstreams');
 const buildRoot = path.join(cacheRoot, 'build');
@@ -64,7 +65,6 @@ const devMode = args.has('--dev');
 const noFetch = args.has('--no-fetch');
 const releaseMode = args.has('--release');
 const skipOpenClaw = args.has('--skip-openclaw');
-const desktopSrcTauriPathSegments = ['packages', 'sdkwork-claw-desktop', 'src-tauri'];
 const windowsTauriBundleBridgeRoots = {
   bundled: ['generated', 'br', 'b'],
   'openclaw-runtime': ['generated', 'br', 'o'],

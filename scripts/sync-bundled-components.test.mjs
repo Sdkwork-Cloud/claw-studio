@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
 const syncModulePath = path.join(rootDir, 'scripts', 'sync-bundled-components.mjs');
+const syncModuleSource = readFileSync(syncModulePath, 'utf8');
 const syncModule = await import(pathToFileURL(syncModulePath).href);
 assert.equal(
   typeof syncModule.createTauriBundleOverlayConfig,
@@ -21,6 +23,12 @@ assert.equal(typeof overlay.bundle, 'object');
 assert.equal(typeof overlay.bundle.resources, 'object');
 
 const resources = overlay.bundle.resources;
+
+assert.ok(
+  syncModuleSource.indexOf("const desktopSrcTauriPathSegments = ['packages', 'sdkwork-claw-desktop', 'src-tauri'];") <
+    syncModuleSource.indexOf('const bundledRoot = resolveBundledBuildRoot(rootDir, process.platform);'),
+  'desktopSrcTauriPathSegments must be initialized before bundledRoot for non-Windows module loading',
+);
 
 for (const [resourceId, expectedSource, expectedTarget] of [
   ['bundled', 'generated/br/b/', 'generated/bundled/'],
