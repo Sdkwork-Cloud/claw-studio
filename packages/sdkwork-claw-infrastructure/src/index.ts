@@ -1,17 +1,20 @@
 export type * from './platform/index.ts';
 export {
   configurePlatformBridge,
+  getKernelPlatform,
   getInstallerPlatform,
   getPlatformBridge,
   getRuntimePlatform,
   getStoragePlatform,
   getStudioPlatform,
+  kernel,
   platform,
   storage,
   studio,
 } from './platform/registry.ts';
 export { openExternalUrl } from './platform/openExternalUrl.ts';
 export { WebComponentPlatform } from './platform/webComponents.ts';
+export { WebKernelPlatform } from './platform/webKernel.ts';
 export { WebPlatform } from './platform/web.ts';
 export { WebStoragePlatform } from './platform/webStorage.ts';
 export { WebStudioPlatform } from './platform/webStudio.ts';

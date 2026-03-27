@@ -972,6 +972,9 @@ importers:
       '@sdkwork/claw-i18n':
         specifier: workspace:*
         version: link:../sdkwork-claw-i18n
+      '@sdkwork/claw-infrastructure':
+        specifier: workspace:*
+        version: link:../sdkwork-claw-infrastructure
       '@sdkwork/claw-types':
         specifier: workspace:*
         version: link:../sdkwork-claw-types
@@ -1008,9 +1011,6 @@ importers:
       '@sdkwork/claw-agent':
         specifier: workspace:*
         version: link:../sdkwork-claw-agent
-      '@sdkwork/claw-apirouter':
-        specifier: workspace:*
-        version: link:../sdkwork-claw-apirouter
       '@sdkwork/claw-apps':
         specifier: workspace:*
         version: link:../sdkwork-claw-apps

@@ -467,7 +467,7 @@ function buildPreferredProviderIds(model: AgentWorkbenchModelSelection) {
         return null;
       }
 
-      return `api-router-${modelRef.slice(0, separatorIndex)}`;
+      return modelRef.slice(0, separatorIndex).trim() || null;
     }),
   );
 }

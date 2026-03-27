@@ -19,12 +19,6 @@
     "sonner": "^2.0.7"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./services/agentSkillManagementService": "./src/services/agentSkillManagementService.ts",
-    "./services/instanceOnboardingService": "./src/services/instanceOnboardingService.ts",
-    "./services/agentWorkbenchService": "./src/services/agentWorkbenchService.ts",
-    "./services/instanceService": "./src/services/instanceService.ts",
-    "./services/instanceWorkbenchService": "./src/services/instanceWorkbenchService.ts",
-    "./types": "./src/types/index.ts"
+    ".": "./src/index.ts"
   }
 }

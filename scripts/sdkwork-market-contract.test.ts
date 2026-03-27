@@ -123,7 +123,10 @@ runTest('sdkwork-claw-market routes ClawHub browsing through claw-core app sdk w
   const skillDetailSource = read('packages/sdkwork-claw-market/src/pages/SkillDetail.tsx');
   const skillPackDetailSource = read('packages/sdkwork-claw-market/src/pages/SkillPackDetail.tsx');
 
-  assert.match(marketServiceSource, /@sdkwork\/claw-core\/services\/clawHubService/);
+  assert.match(marketServiceSource, /from '@sdkwork\/claw-core'/);
+  assert.doesNotMatch(marketServiceSource, /@sdkwork\/claw-core\/services\//);
+  assert.match(mySkillServiceSource, /from '@sdkwork\/claw-instances'/);
+  assert.doesNotMatch(mySkillServiceSource, /@sdkwork\/claw-instances\/services\//);
   assert.match(marketServiceSource, /clawHubService/);
   assert.match(marketServiceSource, /listCategories\(/);
   assert.match(marketServiceSource, /listSkills\(/);

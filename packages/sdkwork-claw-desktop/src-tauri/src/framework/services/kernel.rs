@@ -1,4 +1,5 @@
 use crate::framework::{
+    kernel_host::types::DesktopKernelHostInfo,
     kernel::{
         DesktopBundledComponentsInfo, DesktopCapabilityInfo, DesktopCapabilityStatus,
         DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
@@ -23,6 +24,7 @@ pub struct KernelDomainSnapshots {
     pub supervisor: DesktopSupervisorInfo,
     pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
+    pub host: DesktopKernelHostInfo,
 }
 
 impl KernelService {
@@ -170,6 +172,7 @@ impl KernelService {
             supervisor: domains.supervisor,
             bundled_components: domains.bundled_components,
             storage: domains.storage,
+            host: domains.host,
         }
     }
 }

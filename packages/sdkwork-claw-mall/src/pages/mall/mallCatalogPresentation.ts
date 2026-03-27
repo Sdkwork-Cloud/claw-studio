@@ -1,7 +1,7 @@
 import type {
   ClawMallCategory,
   ClawMallProduct,
-} from '@sdkwork/claw-core/services/clawMallService';
+} from '@sdkwork/claw-core';
 
 export interface FlattenedMallCategory extends ClawMallCategory {
   depth: number;

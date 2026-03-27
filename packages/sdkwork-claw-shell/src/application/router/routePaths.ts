@@ -34,6 +34,8 @@ export const ROUTE_PATHS = {
   CHANNELS: '/channels',
   TASKS: '/tasks',
   CHAT: '/chat',
+  KERNEL: '/kernel',
+  NODES: '/nodes',
   SETTINGS: '/settings',
   DOCS: '/docs',
   CODEBOX: '/codebox',

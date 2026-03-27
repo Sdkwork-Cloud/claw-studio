@@ -10,6 +10,7 @@ export * from './clawMallService.ts';
 export * from './dashboardCommerceService.ts';
 export * from './feedbackCenterService.ts';
 export * from './instanceDirectoryService.ts';
+export * from './kernelPlatformService.ts';
 export * from './openClawAgentCatalogService.ts';
 export * from './openClawConfigService.ts';
 export * from './pointsWalletService.ts';

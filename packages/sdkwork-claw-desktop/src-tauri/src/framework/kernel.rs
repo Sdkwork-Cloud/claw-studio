@@ -1,4 +1,4 @@
-use crate::framework::storage::StorageInfo;
+use crate::framework::{kernel_host::types::DesktopKernelHostInfo, storage::StorageInfo};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -305,4 +305,5 @@ pub struct DesktopKernelInfo {
     pub supervisor: DesktopSupervisorInfo,
     pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
+    pub host: DesktopKernelHostInfo,
 }

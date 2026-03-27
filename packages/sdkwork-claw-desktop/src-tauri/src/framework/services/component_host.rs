@@ -673,7 +673,7 @@ mod tests {
 
         assert_eq!(
             catalog.default_startup_component_ids,
-            vec!["sdkwork-api-router".to_string()]
+            vec!["openclaw".to_string(), "sdkwork-api-router".to_string()]
         );
         let router = catalog
             .components

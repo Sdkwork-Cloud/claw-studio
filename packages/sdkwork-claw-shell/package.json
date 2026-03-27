@@ -6,7 +6,6 @@
   "dependencies": {
     "@sdkwork/claw-account": "workspace:*",
     "@sdkwork/claw-agent": "workspace:*",
-    "@sdkwork/claw-apirouter": "workspace:*",
     "@sdkwork/claw-apps": "workspace:*",
     "@sdkwork/claw-auth": "workspace:*",
     "@sdkwork/claw-center": "workspace:*",

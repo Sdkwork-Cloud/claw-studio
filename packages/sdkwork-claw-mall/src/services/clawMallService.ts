@@ -4,7 +4,7 @@ import type {
   ClawMallProductPage,
   ClawMallProductQuery,
   ClawMallService,
-} from '@sdkwork/claw-core/services/clawMallService';
+} from '@sdkwork/claw-core';
 import { selectRelatedProducts } from '../pages/mall/mallCatalogPresentation.ts';
 
 export interface ClawMallCatalogSnapshot {
@@ -25,7 +25,7 @@ export interface ClawMallCatalogService {
 }
 
 async function getDefaultClawMallService(): Promise<ClawMallService> {
-  const module = await import('../../../sdkwork-claw-core/src/services/clawMallService.ts');
+  const module = await import('@sdkwork/claw-core');
   return module.clawMallService as ClawMallService;
 }
 

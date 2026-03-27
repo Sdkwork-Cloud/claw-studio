@@ -232,7 +232,11 @@ pub struct PublicAppConfig {
 pub fn load_or_create_config(paths: &AppPaths) -> Result<AppConfig> {
     if paths.config_file.exists() {
         let content = fs::read_to_string(&paths.config_file)?;
-        let config = serde_json::from_str::<AppConfig>(&content)?.normalized();
+        let config = if content.trim().is_empty() {
+            AppConfig::default()
+        } else {
+            serde_json::from_str::<AppConfig>(&content)?.normalized()
+        };
         write_config(paths, &config)?;
         return Ok(config);
     }
@@ -244,7 +248,12 @@ pub fn load_or_create_config(paths: &AppPaths) -> Result<AppConfig> {
 
 pub fn write_config(paths: &AppPaths, config: &AppConfig) -> Result<()> {
     let content = serde_json::to_string_pretty(config)?;
-    fs::write(&paths.config_file, content)?;
+    let temp_path = paths.config_file.with_extension("json.tmp");
+    fs::write(&temp_path, content)?;
+    if paths.config_file.is_file() {
+        fs::remove_file(&paths.config_file)?;
+    }
+    fs::rename(temp_path, &paths.config_file)?;
     Ok(())
 }
 
@@ -336,6 +345,21 @@ mod tests {
 
         assert_eq!(config.theme, "system");
         assert!(saved.contains("telemetryEnabled"));
+    }
+
+    #[test]
+    fn recreates_default_config_when_existing_file_is_empty() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        std::fs::write(&paths.config_file, "").expect("empty config");
+
+        let config = load_or_create_config(&paths).expect("config");
+        let saved = std::fs::read_to_string(&paths.config_file).expect("saved config");
+        let value = serde_json::from_str::<Value>(&saved).expect("json value");
+
+        assert_eq!(config, AppConfig::default());
+        assert_eq!(value.get("theme").and_then(Value::as_str), Some("system"));
     }
 
     #[test]

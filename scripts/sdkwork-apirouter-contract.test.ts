@@ -320,12 +320,12 @@ runTest('sdkwork-claw-apirouter page keeps the management workspace without the 
   assert.match(zhLocaleSource, /安装 ~\/\.codex\/config\.toml 和 ~\/\.codex\/auth\.json/);
 });
 
-runTest('shell routes /api-router directly to the feature module without a workspace wrapper', () => {
+runTest('shell routes /api-router directly to the independent provider config center without a workspace wrapper', () => {
   const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
 
-  assert.match(routesSource, /@sdkwork\/claw-apirouter/);
+  assert.match(routesSource, /module\.ProviderConfigCenter/);
   assert.match(routesSource, /path="\/api-router"/);
-  assert.match(routesSource, /<ApiRouter \/>/);
+  assert.match(routesSource, /<ProviderConfigCenter \/>/);
   assert.doesNotMatch(routesSource, /apiRouterComingSoon/);
   assert.doesNotMatch(routesSource, /ApiRouterWorkspace/);
   assert.equal(

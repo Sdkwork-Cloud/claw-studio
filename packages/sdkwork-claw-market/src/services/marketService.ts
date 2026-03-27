@@ -4,7 +4,7 @@ import {
   type ClawHubPackageListParams,
   type ClawHubService,
   type ClawHubSkillListParams,
-} from '@sdkwork/claw-core/services/clawHubService';
+} from '@sdkwork/claw-core';
 import type { ListParams, PaginatedResult, Review, Skill, SkillPack } from '@sdkwork/claw-types';
 
 export interface InstallSkillInput {
@@ -160,12 +160,12 @@ function ensureSkillSlug(skill: Skill) {
 }
 
 async function getDefaultInstanceWorkbenchService(): Promise<InstanceWorkbenchServiceLike> {
-  const module = await import('@sdkwork/claw-instances/services/instanceWorkbenchService');
+  const module = await import('@sdkwork/claw-instances');
   return module.instanceWorkbenchService;
 }
 
 async function getDefaultAgentSkillManagementService(): Promise<AgentSkillManagementServiceLike> {
-  const module = await import('@sdkwork/claw-instances/services/agentSkillManagementService');
+  const module = await import('@sdkwork/claw-instances');
   return module.agentSkillManagementService;
 }
 

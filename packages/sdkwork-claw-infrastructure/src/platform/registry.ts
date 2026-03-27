@@ -1,11 +1,13 @@
 import type { ComponentPlatformAPI } from './contracts/components.ts';
 import type { InstallerPlatformAPI } from './contracts/installer.ts';
+import type { KernelPlatformAPI } from './contracts/kernel.ts';
 import type { StoragePlatformAPI } from './contracts/storage.ts';
 import type { StudioPlatformAPI } from './contracts/studio.ts';
 import type { RuntimePlatformAPI } from './contracts/runtime.ts';
 import type { PlatformAPI } from './types.ts';
 import { WebComponentPlatform } from './webComponents.ts';
 import { WebInstallerPlatform } from './webInstaller.ts';
+import { WebKernelPlatform } from './webKernel.ts';
 import { WebPlatform } from './web.ts';
 import { WebRuntimePlatform } from './webRuntime.ts';
 import { WebStoragePlatform } from './webStorage.ts';
@@ -13,6 +15,7 @@ import { WebStudioPlatform } from './webStudio.ts';
 
 export interface PlatformBridge {
   platform: PlatformAPI;
+  kernel: KernelPlatformAPI;
   components: ComponentPlatformAPI;
   installer: InstallerPlatformAPI;
   runtime: RuntimePlatformAPI;
@@ -29,6 +32,7 @@ type GlobalPlatformBridgeState = typeof globalThis & {
 function createDefaultPlatformBridge(): PlatformBridge {
   return {
     platform: new WebPlatform(),
+    kernel: new WebKernelPlatform(),
     components: new WebComponentPlatform(),
     installer: new WebInstallerPlatform(),
     runtime: new WebRuntimePlatform(),
@@ -79,6 +83,10 @@ export function getInstallerPlatform(): InstallerPlatformAPI {
 
 export function getComponentPlatform(): ComponentPlatformAPI {
   return getPlatformBridge().components;
+}
+
+export function getKernelPlatform(): KernelPlatformAPI {
+  return getPlatformBridge().kernel;
 }
 
 export function getRuntimePlatform(): RuntimePlatformAPI {
@@ -133,10 +141,20 @@ export const storage: StoragePlatformAPI = {
   listKeys: (request) => getPlatformBridge().storage.listKeys(request),
 };
 
+export const kernel: KernelPlatformAPI = {
+  getInfo: () => getPlatformBridge().kernel.getInfo(),
+  getStorageInfo: () => getPlatformBridge().kernel.getStorageInfo(),
+  getStatus: () => getPlatformBridge().kernel.getStatus(),
+  ensureRunning: () => getPlatformBridge().kernel.ensureRunning(),
+  restart: () => getPlatformBridge().kernel.restart(),
+};
+
 export const studio: StudioPlatformAPI = {
   listInstances: () => getPlatformBridge().studio.listInstances(),
   getInstance: (id) => getPlatformBridge().studio.getInstance(id),
   getInstanceDetail: (id) => getPlatformBridge().studio.getInstanceDetail(id),
+  invokeOpenClawGateway: (instanceId, request, options) =>
+    getPlatformBridge().studio.invokeOpenClawGateway?.(instanceId, request, options),
   createInstance: (input) => getPlatformBridge().studio.createInstance(input),
   updateInstance: (id, input) => getPlatformBridge().studio.updateInstance(id, input),
   deleteInstance: (id) => getPlatformBridge().studio.deleteInstance(id),

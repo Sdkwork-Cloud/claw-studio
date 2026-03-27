@@ -50,10 +50,29 @@ export interface StudioUpdateInstanceLlmProviderConfigInput {
   config: StudioWorkbenchLLMProviderConfigRecord;
 }
 
+export interface StudioOpenClawGatewayInvokeRequest {
+  tool: string;
+  action?: string;
+  args?: Record<string, unknown>;
+  sessionKey?: string;
+  dryRun?: boolean;
+}
+
+export interface StudioOpenClawGatewayInvokeOptions {
+  messageChannel?: string;
+  accountId?: string;
+  headers?: Record<string, string>;
+}
+
 export interface StudioPlatformAPI {
   listInstances(): Promise<StudioInstanceRecord[]>;
   getInstance(id: string): Promise<StudioInstanceRecord | null>;
   getInstanceDetail(id: string): Promise<StudioInstanceDetailRecord | null>;
+  invokeOpenClawGateway?(
+    instanceId: string,
+    request: StudioOpenClawGatewayInvokeRequest,
+    options?: StudioOpenClawGatewayInvokeOptions,
+  ): Promise<unknown>;
   createInstance(input: StudioCreateInstanceInput): Promise<StudioInstanceRecord>;
   updateInstance(id: string, input: StudioUpdateInstanceInput): Promise<StudioInstanceRecord>;
   deleteInstance(id: string): Promise<boolean>;

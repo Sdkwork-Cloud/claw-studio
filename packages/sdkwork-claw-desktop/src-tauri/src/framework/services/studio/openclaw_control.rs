@@ -1,5 +1,6 @@
 use super::{
-    openclaw_workbench::read_openclaw_cron_run_entries, StudioWorkbenchTaskExecutionRecord,
+    openclaw_workbench::read_openclaw_cron_run_entries, StudioOpenClawGatewayInvokeOptions,
+    StudioOpenClawGatewayInvokeRequest, StudioWorkbenchTaskExecutionRecord,
 };
 use crate::framework::{
     paths::AppPaths,
@@ -69,6 +70,14 @@ pub(super) fn create_openclaw_task(
 ) -> Result<()> {
     let _ = OpenClawGatewayAdminClient::new(runtime).call("cron.add", payload)?;
     Ok(())
+}
+
+pub(super) fn invoke_openclaw_gateway(
+    runtime: &ActivatedOpenClawRuntime,
+    request: &StudioOpenClawGatewayInvokeRequest,
+    options: &StudioOpenClawGatewayInvokeOptions,
+) -> Result<Value> {
+    OpenClawGatewayAdminClient::new(runtime).invoke(request, options)
 }
 
 pub(super) fn run_openclaw_task_now(
@@ -222,10 +231,64 @@ impl<'a> OpenClawGatewayAdminClient<'a> {
 
     fn call(&self, method: &str, params: &Value) -> Result<Value> {
         let request = build_gateway_invoke_request(method, params)?;
+        self.send_request(method, &request, &StudioOpenClawGatewayInvokeOptions::default())
+    }
+
+    fn invoke(
+        &self,
+        request: &StudioOpenClawGatewayInvokeRequest,
+        options: &StudioOpenClawGatewayInvokeOptions,
+    ) -> Result<Value> {
+        let payload = build_gateway_invoke_payload(request)?;
+        let method = if let Some(action) = request
+            .action
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            format!("{}.{}", request.tool.trim(), action)
+        } else {
+            request.tool.trim().to_string()
+        };
+        self.send_request(method.as_str(), &payload, options)
+    }
+
+    fn send_request(
+        &self,
+        method: &str,
+        request: &Value,
+        options: &StudioOpenClawGatewayInvokeOptions,
+    ) -> Result<Value> {
         let url = format!(
             "http://127.0.0.1:{}/tools/invoke",
             self.runtime.gateway_port
         );
+        let request = request.clone();
+        let message_channel = options
+            .message_channel
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
+        let account_id = options
+            .account_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
+        let extra_headers = options
+            .headers
+            .iter()
+            .filter_map(|(key, value)| {
+                let key = key.trim();
+                let value = value.trim();
+                if key.is_empty() || value.is_empty() {
+                    None
+                } else {
+                    Some((key.to_string(), value.to_string()))
+                }
+            })
+            .collect::<Vec<_>>();
         let response = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -243,14 +306,25 @@ impl<'a> OpenClawGatewayAdminClient<'a> {
                             "failed to build OpenClaw gateway admin client: {error}"
                         ))
                     })?;
-                let response = client
+                let mut request_builder = client
                     .post(url)
                     .header(
                         "authorization",
                         format!("Bearer {}", self.runtime.gateway_auth_token),
                     )
                     .header("content-type", "application/json")
-                    .header("accept", "application/json")
+                    .header("accept", "application/json");
+                if let Some(message_channel) = message_channel.as_deref() {
+                    request_builder =
+                        request_builder.header("x-openclaw-message-channel", message_channel);
+                }
+                if let Some(account_id) = account_id.as_deref() {
+                    request_builder = request_builder.header("x-openclaw-account-id", account_id);
+                }
+                for (key, value) in &extra_headers {
+                    request_builder = request_builder.header(key.as_str(), value.as_str());
+                }
+                let response = request_builder
                     .json(&request)
                     .send()
                     .await
@@ -270,6 +344,53 @@ impl<'a> OpenClawGatewayAdminClient<'a> {
 
         parse_gateway_invoke_response(method, response.0, response.1.as_str())
     }
+}
+
+fn build_gateway_invoke_payload(request: &StudioOpenClawGatewayInvokeRequest) -> Result<Value> {
+    let tool = request.tool.trim();
+    if tool.is_empty() {
+        return Err(FrameworkError::ValidationFailed(
+            "OpenClaw gateway tool name is required".to_string(),
+        ));
+    }
+
+    let mut payload = serde_json::Map::new();
+    payload.insert("tool".to_string(), Value::String(tool.to_string()));
+
+    if let Some(action) = request
+        .action
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        payload.insert("action".to_string(), Value::String(action.to_string()));
+    }
+
+    payload.insert(
+        "args".to_string(),
+        request
+            .args
+            .clone()
+            .unwrap_or_else(|| Value::Object(serde_json::Map::new())),
+    );
+
+    if let Some(session_key) = request
+        .session_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        payload.insert(
+            "sessionKey".to_string(),
+            Value::String(session_key.to_string()),
+        );
+    }
+
+    if let Some(dry_run) = request.dry_run {
+        payload.insert("dryRun".to_string(), Value::Bool(dry_run));
+    }
+
+    Ok(Value::Object(payload))
 }
 
 fn build_gateway_invoke_request(method: &str, params: &Value) -> Result<Value> {

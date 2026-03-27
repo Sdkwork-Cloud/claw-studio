@@ -51,7 +51,8 @@ runTest('sdkwork-claw-apps routes remote app-store metadata through claw-core ap
   assert.match(appDetailEntrySource, /\.\/pages\/apps\/AppDetail/);
 
   assert.doesNotMatch(serviceSource, /studioMockService/);
-  assert.match(serviceSource, /@sdkwork\/claw-core\/services\/appStoreCatalogService/);
+  assert.match(serviceSource, /from '@sdkwork\/claw-core'/);
+  assert.doesNotMatch(serviceSource, /@sdkwork\/claw-core\/services\//);
   assert.match(serviceSource, /appStoreCatalogService/);
   assert.match(serviceSource, /listApps\(/);
   assert.match(serviceSource, /listCategories\(/);

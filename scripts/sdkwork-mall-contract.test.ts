@@ -56,7 +56,8 @@ runTest('sdkwork-claw-mall is implemented locally and routes mall reads through 
   assert.match(detailEntrySource, /lazy\(\(\) =>/);
   assert.match(detailEntrySource, /\.\/pages\/mall\/ProductDetail/);
 
-  assert.match(serviceSource, /@sdkwork\/claw-core\/services\/clawMallService/);
+  assert.match(serviceSource, /@sdkwork\/claw-core/);
+  assert.doesNotMatch(serviceSource, /@sdkwork\/claw-core\/services\//);
   assert.match(serviceSource, /listCategories\(/);
   assert.match(serviceSource, /listProducts\(/);
   assert.match(serviceSource, /listHotProducts\(/);

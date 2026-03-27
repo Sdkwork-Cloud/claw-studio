@@ -342,9 +342,9 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
     ],
     llmProviders: [
       {
-        id: 'api-router-openai',
-        name: 'OpenAI via API Router',
-        provider: 'api-router',
+        id: 'openai',
+        name: 'OpenAI',
+        provider: 'openai',
         endpoint: 'http://127.0.0.1:13003/api/v1',
         apiKeySource: 'env:OPENAI_API_KEY',
         status: 'ready',
@@ -376,9 +376,9 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
         },
       },
       {
-        id: 'api-router-anthropic',
-        name: 'Anthropic via API Router',
-        provider: 'api-router',
+        id: 'anthropic',
+        name: 'Anthropic',
+        provider: 'anthropic',
         endpoint: 'http://127.0.0.1:13003/api/v1',
         apiKeySource: 'env:ANTHROPIC_API_KEY',
         status: 'ready',
@@ -617,7 +617,7 @@ await runTest(
     );
     assert.deepEqual(
       snapshot.modelProviders.map((provider) => provider.id),
-      ['api-router-anthropic', 'api-router-openai'],
+      ['anthropic', 'openai'],
     );
     assert.equal(snapshot.channels.find((channel) => channel.id === 'telegram')?.routeStatus, 'bound');
     assert.deepEqual(

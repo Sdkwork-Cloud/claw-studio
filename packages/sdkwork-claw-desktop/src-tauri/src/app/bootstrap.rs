@@ -145,6 +145,9 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::component_commands::desktop_component_catalog,
             commands::component_commands::desktop_component_control,
             commands::desktop_kernel::desktop_kernel_info,
+            commands::desktop_kernel::desktop_kernel_status,
+            commands::desktop_kernel::ensure_desktop_kernel_running,
+            commands::desktop_kernel::restart_desktop_kernel,
             commands::desktop_kernel::desktop_storage_info,
             commands::get_app_paths::get_app_paths,
             commands::get_app_config::get_app_config,
@@ -158,6 +161,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::studio_commands::studio_list_instances,
             commands::studio_commands::studio_get_instance,
             commands::studio_commands::studio_get_instance_detail,
+            commands::studio_commands::studio_invoke_openclaw_gateway,
             commands::studio_commands::studio_create_instance,
             commands::studio_commands::studio_update_instance,
             commands::studio_commands::studio_delete_instance,
@@ -1111,6 +1115,18 @@ mod tests {
         assert!(
             !production_source.contains("commands::api_router_auth::get_api_router_admin_token")
         );
+    }
+
+    #[test]
+    fn invoke_handler_registers_studio_openclaw_gateway_proxy_command() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+
+        assert!(production_source
+            .contains("commands::studio_commands::studio_invoke_openclaw_gateway"));
     }
 
     #[test]

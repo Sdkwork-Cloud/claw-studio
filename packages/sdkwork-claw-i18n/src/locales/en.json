@@ -40,7 +40,9 @@
     "instances": "Instances",
     "devices": "Devices",
     "install": "Install Claw",
+    "kernelCenter": "Kernel Center",
     "market": "ClawHub",
+    "nodes": "Nodes",
     "agentMarket": "Agent Market",
     "aiChat": "AI Chat",
     "channels": "Channels",
@@ -54,7 +56,7 @@
     "ecosystem": "Ecosystem",
     "setup": "Setup",
     "codebox": "CodeBox",
-    "apiRouter": "API Router",
+    "apiRouter": "Provider Center",
     "modelPurchase": "Model Purchase",
     "clawUpload": "Claw Networking",
     "systemResources": "System Resources",
@@ -190,6 +192,144 @@
       "security": "Security",
       "api": "API Keys",
       "data": "Data & Privacy"
+    },
+    "kernelCenter": {
+      "description": "The built-in OpenClaw kernel is treated as mandatory product infrastructure. This surface shows the actual host owner, active endpoint, storage profile, and runtime provenance without hiding fallback behavior.",
+      "actions": {
+        "refresh": "Refresh",
+        "ensureRunning": "Ensure Running",
+        "ensuring": "Ensuring...",
+        "restart": "Restart",
+        "restarting": "Restarting..."
+      },
+      "toasts": {
+        "loadFailed": "Failed to load kernel status.",
+        "ensureSuccess": "Kernel host checked and attached.",
+        "ensureFailed": "Failed to ensure the kernel is running.",
+        "restartSuccess": "Kernel restart requested.",
+        "restartFailed": "Failed to restart the kernel."
+      },
+      "metrics": {
+        "runtime": "Runtime",
+        "topology": "Topology",
+        "host": "Host",
+        "endpoint": "Endpoint"
+      },
+      "runtimeStates": {
+        "running": "Running",
+        "starting": "Starting",
+        "recovering": "Recovering",
+        "degraded": "Degraded",
+        "crashLoop": "Crash Loop",
+        "failedSafe": "Failed Safe",
+        "stopped": "Stopped",
+        "unavailable": "Unavailable"
+      },
+      "topologies": {
+        "localManagedNative": "Local Managed Native",
+        "localManagedWsl": "Local Managed WSL",
+        "localManagedContainer": "Local Managed Container",
+        "localExternal": "Local External",
+        "remoteManagedNode": "Remote Managed Node",
+        "remoteAttachedNode": "Remote Attached Node",
+        "unknown": "Unknown"
+      },
+      "serviceManagers": {
+        "windowsService": "Windows Service",
+        "launchdLaunchAgent": "launchd LaunchAgent",
+        "systemdUser": "systemd User Service",
+        "systemdSystem": "systemd System Service",
+        "tauriSupervisor": "Tauri Supervisor",
+        "unknown": "Unknown Host"
+      },
+      "ownership": {
+        "nativeService": "Native Service Host",
+        "appSupervisor": "App Supervisor Fallback",
+        "attached": "Attached Runtime",
+        "unknown": "Unknown Ownership"
+      },
+      "startupModes": {
+        "auto": "Auto Start",
+        "manual": "Manual Start"
+      },
+      "installSources": {
+        "bundled": "Bundled",
+        "external": "External",
+        "remote": "Remote",
+        "unknown": "Unknown"
+      },
+      "endpoint": {
+        "dynamicPort": "The active port was allocated dynamically to avoid a conflict.",
+        "preferredActive": "The preferred endpoint is currently active."
+      },
+      "sections": {
+        "hostOwnership": "Host Ownership",
+        "endpointRuntime": "Endpoint And Runtime",
+        "storage": "Storage",
+        "provenance": "Provenance",
+        "capabilityRollup": "Capability Rollup",
+        "managedDirectories": "Managed Directories",
+        "supervisorAndBundles": "Supervisor And Bundles"
+      },
+      "fields": {
+        "serviceManager": "Service Manager",
+        "ownership": "Ownership",
+        "startupMode": "Startup Mode",
+        "controlSocket": "Control Socket",
+        "controlSocketAvailable": "Control Socket Available",
+        "serviceConfigPath": "Service Config Path",
+        "baseUrl": "Base URL",
+        "websocketUrl": "WebSocket URL",
+        "preferredPort": "Preferred Port",
+        "activePort": "Active Port",
+        "openclawVersion": "OpenClaw Version",
+        "nodeVersion": "Node.js Version",
+        "activeProfile": "Active Profile",
+        "profilePath": "Profile Path",
+        "storageRoot": "Storage Root",
+        "profileCount": "Profile Count",
+        "installSource": "Install Source",
+        "platform": "Platform",
+        "configPath": "Config Path",
+        "runtimeHome": "Runtime Home",
+        "runtimeInstallDir": "Runtime Install Dir",
+        "machineState": "Machine State",
+        "machineStaging": "Machine Staging",
+        "userRoot": "User Root",
+        "studioDir": "Studio Dir",
+        "storageDir": "Storage Dir",
+        "backupsDir": "Backups Dir"
+      },
+      "values": {
+        "notAvailable": "Not available",
+        "unknown": "Unknown",
+        "yes": "Yes",
+        "no": "No",
+        "notExposedYet": "Not exposed yet",
+        "noRuntimeSummary": "No runtime summary is available yet.",
+        "noTopologyReported": "No topology has been reported.",
+        "hostOwnershipUnavailable": "Host ownership has not been reported.",
+        "none": "None"
+      },
+      "capabilityRollup": {
+        "ready": "Ready",
+        "planned": "Planned",
+        "bundledComponents": "Bundled Components",
+        "bundledComponentsSummary": "{{count}} managed component(s), {{autoStartCount}} auto-start component(s)"
+      },
+      "bundles": {
+        "supervisor": "Supervisor",
+        "supervisorSummary": "{{lifecycle}} with {{count}} tracked service(s)",
+        "bundledStartupSet": "Bundled Startup Set",
+        "silentHostTarget": "Silent Host Target",
+        "silentHostTargetDescription": "{{serviceManager}} is the target lifecycle owner, while the page keeps reporting the current ownership truthfully."
+      },
+      "supervisorLifecycle": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "stopping": "Stopping",
+        "unknown": "Unknown"
+      }
     },
     "account": {
       "title": "Account",
@@ -658,6 +798,14 @@
         "title": "Go to Instances",
         "subtitle": "Manage running containers"
       },
+      "kernel": {
+        "title": "Go to Kernel Center",
+        "subtitle": "Inspect the built-in OpenClaw host, endpoint, and provenance"
+      },
+      "nodes": {
+        "title": "Go to Nodes",
+        "subtitle": "Inspect local and remote kernel inventory"
+      },
       "devices": {
         "title": "Go to Devices",
         "subtitle": "Hardware and GPU settings"
@@ -671,8 +819,8 @@
         "subtitle": "Open the staged CodeBox integration route"
       },
       "apiRouter": {
-        "title": "Go to API Router",
-        "subtitle": "Manage model channels and proxy providers"
+        "title": "Go to Provider Center",
+        "subtitle": "Manage LLM, embedding, and route configs"
       },
       "modelPurchase": {
         "title": "Go to Model Purchase",
@@ -3566,6 +3714,84 @@
         "actionFailed": "Failed to {{action}} instance"
       }
     },
+    "nodes": {
+      "description": "Cluster governance starts here. The local built-in OpenClaw kernel is listed beside attached or managed nodes so rollout, diagnostics, and topology drift can converge on one product model.",
+      "actions": {
+        "refresh": "Refresh",
+        "ensureLocalNode": "Ensure Local Node",
+        "ensuring": "Ensuring...",
+        "restartLocalNode": "Restart Local Node",
+        "restart": "Restart",
+        "restarting": "Restarting...",
+        "openKernelCenter": "Open Kernel Center",
+        "openDetails": "Open Details"
+      },
+      "toasts": {
+        "loadFailed": "Failed to load node inventory.",
+        "ensureSuccess": "Local kernel node checked and attached.",
+        "ensureFailed": "Failed to ensure the local kernel node is running.",
+        "restartSuccess": "Local kernel node restart requested.",
+        "restartFailed": "Failed to restart the local kernel node."
+      },
+      "metrics": {
+        "totalNodes": "Total Nodes",
+        "totalNodesDetail": "All local, managed, and attached kernels visible to the control plane.",
+        "managed": "Managed",
+        "managedDetail": "Nodes where Claw Studio owns lifecycle and recovery decisions.",
+        "attached": "Attached",
+        "attachedDetail": "Nodes that stay visible even when lifecycle ownership is partial.",
+        "needsAttention": "Needs Attention",
+        "needsAttentionDetail": "Degraded or quarantined nodes that need intervention."
+      },
+      "kinds": {
+        "localPrimary": "Local Primary",
+        "managedRemote": "Managed Remote",
+        "attachedRemote": "Attached Remote",
+        "localExternal": "Local External"
+      },
+      "health": {
+        "ok": "Healthy",
+        "degraded": "Degraded",
+        "quarantined": "Quarantined"
+      },
+      "management": {
+        "managedDescription": "Managed nodes stay under Claw Studio lifecycle control.",
+        "attachedDescription": "Attached nodes remain observable even when lifecycle stays elsewhere."
+      },
+      "fields": {
+        "topology": "Topology",
+        "runtimeState": "Runtime State",
+        "endpoint": "Endpoint",
+        "hostVersion": "Host / Version"
+      },
+      "topologies": {
+        "localManagedNative": "Local Managed Native",
+        "localManagedWsl": "Local Managed WSL",
+        "localManagedContainer": "Local Managed Container",
+        "localExternal": "Local External",
+        "remoteManagedNode": "Remote Managed Node",
+        "remoteAttachedNode": "Remote Attached Node",
+        "unknown": "Unknown"
+      },
+      "runtimeStates": {
+        "running": "Running",
+        "starting": "Starting",
+        "recovering": "Recovering",
+        "degraded": "Degraded",
+        "crashLoop": "Crash Loop",
+        "failedSafe": "Failed Safe",
+        "stopped": "Stopped",
+        "online": "Online",
+        "syncing": "Syncing",
+        "offline": "Offline",
+        "error": "Error",
+        "unknown": "Unknown"
+      },
+      "values": {
+        "notAvailable": "Not available",
+        "hostVersionWithVersion": "{{host}} / v{{version}}"
+      }
+    },
     "detail": {
       "notFoundTitle": "Instance Not Found",
       "returnToInstances": "Return to Instances",
@@ -6209,6 +6435,109 @@
           "Media generation"
         ]
       }
+    }
+  },
+  "providerCenter": {
+    "page": {
+      "eyebrow": "Provider Config Center",
+      "title": "Provider Center",
+      "description": "Manage built-in provider presets, default model lists, API keys, and base URLs without coupling the app to sdkwork-api-router.",
+      "storageHint": "Provider configs are persisted to a writable SQLite storage profile when one is available."
+    },
+    "summary": {
+      "routeConfigs": "Route Configs",
+      "llmReady": "LLM Ready",
+      "embeddingReady": "Embedding Ready"
+    },
+    "table": {
+      "name": "Name",
+      "provider": "Provider",
+      "endpoint": "Base URL",
+      "selection": "Model Selection",
+      "apiKey": "API Key",
+      "updatedAt": "Updated",
+      "actions": "Actions",
+      "models": "models",
+      "llmDefault": "LLM",
+      "reasoning": "Reasoning",
+      "embedding": "Embedding"
+    },
+    "states": {
+      "loading": "Loading provider configs...",
+      "emptyTitle": "No route config yet",
+      "emptyDescription": "Add a route config to store your provider presets, model list, API key, and base URL in the built-in config center.",
+      "noNotes": "No notes",
+      "notSet": "Not set",
+      "noInstances": "No writable OpenClaw instance is available.",
+      "selectInstance": "Select an instance to preview agent targets.",
+      "noAgents": "No agents are available for the selected instance."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "addRouteConfig": "Add Route Config",
+      "quickApply": "Quick Apply",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "saveChanges": "Save Changes",
+      "createConfig": "Create Config",
+      "selectAllAgents": "Select All",
+      "clearAgentSelection": "Clear",
+      "applyConfig": "Apply Config"
+    },
+    "dialogs": {
+      "editor": {
+        "createTitle": "Create Route Config",
+        "editTitle": "Edit Route Config",
+        "description": "Define provider metadata, default models, embedding models, and runtime parameters for OpenClaw-compatible instances.",
+        "preset": "Preset",
+        "presetPlaceholder": "Choose a built-in preset",
+        "customPreset": "Custom",
+        "name": "Config Name",
+        "providerId": "Provider ID",
+        "baseUrl": "Base URL",
+        "apiKey": "API Key",
+        "defaultModel": "Default LLM",
+        "reasoningModel": "Reasoning Model",
+        "embeddingModel": "Embedding Model",
+        "models": "Model List",
+        "modelsHint": "One model per line. Use `model-id=Display Name`.",
+        "notes": "Notes",
+        "runtimeTitle": "Runtime Config",
+        "temperature": "Temperature",
+        "topP": "Top P",
+        "maxTokens": "Max Tokens",
+        "timeoutMs": "Timeout (ms)",
+        "streaming": "Streaming",
+        "streamingHint": "Enable streaming responses for the provider route."
+      },
+      "apply": {
+        "title": "Quick Apply Provider Config",
+        "description": "Apply the selected route config to an OpenClaw instance default provider selection and optionally update agent model bindings.",
+        "instance": "Instance",
+        "instancePlaceholder": "Choose an instance",
+        "configPath": "Config Path",
+        "targetSummary": "Route Config Summary",
+        "agents": "Agents",
+        "agentHint": "Checked agents will switch their primary model to the selected LLM, with the reasoning model added as fallback when configured.",
+        "defaultAgent": "Default Agent",
+        "currentModel": "Current Model"
+      },
+      "delete": {
+        "title": "Delete Route Config",
+        "description": "Delete `{{name}}` from the local provider config center? This does not change any instance until you apply another config."
+      }
+    },
+    "toasts": {
+      "loadFailed": "Unable to load provider configs.",
+      "loadInstancesFailed": "Unable to load apply targets.",
+      "loadInstanceTargetFailed": "Unable to load the selected instance target.",
+      "saveFailed": "Unable to save the provider config.",
+      "deleteFailed": "Unable to delete the provider config.",
+      "applyFailed": "Unable to apply the provider config.",
+      "saved": "Provider config saved.",
+      "deleted": "Provider config deleted.",
+      "applied": "Provider config applied."
     }
   }
 }

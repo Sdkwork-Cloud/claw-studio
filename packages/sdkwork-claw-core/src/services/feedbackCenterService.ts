@@ -119,7 +119,11 @@ async function getDefaultClient(): Promise<FeedbackCenterClient> {
   return getAppSdkClientWithSession();
 }
 
-function toOptionalString(value: string | undefined | null): string | undefined {
+function toOptionalString(value: string | number | undefined | null): string | undefined {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : undefined;
+  }
+
   const normalized = (value || '').trim();
   return normalized || undefined;
 }

@@ -78,6 +78,37 @@ runTest('sdkwork-claw-instances is implemented locally instead of re-exporting c
   assert.match(indexSource, /useInstanceStore/);
 });
 
+runTest('sdkwork-claw-instances exports the Nodes surface through package and service barrels with localized page copy', () => {
+  const indexSource = read('packages/sdkwork-claw-instances/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
+  const nodesSource = read('packages/sdkwork-claw-instances/src/pages/Nodes.tsx');
+  const enLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const directKeys = [...nodesSource.matchAll(/\bt\('([^']+)'\)/g)].map((match) => match[1]);
+  const uniqueKeys = [...new Set(directKeys)].sort();
+
+  const missingKeys = uniqueKeys.filter(
+    (key) => getLocaleValue(enLocale, key) === undefined || getLocaleValue(zhLocale, key) === undefined,
+  );
+
+  assert.ok(exists('packages/sdkwork-claw-instances/src/pages/Nodes.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-instances/src/services/nodeInventoryService.ts'));
+  assert.match(indexSource, /Nodes/);
+  assert.match(servicesIndexSource, /nodeInventoryService/);
+  assert.match(nodesSource, /nodeInventoryService/);
+  assert.doesNotMatch(nodesSource, /Cluster governance starts here\./);
+  assert.doesNotMatch(nodesSource, /Failed to load node inventory\./);
+  assert.match(nodesSource, /instances\.nodes\.description/);
+  assert.match(nodesSource, /instances\.nodes\.actions\.refresh/);
+  assert.match(nodesSource, /instances\.nodes\.actions\.ensureLocalNode/);
+  assert.match(nodesSource, /instances\.nodes\.actions\.restartLocalNode/);
+  assert.match(nodesSource, /instances\.nodes\.metrics\.totalNodes/);
+  assert.match(nodesSource, /instances\.nodes\.fields\.topology/);
+  assert.match(nodesSource, /instances\.nodes\.kinds\.localPrimary/);
+  assert.match(nodesSource, /instances\.nodes\.health\.ok/);
+  assert.deepEqual(missingKeys, []);
+});
+
 runTest('sdkwork-claw-instances removes the legacy token chrome from instance detail', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
 

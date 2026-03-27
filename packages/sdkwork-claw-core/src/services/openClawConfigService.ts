@@ -478,12 +478,39 @@ function getProviderIcon(channelId: string) {
   return iconMap[channelId] || 'AR';
 }
 
+const LEGACY_PROVIDER_KEY_PREFIX = 'api-router-';
+
+function normalizeProviderKey(providerId: string | undefined | null) {
+  const normalized = (providerId || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized.startsWith(LEGACY_PROVIDER_KEY_PREFIX)
+    ? normalized.slice(LEGACY_PROVIDER_KEY_PREFIX.length)
+    : normalized;
+}
+
 function buildProviderKey(providerId: string) {
-  return `api-router-${providerId}`;
+  return normalizeProviderKey(providerId);
 }
 
 function buildModelRef(providerKey: string, modelId: string) {
-  return `${providerKey}/${modelId}`;
+  return `${normalizeProviderKey(providerKey)}/${modelId}`;
+}
+
+function normalizeModelRefString(value: string | undefined | null) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const slashIndex = trimmed.indexOf('/');
+  if (slashIndex <= 0 || slashIndex === trimmed.length - 1) {
+    return trimmed;
+  }
+
+  return `${normalizeProviderKey(trimmed.slice(0, slashIndex))}/${trimmed.slice(slashIndex + 1)}`;
 }
 
 function parseModelRef(value: JsonValue | undefined) {
@@ -491,14 +518,15 @@ function parseModelRef(value: JsonValue | undefined) {
     return null;
   }
 
-  const slashIndex = value.indexOf('/');
-  if (slashIndex <= 0 || slashIndex === value.length - 1) {
+  const normalized = normalizeModelRefString(value);
+  const slashIndex = normalized.indexOf('/');
+  if (slashIndex <= 0 || slashIndex === normalized.length - 1) {
     return null;
   }
 
   return {
-    providerKey: value.slice(0, slashIndex),
-    modelId: value.slice(slashIndex + 1),
+    providerKey: normalized.slice(0, slashIndex),
+    modelId: normalized.slice(slashIndex + 1),
   };
 }
 
@@ -507,8 +535,7 @@ function readArray(value: JsonValue | undefined) {
 }
 
 function titleizeProviderKey(providerKey: string) {
-  return providerKey
-    .replace(/^api-router-/, '')
+  return normalizeProviderKey(providerKey)
     .split(/[-_]/)
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
@@ -518,7 +545,7 @@ function titleizeProviderKey(providerKey: string) {
 function readModelConfig(value: JsonValue | undefined): OpenClawAgentModelConfig {
   if (typeof value === 'string') {
     return {
-      primary: value,
+      primary: normalizeModelRefString(value),
       fallbacks: [],
     };
   }
@@ -529,9 +556,9 @@ function readModelConfig(value: JsonValue | undefined): OpenClawAgentModelConfig
     };
   }
 
-  const primary = readScalar(value.primary).trim() || undefined;
+  const primary = normalizeModelRefString(readScalar(value.primary).trim()) || undefined;
   const fallbacks = readArray(value.fallbacks)
-    .map((entry) => readScalar(entry).trim())
+    .map((entry) => normalizeModelRefString(readScalar(entry).trim()))
     .filter(Boolean);
 
   return {
@@ -551,8 +578,10 @@ function writeModelConfig(
   }
 
   const config = typeof value === 'string' ? { primary: value, fallbacks: [] } : value;
-  const primary = config.primary?.trim() || '';
-  const fallbacks = (config.fallbacks || []).map((entry) => entry.trim()).filter(Boolean);
+  const primary = normalizeModelRefString(config.primary?.trim()) || '';
+  const fallbacks = (config.fallbacks || [])
+    .map((entry) => normalizeModelRefString(entry.trim()))
+    .filter(Boolean);
 
   if (!primary && fallbacks.length === 0) {
     delete target[key];
@@ -568,6 +597,57 @@ function writeModelConfig(
   }
 
   target[key] = modelConfig;
+}
+
+function normalizeLegacyProviderLayout(root: JsonObject) {
+  const modelsRoot = readObject(root.models);
+  const providersRoot = readObject(modelsRoot?.providers);
+  if (providersRoot) {
+    const nextProviders: JsonObject = {};
+
+    for (const [rawProviderKey, providerValue] of Object.entries(providersRoot)) {
+      const normalizedProviderKey = normalizeProviderKey(rawProviderKey);
+      if (!normalizedProviderKey) {
+        continue;
+      }
+
+      if (!(normalizedProviderKey in nextProviders) || rawProviderKey === normalizedProviderKey) {
+        nextProviders[normalizedProviderKey] = providerValue;
+      }
+    }
+
+    modelsRoot!.providers = nextProviders;
+  }
+
+  const defaultsRoot = readObject(readObject(root.agents)?.defaults);
+  if (defaultsRoot) {
+    if (defaultsRoot.model !== undefined) {
+      writeModelConfig(defaultsRoot, 'model', readModelConfig(defaultsRoot.model));
+    }
+
+    const modelsCatalogRoot = readObject(defaultsRoot.models);
+    if (modelsCatalogRoot) {
+      const nextModelsCatalogRoot: JsonObject = {};
+      for (const [rawModelRef, modelMetadata] of Object.entries(modelsCatalogRoot)) {
+        const normalizedModelRef = normalizeModelRefString(rawModelRef);
+        if (!normalizedModelRef) {
+          continue;
+        }
+
+        if (!(normalizedModelRef in nextModelsCatalogRoot) || rawModelRef === normalizedModelRef) {
+          nextModelsCatalogRoot[normalizedModelRef] = modelMetadata;
+        }
+      }
+
+      defaultsRoot.models = nextModelsCatalogRoot;
+    }
+  }
+
+  for (const entry of getAgentListEntries(root)) {
+    if (entry.model !== undefined) {
+      writeModelConfig(entry, 'model', readModelConfig(entry.model));
+    }
+  }
 }
 
 function readAgentParams(value: JsonValue | undefined): Record<string, OpenClawAgentParamValue> {
@@ -1256,7 +1336,9 @@ async function readConfigRoot(configPath: string) {
     return {} as JsonObject;
   }
 
-  return parsed as JsonObject;
+  const root = parsed as JsonObject;
+  normalizeLegacyProviderLayout(root);
+  return root;
 }
 
 async function writeConfigRoot(configPath: string, root: JsonObject) {
@@ -1321,11 +1403,12 @@ function buildProviderSnapshots(root: JsonObject): OpenClawProviderSnapshot[] {
     .map((entry) => parseModelRef(entry))
     .filter((entry): entry is { providerKey: string; modelId: string } => Boolean(entry));
 
-  return Object.entries(providersRoot).flatMap(([providerKey, rawProvider]) => {
+  return Object.entries(providersRoot).flatMap(([rawProviderKey, rawProvider]) => {
     if (!rawProvider || typeof rawProvider !== 'object' || Array.isArray(rawProvider)) {
       return [];
     }
 
+    const providerKey = normalizeProviderKey(rawProviderKey);
     const provider = rawProvider as JsonObject;
     const rawModels = readArray(provider.models).filter(
       (entry): entry is JsonObject => Boolean(entry && typeof entry === 'object' && !Array.isArray(entry)),
@@ -1350,18 +1433,22 @@ function buildProviderSnapshots(root: JsonObject): OpenClawProviderSnapshot[] {
       {
         id: providerKey,
         providerKey,
-        name: `API Router ${titleizeProviderKey(providerKey)}`.trim(),
-        provider: 'api-router',
+        name: titleizeProviderKey(providerKey),
+        provider: providerKey,
         endpoint: readScalar(provider.baseUrl),
         apiKeySource: readScalar(provider.apiKey),
         status,
         defaultModelId,
         reasoningModelId: reasoningModelId ? readScalar(reasoningModelId) : undefined,
         embeddingModelId: embeddingModelId ? readScalar(embeddingModelId) : undefined,
-        description: 'Managed from Claw Studio install and instance configuration flows.',
-        icon: getProviderIcon(titleizeProviderKey(providerKey).toLowerCase()),
+        description: `${titleizeProviderKey(providerKey)} provider configured through Claw Studio and OpenClaw.`,
+        icon: getProviderIcon(providerKey.toLowerCase()),
         lastCheckedAt: new Date().toISOString(),
-        capabilities: ['Guided Install', 'API Router', 'OpenClaw'],
+        capabilities: [
+          'chat',
+          ...(reasoningModelId ? ['reasoning'] : []),
+          ...(embeddingModelId ? ['embedding'] : []),
+        ],
         models: rawModels.map((model) => {
           const modelId = readScalar(model.id);
           const modelName = readScalar(model.name) || modelId;

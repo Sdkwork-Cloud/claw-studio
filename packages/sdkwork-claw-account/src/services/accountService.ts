@@ -4,4 +4,4 @@ export {
   type AccountService,
   type AccountSummary,
   type Transaction,
-} from '@sdkwork/claw-core/services/accountService';
+} from '@sdkwork/claw-core';

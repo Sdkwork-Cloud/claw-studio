@@ -31,11 +31,14 @@ const shellRoutes = extractRoutes(read(shellRoutesPath));
 const v5Routes = extractRoutes(read(v5RoutesPath));
 const approvedTemplateExtensions = new Set([
   '/dashboard',
+  '/login/oauth/callback/:provider',
   '/model-purchase',
   '/points',
   '/agents',
   '/mall',
   '/mall/:id',
+  '/kernel',
+  '/nodes',
 ]);
 const missingRoutes = v5Routes.filter((route) => !shellRoutes.includes(route));
 const extraRoutes = shellRoutes.filter(

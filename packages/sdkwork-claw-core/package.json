@@ -19,14 +19,6 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./services/accountService": "./src/services/accountService.ts",
-    "./services/appStoreCatalogService": "./src/services/appStoreCatalogService.ts",
-    "./services/communityService": "./src/services/communityService.ts",
-    "./services/clawHubService": "./src/services/clawHubService.ts",
-    "./services/clawMallService": "./src/services/clawMallService.ts",
-    "./services/settingsService": "./src/services/settingsService.ts",
-    "./sdk": "./src/sdk/index.ts",
-    "./sdk/appSdkResult": "./src/sdk/appSdkResult.ts",
-    "./sdk/useAppSdkClient": "./src/sdk/useAppSdkClient.ts"
+    "./sdk": "./src/sdk/index.ts"
   }
 }

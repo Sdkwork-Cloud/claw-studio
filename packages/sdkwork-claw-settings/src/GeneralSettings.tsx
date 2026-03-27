@@ -97,6 +97,8 @@ export function GeneralSettings() {
     { id: 'github', label: t('sidebar.githubRepos') },
     { id: 'huggingface', label: t('sidebar.huggingFace') },
     { id: 'install', label: t('sidebar.install') },
+    { id: 'kernel', label: t('sidebar.kernelCenter') },
+    { id: 'nodes', label: t('sidebar.nodes') },
     { id: 'instances', label: t('sidebar.instances') },
     { id: 'api-router', label: t('sidebar.apiRouter') },
   ];

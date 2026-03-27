@@ -44,19 +44,14 @@ export function AppProviders({
 
     const runDeferredStartupCheck = async () => {
       try {
-        const { apiRouterStartupService, useUpdateStore } = await import('@sdkwork/claw-core');
+        const { useUpdateStore } = await import('@sdkwork/claw-core');
         if (cancelled) {
           return;
         }
 
-        const [routerWarmupResult, updateCheckResult] = await Promise.allSettled([
-          apiRouterStartupService.warmBootstrapSession(),
+        const [updateCheckResult] = await Promise.allSettled([
           useUpdateStore.getState().runStartupCheck(),
         ]);
-
-        if (routerWarmupResult.status === 'rejected') {
-          console.warn('Failed to warm sdkwork-api-router bootstrap session:', routerWarmupResult.reason);
-        }
 
         if (updateCheckResult.status === 'rejected') {
           throw updateCheckResult.reason;

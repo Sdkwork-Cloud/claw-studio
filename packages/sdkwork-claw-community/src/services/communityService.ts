@@ -13,4 +13,4 @@ export {
   type ListParams,
   type PaginatedResult,
   type UpdatePostDTO,
-} from '@sdkwork/claw-core/services/communityService';
+} from '@sdkwork/claw-core';
