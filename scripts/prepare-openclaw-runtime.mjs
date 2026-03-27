@@ -142,7 +142,7 @@ export function resolveBundledNpmCommand(nodeRuntimeDir, platform = process.plat
   if (normalizedPlatform === 'windows') {
     return {
       command: process.env.ComSpec || 'cmd.exe',
-      args: ['/d', '/s', '/c', path.join(nodeRuntimeDir, 'npm.cmd')],
+      args: ['/d', '/s', '/c', path.win32.join(nodeRuntimeDir, 'npm.cmd')],
     };
   }
 
