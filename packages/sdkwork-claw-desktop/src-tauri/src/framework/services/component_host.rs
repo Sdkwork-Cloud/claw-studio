@@ -660,6 +660,25 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let supervisor = SupervisorService::new();
+        let router_root = paths
+            .user_root
+            .parent()
+            .expect("shared router root")
+            .join("router");
+        let admin_server = TestHealthServer::start("/admin/health");
+        let portal_server = TestHealthServer::start("/portal/health");
+        let gateway_server = TestHealthServer::start("/health");
+        let web_bind = reserve_available_bind_addr();
+
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::write(
+            router_root.join("config.json"),
+            format!(
+                "{{\"gateway_bind\":\"{}\",\"admin_bind\":\"{}\",\"portal_bind\":\"{}\",\"web_bind\":\"{}\"}}\n",
+                gateway_server.bind_addr, admin_server.bind_addr, portal_server.bind_addr, web_bind
+            ),
+        )
+        .expect("router config");
         supervisor
             .record_running("api_router", Some(42))
             .expect("router api running");

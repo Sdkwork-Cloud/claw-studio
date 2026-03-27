@@ -130,10 +130,17 @@ pub fn resolve_paths<R: Runtime>(app: &AppHandle<R>) -> Result<AppPaths> {
 }
 
 pub(crate) fn resolve_paths_from_current_process() -> Result<AppPaths> {
+    resolve_paths_from_current_process_with_overrides(None, None)
+}
+
+pub(crate) fn resolve_paths_from_current_process_with_overrides(
+    machine_root: Option<PathBuf>,
+    user_root: Option<PathBuf>,
+) -> Result<AppPaths> {
     let paths = build_paths(
         resolve_install_root()?,
-        resolve_machine_root_from_current_process()?,
-        resolve_user_root_from_current_process()?,
+        machine_root.unwrap_or(resolve_machine_root_from_current_process()?),
+        user_root.unwrap_or(resolve_user_root_from_current_process()?),
     );
     ensure_runtime_directories(&paths)?;
     Ok(paths)

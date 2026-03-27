@@ -20,8 +20,11 @@ function parsePort(url) {
 
 const desktopPackage = readJson('packages/sdkwork-claw-desktop/package.json');
 const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
+const windowsTauriConfig = readJson(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json',
+);
 const bundledSyncDevCommand = 'node ../../scripts/sync-bundled-components.mjs --dev --no-fetch';
-const bundledSyncBuildCommand = 'node ../../scripts/sync-bundled-components.mjs --no-fetch';
+const bundledSyncBuildCommand = 'node ../../scripts/sync-bundled-components.mjs --no-fetch --release';
 const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
 const devBinaryUnlockGuardCommand =
   'node ../../scripts/ensure-tauri-dev-binary-unlocked.mjs src-tauri sdkwork-claw-desktop';
@@ -29,6 +32,7 @@ const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 1
 const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runtime.mjs';
 const bundledApiRouterPrepareCommand = 'node ../../scripts/prepare-sdkwork-api-router-runtime.mjs';
 const desktopBuildVerifyCommand = 'node ../../scripts/verify-desktop-build-assets.mjs';
+const windowsBundleOverlayConfig = 'src-tauri/generated/tauri.bundle.overlay.json';
 
 function assertCommandsAppearInOrder(script, commands, label) {
   let lastIndex = -1;
@@ -130,6 +134,12 @@ assertCommandsAppearInOrder(
   'Desktop "tauri:build"',
 );
 
+if (!tauriCliBuildScript.includes(`-c ${windowsBundleOverlayConfig}`)) {
+  fail(
+    `Desktop "tauri:build" must merge the generated Windows bundle overlay config with "-c ${windowsBundleOverlayConfig}".`,
+  );
+}
+
 const bundledResources = tauriConfig.bundle?.resources;
 if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/openclaw-runtime/**/*')) {
   fail('Desktop Tauri bundle resources must include resources/openclaw-runtime/**/*.');
@@ -137,6 +147,37 @@ if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/op
 
 if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/sdkwork-api-router-runtime/**/*')) {
   fail('Desktop Tauri bundle resources must include resources/sdkwork-api-router-runtime/**/*.');
+}
+
+const windowsBundleResources = windowsTauriConfig.bundle?.resources;
+if (!windowsBundleResources || Array.isArray(windowsBundleResources)) {
+  fail('Desktop Windows Tauri config must declare bundle.resources as a source-to-target mapping object.');
+}
+
+const expectedWindowsBundleSources = [
+  'foundation/components/',
+  'generated/bundled/',
+  'vendor/hub-installer/registry/',
+  'resources/openclaw-runtime/',
+  'resources/sdkwork-api-router-runtime/',
+];
+
+for (const source of expectedWindowsBundleSources) {
+  if (!(source in windowsBundleResources)) {
+    fail(`Desktop Windows Tauri config must map "${source}" as a bundled resource root.`);
+  }
+}
+
+for (const source of Object.keys(windowsBundleResources)) {
+  if (/^[a-zA-Z]:[\\/]/.test(source) || source.includes('.sdkwork-bc')) {
+    fail(
+      `Desktop Windows Tauri config must not depend on external absolute mirror paths, found "${source}".`,
+    );
+  }
+}
+
+if (!windowsBundleResources['resources/sdkwork-api-router-runtime/']) {
+  fail('Desktop Windows Tauri config must keep the sdkwork-api-router runtime mapped from the repository resources directory.');
 }
 
 console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');

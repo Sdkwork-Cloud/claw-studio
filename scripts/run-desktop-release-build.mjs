@@ -17,6 +17,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const desktopSrcTauriDir = path.join('packages', 'sdkwork-claw-desktop', 'src-tauri');
+const desktopTauriBundleOverlayConfig = path.join(
+  'packages',
+  'sdkwork-claw-desktop',
+  'src-tauri',
+  'generated',
+  'tauri.bundle.overlay.json',
+);
 const desktopPackageName = '@sdkwork/claw-desktop';
 
 function resolveReleasePhasePlan({
@@ -52,7 +59,34 @@ function resolveReleasePhasePlan({
         args: ['scripts/prepare-sdkwork-api-router-runtime.mjs'],
       };
     case 'bundle': {
-      const args = ['--filter', desktopPackageName, 'exec', 'tauri', 'build'];
+      if (normalizeDesktopPlatform(platform) === 'windows') {
+        return {
+          command: process.execPath,
+          args: [
+            'scripts/run-windows-tauri-bundle.mjs',
+            '--config',
+            desktopTauriBundleOverlayConfig,
+            ...(requestedTargetTriple
+              && shouldPassExplicitTauriTarget({
+                requestedTargetTriple,
+                platform,
+                hostArch,
+              })
+              ? ['--target', requestedTargetTriple]
+              : []),
+          ],
+        };
+      }
+
+      const args = [
+        '--dir',
+        path.join('packages', 'sdkwork-claw-desktop'),
+        'exec',
+        'tauri',
+        'build',
+        '--config',
+        path.join('src-tauri', 'generated', 'tauri.bundle.overlay.json'),
+      ];
       const normalizedPlatform = normalizeDesktopPlatform(platform);
       if (normalizedPlatform === 'linux') {
         args.push('--bundles', 'deb');

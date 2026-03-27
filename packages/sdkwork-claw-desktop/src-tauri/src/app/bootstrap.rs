@@ -683,11 +683,7 @@ fn finalize_openclaw_activation(
             sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
             error
         })?;
-    if let Err(error) = context
-        .services
-        .supervisor
-        .start_openclaw_gateway(&context.paths)
-    {
+    if let Err(error) = context.services.ensure_desktop_kernel_running(&context.paths) {
         sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
         return Err(error);
     }

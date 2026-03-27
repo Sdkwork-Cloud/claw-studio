@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KernelHostPlatform {
@@ -35,11 +35,26 @@ pub struct KernelPlatformServiceSpec {
     pub service_name: String,
     pub service_config_path: PathBuf,
     pub launch_target: PathBuf,
+    pub launch_arguments: Vec<String>,
+    pub launch_environment: BTreeMap<String, String>,
+    pub working_directory: PathBuf,
+    pub stdout_log_path: PathBuf,
+    pub stderr_log_path: PathBuf,
     pub control_socket_kind: String,
     pub control_socket_location: String,
     pub startup_mode: String,
     pub attach_supported: bool,
     pub repair_supported: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KernelHostOwnershipMarker {
+    pub service_name: String,
+    pub active_port: u16,
+    pub started_at_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_pid: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
