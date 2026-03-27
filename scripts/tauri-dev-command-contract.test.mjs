@@ -12,6 +12,10 @@ function readJson(relativePath) {
   return JSON.parse(readFileSync(path.join(rootDir, relativePath), 'utf8'));
 }
 
+function readText(relativePath) {
+  return readFileSync(path.join(rootDir, relativePath), 'utf8');
+}
+
 function fail(message) {
   throw new Error(message);
 }
@@ -184,6 +188,19 @@ if (windowsBundleResources['generated/br/o/'] !== 'resources/openclaw-runtime/')
 
 if (windowsBundleResources['generated/br/a/'] !== 'resources/sdkwork-api-router-runtime/') {
   fail('Desktop Windows bundle overlay must map the sdkwork-api-router bridge root into resources/sdkwork-api-router-runtime/.');
+}
+
+const tauriBuildScriptSource = readText('packages/sdkwork-claw-desktop/src-tauri/build.rs');
+if (!tauriBuildScriptSource.includes('../dist')) {
+  fail('Desktop build.rs must keep the frontendDist path available for clean-clone cargo test runs.');
+}
+
+if (!tauriBuildScriptSource.includes('generated/bundled')) {
+  fail('Desktop build.rs must tolerate clean-clone cargo test runs when generated bundled resources have not been synchronized yet.');
+}
+
+if (!tauriBuildScriptSource.includes('placeholder.txt')) {
+  fail('Desktop build.rs must seed a visible generated bundled placeholder so Tauri resource glob resolution stays valid on clean clones.');
 }
 
 console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');
