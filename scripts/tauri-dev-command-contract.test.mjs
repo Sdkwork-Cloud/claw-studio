@@ -33,6 +33,7 @@ const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runti
 const bundledApiRouterPrepareCommand = 'node ../../scripts/prepare-sdkwork-api-router-runtime.mjs';
 const desktopBuildVerifyCommand = 'node ../../scripts/verify-desktop-build-assets.mjs';
 const windowsBundleOverlayConfig = 'src-tauri/generated/tauri.bundle.overlay.json';
+const desktopBundleRunnerCommand = 'node ../../scripts/run-desktop-release-build.mjs --phase bundle';
 
 function assertCommandsAppearInOrder(script, commands, label) {
   let lastIndex = -1;
@@ -129,14 +130,14 @@ assertCommandsAppearInOrder(
     bundledOpenClawPrepareCommand,
     bundledApiRouterPrepareCommand,
     devBinaryUnlockGuardCommand,
-    'tauri build',
+    desktopBundleRunnerCommand,
   ],
   'Desktop "tauri:build"',
 );
 
-if (!tauriCliBuildScript.includes(`-c ${windowsBundleOverlayConfig}`)) {
+if (!tauriCliBuildScript.includes(desktopBundleRunnerCommand)) {
   fail(
-    `Desktop "tauri:build" must merge the generated Windows bundle overlay config with "-c ${windowsBundleOverlayConfig}".`,
+    `Desktop "tauri:build" must delegate the final bundle step through "${desktopBundleRunnerCommand}".`,
   );
 }
 
