@@ -8,6 +8,9 @@ use std::{
 const ARTIFACTS_DIR_RELATIVE_PATH: &str = "vendor/sdkwork-api-router-artifacts";
 const MANIFEST_RELATIVE_PATH: &str = "vendor/sdkwork-api-router-artifacts/manifest.json";
 const BUNDLED_MANIFEST_RELATIVE_PATH: &str = "sdkwork-api-router-artifacts/manifest.json";
+const FRONTEND_DIST_RELATIVE_PATH: &str = "../dist";
+const GENERATED_BUNDLED_RELATIVE_PATH: &str = "generated/bundled";
+const GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME: &str = "placeholder.txt";
 
 #[derive(Debug, Deserialize)]
 struct ArtifactManifest {
@@ -25,15 +28,19 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={MANIFEST_RELATIVE_PATH}");
     println!("cargo:rerun-if-changed={ARTIFACTS_DIR_RELATIVE_PATH}");
+    println!("cargo:rerun-if-changed={FRONTEND_DIST_RELATIVE_PATH}");
+    println!("cargo:rerun-if-changed={GENERATED_BUNDLED_RELATIVE_PATH}");
 
-    emit_optional_artifact_metadata();
-    tauri_build::build();
-}
-
-fn emit_optional_artifact_metadata() {
     let manifest_dir = PathBuf::from(
         env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is always set by Cargo"),
     );
+
+    ensure_required_tauri_paths(&manifest_dir);
+    emit_optional_artifact_metadata(&manifest_dir);
+    tauri_build::build();
+}
+
+fn emit_optional_artifact_metadata(manifest_dir: &Path) {
     let manifest_path = manifest_dir.join(MANIFEST_RELATIVE_PATH);
     let manifest = match load_artifact_manifest(&manifest_path) {
         Ok(manifest) => manifest,
@@ -98,6 +105,91 @@ fn emit_optional_artifact_metadata() {
 
 fn cargo_warn(message: &str) {
     println!("cargo:warning={message}");
+}
+
+fn ensure_required_tauri_paths(manifest_dir: &Path) {
+    ensure_directory_exists(
+        &manifest_dir.join(FRONTEND_DIST_RELATIVE_PATH),
+        "frontendDist",
+    );
+    ensure_generated_bundled_placeholder(
+        &manifest_dir.join(GENERATED_BUNDLED_RELATIVE_PATH),
+    );
+}
+
+fn ensure_directory_exists(directory: &Path, label: &str) {
+    if directory.exists() {
+        return;
+    }
+
+    if let Err(error) = fs::create_dir_all(directory) {
+        cargo_warn(&format!(
+            "failed to create missing {} directory {}: {}",
+            label,
+            directory.display(),
+            error
+        ));
+        return;
+    }
+
+    cargo_warn(&format!(
+        "created missing {} directory {} so clean-clone cargo builds can resolve the Tauri config",
+        label,
+        directory.display()
+    ));
+}
+
+fn ensure_generated_bundled_placeholder(directory: &Path) {
+    ensure_directory_exists(directory, "generated bundled resources");
+
+    let placeholder_path = directory.join(GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME);
+    let has_real_entries = match fs::read_dir(directory) {
+        Ok(entries) => entries
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name() != GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME),
+        Err(error) => {
+            cargo_warn(&format!(
+                "failed to inspect generated bundled resources at {}: {}",
+                directory.display(),
+                error
+            ));
+            return;
+        }
+    };
+
+    if has_real_entries {
+        if placeholder_path.is_file() {
+            if let Err(error) = fs::remove_file(&placeholder_path) {
+                cargo_warn(&format!(
+                    "failed to remove stale generated bundled placeholder {}: {}",
+                    placeholder_path.display(),
+                    error
+                ));
+            }
+        }
+        return;
+    }
+
+    if placeholder_path.is_file() {
+        return;
+    }
+
+    if let Err(error) = fs::write(
+        &placeholder_path,
+        "Generated placeholder file for clean-clone cargo builds.\n",
+    ) {
+        cargo_warn(&format!(
+            "failed to write generated bundled placeholder {}: {}",
+            placeholder_path.display(),
+            error
+        ));
+        return;
+    }
+
+    cargo_warn(&format!(
+        "seeded generated bundled placeholder {} so Tauri resource glob resolution stays valid before sync",
+        placeholder_path.display()
+    ));
 }
 
 fn load_artifact_manifest(path: &Path) -> Result<ArtifactManifest, String> {
