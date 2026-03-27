@@ -41,7 +41,7 @@ pub fn bundled_component_defaults() -> Vec<PackagedComponentDefinition> {
             display_name: "OpenClaw".to_string(),
             kind: PackagedComponentKind::NodeApp,
             bundled_version: "bundled".to_string(),
-            startup_mode: PackagedComponentStartupMode::Manual,
+            startup_mode: PackagedComponentStartupMode::AutoStart,
             install_subdir: "modules/openclaw/current".to_string(),
             upgrade_channel: "stable".to_string(),
             service_ids: vec!["openclaw".to_string()],
@@ -139,7 +139,7 @@ mod tests {
         );
         assert_eq!(
             default_startup_component_ids(&definitions),
-            vec!["sdkwork-api-router".to_string()]
+            vec!["openclaw".to_string(), "sdkwork-api-router".to_string()]
         );
 
         let router = definitions

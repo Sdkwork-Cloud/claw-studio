@@ -23,13 +23,15 @@ use std::os::windows::process::CommandExt;
 use std::{
     collections::{BTreeMap, HashMap},
     env, fs,
+    ffi::OsStr,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex, MutexGuard},
     thread,
     time::{Duration, Instant, SystemTime},
 };
+use sysinfo::{ProcessesToUpdate, System};
 
 const DEFAULT_RESTART_WINDOW_MS: u64 = 60_000;
 const DEFAULT_RESTART_BACKOFF_MS: u64 = 5_000;
@@ -41,6 +43,8 @@ const HOST_ADMIN_SITE_DIR_ENV: &str = "SDKWORK_API_ROUTER_ADMIN_SITE_DIR";
 const HOST_PORTAL_SITE_DIR_ENV: &str = "SDKWORK_API_ROUTER_PORTAL_SITE_DIR";
 const UPSTREAM_ADMIN_SITE_DIR_ENV: &str = "SDKWORK_ADMIN_SITE_DIR";
 const UPSTREAM_PORTAL_SITE_DIR_ENV: &str = "SDKWORK_PORTAL_SITE_DIR";
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 #[cfg(windows)]
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 
@@ -318,6 +322,7 @@ impl SupervisorService {
             .lock_openclaw_runtime()?
             .clone()
             .ok_or_else(|| FrameworkError::NotFound("configured openclaw runtime".to_string()))?;
+        reap_stale_openclaw_gateway_processes(paths)?;
         let runtime = OpenClawRuntimeService::new().refresh_configured_runtime(paths, &runtime)?;
         *self.lock_openclaw_runtime()? = Some(runtime.clone());
 
@@ -942,7 +947,7 @@ fn resolve_api_router_site_dir(
 fn configure_command_for_managed_process(command: &mut Command) {
     #[cfg(windows)]
     {
-        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        command.creation_flags(managed_process_creation_flags());
     }
 
     #[cfg(unix)]
@@ -954,6 +959,11 @@ fn configure_command_for_managed_process(command: &mut Command) {
             Ok(())
         });
     }
+}
+
+#[cfg(windows)]
+fn managed_process_creation_flags() -> u32 {
+    CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
 }
 
 fn terminate_managed_process(child: &mut Child, timeout_ms: u64) -> Result<Option<i32>> {
@@ -999,6 +1009,79 @@ fn wait_for_gateway_ready(child: &mut Child, port: u16, timeout_ms: u64) -> Resu
         "openclaw gateway did not become ready on {} within {}ms",
         loopback, timeout_ms
     )))
+}
+
+fn reap_stale_openclaw_gateway_processes(paths: &AppPaths) -> Result<()> {
+    let stale_pids = find_stale_openclaw_gateway_process_ids(paths)?;
+    if stale_pids.is_empty() {
+        return Ok(());
+    }
+
+    terminate_process_ids(&stale_pids)?;
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        if find_stale_openclaw_gateway_process_ids(paths)?.is_empty() {
+            return Ok(());
+        }
+
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    Err(FrameworkError::Timeout(format!(
+        "stale openclaw gateway processes did not stop within 5000ms under {}",
+        paths.openclaw_runtime_dir.display()
+    )))
+}
+
+fn find_stale_openclaw_gateway_process_ids(paths: &AppPaths) -> Result<Vec<u32>> {
+    let managed_runtime_root = normalize_process_match_path(&paths.openclaw_runtime_dir);
+    let current_process_id = std::process::id();
+    let mut system = System::new_all();
+    system.refresh_processes(ProcessesToUpdate::All, true);
+
+    Ok(system
+        .processes()
+        .iter()
+        .filter_map(|(pid, process)| {
+            let pid = pid.as_u32();
+            if pid == current_process_id {
+                return None;
+            }
+
+            if !process.cmd().iter().any(|segment| {
+                let segment = normalize_command_segment(segment);
+                segment.starts_with(&managed_runtime_root) && segment.ends_with("openclaw.mjs")
+            }) {
+                return None;
+            }
+
+            if !process
+                .cmd()
+                .iter()
+                .any(|segment| normalize_command_segment(segment) == "gateway")
+            {
+                return None;
+            }
+
+            Some(pid)
+        })
+        .collect())
+}
+
+fn normalize_process_match_path(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_ascii_lowercase()
+}
+
+fn normalize_command_segment(segment: &OsStr) -> String {
+    segment
+        .to_string_lossy()
+        .replace('/', "\\")
+        .trim_matches('"')
+        .to_ascii_lowercase()
 }
 
 fn spawn_managed_api_router_process(
@@ -1087,6 +1170,52 @@ fn terminate_process_group(
 }
 
 #[cfg(windows)]
+fn terminate_process_id(pid: u32) -> Result<()> {
+    let pid = pid.to_string();
+    let _ = Command::new("taskkill")
+        .args(["/PID", pid.as_str(), "/T", "/F"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn terminate_process_id(pid: u32) -> Result<()> {
+    unsafe {
+        libc::kill(pid as i32, libc::SIGKILL);
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn terminate_process_ids(pids: &[u32]) -> Result<()> {
+    if pids.is_empty() {
+        return Ok(());
+    }
+
+    let mut command = Command::new("taskkill");
+    for pid in pids {
+        let pid = pid.to_string();
+        command.args(["/PID", pid.as_str()]);
+    }
+    let _ = command
+        .args(["/T", "/F"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn terminate_process_ids(pids: &[u32]) -> Result<()> {
+    for pid in pids {
+        terminate_process_id(*pid)?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
 fn request_process_shutdown(child: &mut Child) -> Result<()> {
     let pid = child.id().to_string();
     let _ = Command::new("taskkill")
@@ -1137,9 +1266,12 @@ fn force_process_shutdown(child: &mut Child) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
+        configure_command_for_managed_process, force_process_shutdown, wait_for_gateway_ready,
         ManagedServiceLifecycle, SupervisorService, SERVICE_ID_API_ROUTER,
         SERVICE_ID_OPENCLAW_GATEWAY, SERVICE_ID_WEB_SERVER,
     };
+    #[cfg(windows)]
+    use super::{managed_process_creation_flags, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW};
     use crate::framework::{
         paths::resolve_paths_for_root,
         services::{
@@ -1153,6 +1285,8 @@ mod tests {
     };
     use std::{
         fs,
+        net::TcpListener,
+        process::Command,
         time::{Duration, UNIX_EPOCH},
     };
 
@@ -1378,6 +1512,48 @@ mod tests {
     }
 
     #[test]
+    fn supervisor_reclaims_stale_openclaw_gateway_before_refreshing_the_managed_port() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let mut runtime = fake_gateway_runtime(&paths);
+        let gateway_port = reserve_test_loopback_port();
+        runtime.gateway_port = gateway_port;
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
+        )
+        .expect("config file");
+
+        let mut stale_gateway = Command::new(&runtime.node_path);
+        configure_command_for_managed_process(&mut stale_gateway);
+        stale_gateway.arg(&runtime.cli_path);
+        stale_gateway.arg("gateway");
+        stale_gateway.current_dir(&runtime.runtime_dir);
+        stale_gateway.envs(runtime.managed_env());
+        let mut stale_gateway = stale_gateway.spawn().expect("spawn stale gateway");
+        wait_for_gateway_ready(&mut stale_gateway, gateway_port, 5_000)
+            .expect("stale gateway should become ready");
+
+        service
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+        service
+            .start_openclaw_gateway(&paths)
+            .expect("start gateway after reclaiming stale process");
+
+        let refreshed = service
+            .configured_openclaw_runtime()
+            .expect("configured runtime")
+            .expect("runtime");
+        assert_eq!(refreshed.gateway_port, gateway_port);
+
+        service.begin_shutdown().expect("shutdown");
+        let _ = force_process_shutdown(&mut stale_gateway);
+        let _ = stale_gateway.wait();
+    }
+
+    #[test]
     fn supervisor_starts_and_stops_configured_api_router_process_group() {
         let service = SupervisorService::new();
         let root = tempfile::tempdir().expect("temp dir");
@@ -1434,6 +1610,15 @@ mod tests {
         assert!(portal_response.contains("sdkwork-api-router test portal"));
 
         service.stop_api_router().expect("stop api router");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn managed_process_creation_flags_hide_console_windows() {
+        assert_eq!(
+            managed_process_creation_flags(),
+            CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+        );
     }
 
     #[cfg(windows)]
@@ -1552,6 +1737,14 @@ mod tests {
             .map(|entry| entry.join("node"))
             .find(|candidate| candidate.exists())
             .expect("node should be available on PATH for OpenClaw supervisor tests")
+    }
+
+    fn reserve_test_loopback_port() -> u16 {
+        let listener =
+            TcpListener::bind(("127.0.0.1", 0)).expect("bind loopback listener for test port");
+        let port = listener.local_addr().expect("listener addr").port();
+        drop(listener);
+        port
     }
 
     fn reserve_available_bind_addr() -> String {

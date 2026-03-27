@@ -1,6 +1,8 @@
-import { instanceWorkbenchService } from '@sdkwork/claw-instances/services/instanceWorkbenchService';
-import { agentWorkbenchService as directAgentWorkbenchService } from '@sdkwork/claw-instances/services/agentWorkbenchService';
-import { agentSkillManagementService as directAgentSkillManagementService } from '@sdkwork/claw-instances/services/agentSkillManagementService';
+import {
+  agentSkillManagementService as directAgentSkillManagementService,
+  agentWorkbenchService as directAgentWorkbenchService,
+  instanceWorkbenchService,
+} from '@sdkwork/claw-instances';
 import type { ListParams, PaginatedResult, Skill } from '@sdkwork/claw-types';
 
 const defaultAgentWorkbenchService = directAgentWorkbenchService;

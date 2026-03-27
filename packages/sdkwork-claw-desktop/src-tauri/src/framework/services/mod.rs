@@ -2,6 +2,10 @@ use crate::framework::{
     config::AppConfig, kernel::DesktopKernelInfo, paths::AppPaths, policy::ExecutionPolicy,
     storage::StorageInfo, Result,
 };
+use crate::framework::kernel_host::{
+    build_desktop_kernel_host_info,
+    types::DesktopKernelHostInfo,
+};
 
 pub mod api_router;
 pub mod api_router_managed_runtime;
@@ -137,6 +141,10 @@ impl FrameworkServices {
         };
         let active_job_count = self.jobs.active_job_count()?;
         let active_process_job_count = self.jobs.active_process_job_count()?;
+        let supervisor = self.supervisor.kernel_info()?;
+        let configured_openclaw_runtime = self.supervisor.configured_openclaw_runtime()?;
+        let host =
+            build_desktop_kernel_host_info(paths, configured_openclaw_runtime.as_ref(), &supervisor)?;
 
         Ok(self.kernel.kernel_info(
             paths,
@@ -152,10 +160,33 @@ impl FrameworkServices {
                 notifications: self.notifications.kernel_info(&normalized),
                 payments: self.payments.kernel_info(&normalized),
                 integrations: self.integrations.kernel_info(paths, &normalized)?,
-                supervisor: self.supervisor.kernel_info()?,
+                supervisor,
                 bundled_components: self.components.kernel_info(paths)?,
                 storage: self.storage.storage_info(paths, &normalized),
+                host,
             },
         ))
+    }
+
+    pub fn desktop_kernel_host_status(&self, paths: &AppPaths) -> Result<DesktopKernelHostInfo> {
+        let supervisor = self.supervisor.kernel_info()?;
+        let configured_openclaw_runtime = self.supervisor.configured_openclaw_runtime()?;
+        build_desktop_kernel_host_info(paths, configured_openclaw_runtime.as_ref(), &supervisor)
+    }
+
+    pub fn ensure_desktop_kernel_running(&self, paths: &AppPaths) -> Result<DesktopKernelHostInfo> {
+        if !self
+            .supervisor
+            .is_service_running(supervisor::SERVICE_ID_OPENCLAW_GATEWAY)?
+        {
+            self.supervisor.start_openclaw_gateway(paths)?;
+        }
+
+        self.desktop_kernel_host_status(paths)
+    }
+
+    pub fn restart_desktop_kernel(&self, paths: &AppPaths) -> Result<DesktopKernelHostInfo> {
+        self.supervisor.restart_openclaw_gateway(paths)?;
+        self.desktop_kernel_host_status(paths)
     }
 }

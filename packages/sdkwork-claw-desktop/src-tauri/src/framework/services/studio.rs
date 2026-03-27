@@ -23,9 +23,9 @@ mod openclaw_control;
 mod openclaw_workbench;
 
 use openclaw_control::{
-    clone_openclaw_task, create_openclaw_task, delete_openclaw_task, list_openclaw_task_executions,
-    require_running_openclaw_runtime, run_openclaw_task_now, update_openclaw_task,
-    update_openclaw_task_status,
+    clone_openclaw_task, create_openclaw_task, delete_openclaw_task, invoke_openclaw_gateway,
+    list_openclaw_task_executions, require_running_openclaw_runtime, run_openclaw_task_now,
+    update_openclaw_task, update_openclaw_task_status,
 };
 use openclaw_workbench::build_openclaw_workbench_snapshot;
 
@@ -931,6 +931,28 @@ pub struct StudioUpdateInstanceLlmProviderConfigInput {
     pub config: StudioWorkbenchLLMProviderConfigRecord,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioOpenClawGatewayInvokeRequest {
+    pub tool: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub args: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dry_run: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct StudioOpenClawGatewayInvokeOptions {
+    pub message_channel: Option<String>,
+    pub account_id: Option<String>,
+    pub headers: BTreeMap<String, String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PartialStudioStorageBinding {
@@ -1607,6 +1629,21 @@ impl StudioService {
         self.require_managed_openclaw_task_instance(paths, config, storage, instance_id)?;
         let runtime = require_running_openclaw_runtime(supervisor)?;
         create_openclaw_task(paths, &runtime, payload)
+    }
+
+    pub fn invoke_openclaw_gateway(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        supervisor: &SupervisorService,
+        instance_id: &str,
+        request: &StudioOpenClawGatewayInvokeRequest,
+        options: &StudioOpenClawGatewayInvokeOptions,
+    ) -> Result<Value> {
+        self.require_built_in_managed_openclaw_instance(paths, config, storage, instance_id)?;
+        let runtime = require_running_openclaw_runtime(supervisor)?;
+        invoke_openclaw_gateway(&runtime, request, options)
     }
 
     pub fn update_instance_task(

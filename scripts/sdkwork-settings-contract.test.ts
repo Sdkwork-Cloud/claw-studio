@@ -8,8 +8,22 @@ function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
 }
 
+function readJson<T>(relPath: string): T {
+  return JSON.parse(read(relPath)) as T;
+}
+
 function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
+}
+
+function getLocaleValue(locale: Record<string, unknown>, key: string) {
+  return key.split('.').reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== 'object' || !(segment in current)) {
+      return undefined;
+    }
+
+    return (current as Record<string, unknown>)[segment];
+  }, locale);
 }
 
 function readFromRepo(...segments: string[]) {
@@ -62,6 +76,38 @@ runTest('notification settings SDK contract exposes the app-api notification set
   assert.match(notificationSettingsType, /typeSettings\?/);
 });
 
+runTest('sdkwork-claw-settings exports Kernel Center through package and service barrels with localized page copy', () => {
+  const indexSource = read('packages/sdkwork-claw-settings/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-settings/src/services/index.ts');
+  const kernelCenterSource = read('packages/sdkwork-claw-settings/src/KernelCenter.tsx');
+  const enLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const directKeys = [...kernelCenterSource.matchAll(/\bt\('([^']+)'\)/g)].map((match) => match[1]);
+  const uniqueKeys = [...new Set(directKeys)].sort();
+  const missingKeys = uniqueKeys.filter(
+    (key) => getLocaleValue(enLocale, key) === undefined || getLocaleValue(zhLocale, key) === undefined,
+  );
+
+  assert.ok(exists('packages/sdkwork-claw-settings/src/KernelCenter.ts'));
+  assert.ok(exists('packages/sdkwork-claw-settings/src/services/kernelCenterService.ts'));
+  assert.match(indexSource, /KernelCenter/);
+  assert.match(servicesIndexSource, /kernelCenterService/);
+  assert.match(kernelCenterSource, /kernelCenterService/);
+  assert.doesNotMatch(kernelCenterSource, /@sdkwork\/claw-infrastructure/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.description/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.actions\.refresh/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.actions\.ensureRunning/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.actions\.restart/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.metrics\.runtime/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.sections\.hostOwnership/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.serviceManager/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.capabilityRollup\.ready/);
+  assert.match(kernelCenterSource, /settings\.kernelCenter\.bundles\.supervisor/);
+  assert.doesNotMatch(kernelCenterSource, /The built-in OpenClaw kernel is treated as mandatory product/);
+  assert.doesNotMatch(kernelCenterSource, /Failed to load kernel status\./);
+  assert.deepEqual(missingKeys, []);
+});
+
 runTest('feedback SDK contract exposes feedback center resources needed by settings', () => {
   const feedbackApiSource = readFromRepo(
     'spring-ai-plus-app-api',
@@ -109,7 +155,8 @@ runTest('sdkwork-claw-settings service uses shared app sdk wrapper instead of in
   const coreSettingsServiceSource = read('packages/sdkwork-claw-core/src/services/settingsService.ts');
 
   assert.ok(exists('packages/sdkwork-claw-core/src/services/settingsService.ts'));
-  assert.match(settingsServiceSource, /@sdkwork\/claw-core\/services\/settingsService/);
+  assert.match(settingsServiceSource, /from '@sdkwork\/claw-core'/);
+  assert.doesNotMatch(settingsServiceSource, /@sdkwork\/claw-core\/services\//);
   assert.doesNotMatch(settingsServiceSource, /getAppSdkClientWithSession/);
   assert.doesNotMatch(settingsServiceSource, /unwrapAppSdkResponse/);
   assert.match(coreSettingsServiceSource, /getAppSdkClientWithSession/);

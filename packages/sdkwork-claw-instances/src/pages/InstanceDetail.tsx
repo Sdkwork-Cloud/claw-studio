@@ -1145,13 +1145,13 @@ export function InstanceDetail() {
         embeddingModelId,
       });
       toast.success(t('instances.detail.instanceWorkbench.llmProviders.toasts.providerSaved'));
-      setIsProviderDialogOpen(false);
-      setProviderDialogDraft(createEmptyProviderForm());
-      await loadWorkbench(id, { withSpinner: false });
-      setSelectedProviderId(`api-router-${providerId}`);
-    } catch (error: any) {
-      toast.error(error?.message || t('instances.detail.instanceWorkbench.llmProviders.toasts.providerSaveFailed'));
-    } finally {
+        setIsProviderDialogOpen(false);
+        setProviderDialogDraft(createEmptyProviderForm());
+        await loadWorkbench(id, { withSpinner: false });
+        setSelectedProviderId(providerId);
+      } catch (error: any) {
+        toast.error(error?.message || t('instances.detail.instanceWorkbench.llmProviders.toasts.providerSaveFailed'));
+      } finally {
       setIsSavingProviderDialog(false);
     }
   };

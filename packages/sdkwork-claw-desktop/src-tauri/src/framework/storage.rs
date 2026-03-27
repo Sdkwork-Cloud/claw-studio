@@ -82,6 +82,20 @@ impl StorageProfileConfig {
             read_only: false,
         }
     }
+
+    pub fn sqlite_default() -> Self {
+        Self {
+            id: "default-sqlite".to_string(),
+            label: "SQLite".to_string(),
+            provider: StorageProviderKind::Sqlite,
+            namespace: "claw-studio".to_string(),
+            path: Some("profiles/default.db".to_string()),
+            connection: None,
+            database: None,
+            endpoint: None,
+            read_only: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -96,18 +110,28 @@ impl Default for StorageConfig {
         let profile = StorageProfileConfig::local_default();
         Self {
             active_profile_id: profile.id.clone(),
-            profiles: vec![profile],
+            profiles: vec![profile, StorageProfileConfig::sqlite_default()],
         }
     }
 }
 
 impl StorageConfig {
     pub fn normalized(&self) -> Self {
-        let profiles = if self.profiles.is_empty() {
-            vec![StorageProfileConfig::local_default()]
+        let mut profiles = if self.profiles.is_empty() {
+            vec![
+                StorageProfileConfig::local_default(),
+                StorageProfileConfig::sqlite_default(),
+            ]
         } else {
             self.profiles.clone()
         };
+
+        if !profiles.iter().any(|profile| profile.id == "default-local") {
+            profiles.push(StorageProfileConfig::local_default());
+        }
+        if !profiles.iter().any(|profile| profile.id == "default-sqlite") {
+            profiles.push(StorageProfileConfig::sqlite_default());
+        }
 
         let active_profile_id = if profiles
             .iter()
@@ -258,4 +282,41 @@ pub struct StorageListKeysResponse {
     pub profile_id: String,
     pub namespace: String,
     pub keys: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StorageConfig, StorageProviderKind};
+
+    #[test]
+    fn default_storage_config_includes_local_and_sqlite_profiles() {
+        let config = StorageConfig::default();
+
+        assert_eq!(config.active_profile_id, "default-local");
+        assert!(config
+            .profiles
+            .iter()
+            .any(|profile| profile.id == "default-local"));
+        assert!(config.profiles.iter().any(|profile| {
+            profile.id == "default-sqlite" && profile.provider == StorageProviderKind::Sqlite
+        }));
+    }
+
+    #[test]
+    fn normalized_storage_config_backfills_builtin_sqlite_profile() {
+        let config = StorageConfig {
+            active_profile_id: "default-local".to_string(),
+            profiles: vec![super::StorageProfileConfig::local_default()],
+        };
+
+        let normalized = config.normalized();
+
+        assert!(normalized
+            .profiles
+            .iter()
+            .any(|profile| profile.id == "default-local"));
+        assert!(normalized.profiles.iter().any(|profile| {
+            profile.id == "default-sqlite" && profile.provider == StorageProviderKind::Sqlite
+        }));
+    }
 }

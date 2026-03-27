@@ -381,7 +381,7 @@ class InstanceOnboardingService {
 
     const instances = await this.dependencies.studioApi.listInstances();
     const discovered = await Promise.all(
-      entry.variants.map(async (variant) => {
+      entry.variants.map(async (variant): Promise<DiscoveredInstalledOpenClawInstall | null> => {
         let assessment: HubInstallAssessmentResult;
         try {
           assessment = await this.dependencies.installerApi.inspectHubInstall(variant.request);
@@ -454,7 +454,7 @@ class InstanceOnboardingService {
           baseUrl: gateway.baseUrl,
           websocketUrl: gateway.websocketUrl,
           associatedInstanceId: existing?.id ?? null,
-          associationStatus: existing ? 'associated' : 'readyToAssociate',
+          associationStatus: existing ? ('associated' as const) : ('readyToAssociate' as const),
         };
       }),
     );

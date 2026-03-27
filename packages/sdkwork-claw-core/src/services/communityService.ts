@@ -873,7 +873,7 @@ function matchesQuery(post: CommunityPost, query?: string) {
 
 async function defaultClientFactory() {
   const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
-  return getAppSdkClientWithSession() as CommunitySdkClient;
+  return getAppSdkClientWithSession() as unknown as CommunitySdkClient;
 }
 
 async function unwrapCommunitySdkResponse<T>(payload: unknown, fallbackMessage: string) {

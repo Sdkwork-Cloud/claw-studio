@@ -336,7 +336,7 @@ fn read_managed_config(path: &Path) -> Result<Value> {
     )))
 }
 
-fn load_manifest(path: &Path) -> Result<BundledOpenClawManifest> {
+pub(crate) fn load_manifest(path: &Path) -> Result<BundledOpenClawManifest> {
     let content = fs::read_to_string(path)?;
     serde_json::from_str::<BundledOpenClawManifest>(&content).map_err(Into::into)
 }

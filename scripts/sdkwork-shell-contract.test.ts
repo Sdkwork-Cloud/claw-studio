@@ -26,7 +26,7 @@ runTest('sdkwork-claw-shell keeps dedicated routes for api-router, model-purchas
   const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
 
   assert.doesNotMatch(routesSource, /FeaturePlaceholder/);
-  assert.match(routesSource, /@sdkwork\/claw-apirouter/);
+  assert.match(routesSource, /module\.ProviderConfigCenter/);
   assert.match(routesSource, /@sdkwork\/claw-model-purchase/);
   assert.match(routesSource, /@sdkwork\/claw-points/);
   assert.match(routesSource, /routes\.codeboxComingSoon/);
@@ -34,9 +34,95 @@ runTest('sdkwork-claw-shell keeps dedicated routes for api-router, model-purchas
   assert.match(routesSource, /path="\/api-router"/);
   assert.match(routesSource, /path="\/model-purchase"/);
   assert.match(routesSource, /path="\/points"/);
-  assert.match(routesSource, /<ApiRouter \/>/);
+  assert.match(routesSource, /<ProviderConfigCenter \/>/);
   assert.match(routesSource, /<ModelPurchase \/>/);
   assert.match(routesSource, /<Points \/>/);
+});
+
+runTest('sdkwork-claw-shell exposes dedicated kernel and node governance surfaces across routes, sidebar, settings, prefetch, and command palette', () => {
+  const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
+  const routePathsSource = read('packages/sdkwork-claw-shell/src/application/router/routePaths.ts');
+  const routePrefetchSource = read('packages/sdkwork-claw-shell/src/application/router/routePrefetch.ts');
+  const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
+  const settingsSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
+  const commandPaletteSource = read('packages/sdkwork-claw-shell/src/components/commandPaletteCommands.ts');
+  const settingsIndexSource = read('packages/sdkwork-claw-settings/src/index.ts');
+  const instancesIndexSource = read('packages/sdkwork-claw-instances/src/index.ts');
+  const enLocale = readJson<{
+    sidebar: { kernelCenter: string; nodes: string };
+    commandPalette: {
+      commands: {
+        kernel: { title: string };
+        nodes: { title: string };
+      };
+    };
+  }>('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const zhLocale = readJson<{
+    sidebar: { kernelCenter: string; nodes: string };
+    commandPalette: {
+      commands: {
+        kernel: { title: string; subtitle: string };
+        nodes: { title: string; subtitle: string };
+      };
+    };
+  }>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+
+  assert.match(routePathsSource, /KERNEL: '\/kernel'/);
+  assert.match(routePathsSource, /NODES: '\/nodes'/);
+  assert.match(settingsIndexSource, /export \* from '\.\/KernelCenter\.ts';/);
+  assert.match(instancesIndexSource, /export \* from '\.\/pages\/Nodes\.tsx';/);
+  assert.match(
+    routesSource,
+    /const KernelCenter = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-settings'\)[\s\S]*module\.KernelCenter/,
+  );
+  assert.match(
+    routesSource,
+    /const Nodes = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-instances'\)[\s\S]*module\.Nodes/,
+  );
+  assert.match(routesSource, /path="\/kernel"/);
+  assert.match(routesSource, /path="\/nodes"/);
+  assert.match(routesSource, /<KernelCenter \/>/);
+  assert.match(routesSource, /<Nodes \/>/);
+  assert.match(routePrefetchSource, /\['\/kernel', \(\) => import\('@sdkwork\/claw-settings'\)\]/);
+  assert.match(routePrefetchSource, /\['\/nodes', \(\) => import\('@sdkwork\/claw-instances'\)\]/);
+  assert.match(sidebarSource, /id: 'kernel'/);
+  assert.match(sidebarSource, /to: '\/kernel'/);
+  assert.match(sidebarSource, /label: t\('sidebar\.kernelCenter'\)/);
+  assert.match(sidebarSource, /id: 'nodes'/);
+  assert.match(sidebarSource, /to: '\/nodes'/);
+  assert.match(sidebarSource, /label: t\('sidebar\.nodes'\)/);
+  assert.match(settingsSource, /id: 'kernel', label: t\('sidebar\.kernelCenter'\)/);
+  assert.match(settingsSource, /id: 'nodes', label: t\('sidebar\.nodes'\)/);
+  assert.match(commandPaletteSource, /id: 'nav-kernel'/);
+  assert.match(commandPaletteSource, /commandPalette\.commands\.kernel\.title/);
+  assert.match(commandPaletteSource, /navigate\('\/kernel'\)/);
+  assert.match(commandPaletteSource, /id: 'nav-nodes'/);
+  assert.match(commandPaletteSource, /commandPalette\.commands\.nodes\.title/);
+  assert.match(commandPaletteSource, /navigate\('\/nodes'\)/);
+  assert.equal(enLocale.sidebar.kernelCenter, 'Kernel Center');
+  assert.equal(enLocale.sidebar.nodes, 'Nodes');
+  assert.equal(enLocale.commandPalette.commands.kernel.title, 'Go to Kernel Center');
+  assert.equal(
+    enLocale.commandPalette.commands.kernel.subtitle,
+    'Inspect the built-in OpenClaw host, endpoint, and provenance',
+  );
+  assert.equal(enLocale.commandPalette.commands.nodes.title, 'Go to Nodes');
+  assert.equal(
+    enLocale.commandPalette.commands.nodes.subtitle,
+    'Inspect local and remote kernel inventory',
+  );
+  assert.equal(zhLocale.sidebar.kernelCenter, '内核中心');
+  assert.equal(zhLocale.sidebar.nodes, '节点');
+  assert.equal(zhLocale.commandPalette.commands.kernel.title, '前往内核中心');
+  assert.equal(
+    zhLocale.commandPalette.commands.kernel.subtitle,
+    '查看内置 OpenClaw 宿主、端点与运行来源',
+  );
+  assert.equal(zhLocale.commandPalette.commands.nodes.title, '前往节点');
+  assert.equal(
+    zhLocale.commandPalette.commands.nodes.subtitle,
+    '查看本地与远程内核节点清单',
+  );
 });
 runTest('sdkwork-claw-shell exposes the agent marketplace across route, sidebar, settings, prefetch, and command surfaces', () => {
   const shellPackage = readJson<{ dependencies?: Record<string, string> }>(
@@ -179,7 +265,10 @@ runTest('sdkwork-claw-shell lazy-loads heavy route modules so the shell entry st
   assert.match(routesSource, /const Market = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-market'\)/);
   assert.match(routesSource, /const Chat = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-chat'\)/);
   assert.match(routesSource, /const Settings = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-settings'\)/);
-  assert.match(routesSource, /const ApiRouter = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-apirouter'\)/);
+  assert.match(
+    routesSource,
+    /const ProviderConfigCenter = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-settings'\)[\s\S]*module\.ProviderConfigCenter/,
+  );
   assert.match(routesSource, /const Points = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-points'\)/);
   assert.match(routesSource, /const AppStore = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-apps'\)/);
   assert.match(routesSource, /const ClawMall = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-mall'\)/);
@@ -333,6 +422,35 @@ runTest('sdkwork-claw-settings removes the dedicated llm settings tab in favor o
   assert.match(settingsSource, /\? requestedTab \|\| 'general' : 'general'/);
 });
 
+runTest('sdkwork-claw-settings exposes an independent provider config center surface for the api-router route', () => {
+  const settingsPackage = readJson<{ dependencies?: Record<string, string> }>(
+    'packages/sdkwork-claw-settings/package.json',
+  );
+  const shellPackage = readJson<{ dependencies?: Record<string, string> }>(
+    'packages/sdkwork-claw-shell/package.json',
+  );
+  const settingsIndexSource = read('packages/sdkwork-claw-settings/src/index.ts');
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const routePrefetchSource = read('packages/sdkwork-claw-shell/src/application/router/routePrefetch.ts');
+  const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
+
+  assert.equal(settingsPackage.dependencies?.['@sdkwork/claw-infrastructure'], 'workspace:*');
+  assert.match(settingsIndexSource, /export \* from '\.\/ProviderConfigCenter\.ts';/);
+  assert.match(providerCenterSource, /providerConfigCenterService/);
+  assert.match(providerCenterSource, /providerCenter\.page\.title/);
+  assert.match(providerCenterSource, /providerCenter\.actions\.addRouteConfig/);
+  assert.match(providerCenterSource, /providerCenter\.table\.provider/);
+  assert.match(providerCenterSource, /providerCenter\.dialogs\.apply\.title/);
+  assert.match(providerCenterSource, /providerCenter\.dialogs\.editor\.embeddingModel/);
+  assert.match(providerCenterSource, /providerCenter\.dialogs\.apply\.agents/);
+  assert.match(routePrefetchSource, /\['\/api-router', \(\) => import\('@sdkwork\/claw-settings'\)\]/);
+  assert.match(
+    routesSource,
+    /const ProviderConfigCenter = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-settings'\)[\s\S]*module\.ProviderConfigCenter/,
+  );
+  assert.ok(!shellPackage.dependencies?.['@sdkwork/claw-apirouter']);
+});
+
 runTest('sdkwork-claw-shell keeps instance selection out of the sidebar implementation', () => {
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
 
@@ -405,7 +523,7 @@ runTest('sdkwork-claw-shell defers startup update checks until after first paint
   assert.match(providersSource, /requestIdleCallback/);
   assert.match(providersSource, /import\('@sdkwork\/claw-core'\)/);
   assert.match(providersSource, /useUpdateStore\.getState\(\)\.runStartupCheck\(\)/);
-  assert.match(providersSource, /apiRouterStartupService\.warmBootstrapSession\(\)/);
+  assert.doesNotMatch(providersSource, /apiRouterStartupService\.warmBootstrapSession\(\)/);
 });
 
 runTest('sdkwork-claw-shell uses a flat borderless header chrome', () => {

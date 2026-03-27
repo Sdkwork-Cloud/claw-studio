@@ -1,4 +1,5 @@
 import {
+  WebKernelPlatform,
   WebPlatform,
   WebStoragePlatform,
   WebStudioPlatform,
@@ -27,6 +28,7 @@ import type {
   RuntimeApiRouterRuntimeStatus,
   RuntimeAppInfo,
   RuntimeConfigInfo,
+  RuntimeDesktopKernelHostInfo,
   RuntimeDesktopKernelInfo,
   RuntimeEventUnsubscribe,
   RuntimeInfo,
@@ -50,6 +52,8 @@ import type {
   StudioInstanceConfig,
   StudioInstanceRecord,
   StudioInstanceTaskMutationPayload,
+  StudioOpenClawGatewayInvokeOptions,
+  StudioOpenClawGatewayInvokeRequest,
   StudioUpdateInstanceLlmProviderConfigInput,
   StudioWorkbenchTaskExecutionRecord,
   StudioUpdateInstanceInput,
@@ -80,6 +84,7 @@ export {
 } from './componentsBridge';
 
 const webPlatform = new WebPlatform();
+const webKernelPlatform = new WebKernelPlatform();
 const webStoragePlatform = new WebStoragePlatform();
 const webStudioPlatform = new WebStudioPlatform();
 
@@ -100,6 +105,7 @@ interface DesktopFetchedRemoteUrlPayload
 export interface DesktopJobUpdateEvent extends RuntimeJobUpdateEvent {}
 export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
 export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo {}
+export interface DesktopKernelStatus extends RuntimeDesktopKernelHostInfo {}
 export interface DesktopStorageInfo extends RuntimeStorageInfo {}
 export interface DesktopApiRouterAdminBootstrapSession
   extends RuntimeApiRouterAdminBootstrapSession {}
@@ -175,6 +181,51 @@ export async function getDesktopKernelInfo(): Promise<DesktopKernelInfo | null> 
   );
 }
 
+export async function getDesktopKernelStatus(): Promise<DesktopKernelStatus | null> {
+  return runDesktopOrFallback(
+    'kernel.getStatus',
+    () =>
+      invokeDesktopCommand<DesktopKernelStatus>(
+        DESKTOP_COMMANDS.desktopKernelStatus,
+        undefined,
+        {
+          operation: 'kernel.getStatus',
+        },
+      ),
+    async () => null,
+  );
+}
+
+export async function ensureDesktopKernelRunning(): Promise<DesktopKernelStatus | null> {
+  return runDesktopOrFallback(
+    'kernel.ensureRunning',
+    () =>
+      invokeDesktopCommand<DesktopKernelStatus>(
+        DESKTOP_COMMANDS.ensureDesktopKernelRunning,
+        undefined,
+        {
+          operation: 'kernel.ensureRunning',
+        },
+      ),
+    () => webKernelPlatform.ensureRunning(),
+  );
+}
+
+export async function restartDesktopKernel(): Promise<DesktopKernelStatus | null> {
+  return runDesktopOrFallback(
+    'kernel.restart',
+    () =>
+      invokeDesktopCommand<DesktopKernelStatus>(
+        DESKTOP_COMMANDS.restartDesktopKernel,
+        undefined,
+        {
+          operation: 'kernel.restart',
+        },
+      ),
+    () => webKernelPlatform.restart(),
+  );
+}
+
 export async function getDesktopStorageInfo(): Promise<DesktopStorageInfo | null> {
   return runDesktopOrFallback(
     'storage.getInfo',
@@ -224,6 +275,18 @@ export async function studioGetInstanceDetail(
         { operation: 'studio.getInstanceDetail' },
       ),
     () => webStudioPlatform.getInstanceDetail(id),
+  );
+}
+
+export async function invokeOpenClawGateway(
+  instanceId: string,
+  request: StudioOpenClawGatewayInvokeRequest,
+  options: StudioOpenClawGatewayInvokeOptions = {},
+): Promise<unknown> {
+  return invokeDesktopCommand<unknown>(
+    DESKTOP_COMMANDS.studioInvokeOpenClawGateway,
+    { instanceId, request, options },
+    { operation: 'studio.invokeOpenClawGateway' },
   );
 }
 
@@ -1182,6 +1245,9 @@ export const desktopTemplateApi = {
   },
   kernel: {
     getInfo: getDesktopKernelInfo,
+    getStatus: getDesktopKernelStatus,
+    ensureRunning: ensureDesktopKernelRunning,
+    restart: restartDesktopKernel,
     getStorageInfo: getDesktopStorageInfo,
   },
   storage: {
@@ -1305,6 +1371,19 @@ export function configureDesktopPlatformBridge() {
       readFile: (path) => readTextFile(path),
       writeFile: (path, content) => writeTextFile(path, content),
     },
+    kernel: {
+      async getInfo() {
+        const info = await getDesktopKernelInfo();
+        return info ?? (await webKernelPlatform.getInfo());
+      },
+      async getStorageInfo() {
+        const info = await getDesktopStorageInfo();
+        return info ?? (await webKernelPlatform.getStorageInfo());
+      },
+      getStatus: () => getDesktopKernelStatus(),
+      ensureRunning: () => ensureDesktopKernelRunning(),
+      restart: () => restartDesktopKernel(),
+    },
     installer: {
       listHubInstallCatalog: (query) => listHubInstallCatalog(query),
       inspectHubInstall: (request) => inspectHubInstall(request),
@@ -1332,6 +1411,8 @@ export function configureDesktopPlatformBridge() {
       listInstances: () => studioListInstances(),
       getInstance: (id) => studioGetInstance(id),
       getInstanceDetail: (id) => studioGetInstanceDetail(id),
+      invokeOpenClawGateway: (instanceId, request, options) =>
+        invokeOpenClawGateway(instanceId, request, options),
       createInstance: (input) => studioCreateInstance(input),
       updateInstance: (id, input) => studioUpdateInstance(id, input),
       deleteInstance: (id) => studioDeleteInstance(id),

@@ -41,6 +41,8 @@
     "devices": "设备",
     "install": "安装 Claw",
     "market": "ClawHub",
+    "kernelCenter": "内核中心",
+    "nodes": "节点",
     "agentMarket": "数字员工",
     "aiChat": "AI 对话",
     "channels": "渠道",
@@ -58,6 +60,7 @@
     "modelPurchase": "模型购买",
     "clawUpload": "Claw联网",
     "systemResources": "系统资源",
+    "apiRouter": "模型配置中心",
     "cpu": "CPU",
     "ram": "RAM",
     "switchInstance": "切换实例",
@@ -190,6 +193,144 @@
       "api": "API 密钥",
       "data": "数据与隐私",
       "feedback": "反馈"
+    },
+    "kernelCenter": {
+      "description": "内置 OpenClaw 内核被视为产品的必备基础设施。这里会如实展示当前宿主归属、活动端点、存储配置与运行来源，不会掩盖任何回退行为。",
+      "actions": {
+        "refresh": "刷新",
+        "ensureRunning": "确保运行",
+        "ensuring": "确保中...",
+        "restart": "重启",
+        "restarting": "重启中..."
+      },
+      "toasts": {
+        "loadFailed": "加载内核状态失败。",
+        "ensureSuccess": "已检查并接管内核宿主。",
+        "ensureFailed": "确保内核运行失败。",
+        "restartSuccess": "已发起内核重启。",
+        "restartFailed": "重启内核失败。"
+      },
+      "metrics": {
+        "runtime": "运行时",
+        "topology": "拓扑",
+        "host": "宿主",
+        "endpoint": "端点"
+      },
+      "runtimeStates": {
+        "running": "运行中",
+        "starting": "启动中",
+        "recovering": "恢复中",
+        "degraded": "已降级",
+        "crashLoop": "崩溃循环",
+        "failedSafe": "安全失败",
+        "stopped": "已停止",
+        "unavailable": "不可用"
+      },
+      "topologies": {
+        "localManagedNative": "本机托管",
+        "localManagedWsl": "WSL 托管",
+        "localManagedContainer": "容器托管",
+        "localExternal": "本机外部",
+        "remoteManagedNode": "远程托管节点",
+        "remoteAttachedNode": "远程接入节点",
+        "unknown": "未知"
+      },
+      "serviceManagers": {
+        "windowsService": "Windows 服务",
+        "launchdLaunchAgent": "launchd LaunchAgent",
+        "systemdUser": "systemd 用户服务",
+        "systemdSystem": "systemd 系统服务",
+        "tauriSupervisor": "Tauri 监管器",
+        "unknown": "未知宿主"
+      },
+      "ownership": {
+        "nativeService": "原生服务宿主",
+        "appSupervisor": "应用监管器回退",
+        "attached": "附着运行时",
+        "unknown": "未知归属"
+      },
+      "startupModes": {
+        "auto": "自动启动",
+        "manual": "手动启动"
+      },
+      "installSources": {
+        "bundled": "内置",
+        "external": "外部",
+        "remote": "远程",
+        "unknown": "未知"
+      },
+      "endpoint": {
+        "dynamicPort": "当前端口已为避让冲突而动态分配。",
+        "preferredActive": "当前正在使用首选端点。"
+      },
+      "sections": {
+        "hostOwnership": "宿主归属",
+        "endpointRuntime": "端点与运行时",
+        "storage": "存储",
+        "provenance": "运行来源",
+        "capabilityRollup": "能力汇总",
+        "managedDirectories": "托管目录",
+        "supervisorAndBundles": "监管器与内置组件"
+      },
+      "fields": {
+        "serviceManager": "服务管理器",
+        "ownership": "归属",
+        "startupMode": "启动模式",
+        "controlSocket": "控制套接字",
+        "controlSocketAvailable": "控制套接字可用",
+        "serviceConfigPath": "服务配置路径",
+        "baseUrl": "基础 URL",
+        "websocketUrl": "WebSocket URL",
+        "preferredPort": "首选端口",
+        "activePort": "活动端口",
+        "openclawVersion": "OpenClaw 版本",
+        "nodeVersion": "Node.js 版本",
+        "activeProfile": "活动配置",
+        "profilePath": "配置路径",
+        "storageRoot": "存储根目录",
+        "profileCount": "配置数量",
+        "installSource": "安装来源",
+        "platform": "平台",
+        "configPath": "配置文件路径",
+        "runtimeHome": "运行时主目录",
+        "runtimeInstallDir": "运行时安装目录",
+        "machineState": "机器状态目录",
+        "machineStaging": "机器暂存目录",
+        "userRoot": "用户根目录",
+        "studioDir": "Studio 目录",
+        "storageDir": "存储目录",
+        "backupsDir": "备份目录"
+      },
+      "values": {
+        "notAvailable": "不可用",
+        "unknown": "未知",
+        "yes": "是",
+        "no": "否",
+        "notExposedYet": "尚未暴露",
+        "noRuntimeSummary": "暂时没有运行时摘要。",
+        "noTopologyReported": "暂时没有上报拓扑信息。",
+        "hostOwnershipUnavailable": "暂时没有上报宿主归属。",
+        "none": "无"
+      },
+      "capabilityRollup": {
+        "ready": "已就绪",
+        "planned": "规划中",
+        "bundledComponents": "内置组件",
+        "bundledComponentsSummary": "{{count}} 个托管组件，{{autoStartCount}} 个自动启动组件"
+      },
+      "bundles": {
+        "supervisor": "监管器",
+        "supervisorSummary": "{{lifecycle}}，共跟踪 {{count}} 个服务",
+        "bundledStartupSet": "内置启动集",
+        "silentHostTarget": "静默宿主目标",
+        "silentHostTargetDescription": "{{serviceManager}} 是目标生命周期宿主，而页面会继续如实展示当前实际归属。"
+      },
+      "supervisorLifecycle": {
+        "active": "活跃",
+        "inactive": "非活跃",
+        "stopping": "停止中",
+        "unknown": "未知"
+      }
     },
     "account": {
       "title": "账户",
@@ -658,6 +799,14 @@
         "title": "前往实例",
         "subtitle": "管理运行中的容器"
       },
+      "kernel": {
+        "title": "前往内核中心",
+        "subtitle": "查看内置 OpenClaw 宿主、端点与运行来源"
+      },
+      "nodes": {
+        "title": "前往节点",
+        "subtitle": "查看本地与远程内核节点清单"
+      },
       "devices": {
         "title": "前往设备",
         "subtitle": "硬件与 GPU 设置"
@@ -677,6 +826,10 @@
       "modelPurchase": {
         "title": "前往模型购买",
         "subtitle": "浏览独立模型套餐与计费方案"
+      },
+      "apiRouter": {
+        "title": "前往模型配置中心",
+        "subtitle": "管理 LLM、Embedding 与路由配置"
       },
       "settings": {
         "title": "前往设置",
@@ -3502,6 +3655,84 @@
         "actionFailed": "执行实例{{action}}操作失败"
       }
     },
+    "nodes": {
+      "description": "集群治理从这里开始。本地内置 OpenClaw 内核会与已接入或已托管的节点一同展示，让发布、诊断与拓扑漂移可以收敛到同一套产品模型。",
+      "actions": {
+        "refresh": "刷新",
+        "ensureLocalNode": "确保本地节点运行",
+        "ensuring": "确保中...",
+        "restartLocalNode": "重启本地节点",
+        "restart": "重启",
+        "restarting": "重启中...",
+        "openKernelCenter": "打开内核中心",
+        "openDetails": "打开详情"
+      },
+      "toasts": {
+        "loadFailed": "加载节点清单失败。",
+        "ensureSuccess": "已检查并接管本地内核节点。",
+        "ensureFailed": "确保本地内核节点运行失败。",
+        "restartSuccess": "已发起本地内核节点重启。",
+        "restartFailed": "重启本地内核节点失败。"
+      },
+      "metrics": {
+        "totalNodes": "节点总数",
+        "totalNodesDetail": "控制平面当前可见的全部本地、托管与接入内核。",
+        "managed": "托管中",
+        "managedDetail": "这些节点的生命周期与恢复决策由 Claw Studio 接管。",
+        "attached": "已接入",
+        "attachedDetail": "这些节点即使生命周期归属不完整，也会持续保持可观测。",
+        "needsAttention": "需要关注",
+        "needsAttentionDetail": "已降级或被隔离的节点需要人工干预。"
+      },
+      "kinds": {
+        "localPrimary": "本地主节点",
+        "managedRemote": "远程托管节点",
+        "attachedRemote": "远程接入节点",
+        "localExternal": "本机外部节点"
+      },
+      "health": {
+        "ok": "健康",
+        "degraded": "降级",
+        "quarantined": "已隔离"
+      },
+      "management": {
+        "managedDescription": "托管节点仍由 Claw Studio 持续负责生命周期控制。",
+        "attachedDescription": "接入节点即使生命周期仍归属其他系统，也会保持可观测。"
+      },
+      "fields": {
+        "topology": "拓扑",
+        "runtimeState": "运行状态",
+        "endpoint": "端点",
+        "hostVersion": "宿主 / 版本"
+      },
+      "topologies": {
+        "localManagedNative": "本机托管",
+        "localManagedWsl": "WSL 托管",
+        "localManagedContainer": "容器托管",
+        "localExternal": "本机外部",
+        "remoteManagedNode": "远程托管节点",
+        "remoteAttachedNode": "远程接入节点",
+        "unknown": "未知"
+      },
+      "runtimeStates": {
+        "running": "运行中",
+        "starting": "启动中",
+        "recovering": "恢复中",
+        "degraded": "已降级",
+        "crashLoop": "崩溃循环",
+        "failedSafe": "安全失败",
+        "stopped": "已停止",
+        "online": "在线",
+        "syncing": "同步中",
+        "offline": "离线",
+        "error": "错误",
+        "unknown": "未知"
+      },
+      "values": {
+        "notAvailable": "不可用",
+        "hostVersionWithVersion": "{{host}} / v{{version}}"
+      }
+    },
     "detail": {
       "notFoundTitle": "未找到实例",
       "returnToInstances": "返回实例列表",
@@ -6145,6 +6376,109 @@
           "媒体生成"
         ]
       }
+    }
+  },
+  "providerCenter": {
+    "page": {
+      "eyebrow": "模型配置中心",
+      "title": "模型配置中心",
+      "description": "在当前应用内统一维护内置 Provider 预设、默认模型列表、API Key 和 Base URL，无需直接耦合 sdkwork-api-router。",
+      "storageHint": "当存在可写 SQLite 存储配置时，Provider 配置会优先持久化到 SQLite。"
+    },
+    "summary": {
+      "routeConfigs": "路由配置",
+      "llmReady": "LLM 就绪",
+      "embeddingReady": "Embedding 就绪"
+    },
+    "table": {
+      "name": "名称",
+      "provider": "Provider",
+      "endpoint": "Base URL",
+      "selection": "模型选择",
+      "apiKey": "API Key",
+      "updatedAt": "更新时间",
+      "actions": "操作",
+      "models": "个模型",
+      "llmDefault": "LLM",
+      "reasoning": "推理",
+      "embedding": "Embedding"
+    },
+    "states": {
+      "loading": "正在加载模型配置...",
+      "emptyTitle": "还没有路由配置",
+      "emptyDescription": "新增一条路由配置，把默认模型列表、API Key 与 Base URL 统一收敛到内置配置中心。",
+      "noNotes": "暂无备注",
+      "notSet": "未设置",
+      "noInstances": "当前没有可写的 OpenClaw 实例。",
+      "selectInstance": "请选择一个实例以查看可应用的 Agent。",
+      "noAgents": "当前实例没有可应用的 Agent。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "addRouteConfig": "新增路由配置",
+      "quickApply": "快速应用",
+      "edit": "编辑",
+      "delete": "删除",
+      "cancel": "取消",
+      "saveChanges": "保存修改",
+      "createConfig": "创建配置",
+      "selectAllAgents": "全选 Agent",
+      "clearAgentSelection": "清空选择",
+      "applyConfig": "应用配置"
+    },
+    "dialogs": {
+      "editor": {
+        "createTitle": "新增路由配置",
+        "editTitle": "编辑路由配置",
+        "description": "配置 Provider 元信息、默认模型、Embedding 模型和运行参数，以满足 OpenClaw 兼容实例的接入要求。",
+        "preset": "内置预设",
+        "presetPlaceholder": "选择一个内置预设",
+        "customPreset": "自定义",
+        "name": "配置名称",
+        "providerId": "Provider ID",
+        "baseUrl": "Base URL",
+        "apiKey": "API Key",
+        "defaultModel": "默认 LLM",
+        "reasoningModel": "推理模型",
+        "embeddingModel": "Embedding 模型",
+        "models": "模型列表",
+        "modelsHint": "每行一个模型，格式为 `model-id=显示名称`。",
+        "notes": "备注",
+        "runtimeTitle": "运行参数",
+        "temperature": "Temperature",
+        "topP": "Top P",
+        "maxTokens": "Max Tokens",
+        "timeoutMs": "超时（毫秒）",
+        "streaming": "流式输出",
+        "streamingHint": "开启后，Provider 路由按流式响应工作。"
+      },
+      "apply": {
+        "title": "快速应用模型配置",
+        "description": "把选中的路由配置同步到 OpenClaw 实例默认 Provider 选择，并按需更新 Agent 的模型绑定。",
+        "instance": "目标实例",
+        "instancePlaceholder": "选择一个实例",
+        "configPath": "配置文件路径",
+        "targetSummary": "配置摘要",
+        "agents": "Agent 列表",
+        "agentHint": "勾选的 Agent 会把主模型切换为默认 LLM；如果配置了推理模型，会自动写入 fallback。",
+        "defaultAgent": "默认 Agent",
+        "currentModel": "当前模型"
+      },
+      "delete": {
+        "title": "删除路由配置",
+        "description": "确认从本地配置中心删除 `{{name}}` 吗？删除后不会自动修改任何实例，除非重新应用其它配置。"
+      }
+    },
+    "toasts": {
+      "loadFailed": "加载模型配置失败。",
+      "loadInstancesFailed": "加载可应用实例失败。",
+      "loadInstanceTargetFailed": "加载实例应用目标失败。",
+      "saveFailed": "保存模型配置失败。",
+      "deleteFailed": "删除模型配置失败。",
+      "applyFailed": "应用模型配置失败。",
+      "saved": "模型配置已保存。",
+      "deleted": "模型配置已删除。",
+      "applied": "模型配置已应用。"
     }
   }
 }

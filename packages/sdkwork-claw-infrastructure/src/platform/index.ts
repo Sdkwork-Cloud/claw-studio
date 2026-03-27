@@ -10,6 +10,25 @@ export type {
   PlatformWindowStateUnsubscribe,
 } from './types.ts';
 export type {
+  KernelPlatformAPI,
+  RuntimeDesktopKernelControlSocketInfo,
+  RuntimeDesktopKernelControlSocketKind,
+  RuntimeDesktopKernelEndpointInfo,
+  RuntimeDesktopKernelEndpointSource,
+  RuntimeDesktopKernelHealthStatus,
+  RuntimeDesktopKernelHostInfo,
+  RuntimeDesktopKernelHostServiceInfo,
+  RuntimeDesktopKernelInstallSource,
+  RuntimeDesktopKernelOwnershipMode,
+  RuntimeDesktopKernelProvenanceInfo,
+  RuntimeDesktopKernelRuntimeState,
+  RuntimeDesktopKernelRuntimeStatusInfo,
+  RuntimeDesktopKernelServiceManagerKind,
+  RuntimeDesktopKernelTopologyInfo,
+  RuntimeDesktopKernelTopologyKind,
+  RuntimeDesktopKernelTopologyState,
+} from './contracts/kernel.ts';
+export type {
   ComponentPlatformAPI,
   RuntimeBundledComponentId,
   RuntimeDesktopComponentCapabilityInfo,
@@ -141,6 +160,8 @@ export type {
 export type {
   StudioCreateInstanceInput,
   StudioInstanceTaskMutationPayload,
+  StudioOpenClawGatewayInvokeOptions,
+  StudioOpenClawGatewayInvokeRequest,
   StudioPlatformAPI,
   StudioUpdateInstanceLlmProviderConfigInput,
   StudioUpdateInstanceInput,
@@ -157,10 +178,12 @@ export {
   configurePlatformBridge,
   getComponentPlatform,
   getInstallerPlatform,
+  getKernelPlatform,
   getPlatformBridge,
   getRuntimePlatform,
   getStoragePlatform,
   getStudioPlatform,
+  kernel,
   platform,
   storage,
   studio,
@@ -174,6 +197,7 @@ export {
 } from './componentLibrary.ts';
 export { openExternalUrl } from './openExternalUrl.ts';
 export { WebComponentPlatform } from './webComponents.ts';
+export { WebKernelPlatform } from './webKernel.ts';
 export { WebPlatform } from './web.ts';
 export { WebStoragePlatform } from './webStorage.ts';
 export { WebStudioPlatform } from './webStudio.ts';

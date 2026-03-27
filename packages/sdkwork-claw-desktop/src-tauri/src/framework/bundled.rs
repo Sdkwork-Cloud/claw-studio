@@ -1,4 +1,5 @@
 use crate::framework::{
+    layout::sync_component_registry_state,
     paths::AppPaths,
     services::{components::ComponentRegistryService, upgrades::ComponentUpgradeService},
     Result,
@@ -46,6 +47,7 @@ pub fn sync_bundled_installation_from_dir(
     }
 
     let resources = ComponentRegistryService::new().load_resources(paths)?;
+    sync_component_registry_state(paths, &resources.registry.components)?;
     for component in resources.registry.components {
         let bundled_version = component.bundled_version.trim();
         if bundled_version.is_empty() || bundled_version.eq_ignore_ascii_case("bundled") {

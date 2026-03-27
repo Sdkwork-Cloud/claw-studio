@@ -220,15 +220,11 @@ mod tests {
 
         assert_eq!(
             resources.service_defaults.auto_start_component_ids,
-            vec!["sdkwork-api-router".to_string()]
+            vec!["openclaw".to_string(), "sdkwork-api-router".to_string()]
         );
         assert_eq!(
             resources.service_defaults.manual_component_ids,
-            vec![
-                "openclaw".to_string(),
-                "zeroclaw".to_string(),
-                "ironclaw".to_string(),
-            ]
+            vec!["zeroclaw".to_string(), "ironclaw".to_string()]
         );
         assert_eq!(
             resources.service_defaults.embedded_component_ids,

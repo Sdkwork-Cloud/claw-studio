@@ -362,6 +362,49 @@ pub fn initialize_machine_state(paths: &AppPaths) -> Result<()> {
     Ok(())
 }
 
+pub fn sync_component_registry_state(
+    paths: &AppPaths,
+    definitions: &[PackagedComponentDefinition],
+) -> Result<()> {
+    let mut components = read_json_file::<ComponentsState>(&paths.components_file)?;
+    let mut upgrades = read_json_file::<UpgradesState>(&paths.upgrades_file)?;
+
+    for definition in definitions {
+        let enabled_by_default = definition.startup_mode == PackagedComponentStartupMode::AutoStart;
+        components
+            .entries
+            .entry(definition.id.clone())
+            .and_modify(|entry| {
+                entry.display_name = definition.display_name.clone();
+                entry.kind = component_kind_label(&definition.kind).to_string();
+                entry.bundled_version = definition.bundled_version.clone();
+                entry.startup_mode = startup_mode_label(&definition.startup_mode).to_string();
+                entry.enabled_by_default = enabled_by_default;
+            })
+            .or_insert_with(|| ComponentStateEntry::from_definition(definition));
+
+        if definition.id == "hub-installer" {
+            continue;
+        }
+
+        upgrades
+            .components
+            .entry(definition.id.clone())
+            .and_modify(|entry| {
+                entry.channel = definition.upgrade_channel.clone();
+            })
+            .or_insert_with(|| UpgradeStateEntry {
+                channel: definition.upgrade_channel.clone(),
+                auto_upgrade_enabled: false,
+                ..UpgradeStateEntry::default()
+            });
+    }
+
+    write_json_file(&paths.components_file, &components)?;
+    write_json_file(&paths.upgrades_file, &upgrades)?;
+    Ok(())
+}
+
 pub fn set_active_runtime_version(paths: &AppPaths, runtime_id: &str, version: &str) -> Result<()> {
     let mut active = read_json_file::<ActiveState>(&paths.active_file)?;
     let entry = active.runtimes.entry(runtime_id.to_string()).or_default();
@@ -425,10 +468,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        initialize_machine_state, set_active_runtime_version, ActiveState, InventoryState,
-        LayoutState, PinnedState, RetentionState, UpgradesState,
+        initialize_machine_state, set_active_runtime_version, sync_component_registry_state,
+        ActiveState, InventoryState, LayoutState, PinnedState, RetentionState, UpgradesState,
     };
-    use crate::framework::paths::resolve_paths_for_root;
+    use crate::framework::{
+        components::{PackagedComponentDefinition, PackagedComponentKind, PackagedComponentStartupMode},
+        paths::resolve_paths_for_root,
+    };
     use serde_json::Value;
 
     #[test]
@@ -561,7 +607,7 @@ mod tests {
         );
         assert_eq!(
             components
-                .pointer("/entries/codex/enabledByDefault")
+                .pointer("/entries/openclaw/enabledByDefault")
                 .and_then(Value::as_bool),
             Some(true)
         );
@@ -577,9 +623,62 @@ mod tests {
                 .and_then(Value::as_bool),
             Some(false)
         );
-        assert!(upgrades.components.contains_key("codex"));
+        assert_eq!(
+            components
+                .pointer("/entries/hub-installer/startupMode")
+                .and_then(Value::as_str),
+            Some("embedded")
+        );
+        assert!(upgrades.components.contains_key("openclaw"));
         assert!(upgrades.components.contains_key("sdkwork-api-router"));
         assert!(!upgrades.components.contains_key("hub-installer"));
+    }
+
+    #[test]
+    fn sync_component_registry_state_backfills_bundle_defined_components_into_machine_state() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        initialize_machine_state(&paths).expect("initialize machine state");
+        sync_component_registry_state(
+            &paths,
+            &[PackagedComponentDefinition {
+                id: "codex".to_string(),
+                display_name: "Codex".to_string(),
+                kind: PackagedComponentKind::Binary,
+                bundled_version: "1.2.3".to_string(),
+                startup_mode: PackagedComponentStartupMode::AutoStart,
+                install_subdir: "modules/codex/current".to_string(),
+                upgrade_channel: "stable".to_string(),
+                service_ids: vec!["codex".to_string()],
+                source_url: None,
+                commit: None,
+            }],
+        )
+        .expect("sync codex definitions");
+
+        let components = serde_json::from_str::<Value>(
+            &std::fs::read_to_string(&paths.components_file).expect("components file"),
+        )
+        .expect("components json");
+        let upgrades = serde_json::from_str::<UpgradesState>(
+            &std::fs::read_to_string(&paths.upgrades_file).expect("upgrades file"),
+        )
+        .expect("upgrades json");
+
+        assert_eq!(
+            components
+                .pointer("/entries/codex/displayName")
+                .and_then(Value::as_str),
+            Some("Codex")
+        );
+        assert_eq!(
+            components
+                .pointer("/entries/codex/enabledByDefault")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert!(upgrades.components.contains_key("codex"));
     }
 
     #[test]

@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { type ClawMallProduct } from '@sdkwork/claw-core/services/clawMallService';
-import { clawMallCatalogService as clawMallService } from '../../services/clawMallService.ts';
+import { type ClawMallProduct } from '@sdkwork/claw-core';
+import { clawMallCatalogService as clawMallService } from '../../services/index.ts';
 
 export function ProductDetail() {
   const { t } = useTranslation();

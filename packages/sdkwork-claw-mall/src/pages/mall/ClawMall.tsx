@@ -9,8 +9,9 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { type ClawMallProduct } from '@sdkwork/claw-core/services/clawMallService';
-import { clawMallCatalogService as clawMallService } from '../../services/clawMallService.ts';
+import { Input } from '@sdkwork/claw-ui';
+import { type ClawMallProduct } from '@sdkwork/claw-core';
+import { clawMallCatalogService as clawMallService } from '../../services/index.ts';
 import {
   flattenMallCategories,
   type FlattenedMallCategory,
@@ -170,13 +171,13 @@ export function ClawMall() {
             <div className="rounded-[1.75rem] border border-zinc-200 bg-white/90 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
               <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                 <Search className="h-4 w-4 text-zinc-400" />
-                <input
+                <Input
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder={t('mall.search.placeholder', {
                     defaultValue: 'Search products, tags, or categories',
                   })}
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+                  className="h-auto border-0 bg-transparent px-0 py-0 text-sm shadow-none ring-0 placeholder:text-zinc-400 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </label>
             </div>

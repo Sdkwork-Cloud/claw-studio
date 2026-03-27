@@ -6,7 +6,7 @@
       "displayName": "OpenClaw",
       "kind": "nodeApp",
       "bundledVersion": "bundled",
-      "startupMode": "manual",
+      "startupMode": "autoStart",
       "installSubdir": "modules/openclaw/current",
       "upgradeChannel": "stable",
       "serviceIds": ["openclaw"]

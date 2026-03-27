@@ -3,7 +3,11 @@ import type {
   StudioWorkbenchTaskExecutionRecord,
   StudioWorkbenchTaskRecord,
 } from '@sdkwork/claw-types';
-import { studio } from '../platform/index.ts';
+import type {
+  StudioOpenClawGatewayInvokeOptions,
+  StudioOpenClawGatewayInvokeRequest,
+} from '../platform/index.ts';
+import { getStudioPlatform } from '../platform/index.ts';
 
 export interface OpenClawInvokeRequest<TArgs extends object = object> {
   tool: string;
@@ -751,6 +755,11 @@ export interface OpenClawCronRunResult {
 export interface OpenClawGatewayClientDependencies {
   fetchImpl?: typeof fetch;
   getInstanceDetail?: (instanceId: string) => Promise<StudioInstanceDetailRecord | null>;
+  invokeGateway?: (
+    instanceId: string,
+    request: OpenClawInvokeRequest<object>,
+    options?: OpenClawGatewayRequestOptions,
+  ) => Promise<unknown>;
 }
 
 export class OpenClawGatewayAccessError extends Error {
@@ -1246,12 +1255,44 @@ function normalizeToolsCatalogResult(result: unknown): OpenClawToolsCatalogResul
   };
 }
 
+function isBuiltInManagedOpenClawAccess(access: OpenClawGatewayAccessDescriptor) {
+  return (
+    access.runtimeKind === 'openclaw' &&
+    access.detail?.instance.isBuiltIn === true &&
+    access.detail.instance.deploymentMode === 'local-managed'
+  );
+}
+
 export function createOpenClawGatewayClient(
   dependencies: OpenClawGatewayClientDependencies = {},
 ) {
-  const fetchImpl = dependencies.fetchImpl ?? fetch;
   const getInstanceDetail =
-    dependencies.getInstanceDetail ?? ((instanceId: string) => studio.getInstanceDetail(instanceId));
+    dependencies.getInstanceDetail ??
+    ((instanceId: string) => getStudioPlatform().getInstanceDetail(instanceId));
+
+  function resolveFetchImpl() {
+    return dependencies.fetchImpl ?? fetch;
+  }
+
+  function resolveGatewayInvoker() {
+    if (dependencies.invokeGateway) {
+      return dependencies.invokeGateway;
+    }
+
+    const studioPlatform = getStudioPlatform();
+    return studioPlatform.invokeOpenClawGateway
+      ? (
+          instanceId: string,
+          request: OpenClawInvokeRequest<object>,
+          options: OpenClawGatewayRequestOptions = {},
+        ) =>
+          studioPlatform.invokeOpenClawGateway!(
+            instanceId,
+            request as StudioOpenClawGatewayInvokeRequest,
+            options as StudioOpenClawGatewayInvokeOptions,
+          )
+      : null;
+  }
 
   async function resolveAccess(instanceId: string): Promise<OpenClawGatewayAccessDescriptor> {
     const detail = await getInstanceDetail(instanceId);
@@ -1278,6 +1319,11 @@ export function createOpenClawGatewayClient(
         ),
       );
     }
+    const invokeGateway = resolveGatewayInvoker();
+    if (invokeGateway && isBuiltInManagedOpenClawAccess(access)) {
+      return (await invokeGateway(access.instanceId, request, options)) as TResult;
+    }
+
     if (!access.endpoint) {
       throw new OpenClawGatewayAccessError(
         createValidationResult(
@@ -1299,7 +1345,7 @@ export function createOpenClawGatewayClient(
 
     let response: Response;
     try {
-      response = await fetchImpl(buildInvokeUrl(access)!, {
+      response = await resolveFetchImpl()(buildInvokeUrl(access)!, {
         method: 'POST',
         headers: buildInvokeHeaders(access, options),
         body: JSON.stringify(request),

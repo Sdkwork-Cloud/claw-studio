@@ -3,4 +3,4 @@ export {
   type ISettingsService,
   type UserPreferences,
   type UserProfile,
-} from '@sdkwork/claw-core/services/settingsService';
+} from '@sdkwork/claw-core';

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "autoStartComponentIds": ["sdkwork-api-router"],
-  "manualComponentIds": ["openclaw", "zeroclaw", "ironclaw"],
+  "autoStartComponentIds": ["openclaw", "sdkwork-api-router"],
+  "manualComponentIds": ["zeroclaw", "ironclaw"],
   "embeddedComponentIds": ["hub-installer"],
   "routerServiceIds": [
     "sdkwork_api_router_gateway",

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { configurePlatformBridge, getPlatformBridge } from '../platform/index.ts';
 import {
   createOpenClawGatewayClient,
   type OpenClawInvokeRequest,
@@ -204,6 +205,147 @@ await runTest('invokeTool forwards optional OpenClaw HTTP context headers', asyn
   assert.deepEqual(result, {
     ok: true,
   });
+});
+
+await runTest('openClawGatewayClient prefers the desktop bridge over browser fetch when available', async () => {
+  const originalBridge = getPlatformBridge();
+  const originalFetch = globalThis.fetch;
+  let fetchCalled = false;
+  const desktopCalls: Array<{
+    instanceId: string;
+    request: OpenClawInvokeRequest<object>;
+    options: Record<string, unknown> | undefined;
+  }> = [];
+
+  globalThis.fetch = (async () => {
+    fetchCalled = true;
+    throw new Error('browser fetch should not be used when desktop bridge is available');
+  }) as typeof fetch;
+
+  const client = createOpenClawGatewayClient();
+
+  configurePlatformBridge({
+    studio: {
+      ...originalBridge.studio,
+      getInstanceDetail: async () =>
+        createInstanceDetail({
+          instance: {
+            ...createInstanceDetail().instance,
+            isBuiltIn: true,
+            deploymentMode: 'local-managed',
+            host: '127.0.0.1',
+            port: 18845,
+            baseUrl: 'http://127.0.0.1:18845',
+          },
+          config: {
+            ...createInstanceDetail().config,
+            baseUrl: 'http://127.0.0.1:18845',
+          },
+        }),
+      invokeOpenClawGateway: async (instanceId, request, options) => {
+        desktopCalls.push({
+          instanceId,
+          request: request as OpenClawInvokeRequest<object>,
+          options: options as Record<string, unknown> | undefined,
+        });
+        return {
+          models: [
+            {
+              id: 'openai/gpt-5.4',
+              provider: 'openai',
+              label: 'GPT-5.4',
+            },
+          ],
+        };
+      },
+    } as typeof originalBridge.studio,
+  });
+
+  try {
+    const models = await client.listModels('openclaw-prod');
+
+    assert.equal(fetchCalled, false);
+    assert.deepEqual(desktopCalls, [
+      {
+        instanceId: 'openclaw-prod',
+        request: {
+          tool: 'models',
+          action: 'list',
+          args: {},
+        },
+        options: {},
+      },
+    ]);
+    assert.deepEqual(models, [
+      {
+        id: 'openai/gpt-5.4',
+        provider: 'openai',
+        label: 'GPT-5.4',
+      },
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawGatewayClient keeps remote OpenClaw instances on HTTP fetch even when a desktop bridge exists', async () => {
+  const originalBridge = getPlatformBridge();
+  const desktopCalls: Array<{
+    instanceId: string;
+    request: OpenClawInvokeRequest<object>;
+    options: Record<string, unknown> | undefined;
+  }> = [];
+  let fetchCalled = false;
+
+  configurePlatformBridge({
+    studio: {
+      ...originalBridge.studio,
+      invokeOpenClawGateway: async (instanceId, request, options) => {
+        desktopCalls.push({
+          instanceId,
+          request: request as OpenClawInvokeRequest<object>,
+          options: options as Record<string, unknown> | undefined,
+        });
+        return {
+          models: [{ id: 'bridge-should-not-run' }],
+        };
+      },
+    } as typeof originalBridge.studio,
+  });
+
+  try {
+    const client = createOpenClawGatewayClient({
+      getInstanceDetail: async () => createInstanceDetail(),
+      fetchImpl: async (_input, _init) => {
+        fetchCalled = true;
+        return createJsonResponse({
+          ok: true,
+          result: {
+            models: [
+              {
+                id: 'openai/gpt-5.4',
+                provider: 'openai',
+              },
+            ],
+          },
+        });
+      },
+    });
+
+    const models = await client.listModels('openclaw-prod');
+
+    assert.equal(fetchCalled, true);
+    assert.deepEqual(desktopCalls, []);
+    assert.deepEqual(models, [
+      {
+        id: 'openai/gpt-5.4',
+        provider: 'openai',
+      },
+    ]);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
 });
 
 await runTest('getInvokeHttpRequestInfo exposes validated request metadata', async () => {
@@ -1637,6 +1779,8 @@ await runTest('listWorkbenchCronJobs maps cron jobs into Studio workbench tasks'
     cronExpression: '0 9 * * *',
     actionType: 'skill',
     status: 'active',
+    sessionMode: 'isolated',
+    wakeUpMode: 'nextCycle',
     executionContent: 'runAssistantTask',
     deliveryMode: 'publishSummary',
     deliveryChannel: 'slack',

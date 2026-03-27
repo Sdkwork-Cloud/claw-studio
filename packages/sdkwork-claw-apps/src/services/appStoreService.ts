@@ -13,7 +13,7 @@ import {
   type AppStoreCatalogCategory,
   type AppStoreCatalogService,
   appStoreCatalogService as defaultAppStoreCatalogService,
-} from '@sdkwork/claw-core/services/appStoreCatalogService';
+} from '@sdkwork/claw-core';
 import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
 import {
   type AppInstallContext,

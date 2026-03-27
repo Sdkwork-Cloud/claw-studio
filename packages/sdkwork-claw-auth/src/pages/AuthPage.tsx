@@ -135,7 +135,7 @@ export function AuthPage() {
     }
 
     let disposed = false;
-    let pollTimer: ReturnType<typeof window.setTimeout> | null = null;
+    let pollTimer: number | null = null;
 
     const clearPollTimer = () => {
       if (pollTimer !== null) {

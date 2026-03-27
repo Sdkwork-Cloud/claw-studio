@@ -13,11 +13,6 @@ const AuthOAuthCallbackPage = lazy(() =>
     default: module.AuthOAuthCallbackPage,
   })),
 );
-const ApiRouter = lazy(() =>
-  import('@sdkwork/claw-apirouter').then((module) => ({
-    default: module.ApiRouter,
-  })),
-);
 const AgentMarket = lazy(() =>
   import('@sdkwork/claw-agent').then((module) => ({
     default: module.AgentMarket,
@@ -143,6 +138,11 @@ const Instances = lazy(() =>
     default: module.Instances,
   })),
 );
+const Nodes = lazy(() =>
+  import('@sdkwork/claw-instances').then((module) => ({
+    default: module.Nodes,
+  })),
+);
 const Market = lazy(() =>
   import('@sdkwork/claw-market').then((module) => ({
     default: module.Market,
@@ -171,6 +171,16 @@ const Points = lazy(() =>
 const Settings = lazy(() =>
   import('@sdkwork/claw-settings').then((module) => ({
     default: module.Settings,
+  })),
+);
+const ProviderConfigCenter = lazy(() =>
+  import('@sdkwork/claw-settings').then((module) => ({
+    default: module.ProviderConfigCenter,
+  })),
+);
+const KernelCenter = lazy(() =>
+  import('@sdkwork/claw-settings').then((module) => ({
+    default: module.KernelCenter,
   })),
 );
 const Tasks = lazy(() =>
@@ -286,6 +296,16 @@ export function AppRoutes() {
             <PageWrapper>
               <Suspense fallback={<RouteFallback />}>
                 <Instances />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/nodes"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <Nodes />
               </Suspense>
             </PageWrapper>
           }
@@ -541,6 +561,16 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="/kernel"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <KernelCenter />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
           path="/docs"
           element={
             <PageWrapper>
@@ -559,7 +589,7 @@ export function AppRoutes() {
           element={
             <PageWrapper>
               <Suspense fallback={<RouteFallback />}>
-                <ApiRouter />
+                <ProviderConfigCenter />
               </Suspense>
             </PageWrapper>
           }

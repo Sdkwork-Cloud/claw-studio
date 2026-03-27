@@ -73,7 +73,7 @@ runTest('sdkwork-claw-core owns the shared community wrapper for remote feed sdk
   const servicesIndexSource = read('packages/sdkwork-claw-core/src/services/index.ts');
   const communityServiceSource = read('packages/sdkwork-claw-core/src/services/communityService.ts');
 
-  assert.equal(pkg.exports?.['./services/communityService'], './src/services/communityService.ts');
+  assert.deepEqual(Object.keys(pkg.exports ?? {}).sort(), ['.', './sdk']);
   assert.match(servicesIndexSource, /communityService/);
   assert.match(communityServiceSource, /createCommunityService/);
   assert.match(communityServiceSource, /getAppSdkClientWithSession/);
@@ -92,8 +92,7 @@ runTest('sdkwork-claw-core owns shared account and settings wrappers for remote 
   const accountServiceSource = read('packages/sdkwork-claw-core/src/services/accountService.ts');
   const settingsServiceSource = read('packages/sdkwork-claw-core/src/services/settingsService.ts');
 
-  assert.equal(pkg.exports?.['./services/accountService'], './src/services/accountService.ts');
-  assert.equal(pkg.exports?.['./services/settingsService'], './src/services/settingsService.ts');
+  assert.deepEqual(Object.keys(pkg.exports ?? {}).sort(), ['.', './sdk']);
   assert.match(servicesIndexSource, /accountService/);
   assert.match(servicesIndexSource, /settingsService/);
   assert.match(accountServiceSource, /getAppSdkClientWithSession/);

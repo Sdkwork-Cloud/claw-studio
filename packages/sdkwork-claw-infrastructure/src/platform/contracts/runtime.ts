@@ -1,3 +1,5 @@
+import type { RuntimeDesktopKernelHostInfo } from './kernel.ts';
+
 export interface RuntimeAppInfo {
   name: string;
   version: string;
@@ -410,6 +412,7 @@ export interface RuntimeDesktopKernelInfo {
   supervisor: RuntimeDesktopSupervisorInfo;
   bundledComponents: RuntimeDesktopBundledComponentsInfo;
   storage: RuntimeStorageInfo;
+  host: RuntimeDesktopKernelHostInfo;
 }
 
 export type RuntimeEventUnsubscribe = () => void | Promise<void>;

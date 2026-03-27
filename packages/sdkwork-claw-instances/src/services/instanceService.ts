@@ -180,7 +180,7 @@ function mapUpdateInput(data: UpdateInstanceDTO): StudioUpdateInstanceInput {
   };
 }
 
-function trimApiRouterProviderId(providerId: string) {
+function normalizeProviderId(providerId: string) {
   return providerId.startsWith('api-router-')
     ? providerId.slice('api-router-'.length)
     : providerId;
@@ -509,7 +509,7 @@ class InstanceService implements IInstanceService {
       await openClawConfigService.saveProviderSelection({
         configPath: managedConfig.configPath,
         provider: {
-          id: trimApiRouterProviderId(providerId),
+          id: normalizeProviderId(providerId),
           channelId: currentProvider.provider,
           name: currentProvider.name,
           apiKey: update.apiKeySource,
@@ -600,10 +600,10 @@ class InstanceService implements IInstanceService {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-    await openClawConfigService.deleteProvider({
-      configPath: managedConfig.configPath,
-      providerId: trimApiRouterProviderId(providerId),
-    });
+      await openClawConfigService.deleteProvider({
+        configPath: managedConfig.configPath,
+        providerId: normalizeProviderId(providerId),
+      });
   }
 
   async createInstanceLlmProviderModel(
@@ -616,11 +616,11 @@ class InstanceService implements IInstanceService {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-    await openClawConfigService.createProviderModel({
-      configPath: managedConfig.configPath,
-      providerId: trimApiRouterProviderId(providerId),
-      model,
-    });
+      await openClawConfigService.createProviderModel({
+        configPath: managedConfig.configPath,
+        providerId: normalizeProviderId(providerId),
+        model,
+      });
   }
 
   async updateInstanceLlmProviderModel(
@@ -634,12 +634,12 @@ class InstanceService implements IInstanceService {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-    await openClawConfigService.updateProviderModel({
-      configPath: managedConfig.configPath,
-      providerId: trimApiRouterProviderId(providerId),
-      modelId,
-      model,
-    });
+      await openClawConfigService.updateProviderModel({
+        configPath: managedConfig.configPath,
+        providerId: normalizeProviderId(providerId),
+        modelId,
+        model,
+      });
   }
 
   async deleteInstanceLlmProviderModel(
@@ -652,11 +652,11 @@ class InstanceService implements IInstanceService {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-    await openClawConfigService.deleteProviderModel({
-      configPath: managedConfig.configPath,
-      providerId: trimApiRouterProviderId(providerId),
-      modelId,
-    });
+      await openClawConfigService.deleteProviderModel({
+        configPath: managedConfig.configPath,
+        providerId: normalizeProviderId(providerId),
+        modelId,
+      });
   }
 
   async createOpenClawAgent(id: string, agent: OpenClawAgentInput): Promise<void> {

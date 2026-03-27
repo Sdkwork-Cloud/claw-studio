@@ -1,5 +1,8 @@
 use crate::{
-    framework::{kernel::DesktopKernelInfo, storage::StorageInfo, Result as FrameworkResult},
+    framework::{
+        kernel::DesktopKernelInfo, kernel_host::types::DesktopKernelHostInfo, storage::StorageInfo,
+        Result as FrameworkResult,
+    },
     state::AppState,
 };
 
@@ -21,9 +24,44 @@ pub fn desktop_storage_info_from_state(state: &AppState) -> StorageInfo {
         .desktop_storage_info(&state.paths, &config)
 }
 
+pub fn desktop_kernel_status_from_state(
+    state: &AppState,
+) -> FrameworkResult<DesktopKernelHostInfo> {
+    state.context.services.desktop_kernel_host_status(&state.paths)
+}
+
 #[tauri::command]
 pub fn desktop_kernel_info(state: tauri::State<'_, AppState>) -> Result<DesktopKernelInfo, String> {
     desktop_kernel_info_from_state(&state).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn desktop_kernel_status(
+    state: tauri::State<'_, AppState>,
+) -> Result<DesktopKernelHostInfo, String> {
+    desktop_kernel_status_from_state(&state).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn ensure_desktop_kernel_running(
+    state: tauri::State<'_, AppState>,
+) -> Result<DesktopKernelHostInfo, String> {
+    state
+        .context
+        .services
+        .ensure_desktop_kernel_running(&state.paths)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn restart_desktop_kernel(
+    state: tauri::State<'_, AppState>,
+) -> Result<DesktopKernelHostInfo, String> {
+    state
+        .context
+        .services
+        .restart_desktop_kernel(&state.paths)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -121,25 +159,28 @@ mod tests {
             .available_adapters
             .iter()
             .any(|adapter| adapter.id == "plugin-host"));
-        assert_eq!(info.supervisor.service_count, 8);
+        assert_eq!(info.supervisor.service_count, 3);
         assert_eq!(
             info.supervisor.managed_service_ids,
             vec![
-                "openclaw".to_string(),
-                "zeroclaw".to_string(),
-                "ironclaw".to_string(),
-                "sdkwork_api_router_gateway".to_string(),
-                "sdkwork_api_router_admin_api".to_string(),
-                "sdkwork_api_router_portal_api".to_string(),
-                "sdkwork_api_router_web_server".to_string(),
+                "openclaw_gateway".to_string(),
+                "web_server".to_string(),
+                "api_router".to_string(),
             ]
         );
         assert_eq!(info.supervisor.lifecycle, "running");
         assert_eq!(info.bundled_components.component_count, 5);
         assert_eq!(
             info.bundled_components.default_startup_component_ids,
-            vec!["sdkwork-api-router".to_string()]
+            vec!["openclaw".to_string(), "sdkwork-api-router".to_string()]
         );
+        assert_eq!(info.host.topology.kind, "localManagedNative");
+        assert_eq!(info.host.topology.state, "installed");
+        assert_eq!(info.host.runtime.state, "stopped");
+        assert_eq!(info.host.endpoint.preferred_port, 18_789);
+        assert!(info.host.endpoint.base_url.starts_with("http://127.0.0.1:"));
+        assert!(info.host.host.attach_supported);
+        assert!(info.host.host.repair_supported);
     }
 
     #[test]

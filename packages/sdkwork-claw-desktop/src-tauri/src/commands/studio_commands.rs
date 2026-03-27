@@ -2,8 +2,10 @@ use crate::{
     framework::{
         services::studio::{
             StudioConversationRecord, StudioCreateInstanceInput, StudioInstanceConfig,
-            StudioInstanceDetailRecord, StudioInstanceRecord, StudioUpdateInstanceInput,
-            StudioUpdateInstanceLlmProviderConfigInput, StudioWorkbenchTaskExecutionRecord,
+            StudioInstanceDetailRecord, StudioInstanceRecord,
+            StudioOpenClawGatewayInvokeOptions, StudioOpenClawGatewayInvokeRequest,
+            StudioUpdateInstanceInput, StudioUpdateInstanceLlmProviderConfigInput,
+            StudioWorkbenchTaskExecutionRecord,
         },
         Result as FrameworkResult,
     },
@@ -61,6 +63,30 @@ pub fn studio_get_instance_detail(
             &config,
             &state.context.services.storage,
             id.as_str(),
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn studio_invoke_openclaw_gateway(
+    state: tauri::State<'_, AppState>,
+    instance_id: String,
+    request: StudioOpenClawGatewayInvokeRequest,
+    options: Option<StudioOpenClawGatewayInvokeOptions>,
+) -> Result<Value, String> {
+    let config = state.config_snapshot();
+    state
+        .context
+        .services
+        .studio
+        .invoke_openclaw_gateway(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            &state.context.services.supervisor,
+            instance_id.as_str(),
+            &request,
+            &options.unwrap_or_default(),
         )
         .map_err(|error| error.to_string())
 }

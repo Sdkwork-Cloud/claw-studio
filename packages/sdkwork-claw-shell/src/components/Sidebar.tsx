@@ -7,6 +7,7 @@ import {
   CalendarClock,
   ChevronUp,
   CircleUserRound,
+  Cpu,
   Download,
   Github,
   Hash,
@@ -199,6 +200,8 @@ export function Sidebar() {
       section: t('sidebar.setup'),
       items: [
         { id: 'install', to: '/install', icon: Download, label: t('sidebar.install') },
+        { id: 'kernel', to: '/kernel', icon: Cpu, label: t('sidebar.kernelCenter') },
+        { id: 'nodes', to: '/nodes', icon: Waypoints, label: t('sidebar.nodes') },
         { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
         { id: 'api-router', to: '/api-router', icon: Router, label: t('sidebar.apiRouter') },
       ],
