@@ -61,6 +61,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /libfuse2t64/);
   assert.match(workflow, /libgbm-dev/);
   assert.match(workflow, /file/);
+  assert.match(workflow, /pkg-config/);
   assert.match(workflow, /pnpm build/);
   assert.match(workflow, /pnpm docs:build/);
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase sync --target \$\{\{ matrix\.target \}\} --release/);

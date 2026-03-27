@@ -98,6 +98,7 @@ jobs:
             libpipewire-0.3-dev \
             libssl-dev \
             librsvg2-dev \
+            pkg-config \
             rpm \
             patchelf
 
@@ -194,6 +195,7 @@ jobs:
             libpipewire-0.3-dev \
             libssl-dev \
             librsvg2-dev \
+            pkg-config \
             rpm \
             patchelf
 

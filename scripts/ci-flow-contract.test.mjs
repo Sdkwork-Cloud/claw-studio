@@ -31,6 +31,7 @@ test('repository exposes a mainline CI workflow for push and pull request verifi
   assert.equal(gitSourcePreparationCount, 2);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
   assert.equal(sharedSdkPreparationCount, 2);
+  assert.match(workflow, /pkg-config/);
   assert.match(workflow, /pnpm lint/);
   assert.match(workflow, /pnpm check:desktop/);
   assert.match(workflow, /pnpm build/);
