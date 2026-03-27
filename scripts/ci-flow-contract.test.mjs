@@ -14,6 +14,10 @@ test('repository exposes a mainline CI workflow for push and pull request verifi
   assert.equal(existsSync(workflowPath), true, 'missing .github/workflows/ci.yml');
 
   const workflow = read('.github/workflows/ci.yml');
+  const gitSourcePreparationCount =
+    workflow.match(/node scripts\/prepare-shared-sdk-git-sources\.mjs/g)?.length ?? 0;
+  const sharedSdkPreparationCount =
+    workflow.match(/pnpm prepare:shared-sdk/g)?.length ?? 0;
 
   assert.match(workflow, /push:\s*[\s\S]*branches:\s*[\s\S]*-\s*main/);
   assert.match(workflow, /pull_request:\s*[\s\S]*branches:\s*[\s\S]*-\s*main/);
@@ -22,7 +26,11 @@ test('repository exposes a mainline CI workflow for push and pull request verifi
   assert.match(workflow, /cancel-in-progress:\s*true/);
   assert.match(workflow, /ubuntu-latest/);
   assert.match(workflow, /windows-2022/);
+  assert.match(workflow, /pnpm\/action-setup@/);
+  assert.match(workflow, /actions\/setup-node@/);
+  assert.equal(gitSourcePreparationCount, 2);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
+  assert.equal(sharedSdkPreparationCount, 2);
   assert.match(workflow, /pnpm lint/);
   assert.match(workflow, /pnpm check:desktop/);
   assert.match(workflow, /pnpm build/);

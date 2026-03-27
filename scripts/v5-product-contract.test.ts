@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
+const v5RouteSurfaceBaselinePath = path.join(
+  root,
+  'scripts',
+  'fixtures',
+  'claw-studio-v5-route-surface.json',
+);
 
 function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
@@ -19,12 +25,18 @@ function runTest(name: string, fn: () => void) {
 }
 
 runTest('V5 contract includes auth and extended surface routes', () => {
-  const source = read('upgrade/claw-studio-v5/src/App.tsx');
-  assert.match(source, /path="\/auth"/);
-  assert.match(source, /path="\/login"/);
-  assert.match(source, /path="\/register"/);
-  assert.match(source, /path="\/forgot-password"/);
-  assert.match(source, /path="\/claw-upload"/);
-  assert.match(source, /path="\/codebox"/);
-  assert.match(source, /path="\/api-router"/);
+  const baseline = JSON.parse(fs.readFileSync(v5RouteSurfaceBaselinePath, 'utf8')) as {
+    source: string;
+    routes: string[];
+  };
+
+  assert.equal(baseline.source, 'upgrade/claw-studio-v5/src/App.tsx');
+  assert.equal(Array.isArray(baseline.routes), true);
+  assert.ok(baseline.routes.includes('/auth'));
+  assert.ok(baseline.routes.includes('/login'));
+  assert.ok(baseline.routes.includes('/register'));
+  assert.ok(baseline.routes.includes('/forgot-password'));
+  assert.ok(baseline.routes.includes('/claw-upload'));
+  assert.ok(baseline.routes.includes('/codebox'));
+  assert.ok(baseline.routes.includes('/api-router'));
 });

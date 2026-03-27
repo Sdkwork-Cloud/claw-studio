@@ -107,6 +107,9 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared SDK packages
+        run: pnpm prepare:shared-sdk
+
       - name: Run release verification
         shell: bash
         run: |
@@ -200,6 +203,9 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared SDK packages
+        run: pnpm prepare:shared-sdk
+
       - name: Sync bundled desktop components
         run: node scripts/run-desktop-release-build.mjs --phase sync --target ${{ matrix.target }} --release
 
@@ -262,6 +268,9 @@ jobs:
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build shared SDK packages
+        run: pnpm prepare:shared-sdk
 
       - name: Build web and docs
         shell: bash

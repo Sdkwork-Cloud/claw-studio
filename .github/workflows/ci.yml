@@ -75,6 +75,9 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared SDK packages
+        run: pnpm prepare:shared-sdk
+
       - name: Run workspace lint and parity checks
         run: pnpm lint
 
@@ -100,11 +103,32 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+
+      - name: Prepare git-backed shared SDK sources
+        run: node scripts/prepare-shared-sdk-git-sources.mjs
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared SDK packages
+        run: pnpm prepare:shared-sdk
 
       - name: Run Windows desktop Rust tests
         run: cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml
