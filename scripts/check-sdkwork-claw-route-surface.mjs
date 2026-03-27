@@ -11,7 +11,12 @@ const shellRoutesPath = path.join(
   'router',
   'AppRoutes.tsx',
 );
-const v5RoutesPath = path.join(root, 'upgrade', 'claw-studio-v5', 'src', 'App.tsx');
+const v5RouteSurfaceBaselinePath = path.join(
+  root,
+  'scripts',
+  'fixtures',
+  'claw-studio-v5-route-surface.json',
+);
 
 function read(relPath) {
   if (!fs.existsSync(relPath)) {
@@ -27,8 +32,23 @@ function extractRoutes(source) {
   return [...new Set([...routeMatches].map((match) => match[1]).filter(Boolean))].sort();
 }
 
+function readRouteSurfaceBaseline(relPath) {
+  if (!fs.existsSync(relPath)) {
+    console.error(`Missing route surface baseline: ${path.relative(root, relPath)}`);
+    process.exit(1);
+  }
+
+  const parsed = JSON.parse(fs.readFileSync(relPath, 'utf8'));
+  if (!Array.isArray(parsed?.routes)) {
+    console.error(`Invalid route surface baseline: ${path.relative(root, relPath)}`);
+    process.exit(1);
+  }
+
+  return [...new Set(parsed.routes.filter((route) => typeof route === 'string' && route.length > 0))].sort();
+}
+
 const shellRoutes = extractRoutes(read(shellRoutesPath));
-const v5Routes = extractRoutes(read(v5RoutesPath));
+const v5Routes = readRouteSurfaceBaseline(v5RouteSurfaceBaselinePath);
 const approvedTemplateExtensions = new Set([
   '/dashboard',
   '/login/oauth/callback/:provider',

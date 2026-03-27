@@ -24,6 +24,10 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.equal(existsSync(workflowPath), true, 'missing .github/workflows/release.yml');
 
   const workflow = read('.github/workflows/release.yml');
+  const gitSourcePreparationCount =
+    workflow.match(/node scripts\/prepare-shared-sdk-git-sources\.mjs/g)?.length ?? 0;
+  const sharedSdkPreparationCount =
+    workflow.match(/pnpm prepare:shared-sdk/g)?.length ?? 0;
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /push:\s*[\s\S]*tags:\s*[\s\S]*release-\*/);
@@ -47,8 +51,9 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /SDKWORK_SHARED_SDK_GIT_REF:\s*main/);
   assert.match(workflow, /SDKWORK_SHARED_SDK_APP_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
   assert.match(workflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
-  assert.match(workflow, /node scripts\/prepare-shared-sdk-git-sources\.mjs/);
+  assert.equal(gitSourcePreparationCount, 3);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
+  assert.equal(sharedSdkPreparationCount, 3);
   assert.match(workflow, /submodules:\s*recursive/);
   assert.match(workflow, /libgtk-3-dev/);
   assert.match(workflow, /libpipewire-0\.3-dev/);
