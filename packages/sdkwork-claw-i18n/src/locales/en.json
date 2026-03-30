@@ -3225,6 +3225,16 @@
         "openOfficialSite": "Open official setup page",
         "readFullDocumentation": "Read full documentation",
         "credentials": "Credentials"
+      },
+      "catalog": {
+        "tabs": {
+          "domestic": "Domestic Messaging Apps",
+          "global": "Global Messaging Apps"
+        },
+        "empty": {
+          "domestic": "No domestic messaging channels are available in this workspace.",
+          "global": "No global messaging channels are available in this workspace."
+        }
       }
     }
   },

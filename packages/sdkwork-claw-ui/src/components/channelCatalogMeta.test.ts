@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+  getChannelCatalogRegion,
   getChannelOfficialLink,
   isChannelDownloadAppAction,
+  partitionChannelCatalogItemsByRegion,
+  resolveDefaultChannelCatalogRegion,
   sortChannelCatalogItems,
 } from './channelCatalogMeta.ts';
 
@@ -50,6 +53,61 @@ runTest('isChannelDownloadAppAction only marks first-party Sdkwork Chat as a dow
   assert.equal(isChannelDownloadAppAction('sdkworkchat'), true);
   assert.equal(isChannelDownloadAppAction('wehcat'), false);
   assert.equal(isChannelDownloadAppAction('discord'), false);
+});
+
+runTest('getChannelCatalogRegion keeps domestic channels grouped separately from global channels', () => {
+  assert.equal(getChannelCatalogRegion('sdkworkchat'), 'domestic');
+  assert.equal(getChannelCatalogRegion('wehcat'), 'domestic');
+  assert.equal(getChannelCatalogRegion('qq'), 'domestic');
+  assert.equal(getChannelCatalogRegion('dingtalk'), 'domestic');
+  assert.equal(getChannelCatalogRegion('wecom'), 'domestic');
+  assert.equal(getChannelCatalogRegion('feishu'), 'domestic');
+  assert.equal(getChannelCatalogRegion('telegram'), 'global');
+  assert.equal(getChannelCatalogRegion('discord'), 'global');
+  assert.equal(getChannelCatalogRegion('unknown-channel'), 'global');
+});
+
+runTest('partitionChannelCatalogItemsByRegion prefers the domestic tab when both groups have entries', () => {
+  const groups = partitionChannelCatalogItemsByRegion([
+    {
+      id: 'discord',
+      name: 'Discord',
+      description: 'Discord workspace',
+      status: 'connected',
+      enabled: true,
+    },
+    {
+      id: 'qq',
+      name: 'QQ',
+      description: 'QQ workspace',
+      status: 'not_configured',
+      enabled: false,
+    },
+    {
+      id: 'sdkworkchat',
+      name: 'Sdkwork Chat',
+      description: 'Sdkwork Chat workspace',
+      status: 'connected',
+      enabled: true,
+    },
+  ]);
+
+  assert.deepEqual(
+    groups.domestic.map((item) => item.id),
+    ['sdkworkchat', 'qq'],
+  );
+  assert.deepEqual(
+    groups.global.map((item) => item.id),
+    ['discord'],
+  );
+  assert.equal(resolveDefaultChannelCatalogRegion(groups), 'domestic');
+  assert.equal(
+    resolveDefaultChannelCatalogRegion({
+      domestic: [],
+      global: groups.global,
+    }),
+    'global',
+  );
 });
 
 runTest('sortChannelCatalogItems keeps Sdkwork Chat pinned first and preserves configured channels after it', () => {

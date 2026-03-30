@@ -296,6 +296,26 @@ test('desktop release build runner injects the supported Visual Studio generator
   assert.equal(linuxPlan.command, 'pnpm');
   assert.deepEqual(linuxPlan.args, ['--filter', '@sdkwork/claw-desktop', 'run', 'tauri:build']);
   assert.equal(Object.hasOwn(linuxPlan.env, 'CMAKE_GENERATOR'), false);
+  assert.equal(windowsPlan.env.SDKWORK_VITE_MODE, 'production');
+  assert.equal(linuxPlan.env.SDKWORK_VITE_MODE, 'production');
+});
+
+test('desktop release build runner can override the vite mode for test bundles while keeping production as the default', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  const defaultPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+  });
+  const testPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+    viteMode: 'test',
+  });
+
+  assert.equal(defaultPlan.env.SDKWORK_VITE_MODE, 'production');
+  assert.equal(testPlan.env.SDKWORK_VITE_MODE, 'test');
 });
 
 test('desktop release target helpers resolve platform and architecture from explicit target triples', async () => {

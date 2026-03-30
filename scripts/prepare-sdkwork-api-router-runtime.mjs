@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureTauriRustToolchain } from './ensure-tauri-rust-toolchain.mjs';
 import { resolveDesktopReleaseTarget } from './release/desktop-targets.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -400,6 +401,8 @@ async function buildApiRouterRuntimeFromWorkspace({
   profile = 'release',
   target = resolveApiRouterTarget(),
 }) {
+  ensureTauriRustToolchain();
+
   const cargoArgs = ['build'];
   if (profile === 'release') {
     cargoArgs.push('--release');

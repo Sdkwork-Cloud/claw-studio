@@ -22,8 +22,6 @@ export interface AppSdkSessionTokens {
 }
 
 const DEFAULT_TIMEOUT = 30_000;
-const DEFAULT_DEV_BASE_URL = 'https://api-dev.sdkwork.com';
-const DEFAULT_PROD_BASE_URL = 'https://api.sdkwork.com';
 const APP_SDK_SESSION_STORAGE_KEY = 'claw-studio-auth-session';
 
 let appSdkClient: SdkworkAppClient | null = null;
@@ -120,13 +118,8 @@ function parseTimeout(value?: string, fallback = DEFAULT_TIMEOUT): number {
   return parsed;
 }
 
-function resolveDefaultBaseUrl(env: AppRuntimeEnv): string {
-  return env === 'production' ? DEFAULT_PROD_BASE_URL : DEFAULT_DEV_BASE_URL;
-}
-
-function normalizeBaseUrl(baseUrl?: string, env: AppRuntimeEnv = 'development'): string {
-  const safe = (baseUrl || resolveDefaultBaseUrl(env)).trim();
-  return safe.replace(/\/+$/g, '');
+function normalizeBaseUrl(baseUrl?: string): string {
+  return (baseUrl || '').trim().replace(/\/+$/g, '');
 }
 
 function readPersistedSession(): Pick<AppSdkSessionTokens, 'authToken' | 'refreshToken'> {
@@ -178,7 +171,6 @@ export function createAppSdkClientConfig(
     env,
     baseUrl: normalizeBaseUrl(
       firstDefined(overrides.baseUrl, readEnv('VITE_API_BASE_URL'), APP_ENV.api.baseUrl),
-      env,
     ),
     timeout: overrides.timeout ?? parseTimeout(readEnv('VITE_TIMEOUT'), APP_ENV.api.timeout || DEFAULT_TIMEOUT),
     apiKey: overrides.apiKey ?? firstDefined(readEnv('VITE_API_KEY')),

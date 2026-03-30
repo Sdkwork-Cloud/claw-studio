@@ -63,6 +63,17 @@ function assertIncludes(relativePath, expectedText, label) {
   }
 }
 
+function assertNotIncludes(relativePath, unexpectedText, label) {
+  const content = readText(relativePath);
+  if (!content) {
+    return;
+  }
+
+  if (content.includes(unexpectedText)) {
+    failures.push(`Unexpected ${label} in ${relativePath}: should not find "${unexpectedText}"`);
+  }
+}
+
 const requiredPaths = [
   ['packages/sdkwork-claw-shell/package.json', 'shell package'],
   ['packages/sdkwork-claw-shell/src/index.ts', 'shell entry'],
@@ -547,13 +558,38 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
-  'xcap',
+  'xcap = "0.9.3"',
   'desktop screenshot crate dependency',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  '[patch.crates-io]',
+  'desktop cargo patch section for screenshot crate',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  'xcap = { path = "vendor/xcap" }',
+  'desktop patched screenshot crate source',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
   'image',
   'desktop screenshot image dependency',
+);
+assertNotIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.toml',
+  'screenshots',
+  'temporary desktop screenshot crate dependency',
+);
+assertNotIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.lock',
+  'name = "pipewire"',
+  'pipewire lockfile entry pulled by screenshot stack',
+);
+assertNotIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/Cargo.lock',
+  'name = "libspa"',
+  'libspa lockfile entry pulled by screenshot stack',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs',

@@ -1,13 +1,18 @@
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ExternalLink, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './Button';
 import { Switch } from './Switch';
+import { ChannelRegionTabs } from './ChannelRegionTabs';
 import {
   isChannelDownloadAppAction,
   getChannelCatalogMonogram,
   getChannelCatalogTone,
   getChannelOfficialLink,
+  partitionChannelCatalogItemsByRegion,
+  resolveDefaultChannelCatalogRegion,
+  type ChannelCatalogRegion,
   sortChannelCatalogItems,
   type ChannelOfficialLink,
 } from './channelCatalogMeta';
@@ -51,6 +56,7 @@ export interface ChannelCatalogProps {
   texts: ChannelCatalogTexts;
   variant?: ChannelCatalogVariant;
   emptyState?: React.ReactNode;
+  showRegionTabs?: boolean;
   resolveOfficialLink?: (channel: ChannelCatalogItem) => ChannelOfficialLink | null;
   onOpenOfficialLink?: (
     channel: ChannelCatalogItem,
@@ -203,184 +209,259 @@ function ChannelIdentity({
   );
 }
 
+function RegionEmptyState({
+  title,
+}: {
+  title: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
+      {title}
+    </div>
+  );
+}
+
 export function ChannelCatalog({
   items,
   texts,
   variant = 'management',
   emptyState = null,
+  showRegionTabs = true,
   resolveOfficialLink = (channel) => getChannelOfficialLink(channel.id),
   onOpenOfficialLink,
   onConfigure,
   onToggleEnabled,
 }: ChannelCatalogProps) {
+  const { t } = useTranslation();
+  const sortedItems = sortChannelCatalogItems(items);
+  const regionGroups = partitionChannelCatalogItemsByRegion(sortedItems);
+  const [activeRegion, setActiveRegion] = React.useState<ChannelCatalogRegion>(() =>
+    resolveDefaultChannelCatalogRegion(regionGroups),
+  );
+
+  React.useEffect(() => {
+    const preferredRegion = resolveDefaultChannelCatalogRegion(regionGroups);
+    if (regionGroups[activeRegion].length === 0 && regionGroups[preferredRegion].length > 0) {
+      setActiveRegion(preferredRegion);
+    }
+  }, [activeRegion, regionGroups]);
+
+  const visibleItems = showRegionTabs ? regionGroups[activeRegion] : sortedItems;
+  const regionLabels: Record<ChannelCatalogRegion, string> = {
+    domestic: t('channels.page.catalog.tabs.domestic'),
+    global: t('channels.page.catalog.tabs.global'),
+  };
+  const regionCounts: Record<ChannelCatalogRegion, number> = {
+    domestic: regionGroups.domestic.length,
+    global: regionGroups.global.length,
+  };
+  const regionEmptyText =
+    activeRegion === 'domestic'
+      ? t('channels.page.catalog.empty.domestic')
+      : t('channels.page.catalog.empty.global');
+
   if (items.length === 0) {
     return <>{emptyState}</>;
   }
 
-  const sortedItems = sortChannelCatalogItems(items);
-
-  if (variant === 'summary') {
+  if (visibleItems.length === 0) {
     return (
-      <div
-        data-slot="channel-catalog-summary"
-        className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35"
-      >
-        {sortedItems.map((channel, index) => {
-          const badge = getStatusBadge(channel, texts, variant);
-          const officialLink = resolveOfficialLink(channel);
-          const shouldShowConfiguredFieldMetric =
-            typeof channel.configuredFieldCount === 'number' &&
-            typeof channel.fieldCount === 'number' &&
-            channel.fieldCount > 0;
-
-          return (
-            <div
-              key={channel.id}
-              className={cn(
-                'grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_auto] xl:items-center',
-                index === sortedItems.length - 1
-                  ? ''
-                  : 'border-b border-zinc-200/70 dark:border-zinc-800',
-              )}
-            >
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                    {channel.name}
-                  </h3>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em]',
-                      badge.className,
-                    )}
-                  >
-                    {badge.label}
-                  </span>
-                </div>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                  {channel.description}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-5">
-                {shouldShowConfiguredFieldMetric ? (
-                  <SummaryMetric
-                    label={texts.metricConfiguredFields}
-                    value={`${channel.configuredFieldCount}/${channel.fieldCount}`}
-                  />
-                ) : null}
-                <SummaryMetric
-                  label={texts.metricSetupSteps}
-                  value={channel.setupSteps?.length || 0}
-                />
-                <SummaryMetric
-                  label={texts.metricDeliveryState}
-                  value={channel.enabled ? texts.stateEnabled : texts.statePending}
-                />
-              </div>
-
-              <div className="xl:max-w-sm">
-                <div className="rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
-                  {channel.setupSteps?.[0] || texts.summaryFallback}
-                </div>
-                {officialLink ? (
-                  <OfficialLinkButton
-                    channel={channel}
-                    link={officialLink}
-                    label={getOfficialActionLabel(channel, texts)}
-                    className="mt-3"
-                    onOpenOfficialLink={onOpenOfficialLink}
-                  />
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
+      <div className="space-y-4">
+        {showRegionTabs ? (
+          <ChannelRegionTabs
+            activeRegion={activeRegion}
+            labels={regionLabels}
+            counts={regionCounts}
+            onChange={setActiveRegion}
+          />
+        ) : null}
+        <RegionEmptyState title={regionEmptyText} />
       </div>
     );
   }
 
-  return (
-    <div
-      data-slot="channel-catalog-management"
-      className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-    >
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {sortedItems.map((channel) => {
-          const badge = getStatusBadge(channel, texts, variant);
-          const officialLink = resolveOfficialLink(channel);
-          const isDownloadAppChannel = isChannelDownloadAppAction(channel.id);
+  if (variant === 'summary') {
+    return (
+      <div className="space-y-4">
+        {showRegionTabs ? (
+          <ChannelRegionTabs
+            activeRegion={activeRegion}
+            labels={regionLabels}
+            counts={regionCounts}
+            onChange={setActiveRegion}
+          />
+        ) : null}
+        <div
+          data-slot="channel-catalog-summary"
+          className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35"
+        >
+          {visibleItems.map((channel, index) => {
+            const badge = getStatusBadge(channel, texts, variant);
+            const officialLink = resolveOfficialLink(channel);
+            const shouldShowConfiguredFieldMetric =
+              typeof channel.configuredFieldCount === 'number' &&
+              typeof channel.fieldCount === 'number' &&
+              channel.fieldCount > 0;
 
-          return (
-            <div
-              key={channel.id}
-              className="group flex flex-col justify-between gap-6 p-6 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 sm:flex-row sm:items-center"
-            >
-              <div className="flex flex-1 items-start gap-5">
-                <ChannelIdentity channel={channel} />
-                <div className="flex-1">
-                  <div className="mb-1.5 flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-bold text-zinc-900 transition-colors group-hover:text-primary-600 dark:text-zinc-100 dark:group-hover:text-primary-400">
+            return (
+              <div
+                key={channel.id}
+                className={cn(
+                  'grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_auto] xl:items-center',
+                  index === visibleItems.length - 1
+                    ? ''
+                    : 'border-b border-zinc-200/70 dark:border-zinc-800',
+                )}
+              >
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
                       {channel.name}
                     </h3>
                     <span
                       className={cn(
-                        'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider',
+                        'rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em]',
                         badge.className,
                       )}
                     >
                       {badge.label}
                     </span>
                   </div>
-                  <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
                     {channel.description}
                   </p>
                 </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-3 sm:border-l sm:border-zinc-100 sm:pl-6 dark:sm:border-zinc-800">
-                {officialLink ? (
-                  <OfficialLinkButton
-                    channel={channel}
-                    link={officialLink}
-                    label={getOfficialActionLabel(channel, texts)}
-                    onOpenOfficialLink={onOpenOfficialLink}
-                  />
-                ) : null}
-
-                {isDownloadAppChannel ? (
-                  onToggleEnabled ? (
-                    <Switch
-                      checked={channel.enabled}
-                      onCheckedChange={(checked) => onToggleEnabled(channel, checked === true)}
-                      aria-label={texts.actionEnableChannel(channel.name)}
+                <div className="flex flex-wrap gap-5">
+                  {shouldShowConfiguredFieldMetric ? (
+                    <SummaryMetric
+                      label={texts.metricConfiguredFields}
+                      value={`${channel.configuredFieldCount}/${channel.fieldCount}`}
                     />
-                  ) : null
-                ) : channel.status === 'not_configured' ? (
-                  onConfigure ? (
-                    <Button onClick={() => onConfigure(channel)}>{texts.actionConnect}</Button>
-                  ) : null
-                ) : (
-                  <>
-                    {onConfigure ? (
-                      <Button variant="ghost" onClick={() => onConfigure(channel)}>
-                        <Settings className="h-4 w-4" />
-                        {texts.actionConfigure}
-                      </Button>
-                    ) : null}
-                    {onToggleEnabled ? (
+                  ) : null}
+                  <SummaryMetric
+                    label={texts.metricSetupSteps}
+                    value={channel.setupSteps?.length || 0}
+                  />
+                  <SummaryMetric
+                    label={texts.metricDeliveryState}
+                    value={channel.enabled ? texts.stateEnabled : texts.statePending}
+                  />
+                </div>
+
+                <div className="xl:max-w-sm">
+                  <div className="rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
+                    {channel.setupSteps?.[0] || texts.summaryFallback}
+                  </div>
+                  {officialLink ? (
+                    <OfficialLinkButton
+                      channel={channel}
+                      link={officialLink}
+                      label={getOfficialActionLabel(channel, texts)}
+                      className="mt-3"
+                      onOpenOfficialLink={onOpenOfficialLink}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {showRegionTabs ? (
+        <ChannelRegionTabs
+          activeRegion={activeRegion}
+          labels={regionLabels}
+          counts={regionCounts}
+          onChange={setActiveRegion}
+        />
+      ) : null}
+      <div
+        data-slot="channel-catalog-management"
+        className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      >
+        <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {visibleItems.map((channel) => {
+            const badge = getStatusBadge(channel, texts, variant);
+            const officialLink = resolveOfficialLink(channel);
+            const isDownloadAppChannel = isChannelDownloadAppAction(channel.id);
+
+            return (
+              <div
+                key={channel.id}
+                className="group flex flex-col justify-between gap-6 p-6 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 sm:flex-row sm:items-center"
+              >
+                <div className="flex flex-1 items-start gap-5">
+                  <ChannelIdentity channel={channel} />
+                  <div className="flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-3">
+                      <h3 className="text-lg font-bold text-zinc-900 transition-colors group-hover:text-primary-600 dark:text-zinc-100 dark:group-hover:text-primary-400">
+                        {channel.name}
+                      </h3>
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider',
+                          badge.className,
+                        )}
+                      >
+                        {badge.label}
+                      </span>
+                    </div>
+                    <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                      {channel.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 sm:border-l sm:border-zinc-100 sm:pl-6 dark:sm:border-zinc-800">
+                  {officialLink ? (
+                    <OfficialLinkButton
+                      channel={channel}
+                      link={officialLink}
+                      label={getOfficialActionLabel(channel, texts)}
+                      onOpenOfficialLink={onOpenOfficialLink}
+                    />
+                  ) : null}
+
+                  {isDownloadAppChannel ? (
+                    onToggleEnabled ? (
                       <Switch
                         checked={channel.enabled}
                         onCheckedChange={(checked) => onToggleEnabled(channel, checked === true)}
                         aria-label={texts.actionEnableChannel(channel.name)}
                       />
-                    ) : null}
-                  </>
-                )}
+                    ) : null
+                  ) : channel.status === 'not_configured' ? (
+                    onConfigure ? (
+                      <Button onClick={() => onConfigure(channel)}>{texts.actionConnect}</Button>
+                    ) : null
+                  ) : (
+                    <>
+                      {onConfigure ? (
+                        <Button variant="ghost" onClick={() => onConfigure(channel)}>
+                          <Settings className="h-4 w-4" />
+                          {texts.actionConfigure}
+                        </Button>
+                      ) : null}
+                      {onToggleEnabled ? (
+                        <Switch
+                          checked={channel.enabled}
+                          onCheckedChange={(checked) => onToggleEnabled(channel, checked === true)}
+                          aria-label={texts.actionEnableChannel(channel.name)}
+                        />
+                      ) : null}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

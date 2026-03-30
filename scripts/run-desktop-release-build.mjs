@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { normalizeViteMode } from './run-vite-host.mjs';
 import { withSupportedWindowsCmakeGenerator } from './prepare-sdkwork-api-router-runtime.mjs';
 import {
   buildDesktopReleaseEnv,
@@ -130,6 +131,7 @@ export function createDesktopReleaseBuildPlan({
   targetTriple = '',
   phase = 'all',
   releaseMode = false,
+  viteMode = 'production',
 } = {}) {
   const requestedTargetTriple = String(targetTriple ?? '').trim();
   const resolvedEnv = requestedTargetTriple
@@ -138,6 +140,10 @@ export function createDesktopReleaseBuildPlan({
         targetTriple: requestedTargetTriple,
       })
     : { ...env };
+  resolvedEnv.SDKWORK_VITE_MODE = normalizeViteMode(
+    viteMode ?? resolvedEnv.SDKWORK_VITE_MODE,
+    'production',
+  );
 
   const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
   const effectiveReleaseMode = releaseMode || normalizedPhase === 'sync';
@@ -178,6 +184,7 @@ function parseCliArgs(argv) {
     targetTriple: '',
     phase: 'all',
     releaseMode: false,
+    viteMode: 'production',
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -198,6 +205,12 @@ function parseCliArgs(argv) {
 
     if (token === '--release') {
       options.releaseMode = true;
+      continue;
+    }
+
+    if (token === '--vite-mode') {
+      options.viteMode = next ?? 'production';
+      index += 1;
     }
   }
 
@@ -210,6 +223,7 @@ function runCli() {
     phase: options.phase,
     targetTriple: options.targetTriple,
     releaseMode: options.releaseMode,
+    viteMode: options.viteMode,
   });
   const child = spawn(plan.command, plan.args, {
     cwd: plan.cwd,
