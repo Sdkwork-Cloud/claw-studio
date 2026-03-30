@@ -19,7 +19,7 @@ function createTaskPayload(overrides: Record<string, unknown> = {}) {
     executionContent: 'runAssistantTask',
     timeoutSeconds: 90,
     deliveryMode: 'publishSummary',
-    deliveryChannel: 'slack',
+    deliveryChannel: 'qq',
     recipient: 'ops-room',
     ...overrides,
   };
@@ -69,17 +69,13 @@ await runTest('instance status and config mutations persist across reads', async
   });
 });
 
-await runTest('channel seeds expose the latest bundled OpenClaw chat channels in runtime order', async () => {
+await runTest('channel seeds expose Sdkwork Chat first and include Wehcat for workspace delivery', async () => {
   const service = createStudioMockService();
 
   const channels = await service.listChannels('local-built-in');
 
-  assert.deepEqual(
-    channels.slice(0, 5).map((channel) => channel.id),
-    ['telegram', 'whatsapp', 'discord', 'irc', 'googlechat'],
-  );
-  assert.equal(channels.some((channel) => channel.id === 'signal'), true);
-  assert.equal(channels.some((channel) => channel.id === 'line'), true);
+  assert.equal(channels[0]?.id, 'sdkworkchat');
+  assert.equal(channels.some((channel) => channel.id === 'wehcat'), true);
 });
 
 await runTest('tasks can be created and status updates round-trip', async () => {
@@ -256,24 +252,6 @@ await runTest('api router provider group, status, and delete mutations round-tri
   assert.equal(after.some((provider) => provider.id === target.id), false);
 });
 
-await runTest('api router seeds MiniMax with current route naming instead of legacy bridge copy', async () => {
-  const service = createStudioMockService();
-
-  const providers = await service.listProxyProviders('minimax');
-  const routeNames = providers.map((provider) => provider.name);
-  const routeBaseUrls = providers.map((provider) => provider.baseUrl);
-
-  assert.deepEqual(routeNames, ['MiniMax Global Route', 'MiniMax CN Route']);
-  assert.deepEqual(routeBaseUrls, [
-    'https://api.minimax.io/anthropic',
-    'https://api.minimaxi.com/anthropic',
-  ]);
-
-  for (const provider of providers) {
-    assert.doesNotMatch(provider.notes || '', /Claude Bridge|Anthropic-style/i);
-  }
-});
-
 await runTest('api router providers can be created with sensible defaults and queried back', async () => {
   const service = createStudioMockService();
   const before = await service.listProxyProviders('anthropic');
@@ -422,8 +400,8 @@ await runTest('api router model mappings can be listed, created, updated, and de
         target: {
           channelId: 'google',
           channelName: 'Google',
-          modelId: 'gemini-3.1-pro-preview',
-          modelName: 'Gemini 3.1 Pro',
+          modelId: 'gemini-2.5-pro',
+          modelName: 'Gemini 2.5 Pro',
         },
       },
     ],
@@ -482,10 +460,7 @@ await runTest('api router model mapping catalog and unified API key association 
   assert.ok(openaiCatalog);
   assert.ok(googleCatalog);
   assert.equal(openaiCatalog.models.some((model) => model.modelId === 'gpt-4.1'), true);
-  assert.equal(
-    googleCatalog.models.some((model) => model.modelId === 'gemini-3.1-pro-preview'),
-    true,
-  );
+  assert.equal(googleCatalog.models.some((model) => model.modelId === 'gemini-2.5-pro'), true);
 
   const mappings = await service.listModelMappings();
   const keys = await service.listUnifiedApiKeys();

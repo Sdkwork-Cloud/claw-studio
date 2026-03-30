@@ -138,7 +138,6 @@ export interface OpenClawAgentInput {
   isDefault?: boolean;
   model?: string | OpenClawAgentModelConfig | null;
   params?: Record<string, OpenClawAgentParamValue | null | undefined>;
-  skills?: string[] | null;
 }
 
 export interface OpenClawAgentSnapshot {
@@ -154,7 +153,6 @@ export interface OpenClawAgentSnapshot {
     fallbacks: string[];
   };
   params: Record<string, OpenClawAgentParamValue>;
-  skills?: string[];
 }
 
 export interface OpenClawResolvedAgentPaths {
@@ -397,28 +395,6 @@ function setOptionalScalar(target: JsonObject, key: string, value: string | unde
   target[key] = normalized;
 }
 
-function setOptionalChannelFieldValue(
-  target: JsonObject,
-  field: OpenClawChannelFieldDefinition,
-  value: string | undefined,
-) {
-  const normalized = value?.trim() || '';
-  if (!normalized) {
-    delete target[field.key];
-    return;
-  }
-
-  if (field.inputMode === 'numeric') {
-    const parsed = Number.parseFloat(normalized);
-    if (Number.isFinite(parsed)) {
-      target[field.key] = parsed;
-      return;
-    }
-  }
-
-  target[field.key] = normalized;
-}
-
 function normalizeAgentId(value: string | undefined | null) {
   const trimmed = (value ?? '').trim();
   if (!trimmed) {
@@ -486,7 +462,6 @@ function getProviderIcon(channelId: string) {
   const iconMap: Record<string, string> = {
     openai: 'OA',
     anthropic: 'AT',
-    google: 'GG',
     xai: 'XI',
     deepseek: 'DS',
     qwen: 'QW',
@@ -977,8 +952,6 @@ function buildAgentSnapshots(root: JsonObject, configPath: string): OpenClawAgen
       configuredModel.primary || configuredModel.fallbacks?.length
         ? configuredModel
         : defaultModel;
-    const hasSkillAllowlist = Object.prototype.hasOwnProperty.call(entry, 'skills');
-    const skills = hasSkillAllowlist ? readStringArray(entry.skills) : undefined;
 
     return {
       id,
@@ -993,7 +966,6 @@ function buildAgentSnapshots(root: JsonObject, configPath: string): OpenClawAgen
         fallbacks: [...new Set((effectiveModel.fallbacks || []).filter(Boolean))],
       },
       params: readAgentParams(entry.params),
-      ...(hasSkillAllowlist ? { skills } : {}),
     };
   });
 }
@@ -1035,13 +1007,182 @@ function buildResolvedAgentPaths(
 
 const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
   {
+    id: 'sdkworkchat',
+    name: 'Sdkwork Chat',
+    description: 'Deliver OpenClaw conversations directly into the first-party Sdkwork Chat experience.',
+    setupSteps: [
+      'Download the Sdkwork Chat app or open the existing Sdkwork Chat workspace.',
+      'Sign in with your SDKWork account to receive OpenClaw conversations immediately.',
+      'Keep this channel enabled when the current runtime should hand off into Sdkwork Chat.',
+    ],
+    configurationMode: 'none',
+    fields: [],
+  },
+  {
+    id: 'wehcat',
+    name: 'Wehcat',
+    description: 'Connect a WeChat official account workflow so OpenClaw can serve China-facing channels.',
+    setupSteps: [
+      'Create or manage a WeChat official account in the WeChat platform.',
+      'Paste the App ID, App Secret, token, and optional AES key here.',
+      'Configure the callback URL on the WeChat side and enable the channel.',
+    ],
+    fields: [
+      {
+        key: 'appId',
+        label: 'App ID',
+        placeholder: 'wx1234567890abcdef',
+        required: true,
+      },
+      {
+        key: 'appSecret',
+        label: 'App Secret',
+        placeholder: 'WeChat app secret',
+        required: true,
+        sensitive: true,
+      },
+      {
+        key: 'token',
+        label: 'Token',
+        placeholder: 'Verification token',
+        required: true,
+      },
+      {
+        key: 'encodingAesKey',
+        label: 'Encoding AES Key',
+        placeholder: 'Optional AES key',
+        sensitive: true,
+      },
+    ],
+  },
+  {
+    id: 'qq',
+    name: 'QQ',
+    description: 'Connect a QQ bot so OpenClaw can route commands, alerts, and approvals into QQ groups.',
+    setupSteps: [
+      'Create or manage the target QQ bot in the QQ bot platform.',
+      'Paste the bot key and target group ID here.',
+      'Enable the channel after a dry-run delivery succeeds.',
+    ],
+    fields: [
+      {
+        key: 'botKey',
+        label: 'Bot Key',
+        placeholder: 'QQ bot key',
+        required: true,
+        sensitive: true,
+      },
+      {
+        key: 'groupId',
+        label: 'Group ID',
+        placeholder: '123456789',
+        required: true,
+        helpText: 'The target QQ group that receives OpenClaw updates.',
+      },
+    ],
+  },
+  {
+    id: 'dingtalk',
+    name: 'DingTalk',
+    description: 'Connect a DingTalk custom robot so OpenClaw can broadcast updates into DingTalk workspaces.',
+    setupSteps: [
+      'Create a custom robot in the target DingTalk group.',
+      'Copy the access token and signing secret into this form.',
+      'Enable the channel after the first connectivity check succeeds.',
+    ],
+    fields: [
+      {
+        key: 'accessToken',
+        label: 'Access Token',
+        placeholder: 'DingTalk access token',
+        required: true,
+        sensitive: true,
+      },
+      {
+        key: 'secret',
+        label: 'Secret',
+        placeholder: 'Robot signing secret',
+        required: true,
+        sensitive: true,
+      },
+    ],
+  },
+  {
+    id: 'wecom',
+    name: 'WeCom',
+    description: 'Connect a WeCom application so OpenClaw can serve enterprise WeCom conversations.',
+    setupSteps: [
+      'Create a WeCom application with bot or customer-contact permissions.',
+      'Paste the corp ID, agent ID, and secret here.',
+      'Save the configuration and verify that message delivery succeeds.',
+    ],
+    fields: [
+      {
+        key: 'corpId',
+        label: 'Corp ID',
+        placeholder: 'ww1234567890abcdef',
+        required: true,
+      },
+      {
+        key: 'agentId',
+        label: 'Agent ID',
+        placeholder: '1000002',
+        required: true,
+      },
+      {
+        key: 'secret',
+        label: 'Secret',
+        placeholder: 'WeCom app secret',
+        required: true,
+        sensitive: true,
+      },
+    ],
+  },
+  {
+    id: 'feishu',
+    name: 'Feishu',
+    description: 'Connect a Feishu bot so OpenClaw can receive and reply to team messages.',
+    setupSteps: [
+      'Create a Feishu app in the open platform.',
+      'Copy the App ID and App Secret into this form.',
+      'Add the event callback URL from your OpenClaw deployment if needed.',
+    ],
+    fields: [
+      {
+        key: 'appId',
+        label: 'App ID',
+        placeholder: 'cli_xxxxxxxxxxxxx',
+        required: true,
+      },
+      {
+        key: 'appSecret',
+        label: 'App Secret',
+        placeholder: 'App secret',
+        required: true,
+        sensitive: true,
+      },
+      {
+        key: 'encryptKey',
+        label: 'Encrypt Key',
+        placeholder: 'Optional encrypt key',
+        sensitive: true,
+      },
+      {
+        key: 'verificationToken',
+        label: 'Verification Token',
+        placeholder: 'Optional verification token',
+        sensitive: true,
+      },
+    ],
+  },
+  {
     id: 'telegram',
     name: 'Telegram',
-    description: 'Bring OpenClaw into direct messages or group chats with a Telegram bot token.',
+    description: 'Use a Telegram bot token to bring OpenClaw into direct messages or group chats.',
     setupSteps: [
       'Create a bot with BotFather and copy the bot token.',
-      'Optional: register a public webhook if Telegram should push updates directly to your host.',
-      'Enable the channel after the token and any webhook values are in place.',
+      'Optionally set a webhook URL if Telegram should push events to your host.',
+      'Enable the channel after the required credentials are filled.',
     ],
     fields: [
       {
@@ -1071,51 +1212,17 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
       {
         key: 'webhookPath',
         label: 'Webhook Path',
-        placeholder: '/telegram-webhook',
+        placeholder: '/telegram/webhook',
       },
       {
         key: 'webhookHost',
         label: 'Webhook Host',
-        placeholder: '127.0.0.1',
+        placeholder: '0.0.0.0',
       },
       {
         key: 'webhookPort',
         label: 'Webhook Port',
-        placeholder: '8787',
-        inputMode: 'numeric',
-      },
-    ],
-  },
-  {
-    id: 'whatsapp',
-    name: 'WhatsApp',
-    description: 'Use a WhatsApp Web linked device after QR pairing in the OpenClaw control console.',
-    setupSteps: [
-      'Open the native OpenClaw control console and start WhatsApp QR pairing for this runtime.',
-      'Scan the QR code with the dedicated WhatsApp account or device you want OpenClaw to use.',
-      'Return here to keep the default target and delivery preferences aligned with the managed config.',
-    ],
-    fields: [
-      {
-        key: 'defaultTo',
-        label: 'Default Target',
-        placeholder: '+1234567890 or group-id',
-        helpText: 'Optional default recipient after the WhatsApp session has been paired.',
-      },
-      {
-        key: 'messagePrefix',
-        label: 'Message Prefix',
-        placeholder: '[OpenClaw] ',
-      },
-      {
-        key: 'responsePrefix',
-        label: 'Response Prefix',
-        placeholder: 'Assistant:',
-      },
-      {
-        key: 'mediaMaxMb',
-        label: 'Media Max MB',
-        placeholder: '50',
+        placeholder: '8443',
         inputMode: 'numeric',
       },
     ],
@@ -1123,11 +1230,11 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
   {
     id: 'discord',
     name: 'Discord',
-    description: 'Attach OpenClaw to a Discord bot for server and direct-message workflows.',
+    description: 'Attach OpenClaw to a Discord bot for server and DM conversations.',
     setupSteps: [
       'Create a Discord application and bot in the developer portal.',
-      'Paste the bot token here and invite the bot to the target server.',
-      'Optional: set a default target or proxy before enabling runtime delivery.',
+      'Paste the bot token here and invite the bot to your server.',
+      'Turn the channel on once the token has been validated.',
     ],
     fields: [
       {
@@ -1137,123 +1244,16 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
         required: true,
         sensitive: true,
       },
-      {
-        key: 'defaultTo',
-        label: 'Default Target',
-        placeholder: 'guild-id/channel-id or user-id',
-      },
-      {
-        key: 'proxy',
-        label: 'Proxy URL',
-        placeholder: 'http://127.0.0.1:7890',
-        inputMode: 'url',
-      },
-    ],
-  },
-  {
-    id: 'irc',
-    name: 'IRC',
-    description: 'Connect a classic IRC network with nick-based routing and pairing controls.',
-    setupSteps: [
-      'Provide the IRC host, port, and nick that OpenClaw should use.',
-      'Add authentication details if the network or NickServ requires them.',
-      'Set a default target after validating the connection to the IRC network.',
-    ],
-    fields: [
-      {
-        key: 'host',
-        label: 'Host',
-        placeholder: 'irc.libera.chat',
-        required: true,
-      },
-      {
-        key: 'port',
-        label: 'Port',
-        placeholder: '6697',
-        required: true,
-        inputMode: 'numeric',
-      },
-      {
-        key: 'nick',
-        label: 'Nick',
-        placeholder: 'openclaw-bot',
-        required: true,
-      },
-      {
-        key: 'username',
-        label: 'Username',
-        placeholder: 'openclaw',
-      },
-      {
-        key: 'realname',
-        label: 'Real Name',
-        placeholder: 'OpenClaw Gateway',
-      },
-      {
-        key: 'password',
-        label: 'Password',
-        placeholder: 'Optional server password',
-        sensitive: true,
-      },
-      {
-        key: 'defaultTo',
-        label: 'Default Target',
-        placeholder: '#ops-room or nick',
-      },
-    ],
-  },
-  {
-    id: 'googlechat',
-    name: 'Google Chat',
-    description: 'Provide Google Chat service account details for Workspace app delivery.',
-    setupSteps: [
-      'Create a Google Chat app and service account in Google Cloud.',
-      'Provide either the inline service account JSON or a service account reference.',
-      'Fill the audience and webhook values that match your deployment topology.',
-    ],
-    fields: [
-      {
-        key: 'serviceAccount',
-        label: 'Service Account JSON',
-        placeholder: '{ \"type\": \"service_account\", ... }',
-        multiline: true,
-      },
-      {
-        key: 'serviceAccountRef',
-        label: 'Service Account Ref',
-        placeholder: 'secret://googlechat/service-account',
-      },
-      {
-        key: 'audienceType',
-        label: 'Audience Type',
-        placeholder: 'app-url or project-number',
-      },
-      {
-        key: 'audience',
-        label: 'Audience',
-        placeholder: 'https://example.com or 123456789',
-      },
-      {
-        key: 'webhookPath',
-        label: 'Webhook Path',
-        placeholder: '/googlechat/webhook',
-      },
-      {
-        key: 'webhookUrl',
-        label: 'Webhook URL',
-        placeholder: 'https://example.com/openclaw/googlechat',
-        inputMode: 'url',
-      },
     ],
   },
   {
     id: 'slack',
     name: 'Slack',
-    description: 'Configure Slack bot credentials for Socket Mode or HTTP event delivery.',
+    description: 'Configure bot and app tokens so OpenClaw can work inside Slack workspaces.',
     setupSteps: [
       'Create or open your Slack app and install it to the target workspace.',
-      'Paste the bot token and app token below; add the user token only if you need expanded Slack APIs.',
-      'If the workspace uses HTTP events, also set the signing secret and webhook path before enabling it.',
+      'Paste the bot token and app token below.',
+      'Add a signing secret if your workspace uses slash commands or events.',
     ],
     fields: [
       {
@@ -1271,153 +1271,54 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
         sensitive: true,
       },
       {
-        key: 'userToken',
-        label: 'User Token',
-        placeholder: 'xoxp-...',
-        sensitive: true,
-      },
-      {
         key: 'signingSecret',
         label: 'Signing Secret',
         placeholder: 'Optional signing secret',
         sensitive: true,
       },
+    ],
+  },
+  {
+    id: 'googlechat',
+    name: 'Google Chat',
+    description: 'Provide Google Chat service account or ref details for enterprise workspace delivery.',
+    setupSteps: [
+      'Create a Google Chat app and service account.',
+      'Provide either the inline service account JSON or a service account reference.',
+      'Fill audience or webhook information if your deployment requires it.',
+    ],
+    fields: [
       {
-        key: 'mode',
-        label: 'Mode',
-        placeholder: 'socket or http',
+        key: 'serviceAccount',
+        label: 'Service Account JSON',
+        placeholder: '{ \"type\": \"service_account\", ... }',
+        multiline: true,
+      },
+      {
+        key: 'serviceAccountRef',
+        label: 'Service Account Ref',
+        placeholder: 'secret://googlechat/service-account',
+      },
+      {
+        key: 'audienceType',
+        label: 'Audience Type',
+        placeholder: 'SPACE or DM',
+      },
+      {
+        key: 'audience',
+        label: 'Audience',
+        placeholder: 'spaces/AAAA12345',
       },
       {
         key: 'webhookPath',
         label: 'Webhook Path',
-        placeholder: '/slack/events',
-      },
-    ],
-  },
-  {
-    id: 'signal',
-    name: 'Signal',
-    description: 'Use a signal-cli linked device through the local CLI or REST bridge.',
-    setupSteps: [
-      'Install or locate signal-cli and pair the device that OpenClaw should use.',
-      'Provide the Signal account number and either the CLI path or the REST bridge URL.',
-      'Choose the receive mode that matches how the host should consume Signal messages.',
-    ],
-    fields: [
-      {
-        key: 'account',
-        label: 'Signal Number',
-        placeholder: '+15551234567',
-        required: true,
+        placeholder: '/googlechat/webhook',
       },
       {
-        key: 'cliPath',
-        label: 'signal-cli Path',
-        placeholder: 'C:/tools/signal-cli/bin/signal-cli',
-      },
-      {
-        key: 'httpUrl',
-        label: 'REST Bridge URL',
-        placeholder: 'http://127.0.0.1:8080',
+        key: 'webhookUrl',
+        label: 'Webhook URL',
+        placeholder: 'https://example.com/openclaw/googlechat',
         inputMode: 'url',
-      },
-      {
-        key: 'receiveMode',
-        label: 'Receive Mode',
-        placeholder: 'on-start or manual',
-      },
-      {
-        key: 'defaultTo',
-        label: 'Default Target',
-        placeholder: '+15557654321',
-      },
-    ],
-  },
-  {
-    id: 'imessage',
-    name: 'iMessage',
-    description: 'Route iMessage or SMS conversations through the local Messages database or a remote macOS host.',
-    setupSteps: [
-      'Choose whether the runtime should use a local Messages database or a remote macOS host over SSH.',
-      'Provide the CLI path or database path that OpenClaw can access on the host machine.',
-      'Optional: set the default service and region before enabling the channel.',
-    ],
-    fields: [
-      {
-        key: 'cliPath',
-        label: 'CLI Path',
-        placeholder: 'osascript or helper executable path',
-      },
-      {
-        key: 'dbPath',
-        label: 'Messages DB Path',
-        placeholder: '~/Library/Messages/chat.db',
-      },
-      {
-        key: 'remoteHost',
-        label: 'Remote Host',
-        placeholder: 'user@mac-mini.local',
-      },
-      {
-        key: 'service',
-        label: 'Service',
-        placeholder: 'imessage, sms, or auto',
-      },
-      {
-        key: 'region',
-        label: 'Region',
-        placeholder: 'US',
-      },
-      {
-        key: 'defaultTo',
-        label: 'Default Target',
-        placeholder: '+15551234567 or contact handle',
-      },
-    ],
-  },
-  {
-    id: 'line',
-    name: 'LINE',
-    description: 'Configure the LINE Messaging API webhook bot for OpenClaw.',
-    setupSteps: [
-      'Create a LINE Messaging API channel and copy the channel access token and secret.',
-      'Provide the direct values or file references used by the host runtime.',
-      'Set the webhook path that LINE should call after the bot is enabled.',
-    ],
-    fields: [
-      {
-        key: 'channelAccessToken',
-        label: 'Channel Access Token',
-        placeholder: 'LINE channel access token',
-        required: true,
-        sensitive: true,
-      },
-      {
-        key: 'channelSecret',
-        label: 'Channel Secret',
-        placeholder: 'LINE channel secret',
-        required: true,
-        sensitive: true,
-      },
-      {
-        key: 'tokenFile',
-        label: 'Token File',
-        placeholder: 'Optional token file path',
-      },
-      {
-        key: 'secretFile',
-        label: 'Secret File',
-        placeholder: 'Optional secret file path',
-      },
-      {
-        key: 'webhookPath',
-        label: 'Webhook Path',
-        placeholder: '/line/webhook',
-      },
-      {
-        key: 'responsePrefix',
-        label: 'Response Prefix',
-        placeholder: 'Assistant:',
       },
     ],
   },
@@ -1462,19 +1363,16 @@ function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
     const values = Object.fromEntries(
       definition.fields.map((field) => [field.key, readScalar(channelConfig[field.key])]),
     );
-    const accountsRoot = readObject(channelConfig.accounts) || {};
-    const accountCount = Object.values(accountsRoot).filter((entry) => isJsonObject(entry)).length;
     const configuredFieldCount = definition.fields.filter((field) => Boolean(values[field.key])).length;
-    const configured = configuredFieldCount > 0 || accountCount > 0;
     const enabled = Boolean(
-      channelConfig.enabled ?? (configurationMode === 'none' ? true : configured),
+      channelConfig.enabled ?? (configurationMode === 'none' ? true : configuredFieldCount > 0),
     );
     const status =
       configurationMode === 'none'
         ? enabled
           ? 'connected'
           : 'disconnected'
-        : !configured
+        : configuredFieldCount === 0
           ? 'not_configured'
           : enabled
             ? 'connected'
@@ -1487,8 +1385,8 @@ function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
       status,
       enabled,
       configurationMode,
-      fieldCount: configured ? Math.max(definition.fields.length, accountCount, 1) : definition.fields.length,
-      configuredFieldCount: configured ? Math.max(configuredFieldCount, accountCount, 1) : 0,
+      fieldCount: definition.fields.length,
+      configuredFieldCount,
       setupSteps: [...definition.setupSteps],
       values,
       fields: definition.fields.map((field) => ({ ...field })),
@@ -1643,7 +1541,7 @@ function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigu
   }
 
   for (const field of definition.fields) {
-    setOptionalChannelFieldValue(channelRoot, field, input.values[field.key]);
+    setOptionalScalar(channelRoot, field.key, input.values[field.key]);
   }
 
   const configuredFieldCount = definition.fields.filter(
@@ -1783,13 +1681,6 @@ function saveAgentConfig(root: JsonObject, input: OpenClawAgentInput) {
   }
   if (typeof input.isDefault === 'boolean') {
     currentEntry.default = input.isDefault;
-  }
-  if (input.skills !== undefined) {
-    if (input.skills === null) {
-      delete currentEntry.skills;
-    } else {
-      currentEntry.skills = [...new Set(input.skills.map((value) => value.trim()).filter(Boolean))];
-    }
   }
 
   if (existingIndex >= 0) {

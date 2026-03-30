@@ -54,15 +54,15 @@ function createSnapshot(
     },
     provenance: {
       runtimeId: 'openclaw',
-      installKey: '2026.3.28-windows-x64',
-      openclawVersion: '2026.3.28',
+      installKey: '2026.3.24-windows-x64',
+      openclawVersion: '2026.3.24',
       nodeVersion: '22.14.0',
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
       configPath: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home/.openclaw/openclaw.json',
       runtimeHomeDir: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home',
-      runtimeInstallDir: 'C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/2026.3.28-windows-x64',
+      runtimeInstallDir: 'C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/2026.3.24-windows-x64',
     },
   };
 
@@ -187,7 +187,7 @@ function createKernelInfo(
           id: 'openclaw',
           displayName: 'OpenClaw',
           kind: 'runtime',
-          bundledVersion: '2026.3.28',
+          bundledVersion: '2026.3.24',
           startupMode: 'embedded',
           installSubdir: 'runtime/openclaw',
         },

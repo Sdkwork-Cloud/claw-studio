@@ -73,6 +73,23 @@ pub fn bundled_component_defaults() -> Vec<PackagedComponentDefinition> {
             commit: None,
         },
         PackagedComponentDefinition {
+            id: "sdkwork-api-router".to_string(),
+            display_name: "SdkWork API Router".to_string(),
+            kind: PackagedComponentKind::ServiceGroup,
+            bundled_version: "bundled".to_string(),
+            startup_mode: PackagedComponentStartupMode::AutoStart,
+            install_subdir: "modules/sdkwork-api-router/current".to_string(),
+            upgrade_channel: "stable".to_string(),
+            service_ids: vec![
+                "sdkwork_api_router_gateway".to_string(),
+                "sdkwork_api_router_admin_api".to_string(),
+                "sdkwork_api_router_portal_api".to_string(),
+                "sdkwork_api_router_web_server".to_string(),
+            ],
+            source_url: None,
+            commit: None,
+        },
+        PackagedComponentDefinition {
             id: "hub-installer".to_string(),
             display_name: "Hub Installer".to_string(),
             kind: PackagedComponentKind::EmbeddedLibrary,
@@ -116,13 +133,20 @@ mod tests {
                 "openclaw",
                 "zeroclaw",
                 "ironclaw",
+                "sdkwork-api-router",
                 "hub-installer",
             ]
         );
         assert_eq!(
             default_startup_component_ids(&definitions),
-            vec!["openclaw".to_string()]
+            vec!["openclaw".to_string(), "sdkwork-api-router".to_string()]
         );
+
+        let router = definitions
+            .iter()
+            .find(|definition| definition.id == "sdkwork-api-router")
+            .expect("router definition");
+        assert_eq!(router.kind, PackagedComponentKind::ServiceGroup);
 
         let hub_installer = definitions
             .iter()

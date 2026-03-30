@@ -17,14 +17,10 @@ import {
 } from 'lucide-react';
 import type { StudioConversationAttachment } from '@sdkwork/claw-types';
 import ReactMarkdown from 'react-markdown';
-import vscDarkPlus from 'react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus.js';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@sdkwork/claw-ui';
-import {
-  getCodeBlockLanguageLabel,
-  resolveCodeBlockLanguage,
-  SyntaxHighlighter,
-} from './chatCodeLanguage';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant' | 'system';
@@ -122,9 +118,6 @@ const CodeBlock = memo(
   }) => {
     const [copied, setCopied] = useState(false);
     const { t } = useTranslation();
-    const rawLanguage = match[1];
-    const resolvedLanguage = resolveCodeBlockLanguage(rawLanguage);
-    const languageLabel = getCodeBlockLanguageLabel(rawLanguage);
 
     const handleCopy = () => {
       navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
@@ -135,9 +128,7 @@ const CodeBlock = memo(
     return (
       <div className="relative mb-6 mt-4 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-[#1E1E1E]">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-100 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/50">
-          <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            {languageLabel}
-          </span>
+          <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">{match[1]}</span>
           <button
             onClick={handleCopy}
             className="flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
@@ -156,7 +147,7 @@ const CodeBlock = memo(
           <SyntaxHighlighter
             {...props}
             style={vscDarkPlus}
-            language={resolvedLanguage}
+            language={match[1]}
             PreTag="div"
             className="!m-0 !bg-transparent !p-4 text-[13px] leading-relaxed"
             showLineNumbers={true}

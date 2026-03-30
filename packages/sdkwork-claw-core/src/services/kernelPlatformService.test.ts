@@ -45,7 +45,7 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
           ownership: 'appSupervisor',
           serviceName: 'ClawStudioOpenClawKernel',
           serviceConfigPath:
-            'C:/ProgramData/SdkWork/ClawStudio/machine/state/kernel-host/windows-service.json',
+            'C:/ProgramData/SdkWork/CrawStudio/machine/state/kernel-host/windows-service.json',
           startupMode: 'auto',
           attachSupported: true,
           repairSupported: true,
@@ -57,16 +57,16 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
         },
         provenance: {
           runtimeId: 'openclaw',
-          installKey: '2026.3.28-windows-x64',
-          openclawVersion: '2026.3.28',
+          installKey: '2026.3.24-windows-x64',
+          openclawVersion: '2026.3.24',
           nodeVersion: '22.14.0',
           platform: 'windows',
           arch: 'x64',
           installSource: 'bundled',
-          configPath: 'C:/Users/admin/.sdkwork/clawstudio/openclaw-home/.openclaw/openclaw.json',
-          runtimeHomeDir: 'C:/Users/admin/.sdkwork/clawstudio/openclaw-home',
+          configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+          runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
           runtimeInstallDir:
-            'C:/ProgramData/SdkWork/ClawStudio/machine/runtime/runtimes/openclaw/2026.3.28-windows-x64',
+            'C:/ProgramData/SdkWork/CrawStudio/machine/runtime/runtimes/openclaw/2026.3.24-windows-x64',
         },
       }),
       ensureRunning: async () => {
@@ -86,7 +86,7 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
   assert.equal(snapshot.controlMode, 'supervisedFallback');
   assert.equal(snapshot.baseUrl, 'http://127.0.0.1:18845');
   assert.equal(snapshot.usesDynamicPort, true);
-  assert.equal(snapshot.openclawVersion, '2026.3.28');
+  assert.equal(snapshot.openclawVersion, '2026.3.24');
   assert.equal(snapshot.nodeVersion, '22.14.0');
   assert.equal(snapshot.serviceConfigPath.endsWith('windows-service.json'), true);
 });
@@ -134,15 +134,15 @@ await runTest('kernelPlatformService delegates ensureRunning and restart to the 
     },
     provenance: {
       runtimeId: 'openclaw',
-      installKey: '2026.3.28-linux-x64',
-      openclawVersion: '2026.3.28',
+      installKey: '2026.3.24-linux-x64',
+      openclawVersion: '2026.3.24',
       nodeVersion: '22.14.0',
       platform: 'linux',
       arch: 'x64',
       installSource: 'bundled',
       configPath: '/home/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
       runtimeHomeDir: '/home/admin/.sdkwork/crawstudio/openclaw-home',
-      runtimeInstallDir: '/var/lib/claw-studio/openclaw/2026.3.28-linux-x64',
+      runtimeInstallDir: '/var/lib/claw-studio/openclaw/2026.3.24-linux-x64',
     },
   } as const;
 

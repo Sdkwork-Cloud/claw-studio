@@ -101,8 +101,8 @@ function createProviders(): ProxyProvider[] {
       baseUrl: 'https://router.google.example.com/v1',
       models: [
         {
-          id: 'gemini-3.1-pro-preview',
-          name: 'Gemini 3.1 Pro',
+          id: 'gemini-2.5-pro',
+          name: 'Gemini 2.5 Pro',
         },
       ],
     },
@@ -130,7 +130,7 @@ await runTest('unifiedApiKeyRouteConfigService builds searchable route-config op
       groupId: 'group-rnd',
       groupName: 'R&D',
       status: 'warning',
-      modelNames: ['Gemini 3.1 Pro'],
+      modelNames: ['Gemini 2.5 Pro'],
     },
   ]);
 });

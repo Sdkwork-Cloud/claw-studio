@@ -2664,10 +2664,6 @@ fn build_openclaw_gateway_ws_url(
     instance: &StudioInstanceRecord,
     root: Option<&Value>,
 ) -> Option<String> {
-    if let Some(control_ui_url) = build_openclaw_control_ui_url(instance, root) {
-        return Some(http_url_to_ws_effective_url(&control_ui_url));
-    }
-
     if let Some(websocket_url) = instance.websocket_url.as_deref() {
         if let Some(origin) = url_origin(websocket_url) {
             return Some(origin);
@@ -2730,16 +2726,6 @@ fn http_origin_to_ws_origin(origin: &str) -> String {
         return format!("ws://{rest}");
     }
     origin.to_string()
-}
-
-fn http_url_to_ws_effective_url(value: &str) -> String {
-    if let Some(rest) = value.strip_prefix("https://") {
-        return format!("wss://{}", rest.trim_end_matches('/'));
-    }
-    if let Some(rest) = value.strip_prefix("http://") {
-        return format!("ws://{}", rest.trim_end_matches('/'));
-    }
-    value.trim_end_matches('/').to_string()
 }
 
 fn url_origin(value: &str) -> Option<String> {
@@ -3791,7 +3777,12 @@ fn default_capabilities_for_runtime(
 }
 
 fn build_built_in_instance(paths: &AppPaths, config: &AppConfig) -> Result<StudioInstanceRecord> {
-    let active_version = resolve_built_in_openclaw_version(paths);
+    let active_version = fs::read_to_string(&paths.active_file)
+        .ok()
+        .and_then(|content| serde_json::from_str::<ActiveState>(&content).ok())
+        .and_then(|active| active.runtimes.get("openclaw").cloned())
+        .and_then(|entry| entry.active_version)
+        .unwrap_or_else(|| "bundled".to_string());
     let root = read_json5_object(&paths.openclaw_config_file)?;
     let port = get_nested_u16(&root, &["gateway", "port"]).unwrap_or(18_789);
     let workspace_path = get_nested_string(&root, &["agents", "defaults", "workspace"]);
@@ -3850,63 +3841,6 @@ fn build_built_in_instance(paths: &AppPaths, config: &AppConfig) -> Result<Studi
         updated_at: timestamp,
         last_seen_at: Some(timestamp),
     })
-}
-
-fn resolve_built_in_openclaw_version(paths: &AppPaths) -> String {
-    let active_install_key = read_active_openclaw_install_key(paths);
-    read_bundled_openclaw_version(paths)
-        .or_else(|| {
-            active_install_key
-                .as_deref()
-                .and_then(strip_openclaw_runtime_install_key_suffix)
-                .map(str::to_string)
-        })
-        .or(active_install_key)
-        .unwrap_or_else(|| "bundled".to_string())
-}
-
-fn read_active_openclaw_install_key(paths: &AppPaths) -> Option<String> {
-    fs::read_to_string(&paths.active_file)
-        .ok()
-        .and_then(|content| serde_json::from_str::<ActiveState>(&content).ok())
-        .and_then(|active| active.runtimes.get("openclaw").cloned())
-        .and_then(|entry| entry.active_version)
-        .filter(|value| !value.trim().is_empty())
-}
-
-fn read_bundled_openclaw_version(paths: &AppPaths) -> Option<String> {
-    let manifest_path = paths.foundation_components_dir.join("bundle-manifest.json");
-    let content = fs::read_to_string(manifest_path).ok()?;
-    let manifest = serde_json::from_str::<Value>(&content).ok()?;
-    manifest
-        .get("components")
-        .and_then(Value::as_array)?
-        .iter()
-        .find_map(|component| {
-            if component.get("id").and_then(Value::as_str) != Some("openclaw") {
-                return None;
-            }
-
-            component
-                .get("version")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("bundled"))
-                .map(str::to_string)
-        })
-}
-
-fn strip_openclaw_runtime_install_key_suffix(value: &str) -> Option<&str> {
-    [
-        "-windows-x64",
-        "-windows-arm64",
-        "-macos-x64",
-        "-macos-arm64",
-        "-linux-x64",
-        "-linux-arm64",
-    ]
-    .into_iter()
-    .find_map(|suffix| value.strip_suffix(suffix))
 }
 
 fn upsert_built_in_instance(
@@ -4695,51 +4629,6 @@ mod tests {
     }
 
     #[test]
-    fn built_in_instance_prefers_bundled_openclaw_version_for_display() {
-        let (_root, paths, config, storage, service) = studio_context();
-        fs::create_dir_all(&paths.foundation_components_dir).expect("create foundation components");
-        fs::write(
-            paths.foundation_components_dir.join("bundle-manifest.json"),
-            r#"{
-  "generatedAt": "2026-03-30T00:00:00Z",
-  "mode": "dev",
-  "components": [
-    {
-      "id": "openclaw",
-      "version": "2026.3.28"
-    }
-  ]
-}
-"#,
-        )
-        .expect("seed bundle manifest");
-        fs::write(
-            &paths.active_file,
-            r#"{
-  "layoutVersion": 1,
-  "modules": {},
-  "runtimes": {
-    "openclaw": {
-      "activeVersion": "2026.3.28-windows-x64"
-    }
-  }
-}
-"#,
-        )
-        .expect("seed active runtime");
-
-        let instances = service
-            .list_instances(&paths, &config, &storage)
-            .expect("list instances");
-        let built_in = instances
-            .into_iter()
-            .find(|instance| instance.id == DEFAULT_INSTANCE_ID)
-            .expect("built-in instance");
-
-        assert_eq!(built_in.version, "2026.3.28");
-    }
-
-    #[test]
     fn remote_instance_crud_round_trips_with_storage_binding_metadata() {
         let (_root, paths, config, storage, service) = studio_context();
 
@@ -5086,12 +4975,12 @@ mod tests {
         );
         assert_eq!(
             console_access.get("gatewayUrl").and_then(Value::as_str),
-            Some("ws://127.0.0.1:19876/openclaw")
+            Some("ws://127.0.0.1:19876")
         );
         assert_eq!(
             console_access.get("autoLoginUrl").and_then(Value::as_str),
             Some(
-                "http://127.0.0.1:19876/openclaw/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A19876%2Fopenclaw#token=studio-token"
+                "http://127.0.0.1:19876/openclaw/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A19876#token=studio-token"
             )
         );
         assert_eq!(
@@ -5242,12 +5131,12 @@ mod tests {
         );
         assert_eq!(
             console_access.get("gatewayUrl").and_then(Value::as_str),
-            Some("ws://127.0.0.1:28789/console")
+            Some("ws://127.0.0.1:28789")
         );
         assert_eq!(
             console_access.get("autoLoginUrl").and_then(Value::as_str),
             Some(
-                "http://127.0.0.1:28789/console/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A28789%2Fconsole#token=external-token"
+                "http://127.0.0.1:28789/console/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A28789#token=external-token"
             )
         );
         assert_eq!(
@@ -6097,7 +5986,7 @@ Reads runtime diagnostics and summarizes them.
                     deployment_mode: StudioInstanceDeploymentMode::Remote,
                     transport_kind: StudioInstanceTransportKind::OpenclawGatewayWs,
                     icon_type: None,
-                    version: Some("2026.3.28".to_string()),
+                    version: Some("2026.3.23-2".to_string()),
                     type_label: Some("Remote OpenClaw".to_string()),
                     host: Some("openclaw.example.com".to_string()),
                     port: Some(18789),

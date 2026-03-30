@@ -8,8 +8,9 @@
 - `zeroclaw`
 - `ironclaw`
 - `codex`
+- `sdkwork-api-router`
 
-当前优先级按“桌面内置优先，同时以 OpenClaw 作为共享控制面”来设计。
+当前优先级按“桌面内置优先，同时以 API Router 作为共享控制面”来设计。
 
 ## 源码快照
 
@@ -19,6 +20,7 @@
 - `zeroclaw`: `2e48cbf7c3093aa1aa18350e1eeca8c290daa5e2`
 - `ironclaw`: `b9e5acf66e44fcb7e38c795cbdf96ea0ded553cf`
 - `codex`: `70cdb17703a4310b7173642e011f7534d2b2624f`
+- `sdkwork-api-router`: `3bd86733d2f8604194496c6978d70c30e0d0a14e`
 
 本地分析克隆位于 `.codex-tools/vendor-analysis/`。
 
@@ -90,13 +92,13 @@
 - 交互层优先走 `codex app-server` 的 stdio JSON-RPC
 - 把 Codex 当成协议驱动的工具运行时，而不是只能读写文本的 CLI
 
-## OpenClaw 控制面
+## SDKWork API Router
 
-`openclaw` 才是本地 provider 控制面和数据面的正确承载者。它已经明确支持 standalone server mode、desktop-oriented embedded mode、loopback trust boundary、SQLite 本地持久化和 OS keyring secrets。
+`sdkwork-api-router` 才是本地 provider 控制面和数据面的正确承载者。它已经明确支持 standalone server mode、desktop-oriented embedded mode、loopback trust boundary、SQLite 本地持久化和 OS keyring secrets。
 
 推荐策略：
 
-- 把 OpenClaw 作为本地共享控制面
+- 把 API Router 作为本地共享控制面
 - 尽快用真实后端替换当前 `sdkwork-claw-apirouter` 的 mock 服务
 - 优先让桌面内置 provider 路由先统一收口，再谈更多前端侧 provider 逻辑
 
@@ -107,14 +109,14 @@
 1. Tauri / Rust Host
 2. Hub Installer Registry 与安装记录
 3. 进程监管与协议桥接
-4. 内置 OpenClaw 控制面
+4. 内置 `sdkwork-api-router`
 5. 外部受管运行时：OpenClaw、ZeroClaw、IronClaw、Codex
 6. 薄 UI 包，通过 package root API 消费能力
 
 分层职责：
 
 - Rust Host：安装、升级、监管、迁移、备份、协议桥接
-- OpenClaw 控制面：provider 路由、凭据、健康检查、extension runtime、loopback API
+- API Router：provider 路由、凭据、健康检查、extension runtime、loopback API
 - 外部运行时：各自上游 CLI / Gateway / Agent 能力
 - 前端包：只做 UI，不拥有运行时
 
@@ -154,14 +156,14 @@
 - 不再把 ZeroClaw / IronClaw 对外呈现为 `pnpm`-first 工具
 - OpenClaw 继续作为 Node-managed 的例外项处理
 - `sdkwork-claw-apirouter` 和 `sdkwork-claw-extensions` 要从 mock 接到真实后端
-- 第一条真正打通的内置链路应优先选择 `OpenClaw 控制面 + Codex app-server + OpenClaw managed runtime`
+- 第一条真正打通的内置链路应优先选择 `API Router + Codex app-server + OpenClaw managed runtime`
 
 ## 分阶段推进建议
 
 ## Phase 1
 
 - 修正 registry 元数据和默认安装策略
-- 将真实 OpenClaw backend 接入前端
+- 将真实 API Router backend 接入前端
 - 在桌面 UI 暴露安装来源与运行时健康状态
 
 ## Phase 2

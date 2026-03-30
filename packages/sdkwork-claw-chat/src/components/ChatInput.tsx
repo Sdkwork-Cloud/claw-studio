@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'motion/react';
@@ -7,18 +7,19 @@ import {
   Camera,
   Check,
   ChevronDown,
+  Globe2,
   Image as ImageIcon,
   Link2,
   LoaderCircle,
   Mic,
   MonitorUp,
   Paperclip,
-  Search,
   Send,
   Settings2,
   StopCircle,
   Trash2,
   Video,
+  X,
 } from 'lucide-react';
 import { chatUploadService } from '@sdkwork/claw-core';
 import { platform } from '@sdkwork/claw-infrastructure';
@@ -30,9 +31,11 @@ import type {
 import { cn, Input, Textarea } from '@sdkwork/claw-ui';
 import type { ChatComposerSubmitPayload } from '../types/index.ts';
 import {
+  canImportChatComposerRemoteUrl,
   canSendChatComposerPayload,
   resolveRecorderStartErrorKey,
   shouldPersistChatComposerRecording,
+  shouldConfirmChatComposerFieldOnEnter,
   shouldSendChatComposerMessageOnEnter,
   startNativeScreenshotSupportProbe,
 } from '../services/index.ts';
@@ -215,6 +218,15 @@ function releasePreviewUrl(url: string | undefined) {
   }
 }
 
+function isValidRemoteUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function mimeTypeFromFileName(fileName: string) {
   const segments = fileName.split('.');
   const extension = segments.length > 1 ? segments.at(-1)?.toLowerCase() : '';
@@ -245,6 +257,24 @@ function extractTransferFiles(transfer: DataTransfer | null) {
   return Array.from(transfer.items ?? [])
     .map((item) => (item.kind === 'file' ? item.getAsFile() : null))
     .filter((file): file is File => file !== null);
+}
+
+function extractDroppedUrl(transfer: DataTransfer | null) {
+  if (!transfer) {
+    return null;
+  }
+
+  const uriList = transfer.getData('text/uri-list').trim();
+  if (uriList && isValidRemoteUrl(uriList)) {
+    return uriList;
+  }
+
+  const text = transfer.getData('text/plain').trim();
+  if (text && isValidRemoteUrl(text)) {
+    return text;
+  }
+
+  return null;
 }
 
 function attachmentKindLabelKey(kind: StudioConversationAttachmentKind) {
@@ -394,15 +424,17 @@ export function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [modelDropdownStyle, setModelDropdownStyle] = useState<React.CSSProperties | null>(null);
-  const [channelSearch, setChannelSearch] = useState('');
-  const [modelSearch, setModelSearch] = useState('');
   const [drafts, setDrafts] = useState<ComposerDraftAttachment[]>([]);
+  const [showUrlImport, setShowUrlImport] = useState(false);
+  const [remoteUrl, setRemoteUrl] = useState('');
+  const [remoteUrlFileName, setRemoteUrlFileName] = useState('');
   const [composerError, setComposerError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activeRecorder, setActiveRecorder] = useState<ActiveRecorder | null>(null);
   const [recorderElapsedMs, setRecorderElapsedMs] = useState(0);
   const [isRecordingFinalizing, setIsRecordingFinalizing] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isImportingRemoteUrl, setIsImportingRemoteUrl] = useState(false);
   const [browserFilePickerMode, setBrowserFilePickerMode] =
     useState<BrowserFilePickerMode>('all');
   const [supportsNativeScreenshot, setSupportsNativeScreenshot] = useState(() =>
@@ -412,6 +444,7 @@ export function ChatInput({
   const modelTriggerRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
+  const urlInputRef = useRef<HTMLInputElement>(null);
   const draftsRef = useRef<ComposerDraftAttachment[]>([]);
   const activeRecorderRef = useRef<ActiveRecorder | null>(null);
   const isUnmountingRef = useRef(false);
@@ -433,8 +466,6 @@ export function ChatInput({
     typeof navigator !== 'undefined' &&
     typeof navigator.mediaDevices?.getUserMedia === 'function' &&
     typeof MediaRecorder !== 'undefined';
-  const deferredChannelSearch = useDeferredValue(channelSearch);
-  const deferredModelSearch = useDeferredValue(modelSearch);
 
   const readyAttachments = useMemo(
     () =>
@@ -451,6 +482,7 @@ export function ChatInput({
     isLoading: Boolean(isLoading),
     hasUploadingDrafts,
     hasPendingSendRequest: isSendingMessage,
+    isImportingRemoteUrl,
     isRecording,
     isRecordingFinalizing,
     hasReadyContent,
@@ -458,36 +490,13 @@ export function ChatInput({
   const showElevatedSurface =
     isFocused ||
     showModelDropdown ||
+    showUrlImport ||
     isDragging ||
     drafts.length > 0 ||
     isRecording ||
     isRecordingFinalizing ||
+    isImportingRemoteUrl ||
     Boolean(message.trim());
-  const filteredChannels = useMemo(() => {
-    const query = deferredChannelSearch.trim().toLowerCase();
-    if (!query) {
-      return channels;
-    }
-
-    return channels.filter((channel) =>
-      [channel.name, channel.provider, channel.baseUrl, channel.id]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query)),
-    );
-  }, [channels, deferredChannelSearch]);
-  const filteredModels = useMemo(() => {
-    const models = activeChannel?.models || [];
-    const query = deferredModelSearch.trim().toLowerCase();
-    if (!query) {
-      return models;
-    }
-
-    return models.filter((model) =>
-      [model.name, model.id]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query)),
-    );
-  }, [activeChannel?.models, deferredModelSearch]);
 
   draftsRef.current = drafts;
   activeRecorderRef.current = activeRecorder;
@@ -741,6 +750,9 @@ export function ChatInput({
       });
       clearDrafts();
       setMessage('');
+      setRemoteUrl('');
+      setRemoteUrlFileName('');
+      setShowUrlImport(false);
       setComposerError(null);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -814,6 +826,60 @@ export function ChatInput({
     }
 
     openBrowserFilePicker(mode);
+  };
+
+  const handleImportRemoteUrl = async () => {
+    const trimmedUrl = remoteUrl.trim();
+    const trimmedFileName = remoteUrlFileName.trim();
+
+    if (
+      !canImportChatComposerRemoteUrl({
+        isImportingRemoteUrl,
+        remoteUrl: trimmedUrl,
+      })
+    ) {
+      return;
+    }
+
+    if (!isValidRemoteUrl(trimmedUrl)) {
+      setComposerError(t('chat.input.invalidUrl'));
+      return;
+    }
+
+    setIsImportingRemoteUrl(true);
+    setComposerError(null);
+
+    try {
+      await enqueueSource({
+        type: 'remoteUrl',
+        url: trimmedUrl,
+        fileName: trimmedFileName || undefined,
+      });
+      setRemoteUrl('');
+      setRemoteUrlFileName('');
+      setShowUrlImport(false);
+      restoreTextareaFocus();
+    } finally {
+      if (!isUnmountingRef.current) {
+        setIsImportingRemoteUrl(false);
+      }
+    }
+  };
+
+  const handleUrlImportKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      !shouldConfirmChatComposerFieldOnEnter({
+        key: event.key,
+        isComposing: event.nativeEvent.isComposing,
+        keyCode:
+          typeof event.nativeEvent.keyCode === 'number' ? event.nativeEvent.keyCode : null,
+      })
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    void handleImportRemoteUrl();
   };
 
   const handleCaptureScreenshot = async () => {
@@ -1145,6 +1211,14 @@ export function ChatInput({
     if (files.length > 0) {
       await enqueueFiles(files);
       restoreTextareaFocus();
+      return;
+    }
+
+    const droppedUrl = extractDroppedUrl(event.dataTransfer);
+    if (droppedUrl) {
+      setShowUrlImport(true);
+      setRemoteUrl(droppedUrl);
+      setComposerError(null);
     }
   };
 
@@ -1185,8 +1259,6 @@ export function ChatInput({
   useEffect(() => {
     if (!showModelDropdown) {
       setModelDropdownStyle(null);
-      setChannelSearch('');
-      setModelSearch('');
       return;
     }
 
@@ -1212,6 +1284,16 @@ export function ChatInput({
       window.removeEventListener('keydown', handleEscape);
     };
   }, [showModelDropdown, activeChannel?.id]);
+
+  useEffect(() => {
+    if (!showUrlImport) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      urlInputRef.current?.focus();
+    });
+  }, [showUrlImport]);
 
   useEffect(() => {
     if (!activeRecorder) {
@@ -1447,6 +1529,87 @@ export function ChatInput({
             </div>
           ) : null}
 
+          <AnimatePresence initial={false}>
+            {showUrlImport ? (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="rounded-[22px] border border-zinc-200 bg-zinc-50/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/70"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      {t('chat.input.importUrl')}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      {t('chat.input.importUrlHint')}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isImportingRemoteUrl}
+                    onClick={() => {
+                      if (isImportingRemoteUrl) {
+                        return;
+                      }
+                      setShowUrlImport(false);
+                      setComposerError(null);
+                      restoreTextareaFocus();
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-200/80 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                    title={t('common.close')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <Input
+                    ref={urlInputRef}
+                    type="url"
+                    value={remoteUrl}
+                    disabled={isImportingRemoteUrl}
+                    onChange={(event) => setRemoteUrl(event.target.value)}
+                    onKeyDown={handleUrlImportKeyDown}
+                    placeholder={t('chat.input.urlPlaceholder')}
+                    className="h-11 rounded-2xl border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900"
+                  />
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Input
+                      type="text"
+                      value={remoteUrlFileName}
+                      disabled={isImportingRemoteUrl}
+                      onChange={(event) => setRemoteUrlFileName(event.target.value)}
+                      onKeyDown={handleUrlImportKeyDown}
+                      placeholder={t('chat.input.urlFileNamePlaceholder')}
+                      className="h-11 flex-1 rounded-2xl border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900"
+                    />
+                    <button
+                      type="button"
+                      disabled={isImportingRemoteUrl}
+                      onClick={() => {
+                        void handleImportRemoteUrl();
+                      }}
+                      className={cn(
+                        'inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-medium transition-transform',
+                        isImportingRemoteUrl
+                          ? 'bg-zinc-300 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                          : 'bg-zinc-900 text-white hover:scale-[1.01] dark:bg-zinc-100 dark:text-zinc-900',
+                      )}
+                    >
+                      {isImportingRemoteUrl ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        t('chat.input.importAction')
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
           <Textarea
             ref={textareaRef}
             value={message}
@@ -1491,6 +1654,22 @@ export function ChatInput({
                 <ImageIcon className="h-4 w-4" />
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUrlImport((current) => !current);
+                  setComposerError(null);
+                }}
+                className={cn(
+                  actionButtonClassName,
+                  showUrlImport &&
+                    'bg-primary-500/10 text-primary-600 dark:bg-primary-400/10 dark:text-primary-300',
+                )}
+                title={t('chat.input.importUrl')}
+              >
+                <Globe2 className="h-4 w-4" />
+              </button>
+
               {supportsNativeScreenshot ? (
                 <button
                   type="button"
@@ -1501,6 +1680,31 @@ export function ChatInput({
                   title={t('chat.input.captureScreenshot')}
                 >
                   <Camera className="h-4 w-4" />
+                </button>
+              ) : null}
+
+              {supportsVoiceRecording ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleToggleVoiceRecording();
+                  }}
+                  className={cn(
+                    actionButtonClassName,
+                    activeRecorder?.kind === 'audio' &&
+                      'bg-rose-500/10 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300',
+                  )}
+                  title={
+                    activeRecorder?.kind === 'audio'
+                      ? t('chat.input.stopRecording')
+                      : t('chat.input.voiceInput')
+                  }
+                >
+                  {activeRecorder?.kind === 'audio' ? (
+                    <StopCircle className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
                 </button>
               ) : null}
 
@@ -1563,70 +1767,43 @@ export function ChatInput({
                 <span className="line-clamp-2">{statusLabel}</span>
               </div>
 
-              <div className="flex items-center gap-2">
-                {supportsVoiceRecording ? (
-                  <button
+              <AnimatePresence mode="wait">
+                {isLoading ? (
+                  <motion.button
+                    key="stop"
                     type="button"
-                    onClick={() => {
-                      void handleToggleVoiceRecording();
-                    }}
-                    className={cn(
-                      actionButtonClassName,
-                      activeRecorder?.kind === 'audio' &&
-                        'bg-rose-500/10 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300',
-                    )}
-                    title={
-                      activeRecorder?.kind === 'audio'
-                        ? t('chat.input.stopRecording')
-                        : t('chat.input.voiceInput')
-                    }
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={onStop}
+                    className="group flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900"
+                    title={t('chat.input.stopGenerating')}
                   >
-                    {activeRecorder?.kind === 'audio' ? (
-                      <StopCircle className="h-4 w-4" />
-                    ) : (
-                      <Mic className="h-4 w-4" />
+                    <StopCircle className="h-[18px] w-[18px] transition-colors group-hover:text-red-400" />
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    key="send"
+                    type="button"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={() => {
+                      void handleSend();
+                    }}
+                    disabled={!canSend}
+                    title={t('chat.input.sendMessage')}
+                    className={cn(
+                      'flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300',
+                      canSend
+                        ? 'bg-zinc-900 text-white shadow-sm hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500',
                     )}
-                  </button>
-                ) : null}
-
-                <AnimatePresence mode="wait">
-                  {isLoading ? (
-                    <motion.button
-                      key="stop"
-                      type="button"
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.8, opacity: 0 }}
-                      onClick={onStop}
-                      className="group flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900"
-                      title={t('chat.input.stopGenerating')}
-                    >
-                      <StopCircle className="h-[18px] w-[18px] transition-colors group-hover:text-red-400" />
-                    </motion.button>
-                  ) : (
-                    <motion.button
-                      key="send"
-                      type="button"
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.8, opacity: 0 }}
-                      onClick={() => {
-                        void handleSend();
-                      }}
-                      disabled={!canSend}
-                      title={t('chat.input.sendMessage')}
-                      className={cn(
-                        'flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300',
-                        canSend
-                          ? 'bg-zinc-900 text-white shadow-sm hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900'
-                          : 'bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500',
-                      )}
-                    >
-                      <Send className="h-[18px] w-[18px]" />
-                    </motion.button>
-                  )}
-                </AnimatePresence>
-              </div>
+                  >
+                    <Send className="h-[18px] w-[18px]" />
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -1650,25 +1827,12 @@ export function ChatInput({
                 style={modelDropdownStyle}
                 className="fixed z-[80] flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-[0_24px_70px_rgba(0,0,0,0.42)] sm:flex-row"
               >
-                <div className="flex min-h-0 flex-col border-b border-zinc-100 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-900/70 sm:w-[240px] sm:border-b-0 sm:border-r">
-                  <div className="px-3 pb-2 pt-3 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                <div className="overflow-y-auto border-b border-zinc-100 bg-zinc-50/80 p-2 dark:border-zinc-800 dark:bg-zinc-900/70 sm:w-[220px] sm:border-b-0 sm:border-r">
+                  <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                     {t('chat.page.channels')}
                   </div>
-                  <div className="px-2 pb-2">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
-                      <Input
-                        type="search"
-                        value={channelSearch}
-                        onChange={(event) => setChannelSearch(event.target.value)}
-                        placeholder={t('chat.page.searchChannelsPlaceholder')}
-                        className="pl-9 pr-3"
-                      />
-                    </div>
-                  </div>
-                  <div className="ghost-scrollbar min-h-0 overflow-y-auto p-2 pt-1">
-                    <div className="space-y-1">
-                    {filteredChannels.map((channel) => (
+                  <div className="mt-1 space-y-1">
+                    {channels.map((channel) => (
                       <button
                         key={channel.id}
                         type="button"
@@ -1693,19 +1857,11 @@ export function ChatInput({
                         </span>
                       </button>
                     ))}
-                    {filteredChannels.length === 0 ? (
-                      <div className="px-3 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        {channels.length === 0
-                          ? t('chat.page.noChannels')
-                          : t('chat.page.noChannelsSearchResults')}
-                      </div>
-                    ) : null}
-                    </div>
                   </div>
                 </div>
 
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white dark:bg-zinc-900">
-                  <div className="flex items-center justify-between px-3 pb-2 pt-3">
+                <div className="min-w-0 flex-1 overflow-y-auto bg-white p-2 dark:bg-zinc-900">
+                  <div className="flex items-center justify-between px-3 py-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                       {t('chat.page.models')}
                     </span>
@@ -1721,21 +1877,8 @@ export function ChatInput({
                       {t('chat.page.config')}
                     </button>
                   </div>
-                  <div className="px-2 pb-2">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
-                      <Input
-                        type="search"
-                        value={modelSearch}
-                        onChange={(event) => setModelSearch(event.target.value)}
-                        placeholder={t('chat.page.searchModelsPlaceholder')}
-                        className="pl-9 pr-3"
-                      />
-                    </div>
-                  </div>
-                  <div className="ghost-scrollbar min-h-0 flex-1 overflow-y-auto p-2 pt-1">
-                    <div className="space-y-1">
-                    {filteredModels.map((model) => (
+                  <div className="mt-1 space-y-1">
+                    {activeChannel?.models.map((model) => (
                       <button
                         key={model.id}
                         type="button"
@@ -1765,12 +1908,7 @@ export function ChatInput({
                       <div className="px-3 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
                         {t('chat.page.noModels')}
                       </div>
-                    ) : filteredModels.length === 0 ? (
-                      <div className="px-3 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        {t('chat.page.noModelsSearchResults')}
-                      </div>
                     ) : null}
-                    </div>
                   </div>
                 </div>
               </motion.div>

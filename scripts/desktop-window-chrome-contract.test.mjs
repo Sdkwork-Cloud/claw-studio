@@ -36,11 +36,7 @@ runTest('desktop shell hides native window chrome in favor of a custom title bar
 
 runTest('desktop shell keeps title-bar window controls in the shared desktop bridge component', () => {
   const bridgeSource = readText('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
-  const controlsSource = readText('packages/sdkwork-claw-core/src/components/DesktopWindowControls.ts');
-  const controlsReexportSource = readText('packages/sdkwork-claw-core/src/components/DesktopWindowControls.tsx');
-  const controlsRuntimeSource = readText(
-    'packages/sdkwork-claw-core/src/components/desktopWindowControlsRuntime.ts',
-  );
+  const controlsSource = readText('packages/sdkwork-claw-core/src/components/DesktopWindowControls.tsx');
   const headerSource = readText('packages/sdkwork-claw-shell/src/components/AppHeader.tsx');
   const startupSource = readText(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopStartupScreen.tsx',
@@ -55,23 +51,10 @@ runTest('desktop shell keeps title-bar window controls in the shared desktop bri
   assert.match(bridgeSource, /closeWindow/);
   assert.match(controlsSource, /restoreWindow/);
   assert.match(controlsSource, /isWindowMaximized/);
-  assert.match(controlsSource, /shouldRenderDesktopWindowControls/);
-  assert.match(controlsReexportSource, /export \{ DesktopWindowControls \} from '\.\/DesktopWindowControls\.ts';/);
-  assert.match(controlsRuntimeSource, /data-app-platform/);
-  assert.match(controlsRuntimeSource, /__TAURI_INTERNALS__/);
   assert.match(headerSource, /DesktopWindowControls/);
   assert.match(headerSource, /variant="header"/);
   assert.match(startupSource, /restoreWindow/);
   assert.match(startupSource, /isWindowMaximized/);
-});
-
-runTest('desktop host marks the document as desktop before the shared shell renders', () => {
-  const bootstrapSource = readText(
-    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
-  );
-
-  assert.match(bootstrapSource, /data-app-platform/);
-  assert.match(bootstrapSource, /setAttribute\('data-app-platform', 'desktop'\)/);
 });
 
 runTest('desktop startup keeps the initial window at the configured default size', () => {

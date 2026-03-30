@@ -26,7 +26,6 @@ import {
   parseOpenClawAgentFileId,
   upsertOpenClawProviderModels,
 } from './openClawSupport.ts';
-import { supportsInstanceAssist } from './instanceAssistSupport.ts';
 
 export interface CreateInstanceDTO {
   name: string;
@@ -143,7 +142,6 @@ function mapStudioInstance(instance: StudioInstanceRecord): Instance {
     cpu: instance.cpu,
     memory: instance.memory,
     totalMemory: instance.totalMemory,
-    supportsAssist: supportsInstanceAssist(instance),
   };
 }
 

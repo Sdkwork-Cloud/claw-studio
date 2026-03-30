@@ -27,83 +27,20 @@ const windowsNsisShortSourceSpecs = [
   ['bridge-bundled', 'bundled', ['generated', 'br', 'b']],
   ['openclaw-runtime', 'openclaw-runtime', ['resources', 'openclaw-runtime']],
   ['bridge-openclaw-runtime', 'openclaw-runtime', ['generated', 'br', 'o']],
+  ['sdkwork-api-router-runtime', 'sdkwork-api-router-runtime', ['resources', 'sdkwork-api-router-runtime']],
+  ['bridge-sdkwork-api-router-runtime', 'sdkwork-api-router-runtime', ['generated', 'br', 'a']],
 ];
-const pathDelimiter = process.platform === 'win32' ? ';' : ':';
-
-function uniqueExistingPaths(paths, existsSync = fs.existsSync) {
-  return [...new Set(paths.filter((candidatePath) =>
-    typeof candidatePath === 'string' &&
-    candidatePath.trim().length > 0 &&
-    existsSync(candidatePath),
-  ))];
-}
-
-function resolveRustCargoBinCandidates(
-  env = process.env,
-  existsSync = fs.existsSync,
-  platform = process.platform,
-) {
-  const homeDir = env.USERPROFILE ?? env.HOME ?? null;
-  const cargoHome = env.CARGO_HOME ?? (homeDir ? path.join(homeDir, '.cargo') : null);
-
-  return uniqueExistingPaths([
-    cargoHome ? path.join(cargoHome, 'bin') : null,
-    homeDir ? path.join(homeDir, '.cargo', 'bin') : null,
-  ], existsSync).filter((candidatePath) =>
-    existsSync(path.join(candidatePath, platform === 'win32' ? 'cargo.exe' : 'cargo')),
-  );
-}
-
-function createExecutableSearchPath(env = process.env, prependEntries = []) {
-  const existingEntries = typeof env.PATH === 'string' && env.PATH.trim().length > 0
-    ? env.PATH.split(pathDelimiter).filter(Boolean)
-    : typeof env.Path === 'string' && env.Path.trim().length > 0
-      ? env.Path.split(pathDelimiter).filter(Boolean)
-      : [];
-
-  return [...uniqueExistingPaths(prependEntries), ...existingEntries]
-    .filter((value, index, items) => items.indexOf(value) === index)
-    .join(pathDelimiter);
-}
-
-export function createWindowsTauriBundleEnv({
-  env: inputEnv = process.env,
-  platform = process.platform,
-  existsSync = fs.existsSync,
-} = {}) {
-  if (platform !== 'win32') {
-    return { ...inputEnv };
-  }
-
-  const env = { ...inputEnv };
-  const cargoBinCandidates = resolveRustCargoBinCandidates(env, existsSync, platform);
-  const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'Path';
-  const resolvedPath = createExecutableSearchPath(env, cargoBinCandidates);
-
-  for (const key of Object.keys(env)) {
-    if (key !== pathKey && key.toUpperCase() === 'PATH') {
-      delete env[key];
-    }
-  }
-
-  return {
-    ...env,
-    [pathKey]: resolvedPath,
-    PATH: resolvedPath,
-  };
-}
 
 export function buildWindowsTauriBundleCommand({
   configPath = defaultBundleOverlayConfig,
   targetTriple = '',
-  platform = process.platform,
 } = {}) {
   const resolvedConfigPath = path.isAbsolute(configPath)
     ? configPath
     : path.resolve(rootDir, configPath);
 
   return {
-    command: platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+    command: 'pnpm',
     args: [
       '--dir',
       path.relative(rootDir, desktopPackageDir).replaceAll('\\', '/'),
@@ -368,7 +305,6 @@ function main() {
   const buildStartedAtMs = Date.now();
   const buildResult = runCommand(buildPlan.command, buildPlan.args, {
     cwd: rootDir,
-    env: createWindowsTauriBundleEnv(),
   });
 
   if (!buildResult.error && !buildResult.signal && buildResult.status === 0) {

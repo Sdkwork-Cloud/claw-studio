@@ -14,7 +14,6 @@ const desktopBundleOverlayConfig = path.join(
   'tauri.bundle.overlay.json',
 );
 const desktopPackageDir = path.join('packages', 'sdkwork-claw-desktop');
-const legacyRouterRuntimeId = ['sdkwork', 'api', 'router'].join('-');
 
 function read(relativePath) {
   return readFileSync(path.join(rootDir, relativePath), 'utf8');
@@ -70,6 +69,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase sync --target \$\{\{ matrix\.target \}\} --release/);
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
+  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-api-router --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase bundle --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /node scripts\/release\/package-release-assets\.mjs desktop --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
   assert.match(workflow, /release-assets-desktop-\$\{\{ matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}/);
@@ -79,15 +79,13 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /needs:\s*\[\s*prepare,\s*verify-release\s*\]/);
 });
 
-test('desktop tauri build script is fully OpenClaw-only across the full release matrix', () => {
+test('desktop tauri build script treats sdkwork-api-router prebuilt artifacts as optional metadata across the full release matrix', () => {
   const buildScript = read('packages/sdkwork-claw-desktop/src-tauri/build.rs');
 
-  assert.match(buildScript, /FRONTEND_DIST_RELATIVE_PATH:\s*&str\s*=\s*"\.\.\/dist"/);
-  assert.match(buildScript, /GENERATED_BUNDLED_RELATIVE_PATH:\s*&str\s*=\s*"generated\/bundled"/);
-  assert.match(buildScript, /ensure_generated_bundled_placeholder/);
-  assert.match(buildScript, /GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME:\s*&str\s*=\s*"placeholder\.txt"/);
-  assert.doesNotMatch(buildScript, new RegExp(legacyRouterRuntimeId));
-  assert.doesNotMatch(buildScript, /api_router/i);
+  assert.match(buildScript, /\("linux", "aarch64"\)\s*=>\s*"linux-arm64"/);
+  assert.match(buildScript, /\("macos", "x86_64"\)\s*=>\s*"macos-x64"/);
+  assert.match(buildScript, /cargo:warning=/);
+  assert.doesNotMatch(buildScript, /prebuilt integration does not yet support target/);
 });
 
 test('root package exposes release helper scripts for desktop and asset packaging', () => {
@@ -294,13 +292,9 @@ test('desktop release build runner injects the supported Visual Studio generator
   assert.deepEqual(windowsPlan.args, ['--filter', '@sdkwork/claw-desktop', 'run', 'tauri:build']);
   assert.equal(windowsPlan.env.CMAKE_GENERATOR, 'Visual Studio 17 2022');
   assert.equal(windowsPlan.env.HOST_CMAKE_GENERATOR, 'Visual Studio 17 2022');
-  assert.equal(windowsPlan.env.NODE_ENV, 'production');
-  assert.equal(windowsPlan.env.VITE_APP_ENV, 'production');
 
   assert.equal(linuxPlan.command, 'pnpm');
   assert.deepEqual(linuxPlan.args, ['--filter', '@sdkwork/claw-desktop', 'run', 'tauri:build']);
-  assert.equal(linuxPlan.env.NODE_ENV, 'production');
-  assert.equal(linuxPlan.env.VITE_APP_ENV, 'production');
   assert.equal(Object.hasOwn(linuxPlan.env, 'CMAKE_GENERATOR'), false);
 });
 
@@ -407,6 +401,12 @@ test('desktop release build runner exposes granular release phases for CI diagno
     phase: 'prepare-openclaw',
     targetTriple: 'aarch64-unknown-linux-gnu',
   });
+  const apiRouterPlan = runner.createDesktopReleaseBuildPlan({
+    platform: 'linux',
+    env: {},
+    phase: 'prepare-api-router',
+    targetTriple: 'aarch64-unknown-linux-gnu',
+  });
   const bundlePlan = runner.createDesktopReleaseBuildPlan({
     platform: 'linux',
     env: {},
@@ -417,6 +417,7 @@ test('desktop release build runner exposes granular release phases for CI diagno
   assert.match(syncPlan.args.join(' '), /sync-bundled-components\.mjs --no-fetch --release/);
   assert.match(prepareTargetPlan.args.join(' '), /ensure-tauri-target-clean\.mjs/);
   assert.match(openClawPlan.args.join(' '), /prepare-openclaw-runtime\.mjs/);
+  assert.match(apiRouterPlan.args.join(' '), /prepare-sdkwork-api-router-runtime\.mjs/);
   assert.deepEqual(bundlePlan.args, [
     '--dir',
     desktopPackageDir,
@@ -430,8 +431,6 @@ test('desktop release build runner exposes granular release phases for CI diagno
     '--target',
     'aarch64-unknown-linux-gnu',
   ]);
-  assert.equal(bundlePlan.env.NODE_ENV, 'production');
-  assert.equal(bundlePlan.env.VITE_APP_ENV, 'production');
   assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET, 'aarch64-unknown-linux-gnu');
   assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'linux');
   assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
@@ -460,8 +459,6 @@ test('desktop release build runner requests app-only macOS bundles to avoid flak
     '--bundles',
     'app',
   ]);
-  assert.equal(macosBundlePlan.env.NODE_ENV, 'production');
-  assert.equal(macosBundlePlan.env.VITE_APP_ENV, 'production');
   assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET, 'x86_64-apple-darwin');
   assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'macos');
   assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'x64');
@@ -603,7 +600,7 @@ test('bundled component sync resolves the npm global node_modules root for Unix 
   assert.doesNotMatch(syncSource, /-p'\s*,\s*'router-web-service'/);
 });
 
-test('release sync defers heavyweight openclaw builds to later dedicated phases', async () => {
+test('release sync defers heavyweight openclaw and api-router builds to later dedicated phases', async () => {
   const syncPath = path.join(rootDir, 'scripts', 'sync-bundled-components.mjs');
   const syncModule = await import(pathToFileURL(syncPath).href);
 
@@ -612,6 +609,17 @@ test('release sync defers heavyweight openclaw builds to later dedicated phases'
   assert.deepEqual(
     syncModule.createComponentExecutionPlan({
       componentId: 'openclaw',
+      devMode: false,
+      releaseMode: true,
+    }),
+    {
+      shouldBuild: false,
+      shouldStage: false,
+    },
+  );
+  assert.deepEqual(
+    syncModule.createComponentExecutionPlan({
+      componentId: 'sdkwork-api-router',
       devMode: false,
       releaseMode: true,
     }),
@@ -633,7 +641,7 @@ test('release sync defers heavyweight openclaw builds to later dedicated phases'
   );
   assert.deepEqual(
     syncModule.createComponentExecutionPlan({
-      componentId: 'hub-installer',
+      componentId: 'sdkwork-api-router',
       devMode: false,
       releaseMode: false,
     }),

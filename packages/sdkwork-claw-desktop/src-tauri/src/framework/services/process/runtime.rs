@@ -1,7 +1,5 @@
 use super::requests::ValidatedProcessRequest;
 use crate::framework::{events, runtime, FrameworkError, Result};
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Read},
@@ -16,8 +14,6 @@ use std::{
 use tauri::{AppHandle, Emitter, Runtime};
 
 static NEXT_PROCESS_ID: AtomicU64 = AtomicU64::new(1);
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -110,7 +106,6 @@ impl ProcessRuntime {
 
         runtime::run_blocking("process.run_capture", move || {
             let mut process = Command::new(&validated.command);
-            configure_command_for_background_process(&mut process);
             process.args(&validated.args);
             process.stdout(Stdio::piped());
             process.stderr(Stdio::piped());
@@ -250,18 +245,6 @@ impl ProcessRuntime {
             FrameworkError::Internal("active process registry lock poisoned".to_string())
         })
     }
-}
-
-fn configure_command_for_background_process(command: &mut Command) {
-    #[cfg(windows)]
-    {
-        command.creation_flags(background_process_creation_flags());
-    }
-}
-
-#[cfg(windows)]
-fn background_process_creation_flags() -> u32 {
-    CREATE_NO_WINDOW
 }
 
 fn wait_for_completion<S: ProcessEventSink>(
@@ -525,8 +508,6 @@ fn trim_stderr(stderr: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{ProcessEventSink, ProcessOutputEvent, ProcessOutputStream, ProcessRuntime};
-    #[cfg(windows)]
-    use super::{background_process_creation_flags, CREATE_NO_WINDOW};
     use crate::framework::{FrameworkError, Result};
     use std::{
         sync::{Arc, Mutex},
@@ -664,12 +645,6 @@ mod tests {
                 .expect("active process count"),
             0
         );
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn background_process_creation_flags_hide_console_windows() {
-        assert_eq!(background_process_creation_flags(), CREATE_NO_WINDOW);
     }
 
     #[cfg(windows)]

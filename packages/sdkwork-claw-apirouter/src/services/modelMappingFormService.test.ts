@@ -39,8 +39,8 @@ await runTest('modelMappingFormService seeds empty and edit form state with rule
         target: {
           channelId: 'google',
           channelName: 'Google',
-          modelId: 'gemini-3.1-pro-preview',
-          modelName: 'Gemini 3.1 Pro',
+          modelId: 'gemini-2.5-pro',
+          modelName: 'Gemini 2.5 Pro',
         },
       },
     ],
@@ -50,7 +50,7 @@ await runTest('modelMappingFormService seeds empty and edit form state with rule
   assert.equal(edit.effectiveFrom, '2026-03-20');
   assert.equal(edit.effectiveTo, '2026-09-30');
   assert.equal(edit.rules[0]?.source?.modelId, 'gpt-4.1');
-  assert.equal(edit.rules[0]?.target?.modelId, 'gemini-3.1-pro-preview');
+  assert.equal(edit.rules[0]?.target?.modelId, 'gemini-2.5-pro');
 });
 
 await runTest('modelMappingFormService normalizes valid form input and trims nested model references', async () => {
@@ -140,8 +140,8 @@ await runTest('modelMappingFormService rejects invalid ranges, incomplete rules,
         target: {
           channelId: 'google',
           channelName: 'Google',
-          modelId: 'gemini-3.1-pro-preview',
-          modelName: 'Gemini 3.1 Pro',
+          modelId: 'gemini-2.5-pro',
+          modelName: 'Gemini 2.5 Pro',
         },
       },
     ],
@@ -187,8 +187,8 @@ await runTest('modelMappingFormService rejects invalid ranges, incomplete rules,
         target: {
           channelId: 'google',
           channelName: 'Google',
-          modelId: 'gemini-3.1-pro-preview',
-          modelName: 'Gemini 3.1 Pro',
+          modelId: 'gemini-2.5-pro',
+          modelName: 'Gemini 2.5 Pro',
         },
       },
       {

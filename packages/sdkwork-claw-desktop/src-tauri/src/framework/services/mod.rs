@@ -8,8 +8,11 @@ use crate::framework::kernel_host::{
     service_manager::KernelHostServiceManager,
     types::DesktopKernelHostInfo,
 };
-use std::path::{Component, Path};
 
+pub mod api_router;
+pub mod api_router_managed_runtime;
+pub mod api_router_runtime;
+pub mod api_router_web_server;
 pub mod browser;
 pub mod component_host;
 pub mod components;
@@ -24,7 +27,6 @@ pub mod path_registration;
 pub mod payments;
 pub mod permissions;
 pub mod process;
-pub mod provider_client_setup;
 pub mod retention;
 pub mod security;
 pub mod storage;
@@ -34,6 +36,9 @@ pub mod system;
 pub mod upgrades;
 
 use self::{
+    api_router::ApiRouterInstallerService,
+    api_router_managed_runtime::ApiRouterManagedRuntimeService,
+    api_router_runtime::ApiRouterRuntimeService,
     browser::BrowserService,
     component_host::ComponentHostService,
     components::ComponentRegistryService,
@@ -48,7 +53,6 @@ use self::{
     payments::PaymentService,
     permissions::PermissionService,
     process::ProcessService,
-    provider_client_setup::ProviderClientSetupService,
     retention::RetentionService,
     security::SecurityService,
     storage::StorageService,
@@ -60,6 +64,9 @@ use self::{
 
 #[derive(Clone, Debug)]
 pub struct FrameworkServices {
+    pub api_router: ApiRouterInstallerService,
+    pub api_router_managed_runtime: ApiRouterManagedRuntimeService,
+    pub api_router_runtime: ApiRouterRuntimeService,
     pub system: SystemService,
     pub browser: BrowserService,
     pub component_host: ComponentHostService,
@@ -74,7 +81,6 @@ pub struct FrameworkServices {
     pub openclaw_runtime: OpenClawRuntimeService,
     pub path_registration: PathRegistrationService,
     pub process: ProcessService,
-    pub provider_client_setup: ProviderClientSetupService,
     pub jobs: JobService,
     #[allow(dead_code)]
     pub retention: RetentionService,
@@ -100,6 +106,9 @@ impl FrameworkServices {
         let policy = ExecutionPolicy::for_paths_with_security(paths, &config.security)?;
 
         Ok(Self {
+            api_router: ApiRouterInstallerService::new(),
+            api_router_managed_runtime: ApiRouterManagedRuntimeService::new(),
+            api_router_runtime: ApiRouterRuntimeService::new(),
             system: SystemService::new(),
             browser: BrowserService::with_security(&config.security),
             component_host: ComponentHostService::new(),
@@ -114,7 +123,6 @@ impl FrameworkServices {
             openclaw_runtime: OpenClawRuntimeService::new(),
             path_registration: PathRegistrationService::new(),
             process: ProcessService::new(policy),
-            provider_client_setup: ProviderClientSetupService::new(),
             jobs: JobService::with_max_concurrent_process_jobs(config.process.max_concurrent_jobs),
             retention: RetentionService::new(),
             storage: StorageService::new(),
@@ -183,14 +191,12 @@ impl FrameworkServices {
         if native_kernel_host_is_running(paths, configured_openclaw_runtime.as_ref())? {
             return self.desktop_kernel_host_status(paths);
         }
-        if should_use_native_kernel_host_manager(paths) {
-            if self
-                .kernel_host_manager
-                .ensure_running(paths, configured_openclaw_runtime.as_ref())
-                .unwrap_or(false)
-            {
-                return self.desktop_kernel_host_status(paths);
-            }
+        if self
+            .kernel_host_manager
+            .ensure_running(paths, configured_openclaw_runtime.as_ref())
+            .unwrap_or(false)
+        {
+            return self.desktop_kernel_host_status(paths);
         }
 
         if !self
@@ -205,14 +211,12 @@ impl FrameworkServices {
 
     pub fn restart_desktop_kernel(&self, paths: &AppPaths) -> Result<DesktopKernelHostInfo> {
         let configured_openclaw_runtime = self.supervisor.configured_openclaw_runtime()?;
-        if should_use_native_kernel_host_manager(paths) {
-            if self
-                .kernel_host_manager
-                .restart(paths, configured_openclaw_runtime.as_ref())
-                .unwrap_or(false)
-            {
-                return self.desktop_kernel_host_status(paths);
-            }
+        if self
+            .kernel_host_manager
+            .restart(paths, configured_openclaw_runtime.as_ref())
+            .unwrap_or(false)
+        {
+            return self.desktop_kernel_host_status(paths);
         }
 
         self.supervisor.restart_openclaw_gateway(paths)?;
@@ -220,21 +224,9 @@ impl FrameworkServices {
     }
 }
 
-fn should_use_native_kernel_host_manager(paths: &AppPaths) -> bool {
-    !path_contains_dev_build_segment(&paths.install_root, ".tauri-target")
-        && !path_contains_dev_build_segment(&paths.install_root, "target-dev")
-}
-
-fn path_contains_dev_build_segment(path: &Path, segment: &str) -> bool {
-    path.components().any(|component| match component {
-        Component::Normal(value) => value.to_string_lossy().eq_ignore_ascii_case(segment),
-        _ => false,
-    })
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{path_contains_dev_build_segment, should_use_native_kernel_host_manager, FrameworkServices};
+    use super::FrameworkServices;
     use crate::framework::{
         config::AppConfig,
         kernel_host::{
@@ -246,7 +238,6 @@ mod tests {
         services::{openclaw_runtime::ActivatedOpenClawRuntime, supervisor},
     };
     use std::{
-        fs,
         net::TcpListener,
         path::PathBuf,
         sync::{Arc, Mutex},
@@ -254,30 +245,19 @@ mod tests {
     };
 
     fn fake_runtime(paths: &crate::framework::paths::AppPaths, gateway_port: u16) -> ActivatedOpenClawRuntime {
-        let install_dir = paths.openclaw_runtime_dir.join("test-runtime");
-        let runtime_dir = install_dir.join("runtime");
-        let node_path = resolve_test_node_executable();
-        let cli_path = runtime_dir
-            .join("package")
-            .join("node_modules")
-            .join("openclaw")
-            .join("openclaw.mjs");
-
-        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
-        fs::write(
-            &cli_path,
-            format!(
-                "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? {gateway_port});\nconst server = net.createServer();\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n"
-            ),
-        )
-        .expect("cli file");
-
         ActivatedOpenClawRuntime {
             install_key: "test-runtime".to_string(),
-            install_dir,
-            runtime_dir,
-            node_path,
-            cli_path,
+            install_dir: paths.openclaw_runtime_dir.join("test-runtime"),
+            runtime_dir: paths.openclaw_runtime_dir.join("test-runtime").join("runtime"),
+            node_path: PathBuf::from("node"),
+            cli_path: paths
+                .openclaw_runtime_dir
+                .join("test-runtime")
+                .join("runtime")
+                .join("package")
+                .join("node_modules")
+                .join("openclaw")
+                .join("openclaw.mjs"),
             home_dir: paths.openclaw_home_dir.clone(),
             state_dir: paths.openclaw_state_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
@@ -361,47 +341,6 @@ mod tests {
     }
 
     #[test]
-    fn ensure_desktop_kernel_running_skips_native_service_manager_for_tauri_dev_paths() {
-        let root = tempfile::tempdir().expect("temp dir");
-        let mut paths = resolve_paths_for_root(root.path()).expect("paths");
-        paths.install_root = root.path().join(".tauri-target").join("dev").join("debug");
-        std::fs::create_dir_all(&paths.install_root).expect("create tauri dev install root");
-        let runtime = fake_runtime(&paths, reserve_loopback_port());
-        let backend = Arc::new(FakeKernelHostPlatformOps::new(paths.clone(), runtime.gateway_port));
-        let services = FrameworkServices::with_kernel_host_manager(
-            &paths,
-            &AppConfig::default(),
-            KernelHostServiceManager::with_backend(backend.clone()),
-        )
-        .expect("services");
-
-        services
-            .supervisor
-            .configure_openclaw_gateway(&runtime)
-            .expect("configure runtime");
-        let info = services
-            .ensure_desktop_kernel_running(&paths)
-            .expect("ensure desktop kernel");
-
-        assert_eq!(info.host.ownership, "appSupervisor");
-        assert!(backend.events().is_empty());
-
-        let supervisor = services.supervisor.kernel_info().expect("supervisor info");
-        let gateway = supervisor
-            .services
-            .into_iter()
-            .find(|service| service.id == supervisor::SERVICE_ID_OPENCLAW_GATEWAY)
-            .expect("gateway service");
-        assert_eq!(gateway.lifecycle, "running");
-
-        services.supervisor.begin_shutdown().expect("shutdown");
-        services
-            .supervisor
-            .complete_shutdown()
-            .expect("complete shutdown");
-    }
-
-    #[test]
     fn restart_desktop_kernel_restarts_native_service_when_available() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
@@ -439,50 +378,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn native_kernel_host_manager_is_disabled_for_dev_build_roots() {
-        let root = tempfile::tempdir().expect("temp dir");
-        let paths = resolve_paths_for_root(root.path()).expect("paths");
-
-        assert_eq!(
-            path_contains_dev_build_segment(
-                &root.path().join(".tauri-target").join("dev").join("debug"),
-                ".tauri-target",
-            ),
-            true
-        );
-        assert_eq!(
-            path_contains_dev_build_segment(&root.path().join("target-dev").join("debug"), "target-dev"),
-            true
-        );
-        assert_eq!(should_use_native_kernel_host_manager(&paths), true);
-    }
-
     fn reserve_loopback_port() -> u16 {
         let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listener");
         let port = listener.local_addr().expect("listener addr").port();
         drop(listener);
         port
-    }
-
-    #[cfg(windows)]
-    fn resolve_test_node_executable() -> PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node.exe"))
-            .find(|candidate| candidate.exists())
-            .expect("node.exe should be available on PATH for framework service tests")
-    }
-
-    #[cfg(not(windows))]
-    fn resolve_test_node_executable() -> PathBuf {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
-            .map(|entry| entry.join("node"))
-            .find(|candidate| candidate.exists())
-            .expect("node should be available on PATH for framework service tests")
     }
 
     #[derive(Debug)]

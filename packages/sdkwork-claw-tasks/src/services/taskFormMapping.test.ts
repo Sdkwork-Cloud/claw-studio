@@ -32,7 +32,7 @@ function createTask(overrides: Partial<Task> = {}): Task {
     executionContent: 'runAssistantTask',
     timeoutSeconds: 90,
     deliveryMode: 'publishSummary',
-    deliveryChannel: 'slack',
+    deliveryChannel: 'qq',
     recipient: 'ops-room',
     lastRun: '2 hours ago',
     nextRun: 'in 30 minutes',
@@ -55,7 +55,7 @@ runTest('buildTaskFormValuesFromTask maps interval tasks into editable form valu
   assert.equal(values.executionContent, 'runAssistantTask');
   assert.equal(values.timeoutSeconds, '90');
   assert.equal(values.deliveryMode, 'publishSummary');
-  assert.equal(values.deliveryChannel, 'slack');
+  assert.equal(values.deliveryChannel, 'qq');
   assert.equal(values.recipient, 'ops-room');
 });
 

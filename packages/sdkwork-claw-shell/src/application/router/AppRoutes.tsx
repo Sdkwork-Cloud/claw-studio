@@ -164,22 +164,22 @@ const ModelPurchase = lazy(() =>
   })),
 );
 const Points = lazy(() =>
-  import('../../lazy/points.ts').then((module) => ({
+  import('@sdkwork/claw-points').then((module) => ({
     default: module.Points,
   })),
 );
 const Settings = lazy(() =>
-  import('../../lazy/settings.ts').then((module) => ({
+  import('@sdkwork/claw-settings').then((module) => ({
     default: module.Settings,
   })),
 );
 const ProviderConfigCenter = lazy(() =>
-  import('../../lazy/settings.ts').then((module) => ({
+  import('@sdkwork/claw-settings').then((module) => ({
     default: module.ProviderConfigCenter,
   })),
 );
 const KernelCenter = lazy(() =>
-  import('../../lazy/settings.ts').then((module) => ({
+  import('@sdkwork/claw-settings').then((module) => ({
     default: module.KernelCenter,
   })),
 );

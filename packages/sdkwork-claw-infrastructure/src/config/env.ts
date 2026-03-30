@@ -15,13 +15,10 @@ export interface AppEnvConfig {
     baseUrl: string;
     timeout: number;
   };
-  im: {
-    wsUrl: string;
-  };
   auth: {
     accessToken: string;
   };
-  openclaw: {
+  apiRouter: {
     adminBaseUrl: string;
     gatewayBaseUrl: string;
     adminToken: string;
@@ -50,15 +47,7 @@ interface ImportMetaEnvLike {
 }
 
 function readRuntimeEnvSource(): AppEnvSource {
-  try {
-    if (typeof import.meta !== 'undefined' && (import.meta as ImportMetaEnvLike).env) {
-      return ((import.meta as ImportMetaEnvLike).env ?? {}) as AppEnvSource;
-    }
-
-    return {};
-  } catch {
-    return {};
-  }
+  return ((import.meta as ImportMetaEnvLike).env ?? {}) as AppEnvSource;
 }
 
 function readString(source: AppEnvSource, key: string, fallback = ''): string {
@@ -99,7 +88,7 @@ function resolveRuntimeEnv(source: AppEnvSource): AppRuntimeEnv {
   return DEFAULT_RUNTIME_ENV;
 }
 
-function normalizeUrl(value: string): string {
+function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/g, '');
 }
 
@@ -136,8 +125,7 @@ function resolvePlatformId(source: AppEnvSource, isTauri: boolean): string {
 export function createAppEnvConfig(source: AppEnvSource = readRuntimeEnvSource()): AppEnvConfig {
   const appEnv = resolveRuntimeEnv(source);
   const isTauri = detectTauriRuntime();
-  const baseUrl = normalizeUrl(readString(source, 'VITE_API_BASE_URL'));
-  const imWsUrl = normalizeUrl(readString(source, 'VITE_IM_WS_URL'));
+  const baseUrl = normalizeBaseUrl(readString(source, 'VITE_API_BASE_URL'));
   const timeout = readPositiveNumber(source, 'VITE_TIMEOUT') ?? DEFAULT_TIMEOUT;
   const accessToken = normalizeAccessToken(readString(source, 'VITE_ACCESS_TOKEN'));
   const appId = readPositiveNumber(source, 'VITE_APP_ID');
@@ -151,16 +139,13 @@ export function createAppEnvConfig(source: AppEnvSource = readRuntimeEnvSource()
       baseUrl,
       timeout,
     },
-    im: {
-      wsUrl: imWsUrl,
-    },
     auth: {
       accessToken,
     },
-    openclaw: {
-      adminBaseUrl: normalizeUrl(readString(source, 'VITE_OPENCLAW_ADMIN_BASE_URL')),
-      gatewayBaseUrl: normalizeUrl(readString(source, 'VITE_OPENCLAW_GATEWAY_BASE_URL')),
-      adminToken: normalizeAccessToken(readString(source, 'VITE_OPENCLAW_ADMIN_TOKEN')),
+    apiRouter: {
+      adminBaseUrl: normalizeBaseUrl(readString(source, 'VITE_API_ROUTER_ADMIN_BASE_URL')),
+      gatewayBaseUrl: normalizeBaseUrl(readString(source, 'VITE_API_ROUTER_GATEWAY_BASE_URL')),
+      adminToken: normalizeAccessToken(readString(source, 'VITE_API_ROUTER_ADMIN_TOKEN')),
     },
     update: {
       appId,
@@ -184,12 +169,8 @@ export function readAccessToken(config: AppEnvConfig = APP_ENV): string {
   return config.auth.accessToken;
 }
 
-export function readImWsUrl(config: AppEnvConfig = APP_ENV): string {
-  return config.im.wsUrl;
-}
-
-export function readOpenClawAdminToken(config: AppEnvConfig = APP_ENV): string {
-  return config.openclaw.adminToken;
+export function readApiRouterAdminToken(config: AppEnvConfig = APP_ENV): string {
+  return config.apiRouter.adminToken;
 }
 
 export function hasDesktopUpdateConfig(config: AppEnvConfig = APP_ENV): boolean {

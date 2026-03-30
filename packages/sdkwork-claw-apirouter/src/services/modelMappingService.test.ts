@@ -65,69 +65,105 @@ await runTest('modelMappingService exposes the mapping and catalog service surfa
   assert.equal(typeof module.modelMappingService.getModelCatalog, 'function');
 });
 
-await runTest('modelMappingService reads catalog and mappings from the shared studio mock layer', async () => {
+await runTest('modelMappingService derives the model catalog from router providers and models instead of mock data', async () => {
   const infrastructure = await import('@sdkwork/claw-infrastructure');
   const { modelMappingService } = await import('./modelMappingService.ts');
-  const originalMock = {
-    listModelMappingCatalog: infrastructure.studioMockService.listModelMappingCatalog,
-    listModelMappings: infrastructure.studioMockService.listModelMappings,
+  const originalAdminClient = {
+    listChannels: infrastructure.sdkworkApiRouterAdminClient.listChannels,
+    listProviders: infrastructure.sdkworkApiRouterAdminClient.listProviders,
+    listModels: infrastructure.sdkworkApiRouterAdminClient.listModels,
   };
+  const originalListApiRouterChannels =
+    infrastructure.studioMockService.listApiRouterChannels;
 
-  infrastructure.studioMockService.listModelMappingCatalog = async () =>
+  infrastructure.sdkworkApiRouterAdminClient.listChannels = async () => [
+    {
+      id: 'openai',
+      name: 'OpenAI',
+    },
+    {
+      id: 'google',
+      name: 'Google',
+    },
+  ];
+  infrastructure.sdkworkApiRouterAdminClient.listProviders = async () => [
+    {
+      id: 'provider-openai-official',
+      channel_id: 'openai',
+      extension_id: 'sdkwork.provider.custom-openai',
+      adapter_kind: 'custom-openai',
+      base_url: 'https://router.openai.example.com/v1',
+      display_name: 'OpenAI Official',
+      channel_bindings: [
+        {
+          provider_id: 'provider-openai-official',
+          channel_id: 'openai',
+          is_primary: true,
+        },
+      ],
+    },
+    {
+      id: 'provider-google-official',
+      channel_id: 'google',
+      extension_id: 'sdkwork.provider.google',
+      adapter_kind: 'google',
+      base_url: 'https://router.google.example.com/v1',
+      display_name: 'Google Official',
+      channel_bindings: [
+        {
+          provider_id: 'provider-google-official',
+          channel_id: 'google',
+          is_primary: true,
+        },
+      ],
+    },
+  ];
+  infrastructure.sdkworkApiRouterAdminClient.listModels = async () => [
+    {
+      external_name: 'gpt-5.4',
+      provider_id: 'provider-openai-official',
+      capabilities: ['responses'],
+      streaming: true,
+      context_window: 200000,
+    },
+    {
+      external_name: 'gpt-4.1-mini',
+      provider_id: 'provider-openai-official',
+      capabilities: ['chat_completions'],
+      streaming: true,
+      context_window: 128000,
+    },
+    {
+      external_name: 'gemini-2.5-pro',
+      provider_id: 'provider-google-official',
+      capabilities: ['generate_content'],
+      streaming: true,
+      context_window: 1048576,
+    },
+  ];
+  infrastructure.studioMockService.listApiRouterChannels = async () =>
     clone([
       {
-        channelId: 'google',
-        channelName: 'Google',
-        models: [
-          {
-            modelId: 'gemini-3.1-pro-preview',
-            modelName: 'gemini-3.1-pro-preview',
-          },
-        ],
+        id: 'openai',
+        name: 'OpenAI',
+        vendor: 'OpenAI',
+        description: 'OpenAI routes',
+        modelFamily: 'GPT',
+        providerCount: 0,
+        activeProviderCount: 0,
+        warningProviderCount: 0,
+        disabledProviderCount: 0,
       },
       {
-        channelId: 'openai',
-        channelName: 'OpenAI',
-        models: [
-          {
-            modelId: 'gpt-4.1-mini',
-            modelName: 'gpt-4.1-mini',
-          },
-          {
-            modelId: 'gpt-5.4',
-            modelName: 'gpt-5.4',
-          },
-        ],
-      },
-    ]);
-  infrastructure.studioMockService.listModelMappings = async () =>
-    clone([
-      {
-        id: 'mapping-google-prod',
-        name: 'Google Production',
-        description: 'Gemini high-quality route',
-        status: 'active',
-        effectiveFrom: '2026-03-21T00:00:00.000Z',
-        effectiveTo: '2026-12-31T23:59:59.000Z',
-        rules: [
-          {
-            id: 'rule-google-prod',
-            source: {
-              channelId: 'google',
-              channelName: 'Google',
-              modelId: 'gemini-3.1-pro-preview',
-              modelName: 'gemini-3.1-pro-preview',
-            },
-            target: {
-              channelId: 'openai',
-              channelName: 'OpenAI',
-              modelId: 'gpt-5.4',
-              modelName: 'gpt-5.4',
-            },
-          },
-        ],
-        createdAt: '2026-03-21T00:00:00.000Z',
-        updatedAt: '2026-03-21T00:00:00.000Z',
+        id: 'google',
+        name: 'Google',
+        vendor: 'Google',
+        description: 'Google routes',
+        modelFamily: 'Gemini',
+        providerCount: 0,
+        activeProviderCount: 0,
+        warningProviderCount: 0,
+        disabledProviderCount: 0,
       },
     ]);
 
@@ -143,8 +179,8 @@ await runTest('modelMappingService reads catalog and mappings from the shared st
         channelName: 'Google',
         models: [
           {
-            modelId: 'gemini-3.1-pro-preview',
-            modelName: 'gemini-3.1-pro-preview',
+            modelId: 'gemini-2.5-pro',
+            modelName: 'gemini-2.5-pro',
           },
         ],
       },
@@ -163,82 +199,115 @@ await runTest('modelMappingService reads catalog and mappings from the shared st
         ],
       },
     ]);
-    assert.equal(mappings.length, 1);
-    assert.equal(mappings[0]?.id, 'mapping-google-prod');
+    assert.deepEqual(mappings, []);
   } finally {
-    infrastructure.studioMockService.listModelMappingCatalog =
-      originalMock.listModelMappingCatalog;
-    infrastructure.studioMockService.listModelMappings =
-      originalMock.listModelMappings;
+    infrastructure.sdkworkApiRouterAdminClient.listChannels =
+      originalAdminClient.listChannels;
+    infrastructure.sdkworkApiRouterAdminClient.listProviders =
+      originalAdminClient.listProviders;
+    infrastructure.sdkworkApiRouterAdminClient.listModels =
+      originalAdminClient.listModels;
+    infrastructure.studioMockService.listApiRouterChannels =
+      originalListApiRouterChannels;
   }
 });
 
-await runTest('modelMappingService keeps model-mapping CRUD available on top of the shared studio mock layer', async () => {
+await runTest('modelMappingService keeps local model-mapping CRUD available on top of live router catalogs', async () => {
+  globalThis.localStorage.clear();
+
   const infrastructure = await import('@sdkwork/claw-infrastructure');
   const { modelMappingService } = await import('./modelMappingService.ts');
-  const originalMock = {
-    createModelMapping: infrastructure.studioMockService.createModelMapping,
-    updateModelMapping: infrastructure.studioMockService.updateModelMapping,
-    updateModelMappingStatus: infrastructure.studioMockService.updateModelMappingStatus,
-    deleteModelMapping: infrastructure.studioMockService.deleteModelMapping,
-    listModelMappings: infrastructure.studioMockService.listModelMappings,
+  const originalAdminClient = {
+    listChannels: infrastructure.sdkworkApiRouterAdminClient.listChannels,
+    listProviders: infrastructure.sdkworkApiRouterAdminClient.listProviders,
+    listModels: infrastructure.sdkworkApiRouterAdminClient.listModels,
   };
-  let currentItems: any[] = [];
-  let sequence = 0;
+  const originalListApiRouterChannels =
+    infrastructure.studioMockService.listApiRouterChannels;
 
-  infrastructure.studioMockService.listModelMappings = async () => clone(currentItems);
-  infrastructure.studioMockService.createModelMapping = async (input) => {
-    const created = {
-      id: `mapping-${++sequence}`,
-      name: input.name,
-      description: input.description,
-      status: 'active',
-      effectiveFrom: input.effectiveFrom,
-      effectiveTo: input.effectiveTo,
-      rules: input.rules.map((rule, index) => ({
-        id: `rule-${index + 1}`,
-        source: { ...rule.source },
-        target: { ...rule.target },
-      })),
-      createdAt: '2026-03-21T00:00:00.000Z',
-      updatedAt: '2026-03-21T00:00:00.000Z',
-    };
-    currentItems = [...currentItems, created];
-    return clone(created);
-  };
-  infrastructure.studioMockService.updateModelMapping = async (id, update) => {
-    const current = currentItems.find((item) => item.id === id);
-    if (!current) {
-      return undefined;
-    }
-
-    const updated = {
-      ...current,
-      ...update,
-      updatedAt: '2026-03-22T00:00:00.000Z',
-    };
-    currentItems = currentItems.map((item) => (item.id === id ? updated : item));
-    return clone(updated);
-  };
-  infrastructure.studioMockService.updateModelMappingStatus = async (id, status) => {
-    const current = currentItems.find((item) => item.id === id);
-    if (!current) {
-      return undefined;
-    }
-
-    const updated = {
-      ...current,
-      status,
-      updatedAt: '2026-03-22T12:00:00.000Z',
-    };
-    currentItems = currentItems.map((item) => (item.id === id ? updated : item));
-    return clone(updated);
-  };
-  infrastructure.studioMockService.deleteModelMapping = async (id) => {
-    const sizeBefore = currentItems.length;
-    currentItems = currentItems.filter((item) => item.id !== id);
-    return currentItems.length !== sizeBefore;
-  };
+  infrastructure.sdkworkApiRouterAdminClient.listChannels = async () => [
+    {
+      id: 'openai',
+      name: 'OpenAI',
+    },
+    {
+      id: 'google',
+      name: 'Google',
+    },
+  ];
+  infrastructure.sdkworkApiRouterAdminClient.listProviders = async () => [
+    {
+      id: 'provider-openai-official',
+      channel_id: 'openai',
+      extension_id: 'sdkwork.provider.custom-openai',
+      adapter_kind: 'custom-openai',
+      base_url: 'https://router.openai.example.com/v1',
+      display_name: 'OpenAI Official',
+      channel_bindings: [
+        {
+          provider_id: 'provider-openai-official',
+          channel_id: 'openai',
+          is_primary: true,
+        },
+      ],
+    },
+    {
+      id: 'provider-google-official',
+      channel_id: 'google',
+      extension_id: 'sdkwork.provider.google',
+      adapter_kind: 'google',
+      base_url: 'https://router.google.example.com/v1',
+      display_name: 'Google Official',
+      channel_bindings: [
+        {
+          provider_id: 'provider-google-official',
+          channel_id: 'google',
+          is_primary: true,
+        },
+      ],
+    },
+  ];
+  infrastructure.sdkworkApiRouterAdminClient.listModels = async () => [
+    {
+      external_name: 'gpt-5.4',
+      provider_id: 'provider-openai-official',
+      capabilities: ['responses'],
+      streaming: true,
+      context_window: 200000,
+    },
+    {
+      external_name: 'gemini-2.5-pro',
+      provider_id: 'provider-google-official',
+      capabilities: ['generate_content'],
+      streaming: true,
+      context_window: 1048576,
+    },
+  ];
+  infrastructure.studioMockService.listApiRouterChannels = async () =>
+    clone([
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        vendor: 'OpenAI',
+        description: 'OpenAI routes',
+        modelFamily: 'GPT',
+        providerCount: 0,
+        activeProviderCount: 0,
+        warningProviderCount: 0,
+        disabledProviderCount: 0,
+      },
+      {
+        id: 'google',
+        name: 'Google',
+        vendor: 'Google',
+        description: 'Google routes',
+        modelFamily: 'Gemini',
+        providerCount: 0,
+        activeProviderCount: 0,
+        warningProviderCount: 0,
+        disabledProviderCount: 0,
+      },
+    ]);
 
   try {
     const before = await modelMappingService.getModelMappings();
@@ -260,8 +329,8 @@ await runTest('modelMappingService keeps model-mapping CRUD available on top of 
           target: {
             channelId: 'google',
             channelName: 'Google',
-            modelId: 'gemini-3.1-pro-preview',
-            modelName: 'Gemini 3.1 Pro',
+            modelId: 'gemini-2.5-pro',
+            modelName: 'Gemini 2.5 Pro',
           },
         },
       ],
@@ -291,15 +360,13 @@ await runTest('modelMappingService keeps model-mapping CRUD available on top of 
     const afterDelete = await modelMappingService.getModelMappings();
     assert.deepEqual(afterDelete, []);
   } finally {
-    infrastructure.studioMockService.createModelMapping =
-      originalMock.createModelMapping;
-    infrastructure.studioMockService.updateModelMapping =
-      originalMock.updateModelMapping;
-    infrastructure.studioMockService.updateModelMappingStatus =
-      originalMock.updateModelMappingStatus;
-    infrastructure.studioMockService.deleteModelMapping =
-      originalMock.deleteModelMapping;
-    infrastructure.studioMockService.listModelMappings =
-      originalMock.listModelMappings;
+    infrastructure.sdkworkApiRouterAdminClient.listChannels =
+      originalAdminClient.listChannels;
+    infrastructure.sdkworkApiRouterAdminClient.listProviders =
+      originalAdminClient.listProviders;
+    infrastructure.sdkworkApiRouterAdminClient.listModels =
+      originalAdminClient.listModels;
+    infrastructure.studioMockService.listApiRouterChannels =
+      originalListApiRouterChannels;
   }
 });

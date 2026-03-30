@@ -475,7 +475,7 @@ mod tests {
     use crate::framework::paths::resolve_paths_for_root;
     use std::{ffi::OsString, fs};
 
-    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.28";
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.24";
 
     #[test]
     fn detects_internal_register_openclaw_cli_action() {
@@ -508,7 +508,7 @@ mod tests {
             "claw-studio.exe",
             "--run-kernel-host-service",
             "--machine-root",
-            "C:\\ProgramData\\SdkWork\\ClawStudio",
+            "C:\\ProgramData\\SdkWork\\CrawStudio",
             "--user-root",
             "C:\\Users\\admin\\.sdkwork\\crawstudio",
         ]);
@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(
             action,
             Some(InternalCliAction::RunKernelHostService {
-                machine_root: Some(OsString::from("C:\\ProgramData\\SdkWork\\ClawStudio")),
+                machine_root: Some(OsString::from("C:\\ProgramData\\SdkWork\\CrawStudio")),
                 user_root: Some(OsString::from("C:\\Users\\admin\\.sdkwork\\crawstudio")),
             })
         );

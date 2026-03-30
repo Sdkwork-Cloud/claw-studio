@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Check, Copy, Key, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, Check, Copy, Key, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
@@ -12,7 +12,6 @@ import { type ApiKey, apiKeyService } from './services';
 
 export function ApiKeysSettings() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [searchText, setSearchText] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [createdKey, setCreatedKey] = useState<string | null>(null);
@@ -23,16 +22,6 @@ export function ApiKeysSettings() {
   const [isRevoking, setIsRevoking] = useState(false);
   const { t, i18n } = useTranslation();
   const language = i18n.resolvedLanguage ?? i18n.language;
-  const normalizedSearch = searchText.trim().toLowerCase();
-  const filteredKeys = normalizedSearch
-    ? keys.filter((key) => {
-        const haystack = [key.name, key.token, key.id]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return haystack.includes(normalizedSearch);
-      })
-    : keys;
 
   useEffect(() => {
     const fetchKeys = async () => {
@@ -102,34 +91,23 @@ export function ApiKeysSettings() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="mb-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             {t('settings.apiKeys.title')}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {t('settings.apiKeys.description')}
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 sm:w-[320px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <Input
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder={t('settings.apiKeys.searchPlaceholder')}
-              className="h-10 pl-9"
-            />
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            <Plus className="h-4 w-4" />
-            {t('settings.apiKeys.createNew')}
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          <Plus className="h-4 w-4" />
+          {t('settings.apiKeys.createNew')}
+        </Button>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -156,19 +134,17 @@ export function ApiKeysSettings() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {filteredKeys.length === 0 ? (
+              {keys.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 dark:text-zinc-400">
                     <Key className="mx-auto mb-3 h-8 w-8 text-zinc-300 dark:text-zinc-700" />
                     <p>
-                      {normalizedSearch
-                        ? t('settings.apiKeys.searchEmpty')
-                        : t('settings.apiKeys.empty')}
+                      {t('settings.apiKeys.empty')}
                     </p>
                   </td>
                 </tr>
               ) : (
-                filteredKeys.map((key) => (
+                keys.map((key) => (
                   <tr
                     key={key.id}
                     className="group transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50"

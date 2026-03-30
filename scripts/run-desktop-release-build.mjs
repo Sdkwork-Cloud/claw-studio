@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { withSupportedWindowsCmakeGenerator } from './prepare-sdkwork-api-router-runtime.mjs';
 import {
   buildDesktopReleaseEnv,
   normalizeDesktopArch,
@@ -51,6 +52,11 @@ function resolveReleasePhasePlan({
       return {
         command: process.execPath,
         args: ['scripts/prepare-openclaw-runtime.mjs'],
+      };
+    case 'prepare-api-router':
+      return {
+        command: process.execPath,
+        args: ['scripts/prepare-sdkwork-api-router-runtime.mjs'],
       };
     case 'bundle': {
       if (normalizeDesktopPlatform(platform) === 'windows') {
@@ -126,17 +132,12 @@ export function createDesktopReleaseBuildPlan({
   releaseMode = false,
 } = {}) {
   const requestedTargetTriple = String(targetTriple ?? '').trim();
-  const releaseEnv = requestedTargetTriple
+  const resolvedEnv = requestedTargetTriple
     ? buildDesktopReleaseEnv({
         env,
         targetTriple: requestedTargetTriple,
       })
     : { ...env };
-  const resolvedEnv = {
-    ...releaseEnv,
-    NODE_ENV: 'production',
-    VITE_APP_ENV: 'production',
-  };
 
   const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
   const effectiveReleaseMode = releaseMode || normalizedPhase === 'sync';
@@ -203,25 +204,6 @@ function parseCliArgs(argv) {
   return options;
 }
 
-function withSupportedWindowsCmakeGenerator(
-  baseEnv = process.env,
-  platform = process.platform,
-) {
-  const env = { ...baseEnv };
-  if (platform !== 'win32') {
-    return env;
-  }
-
-  const requestedGenerator = String(env.CMAKE_GENERATOR ?? '').trim();
-  if (requestedGenerator.length > 0 && !requestedGenerator.includes('2026')) {
-    return env;
-  }
-
-  env.CMAKE_GENERATOR = 'Visual Studio 17 2022';
-  env.HOST_CMAKE_GENERATOR = 'Visual Studio 17 2022';
-  return env;
-}
-
 function runCli() {
   const options = parseCliArgs(process.argv.slice(2));
   const plan = createDesktopReleaseBuildPlan({
@@ -234,7 +216,6 @@ function runCli() {
     env: plan.env,
     stdio: 'inherit',
     shell: process.platform === 'win32',
-    windowsHide: true,
   });
 
   child.on('error', (error) => {

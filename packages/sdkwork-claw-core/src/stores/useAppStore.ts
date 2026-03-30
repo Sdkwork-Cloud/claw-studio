@@ -6,13 +6,11 @@ import {
   resolveInitialLanguage,
   type SupportedLanguage,
 } from '@sdkwork/claw-i18n';
-import { resolveAutoSidebarCollapsed } from './sidebarAutoCollapse.ts';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ThemeColor = 'lobster' | 'tech-blue' | 'green-tech' | 'zinc' | 'violet' | 'rose';
 export type Language = SupportedLanguage;
 export type LanguagePreference = Language | 'system';
-export type SidebarCollapsePreference = 'auto' | 'user';
 
 interface AppState {
   isSidebarCollapsed: boolean;
@@ -20,7 +18,6 @@ interface AppState {
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidth: (width: number) => void;
-  sidebarCollapsePreference: SidebarCollapsePreference;
   sidebarVisibilityVersion: number;
   hiddenSidebarItems: string[];
   toggleSidebarItem: (id: string) => void;
@@ -42,7 +39,6 @@ type PersistedAppState = Pick<
   AppState,
   | 'isSidebarCollapsed'
   | 'sidebarWidth'
-  | 'sidebarCollapsePreference'
   | 'sidebarVisibilityVersion'
   | 'hiddenSidebarItems'
   | 'themeMode'
@@ -52,8 +48,8 @@ type PersistedAppState = Pick<
   | 'hasSeenMobileAppPrompt'
 >;
 
-const SIDEBAR_VISIBILITY_VERSION = 5;
-const DEFAULT_HIDDEN_SIDEBAR_ITEMS = ['apps', 'extensions', 'github', 'huggingface', 'mall', 'api-router'] as const;
+const SIDEBAR_VISIBILITY_VERSION = 4;
+const DEFAULT_HIDDEN_SIDEBAR_ITEMS = ['apps', 'extensions', 'github', 'huggingface'] as const;
 
 function dedupeSidebarItems(items: readonly string[]) {
   return Array.from(new Set(items));
@@ -88,38 +84,14 @@ const resolveLanguageFromPreference = (preference: LanguagePreference): Language
   return normalizeLanguage(preference);
 };
 
-function resolveSidebarCollapsePreference(
-  nextState: Partial<PersistedAppState>,
-  currentState: AppState,
-): SidebarCollapsePreference {
-  if (
-    nextState.sidebarCollapsePreference === 'auto' ||
-    nextState.sidebarCollapsePreference === 'user'
-  ) {
-    return nextState.sidebarCollapsePreference;
-  }
-
-  if (typeof nextState.isSidebarCollapsed === 'boolean') {
-    return 'user';
-  }
-
-  return currentState.sidebarCollapsePreference;
-}
-
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      isSidebarCollapsed: resolveAutoSidebarCollapsed(),
+      isSidebarCollapsed: false,
       sidebarWidth: 252,
-      toggleSidebar: () =>
-        set((state) => ({
-          isSidebarCollapsed: !state.isSidebarCollapsed,
-          sidebarCollapsePreference: 'user',
-        })),
-      setSidebarCollapsed: (collapsed) =>
-        set({ isSidebarCollapsed: collapsed, sidebarCollapsePreference: 'user' }),
+      toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
+      setSidebarCollapsed: (collapsed) => set({ isSidebarCollapsed: collapsed }),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
-      sidebarCollapsePreference: 'auto',
       sidebarVisibilityVersion: SIDEBAR_VISIBILITY_VERSION,
       hiddenSidebarItems: [...DEFAULT_HIDDEN_SIDEBAR_ITEMS],
       toggleSidebarItem: (id) =>
@@ -152,7 +124,6 @@ export const useAppStore = create<AppState>()(
       partialize: (state): PersistedAppState => ({
         isSidebarCollapsed: state.isSidebarCollapsed,
         sidebarWidth: state.sidebarWidth,
-        sidebarCollapsePreference: state.sidebarCollapsePreference,
         sidebarVisibilityVersion: state.sidebarVisibilityVersion,
         hiddenSidebarItems: state.hiddenSidebarItems,
         themeMode: state.themeMode,
@@ -166,11 +137,6 @@ export const useAppStore = create<AppState>()(
         const languagePreference = normalizeLanguagePreference(
           nextState.languagePreference ?? nextState.language ?? 'system',
         );
-        const sidebarCollapsePreference = resolveSidebarCollapsePreference(nextState, currentState);
-        const isSidebarCollapsed =
-          sidebarCollapsePreference === 'auto'
-            ? resolveAutoSidebarCollapsed()
-            : nextState.isSidebarCollapsed ?? currentState.isSidebarCollapsed;
         const hiddenSidebarItems =
           nextState.sidebarVisibilityVersion === SIDEBAR_VISIBILITY_VERSION
             ? dedupeSidebarItems(nextState.hiddenSidebarItems ?? currentState.hiddenSidebarItems)
@@ -179,8 +145,6 @@ export const useAppStore = create<AppState>()(
         return {
           ...currentState,
           ...nextState,
-          isSidebarCollapsed,
-          sidebarCollapsePreference,
           sidebarVisibilityVersion: SIDEBAR_VISIBILITY_VERSION,
           hiddenSidebarItems,
           languagePreference,

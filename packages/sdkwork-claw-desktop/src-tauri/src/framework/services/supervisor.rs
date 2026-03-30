@@ -1,6 +1,12 @@
 #![allow(dead_code)]
 
 use crate::framework::services::{
+    api_router_managed_runtime::{ActivatedApiRouterRuntime, ManagedApiRouterProcessSpec},
+    api_router_runtime::{load_router_config, shared_router_root, ApiRouterRuntimeService},
+    api_router_web_server::{
+        probe_api_router_web_server, upstream_base_url_for_bind, ApiRouterWebServerConfig,
+        ApiRouterWebServerHandle, RuntimeSite,
+    },
     openclaw_runtime::{ActivatedOpenClawRuntime, OpenClawRuntimeService},
 };
 use crate::framework::{
@@ -32,12 +38,19 @@ const DEFAULT_RESTART_BACKOFF_MS: u64 = 5_000;
 const DEFAULT_MAX_RESTARTS: usize = 3;
 const DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS: u64 = 10_000;
 const DEFAULT_OPENCLAW_GATEWAY_READY_TIMEOUT_MS: u64 = 30_000;
+const DEFAULT_API_ROUTER_READY_TIMEOUT_MS: u64 = 10_000;
+const HOST_ADMIN_SITE_DIR_ENV: &str = "SDKWORK_API_ROUTER_ADMIN_SITE_DIR";
+const HOST_PORTAL_SITE_DIR_ENV: &str = "SDKWORK_API_ROUTER_PORTAL_SITE_DIR";
+const UPSTREAM_ADMIN_SITE_DIR_ENV: &str = "SDKWORK_ADMIN_SITE_DIR";
+const UPSTREAM_PORTAL_SITE_DIR_ENV: &str = "SDKWORK_PORTAL_SITE_DIR";
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 #[cfg(windows)]
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 
 pub const SERVICE_ID_OPENCLAW_GATEWAY: &str = "openclaw_gateway";
+pub const SERVICE_ID_WEB_SERVER: &str = "web_server";
+pub const SERVICE_ID_API_ROUTER: &str = "api_router";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SupervisorLifecycle {
@@ -120,6 +133,8 @@ pub struct SupervisorService {
     definitions: Arc<Vec<ManagedServiceDefinition>>,
     runtime: Arc<Mutex<SupervisorRuntime>>,
     openclaw_runtime: Arc<Mutex<Option<ActivatedOpenClawRuntime>>>,
+    api_router_runtime: Arc<Mutex<Option<ActivatedApiRouterRuntime>>>,
+    web_server: Arc<Mutex<Option<ApiRouterWebServerHandle>>>,
     managed_processes: Arc<Mutex<HashMap<String, ManagedServiceProcessHandle>>>,
 }
 
@@ -183,6 +198,8 @@ impl SupervisorService {
                 services,
             })),
             openclaw_runtime: Arc::new(Mutex::new(None)),
+            api_router_runtime: Arc::new(Mutex::new(None)),
+            web_server: Arc::new(Mutex::new(None)),
             managed_processes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -291,6 +308,15 @@ impl SupervisorService {
         Ok(self.lock_openclaw_runtime()?.clone())
     }
 
+    pub fn configure_api_router_runtime(&self, runtime: &ActivatedApiRouterRuntime) -> Result<()> {
+        *self.lock_api_router_runtime()? = Some(runtime.clone());
+        Ok(())
+    }
+
+    pub fn configured_api_router_runtime(&self) -> Result<Option<ActivatedApiRouterRuntime>> {
+        Ok(self.lock_api_router_runtime()?.clone())
+    }
+
     pub fn start_openclaw_gateway(&self, paths: &AppPaths) -> Result<()> {
         let runtime = self
             .lock_openclaw_runtime()?
@@ -371,6 +397,152 @@ impl SupervisorService {
         self.stop_service_process(SERVICE_ID_OPENCLAW_GATEWAY)
     }
 
+    pub fn start_web_server(&self, paths: &AppPaths) -> Result<()> {
+        if self.is_service_running(SERVICE_ID_WEB_SERVER)? {
+            return Ok(());
+        }
+
+        self.request_restart(SERVICE_ID_WEB_SERVER)?;
+        let config = self.resolve_api_router_web_server_config(paths)?;
+        let handle = ApiRouterWebServerHandle::start(config)?;
+        if !probe_api_router_web_server(handle.bind_addr(), 500) {
+            let bind_addr = handle.bind_addr().to_string();
+            let mut handle = handle;
+            let _ = handle.stop();
+            let error = FrameworkError::Timeout(format!(
+                "api router web server did not become ready on {} within 500ms",
+                bind_addr
+            ));
+            let _ = self.record_stopped(SERVICE_ID_WEB_SERVER, None, Some(error.to_string()));
+            return Err(error);
+        }
+
+        *self.lock_web_server()? = Some(handle);
+        self.record_running(SERVICE_ID_WEB_SERVER, None)?;
+        Ok(())
+    }
+
+    pub fn restart_web_server(&self, paths: &AppPaths) -> Result<()> {
+        let _ = self.stop_web_server();
+        self.start_web_server(paths)
+    }
+
+    pub fn stop_web_server(&self) -> Result<()> {
+        {
+            let mut runtime = self.lock_runtime()?;
+            if let Some(service) = runtime.services.get_mut(SERVICE_ID_WEB_SERVER) {
+                service.lifecycle = ManagedServiceLifecycle::Stopping;
+            }
+        }
+
+        let Some(mut handle) = self.lock_web_server()?.take() else {
+            self.record_stopped(SERVICE_ID_WEB_SERVER, None, None)?;
+            return Ok(());
+        };
+
+        match handle.stop() {
+            Ok(()) => self.record_stopped(SERVICE_ID_WEB_SERVER, None, None),
+            Err(error) => {
+                let _ = self.record_stopped(SERVICE_ID_WEB_SERVER, None, Some(error.to_string()));
+                Err(error)
+            }
+        }
+    }
+
+    pub fn start_api_router(&self, paths: &AppPaths) -> Result<()> {
+        let runtime = self
+            .lock_api_router_runtime()?
+            .clone()
+            .ok_or_else(|| FrameworkError::NotFound("configured api router runtime".to_string()))?;
+        let router_config = load_router_config(&runtime.shared_root_dir)?;
+
+        self.request_restart(SERVICE_ID_API_ROUTER)?;
+
+        let mut children = Vec::new();
+        let managed_env = runtime.managed_env();
+
+        let gateway_log_path = paths.logs_dir.join("sdkwork-api-router-gateway.log");
+        let gateway_child =
+            spawn_managed_api_router_process(&runtime.gateway, &gateway_log_path, &managed_env)?;
+        children.push(ManagedChildProcessHandle {
+            label: "gateway".to_string(),
+            child: gateway_child,
+        });
+
+        if router_config.enable_admin {
+            let admin_log_path = paths.logs_dir.join("sdkwork-api-router-admin.log");
+            match spawn_managed_api_router_process(&runtime.admin, &admin_log_path, &managed_env) {
+                Ok(admin_child) => {
+                    children.push(ManagedChildProcessHandle {
+                        label: "admin".to_string(),
+                        child: admin_child,
+                    });
+                }
+                Err(error) => {
+                    let _ = terminate_process_group(
+                        &mut children,
+                        DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
+                    );
+                    let _ =
+                        self.record_stopped(SERVICE_ID_API_ROUTER, None, Some(error.to_string()));
+                    return Err(error);
+                }
+            }
+        }
+
+        if router_config.enable_portal {
+            let portal_log_path = paths.logs_dir.join("sdkwork-api-router-portal.log");
+            match spawn_managed_api_router_process(&runtime.portal, &portal_log_path, &managed_env)
+            {
+                Ok(portal_child) => {
+                    children.push(ManagedChildProcessHandle {
+                        label: "portal".to_string(),
+                        child: portal_child,
+                    });
+                }
+                Err(error) => {
+                    let _ = terminate_process_group(
+                        &mut children,
+                        DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
+                    );
+                    let _ =
+                        self.record_stopped(SERVICE_ID_API_ROUTER, None, Some(error.to_string()));
+                    return Err(error);
+                }
+            }
+        }
+
+        if let Err(error) = self.restart_web_server(paths) {
+            let _ = terminate_process_group(&mut children, DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS);
+            let _ = self.record_stopped(SERVICE_ID_API_ROUTER, None, Some(error.to_string()));
+            return Err(error);
+        }
+
+        if let Err(error) = wait_for_api_router_ready(paths, DEFAULT_API_ROUTER_READY_TIMEOUT_MS) {
+            let _ = terminate_process_group(&mut children, DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS);
+            let _ = self.stop_web_server();
+            let _ = self.record_stopped(SERVICE_ID_API_ROUTER, None, Some(error.to_string()));
+            return Err(error);
+        }
+
+        let pid = children.first().map(|child| child.child.id());
+        self.lock_managed_processes()?.insert(
+            SERVICE_ID_API_ROUTER.to_string(),
+            ManagedServiceProcessHandle { children },
+        );
+        self.record_running(SERVICE_ID_API_ROUTER, pid)?;
+        Ok(())
+    }
+
+    pub fn restart_api_router(&self, paths: &AppPaths) -> Result<()> {
+        let _ = self.stop_api_router();
+        self.start_api_router(paths)
+    }
+
+    pub fn stop_api_router(&self) -> Result<()> {
+        self.stop_service_process(SERVICE_ID_API_ROUTER)
+    }
+
     pub fn is_service_running(&self, service_id: &str) -> Result<bool> {
         let runtime = self.lock_runtime()?;
         let service = runtime.services.get(service_id).ok_or_else(|| {
@@ -397,6 +569,8 @@ impl SupervisorService {
             };
         }
         drop(runtime);
+        self.stop_api_router()?;
+        self.stop_web_server()?;
         self.stop_openclaw_gateway()?;
         Ok(())
     }
@@ -546,10 +720,44 @@ impl SupervisorService {
         self.record_stopped(service_id, exit_code, last_error)
     }
 
+    fn resolve_api_router_web_server_config(
+        &self,
+        paths: &AppPaths,
+    ) -> Result<ApiRouterWebServerConfig> {
+        let router_root = shared_router_root(paths);
+        let router_config = load_router_config(&router_root)?;
+        let configured_runtime = self.lock_api_router_runtime()?.clone();
+        let runtime = configured_runtime.as_ref();
+        let env = current_process_env();
+
+        Ok(ApiRouterWebServerConfig {
+            bind_addr: router_config.web_bind,
+            gateway_upstream_base_url: upstream_base_url_for_bind(&router_config.gateway_bind)?,
+            admin_upstream_base_url: upstream_base_url_for_bind(&router_config.admin_bind)?,
+            portal_upstream_base_url: upstream_base_url_for_bind(&router_config.portal_bind)?,
+            admin_site_dir: resolve_api_router_site_dir(runtime, &env, RuntimeSite::Admin),
+            portal_site_dir: resolve_api_router_site_dir(runtime, &env, RuntimeSite::Portal),
+            enable_admin: router_config.enable_admin,
+            enable_portal: router_config.enable_portal,
+        })
+    }
+
     fn lock_openclaw_runtime(&self) -> Result<MutexGuard<'_, Option<ActivatedOpenClawRuntime>>> {
         self.openclaw_runtime
             .lock()
             .map_err(|_| FrameworkError::Internal("openclaw runtime lock poisoned".to_string()))
+    }
+
+    fn lock_api_router_runtime(&self) -> Result<MutexGuard<'_, Option<ActivatedApiRouterRuntime>>> {
+        self.api_router_runtime
+            .lock()
+            .map_err(|_| FrameworkError::Internal("api router runtime lock poisoned".to_string()))
+    }
+
+    fn lock_web_server(&self) -> Result<MutexGuard<'_, Option<ApiRouterWebServerHandle>>> {
+        self.web_server.lock().map_err(|_| {
+            FrameworkError::Internal("api router web server lock poisoned".to_string())
+        })
     }
 
     fn lock_managed_processes(
@@ -572,6 +780,14 @@ impl SupervisorService {
             )
         }))
     }
+
+    #[cfg(test)]
+    pub fn api_router_web_server_bind_addr(&self) -> Result<Option<String>> {
+        Ok(self
+            .lock_web_server()?
+            .as_ref()
+            .map(|handle| handle.bind_addr().to_string()))
+    }
 }
 
 impl Default for SupervisorService {
@@ -590,6 +806,30 @@ fn default_managed_services() -> Vec<ManagedServiceDefinition> {
             cwd: None,
             env: BTreeMap::new(),
             startup_order: 10,
+            graceful_shutdown_timeout_ms: DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
+            restart_policy: RestartPolicy::crash_only_default(),
+            health_check: ManagedServiceHealthCheck::ProcessAlive,
+        },
+        ManagedServiceDefinition {
+            id: SERVICE_ID_WEB_SERVER.to_string(),
+            display_name: "Embedded Web Server".to_string(),
+            command: None,
+            args: Vec::new(),
+            cwd: None,
+            env: BTreeMap::new(),
+            startup_order: 20,
+            graceful_shutdown_timeout_ms: DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
+            restart_policy: RestartPolicy::crash_only_default(),
+            health_check: ManagedServiceHealthCheck::ProcessAlive,
+        },
+        ManagedServiceDefinition {
+            id: SERVICE_ID_API_ROUTER.to_string(),
+            display_name: "API-Router".to_string(),
+            command: None,
+            args: Vec::new(),
+            cwd: None,
+            env: BTreeMap::new(),
+            startup_order: 30,
             graceful_shutdown_timeout_ms: DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
             restart_policy: RestartPolicy::crash_only_default(),
             health_check: ManagedServiceHealthCheck::ProcessAlive,
@@ -638,6 +878,72 @@ fn prepend_path_env(user_bin_dir: &std::path::Path) -> String {
     format!("{user_bin}{separator}{current}")
 }
 
+fn current_process_env() -> HashMap<String, String> {
+    std::env::vars().collect()
+}
+
+fn resolve_api_router_site_dir(
+    runtime: Option<&ActivatedApiRouterRuntime>,
+    env: &HashMap<String, String>,
+    site: RuntimeSite,
+) -> Option<PathBuf> {
+    let explicit = match site {
+        RuntimeSite::Admin => env
+            .get(HOST_ADMIN_SITE_DIR_ENV)
+            .or_else(|| env.get(UPSTREAM_ADMIN_SITE_DIR_ENV)),
+        RuntimeSite::Portal => env
+            .get(HOST_PORTAL_SITE_DIR_ENV)
+            .or_else(|| env.get(UPSTREAM_PORTAL_SITE_DIR_ENV)),
+    }
+    .map(String::as_str)
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .map(PathBuf::from);
+    if let Some(path) = explicit.filter(|path| path.join("index.html").is_file()) {
+        return Some(path);
+    }
+
+    let mut candidates = Vec::new();
+    if let Some(runtime) = runtime {
+        candidates.push(runtime.install_dir.join("sites").join(site.label()));
+        candidates.push(
+            runtime
+                .install_dir
+                .join("runtime")
+                .join("sites")
+                .join(site.label()),
+        );
+    }
+    if let Ok(cwd) = env::current_dir() {
+        match site {
+            RuntimeSite::Admin => {
+                candidates.push(
+                    cwd.join(".codex-tools")
+                        .join("sdkwork-api-router")
+                        .join("apps")
+                        .join("sdkwork-router-admin")
+                        .join("dist"),
+                );
+                candidates.push(cwd.join("apps").join("sdkwork-router-admin").join("dist"));
+            }
+            RuntimeSite::Portal => {
+                candidates.push(
+                    cwd.join(".codex-tools")
+                        .join("sdkwork-api-router")
+                        .join("apps")
+                        .join("sdkwork-router-portal")
+                        .join("dist"),
+                );
+                candidates.push(cwd.join("apps").join("sdkwork-router-portal").join("dist"));
+            }
+        }
+    }
+
+    candidates
+        .into_iter()
+        .find(|path| path.is_dir() && path.join("index.html").is_file())
+}
+
 fn configure_command_for_managed_process(command: &mut Command) {
     #[cfg(windows)]
     {
@@ -658,16 +964,6 @@ fn configure_command_for_managed_process(command: &mut Command) {
 #[cfg(windows)]
 fn managed_process_creation_flags() -> u32 {
     CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
-}
-
-#[cfg(windows)]
-fn configure_command_for_windows_utility(command: &mut Command) {
-    command.creation_flags(utility_process_creation_flags());
-}
-
-#[cfg(windows)]
-fn utility_process_creation_flags() -> u32 {
-    CREATE_NO_WINDOW
 }
 
 fn terminate_managed_process(child: &mut Child, timeout_ms: u64) -> Result<Option<i32>> {
@@ -788,6 +1084,65 @@ fn normalize_command_segment(segment: &OsStr) -> String {
         .to_ascii_lowercase()
 }
 
+fn spawn_managed_api_router_process(
+    spec: &ManagedApiRouterProcessSpec,
+    log_file_path: &std::path::Path,
+    managed_env: &BTreeMap<String, String>,
+) -> Result<Child> {
+    if let Some(parent) = log_file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let stdout = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_file_path)?;
+    let stderr = stdout.try_clone()?;
+    let mut command = Command::new(&spec.command_path);
+    configure_command_for_managed_process(&mut command);
+    command.args(&spec.args);
+    if let Some(working_dir) = &spec.working_dir {
+        command.current_dir(working_dir);
+    }
+    command.envs(managed_env);
+    command.stdout(Stdio::from(stdout));
+    command.stderr(Stdio::from(stderr));
+    command.spawn().map_err(Into::into)
+}
+
+fn wait_for_api_router_ready(paths: &AppPaths, timeout_ms: u64) -> Result<()> {
+    let service = ApiRouterRuntimeService::new();
+    let router_config = load_router_config(&shared_router_root(paths))?;
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    let mut last_reason = None;
+
+    while Instant::now() < deadline {
+        let status = service.inspect(paths)?;
+        let host_healthy = probe_api_router_web_server(&router_config.web_bind, 200);
+        if status.gateway.healthy
+            && (!status.admin.enabled || status.admin.healthy)
+            && (!status.portal.enabled || status.portal.healthy)
+            && host_healthy
+        {
+            return Ok(());
+        }
+
+        last_reason = Some(format!(
+            "{}; adminHealthy={} portalHealthy={} hostHealthy={}",
+            status.reason, status.admin.healthy, status.portal.healthy, host_healthy
+        ));
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    Err(FrameworkError::Timeout(format!(
+        "sdkwork-api-router did not become ready within {}ms{}",
+        timeout_ms,
+        last_reason
+            .as_deref()
+            .map(|reason| format!("; last observation: {reason}"))
+            .unwrap_or_default()
+    )))
+}
+
 fn terminate_process_group(
     children: &mut Vec<ManagedChildProcessHandle>,
     timeout_ms: u64,
@@ -817,9 +1172,7 @@ fn terminate_process_group(
 #[cfg(windows)]
 fn terminate_process_id(pid: u32) -> Result<()> {
     let pid = pid.to_string();
-    let mut command = Command::new("taskkill");
-    configure_command_for_windows_utility(&mut command);
-    let _ = command
+    let _ = Command::new("taskkill")
         .args(["/PID", pid.as_str(), "/T", "/F"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -842,7 +1195,6 @@ fn terminate_process_ids(pids: &[u32]) -> Result<()> {
     }
 
     let mut command = Command::new("taskkill");
-    configure_command_for_windows_utility(&mut command);
     for pid in pids {
         let pid = pid.to_string();
         command.args(["/PID", pid.as_str()]);
@@ -866,9 +1218,7 @@ fn terminate_process_ids(pids: &[u32]) -> Result<()> {
 #[cfg(windows)]
 fn request_process_shutdown(child: &mut Child) -> Result<()> {
     let pid = child.id().to_string();
-    let mut command = Command::new("taskkill");
-    configure_command_for_windows_utility(&mut command);
-    let _ = command
+    let _ = Command::new("taskkill")
         .args(["/PID", pid.as_str(), "/T"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -888,9 +1238,7 @@ fn request_process_shutdown(child: &mut Child) -> Result<()> {
 #[cfg(windows)]
 fn force_process_shutdown(child: &mut Child) -> Result<()> {
     let pid = child.id().to_string();
-    let mut command = Command::new("taskkill");
-    configure_command_for_windows_utility(&mut command);
-    let _ = command
+    let _ = Command::new("taskkill")
         .args(["/PID", pid.as_str(), "/T", "/F"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -919,16 +1267,21 @@ fn force_process_shutdown(child: &mut Child) -> Result<()> {
 mod tests {
     use super::{
         configure_command_for_managed_process, force_process_shutdown, wait_for_gateway_ready,
-        ManagedServiceLifecycle, SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY,
+        ManagedServiceLifecycle, SupervisorService, SERVICE_ID_API_ROUTER,
+        SERVICE_ID_OPENCLAW_GATEWAY, SERVICE_ID_WEB_SERVER,
     };
     #[cfg(windows)]
-    use super::{
-        managed_process_creation_flags, utility_process_creation_flags, CREATE_NEW_PROCESS_GROUP,
-        CREATE_NO_WINDOW,
-    };
+    use super::{managed_process_creation_flags, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW};
     use crate::framework::{
         paths::resolve_paths_for_root,
-        services::openclaw_runtime::ActivatedOpenClawRuntime,
+        services::{
+            api_router_managed_runtime::{
+                ActivatedApiRouterRuntime, ManagedApiRouterProcessSpec,
+                ManagedApiRouterSecretBundle,
+            },
+            api_router_runtime::load_router_config,
+            openclaw_runtime::ActivatedOpenClawRuntime,
+        },
     };
     use std::{
         fs,
@@ -943,7 +1296,11 @@ mod tests {
 
         assert_eq!(
             service.managed_service_ids(),
-            vec![SERVICE_ID_OPENCLAW_GATEWAY.to_string()]
+            vec![
+                SERVICE_ID_OPENCLAW_GATEWAY.to_string(),
+                SERVICE_ID_WEB_SERVER.to_string(),
+                SERVICE_ID_API_ROUTER.to_string(),
+            ]
         );
     }
 
@@ -953,7 +1310,11 @@ mod tests {
 
         assert_eq!(
             service.planned_shutdown_order(),
-            vec![SERVICE_ID_OPENCLAW_GATEWAY.to_string()]
+            vec![
+                SERVICE_ID_API_ROUTER.to_string(),
+                SERVICE_ID_WEB_SERVER.to_string(),
+                SERVICE_ID_OPENCLAW_GATEWAY.to_string(),
+            ]
         );
     }
 
@@ -961,23 +1322,23 @@ mod tests {
     fn supervisor_requests_manual_restart_for_managed_services() {
         let service = SupervisorService::new();
         service
-            .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
+            .record_running("api_router", Some(42))
             .expect("service should be running");
 
         service
-            .request_restart(SERVICE_ID_OPENCLAW_GATEWAY)
+            .request_restart("api_router")
             .expect("manual restart request");
 
         let snapshot = service.snapshot().expect("snapshot");
-        let openclaw_gateway = snapshot
+        let api_router = snapshot
             .services
             .into_iter()
-            .find(|managed_service| managed_service.id == SERVICE_ID_OPENCLAW_GATEWAY)
-            .expect("openclaw gateway service");
+            .find(|managed_service| managed_service.id == SERVICE_ID_API_ROUTER)
+            .expect("api router service");
 
-        assert_eq!(openclaw_gateway.lifecycle, ManagedServiceLifecycle::Starting);
-        assert_eq!(openclaw_gateway.pid, None);
-        assert_eq!(openclaw_gateway.last_exit_code, None);
+        assert_eq!(api_router.lifecycle, ManagedServiceLifecycle::Starting);
+        assert_eq!(api_router.pid, None);
+        assert_eq!(api_router.last_exit_code, None);
     }
 
     #[test]
@@ -986,7 +1347,11 @@ mod tests {
 
         assert_eq!(
             service.request_restart_all().expect("restart plan"),
-            vec![SERVICE_ID_OPENCLAW_GATEWAY.to_string()]
+            vec![
+                SERVICE_ID_OPENCLAW_GATEWAY.to_string(),
+                SERVICE_ID_WEB_SERVER.to_string(),
+                SERVICE_ID_API_ROUTER.to_string(),
+            ]
         );
     }
 
@@ -1025,10 +1390,7 @@ mod tests {
         service.begin_shutdown().expect("begin shutdown");
 
         assert!(!service
-            .register_restart_attempt(
-                SERVICE_ID_OPENCLAW_GATEWAY,
-                UNIX_EPOCH + Duration::from_secs(10),
-            )
+            .register_restart_attempt(SERVICE_ID_API_ROUTER, UNIX_EPOCH + Duration::from_secs(10))
             .expect("restart should be disabled"));
     }
 
@@ -1192,16 +1554,62 @@ mod tests {
     }
 
     #[test]
-    fn fake_gateway_runtime_reserves_a_unique_loopback_port_per_test_runtime() {
-        let first_root = tempfile::tempdir().expect("first temp dir");
-        let second_root = tempfile::tempdir().expect("second temp dir");
-        let first_paths = resolve_paths_for_root(first_root.path()).expect("first paths");
-        let second_paths = resolve_paths_for_root(second_root.path()).expect("second paths");
+    fn supervisor_starts_and_stops_configured_api_router_process_group() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_api_router_runtime(&paths);
 
-        let first_runtime = fake_gateway_runtime(&first_paths);
-        let second_runtime = fake_gateway_runtime(&second_paths);
+        service
+            .configure_api_router_runtime(&runtime)
+            .expect("configure router runtime");
+        service.start_api_router(&paths).expect("start api router");
 
-        assert_ne!(first_runtime.gateway_port, second_runtime.gateway_port);
+        let running = service.snapshot().expect("running snapshot");
+        let api_router = running
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_API_ROUTER)
+            .expect("api router service");
+        assert_eq!(api_router.lifecycle, ManagedServiceLifecycle::Running);
+        assert!(api_router.pid.is_some());
+
+        service.stop_api_router().expect("stop api router");
+
+        let stopped = service.snapshot().expect("stopped snapshot");
+        let api_router = stopped
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_API_ROUTER)
+            .expect("api router service");
+        assert_eq!(api_router.lifecycle, ManagedServiceLifecycle::Stopped);
+        assert_eq!(api_router.pid, None);
+    }
+
+    #[test]
+    fn supervisor_serves_bundled_api_router_admin_and_portal_sites_through_unified_web_bind() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_api_router_runtime(&paths);
+        let web_bind = load_router_config(&runtime.shared_root_dir)
+            .expect("router config")
+            .web_bind;
+
+        service
+            .configure_api_router_runtime(&runtime)
+            .expect("configure router runtime");
+        service.start_api_router(&paths).expect("start api router");
+
+        let admin_response = fetch_test_http_response(&web_bind, "/admin/");
+        let portal_response = fetch_test_http_response(&web_bind, "/portal/");
+
+        assert!(admin_response.starts_with("HTTP/1.1 200"));
+        assert!(admin_response.contains("sdkwork-api-router test admin"));
+        assert!(portal_response.starts_with("HTTP/1.1 200"));
+        assert!(portal_response.contains("sdkwork-api-router test portal"));
+
+        service.stop_api_router().expect("stop api router");
     }
 
     #[cfg(windows)]
@@ -1211,12 +1619,6 @@ mod tests {
             managed_process_creation_flags(),
             CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
         );
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn utility_process_creation_flags_hide_console_windows() {
-        assert_eq!(utility_process_creation_flags(), CREATE_NO_WINDOW);
     }
 
     #[cfg(windows)]
@@ -1237,7 +1639,7 @@ mod tests {
             .join("node_modules")
             .join("openclaw")
             .join("openclaw.mjs");
-        let gateway_port = reserve_test_loopback_port();
+        let gateway_port = 18_789;
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
@@ -1248,7 +1650,7 @@ mod tests {
         fs::write(
             &cli_path,
             format!(
-                "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? {gateway_port});\nconst server = net.createServer();\nconst start = () => server.listen(gatewayPort, '127.0.0.1');\nsetTimeout(start, {listen_delay_ms});\nsetInterval(() => {{}}, 1000);\n"
+                "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst server = net.createServer();\nconst start = () => server.listen(gatewayPort, '127.0.0.1');\nsetTimeout(start, {listen_delay_ms});\nsetInterval(() => {{}}, 1000);\n"
             ),
         )
         .expect("cli file");
@@ -1286,7 +1688,7 @@ mod tests {
             .join("node_modules")
             .join("openclaw")
             .join("openclaw.mjs");
-        let gateway_port = reserve_test_loopback_port();
+        let gateway_port = 18_789;
 
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(
@@ -1297,7 +1699,7 @@ mod tests {
         fs::write(
             &cli_path,
             format!(
-                "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? {gateway_port});\nconst server = net.createServer();\nconst start = () => server.listen(gatewayPort, '127.0.0.1');\nsetTimeout(start, {listen_delay_ms});\nsetInterval(() => {{}}, 1000);\n"
+                "import fs from 'node:fs';\nimport net from 'node:net';\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst server = net.createServer();\nconst start = () => server.listen(gatewayPort, '127.0.0.1');\nsetTimeout(start, {listen_delay_ms});\nsetInterval(() => {{}}, 1000);\n"
             ),
         )
         .expect("cli file");
@@ -1345,4 +1747,228 @@ mod tests {
         port
     }
 
+    fn reserve_available_bind_addr() -> String {
+        std::net::TcpListener::bind("127.0.0.1:0")
+            .expect("reserve bind addr")
+            .local_addr()
+            .expect("local addr")
+            .to_string()
+    }
+
+    #[cfg(windows)]
+    fn fake_api_router_runtime(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> ActivatedApiRouterRuntime {
+        let install_dir = paths
+            .managed_runtimes_dir
+            .join("api-router")
+            .join("test-router");
+        let gateway_script = install_dir.join("gateway.mjs");
+        let admin_script = install_dir.join("admin.mjs");
+        let portal_script = install_dir.join("portal.mjs");
+        let router_root = paths
+            .user_root
+            .parent()
+            .expect("shared root")
+            .join("router");
+        let admin_site_dir = install_dir.join("runtime").join("sites").join("admin");
+        let portal_site_dir = install_dir.join("runtime").join("sites").join("portal");
+        let gateway_bind = reserve_available_bind_addr();
+        let admin_bind = reserve_available_bind_addr();
+        let portal_bind = reserve_available_bind_addr();
+        let web_bind = reserve_available_bind_addr();
+
+        fs::create_dir_all(&install_dir).expect("router install dir");
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::create_dir_all(&admin_site_dir).expect("admin site dir");
+        fs::create_dir_all(&portal_site_dir).expect("portal site dir");
+        fs::write(
+            router_root.join("config.json"),
+            format!(
+                "{{\"gateway_bind\":\"{}\",\"admin_bind\":\"{}\",\"portal_bind\":\"{}\",\"web_bind\":\"{}\"}}\n",
+                gateway_bind, admin_bind, portal_bind, web_bind
+            ),
+        )
+        .expect("router config");
+        fs::write(
+            admin_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test admin</title>",
+        )
+        .expect("admin site");
+        fs::write(
+            portal_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test portal</title>",
+        )
+        .expect("portal site");
+        fs::write(
+            &gateway_script,
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                gateway_bind
+            ),
+        )
+        .expect("gateway script");
+        fs::write(
+            &admin_script,
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                admin_bind
+            ),
+        )
+        .expect("admin script");
+        fs::write(
+            &portal_script,
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                portal_bind
+            ),
+        )
+        .expect("portal script");
+
+        ActivatedApiRouterRuntime {
+            install_key: "test-router".to_string(),
+            install_dir,
+            shared_root_dir: router_root,
+            bind_env_overrides: std::collections::BTreeMap::new(),
+            managed_secrets: ManagedApiRouterSecretBundle {
+                schema_version: 1,
+                admin_jwt_signing_secret: "test-admin-jwt-signing-secret".to_string(),
+                portal_jwt_signing_secret: "test-portal-jwt-signing-secret".to_string(),
+                credential_master_key: "test-credential-master-key".to_string(),
+            },
+            gateway: ManagedApiRouterProcessSpec {
+                command_path: std::path::PathBuf::from("node"),
+                args: vec![gateway_script.to_string_lossy().into_owned()],
+                working_dir: None,
+            },
+            admin: ManagedApiRouterProcessSpec {
+                command_path: std::path::PathBuf::from("node"),
+                args: vec![admin_script.to_string_lossy().into_owned()],
+                working_dir: None,
+            },
+            portal: ManagedApiRouterProcessSpec {
+                command_path: std::path::PathBuf::from("node"),
+                args: vec![portal_script.to_string_lossy().into_owned()],
+                working_dir: None,
+            },
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn fake_api_router_runtime(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> ActivatedApiRouterRuntime {
+        let install_dir = paths
+            .managed_runtimes_dir
+            .join("api-router")
+            .join("test-router");
+        let gateway_script = install_dir.join("gateway.mjs");
+        let admin_script = install_dir.join("admin.mjs");
+        let portal_script = install_dir.join("portal.mjs");
+        let router_root = paths
+            .user_root
+            .parent()
+            .expect("shared root")
+            .join("router");
+        let admin_site_dir = install_dir.join("runtime").join("sites").join("admin");
+        let portal_site_dir = install_dir.join("runtime").join("sites").join("portal");
+        let gateway_bind = reserve_available_bind_addr();
+        let admin_bind = reserve_available_bind_addr();
+        let portal_bind = reserve_available_bind_addr();
+        let web_bind = reserve_available_bind_addr();
+
+        fs::create_dir_all(&install_dir).expect("router install dir");
+        fs::create_dir_all(&router_root).expect("router root");
+        fs::create_dir_all(&admin_site_dir).expect("admin site dir");
+        fs::create_dir_all(&portal_site_dir).expect("portal site dir");
+        fs::write(
+            router_root.join("config.json"),
+            format!(
+                "{{\"gateway_bind\":\"{}\",\"admin_bind\":\"{}\",\"portal_bind\":\"{}\",\"web_bind\":\"{}\"}}\n",
+                gateway_bind, admin_bind, portal_bind, web_bind
+            ),
+        )
+        .expect("router config");
+        fs::write(
+            admin_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test admin</title>",
+        )
+        .expect("admin site");
+        fs::write(
+            portal_site_dir.join("index.html"),
+            "<!doctype html><title>sdkwork-api-router test portal</title>",
+        )
+        .expect("portal site");
+        fs::write(
+            &gateway_script,
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                gateway_bind
+            ),
+        )
+        .expect("gateway script");
+        fs::write(
+            &admin_script,
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                admin_bind
+            ),
+        )
+        .expect("admin script");
+        fs::write(
+            &portal_script,
+            format!(
+                "import net from 'node:net';\nconst bind = '{}';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {{\n  socket.once('data', (chunk) => {{\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${{status}}\\r\\nContent-Length: ${{body.length}}\\r\\nConnection: close\\r\\n\\r\\n${{body}}`);\n  }});\n}});\nserver.listen(Number(port), host);\nsetInterval(() => {{}}, 1000);\n",
+                portal_bind
+            ),
+        )
+        .expect("portal script");
+
+        ActivatedApiRouterRuntime {
+            install_key: "test-router".to_string(),
+            install_dir,
+            shared_root_dir: router_root,
+            bind_env_overrides: std::collections::BTreeMap::new(),
+            managed_secrets: ManagedApiRouterSecretBundle {
+                schema_version: 1,
+                admin_jwt_signing_secret: "test-admin-jwt-signing-secret".to_string(),
+                portal_jwt_signing_secret: "test-portal-jwt-signing-secret".to_string(),
+                credential_master_key: "test-credential-master-key".to_string(),
+            },
+            gateway: ManagedApiRouterProcessSpec {
+                command_path: std::path::PathBuf::from("node"),
+                args: vec![gateway_script.to_string_lossy().into_owned()],
+                working_dir: None,
+            },
+            admin: ManagedApiRouterProcessSpec {
+                command_path: std::path::PathBuf::from("node"),
+                args: vec![admin_script.to_string_lossy().into_owned()],
+                working_dir: None,
+            },
+            portal: ManagedApiRouterProcessSpec {
+                command_path: std::path::PathBuf::from("node"),
+                args: vec![portal_script.to_string_lossy().into_owned()],
+                working_dir: None,
+            },
+        }
+    }
+
+    fn fetch_test_http_response(bind_addr: &str, path: &str) -> String {
+        use std::io::{Read, Write};
+        use std::net::TcpStream;
+
+        let mut stream = TcpStream::connect(bind_addr).expect("connect test http stream");
+        let request =
+            format!("GET {path} HTTP/1.1\r\nHost: {bind_addr}\r\nConnection: close\r\n\r\n");
+        stream
+            .write_all(request.as_bytes())
+            .expect("write test http request");
+        stream.flush().expect("flush test http request");
+
+        let mut response = String::new();
+        stream
+            .read_to_string(&mut response)
+            .expect("read test http response");
+        response
+    }
 }

@@ -59,15 +59,6 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
   };
 }
 
-await runTest('openClawConfigService exposes the bundled chat channels in upstream order', async () => {
-  const { openClawConfigService } = await import('./openClawConfigService.ts');
-
-  assert.deepEqual(
-    openClawConfigService.getChannelDefinitions().map((definition) => definition.id),
-    ['telegram', 'whatsapp', 'discord', 'irc', 'googlechat', 'slack', 'signal', 'imessage', 'line'],
-  );
-});
-
 function createInstanceDetailWithManagedConfig(
   configPath = 'D:/OpenClaw/.openclaw/openclaw.json',
 ): StudioInstanceDetailRecord {
@@ -316,19 +307,19 @@ await runTest('openClawConfigService persists native OpenClaw provider defaults 
       snapshot.channelSnapshots.find((channel) => channel.id === 'telegram')?.configuredFieldCount,
       2,
     );
-    assert.equal(snapshot.channelSnapshots[0]?.id, 'telegram');
-    assert.equal(snapshot.channelSnapshots[0]?.fieldCount, 7);
-    assert.equal(snapshot.channelSnapshots[0]?.configuredFieldCount, 2);
+    assert.equal(snapshot.channelSnapshots[0]?.id, 'sdkworkchat');
+    assert.equal(snapshot.channelSnapshots[0]?.fieldCount, 0);
+    assert.equal(snapshot.channelSnapshots[0]?.configuredFieldCount, 0);
     assert.equal(snapshot.channelSnapshots[0]?.status, 'connected');
     assert.equal(snapshot.channelSnapshots[0]?.enabled, true);
-    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'whatsapp'), true);
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'wehcat'), true);
     assert.deepEqual(
       snapshot.channelSnapshots.slice(0, 5).map((channel) => channel.id),
-      ['telegram', 'whatsapp', 'discord', 'irc', 'googlechat'],
+      ['sdkworkchat', 'wehcat', 'qq', 'dingtalk', 'wecom'],
     );
-    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'signal'), true);
-    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'imessage'), true);
-    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'line'), true);
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'qq'), true);
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'dingtalk'), true);
+    assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'wecom'), true);
     assert.match(fileContent, /provider-openai-primary/);
     assert.match(fileContent, /provider-openai-primary\/gpt-4\.1/);
     assert.match(fileContent, /channels:\s*\{/);
@@ -546,95 +537,6 @@ await runTest('openClawConfigService manages agent CRUD with OpenClaw-compatible
     assert.equal(snapshot.agentSnapshots[0]?.isDefault, true);
     assert.match(fileContent, /default:\s*true/);
     assert.match(fileContent, /workspace:\s*['"]D:\/OpenClaw\/workspace['"]/);
-  } finally {
-    configurePlatformBridge(originalBridge);
-  }
-});
-
-await runTest('openClawConfigService persists per-agent skill allowlists, including empty lists and reset-to-all semantics', async () => {
-  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
-  const { openClawConfigService } = await import('./openClawConfigService.ts');
-
-  const originalBridge = getPlatformBridge();
-  let fileContent = `{
-  agents: {
-    defaults: {},
-    list: [
-      {
-        id: "main",
-        default: true,
-        skills: ["Browser", "Calendar"],
-      },
-    ],
-  },
-}`;
-
-  configurePlatformBridge({
-    platform: createPlatformBridgeStub({
-      readFile: async () => fileContent,
-      writeFile: async (_path, content) => {
-        fileContent = content;
-      },
-    }),
-  });
-
-  try {
-    await openClawConfigService.saveAgent({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
-      agent: {
-        id: 'main',
-        skills: ['Browser', 'Calendar', 'Browser'],
-      },
-    });
-
-    let snapshot = await openClawConfigService.readConfigSnapshot(
-      'D:/OpenClaw/.openclaw/openclaw.json',
-    );
-    let mainAgent = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
-
-    assert.deepEqual(mainAgent?.skills, ['Browser', 'Calendar']);
-
-    await openClawConfigService.saveAgent({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
-      agent: {
-        id: 'main',
-        skills: [],
-      },
-    });
-
-    snapshot = await openClawConfigService.readConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json');
-    mainAgent = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
-
-    assert.deepEqual(mainAgent?.skills, []);
-    assert.equal(
-      Array.isArray(((snapshot.root.agents as Record<string, any>).list[0] as Record<string, any>).skills),
-      true,
-    );
-    assert.equal(
-      (((snapshot.root.agents as Record<string, any>).list[0] as Record<string, any>).skills as unknown[])
-        .length,
-      0,
-    );
-
-    await openClawConfigService.saveAgent({
-      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
-      agent: {
-        id: 'main',
-        skills: null,
-      },
-    });
-
-    snapshot = await openClawConfigService.readConfigSnapshot('D:/OpenClaw/.openclaw/openclaw.json');
-    mainAgent = snapshot.agentSnapshots.find((agent) => agent.id === 'main');
-
-    assert.equal(mainAgent?.skills, undefined);
-    assert.equal(
-      Object.prototype.hasOwnProperty.call(
-        ((snapshot.root.agents as Record<string, any>).list[0] as Record<string, any>),
-        'skills',
-      ),
-      false,
-    );
   } finally {
     configurePlatformBridge(originalBridge);
   }

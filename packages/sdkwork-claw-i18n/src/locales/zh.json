@@ -56,10 +56,11 @@
     "ecosystem": "生态",
     "setup": "配置",
     "codebox": "CodeBox",
-    "apiRouter": "模型配置中心",
+    "apiRouter": "API 路由",
     "modelPurchase": "模型购买",
     "clawUpload": "Claw联网",
     "systemResources": "系统资源",
+    "apiRouter": "模型配置中心",
     "cpu": "CPU",
     "ram": "RAM",
     "switchInstance": "切换实例",
@@ -80,23 +81,6 @@
       "profileSettings": "个人资料设置",
       "logout": "退出登录"
     }
-  },
-  "headerAccountMenu": {
-    "membershipCenter": "会员中心",
-    "pointsCenter": "积分中心",
-    "userInfo": "用户信息",
-    "settings": "设置",
-    "feedback": "反馈",
-    "docs": "帮助文档",
-    "guest": "游客",
-    "free": "免费版",
-    "pointsUnit": "积分",
-    "guestPoints": "登录后查看实时积分",
-    "loadingMembership": "正在加载会员信息",
-    "loadingPoints": "正在加载积分信息",
-    "unavailableMembership": "会员信息暂不可用",
-    "unavailablePoints": "积分信息暂不可用",
-    "downloadFailed": "打开移动端下载页面失败。"
   },
   "auth": {
     "qrLogin": "扫码登录",
@@ -836,12 +820,16 @@
         "subtitle": "打开预置的 CodeBox 集成路由"
       },
       "apiRouter": {
-        "title": "前往模型配置中心",
-        "subtitle": "管理 LLM、Embedding 与路由配置"
+        "title": "前往 API 路由",
+        "subtitle": "管理模型渠道与代理提供方"
       },
       "modelPurchase": {
         "title": "前往模型购买",
         "subtitle": "浏览独立模型套餐与计费方案"
+      },
+      "apiRouter": {
+        "title": "前往模型配置中心",
+        "subtitle": "管理 LLM、Embedding 与路由配置"
       },
       "settings": {
         "title": "前往设置",
@@ -988,7 +976,7 @@
     },
     "admin": {
       "title": "管理控制面",
-      "heading": "OpenClaw 管理端",
+      "heading": "sdkwork-api-router 管理端",
       "state": {
         "authenticated": "已连接",
         "needsLogin": "需要登录",
@@ -1024,16 +1012,16 @@
       },
       "messages": {
         "sessionConnected": "当前 API Router 控制面已经通过操作员会话完成认证，可以直接调用 router 原生管理接口。",
-        "managedBootstrapConnected": "Claw Studio 已为当前本地托管的 OpenClaw 静默完成认证，可以直接调用 router 原生管理接口。",
+        "managedBootstrapConnected": "Claw Studio 已为当前本地托管的 sdkwork-api-router 静默完成认证，可以直接调用 router 原生管理接口。",
         "configuredTokenConnected": "当前 API Router 控制面已经通过预配置管理员令牌完成认证，可以直接调用 router 原生管理接口。",
-        "configuredTokenConfigurationRequired": "预配置的 OpenClaw 管理员令牌已被服务端拒绝。请先更新或移除 VITE_OPENCLAW_ADMIN_TOKEN，然后再重试；只要该令牌仍然被配置，手动登录就会保持禁用。",
-        "signInRequired": "请登录 OpenClaw 管理接口，这样控制面能力才能切换到真实 router 后端，而不是继续使用 mock 回退。",
+        "configuredTokenConfigurationRequired": "预配置的 sdkwork-api-router 管理员令牌已被服务端拒绝。请先更新或移除 VITE_API_ROUTER_ADMIN_TOKEN，然后再重试；只要该令牌仍然被配置，手动登录就会保持禁用。",
+        "signInRequired": "请登录 sdkwork-api-router 管理接口，这样控制面能力才能切换到真实 router 后端，而不是继续使用 mock 回退。",
         "reauthenticateRequired": "已保存的 router 管理凭据已经失效。请重新登录，恢复 router-backed 控制面访问能力。"
       },
       "loginHint": "无论是独立部署的服务端，还是当前附着的本地托管运行时，都使用这里的 router 管理员账号登录。",
       "toast": {
-        "connected": "已使用 {{email}} 连接到 OpenClaw",
-        "connectionFailed": "连接 OpenClaw 管理端失败",
+        "connected": "已使用 {{email}} 连接到 sdkwork-api-router",
+        "connectionFailed": "连接 sdkwork-api-router 管理端失败",
         "disconnected": "已清除 router 管理会话",
         "disconnectFailed": "清除 router 管理会话失败"
       }
@@ -1059,7 +1047,7 @@
         "conflicted": "需要人工处理"
       },
       "managedMode": {
-        "inProcess": "在托管启动器接入后，由 Claw 随应用生命周期以进程内方式启动 OpenClaw。"
+        "inProcess": "在托管启动器接入后，由 Claw 随应用生命周期以进程内方式启动 sdkwork-api-router。"
       },
       "configSource": {
         "defaults": "未发现共享 router 配置文件，当前使用默认绑定地址。",
@@ -2031,12 +2019,7 @@
       "channels": "渠道",
       "models": "模型",
       "config": "配置",
-      "searchChannelsPlaceholder": "搜索渠道、提供方或端点...",
-      "searchModelsPlaceholder": "搜索模型名称或 ID...",
-      "noChannels": "当前还没有可用渠道。",
-      "noChannelsSearchResults": "没有匹配的渠道。",
       "noModels": "当前渠道尚未配置模型。",
-      "noModelsSearchResults": "没有匹配的模型。",
       "availableAgents": "可用智能体",
       "searchAgentsPlaceholder": "搜索智能体...",
       "noneDefault": "无（默认）",
@@ -2668,8 +2651,8 @@
       "spent": "支出记录"
     },
     "cycles": {
-      "monthly": "月度",
-      "yearly": "年度"
+      "monthly": "月套餐",
+      "yearly": "年套餐"
     },
     "paymentMethods": {
       "wechat": "微信支付",
@@ -2683,14 +2666,14 @@
     },
     "quickPanel": {
       "eyebrow": "积分钱包",
-      "pointsAvailable": "可用积分",
+      "pointsAvailable": "当前可用积分",
       "guestHint": "登录后即可查看实时积分与会员状态。",
       "currentPlan": "当前套餐",
       "thisMonth": "本月获得",
       "recharge": "充值积分",
-      "rechargeHint": "支持常用套餐档位，也支持直接选择后端返回的充值包。",
+      "rechargeHint": "支持常用积分档位，也支持自定义输入。",
       "upgrade": "升级会员",
-      "upgradeHint": "解锁每月赠送积分与更强的工作流能力。",
+      "upgradeHint": "解锁每月赠送积分与更强工作流能力。",
       "authRequired": "请先登录，再继续积分与会员相关操作。",
       "recentRecords": "最近记录",
       "openCenter": "进入积分中心",
@@ -2699,117 +2682,103 @@
     "page": {
       "eyebrow": "积分中心",
       "title": "管理积分、充值与使用情况",
-      "description": "查看实时积分余额，按后端配置汇率充值积分，并通过共享 App SDK 购买可用的 VIP 套餐。",
-      "membershipEyebrow": "会员中心",
-      "membershipTitle": "管理会员、权益与升级方案",
-      "membershipDescription": "集中查看当前会员套餐、剩余时效、赠送积分与可升级方案，在同一工作区内完成权益管理。",
+      "description": "查看实时积分余额，按后端配置汇率充值积分，并通过共享 app-sdk 购买可用的 VIP 套餐。",
       "rechargeAction": "充值积分",
       "upgradeAction": "升级 Plus",
       "availablePoints": "当前积分余额",
       "growthHint": "提前准备好积分，让工作流持续不断档。",
-      "membershipPrimaryHint": "当前入口聚焦会员权益与升级决策。",
-      "membershipSecondaryHint": "积分钱包仍可直接使用，但当前页面重点放在会员状态。",
-      "walletPrimaryHint": "当前入口聚焦积分余额、充值与账本记录。",
       "currentPlan": "会员套餐",
-      "planMeta": "{{cycle}} 周期，立即到账 {{grant}} 积分",
+      "planMeta": "{{cycle}}，立即到账 {{grant}} 积分",
       "planPrice": "当前周期价格 {{amount}}",
       "earnedThisMonth": "本月获得",
       "spentThisMonth": "本月支出",
       "monthlyGrant": "套餐赠送积分",
       "noGrant": "暂无赠送积分",
       "rateTitle": "兑换汇率",
-      "rateValue": "{{rate}} 积分 / 1 元",
+      "rateValue": "1 元 = {{rate}} 积分",
       "rateMeta": "当前后端汇率：1 元充值 {{rate}} 积分",
       "rateUnavailable": "汇率暂不可用",
       "recordsEyebrow": "积分账本",
       "recordsTitle": "全部积分记录",
       "empty": "当前筛选下暂无积分记录。",
       "errorTitle": "积分数据加载失败",
-      "errorDescription": "共享 App SDK 暂时不可用，请稍后重试。",
+      "errorDescription": "共享 app-sdk 暂时不可用，请稍后重试。",
       "retry": "重新加载"
     },
     "rechargeDialog": {
       "eyebrow": "积分充值",
-      "title": "充值积分余额",
-      "description": "选择后端实时返回的充值套餐，创建真实订单后，通过返回的支付会话完成支付。",
-      "catalogEyebrow": "充值目录",
-      "catalogTitle": "可用充值套餐",
-      "catalogDescription": "每个套餐都来自后端充值包契约，可直接购买。",
-      "noPacks": "当前暂无可用的充值套餐。",
-      "packageLabel": "充值套餐",
-      "packageDescriptionFallback": "该充值套餐由后端契约提供，可立即购买。",
-      "summaryEyebrow": "充值摘要",
-      "summaryTitle": "确认本次充值套餐",
-      "summaryDescription": "创建订单前，请确认当前余额、所选套餐与支付方式。",
-      "availableBalanceLabel": "当前余额",
-      "rechargeDetailsTitle": "充值详情",
-      "selectedPointsLabel": "到账积分",
-      "actualPriceLabel": "支付金额",
-      "exchangeRateLabel": "充值方式",
-      "exchangeRateValue": "按套餐结算",
-      "rateUnavailable": "当前暂无可用充值套餐。",
-      "paymentEyebrow": "支付会话",
-      "paymentTitle": "完成支付",
-      "paymentDescription": "充值订单已创建，请打开支付页面完成支付，再返回确认。",
-      "paymentSummaryEyebrow": "订单摘要",
-      "paymentSummaryDescription": "后端已创建充值订单，请先完成支付，再回来确认。",
-      "lockedBadge": "已锁定",
-      "checkoutAction": "创建订单并继续",
-      "confirmPayment": "我已完成支付",
-      "paymentSessionTitle": "支付会话",
-      "paymentSessionDescription": "请使用后端返回的支付会话完成本次充值。",
-      "paymentMethodLabel": "支付方式",
-      "paymentOpenAction": "打开支付页面",
-      "paymentParamsTitle": "支付参数",
-      "paymentParamsEmpty": "当前订单暂未返回支付参数。",
-      "paymentRecordsTitle": "最近支付记录",
-      "paymentRecordsEmpty": "暂时还没有支付尝试记录。",
-      "orderIdLabel": "订单 ID",
-      "orderSnLabel": "订单编号",
-      "outTradeNoLabel": "外部交易号",
-      "expireTimeLabel": "支付截止时间"
+      "title": "充值积分",
+      "description": "选择常用档位或自定义数量，核对后端返回的实时汇率后，直接通过真实 app-sdk 提交充值。",
+      "payable": "本次需支付",
+      "commonAmounts": "常用积分档位",
+      "configureTitle": "配置本次充值",
+      "configureDescription": "常用档位仍然保留为快捷入口，但实际支付金额始终以服务端配置的积分汇率为准。",
+      "customAmount": "自定义积分数量",
+      "customPlaceholder": "请输入正整数积分数量",
+      "backToForm": "返回充值设置",
+      "summaryEyebrow": "充值信息",
+      "summaryTitle": "确认本次积分充值",
+      "summaryDescription": "这里展示实时兑换汇率、支付方式与本次应付金额，全部来自真实积分充值契约。",
+      "summaryMeta": "购买 {{points}} 积分，需支付 {{amount}}",
+      "rechargeDetailsTitle": "充值积分",
+      "rechargeDetailsDescription": "确认本次购买的积分数量、划线原价与实付金额后，在右侧扫码完成支付。",
+      "selectedPointsLabel": "购买积分",
+      "purchaseTypeLabel": "充值方式",
+      "originalPriceLabel": "划线原价",
+      "actualPriceLabel": "实付金额",
+      "exchangeRateLabel": "兑换汇率",
+      "exchangeRateValue": "1 元 = {{rate}} 积分",
+      "rateUnavailable": "后端暂未返回可用的积分汇率。",
+      "presetMeta": "需支付 {{amount}}",
+      "presetPurchase": "常用档位",
+      "customPurchase": "自定义数量",
+      "paymentEyebrow": "扫码支付",
+      "paymentTitle": "扫码完成积分充值",
+      "paymentDescription": "右侧展示当前支付二维码，切换支付方式后二维码会同步更新。",
+      "qrAlt": "{{method}} 充值二维码",
+      "scanHint": "请使用{{method}}扫描上方二维码",
+      "paymentTip": "当前为模拟支付流程，确认后会立即充值 {{points}} 积分并更新积分记录。",
+      "paymentMethod": "支付方式",
+      "tip": "当前版本先模拟支付流程，但余额、记录和头部积分面板都会即时更新。",
+      "continueToPayment": "去支付",
+      "confirm": "确认充值",
+      "confirmPayment": "我已完成充值"
     },
     "upgradeDialog": {
       "eyebrow": "会员升级",
       "title": "升级您的订阅计划",
-      "description": "从 App SDK 返回的实时 VIP 套餐中选择合适方案，并通过真实会员购买契约完成下单。",
-      "groupEyebrow": "套餐分组",
-      "groupDescriptionFallback": "该分组由实时会员契约提供，可直接购买。",
+      "description": "从 app-sdk 返回的实时 VIP 套餐中选择合适的方案，并通过真实会员购买契约完成提交。",
       "save20": "省 20%",
       "pointsGrant": "立即到账套餐积分",
       "pointsGrantValue": "{{points}} 积分",
-      "noGrant": "暂无赠送积分",
-      "includedBenefits": "包含权益",
-      "includedBenefitsTitle": "套餐权益",
-      "includedBenefitsDescription": "下单前请先确认该 VIP 套餐附带的实时权益内容。",
-      "includedBenefitsEmpty": "该套餐暂未返回权益列表。",
-      "backToPlans": "返回套餐",
+      "noGrant": "暂无套餐积分",
+      "includedBenefits": "包含特权",
+      "backToPlans": "返回计划",
       "summaryEyebrow": "套餐信息",
       "summaryTitle": "确认已选套餐",
-      "summaryDescription": "先确认当前会员状态、所选套餐、有效时长与赠送积分，再提交真实会员购买请求。",
+      "summaryDescription": "先确认当前会员状态、所选套餐、有效时长和赠送积分，再提交真实会员购买请求。",
       "currentMembership": "当前会员状态",
-      "defaultPlanDescription": "该 VIP 套餐由共享 App SDK 提供，购买成功后即可立即生效。",
+      "defaultPlanDescription": "该 VIP 套餐由共享 app-sdk 提供，购买成功后即可立即生效。",
       "noPlans": "当前暂无可购买的 VIP 套餐。",
-      "summaryMeta": "{{cycle}} 周期，开通后立即到账 {{points}} 积分",
-      "paymentLockedHint": "当前支付步骤不支持修改套餐或周期，请点击左上角返回重新选择。",
-      "paymentSummaryHint": "如需更换套餐或周期，请先点击左上角返回上一步。",
-      "currentPlanHint": "当前选择已是你正在使用的套餐周期，无需重复开通。",
+      "summaryMeta": "{{cycle}}，开通后立即到账 {{points}} 积分",
+      "paymentLockedHint": "当前支付步骤不支持修改套餐或年月周期，请点击左上角返回重新选择。",
+      "paymentSummaryHint": "如需更换套餐或周期，请点击左上角返回上一步重新选择。",
+      "currentPlanHint": "当前选择已经是你正在使用的套餐周期，无需重复开通。",
       "paymentEyebrow": "扫码支付",
       "paymentTitle": "扫码完成支付",
-      "paymentDescription": "右侧会同步展示当前支付二维码与支付摘要，切换支付方式后会自动更新。",
+      "paymentDescription": "右侧展示当前支付二维码与支付摘要，切换方式后二维码会同步更新。",
       "qrAlt": "{{method}} 支付二维码",
-      "scanHint": "请使用 {{method}} 扫描上方二维码",
-      "paymentTip": "当前版本为模拟支付流程，确认后会立即发放 {{points}} 积分并写入记录。",
+      "scanHint": "请使用{{method}}扫描上方二维码",
+      "paymentTip": "当前为模拟支付流程，确认后会立即发放 {{points}} 积分并更新积分记录。",
       "confirmPayment": "我已完成支付",
       "agreementPrefix": "支付即代表您已阅读并同意",
       "membershipAgreement": "《会员权益说明》",
       "agreementJoiner": "与",
       "serviceAgreement": "《订阅服务协议》",
-      "packageDetailsTitle": "套餐详情",
+      "packageDetailsTitle": "套餐信息",
       "packageDetailsDescription": "核对套餐、周期、到账积分与价格后即可继续支付。",
       "lockedBadge": "已锁定",
       "packageNameLabel": "套餐方案",
-      "groupLabel": "套餐分组",
       "durationLabel": "有效时长",
       "durationValue": "{{days}} 天",
       "durationUnknown": "暂未提供时长信息",
@@ -2817,23 +2786,7 @@
       "grantPointsLabel": "到账积分",
       "originalPriceLabel": "划线原价",
       "actualPriceLabel": "实付金额",
-      "totalPriceLabel": "应付金额",
-      "checkoutAction": "创建订单并继续",
-      "paymentSummaryEyebrow": "订单摘要",
-      "paymentSummaryDescription": "会员订单已创建，请打开支付会话完成支付后再回来确认。",
-      "paymentSessionTitle": "支付会话",
-      "paymentSessionDescription": "请使用下面生成的支付会话信息，通过支付渠道完成扣款。",
-      "paymentMethodLabel": "支付方式",
-      "paymentOpenAction": "打开支付页面",
-      "paymentParamsTitle": "支付参数",
-      "paymentParamsEmpty": "当前订单暂未返回支付参数。",
-      "paymentRecordsTitle": "最近支付记录",
-      "paymentRecordsEmpty": "暂时还没有支付尝试记录。",
-      "orderIdLabel": "订单 ID",
-      "orderSnLabel": "订单编号",
-      "outTradeNoLabel": "外部交易号",
-      "expireTimeLabel": "支付截止时间",
-      "paymentStatusLabel": "订单状态"
+      "totalPriceLabel": "应付金额"
     },
     "auth": {
       "signInRequired": "请先登录，才能读取、充值或升级您的实时积分账户。"
@@ -2852,13 +2805,13 @@
       "failed": "失败"
     },
     "planBadges": {
-      "recommended": "推荐",
-      "current": "当前",
+      "recommended": "推荐计划",
+      "current": "当前方案",
       "free": "免费"
     },
     "plans": {
       "free": {
-        "title": "免费版",
+        "title": "Free",
         "tagline": "适合初次体验和轻量日常使用。",
         "audience": "适合首次体验用户与产品评估场景。",
         "benefits": [
@@ -2924,8 +2877,8 @@
         "description": "通过 {{method}} 充值，支付金额 {{amount}}。"
       },
       "planUpgrade": {
-        "title": "{{plan}} {{cycle}} 套餐已开通",
-        "description": "已即时发放 {{points}} 积分，当前支付金额为 {{amount}}。"
+        "title": "{{plan}}{{cycle}}已开通",
+        "description": "已即时发放 {{points}} 积分，当前模拟支付金额为 {{amount}}。"
       },
       "fallback": {
         "title": "积分变动",
@@ -2943,12 +2896,8 @@
     "toasts": {
       "rechargeSuccess": "已成功到账 {{points}} 积分。",
       "rechargeFailed": "充值失败，请稍后重试。",
-      "checkoutCreated": "已为 {{plan}} 创建订单，请打开支付会话完成购买。",
       "upgradeSuccess": "{{plan}} 已开通，并到账 {{points}} 积分。",
       "upgradeFailed": "升级失败，请稍后重试。",
-      "paymentPending": "支付暂未完成，请先完成支付渠道流程后再回来确认。",
-      "paymentUrlUnavailable": "后端未返回当前订单的支付入口地址。",
-      "paymentOpenFailed": "打开外部支付页面失败。",
       "invalidCustomPoints": "请输入大于 0 的整数积分数量。"
     }
   },
@@ -3217,34 +3166,6 @@
         "openOfficialSite": "前往官方配置页",
         "readFullDocumentation": "查看完整文档",
         "credentials": "凭证信息"
-      },
-      "catalog": {
-        "tabs": {
-          "domestic": "国内通信软件",
-          "global": "国外通信软件"
-        },
-        "empty": {
-          "domestic": "当前工作区暂无可展示的国内通信软件入口。",
-          "global": "当前工作区暂无可展示的国外通信渠道。"
-        },
-        "supplemental": {
-          "referenceSetup": "前往官方开放平台继续完成账号开通与接入配置。",
-          "wechat": {
-            "description": "保留微信开放平台入口，方便快速进入国内生态的官方接入流程。"
-          },
-          "feishu": {
-            "description": "前往飞书开放平台，完成机器人、应用与租户侧接入配置。"
-          },
-          "dingtalk": {
-            "description": "前往钉钉开放平台，处理企业机器人与流程集成接入。"
-          },
-          "wecom": {
-            "description": "前往企业微信开发者中心，完成企业通信与自动化接入。"
-          },
-          "qq": {
-            "description": "前往 QQ Connect，查看平台能力与国内生态接入入口。"
-          }
-        }
       }
     }
   },
@@ -3424,7 +3345,6 @@
         "disable": "暂停",
         "runNow": "立即运行",
         "history": "历史",
-        "viewDetails": "查看详情",
         "delete": "删除"
       },
       "modal": {
@@ -4168,11 +4088,7 @@
             "skillDisabled": "OpenClaw 技能已禁用。",
             "skillUpdateFailed": "更新所选 OpenClaw 技能失败。",
             "skillRemoved": "OpenClaw 工作区技能已移除。",
-            "skillRemoveFailed": "移除所选 OpenClaw 工作区技能失败。",
-            "skillConfigSaved": "OpenClaw 技能配置已保存。",
-            "skillConfigSaveFailed": "保存所选 OpenClaw 技能配置失败。",
-            "skillSelectionSaved": "智能体技能 allowlist 已保存。",
-            "skillSelectionSaveFailed": "保存智能体技能 allowlist 失败。"
+            "skillRemoveFailed": "移除所选 OpenClaw 工作区技能失败。"
           },
           "panel": {
             "badge": "OpenClaw Agents",
@@ -4197,19 +4113,6 @@
             "boundAccounts": "已绑定",
             "availableAccounts": "可用",
             "builtIn": "内置",
-            "sharedConfigScopeNotice": "共享技能配置范围",
-            "sharedConfigScopeDescription": "OpenClaw 可写技能配置统一保存在实例级的 skills.entries 下。切换 agent 只会改变当前看到的工作区技能与可用状态，不会生成独立的 agent 技能配置树。",
-            "agentSkillAccessTitle": "智能体技能访问范围",
-            "agentSkillAccessAllDescription": "当前这个智能体默认可使用所有可见技能。关闭任意一个技能后，会自动创建该智能体自己的技能 allowlist。",
-            "agentSkillAccessCustomDescription": "当前智能体正在使用自定义技能 allowlist。{{enabledCount}} / {{totalCount}} 个可见技能处于启用状态。",
-            "agentSkillAccessAllBadge": "全部技能已启用",
-            "agentSkillAccessCustomBadge": "自定义 Allowlist",
-            "agentSkillAccessCardTitle": "智能体访问",
-            "agentSkillAccessEnabled": "该智能体可使用",
-            "agentSkillAccessDisabled": "该智能体不可使用",
-            "enableAllAgentSkills": "全部启用",
-            "disableAllAgentSkills": "全部禁用",
-            "bundledScopeDescription": "内置技能来自运行时包目录，也可能因为 skills.allowBundled 限制而暂时不可用。",
             "workspaceInstallCommand": "工作区安装命令",
             "workspaceInstallDescription": "OpenClaw 会从当前选中智能体的工作区加载单智能体技能。在该工作区中执行下面的原生 OpenClaw CLI 命令，即可把技能安装到当前智能体。",
             "installToDefaultWorkspace": "安装到默认工作区",
@@ -4223,56 +4126,12 @@
             "primaryEnv": "主环境变量",
             "missingPrefix": "缺失项",
             "filePreview": "文件预览",
-            "manageSkill": "配置技能",
-            "openGuide": "打开指引",
-            "configured": "已配置",
-            "configuredSummary": "已存在共享配置项，已保存环境变量 {{envCount}} 个。",
-            "configChecks": "必需配置路径",
-            "configChecksSatisfied": "必需配置路径已就绪：{{totalCount}}/{{totalCount}}。",
-            "configChecksMissing": "必需配置路径已就绪：{{satisfiedCount}}/{{totalCount}}。",
-            "configCheckSatisfied": "该配置路径已在共享 OpenClaw 配置中存在。",
-            "configCheckMissing": "该配置路径仍缺失，需先在共享 OpenClaw 配置中补齐。",
-            "allowlistNotice": "该内置技能当前仍被 skills.allowBundled 限制，更新 allowlist 之前不会真正可用。",
-            "alwaysOn": "始终启用",
             "enableSkill": "启用技能",
             "disableSkill": "禁用技能",
             "requirementEnv": "环境变量",
             "requirementBins": "二进制",
             "requirementAnyBin": "任一二进制",
-            "requirementConfig": "配置",
-            "requirementOs": "操作系统",
-            "skillConfigDialogDescription": "查看并编辑当前技能的共享配置。这里写入的是实例级 OpenClaw 配置，不是单独的 agent 技能树。",
-            "skillConfigDialogSelectedAgent": "当前查看的 Agent",
-            "skillConfigDialogEnabled": "启用状态",
-            "skillConfigDialogAlwaysOn": "该技能被运行时标记为始终启用，不能在这里关闭。",
-            "skillConfigDialogApiKey": "API Key",
-            "skillConfigDialogApiKeyPlaceholder": "输入该技能依赖的提供方密钥",
-            "skillConfigDialogEnv": "环境变量",
-            "skillConfigDialogEnvKeyPlaceholder": "ENV_KEY",
-            "skillConfigDialogEnvValuePlaceholder": "value",
-            "skillConfigDialogReadonlyNotice": "当前宿主没有暴露可写的 OpenClaw 配置文件，因此这里只能查看，不能保存。",
-            "skillConfigDialogAllowlistNotice": "该技能仍被内置 allowlist 限制。你可以先保存配置，待 allowlist 放开后即可直接生效。",
-            "instanceSkillViewTitle": "按 Agent 查看技能工作台",
-            "instanceSkillViewDescription": "在这里切换不同 agent，查看各自工作区中的有效技能，同时复用同一套共享技能配置控制面。"
-          },
-          "channels": {
-            "description": "\u67e5\u770b\u5f53\u524d\u667a\u80fd\u4f53\u7684\u6e20\u9053\u8def\u7531\u3002\u6e20\u9053\u51ed\u636e\u4fdd\u7559\u5728\u7f51\u5173\u7ea7\u5171\u4eab\u914d\u7f6e\u4e2d\uff0cbindings \u624d\u51b3\u5b9a\u6d41\u91cf\u5f52\u5c5e\u3002",
-            "routingNoticeEyebrow": "\u8def\u7531\u6a21\u578b",
-            "routingNotice": "OpenClaw \u4f1a\u628a\u6e20\u9053\u51ed\u636e\u4fdd\u5b58\u5728\u5171\u4eab\u7f51\u5173\u914d\u7f6e\u91cc\uff0c\u5e76\u901a\u8fc7\u9876\u5c42 bindings \u628a\u5df2\u914d\u7f6e\u7684\u8d26\u53f7\u8def\u7531\u5230\u4e0d\u540c\u667a\u80fd\u4f53\u3002\u8fd9\u91cc\u5c55\u793a\u7684\u662f\u5f53\u524d\u667a\u80fd\u4f53\u5b9e\u9645\u63a5\u7ba1\u7684\u8def\u7531\u8303\u56f4\uff0c\u4e0d\u662f\u5355\u72ec\u7684\u667a\u80fd\u4f53\u6e20\u9053\u914d\u7f6e\u6811\u3002",
-            "boundChannels": "\u5df2\u7ed1\u5b9a\u6e20\u9053",
-            "sharedSetupRequired": "\u5f85\u5171\u4eab\u914d\u7f6e",
-            "sharedSetup": "\u5171\u4eab\u914d\u7f6e",
-            "routeScope": "\u8def\u7531\u8303\u56f4",
-            "routeScopeNone": "\u672a\u8def\u7531",
-            "routeScopeAll": "\u5168\u90e8\u8d26\u53f7",
-            "routeScopeMultiple": "{{count}} \u4e2a\u8d26\u53f7",
-            "routeHintBound": "\u5f53\u524d\u667a\u80fd\u4f53\u53ea\u4f1a\u63a5\u6536\u4e0b\u65b9\u8fd9\u4e9b\u5df2\u7ed1\u5b9a\u8d26\u53f7\u7684\u6d41\u91cf\u3002",
-            "routeHintAvailable": "\u8be5\u6e20\u9053\u5df2\u7ecf\u5728\u7f51\u5173\u4fa7\u5b8c\u6210\u914d\u7f6e\uff0c\u4f46\u5f53\u524d\u8fd8\u6ca1\u6709 binding \u628a\u5b83\u8def\u7531\u7ed9\u8fd9\u4e2a\u667a\u80fd\u4f53\u3002",
-            "routeHintNotConfigured": "\u5148\u5728\u5171\u4eab\u6e20\u9053\u5de5\u4f5c\u533a\u5b8c\u6210\u8be5\u6e20\u9053\u7684\u914d\u7f6e\uff0c\u7136\u540e\u518d\u628a\u5b83\u7ed1\u5b9a\u7ed9\u5f53\u524d\u667a\u80fd\u4f53\u3002",
-            "sharedConfigHint": "\u6e20\u9053\u51ed\u636e\u548c\u63a5\u5165\u8bbe\u7f6e\u4ecd\u7edf\u4e00\u4fdd\u7559\u5728\u7f51\u5173\u7ea7\u5171\u4eab channel \u914d\u7f6e\u4e2d\u3002",
-            "noBoundAccounts": "\u6682\u65e0\u7ed1\u5b9a\u8d26\u53f7",
-            "noConfiguredAccounts": "\u6682\u65e0\u5df2\u914d\u7f6e\u8d26\u53f7",
-            "openGuide": "\u6253\u5f00\u914d\u7f6e\u6307\u5f15"
+            "requirementConfig": "配置"
           },
           "status": {
             "bound": "已绑定",
@@ -4302,7 +4161,6 @@
           "skillStates": {
             "disabled": "已禁用",
             "ready": "就绪",
-            "blocked": "被限制",
             "needsSetup": "待配置"
           },
           "dialog": {
@@ -6363,7 +6221,7 @@
         "heroDescription": "非常适合图像、文档与多模态产品流程。",
         "audience": "多模态产品团队",
         "modelHighlights": [
-          "Gemini 3.1 Pro",
+          "Gemini 2.5 Pro",
           "Gemini Flash",
           "Workspace"
         ]
@@ -6524,7 +6382,7 @@
     "page": {
       "eyebrow": "模型配置中心",
       "title": "模型配置中心",
-      "description": "在当前应用内统一维护内置 Provider 预设、默认模型列表、API Key 和 Base URL，无需直接耦合任何外部 router 控制面。",
+      "description": "在当前应用内统一维护内置 Provider 预设、默认模型列表、API Key 和 Base URL，无需直接耦合 sdkwork-api-router。",
       "storageHint": "当存在可写 SQLite 存储配置时，Provider 配置会优先持久化到 SQLite。"
     },
     "summary": {

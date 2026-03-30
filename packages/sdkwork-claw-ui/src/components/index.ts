@@ -15,6 +15,5 @@ export * from './TaskCatalog';
 export * from './TaskExecutionHistoryDrawer';
 export * from './TaskRowList';
 export * from './Textarea';
-export * from './channelCatalogIcons';
 export * from './channelCatalogMeta';
 export * from './taskCatalogMeta';

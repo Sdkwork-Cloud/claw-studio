@@ -32,6 +32,21 @@
       "serviceIds": ["ironclaw"]
     },
     {
+      "id": "sdkwork-api-router",
+      "displayName": "SdkWork API Router",
+      "kind": "serviceGroup",
+      "bundledVersion": "bundled",
+      "startupMode": "autoStart",
+      "installSubdir": "modules/sdkwork-api-router/current",
+      "upgradeChannel": "stable",
+      "serviceIds": [
+        "sdkwork_api_router_gateway",
+        "sdkwork_api_router_admin_api",
+        "sdkwork_api_router_portal_api",
+        "sdkwork_api_router_web_server"
+      ]
+    },
+    {
       "id": "hub-installer",
       "displayName": "Hub Installer",
       "kind": "embeddedLibrary",
