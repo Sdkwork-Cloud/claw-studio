@@ -36,7 +36,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
       type: 'OpenClaw Gateway',
       iconType: 'server',
       status: 'online',
-      version: '2026.3.28',
+      version: '2026.3.13',
       uptime: '8h',
       ip: '127.0.0.1',
       cpu: 12,
@@ -63,7 +63,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
         isBuiltIn: true,
         isDefault: true,
         iconType: 'server',
-        version: '2026.3.28',
+        version: '2026.3.13',
         typeLabel: 'OpenClaw Gateway',
         host: '127.0.0.1',
         port: 18789,
@@ -202,22 +202,22 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
     },
     channels: [
       {
+        id: 'sdkworkchat',
+        name: 'Sdkwork Chat',
+        description: 'First-party channel',
+        status: 'connected',
+        enabled: true,
+        configurationMode: 'none',
+        fieldCount: 0,
+        configuredFieldCount: 0,
+        setupSteps: [],
+      },
+      {
         id: 'telegram',
         name: 'Telegram',
         description: 'Telegram bot',
         status: 'connected',
         enabled: true,
-        configurationMode: 'required',
-        fieldCount: 2,
-        configuredFieldCount: 2,
-        setupSteps: [],
-      },
-      {
-        id: 'slack',
-        name: 'Slack',
-        description: 'Slack workspace',
-        status: 'disconnected',
-        enabled: false,
         configurationMode: 'required',
         fieldCount: 2,
         configuredFieldCount: 2,
@@ -314,11 +314,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
     skills: [createSkill('shared-skill', 'Shared Skill')],
     files: [
       {
-        id: buildOpenClawAgentFileId(
-          'main',
-          'AGENTS.md',
-          'C:/OpenClaw/.openclaw/workspace/AGENTS.md',
-        ),
+        id: buildOpenClawAgentFileId('main', 'AGENTS.md'),
         name: 'AGENTS.md',
         path: 'C:/OpenClaw/.openclaw/workspace/AGENTS.md',
         category: 'prompt',
@@ -331,11 +327,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
         isReadonly: false,
       },
       {
-        id: buildOpenClawAgentFileId(
-          'research',
-          'AGENTS.md',
-          'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
-        ),
+        id: buildOpenClawAgentFileId('research', 'AGENTS.md'),
         name: 'AGENTS.md',
         path: 'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
         category: 'prompt',
@@ -451,21 +443,13 @@ await runTest(
                   baseDir: 'C:/OpenClaw/.openclaw/workspace-research/skills/research-skill',
                   primaryEnv: 'RESEARCH_API_KEY',
                   homepage: 'https://clawhub.com/skills/research-skill',
-                  emoji: '🔎',
                   eligible: false,
                   disabled: false,
                   blockedByAllowlist: false,
                   missing: {
                     env: ['RESEARCH_API_KEY'],
                     bins: ['uv'],
-                    os: ['darwin'],
                   },
-                  configChecks: [
-                    {
-                      path: 'channels.telegram.accounts.research.botToken',
-                      satisfied: false,
-                    },
-                  ],
                   install: [
                     {
                       id: 'uv',
@@ -537,11 +521,6 @@ await runTest(
                   },
                 },
               },
-              slack: {
-                botToken: 'xoxb-research',
-                appToken: 'xapp-research',
-                enabled: false,
-              },
             },
             bindings: [
               {
@@ -559,17 +538,6 @@ await runTest(
                 },
               },
             ],
-            skills: {
-              entries: {
-                'research-skill': {
-                  apiKey: 'research-secret',
-                  env: {
-                    RESEARCH_API_KEY: 'token-value',
-                    RESEARCH_REGION: 'cn-hz',
-                  },
-                },
-              },
-            },
             agents: {
               defaults: {
                 model: {
@@ -619,13 +587,7 @@ await runTest(
     );
     assert.deepEqual(
       snapshot.files.map((file) => file.id),
-      [
-        buildOpenClawAgentFileId(
-          'research',
-          'AGENTS.md',
-          'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
-        ),
-      ],
+      [buildOpenClawAgentFileId('research', 'AGENTS.md')],
     );
     assert.deepEqual(
       snapshot.skills.map((skill) => skill.id),
@@ -637,21 +599,7 @@ await runTest(
     assert.equal(snapshot.skills[0]?.disabled, false);
     assert.equal(snapshot.skills[0]?.primaryEnv, 'RESEARCH_API_KEY');
     assert.equal(snapshot.skills[0]?.homepage, 'https://clawhub.com/skills/research-skill');
-    assert.equal(snapshot.skills[0]?.emoji, '🔎');
-    assert.equal(snapshot.skills[0]?.configEntry.apiKey, 'research-secret');
-    assert.deepEqual(snapshot.skills[0]?.configEntry.env, {
-      RESEARCH_API_KEY: 'token-value',
-      RESEARCH_REGION: 'cn-hz',
-    });
-    assert.equal(snapshot.skills[0]?.configEntry.hasEntry, true);
     assert.deepEqual(snapshot.skills[0]?.missing.env, ['RESEARCH_API_KEY']);
-    assert.deepEqual(snapshot.skills[0]?.missing.os, ['darwin']);
-    assert.deepEqual(snapshot.skills[0]?.configChecks, [
-      {
-        path: 'channels.telegram.accounts.research.botToken',
-        satisfied: false,
-      },
-    ]);
     assert.deepEqual(
       snapshot.skills[0]?.installOptions,
       [
@@ -677,377 +625,6 @@ await runTest(
       ['research'],
     );
     assert.equal(snapshot.channels.find((channel) => channel.id === 'discord')?.routeStatus, 'bound');
-    assert.equal(snapshot.channels.find((channel) => channel.id === 'slack')?.routeStatus, 'available');
-  },
-);
-
-await runTest(
-  'agentWorkbenchService falls back to gateway agent file APIs when the aggregated workbench file list does not include the selected workspace files',
-  async () => {
-    const service = createAgentWorkbenchService({
-      openClawGatewayClient: {
-        getSkillsStatus: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research',
-          skills: [],
-        }),
-        getToolsCatalog: async () => ({
-          agentId: 'research',
-          profiles: [],
-          groups: [],
-        }),
-        listAgentFiles: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research',
-          files: [
-            {
-              name: 'AGENTS.md',
-              path: 'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
-              size: 128,
-              updatedAtMs: 1742353200000,
-            },
-          ],
-        }),
-        getAgentFile: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research',
-          file: {
-            name: 'AGENTS.md',
-            path: 'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
-            content: '# Research agent',
-            size: 128,
-            updatedAtMs: 1742353200000,
-          },
-        }),
-      } as any,
-      readOpenClawConfigSnapshot: async () =>
-        ({
-          root: {},
-        }) as any,
-    });
-
-    const snapshot = await service.getAgentWorkbench({
-      instanceId: 'instance-openclaw',
-      workbench: {
-        ...createWorkbench(),
-        files: [],
-      },
-      agentId: 'research',
-    });
-
-    assert.equal(snapshot.files.length, 1);
-    assert.equal(
-      snapshot.files[0]?.id,
-      buildOpenClawAgentFileId(
-        'research',
-        'AGENTS.md',
-        'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
-      ),
-    );
-    assert.equal(
-      snapshot.files[0]?.path,
-      'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
-    );
-    assert.equal(snapshot.files[0]?.content, '# Research agent');
-  },
-);
-
-await runTest(
-  'agentWorkbenchService keeps default-agent legacy workspace files when gateway file APIs are unavailable',
-  async () => {
-    const gatewayFileReads: string[] = [];
-    const service = createAgentWorkbenchService({
-      openClawGatewayClient: {
-        getSkillsStatus: async () => ({
-          agentId: 'main',
-          workspace: 'C:/OpenClaw/.openclaw/workspace',
-          skills: [],
-        }),
-        getToolsCatalog: async () => ({
-          agentId: 'main',
-          profiles: [],
-          groups: [],
-        }),
-        listAgentFiles: async () => {
-          gatewayFileReads.push('list');
-          throw new Error('gateway unavailable');
-        },
-        getAgentFile: async () => {
-          gatewayFileReads.push('get');
-          throw new Error('gateway unavailable');
-        },
-      } as any,
-      readOpenClawConfigSnapshot: async () =>
-        ({
-          root: {
-            agents: {
-              list: [
-                {
-                  id: 'main',
-                  default: true,
-                },
-              ],
-            },
-          },
-        }) as any,
-    });
-
-    const snapshot = await service.getAgentWorkbench({
-      instanceId: 'instance-openclaw',
-      workbench: {
-        ...createWorkbench(),
-        files: [
-          {
-            id: '/workspace/main/AGENTS.md',
-            name: 'AGENTS.md',
-            path: '/workspace/main/AGENTS.md',
-            category: 'prompt',
-            language: 'markdown',
-            size: '1 KB',
-            updatedAt: '2026-03-23T00:00:00.000Z',
-            status: 'synced',
-            description: 'Legacy main agent prompt',
-            content: '# Main legacy agent',
-            isReadonly: false,
-          },
-        ],
-      },
-      agentId: 'main',
-    });
-
-    assert.equal(gatewayFileReads.length, 1);
-    assert.equal(snapshot.files.length, 1);
-    assert.equal(snapshot.files[0]?.id, '/workspace/main/AGENTS.md');
-    assert.equal(snapshot.files[0]?.content, '# Main legacy agent');
-  },
-);
-
-await runTest(
-  'agentWorkbenchService keeps workspace files available when unrelated skill or tool requests fail and aligns workspace-derived skill scope with the live workspace',
-  async () => {
-    const service = createAgentWorkbenchService({
-      openClawGatewayClient: {
-        getSkillsStatus: async () => {
-          throw new Error('skills status unavailable');
-        },
-        getToolsCatalog: async () => {
-          throw new Error('tools catalog unavailable');
-        },
-        listAgentFiles: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research-live',
-          files: [
-            {
-              name: 'AGENTS.md',
-              path: 'C:/OpenClaw/.openclaw/workspace-research-live/AGENTS.md',
-              size: 128,
-              updatedAtMs: 1742353200000,
-            },
-          ],
-        }),
-        getAgentFile: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research-live',
-          file: {
-            name: 'AGENTS.md',
-            path: 'C:/OpenClaw/.openclaw/workspace-research-live/AGENTS.md',
-            content: '# Research agent',
-            size: 128,
-            updatedAtMs: 1742353200000,
-          },
-        }),
-      } as any,
-      readOpenClawConfigSnapshot: async () =>
-        ({
-          root: {},
-        }) as any,
-    });
-
-    const workbench = createWorkbench();
-    workbench.agents = workbench.agents.map((agent) =>
-      agent.agent.id === 'research'
-        ? {
-            ...agent,
-            workspace: 'C:/OpenClaw/.openclaw/workspace-research-stale',
-          }
-        : agent,
-    );
-
-    const snapshot = await service.getAgentWorkbench({
-      instanceId: 'instance-openclaw',
-      workbench: {
-        ...workbench,
-        files: [],
-      },
-      agentId: 'research',
-    });
-
-    assert.equal(snapshot.files.length, 1);
-    assert.equal(
-      snapshot.paths.workspacePath,
-      'C:/OpenClaw/.openclaw/workspace-research-live',
-    );
-    assert.equal(
-      snapshot.agent.workspace,
-      'C:/OpenClaw/.openclaw/workspace-research-live',
-    );
-    assert.deepEqual(snapshot.skills, []);
-    assert.deepEqual(snapshot.tools, []);
-  },
-);
-
-await runTest(
-  'agentWorkbenchService resolves workspace-scoped skill metadata against the live workspace instead of a stale agent snapshot workspace',
-  async () => {
-    const service = createAgentWorkbenchService({
-      openClawGatewayClient: {
-        getSkillsStatus: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research-live',
-          skills: [
-            {
-              id: 'workspace-skill',
-              name: 'Workspace Skill',
-              description: 'Workspace-only skill',
-              skillKey: 'workspace-skill',
-              source: 'workspace',
-              filePath:
-                'C:/OpenClaw/.openclaw/workspace-research-live/skills/workspace-skill/SKILL.md',
-              baseDir:
-                'C:/OpenClaw/.openclaw/workspace-research-live/skills/workspace-skill',
-            },
-          ],
-        }),
-        getToolsCatalog: async () => ({
-          agentId: 'research',
-          profiles: [],
-          groups: [],
-        }),
-        listAgentFiles: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research-live',
-          files: [
-            {
-              name: 'AGENTS.md',
-              path: 'C:/OpenClaw/.openclaw/workspace-research-live/AGENTS.md',
-              size: 128,
-              updatedAtMs: 1742353200000,
-            },
-          ],
-        }),
-        getAgentFile: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research-live',
-          file: {
-            name: 'AGENTS.md',
-            path: 'C:/OpenClaw/.openclaw/workspace-research-live/AGENTS.md',
-            content: '# Research agent',
-            size: 128,
-            updatedAtMs: 1742353200000,
-          },
-        }),
-      } as any,
-      readOpenClawConfigSnapshot: async () =>
-        ({
-          root: {},
-        }) as any,
-    });
-
-    const workbench = createWorkbench();
-    workbench.agents = workbench.agents.map((agent) =>
-      agent.agent.id === 'research'
-        ? {
-            ...agent,
-            workspace: 'C:/OpenClaw/.openclaw/workspace-research-stale',
-          }
-        : agent,
-    );
-
-    const snapshot = await service.getAgentWorkbench({
-      instanceId: 'instance-openclaw',
-      workbench: {
-        ...workbench,
-        files: [],
-      },
-      agentId: 'research',
-    });
-
-    assert.equal(snapshot.skills.length, 1);
-    assert.equal(snapshot.skills[0]?.scope, 'workspace');
-    assert.equal(
-      snapshot.skills[0]?.filePath,
-      'C:/OpenClaw/.openclaw/workspace-research-live/skills/workspace-skill/SKILL.md',
-    );
-    assert.equal(
-      snapshot.paths.skillsDirectoryPath,
-      'C:/OpenClaw/.openclaw/workspace-research-live/skills',
-    );
-  },
-);
-
-await runTest(
-  'agentWorkbenchService exposes per-agent skill allowlists separately from shared skill configuration and keeps bundled skills visible',
-  async () => {
-    const service = createAgentWorkbenchService({
-      openClawGatewayClient: {
-        getSkillsStatus: async () => ({
-          agentId: 'research',
-          workspace: 'C:/OpenClaw/.openclaw/workspace-research',
-          skills: [
-            {
-              id: 'bundled-browser',
-              name: 'Browser',
-              description: 'Bundled browser automation',
-              bundled: true,
-              skillKey: 'browser',
-              source: 'bundled',
-              blockedByAllowlist: false,
-            },
-            {
-              id: 'workspace-research',
-              name: 'Research',
-              description: 'Workspace research workflows',
-              bundled: false,
-              skillKey: 'research',
-              source: 'workspace',
-              blockedByAllowlist: true,
-            },
-          ],
-        }),
-        getToolsCatalog: async () => ({
-          agentId: 'research',
-          profiles: [],
-          groups: [],
-        }),
-      } as any,
-      readOpenClawConfigSnapshot: async () =>
-        ({
-          root: {
-            agents: {
-              list: [
-                {
-                  id: 'main',
-                  default: true,
-                },
-                {
-                  id: 'research',
-                  skills: ['Browser'],
-                },
-              ],
-            },
-          },
-        }) as any,
-    });
-
-    const snapshot = await service.getAgentWorkbench({
-      instanceId: 'instance-openclaw',
-      workbench: createWorkbench(),
-      agentId: 'research',
-    });
-
-    assert.equal(snapshot.skillSelection.usesAllowlist, true);
-    assert.deepEqual(snapshot.skillSelection.configuredSkillNames, ['Browser']);
-    assert.equal(snapshot.skills.find((skill) => skill.name === 'Browser')?.scope, 'bundled');
-    assert.equal(snapshot.skills.find((skill) => skill.name === 'Research')?.blockedByAllowlist, true);
+    assert.equal(snapshot.channels.find((channel) => channel.id === 'sdkworkchat')?.routeStatus, 'available');
   },
 );

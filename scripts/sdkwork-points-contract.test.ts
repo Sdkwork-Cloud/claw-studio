@@ -59,11 +59,7 @@ runTest('sdkwork-claw-points reads live dashboard data through the shared app-sd
   const pageSource = read('packages/sdkwork-claw-points/src/pages/Points.tsx');
   const headerSource = read('packages/sdkwork-claw-points/src/components/PointsHeaderEntry.tsx');
   const rechargeSource = read('packages/sdkwork-claw-points/src/components/PointsRechargeDialog.tsx');
-  const rechargeCatalogSource = read('packages/sdkwork-claw-points/src/components/PointsRechargeCatalogView.tsx');
-  const rechargePaymentSource = read('packages/sdkwork-claw-points/src/components/PointsRechargePaymentView.tsx');
   const upgradeSource = read('packages/sdkwork-claw-points/src/components/PointsUpgradeDialog.tsx');
-  const upgradeCatalogSource = read('packages/sdkwork-claw-points/src/components/PointsUpgradeCatalogView.tsx');
-  const upgradePaymentSource = read('packages/sdkwork-claw-points/src/components/PointsUpgradePaymentView.tsx');
   const quickPanelSource = read('packages/sdkwork-claw-points/src/components/PointsQuickPanel.tsx');
   const transactionListSource = read('packages/sdkwork-claw-points/src/components/PointsTransactionList.tsx');
   const copySource = read('packages/sdkwork-claw-points/src/components/pointsCopy.ts');
@@ -79,8 +75,6 @@ runTest('sdkwork-claw-points reads live dashboard data through the shared app-sd
   assert.match(serviceSource, /getDashboard/);
   assert.match(serviceSource, /walletService\.getOverview/);
   assert.match(serviceSource, /walletService\.rechargePoints/);
-  assert.match(serviceSource, /walletService\.getPointsRechargeStatus/);
-  assert.match(serviceSource, /walletService\.listPointsOrderPayments/);
   assert.match(serviceSource, /walletService\.purchaseVipPack/);
   assert.doesNotMatch(serviceSource, /localStorage/);
   assert.doesNotMatch(serviceSource, /claw-studio-points-state/);
@@ -104,44 +98,30 @@ runTest('sdkwork-claw-points reads live dashboard data through the shared app-sd
   assert.match(rechargeSource, /useQuery/);
   assert.match(rechargeSource, /queryClient\.invalidateQueries/);
   assert.match(rechargeSource, /pointsService\.rechargePoints/);
-  assert.match(rechargeSource, /pointsService\.confirmRechargePayment/);
-  assert.match(rechargeSource, /pointsService\.getRechargePaymentRecords/);
-  assert.match(rechargeSource, /openExternalUrl/);
-  assert.match(rechargeSource, /PointsRechargeCatalogView/);
-  assert.match(rechargeSource, /PointsRechargePaymentView/);
-  assert.match(rechargeCatalogSource, /data-slot="points-recharge-pack-card"/);
-  assert.match(rechargeCatalogSource, /data-slot="points-recharge-pack-grid"/);
-  assert.match(rechargeCatalogSource, /data-slot="points-recharge-summary"/);
-  assert.match(rechargeCatalogSource, /data-slot="points-recharge-summary-rows"/);
-  assert.match(rechargePaymentSource, /data-slot="points-recharge-payment"/);
-  assert.match(rechargePaymentSource, /data-slot="points-recharge-payment-records"/);
-  assert.match(rechargePaymentSource, /data-slot="points-recharge-payment-summary-rows"/);
-  assert.match(rechargePaymentSource, /points\.rechargeDialog\.paymentSessionTitle/);
-  assert.match(rechargePaymentSource, /points\.rechargeDialog\.paymentOpenAction/);
-  assert.doesNotMatch(rechargeSource, /getRechargePresets/);
+  assert.match(rechargeSource, /pointsService\.getRechargePresets/);
+  assert.match(rechargeSource, /points\.rechargeDialog\.exchangeRateLabel/);
+  assert.match(rechargeSource, /data-slot="points-recharge-payment"/);
+  assert.match(rechargeSource, /data-slot="points-recharge-summary"/);
+  assert.match(rechargeSource, /data-slot="points-recharge-preset-grid"/);
+  assert.match(rechargeSource, /data-slot="points-recharge-custom-panel"/);
+  assert.doesNotMatch(rechargeSource, /resolvedPoints \/ 10/);
+  assert.doesNotMatch(rechargeSource, /line-through/);
   assert.doesNotMatch(rechargeSource, /buildPseudoQrDataUrl/);
-  assert.doesNotMatch(rechargeCatalogSource, /points-recharge-custom-panel/);
-  assert.doesNotMatch(rechargeCatalogSource, /points-recharge-preset-grid/);
+  assert.doesNotMatch(rechargeSource, /points-recharge-qr/);
+  assert.doesNotMatch(rechargeSource, /setStep\('payment'\)/);
+  assert.doesNotMatch(rechargeSource, /setStep\('form'\)/);
 
   assert.match(upgradeSource, /useMutation/);
   assert.match(upgradeSource, /useQuery/);
   assert.match(upgradeSource, /pointsService\.upgradePlan/);
-  assert.match(upgradeSource, /openExternalUrl/);
-  assert.match(upgradeSource, /PointsUpgradeCatalogView/);
-  assert.match(upgradeSource, /PointsUpgradePaymentView/);
-  assert.match(upgradeCatalogSource, /data-slot="points-upgrade-payment"/);
-  assert.match(upgradeCatalogSource, /data-slot="points-upgrade-plan-card"/);
-  assert.match(upgradeCatalogSource, /data-slot="points-upgrade-summary"/);
-  assert.match(upgradeCatalogSource, /data-slot="points-upgrade-summary-rows"/);
-  assert.match(upgradeCatalogSource, /points\.upgradeDialog\.durationLabel/);
-  assert.match(upgradeCatalogSource, /points\.upgradeDialog\.groupEyebrow/);
-  assert.match(upgradeCatalogSource, /points\.upgradeDialog\.checkoutAction/);
-  assert.match(upgradePaymentSource, /data-slot="points-upgrade-payment-records"/);
-  assert.match(upgradePaymentSource, /points\.upgradeDialog\.paymentSessionTitle/);
-  assert.match(upgradePaymentSource, /points\.upgradeDialog\.paymentOpenAction/);
+  assert.match(upgradeSource, /data-slot="points-upgrade-payment"/);
+  assert.match(upgradeSource, /data-slot="points-upgrade-plan-card"/);
+  assert.match(upgradeSource, /data-slot="points-upgrade-summary"/);
+  assert.match(upgradeSource, /data-slot="points-upgrade-summary-rows"/);
+  assert.match(upgradeSource, /points\.upgradeDialog\.durationLabel/);
   assert.doesNotMatch(upgradeSource, /save20/);
-  assert.doesNotMatch(upgradePaymentSource, /buildPseudoQrDataUrl/);
-  assert.doesNotMatch(upgradePaymentSource, /points-upgrade-qr/);
+  assert.doesNotMatch(upgradeSource, /buildPseudoQrDataUrl/);
+  assert.doesNotMatch(upgradeSource, /points-upgrade-qr/);
   assert.doesNotMatch(upgradeSource, /setStep\('payment'\)/);
   assert.doesNotMatch(upgradeSource, /setStep\('plans'\)/);
 
@@ -153,30 +133,13 @@ runTest('sdkwork-claw-points reads live dashboard data through the shared app-sd
   assert.doesNotMatch(copySource, /getPointsPlanBenefits/);
 
   assert.match(enPoints, /exchangeRateLabel/);
-  assert.match(enPoints, /catalogTitle/);
-  assert.match(enPoints, /paymentSessionTitle/);
   assert.match(enPoints, /auth/);
   assert.match(enPoints, /membership/);
   assert.match(enPoints, /durationLabel/);
   assert.match(enPoints, /selectPlan/);
-  assert.match(enPoints, /checkoutAction/);
-  assert.match(enPoints, /paymentSessionTitle/);
   assert.match(zhPoints, /exchangeRateLabel/);
-  assert.match(zhPoints, /catalogTitle/);
-  assert.match(zhPoints, /paymentSessionTitle/);
   assert.match(zhPoints, /auth/);
   assert.match(zhPoints, /membership/);
   assert.match(zhPoints, /durationLabel/);
   assert.match(zhPoints, /selectPlan/);
-  assert.match(zhPoints, /checkoutAction/);
-  assert.match(zhPoints, /paymentSessionTitle/);
-});
-
-runTest('points upgrade dialog keeps checkout state stable during dashboard refreshes', () => {
-  const upgradeSource = read('packages/sdkwork-claw-points/src/components/PointsUpgradeDialog.tsx');
-
-  assert.doesNotMatch(
-    upgradeSource,
-    /useEffect\(\(\)\s*=>\s*\{[\s\S]*setCheckoutSession\(null\);[\s\S]*\},\s*\[isOpen,\s*data\.plans\]\);/,
-  );
 });

@@ -308,53 +308,30 @@ pub struct HubInstallDependencyResult {
 }
 
 #[tauri::command]
-pub async fn run_hub_install(
+pub fn run_hub_install(
     request: RunHubInstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubInstallResult, String> {
-    let app_handle = app.clone();
-    let app_state = state.inner().clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
-        run_hub_install_at(&app_handle, &app_state, request).map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    run_hub_install_at(&app, &state, request).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub async fn inspect_hub_install(
+pub fn inspect_hub_install(
     request: RunHubInstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubInstallAssessmentResult, String> {
-    let app_handle = app.clone();
-    let app_state = state.inner().clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
-        inspect_hub_install_at(&app_handle, &app_state, request)
-            .map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    inspect_hub_install_at(&app, &state, request).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub async fn run_hub_dependency_install(
+pub fn run_hub_dependency_install(
     request: RunHubDependencyInstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubInstallDependencyResult, String> {
-    let app_handle = app.clone();
-    let app_state = state.inner().clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
-        run_hub_dependency_install_at(&app_handle, &app_state, request)
-            .map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    run_hub_dependency_install_at(&app, &state, request).map_err(|error| error.to_string())
 }
 
 pub fn run_hub_install_at<R: Runtime>(

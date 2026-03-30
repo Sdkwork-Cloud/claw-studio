@@ -40,9 +40,6 @@ export function getTaskToggleStatusTarget(status: string): 'active' | 'paused' |
   if (status === 'paused') {
     return 'active';
   }
-  if (status === 'failed') {
-    return 'paused';
-  }
   return null;
 }
 

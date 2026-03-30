@@ -611,7 +611,7 @@ fn build_openclaw_memory_entries(
 }
 
 fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
-    const TOOLS: [(&str, &str, &str, &str, &str, &str, bool, &str, bool); 29] = [
+    const TOOLS: [(&str, &str, &str, &str, &str, &str, bool, &str, bool); 27] = [
         (
             "read",
             "read",
@@ -679,17 +679,6 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
             false,
         ),
         (
-            "code_execution",
-            "code_execution",
-            "Run sandboxed remote analysis",
-            "observability",
-            "execute",
-            "tool:code_execution",
-            false,
-            "runtime",
-            true,
-        ),
-        (
             "web_search",
             "web_search",
             "Search the web",
@@ -712,20 +701,9 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
             true,
         ),
         (
-            "x_search",
-            "x_search",
-            "Search X posts",
-            "reasoning",
-            "read",
-            "tool:x_search",
-            false,
-            "web",
-            true,
-        ),
-        (
             "memory_search",
             "memory_search",
-            "Semantic search",
+            "Semantic memory search",
             "reasoning",
             "read",
             "tool:memory_search",
@@ -758,7 +736,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "sessions_history",
             "sessions_history",
-            "Session history",
+            "Read session history",
             "reasoning",
             "read",
             "tool:sessions_history",
@@ -780,7 +758,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "sessions_spawn",
             "sessions_spawn",
-            "Spawn sub-agent",
+            "Spawn sub-agent sessions",
             "reasoning",
             "execute",
             "tool:sessions_spawn",
@@ -791,7 +769,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "sessions_yield",
             "sessions_yield",
-            "End turn to receive sub-agent results",
+            "Yield for sub-agent results",
             "reasoning",
             "execute",
             "tool:sessions_yield",
@@ -813,7 +791,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "session_status",
             "session_status",
-            "Session status",
+            "Inspect session status",
             "reasoning",
             "read",
             "tool:session_status",
@@ -824,7 +802,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "browser",
             "browser",
-            "Control web browser",
+            "Control a browser surface",
             "integration",
             "execute",
             "tool:browser",
@@ -835,7 +813,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "canvas",
             "canvas",
-            "Control canvases",
+            "Control canvas surfaces",
             "integration",
             "write",
             "tool:canvas",
@@ -846,7 +824,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "message",
             "message",
-            "Send messages",
+            "Send channel messages",
             "integration",
             "write",
             "tool:message",
@@ -868,7 +846,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "gateway",
             "gateway",
-            "Gateway control",
+            "Control the gateway",
             "automation",
             "execute",
             "tool:gateway",
@@ -890,7 +868,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "nodes",
             "nodes",
-            "Nodes + devices",
+            "Inspect nodes and devices",
             "integration",
             "read",
             "tool:nodes",
@@ -901,7 +879,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "image",
             "image",
-            "Image understanding",
+            "Understand image inputs",
             "integration",
             "read",
             "tool:image",
@@ -912,7 +890,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "image_generate",
             "image_generate",
-            "Image generation",
+            "Generate images",
             "integration",
             "execute",
             "tool:image_generate",
@@ -923,7 +901,7 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
         (
             "tts",
             "tts",
-            "Text-to-speech conversion",
+            "Convert text to speech",
             "integration",
             "execute",
             "tool:tts",
@@ -1903,10 +1881,8 @@ fn tool_allowed_by_profile(profile: &str, tool_id: &str) -> bool {
                 | "apply_patch"
                 | "exec"
                 | "process"
-                | "code_execution"
                 | "web_search"
                 | "web_fetch"
-                | "x_search"
                 | "memory_search"
                 | "memory_get"
                 | "sessions_list"

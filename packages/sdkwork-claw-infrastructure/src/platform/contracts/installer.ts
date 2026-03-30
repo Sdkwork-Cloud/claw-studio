@@ -412,77 +412,77 @@ export type HubInstallProgressEvent = {
     }
 );
 
-export type ProviderClientSetupClientId =
+export type ApiRouterInstallerClientId =
   | 'codex'
   | 'claude-code'
   | 'opencode'
   | 'openclaw'
   | 'gemini';
-export type ProviderClientSetupCompatibility = 'openai' | 'anthropic' | 'gemini';
-export type ProviderClientSetupInstallMode = 'standard' | 'env' | 'both';
-export type ProviderClientSetupEnvScope = 'user' | 'system';
-export type ProviderClientSetupOpenClawApiKeyStrategy = 'shared' | 'per-instance';
-export type ProviderClientSetupFileAction = 'created' | 'updated';
-export type ProviderClientSetupEnvironmentShell = 'powershell' | 'sh';
 
-export interface ProviderClientSetupModel {
+export type ApiRouterInstallerCompatibility = 'openai' | 'anthropic' | 'gemini';
+export type ApiRouterInstallerInstallMode = 'standard' | 'env' | 'both';
+export type ApiRouterInstallerEnvScope = 'user' | 'system';
+export type ApiRouterInstalledEnvironmentShell = 'powershell' | 'sh';
+export type ApiRouterInstallerOpenClawApiKeyStrategy = 'shared' | 'per-instance';
+
+export interface ApiRouterInstallerModel {
   id: string;
   name: string;
 }
 
-export interface ProviderClientSetupProvider {
+export interface ApiRouterInstallerProvider {
   id: string;
   channelId: string;
   name: string;
   baseUrl: string;
   apiKey: string;
-  compatibility: ProviderClientSetupCompatibility;
-  models: ProviderClientSetupModel[];
+  compatibility: ApiRouterInstallerCompatibility;
+  models: ApiRouterInstallerModel[];
 }
 
-export interface ProviderClientSetupOpenClawOptions {
+export interface ApiRouterInstallerOpenClawOptions {
   instanceIds: string[];
-  apiKeyStrategy?: ProviderClientSetupOpenClawApiKeyStrategy;
-  routeProviderId?: string | null;
+  apiKeyStrategy: ApiRouterInstallerOpenClawApiKeyStrategy;
+  routerProviderId?: string | null;
   modelMappingId?: string | null;
 }
 
-export interface ProviderClientSetupRequest {
-  clientId: ProviderClientSetupClientId;
-  provider: ProviderClientSetupProvider;
-  installMode?: ProviderClientSetupInstallMode | null;
-  envScope?: ProviderClientSetupEnvScope | null;
-  openClaw?: ProviderClientSetupOpenClawOptions | null;
+export interface ApiRouterClientInstallRequest {
+  clientId: ApiRouterInstallerClientId;
+  provider: ApiRouterInstallerProvider;
+  installMode?: ApiRouterInstallerInstallMode;
+  envScope?: ApiRouterInstallerEnvScope;
+  openClaw?: ApiRouterInstallerOpenClawOptions;
 }
 
-export interface ProviderClientSetupFile {
+export interface ApiRouterInstalledFile {
   path: string;
-  action: ProviderClientSetupFileAction;
+  action: 'created' | 'updated';
 }
 
-export interface ProviderClientSetupEnvironment {
-  scope: ProviderClientSetupEnvScope;
-  shell: ProviderClientSetupEnvironmentShell;
+export interface ApiRouterInstalledEnvironment {
+  scope: ApiRouterInstallerEnvScope;
+  shell: ApiRouterInstalledEnvironmentShell;
   target: string;
   variables: string[];
 }
 
-export interface ProviderClientSetupOpenClawInstance {
+export interface ApiRouterInstalledOpenClawInstance {
   instanceId: string;
   endpoint: string;
   apiKey: string;
   apiKeyProjectId: string;
-  apiKeyStrategy: ProviderClientSetupOpenClawApiKeyStrategy;
+  apiKeyStrategy: ApiRouterInstallerOpenClawApiKeyStrategy;
   selectedProviderId?: string | null;
   modelMappingId?: string | null;
 }
 
-export interface ProviderClientSetupResult {
-  clientId: ProviderClientSetupClientId;
-  writtenFiles: ProviderClientSetupFile[];
-  updatedEnvironments: ProviderClientSetupEnvironment[];
+export interface ApiRouterClientInstallResult {
+  clientId: ApiRouterInstallerClientId;
+  writtenFiles: ApiRouterInstalledFile[];
+  updatedEnvironments: ApiRouterInstalledEnvironment[];
   updatedInstanceIds: string[];
-  openClawInstances: ProviderClientSetupOpenClawInstance[];
+  openClawInstances: ApiRouterInstalledOpenClawInstance[];
 }
 
 export interface InstallerPlatformAPI {
@@ -493,10 +493,10 @@ export interface InstallerPlatformAPI {
   runHubDependencyInstall(request: HubInstallDependencyRequest): Promise<HubInstallDependencyResult>;
   runHubInstall(request: HubInstallRequest): Promise<HubInstallResult>;
   runHubUninstall(request: HubUninstallRequest): Promise<HubUninstallResult>;
-  applyProviderClientSetup(
-    request: ProviderClientSetupRequest,
-  ): Promise<ProviderClientSetupResult>;
   subscribeHubInstallProgress(
     listener: (event: HubInstallProgressEvent) => void,
   ): Promise<RuntimeEventUnsubscribe>;
+  installApiRouterClientSetup(
+    request: ApiRouterClientInstallRequest,
+  ): Promise<ApiRouterClientInstallResult>;
 }

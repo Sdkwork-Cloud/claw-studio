@@ -4,11 +4,6 @@ import { initReactI18next } from 'react-i18next';
 import en from './locales/en.json' with { type: 'json' };
 import zh from './locales/zh.json' with { type: 'json' };
 import {
-  mergeTranslationTree,
-  zhLocalePatch,
-  type TranslationTree,
-} from './localePatches.ts';
-import {
   DEFAULT_LANGUAGE,
   I18N_STORAGE_KEY,
   LANGUAGE_COOKIE_KEY,
@@ -38,14 +33,9 @@ export const languageQueryParameter = LANGUAGE_QUERY_PARAMETER;
 export const resolveRequestLanguage = detectRequestLanguage;
 export { normalizeLanguage, parseCookieValue, getLanguageFromCookieString };
 
-const zhRuntimeLocale = mergeTranslationTree(
-  zh as unknown as TranslationTree,
-  zhLocalePatch,
-) as typeof zh;
-
 export const translationResources = {
   en: { translation: en },
-  zh: { translation: zhRuntimeLocale },
+  zh: { translation: zh },
 } as const;
 
 let initialization: Promise<typeof i18n> | null = null;

@@ -22,8 +22,8 @@ function createProxyProvider(channelId: string): ProxyProvider {
       name: 'GPT-5.4',
     },
     google: {
-      id: 'gemini-3.1-pro-preview',
-      name: 'Gemini 3.1 Pro',
+      id: 'gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
     },
   };
   const model = baseModelByChannelId[channelId] || {
@@ -66,8 +66,8 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
       instanceIds: string[];
     };
   }> = [];
-  const originalInstall = installerService.applyProviderClientSetup;
-  installerService.applyProviderClientSetup = async (request) => {
+  const originalInstall = installerService.installApiRouterClientSetup;
+  installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
       openClaw: request.openClaw,
@@ -87,7 +87,7 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
         apiKey: provider.apiKey,
         apiKeyProjectId: `project-${instanceId}`,
         apiKeyStrategy: request.openClaw?.apiKeyStrategy || 'shared',
-        selectedProviderId: request.openClaw?.routeProviderId,
+        selectedProviderId: request.openClaw?.routerProviderId,
         modelMappingId: request.openClaw?.modelMappingId,
       })) || [],
     };
@@ -107,7 +107,7 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
           apiKeyStrategy: 'shared',
           instanceIds: ['local-built-in', 'home-nas'],
           modelMappingId: undefined,
-          routeProviderId: undefined,
+          routerProviderId: undefined,
         },
       },
     ]);
@@ -124,7 +124,7 @@ await runTest('providerAccessApplyService can configure OpenClaw target instance
     assert.equal(localRoute?.apiKeySource, provider.apiKey);
     assert.equal(homeRoute?.defaultModelId, provider.models[0]?.id);
   } finally {
-    installerService.applyProviderClientSetup = originalInstall;
+    installerService.installApiRouterClientSetup = originalInstall;
   }
 });
 
@@ -152,8 +152,8 @@ await runTest('providerAccessApplyService performs one-click Codex setup through
       models: Array<{ id: string; name: string }>;
     };
   }> = [];
-  const originalInstall = installerService.applyProviderClientSetup;
-  installerService.applyProviderClientSetup = async (request) => {
+  const originalInstall = installerService.installApiRouterClientSetup;
+  installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
       installMode: request.installMode,
@@ -215,7 +215,7 @@ await runTest('providerAccessApplyService performs one-click Codex setup through
       },
     ]);
   } finally {
-    installerService.applyProviderClientSetup = originalInstall;
+    installerService.installApiRouterClientSetup = originalInstall;
   }
 });
 
@@ -243,8 +243,8 @@ await runTest('providerAccessApplyService performs one-click OpenCode setup thro
       models: Array<{ id: string; name: string }>;
     };
   }> = [];
-  const originalInstall = installerService.applyProviderClientSetup;
-  installerService.applyProviderClientSetup = async (request) => {
+  const originalInstall = installerService.installApiRouterClientSetup;
+  installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
       installMode: request.installMode,
@@ -306,7 +306,7 @@ await runTest('providerAccessApplyService performs one-click OpenCode setup thro
       },
     ]);
   } finally {
-    installerService.applyProviderClientSetup = originalInstall;
+    installerService.installApiRouterClientSetup = originalInstall;
   }
 });
 
@@ -334,8 +334,8 @@ await runTest('providerAccessApplyService performs one-click Gemini CLI setup th
       models: Array<{ id: string; name: string }>;
     };
   }> = [];
-  const originalInstall = installerService.applyProviderClientSetup;
-  installerService.applyProviderClientSetup = async (request) => {
+  const originalInstall = installerService.installApiRouterClientSetup;
+  installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
       installMode: request.installMode,
@@ -397,7 +397,7 @@ await runTest('providerAccessApplyService performs one-click Gemini CLI setup th
       },
     ]);
   } finally {
-    installerService.applyProviderClientSetup = originalInstall;
+    installerService.installApiRouterClientSetup = originalInstall;
   }
 });
 
@@ -419,8 +419,8 @@ await runTest('providerAccessApplyService uses local file configuration by defau
     installMode?: string;
     envScope?: string;
   }> = [];
-  const originalInstall = installerService.applyProviderClientSetup;
-  installerService.applyProviderClientSetup = async (request) => {
+  const originalInstall = installerService.installApiRouterClientSetup;
+  installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
       installMode: request.installMode,
@@ -460,7 +460,7 @@ await runTest('providerAccessApplyService uses local file configuration by defau
       },
     ]);
   } finally {
-    installerService.applyProviderClientSetup = originalInstall;
+    installerService.installApiRouterClientSetup = originalInstall;
   }
 });
 
@@ -482,8 +482,8 @@ await runTest('providerAccessApplyService can configure only environment variabl
     installMode?: string;
     envScope?: string;
   }> = [];
-  const originalInstall = installerService.applyProviderClientSetup;
-  installerService.applyProviderClientSetup = async (request) => {
+  const originalInstall = installerService.installApiRouterClientSetup;
+  installerService.installApiRouterClientSetup = async (request) => {
     installCalls.push({
       clientId: request.clientId,
       installMode: request.installMode,
@@ -524,7 +524,6 @@ await runTest('providerAccessApplyService can configure only environment variabl
       },
     ]);
   } finally {
-    installerService.applyProviderClientSetup = originalInstall;
+    installerService.installApiRouterClientSetup = originalInstall;
   }
 });
-

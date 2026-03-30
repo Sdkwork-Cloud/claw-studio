@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { Command, Search } from 'lucide-react';
 import Fuse from 'fuse.js';
-import { instanceDirectoryService, useAppStore, useInstanceStore } from '@sdkwork/claw-core';
+import { instanceDirectoryService, useInstanceStore } from '@sdkwork/claw-core';
 import { Input } from '@sdkwork/claw-ui';
 import {
   buildCommandPaletteCommands,
@@ -21,7 +21,6 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { setActiveInstanceId } = useInstanceStore();
-  const hiddenSidebarItems = useAppStore((state) => state.hiddenSidebarItems);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -66,12 +65,11 @@ export function CommandPalette() {
     () =>
       buildCommandPaletteCommands({
         instances,
-        hiddenSidebarItems,
         navigate,
         setActiveInstanceId,
         t,
       }),
-    [hiddenSidebarItems, instances, navigate, setActiveInstanceId, t],
+    [instances, navigate, setActiveInstanceId, t],
   );
 
   const fuse = useMemo(

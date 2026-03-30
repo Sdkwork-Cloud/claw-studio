@@ -1,29 +1,12 @@
 import type { OpenClawConfigSnapshot } from '@sdkwork/claw-core';
+import type {
+  ApiRouterChannelDto,
+  ApiRouterModelDto,
+  ApiRouterProviderDto,
+} from '@sdkwork/claw-infrastructure';
 import type { LLMChannel, LLMModel } from '@sdkwork/claw-settings';
 import type { StudioInstanceDetailRecord, StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
-
-type RouterCatalogChannelRecord = {
-  id: string;
-  name: string;
-};
-
-type RouterCatalogProviderBindingRecord = {
-  channel_id: string;
-  is_primary?: boolean;
-};
-
-type RouterCatalogProviderRecord = {
-  id: string;
-  channel_id: string;
-  base_url: string;
-  channel_bindings?: RouterCatalogProviderBindingRecord[];
-};
-
-type RouterCatalogModelRecord = {
-  provider_id: string;
-  external_name: string;
-};
 
 type GatewayModelRecord = {
   id?: string;
@@ -69,9 +52,9 @@ export interface InstanceEffectiveModelCatalogService {
 export interface InstanceEffectiveModelCatalogDependencies {
   getInstance: (instanceId: string) => Promise<StudioInstanceRecord | null>;
   getInstanceDetail: (instanceId: string) => Promise<StudioInstanceDetailRecord | null>;
-  listRouterChannels: () => Promise<RouterCatalogChannelRecord[]>;
-  listRouterProviders: () => Promise<RouterCatalogProviderRecord[]>;
-  listRouterModels: () => Promise<RouterCatalogModelRecord[]>;
+  listRouterChannels: () => Promise<ApiRouterChannelDto[]>;
+  listRouterProviders: () => Promise<ApiRouterProviderDto[]>;
+  listRouterModels: () => Promise<ApiRouterModelDto[]>;
   resolveOpenClawConfigPath: (
     detail: StudioInstanceDetailRecord | null | undefined,
   ) => string | null;
@@ -85,12 +68,10 @@ const CHANNEL_ICON_MAP: Record<string, string> = {
   coding: 'CD',
   deepseek: 'DS',
   general: 'AI',
-  google: 'GG',
   moonshot: 'KI',
   openai: 'OA',
   qwen: 'QW',
   vision: 'VS',
-  xai: 'XI',
   zhipu: 'ZP',
 };
 
@@ -100,7 +81,7 @@ function normalizeProviderId(providerId: string) {
     : providerId;
 }
 
-function resolveProviderChannelId(provider: RouterCatalogProviderRecord) {
+function resolveProviderChannelId(provider: ApiRouterProviderDto) {
   return (
     provider.channel_bindings?.find((binding) => binding.is_primary)?.channel_id ||
     provider.channel_id
@@ -279,9 +260,9 @@ function resolveGatewayModelIdentity(entry: GatewayModelRecord): GatewayModelIde
 }
 
 function buildRouterCatalog(params: {
-  channels: RouterCatalogChannelRecord[];
-  providers: RouterCatalogProviderRecord[];
-  models: RouterCatalogModelRecord[];
+  channels: ApiRouterChannelDto[];
+  providers: ApiRouterProviderDto[];
+  models: ApiRouterModelDto[];
 }) {
   const channelById = new Map(params.channels.map((channel) => [channel.id, channel]));
   const providerById = new Map(params.providers.map((provider) => [provider.id, provider]));

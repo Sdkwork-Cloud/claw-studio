@@ -173,23 +173,6 @@ await runTest('ensureI18n exposes both resource bundles and shared utility keys'
   assert.equal(typeof translationResources.en.translation.account.confirmRecharge, 'string');
   assert.equal(typeof translationResources.zh.translation.account.confirmRecharge, 'string');
   assert.equal(typeof translationResources.zh.translation.account.title, 'string');
-  assert.equal(translationResources.zh.translation.providerCenter.page.title, 'Provider 配置中心');
-  assert.equal(
-    translationResources.zh.translation.providerCenter.searchPlaceholder,
-    '搜索 provider、Base URL、模型或 API 密钥',
-  );
-  assert.equal(
-    translationResources.zh.translation.modelPurchase.providerProfiles.vendors.qwen.modelHighlights[0],
-    'Qwen 推理',
-  );
-  assert.equal(
-    translationResources.zh.translation.settings.apiKeys.searchPlaceholder,
-    '搜索密钥名称、令牌或 ID',
-  );
-  assert.equal(
-    translationResources.zh.translation.apiRouterPage.quickSetup.reasons.requiresGoogleIssuedGeminiKey,
-    '如果你要走 Google 官方直连凭证模式，请改用 Google 直接签发的 Gemini API Key；通过统一 API Key 的路由化安装请使用 Gemini-compatible gateway。',
-  );
 });
 
 await runTest('i18n interpolation formats numeric counts using the active locale', async () => {

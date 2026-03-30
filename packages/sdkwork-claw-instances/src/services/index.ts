@@ -5,5 +5,3 @@ export * from './agentWorkbenchService';
 export * from './agentSkillManagementService';
 export * from './instanceManagementPresentation';
 export * from './nodeInventoryService';
-export * from './instanceAssistSupport';
-export * from './openClawConsoleLaunch';

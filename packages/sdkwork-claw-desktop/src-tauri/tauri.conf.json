@@ -30,7 +30,8 @@
       "foundation/components/**/*",
       "generated/bundled/**/*",
       "vendor/hub-installer/registry/**/*",
-      "resources/openclaw-runtime/**/*"
+      "resources/openclaw-runtime/**/*",
+      "resources/sdkwork-api-router-runtime/**/*"
     ],
     "icon": [
       "icons/32x32.png",

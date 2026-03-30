@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Database, PencilLine, Plus, Rocket, Route, Save, Search, Trash2 } from 'lucide-react';
+import { Check, Database, PencilLine, Plus, Rocket, Route, Save, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
@@ -137,7 +137,6 @@ export function ProviderConfigCenter() {
   const { t } = useTranslation();
   const presets = providerConfigCenterService.listPresets();
   const [records, setRecords] = useState<ProviderConfigRecord[]>([]);
-  const [searchText, setSearchText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ProviderConfigFormState>(createFormState(presets[0]?.draft));
@@ -325,67 +324,61 @@ export function ProviderConfigCenter() {
     );
   };
 
-  const normalizedSearch = searchText.trim().toLowerCase();
-  const filteredRecords = normalizedSearch
-    ? records.filter((record) => {
-        const haystack = [
-          record.name,
-          record.providerId,
-          record.baseUrl,
-          record.defaultModelId,
-          record.reasoningModelId,
-          record.embeddingModelId,
-          record.notes,
-          record.apiKey,
-          ...record.models.flatMap((model) => [model.id, model.name]),
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return haystack.includes(normalizedSearch);
-      })
-    : records;
-
   return (
     <div className="h-full overflow-auto bg-zinc-50 dark:bg-zinc-950" data-slot="provider-center-page">
       <div className="mx-auto flex max-w-[1500px] flex-col gap-6 p-4 md:p-6">
         <section className="rounded-[28px] border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex flex-col gap-4 border-b border-zinc-200 p-6 dark:border-zinc-800 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl space-y-2">
+          <div className="flex flex-col gap-4 border-b border-zinc-200 p-6 dark:border-zinc-800 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
                 <Route className="h-3.5 w-3.5" />
                 {t('providerCenter.page.eyebrow')}
               </div>
-              <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
                 {t('providerCenter.page.title')}
               </h1>
-              <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+              <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
                 {t('providerCenter.page.description')}
               </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
                 {t('providerCenter.page.storageHint')}
               </p>
             </div>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" onClick={() => void loadRecords()} disabled={isLoading}>
+                <Database className="h-4 w-4" />
+                {t('providerCenter.actions.refresh')}
+              </Button>
+              <Button onClick={openCreateDialog}>
+                <Plus className="h-4 w-4" />
+                {t('providerCenter.actions.addRouteConfig')}
+              </Button>
+            </div>
+          </div>
 
-            <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[520px] lg:flex-row lg:items-center lg:justify-end">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                <Input
-                  value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
-                  placeholder={t('providerCenter.searchPlaceholder')}
-                  className="h-10 pl-9"
-                />
+          <div className="grid gap-3 border-b border-zinc-200 p-6 md:grid-cols-3 dark:border-zinc-800">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('providerCenter.summary.routeConfigs')}
               </div>
-              <div className="flex shrink-0 gap-3">
-                <Button variant="outline" onClick={() => void loadRecords()} disabled={isLoading}>
-                  <Database className="h-4 w-4" />
-                  {t('providerCenter.actions.refresh')}
-                </Button>
-                <Button onClick={openCreateDialog}>
-                  <Plus className="h-4 w-4" />
-                  {t('providerCenter.actions.addRouteConfig')}
-                </Button>
+              <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                {records.length}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('providerCenter.summary.llmReady')}
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                {records.filter((record) => record.defaultModelId).length}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('providerCenter.summary.embeddingReady')}
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                {records.filter((record) => record.embeddingModelId).length}
               </div>
             </div>
           </div>
@@ -395,7 +388,7 @@ export function ProviderConfigCenter() {
               <div className="flex min-h-[240px] items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400">
                 {t('providerCenter.states.loading')}
               </div>
-            ) : filteredRecords.length === 0 ? (
+            ) : records.length === 0 ? (
               <div className="flex min-h-[280px] flex-col items-center justify-center gap-4 p-8 text-center">
                 <Route className="h-8 w-8 text-zinc-400" />
                 <div>
@@ -403,9 +396,7 @@ export function ProviderConfigCenter() {
                     {t('providerCenter.states.emptyTitle')}
                   </h2>
                   <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                    {normalizedSearch
-                      ? t('providerCenter.states.searchEmptyDescription')
-                      : t('providerCenter.states.emptyDescription')}
+                    {t('providerCenter.states.emptyDescription')}
                   </p>
                 </div>
                 <Button onClick={openCreateDialog}>
@@ -428,7 +419,7 @@ export function ProviderConfigCenter() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                    {filteredRecords.map((record) => (
+                    {records.map((record) => (
                       <tr key={record.id} className="align-top hover:bg-zinc-50/80 dark:hover:bg-zinc-950/40">
                         <td className="px-5 py-4">
                           <div className="font-semibold text-zinc-950 dark:text-zinc-50">

@@ -1,25 +1,19 @@
 import type {
   HistoryVO,
-  OrderCreateForm,
-  OrderPaymentSuccessVO,
-  OrderPayForm,
-  OrderVO,
-  PaymentParamsVO,
-  PaymentStatusVO,
   PointsAccountInfoVO,
-  PointsRechargePackVO,
+  PointsRechargeForm,
+  PointsRechargeVO,
   SdkworkAppClient,
-  VipBenefitVO,
   VipInfoVO,
-  VipPackDetailVO,
-  VipPackGroupVO,
   VipPackVO,
+  VipPurchaseForm,
+  VipPurchaseVO,
   VipStatusVO,
 } from '@sdkwork/app-sdk';
 import {
   getAppSdkClientWithSession,
+  readAppSdkSessionTokens,
 } from '../sdk/useAppSdkClient.ts';
-import { readAppSdkSessionTokens } from '../sdk/appSdkSession.ts';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
 
 export interface PointsWalletAccount {
@@ -66,22 +60,8 @@ export interface PointsWalletMembership {
   pointBalance: number | null;
 }
 
-export interface PointsWalletVipBenefit {
-  id: number;
-  name: string;
-  benefitKey?: string;
-  type?: string;
-  description?: string;
-  icon?: string;
-  claimed: boolean;
-  usageLimit: number | null;
-  usedCount: number | null;
-}
-
 export interface PointsWalletVipPack {
   id: number;
-  groupId: number | null;
-  groupName?: string;
   name: string;
   description?: string;
   price: number;
@@ -92,42 +72,6 @@ export interface PointsWalletVipPack {
   sortWeight: number | null;
   recommended: boolean;
   tags: string[];
-  benefits: PointsWalletVipBenefit[];
-}
-
-export interface PointsWalletVipPackGroup {
-  id: number;
-  name: string;
-  description?: string;
-  sortWeight: number | null;
-  packs: PointsWalletVipPack[];
-}
-
-export interface PointsWalletOrderPayment {
-  paymentId?: string;
-  paymentOrderId?: string;
-  merchantOrderId?: string;
-  orderId?: string;
-  status?: string;
-  statusName?: string;
-  amount: number | null;
-  paymentMethod?: string;
-  paymentProvider?: string;
-  transactionId?: string;
-  outTradeNo?: string;
-  successTime?: string;
-}
-
-export interface PointsWalletRechargePack {
-  id: number;
-  name: string;
-  description?: string;
-  price: number;
-  pointAmount: number;
-  sortWeight: number | null;
-  validFrom?: string;
-  validTo?: string;
-  remark?: string;
 }
 
 export interface PointsWalletOverview {
@@ -136,9 +80,7 @@ export interface PointsWalletOverview {
   history: PointsWalletHistoryItem[];
   pointsToCashRate: number | null;
   vip: PointsWalletMembership;
-  vipPackGroups: PointsWalletVipPackGroup[];
   vipPacks: PointsWalletVipPack[];
-  rechargePacks: PointsWalletRechargePack[];
 }
 
 export interface GetPointsWalletOverviewOptions {
@@ -146,40 +88,34 @@ export interface GetPointsWalletOverviewOptions {
 }
 
 export interface RechargePointsInput {
-  packId: number;
+  points: number;
   paymentMethod?: string;
-  remark?: string;
-  sourceChannel?: string;
+  requestNo?: string;
+  remarks?: string;
 }
 
 export interface RechargePointsResult {
-  orderId?: string;
-  orderSn?: string;
-  packId: number | null;
-  packName?: string;
-  points: number | null;
-  amount: number | null;
+  requestNo?: string;
+  transactionId?: string;
+  accountId?: string;
+  points: number;
+  cashAmount: number | null;
   paymentMethod?: string;
   status?: string;
   statusName?: string;
-  expireTime?: string;
-  paymentId?: string;
-  outTradeNo?: string;
-  paymentParams?: Record<string, unknown>;
-  payments: PointsWalletOrderPayment[];
+  remainingPoints: number | null;
+  resultDesc?: string;
+  processedAt?: string;
 }
 
 export interface PurchaseVipPackInput {
   packId: number;
   couponId?: string;
   paymentMethod?: string;
-  remark?: string;
-  sourceChannel?: string;
 }
 
 export interface PurchaseVipPackResult {
   orderId?: string;
-  orderSn?: string;
   packId: number | null;
   packName?: string;
   amount: number | null;
@@ -187,23 +123,9 @@ export interface PurchaseVipPackResult {
   targetLevelId: number | null;
   targetLevelName?: string;
   status?: string;
-  expireTime?: string;
-  paymentId?: string;
-  outTradeNo?: string;
-  paymentMethod?: string;
-  paymentParams?: Record<string, unknown>;
-  payments: PointsWalletOrderPayment[];
 }
 
-export interface PointsWalletPurchaseStatus {
-  orderId?: string;
-  outTradeNo?: string;
-  paid: boolean;
-  status?: string;
-  statusName?: string;
-}
-
-type PointsWalletClient = Pick<SdkworkAppClient, 'account' | 'vip' | 'order' | 'payment'>;
+type PointsWalletClient = Pick<SdkworkAppClient, 'account' | 'vip'>;
 
 export interface CreatePointsWalletServiceOptions {
   getClient?: () => PointsWalletClient;
@@ -213,28 +135,14 @@ export interface CreatePointsWalletServiceOptions {
 export interface PointsWalletService {
   getOverview(options?: GetPointsWalletOverviewOptions): Promise<PointsWalletOverview>;
   rechargePoints(input: RechargePointsInput): Promise<RechargePointsResult>;
-  getPointsRechargeStatus(orderId: string): Promise<PointsWalletPurchaseStatus>;
-  listPointsOrderPayments(orderId: string): Promise<PointsWalletOrderPayment[]>;
   purchaseVipPack(input: PurchaseVipPackInput): Promise<PurchaseVipPackResult>;
-  getVipPurchaseStatus(orderId: string): Promise<PointsWalletPurchaseStatus>;
-  listVipOrderPayments(orderId: string): Promise<PointsWalletOrderPayment[]>;
 }
 
 const DEFAULT_HISTORY_PAGE_SIZE = 50;
-const DEFAULT_POINTS_SOURCE_CHANNEL = 'CLAW_STUDIO_POINTS';
-const DEFAULT_VIP_SOURCE_CHANNEL = 'CLAW_STUDIO_VIP';
 
-function toOptionalString(value: string | number | undefined | null): string | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return String(value);
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.trim();
-    return normalized || undefined;
-  }
-
-  return undefined;
+function toOptionalString(value: string | undefined | null): string | undefined {
+  const normalized = (value || '').trim();
+  return normalized || undefined;
 }
 
 function toNullableNumber(value: number | string | undefined | null): number | null {
@@ -283,9 +191,7 @@ function createGuestOverview(): PointsWalletOverview {
       upgradeGrowthValue: null,
       pointBalance: null,
     },
-    vipPackGroups: [],
     vipPacks: [],
-    rechargePacks: [],
   };
 }
 
@@ -343,10 +249,7 @@ function mapHistoryItem(item: HistoryVO): PointsWalletHistoryItem {
   };
 }
 
-function mapVipMembership(
-  vipInfo: VipInfoVO | null | undefined,
-  vipStatus: VipStatusVO | null | undefined,
-): PointsWalletMembership {
+function mapVipMembership(vipInfo: VipInfoVO | null | undefined, vipStatus: VipStatusVO | null | undefined): PointsWalletMembership {
   return {
     isVip: Boolean(vipStatus?.isVip ?? vipInfo?.vipStatus?.toUpperCase() === 'ACTIVE'),
     vipLevel: toNullableNumber(vipStatus?.vipLevel ?? vipInfo?.vipLevel),
@@ -362,47 +265,22 @@ function mapVipMembership(
   };
 }
 
-function mapVipBenefit(benefit: VipBenefitVO): PointsWalletVipBenefit {
+function mapVipPack(pack: VipPackVO): PointsWalletVipPack {
   return {
-    id: toNumber(benefit.id),
-    name: toOptionalString(benefit.name) || 'VIP Benefit',
-    benefitKey: toOptionalString(benefit.benefitKey),
-    type: toOptionalString(benefit.type),
-    description: toOptionalString(benefit.description),
-    icon: toOptionalString(benefit.icon),
-    claimed: Boolean(benefit.claimed),
-    usageLimit: toNullableNumber(benefit.usageLimit),
-    usedCount: toNullableNumber(benefit.usedCount),
-  };
-}
-
-function mapVipPack(
-  pack: VipPackVO,
-  group?: VipPackGroupVO | null,
-  detail?: VipPackDetailVO | null,
-): PointsWalletVipPack {
-  const benefits = detail?.benefits ?? [];
-
-  return {
-    id: toNumber(detail?.id ?? pack.id),
-    groupId: toNullableNumber(detail?.groupId ?? group?.id),
-    groupName: toOptionalString(detail?.groupName ?? group?.name),
-    name: toOptionalString(detail?.name ?? pack.name) || 'VIP Pack',
-    description: toOptionalString(detail?.description ?? pack.description),
-    price: toNumber(detail?.price ?? pack.price),
-    originalPrice: toNullableNumber(detail?.originalPrice ?? pack.originalPrice),
-    pointAmount: toNumber(detail?.pointAmount ?? pack.pointAmount),
-    vipDurationDays: toNullableNumber(detail?.vipDurationDays ?? pack.vipDurationDays),
-    levelName: toOptionalString(detail?.levelName ?? pack.levelName),
-    sortWeight: toNullableNumber(detail?.sortWeight ?? pack.sortWeight),
+    id: toNumber(pack.id),
+    name: toOptionalString(pack.name) || 'VIP Pack',
+    description: toOptionalString(pack.description),
+    price: toNumber(pack.price),
+    originalPrice: toNullableNumber(pack.originalPrice),
+    pointAmount: toNumber(pack.pointAmount),
+    vipDurationDays: toNullableNumber(pack.vipDurationDays),
+    levelName: toOptionalString(pack.levelName),
+    sortWeight: toNullableNumber(pack.sortWeight),
     recommended: Boolean(pack.recommended),
     tags: Array.isArray(pack.tags)
       ? pack.tags
           .map((tag) => toOptionalString(tag))
           .filter((tag): tag is string => Boolean(tag))
-      : [],
-    benefits: Array.isArray(benefits)
-      ? benefits.map(mapVipBenefit)
       : [],
   };
 }
@@ -416,74 +294,33 @@ function sortVipPacks(packs: PointsWalletVipPack[]): PointsWalletVipPack[] {
   ));
 }
 
-function sortVipPackGroups(groups: PointsWalletVipPackGroup[]): PointsWalletVipPackGroup[] {
-  return [...groups].sort((left, right) => (
-    toNumber(right.sortWeight) - toNumber(left.sortWeight)
-    || left.id - right.id
-  ));
-}
-
-function mapVipPackGroup(
-  group: VipPackGroupVO,
-  packs: PointsWalletVipPack[],
-): PointsWalletVipPackGroup {
+function mapRechargeResult(result: PointsRechargeVO | null | undefined): RechargePointsResult {
   return {
-    id: toNumber(group.id),
-    name: toOptionalString(group.name) || 'VIP Group',
-    description: toOptionalString(group.description),
-    sortWeight: toNullableNumber(group.sortWeight),
-    packs: sortVipPacks(packs),
-  };
-}
-
-function mapRechargePack(pack: PointsRechargePackVO): PointsWalletRechargePack {
-  return {
-    id: toNumber(pack.id),
-    name: toOptionalString(pack.name) || 'Points Pack',
-    description: toOptionalString(pack.description),
-    price: toNumber(pack.price),
-    pointAmount: toNumber(pack.pointAmount),
-    sortWeight: toNullableNumber(pack.sortWeight),
-    validFrom: toOptionalString(pack.validFrom),
-    validTo: toOptionalString(pack.validTo),
-    remark: toOptionalString(pack.remark),
-  };
-}
-
-function mapOrderPayment(payment: PaymentStatusVO | null | undefined): PointsWalletOrderPayment {
-  return {
-    paymentId: toOptionalString(payment?.paymentId),
-    paymentOrderId: toOptionalString(payment?.paymentOrderId),
-    merchantOrderId: toOptionalString(payment?.merchantOrderId),
-    orderId: toOptionalString(payment?.orderId),
-    status: toOptionalString(payment?.status),
-    statusName: toOptionalString(payment?.statusName),
-    amount: toNullableNumber(payment?.amount),
-    paymentMethod: toOptionalString(payment?.paymentMethod),
-    paymentProvider: toOptionalString(payment?.paymentProvider),
-    transactionId: toOptionalString(payment?.transactionId),
-    outTradeNo: toOptionalString(payment?.outTradeNo),
-    successTime: toOptionalString(payment?.successTime),
-  };
-}
-
-function mapPurchaseStatus(result: OrderPaymentSuccessVO | null | undefined): PointsWalletPurchaseStatus {
-  return {
-    orderId: toOptionalString(result?.orderId),
-    outTradeNo: toOptionalString(result?.outTradeNo),
-    paid: Boolean(result?.paid),
+    requestNo: toOptionalString(result?.requestNo),
+    transactionId: toOptionalString(result?.transactionId),
+    accountId: toOptionalString(result?.accountId),
+    points: toNumber(result?.points),
+    cashAmount: toNullableNumber(result?.cashAmount),
+    paymentMethod: toOptionalString(result?.paymentMethod),
     status: toOptionalString(result?.status),
     statusName: toOptionalString(result?.statusName),
+    remainingPoints: toNullableNumber(result?.remainingPoints),
+    resultDesc: toOptionalString(result?.resultDesc),
+    processedAt: toOptionalString(result?.processedAt),
   };
 }
 
-function normalizePaymentParams(
-  params: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | undefined {
-  if (!params || typeof params !== 'object' || Array.isArray(params)) {
-    return undefined;
-  }
-  return Object.keys(params).length > 0 ? params : undefined;
+function mapPurchaseVipPackResult(result: VipPurchaseVO | null | undefined): PurchaseVipPackResult {
+  return {
+    orderId: toOptionalString(result?.orderId),
+    packId: toNullableNumber(result?.packId),
+    packName: toOptionalString(result?.packName),
+    amount: toNullableNumber(result?.amount),
+    durationDays: toNullableNumber(result?.durationDays),
+    targetLevelId: toNullableNumber(result?.targetLevelId),
+    targetLevelName: toOptionalString(result?.targetLevelName),
+    status: toOptionalString(result?.status),
+  };
 }
 
 async function readOptional<T>(callback: () => Promise<unknown>, fallback: T): Promise<T> {
@@ -498,77 +335,6 @@ function requireAuthenticated(getSessionTokens: typeof readAppSdkSessionTokens):
   if (!isAuthenticated(getSessionTokens)) {
     throw new Error('Please sign in to manage points and memberships.');
   }
-}
-
-async function loadGroupPacks(
-  client: PointsWalletClient,
-  group: VipPackGroupVO,
-): Promise<VipPackVO[]> {
-  if (Array.isArray(group.packs) && group.packs.length > 0) {
-    return group.packs;
-  }
-
-  const groupId = toNullableNumber(group.id);
-  if (groupId === null) {
-    return [];
-  }
-
-  return readOptional<VipPackVO[]>(
-    () => client.vip.listPacksByGroup(groupId),
-    [],
-  );
-}
-
-async function loadVipCatalog(client: PointsWalletClient): Promise<{
-  vipPackGroups: PointsWalletVipPackGroup[];
-  vipPacks: PointsWalletVipPack[];
-}> {
-  const packGroups = await readOptional<VipPackGroupVO[]>(
-    () => client.vip.listPackGroups(),
-    [],
-  );
-
-  const groups = await Promise.all(
-    packGroups.map(async (group) => {
-      const packs = await loadGroupPacks(client, group);
-      const hydratedPacks = await Promise.all(
-        packs.map(async (pack) => {
-          const packId = toNullableNumber(pack.id);
-          const detail = packId === null
-            ? null
-            : await readOptional<VipPackDetailVO | null>(
-              () => client.vip.getPackDetail(packId),
-              null,
-            );
-          return mapVipPack(pack, group, detail);
-        }),
-      );
-
-      return mapVipPackGroup(group, hydratedPacks);
-    }),
-  );
-
-  const vipPackGroups = sortVipPackGroups(groups);
-  const vipPacks = sortVipPacks(vipPackGroups.flatMap((group) => group.packs));
-  return {
-    vipPackGroups,
-    vipPacks,
-  };
-}
-
-async function loadRechargePacks(client: PointsWalletClient): Promise<PointsWalletRechargePack[]> {
-  const packs = await readOptional<PointsRechargePackVO[]>(
-    () => client.account.listRechargePacks(),
-    [],
-  );
-
-  return [...packs]
-    .map(mapRechargePack)
-    .sort((left, right) => (
-      toNumber(right.sortWeight) - toNumber(left.sortWeight)
-      || left.price - right.price
-      || left.id - right.id
-    ));
 }
 
 export function createPointsWalletService(
@@ -592,8 +358,7 @@ export function createPointsWalletService(
         pointsToCashRate,
         vipInfo,
         vipStatus,
-        vipCatalog,
-        rechargePacks,
+        vipPacks,
       ] = await Promise.all([
         unwrapAppSdkResponse<PointsAccountInfoVO>(
           await client.account.getPoints(),
@@ -621,8 +386,10 @@ export function createPointsWalletService(
           () => client.vip.getVipStatus(),
           null,
         ),
-        loadVipCatalog(client),
-        loadRechargePacks(client),
+        readOptional<VipPackVO[]>(
+          () => client.vip.listAllPacks(),
+          [],
+        ),
       ]);
 
       return {
@@ -631,170 +398,43 @@ export function createPointsWalletService(
         history: (historyPage.content ?? []).map(mapHistoryItem),
         pointsToCashRate: toNullableNumber(pointsToCashRate),
         vip: mapVipMembership(vipInfo, vipStatus),
-        vipPackGroups: vipCatalog.vipPackGroups,
-        vipPacks: vipCatalog.vipPacks,
-        rechargePacks,
+        vipPacks: sortVipPacks(vipPacks.map(mapVipPack)),
       };
     },
 
     async rechargePoints(input) {
       requireAuthenticated(getSessionTokens);
       const client = getClient();
-      const rechargePacks = await readOptional<PointsRechargePackVO[]>(
-        () => client.account.listRechargePacks(),
-        [],
-      );
-      const selectedPack = rechargePacks.find((pack) => toNumber(pack.id) === input.packId);
-
-      const createOrderRequest: OrderCreateForm = {
-        orderType: 'POINTS',
-        productId: String(input.packId),
+      const request: PointsRechargeForm = {
+        points: input.points,
         paymentMethod: toOptionalString(input.paymentMethod),
-        remark: toOptionalString(input.remark),
-        sourceChannel: toOptionalString(input.sourceChannel) || DEFAULT_POINTS_SOURCE_CHANNEL,
-        orderPayloadValid: true,
+        requestNo: toOptionalString(input.requestNo),
+        remarks: toOptionalString(input.remarks),
       };
-      const order = unwrapAppSdkResponse<OrderVO>(
-        await client.order.createOrder(createOrderRequest),
-        'Failed to create points recharge order.',
-      );
-      const orderId = toOptionalString(order.orderId);
-      if (!orderId) {
-        throw new Error('Points recharge order was created without an order id.');
-      }
 
-      const payOrderRequest: OrderPayForm = {
-        orderId,
-        paymentMethod: toOptionalString(input.paymentMethod),
-        amount: toOptionalString(order.totalAmount),
-      };
-      const payment = unwrapAppSdkResponse<PaymentParamsVO>(
-        await client.order.pay(orderId, payOrderRequest),
-        'Failed to initialize points recharge payment.',
-      );
-      const payments = await readOptional<PaymentStatusVO[]>(
-        () => client.payment.listOrderPayments(orderId),
-        [],
-      );
-
-      return {
-        orderId,
-        orderSn: toOptionalString(order.orderSn),
-        packId: selectedPack ? toNumber(selectedPack.id) : input.packId,
-        packName: toOptionalString(selectedPack?.name),
-        points: selectedPack ? toNullableNumber(selectedPack.pointAmount) : null,
-        amount: toNullableNumber(order.totalAmount ?? payment.amount ?? selectedPack?.price),
-        paymentMethod: toOptionalString(payment.paymentMethod),
-        status: toOptionalString(order.status),
-        statusName: toOptionalString(order.statusName),
-        expireTime: toOptionalString(order.expireTime),
-        paymentId: toOptionalString(payment.paymentId),
-        outTradeNo: toOptionalString(payment.outTradeNo),
-        paymentParams: normalizePaymentParams(payment.paymentParams),
-        payments: payments.map(mapOrderPayment),
-      };
-    },
-
-    async getPointsRechargeStatus(orderId) {
-      requireAuthenticated(getSessionTokens);
-      const client = getClient();
-      return mapPurchaseStatus(
-        unwrapAppSdkResponse<OrderPaymentSuccessVO>(
-          await client.order.getOrderPaymentSuccess(orderId),
-          'Failed to query points recharge payment status.',
+      return mapRechargeResult(
+        unwrapAppSdkResponse<PointsRechargeVO>(
+          await client.account.rechargePoints(request),
+          'Failed to recharge points.',
         ),
       );
-    },
-
-    async listPointsOrderPayments(orderId) {
-      requireAuthenticated(getSessionTokens);
-      const client = getClient();
-      const payments = await readOptional<PaymentStatusVO[]>(
-        () => client.payment.listOrderPayments(orderId),
-        [],
-      );
-      return payments.map(mapOrderPayment);
     },
 
     async purchaseVipPack(input) {
       requireAuthenticated(getSessionTokens);
       const client = getClient();
-      const packDetail = await readOptional<VipPackDetailVO | null>(
-        () => client.vip.getPackDetail(input.packId),
-        null,
-      );
-
-      const createOrderRequest: OrderCreateForm = {
-        orderType: 'MEMBER',
-        productId: String(input.packId),
-        paymentMethod: toOptionalString(input.paymentMethod),
+      const request: VipPurchaseForm = {
+        packId: input.packId,
         couponId: toOptionalString(input.couponId),
-        remark: toOptionalString(input.remark),
-        sourceChannel: toOptionalString(input.sourceChannel) || DEFAULT_VIP_SOURCE_CHANNEL,
-        orderPayloadValid: true,
-      };
-
-      const order = unwrapAppSdkResponse<OrderVO>(
-        await client.order.createOrder(createOrderRequest),
-        'Failed to create VIP order.',
-      );
-      const orderId = toOptionalString(order.orderId);
-      if (!orderId) {
-        throw new Error('VIP order was created without an order id.');
-      }
-
-      const payOrderRequest: OrderPayForm = {
-        orderId,
         paymentMethod: toOptionalString(input.paymentMethod),
-        amount: toOptionalString(order.totalAmount),
       };
-      const payment = unwrapAppSdkResponse<PaymentParamsVO>(
-        await client.order.pay(orderId, payOrderRequest),
-        'Failed to initialize VIP payment.',
-      );
-      const payments = await readOptional<PaymentStatusVO[]>(
-        () => client.payment.listOrderPayments(orderId),
-        [],
-      );
 
-      return {
-        orderId,
-        orderSn: toOptionalString(order.orderSn),
-        packId: toNullableNumber(packDetail?.id) ?? input.packId,
-        packName: toOptionalString(packDetail?.name),
-        amount: toNullableNumber(order.totalAmount ?? payment.amount ?? packDetail?.price),
-        durationDays: toNullableNumber(packDetail?.vipDurationDays),
-        targetLevelId: toNullableNumber(packDetail?.levelId),
-        targetLevelName: toOptionalString(packDetail?.levelName),
-        status: toOptionalString(order.status),
-        expireTime: toOptionalString(order.expireTime),
-        paymentId: toOptionalString(payment.paymentId),
-        outTradeNo: toOptionalString(payment.outTradeNo),
-        paymentMethod: toOptionalString(payment.paymentMethod),
-        paymentParams: normalizePaymentParams(payment.paymentParams),
-        payments: payments.map(mapOrderPayment),
-      };
-    },
-
-    async getVipPurchaseStatus(orderId) {
-      requireAuthenticated(getSessionTokens);
-      const client = getClient();
-      return mapPurchaseStatus(
-        unwrapAppSdkResponse<OrderPaymentSuccessVO>(
-          await client.order.getOrderPaymentSuccess(orderId),
-          'Failed to query VIP payment status.',
+      return mapPurchaseVipPackResult(
+        unwrapAppSdkResponse<VipPurchaseVO>(
+          await client.vip.purchase(request),
+          'Failed to purchase VIP pack.',
         ),
       );
-    },
-
-    async listVipOrderPayments(orderId) {
-      requireAuthenticated(getSessionTokens);
-      const client = getClient();
-      const payments = await readOptional<PaymentStatusVO[]>(
-        () => client.payment.listOrderPayments(orderId),
-        [],
-      );
-      return payments.map(mapOrderPayment);
     },
   };
 }

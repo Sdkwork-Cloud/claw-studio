@@ -33,88 +33,8 @@ const PREPARED_RUNTIME_MANIFEST_KEYS = [
   'nodeRelativePath',
   'cliRelativePath',
 ];
-const NODE_RUNTIME_PRUNE_RELATIVE_PATHS = [
-  'CHANGELOG.md',
-  'LICENSE',
-  'README.md',
-  'corepack',
-  'corepack.cmd',
-  'corepack.ps1',
-  'install_tools.bat',
-  'nodevars.bat',
-  'npm',
-  'npm.cmd',
-  'npm.ps1',
-  'npx',
-  'npx.cmd',
-  'npx.ps1',
-  path.join('bin', 'corepack'),
-  path.join('bin', 'npm'),
-  path.join('bin', 'npx'),
-  path.join('include'),
-  path.join('lib', 'node_modules'),
-  path.join('node_modules'),
-  path.join('share', 'doc'),
-  path.join('share', 'man'),
-];
-const PACKAGE_PRUNE_DIRECTORY_NAMES = new Set([
-  '.github',
-  '.vscode',
-  '__tests__',
-  'benchmark',
-  'benchmarks',
-  'coverage',
-  'doc',
-  'docs',
-  'example',
-  'examples',
-  'test',
-  'tests',
-]);
-const OPENCLAW_WORKSPACE_TEMPLATE_RELATIVE_PATH = 'node_modules/openclaw/docs/reference/templates';
-const OPENCLAW_WORKSPACE_TEMPLATE_FILE_NAMES = [
-  'AGENTS.md',
-  'SOUL.md',
-  'TOOLS.md',
-  'IDENTITY.md',
-  'USER.md',
-  'HEARTBEAT.md',
-  'BOOTSTRAP.md',
-];
-const PACKAGE_PRUNE_PROTECTED_DIRECTORY_PREFIXES = new Set([
-  'node_modules/yaml/dist/doc',
-  'node_modules/yaml/doc',
-  OPENCLAW_WORKSPACE_TEMPLATE_RELATIVE_PATH,
-]);
-const PACKAGE_PRUNE_FILE_NAMES = new Set([
-  'changelog',
-  'changelog.md',
-  'changelog.txt',
-  'changes',
-  'changes.md',
-  'changes.txt',
-  'contributing',
-  'contributing.md',
-  'contributing.txt',
-  'history',
-  'history.md',
-  'history.txt',
-  'readme',
-  'readme.md',
-  'readme.txt',
-]);
-const PACKAGE_PRUNE_FILE_SUFFIXES = ['.d.cts', '.d.mts', '.d.ts', '.map'];
-const OPENCLAW_SKILLS_RELATIVE_PATH = 'node_modules/openclaw/skills';
-const OPENCLAW_RUNTIME_REQUIRED_PACKAGE_RELATIVE_PATHS = [
-  'package/node_modules/axios/package.json',
-  'package/node_modules/yaml/dist/doc/directives.js',
-  'package/node_modules/yaml/dist/doc/Document.js',
-  ...OPENCLAW_WORKSPACE_TEMPLATE_FILE_NAMES.map((fileName) =>
-    path.join('package', OPENCLAW_WORKSPACE_TEMPLATE_RELATIVE_PATH, fileName),
-  ),
-];
 
-export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.28';
+export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.24';
 export const DEFAULT_NODE_VERSION = process.env.OPENCLAW_NODE_VERSION ?? '22.16.0';
 export const DEFAULT_OPENCLAW_PACKAGE = process.env.OPENCLAW_PACKAGE_NAME ?? 'openclaw';
 export const DEFAULT_RESOURCE_DIR = path.join(
@@ -230,17 +150,6 @@ export function resolveBundledNpmCommand(nodeRuntimeDir, platform = process.plat
     command: path.join(nodeRuntimeDir, 'bin', 'npm'),
     args: [],
   };
-}
-
-export function buildOpenClawPackageInstallArgs(installSpec) {
-  return [
-    'install',
-    '--omit=dev',
-    '--omit=peer',
-    '--ignore-scripts',
-    '--no-package-lock',
-    installSpec,
-  ];
 }
 
 export function resolveDefaultOpenClawPrepareCacheDir({
@@ -369,33 +278,6 @@ export async function inspectPreparedOpenClawRuntime({
     };
   }
 
-  const expectedManifest = manifest ?? existingManifest;
-  let preparedOpenClawVersion;
-  try {
-    preparedOpenClawVersion = await readPreparedOpenClawPackageVersion(
-      path.join(resourceDir, 'runtime', 'package', 'node_modules', 'openclaw', 'package.json'),
-    );
-  } catch (error) {
-    return {
-      reusable: false,
-      reason: 'openclaw-version-unreadable',
-      manifestPath,
-      existingManifest,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-
-  if (preparedOpenClawVersion !== expectedManifest.openclawVersion) {
-    return {
-      reusable: false,
-      reason: 'openclaw-version-mismatch',
-      manifestPath,
-      existingManifest,
-      preparedOpenClawVersion,
-      expectedOpenClawVersion: expectedManifest.openclawVersion,
-    };
-  }
-
   return {
     reusable: true,
     reason: 'ready',
@@ -436,7 +318,6 @@ export async function prepareOpenClawRuntimeFromSource({
   await removeDirectoryWithRetries(resourceDir);
   await mkdir(resourceDir, { recursive: true });
   await copyDirectoryWithWindowsFallback(sourceRuntimeDir, path.join(resourceDir, 'runtime'));
-  await applyOpenClawRuntimeBootstrapHotfixes(path.join(resourceDir, 'runtime'));
   await writeFile(
     path.join(resourceDir, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -461,10 +342,8 @@ export async function prepareOpenClawRuntimeFromStagedDirs({
   await validatePreparedRuntimeArtifacts({ nodeSourceDir, packageSourceDir, manifest });
   await removeDirectoryWithRetries(resourceDir);
   await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
-  await applyOpenClawRuntimeBootstrapHotfixes(packageSourceDir);
   await copyDirectoryWithWindowsFallback(nodeSourceDir, path.join(resourceDir, 'runtime', 'node'));
   await copyDirectoryWithWindowsFallback(packageSourceDir, path.join(resourceDir, 'runtime', 'package'));
-  await applyOpenClawRuntimeBootstrapHotfixes(path.join(resourceDir, 'runtime'));
   await writeFile(
     path.join(resourceDir, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -480,14 +359,13 @@ export async function prepareOpenClawRuntimeFromStagedDirs({
 
 export async function prepareOpenClawRuntime({
   resourceDir = DEFAULT_RESOURCE_DIR,
-  cacheDir = process.env.OPENCLAW_PREPARE_CACHE_DIR ?? DEFAULT_PREPARE_CACHE_DIR,
+  cacheDir = DEFAULT_PREPARE_CACHE_DIR,
   openclawVersion = DEFAULT_OPENCLAW_VERSION,
   nodeVersion = DEFAULT_NODE_VERSION,
   openclawPackage = DEFAULT_OPENCLAW_PACKAGE,
   sourceRuntimeDir = process.env.OPENCLAW_BUNDLED_SOURCE_DIR,
   packageTarball = process.env.OPENCLAW_PACKAGE_TARBALL,
   forcePrepare = parseBooleanFlag(process.env.OPENCLAW_FORCE_PREPARE),
-  skipBundledResourceMirror = parseBooleanFlag(process.env.OPENCLAW_SKIP_BUNDLED_MIRROR),
   fetchImpl = globalThis.fetch,
   target = resolveRequestedOpenClawTarget(),
 } = {}) {
@@ -507,11 +385,9 @@ export async function prepareOpenClawRuntime({
     });
 
     if (shouldReusePreparedOpenClawRuntime({ inspection, forcePrepare })) {
-      await applyOpenClawRuntimeBootstrapHotfixes(path.join(resourceDir, 'runtime'));
       return await finalizePreparedOpenClawRuntime({
         manifest,
         resourceDir,
-        skipBundledResourceMirror,
         strategy: inspection.repairedManifest ? 'repaired-existing-manifest' : 'reused-existing',
       });
     }
@@ -534,7 +410,6 @@ export async function prepareOpenClawRuntime({
 
       return await finalizePreparedOpenClawRuntime({
         ...result,
-        skipBundledResourceMirror,
         strategy: 'prepared-cache',
       });
     }
@@ -551,7 +426,6 @@ export async function prepareOpenClawRuntime({
 
     return await finalizePreparedOpenClawRuntime({
       ...result,
-      skipBundledResourceMirror,
       strategy: 'prepared-source',
     });
   }
@@ -580,6 +454,7 @@ export async function prepareOpenClawRuntime({
     });
     await removeDirectoryWithRetries(resourceDir);
     await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
+    await copyDirectoryWithWindowsFallback(extractedNodeDir, path.join(resourceDir, 'runtime', 'node'));
 
     await mkdir(packageDir, { recursive: true });
     await writeFile(
@@ -590,23 +465,15 @@ export async function prepareOpenClawRuntime({
 
     const installSpec = packageTarball || `${openclawPackage}@${openclawVersion}`;
     const bundledNpm = resolveBundledNpmCommand(extractedNodeDir, target.platformId);
-    await runCommand(
-      bundledNpm.command,
-      [
-        ...bundledNpm.args,
-        ...buildOpenClawPackageInstallArgs(installSpec),
-      ],
-      { cwd: packageDir },
-    );
-    await prunePreparedOpenClawRuntimeArtifacts({
-      nodeSourceDir: extractedNodeDir,
-      packageSourceDir: packageDir,
-    });
-    await applyOpenClawRuntimeBootstrapHotfixes(packageDir);
+    await runCommand(bundledNpm.command, [
+      ...bundledNpm.args,
+      'install',
+      '--omit=dev',
+      '--no-package-lock',
+      installSpec,
+    ], { cwd: packageDir });
 
-    await copyDirectoryWithWindowsFallback(extractedNodeDir, path.join(resourceDir, 'runtime', 'node'));
     await copyDirectoryWithWindowsFallback(packageDir, path.join(resourceDir, 'runtime', 'package'));
-    await applyOpenClawRuntimeBootstrapHotfixes(path.join(resourceDir, 'runtime'));
     await refreshCachedOpenClawRuntimeArtifacts({
       nodeSourceDir: extractedNodeDir,
       packageSourceDir: packageDir,
@@ -622,7 +489,6 @@ export async function prepareOpenClawRuntime({
     return await finalizePreparedOpenClawRuntime({
       manifest,
       resourceDir,
-      skipBundledResourceMirror,
       strategy: 'prepared-download',
     });
   } finally {
@@ -631,130 +497,13 @@ export async function prepareOpenClawRuntime({
 }
 
 async function finalizePreparedOpenClawRuntime(result) {
-  if (
-    shouldSyncBundledResourceMirror({ resourceDir: result.resourceDir }) &&
-    !result.skipBundledResourceMirror
-  ) {
+  if (shouldSyncBundledResourceMirror({ resourceDir: result.resourceDir })) {
     await ensureBundledResourceMirror({
       resourceDir: result.resourceDir,
       resourceId: 'openclaw-runtime',
     });
   }
   return result;
-}
-
-export async function applyOpenClawRuntimeBootstrapHotfixes(runtimeRootDir) {
-  const gatewayCliPath = await findOpenClawRuntimeBundleFile(
-    runtimeRootDir,
-    (filePath, name) =>
-      name.startsWith('gateway-cli-') &&
-      name.endsWith('.js') &&
-      toPosixPath(filePath).includes('/dist/'),
-  );
-  if (!gatewayCliPath) {
-    throw new Error(
-      `OpenClaw runtime hotfix bundle is missing the gateway CLI asset under ${runtimeRootDir}`,
-    );
-  }
-  await replaceTextInFile(gatewayCliPath, [
-    {
-      pattern: /assistantAgentId:\s*identity\.agentId,\s*serverVersion:\s*resolveRuntimeServiceVersion\(process\.env\)/,
-      to: 'assistantAgentId: identity.agentId,\n\t\t\tgatewayAuthToken: typeof config?.gateway?.auth?.token === "string" ? config.gateway.auth.token.trim() : null,\n\t\t\tserverVersion: resolveRuntimeServiceVersion(process.env)',
-      description: 'gateway control-ui-config payload token injection',
-    },
-  ]);
-
-  const controlUiIndexPath = await findOpenClawRuntimeBundleFile(
-    runtimeRootDir,
-    (filePath, name) =>
-      name.startsWith('index-') &&
-      name.endsWith('.js') &&
-      toPosixPath(filePath).includes('/control-ui/assets/'),
-  );
-  if (!controlUiIndexPath) {
-    throw new Error(
-      `OpenClaw runtime hotfix bundle is missing the control-ui asset under ${runtimeRootDir}`,
-    );
-  }
-  await replaceTextInFile(controlUiIndexPath, [
-    {
-      from: 'function Po(e){try{let t=Ao();return t?(t.removeItem(xo),(t.getItem(Mo(e))??``).trim()):``}catch{return``}}',
-      to: 'function Po(e){let t=typeof globalThis<`u`&&typeof globalThis.__OPENCLAW_CONTROL_UI_BOOTSTRAP__===`object`&&typeof globalThis.__OPENCLAW_CONTROL_UI_BOOTSTRAP__.gatewayAuthToken===`string`?globalThis.__OPENCLAW_CONTROL_UI_BOOTSTRAP__.gatewayAuthToken.trim():``;if(t)try{let n=Ao();n&&(n.removeItem(xo),n.setItem(Mo(e),t))}catch{}return t||(()=>{try{let t=Ao();return t?(t.removeItem(xo),(t.getItem(Mo(e))??``).trim()):``}catch{return``}})()}',
-      description: 'control-ui synchronous bootstrap token hydration',
-    },
-    {
-      from: 'e.assistantName=i.name,e.assistantAvatar=i.avatar,e.assistantAgentId=i.agentId??null,e.serverVersion=r.serverVersion??null',
-      to: 'e.assistantName=i.name,e.assistantAvatar=i.avatar,e.assistantAgentId=i.agentId??null,(()=>{let o=typeof r.gatewayAuthToken===`string`?r.gatewayAuthToken.trim():``;o&&o!==e.settings.token&&(e.settings.token=o,e.applySettings({...e.settings,token:o}))})(),e.serverVersion=r.serverVersion??null',
-      description: 'control-ui async config token hydration',
-    },
-    {
-      pattern:
-        /token:(?:\(\(\)=>\{let t=(?:bo|Po)\(e\.settings\.gatewayUrl\);return t\|\|\(e\.settings\.token\.trim\(\)\?e\.settings\.token:void 0\)\}\)\(\)|e\.settings\.token\.trim\(\)\?e\.settings\.token:void 0),password:e\.password\.trim\(\)\?e\.password:void 0,clientName:`openclaw-control-ui`/,
-      to: 'token:(()=>{let t=Po(e.settings.gatewayUrl);return t||(e.settings.token.trim()?e.settings.token:void 0)})(),password:e.password.trim()?e.password:void 0,clientName:`openclaw-control-ui`',
-      description: 'control-ui connect token bootstrap preference',
-    },
-  ]);
-}
-
-async function findOpenClawRuntimeBundleFile(rootDir, predicate) {
-  try {
-    const entries = await readdir(rootDir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const entryPath = path.join(rootDir, entry.name);
-      if (entry.isDirectory()) {
-        const nested = await findOpenClawRuntimeBundleFile(entryPath, predicate);
-        if (nested) {
-          return nested;
-        }
-        continue;
-      }
-
-      if (entry.isFile() && predicate(entryPath, entry.name)) {
-        return entryPath;
-      }
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-async function replaceTextInFile(filePath, replacements) {
-  const original = await readFile(filePath, 'utf8');
-  let next = original;
-
-  for (const replacement of replacements) {
-    if (replacement.pattern instanceof RegExp) {
-      if (!replacement.pattern.test(next)) {
-        if (next.includes(replacement.to)) {
-          continue;
-        }
-        throw new Error(
-          `OpenClaw runtime hotfix pattern was not found in ${filePath}: ${replacement.description ?? replacement.pattern.toString()}`,
-        );
-      }
-      next = next.replace(replacement.pattern, replacement.to);
-      continue;
-    }
-
-    if (typeof replacement.from === 'string') {
-      if (!next.includes(replacement.from)) {
-        if (next.includes(replacement.to)) {
-          continue;
-        }
-        throw new Error(
-          `OpenClaw runtime hotfix pattern was not found in ${filePath}: ${replacement.description ?? replacement.from}`,
-        );
-      }
-      next = next.replace(replacement.from, replacement.to);
-    }
-  }
-
-  if (next !== original) {
-    await writeFile(filePath, next, 'utf8');
-  }
 }
 
 export function shouldSyncBundledResourceMirror({
@@ -770,9 +519,6 @@ export async function validatePreparedRuntimeSource(sourceRuntimeDir, manifest) 
     path.join(sourceRuntimeDir, 'package'),
     path.join(sourceRuntimeDir, manifest.nodeRelativePath.replace(/^runtime[\\/]/, '')),
     path.join(sourceRuntimeDir, manifest.cliRelativePath.replace(/^runtime[\\/]/, '')),
-    ...OPENCLAW_RUNTIME_REQUIRED_PACKAGE_RELATIVE_PATHS.map((relativePath) =>
-      path.join(sourceRuntimeDir, relativePath),
-    ),
   ];
 
   for (const absolutePath of checks) {
@@ -790,9 +536,6 @@ async function validatePreparedRuntimeArtifacts({ nodeSourceDir, packageSourceDi
     packageSourceDir,
     path.join(nodeSourceDir, manifest.nodeRelativePath.replace(/^runtime[\\/]node[\\/]/, '')),
     path.join(packageSourceDir, manifest.cliRelativePath.replace(/^runtime[\\/]package[\\/]/, '')),
-    ...OPENCLAW_RUNTIME_REQUIRED_PACKAGE_RELATIVE_PATHS.map((relativePath) =>
-      path.join(packageSourceDir, relativePath.replace(/^package[\\/]/, '')),
-    ),
   ];
 
   for (const absolutePath of checks) {
@@ -824,124 +567,6 @@ async function inspectCachedOpenClawRuntimeArtifacts({
   }
 }
 
-export async function prunePreparedOpenClawRuntimeArtifacts({
-  nodeSourceDir,
-  packageSourceDir,
-}) {
-  if (nodeSourceDir) {
-    await pruneBundledNodeRuntime(nodeSourceDir);
-  }
-
-  if (packageSourceDir) {
-    await pruneBundledPackageRuntime(packageSourceDir);
-  }
-}
-
-async function pruneBundledNodeRuntime(nodeSourceDir) {
-  for (const relativePath of NODE_RUNTIME_PRUNE_RELATIVE_PATHS) {
-    await removePathIfPresent(path.join(nodeSourceDir, relativePath));
-  }
-}
-
-async function pruneBundledPackageRuntime(packageSourceDir) {
-  await pruneBundledPackageRuntimeDirectory(packageSourceDir, packageSourceDir);
-}
-
-async function pruneBundledPackageRuntimeDirectory(currentDir, packageRootDir) {
-  const entries = await readdir(currentDir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const entryPath = path.join(currentDir, entry.name);
-    const relativePath = toPosixPath(path.relative(packageRootDir, entryPath));
-
-    if (isProtectedOpenClawSkillsPath(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      if (shouldRemoveUnprotectedOpenClawDocsPath(relativePath)) {
-        await removeDirectoryWithRetries(entryPath);
-        continue;
-      }
-
-      if (
-        PACKAGE_PRUNE_DIRECTORY_NAMES.has(entry.name.toLowerCase()) &&
-        !pathIntersectsProtectedDirectoryPrefix(relativePath)
-      ) {
-        await removeDirectoryWithRetries(entryPath);
-        continue;
-      }
-
-      await pruneBundledPackageRuntimeDirectory(entryPath, packageRootDir);
-      continue;
-    }
-
-    if (entry.isFile() || entry.isSymbolicLink()) {
-      if (shouldRemoveUnprotectedOpenClawDocsPath(relativePath)) {
-        await rm(entryPath, { force: true });
-        continue;
-      }
-
-      const lowerName = entry.name.toLowerCase();
-      if (
-        PACKAGE_PRUNE_FILE_NAMES.has(lowerName) ||
-        PACKAGE_PRUNE_FILE_SUFFIXES.some((suffix) => lowerName.endsWith(suffix))
-      ) {
-        await rm(entryPath, { force: true });
-      }
-    }
-  }
-}
-
-function isProtectedOpenClawSkillsPath(relativePath) {
-  return (
-    relativePath === OPENCLAW_SKILLS_RELATIVE_PATH ||
-    relativePath.startsWith(`${OPENCLAW_SKILLS_RELATIVE_PATH}/`)
-  );
-}
-
-function pathIntersectsProtectedDirectoryPrefix(relativePath) {
-  for (const protectedPrefix of PACKAGE_PRUNE_PROTECTED_DIRECTORY_PREFIXES) {
-    if (
-      relativePath === protectedPrefix ||
-      relativePath.startsWith(`${protectedPrefix}/`) ||
-      protectedPrefix.startsWith(`${relativePath}/`)
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function shouldRemoveUnprotectedOpenClawDocsPath(relativePath) {
-  if (
-    relativePath !== 'node_modules/openclaw/docs' &&
-    !relativePath.startsWith('node_modules/openclaw/docs/')
-  ) {
-    return false;
-  }
-
-  return !pathIntersectsProtectedDirectoryPrefix(relativePath);
-}
-
-function toPosixPath(value) {
-  return value.replaceAll('\\', '/');
-}
-
-async function removePathIfPresent(targetPath) {
-  try {
-    await stat(targetPath);
-  } catch {
-    return;
-  }
-
-  await rm(targetPath, {
-    force: true,
-    recursive: true,
-  });
-}
-
 async function inspectCachedNodeRuntimeDir({
   nodeSourceDir,
   target,
@@ -956,11 +581,11 @@ async function inspectCachedNodeRuntimeDir({
     for (const dependencyPath of resolveBundledNodeInstallDependencyPaths(nodeSourceDir, target)) {
       await stat(dependencyPath);
     }
+    const preparedNodeVersion = await readPreparedNodeVersion(nodeExecutablePath);
     return {
-      reusable: true,
-      reason: 'ready',
-      nodeExecutablePath,
-      expectedNodeVersion: nodeVersion,
+      reusable: preparedNodeVersion === nodeVersion,
+      reason: preparedNodeVersion === nodeVersion ? 'ready' : 'node-version-mismatch',
+      preparedNodeVersion,
     };
   } catch (error) {
     return {
@@ -1174,7 +799,6 @@ async function runRobocopyCopy(sourceDir, targetDir) {
       stdio: 'inherit',
       env: process.env,
       shell: false,
-      windowsHide: true,
     });
 
     child.on('error', reject);
@@ -1220,6 +844,30 @@ async function repairPreparedOpenClawRuntimeManifest({
       reason: 'runtime-invalid',
       manifestPath,
       error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  let preparedNodeVersion;
+  try {
+    preparedNodeVersion = await readPreparedNodeVersion(
+      path.join(resourceDir, manifest.nodeRelativePath),
+    );
+  } catch (error) {
+    return {
+      reusable: false,
+      reason: 'node-version-unreadable',
+      manifestPath,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (preparedNodeVersion !== manifest.nodeVersion) {
+    return {
+      reusable: false,
+      reason: 'node-version-mismatch',
+      manifestPath,
+      preparedNodeVersion,
+      expectedNodeVersion: manifest.nodeVersion,
     };
   }
 
@@ -1333,6 +981,11 @@ async function copyDirectoryContents(sourceDir, destinationDir) {
   }
 }
 
+async function readPreparedNodeVersion(nodeExecutablePath) {
+  const { stdout } = await runCommandCapture(nodeExecutablePath, ['--version']);
+  return stdout.trim().replace(/^v/i, '');
+}
+
 async function readPreparedOpenClawPackageVersion(packageJsonPath) {
   const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
   if (!packageJson || typeof packageJson.version !== 'string' || packageJson.version.trim().length === 0) {
@@ -1349,7 +1002,6 @@ async function runCommand(command, args, options = {}) {
       stdio: 'inherit',
       env: process.env,
       shell: false,
-      windowsHide: true,
     });
 
     child.on('error', reject);
@@ -1368,7 +1020,6 @@ function commandExistsSync(command) {
     stdio: 'ignore',
     env: process.env,
     shell: false,
-    windowsHide: true,
   });
 
   return !result.error && (result.status === 0 || result.status === 1);
@@ -1383,7 +1034,6 @@ async function runCommandCapture(command, args, options = {}) {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: process.env,
       shell: false,
-      windowsHide: true,
     });
 
     child.stdout?.on('data', (chunk) => {
@@ -1414,11 +1064,7 @@ async function runCommandCapture(command, args, options = {}) {
 
 async function main() {
   const forcePrepare = process.argv.includes('--force');
-  const result = await prepareOpenClawRuntime({
-    forcePrepare,
-    cacheDir: process.env.OPENCLAW_PREPARE_CACHE_DIR,
-    skipBundledResourceMirror: parseBooleanFlag(process.env.OPENCLAW_SKIP_BUNDLED_MIRROR),
-  });
+  const result = await prepareOpenClawRuntime({ forcePrepare });
   const action = result.strategy === 'reused-existing' ? 'Reused' : 'Prepared';
   console.log(
     `${action} bundled OpenClaw runtime ${result.manifest.openclawVersion} for ${result.manifest.platform}-${result.manifest.arch} at ${result.resourceDir} (${result.strategy})`,

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { openClawConfigService } from '@sdkwork/claw-core';
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
 import { createInstanceWorkbenchService } from './instanceWorkbenchService.ts';
-import { parseOpenClawAgentFileId } from './openClawSupport.ts';
 
 function runTest(name: string, fn: () => Promise<void> | void) {
   return Promise.resolve()
@@ -570,12 +569,12 @@ await runTest('getInstanceWorkbench builds a remote OpenClaw snapshot from gatew
   assert.equal(mockReads.files, 0);
   assert.deepEqual(
     workbench?.channels.slice(0, 5).map((channel) => channel.id),
-    ['telegram', 'whatsapp', 'discord', 'irc', 'googlechat'],
+    ['sdkworkchat', 'wehcat', 'qq', 'dingtalk', 'wecom'],
   );
   assert.equal(workbench?.channels.some((channel) => channel.id === 'slack'), true);
   assert.equal(workbench?.channels.find((channel) => channel.id === 'slack')?.status, 'connected');
-  assert.equal(workbench?.channels.find((channel) => channel.id === 'whatsapp')?.status, 'not_configured');
-  assert.equal(workbench?.channels.find((channel) => channel.id === 'telegram')?.status, 'not_configured');
+  assert.equal(workbench?.channels.find((channel) => channel.id === 'qq')?.status, 'not_configured');
+  assert.equal(workbench?.channels.find((channel) => channel.id === 'sdkworkchat')?.status, 'connected');
   assert.equal(workbench?.tasks.length, 1);
   assert.equal(workbench?.tasks[0]?.id, 'job-ops-daily');
   assert.equal(workbench?.llmProviders.length, 1);
@@ -709,7 +708,7 @@ await runTest('getInstanceWorkbench overlays live OpenClaw gateway sections on t
   assert.ok(workbench);
   assert.deepEqual(
     workbench?.channels.slice(0, 5).map((channel) => channel.id),
-    ['telegram', 'whatsapp', 'discord', 'irc', 'googlechat'],
+    ['sdkworkchat', 'wehcat', 'qq', 'dingtalk', 'wecom'],
   );
   assert.equal(workbench?.channels.some((channel) => channel.id === 'slack'), true);
   assert.equal(workbench?.channels.some((channel) => channel.id === 'old-channel'), true);
@@ -813,132 +812,12 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
 
     assert.ok(workbench);
     assert.equal(workbench?.managedConfigPath, managedConfigPath);
-    assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'whatsapp'), true);
+    assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'qq'), true);
     assert.equal(workbench?.channels.find((channel) => channel.id === 'slack')?.status, 'connected');
-    assert.equal(workbench?.channels.find((channel) => channel.id === 'whatsapp')?.status, 'not_configured');
+    assert.equal(workbench?.channels.find((channel) => channel.id === 'qq')?.status, 'not_configured');
   } finally {
     openClawConfigService.readConfigSnapshot = originalReadConfigSnapshot;
   }
-});
-
-await runTest('getInstanceWorkbench prefers live agent workspace files over backend snapshot files when both exist', async () => {
-  const service = createInstanceWorkbenchService({
-    studioApi: {
-      getInstanceDetail: async () =>
-        createOpenClawDetail('live-files-preferred', {
-          workbench: {
-            channels: [],
-            cronTasks: {
-              tasks: [],
-              taskExecutionsById: {},
-            },
-            llmProviders: [],
-            agents: [
-              {
-                agent: {
-                  id: 'ops',
-                  name: 'Ops',
-                  description: 'Ops agent',
-                  avatar: 'O',
-                  systemPrompt: 'Ops prompt',
-                  creator: 'OpenClaw',
-                },
-                focusAreas: ['Operations'],
-                automationFitScore: 70,
-              },
-            ],
-            skills: [],
-            files: [
-              {
-                id: '/srv/openclaw/gateway.toml',
-                name: 'gateway.toml',
-                path: '/srv/openclaw/gateway.toml',
-                category: 'config',
-                language: 'plaintext',
-                size: '1 KB',
-                updatedAt: '2026-03-25T00:00:00.000Z',
-                status: 'synced',
-                description: 'Backend snapshot file',
-                content: 'port = 18789',
-                isReadonly: false,
-              },
-            ],
-            memory: [],
-            tools: [],
-          },
-        }),
-    },
-    openClawGatewayClient: {
-      listWorkbenchCronJobs: async () => [],
-      listWorkbenchCronRuns: async () => [],
-      getConfig: async () => ({
-        config: {
-          models: {
-            providers: {},
-          },
-        },
-      }),
-      listModels: async () => [],
-      getChannelStatus: async () => ({
-        channels: {},
-      }),
-      getSkillsStatus: async () => ({
-        skills: [],
-      }),
-      getToolsCatalog: async () => ({
-        profiles: [],
-        groups: [],
-      }),
-      listAgents: async () => ({
-        requester: 'ops',
-        agents: [
-          {
-            id: 'ops',
-            name: 'Ops',
-            description: 'Automation and incident response agent.',
-            avatar: 'O',
-            systemPrompt: 'Handle cron tasks and debug incidents.',
-            creator: 'OpenClaw',
-            workspace: '/workspace/ops',
-          },
-        ],
-      }),
-      listAgentFiles: async () => ({
-        agentId: 'ops',
-        workspace: '/workspace/ops',
-        files: [
-          {
-            name: 'AGENTS.md',
-            path: '/workspace/ops/AGENTS.md',
-            size: 128,
-            updatedAtMs: 1742353200000,
-          },
-        ],
-      }),
-      getAgentFile: async () => ({
-        agentId: 'ops',
-        workspace: '/workspace/ops',
-        file: {
-          name: 'AGENTS.md',
-          path: '/workspace/ops/AGENTS.md',
-          content: '# Ops Agent',
-          size: 128,
-          updatedAtMs: 1742353200000,
-        },
-      }),
-    },
-  });
-
-  const workbench = await service.getInstanceWorkbench('live-files-preferred');
-
-  assert.ok(workbench);
-  assert.equal(workbench?.files.length, 1);
-  assert.deepEqual(parseOpenClawAgentFileId(workbench?.files[0]?.id || ''), {
-    agentId: 'ops',
-    name: 'AGENTS.md',
-    path: '/workspace/ops/AGENTS.md',
-  });
-  assert.equal(workbench?.files[0]?.path, '/workspace/ops/AGENTS.md');
 });
 
 await runTest('listTaskExecutions stays scoped to the most recently loaded OpenClaw instance when task ids overlap', async () => {

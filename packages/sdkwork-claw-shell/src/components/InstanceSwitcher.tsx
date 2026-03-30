@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, ChevronDown, Server, Settings } from 'lucide-react';
@@ -16,38 +16,39 @@ export function InstanceSwitcher() {
   const [instances, setInstances] = useState<InstanceDirectoryItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  const refreshInstances = useCallback(async () => {
-    try {
-      const data = await instanceDirectoryService.listInstances();
-      setInstances(data);
+  useEffect(() => {
+    let disposed = false;
 
-      const currentActiveInstanceId = useInstanceStore.getState().activeInstanceId;
-      if (data.length === 0) {
-        if (currentActiveInstanceId) {
-          setActiveInstanceId(null);
+    async function fetchInstances() {
+      try {
+        const data = await instanceDirectoryService.listInstances();
+        if (disposed) {
+          return;
         }
-        return;
+
+        setInstances(data);
+
+        if (data.length === 0) {
+          if (activeInstanceId) {
+            setActiveInstanceId(null);
+          }
+          return;
+        }
+
+        if (!activeInstanceId || !data.some((instance) => instance.id === activeInstanceId)) {
+          setActiveInstanceId(data[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to fetch instances for header switcher:', error);
       }
-
-      if (!currentActiveInstanceId || !data.some((instance) => instance.id === currentActiveInstanceId)) {
-        setActiveInstanceId(data[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to fetch instances for header switcher:', error);
-    }
-  }, [setActiveInstanceId]);
-
-  useEffect(() => {
-    void refreshInstances();
-  }, [refreshInstances]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
     }
 
-    void refreshInstances();
-  }, [isOpen, refreshInstances]);
+    void fetchInstances();
+
+    return () => {
+      disposed = true;
+    };
+  }, [activeInstanceId, setActiveInstanceId]);
 
   const activeInstance =
     instances.find((instance) => instance.id === activeInstanceId) ?? instances[0] ?? null;

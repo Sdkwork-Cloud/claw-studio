@@ -51,11 +51,6 @@ import {
 import {
   Button,
   DateInput,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   getTaskExecutionBadgeTone,
   getTaskHistoryBadgeTone,
   getTaskStatusBadgeTone,
@@ -246,17 +241,6 @@ function buildTaskDeliverySummary(
   return channelNameMap[task.deliveryChannel || ''] || task.deliveryChannel || t('common.none');
 }
 
-function getHistoryBadgeClassName(status: TaskExecutionHistoryEntry['status']) {
-  const tone = getTaskHistoryBadgeTone(status);
-  if (tone === 'success') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
-  }
-  if (tone === 'danger') {
-    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300';
-  }
-  return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
-}
-
 export interface CronTasksManagerProps {
   instanceId?: string;
   embedded?: boolean;
@@ -280,7 +264,6 @@ export function CronTasksManager({
   const [editorMode, setEditorMode] = useState<'create' | 'edit' | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
-  const [latestExecutionTaskId, setLatestExecutionTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [isSavingEditor, setIsSavingEditor] = useState(false);
   const [cloningTaskIds, setCloningTaskIds] = useState<string[]>([]);
@@ -297,11 +280,6 @@ export function CronTasksManager({
   const schedulePreview = buildSchedulePreview(taskForm);
   const historyTask = historyTaskId ? tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? executionsByTaskId[historyTaskId] || [] : [];
-  const latestExecutionTask =
-    latestExecutionTaskId ? tasks.find((task) => task.id === latestExecutionTaskId) || null : null;
-  const latestExecutionEntry = latestExecutionTaskId
-    ? (executionsByTaskId[latestExecutionTaskId] || [])[0] || null
-    : null;
   const readyToSave = Boolean(activeInstanceId) && workspaceState.readiness.ready;
   const channelNameMap = Object.fromEntries(
     deliveryChannels.map((channel) => [channel.id, channel.name]),
@@ -331,7 +309,6 @@ export function CronTasksManager({
     setEditorMode(null);
     setEditingTaskId(null);
     setHistoryTaskId(null);
-    setLatestExecutionTaskId(null);
     setTaskForm(createDefaultTaskFormValues());
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
@@ -377,7 +354,7 @@ export function CronTasksManager({
       const executionEntries = await Promise.all(
         nextTasks.map(async (task) => {
           try {
-            return [task.id, await taskService.listTaskExecutions(task.id, activeInstanceId)] as const;
+            return [task.id, await taskService.listTaskExecutions(task.id)] as const;
           } catch {
             return [task.id, [] as TaskExecutionHistoryEntry[]] as const;
           }
@@ -393,9 +370,6 @@ export function CronTasksManager({
 
       if (historyTaskId && !nextTasks.some((task) => task.id === historyTaskId)) {
         setHistoryTaskId(null);
-      }
-      if (latestExecutionTaskId && !nextTasks.some((task) => task.id === latestExecutionTaskId)) {
-        setLatestExecutionTaskId(null);
       }
     } catch {
       toast.error(t('tasks.page.toasts.failedToLoad'));
@@ -532,7 +506,7 @@ export function CronTasksManager({
     setHistoryTaskId(task.id);
     setIsHistoryLoading(true);
     try {
-      const entries = await taskService.listTaskExecutions(task.id, activeInstanceId);
+      const entries = await taskService.listTaskExecutions(task.id);
       setExecutionsByTaskId((current) => ({ ...current, [task.id]: entries }));
     } catch {
       toast.error(t('tasks.page.toasts.failedToLoadHistory'));
@@ -544,13 +518,9 @@ export function CronTasksManager({
   async function handleCloneTask(task: Task) {
     setCloningTaskIds((current) => addPendingId(current, task.id));
     try {
-      await taskService.cloneTask(
-        task.id,
-        {
-          name: t('tasks.page.actions.cloneName', { name: task.name }),
-        },
-        activeInstanceId,
-      );
+      await taskService.cloneTask(task.id, {
+        name: t('tasks.page.actions.cloneName', { name: task.name }),
+      });
       toast.success(t('tasks.page.toasts.cloned'));
       await refreshTaskStudio('refresh');
     } catch {
@@ -563,7 +533,7 @@ export function CronTasksManager({
   async function handleRunTaskNow(task: Task) {
     setRunningTaskIds((current) => addPendingId(current, task.id));
     try {
-      await taskService.runTaskNow(task.id, activeInstanceId);
+      await taskService.runTaskNow(task.id);
       toast.success(t('tasks.page.toasts.ranNow'));
       await refreshTaskStudio('refresh');
     } catch {
@@ -581,7 +551,7 @@ export function CronTasksManager({
 
     setStatusTaskIds((current) => addPendingId(current, task.id));
     try {
-      await taskService.updateTaskStatus(task.id, nextStatus, activeInstanceId);
+      await taskService.updateTaskStatus(task.id, nextStatus);
       toast.success(t(nextStatus === 'active' ? 'tasks.page.toasts.enabled' : 'tasks.page.toasts.disabled'));
       await refreshTaskStudio('refresh');
     } catch {
@@ -597,7 +567,7 @@ export function CronTasksManager({
     }
     setDeletingTaskIds((current) => addPendingId(current, task.id));
     try {
-      await taskService.deleteTask(task.id, activeInstanceId);
+      await taskService.deleteTask(task.id);
       toast.success(t('tasks.page.toasts.deleted'));
       await refreshTaskStudio('refresh');
     } catch {
@@ -1377,9 +1347,6 @@ export function CronTasksManager({
         deletingTaskIds.includes(task.id);
       const latest = cardState.latestExecution;
       const delivery = buildTaskDeliverySummary(t, task, channelNameMap);
-      const latestExecutionLabel = latest?.startedAt || task.lastRun || '-';
-      const toggleStatusTarget = getTaskToggleStatusTarget(task.status);
-      const toggleDisablesTask = toggleStatusTarget === 'paused';
 
       return {
         id: task.id,
@@ -1435,17 +1402,6 @@ export function CronTasksManager({
           },
         ],
         summaryTitle: t('tasks.page.cards.latestExecution'),
-        summaryActions: latest ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-            onClick={() => setLatestExecutionTaskId(task.id)}
-            disabled={isBusy}
-          >
-            {t('tasks.page.actions.viewDetails')}
-          </Button>
-        ) : undefined,
         summaryBadges: latest
           ? [
               {
@@ -1462,18 +1418,9 @@ export function CronTasksManager({
             ]
           : undefined,
         summaryContent: latest
-          ? (
-            <div className="space-y-2">
-              <div className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
-                {latestExecutionLabel}
-              </div>
-              <p className="line-clamp-2 break-words text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                {cardState.latestExecutionSummary}
-              </p>
-            </div>
-          )
+          ? cardState.latestExecutionSummary
           : t('tasks.page.cards.noExecutionYet'),
-        summaryDetails: undefined,
+        summaryDetails: latest?.details || (!latest ? cardState.promptExcerpt : undefined),
         summaryFooter: (
           <>
             {t('tasks.page.cards.delivery')}: {delivery}
@@ -1508,16 +1455,16 @@ export function CronTasksManager({
               variant="outline"
               size="sm"
               onClick={() => void handleToggleTaskStatus(task)}
-              disabled={isBusy || !toggleStatusTarget}
+              disabled={isBusy || !getTaskToggleStatusTarget(task.status)}
             >
               {statusTaskIds.includes(task.id) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : toggleDisablesTask ? (
+              ) : task.status === 'active' ? (
                 <Pause className="h-4 w-4" />
               ) : (
                 <Play className="h-4 w-4" />
               )}
-              {toggleDisablesTask
+              {task.status === 'active'
                 ? t('tasks.page.actions.disable')
                 : t('tasks.page.actions.enable')}
             </Button>
@@ -1894,82 +1841,6 @@ export function CronTasksManager({
         getStatusLabel={(status) => t(`tasks.page.history.status.${status}`)}
         getTriggerLabel={(trigger) => t(`tasks.page.history.triggers.${trigger}`)}
       />
-      <Dialog
-        open={Boolean(latestExecutionTaskId)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setLatestExecutionTaskId(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t('tasks.page.cards.latestExecution')}</DialogTitle>
-            <DialogDescription>
-              {latestExecutionTask
-                ? t('tasks.page.history.subtitle', { name: latestExecutionTask.name })
-                : t('tasks.page.history.description')}
-            </DialogDescription>
-          </DialogHeader>
-          {latestExecutionTask && latestExecutionEntry ? (
-            <div className="space-y-5">
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold',
-                    getHistoryBadgeClassName(latestExecutionEntry.status),
-                  )}
-                >
-                  <span className="h-2 w-2 rounded-full bg-current" />
-                  {t(`tasks.page.history.status.${latestExecutionEntry.status}`)}
-                </span>
-                <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-                  {t(`tasks.page.history.triggers.${latestExecutionEntry.trigger}`)}
-                </span>
-              </div>
-              <div className="rounded-[24px] border border-zinc-200/80 bg-zinc-50/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/60">
-                <div className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
-                  {latestExecutionEntry.summary}
-                </div>
-                {latestExecutionEntry.details ? (
-                  <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                    {latestExecutionEntry.details}
-                  </p>
-                ) : null}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-zinc-200/80 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                    {t('tasks.page.history.startedAt')}
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                    {latestExecutionEntry.startedAt}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-zinc-200/80 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                    {t('tasks.page.history.finishedAt')}
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                    {latestExecutionEntry.finishedAt || '-'}
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-zinc-200/80 bg-white px-4 py-4 text-sm leading-6 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-                <span className="font-semibold text-zinc-950 dark:text-zinc-50">
-                  {t('tasks.page.cards.delivery')}:
-                </span>{' '}
-                {buildTaskDeliverySummary(t, latestExecutionTask, channelNameMap)}
-                {latestExecutionTask.recipient ? ` / ${latestExecutionTask.recipient}` : ''}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50 px-5 py-10 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-              {t('tasks.page.cards.noExecutionYet')}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

@@ -77,8 +77,12 @@ mod tests {
         DesktopSupervisorInfo {
             lifecycle: "running".to_string(),
             shutdown_requested: false,
-            service_count: 1,
-            managed_service_ids: vec!["openclaw_gateway".to_string()],
+            service_count: 3,
+            managed_service_ids: vec![
+                "openclaw_gateway".to_string(),
+                "web_server".to_string(),
+                "api_router".to_string(),
+            ],
             services: vec![DesktopSupervisorServiceInfo {
                 id: "openclaw_gateway".to_string(),
                 display_name: "OpenClaw Gateway".to_string(),

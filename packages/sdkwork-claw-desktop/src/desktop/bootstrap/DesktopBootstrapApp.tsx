@@ -174,7 +174,6 @@ export function applyStartupAppearanceHints(appearance: StartupAppearanceSnapsho
 
   const root = document.documentElement;
   root.setAttribute('lang', appearance.language);
-  root.setAttribute('data-app-platform', 'desktop');
   document.body.style.backgroundColor = '#12090a';
   document.body.style.color = '#fff1f2';
 }

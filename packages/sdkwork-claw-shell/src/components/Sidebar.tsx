@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Blocks,
@@ -16,26 +15,22 @@ import {
   LayoutGrid,
   LayoutDashboard,
   LogIn,
+  LogOut,
   MessageCircle,
   Newspaper,
   PanelLeftClose,
+  PanelLeftOpen,
   PlugZap,
   type LucideIcon,
   Router,
   Server,
+  Settings2,
   Store,
   Waypoints,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore, useAuthStore } from '@sdkwork/claw-core';
-import { pointsQueryKeys, pointsService } from '@sdkwork/claw-points';
-import { AccountMenuContent } from './AccountMenuContent';
-import {
-  buildAuthenticatedAccountMenuSections,
-  buildGuestAccountMenuSections,
-  type AccountMenuAction,
-} from './accountMenuModel';
 import { prefetchSidebarRoute } from '../application/router/routePrefetch';
 
 const COLLAPSED_SIDEBAR_WIDTH = 72;
@@ -79,18 +74,7 @@ export function Sidebar() {
   const resizeStartWidthRef = useRef(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const accountSettingsTarget = '/settings?tab=account';
-  const loginRedirectTarget = `${location.pathname}${location.search}` || accountSettingsTarget;
-  const loginTarget = `/login?redirect=${encodeURIComponent(loginRedirectTarget)}`;
-  const {
-    data: pointsDashboard = pointsService.getEmptyDashboard(),
-    isError: isPointsDashboardError,
-  } = useQuery({
-    queryKey: pointsQueryKeys.dashboard,
-    queryFn: () => pointsService.getDashboard(),
-    placeholderData: pointsService.getEmptyDashboard(),
-    enabled: isAuthenticated,
-  });
-  const hasLivePointsSummary = pointsDashboard.summary.isAuthenticated;
+  const loginTarget = `/login?redirect=${encodeURIComponent(accountSettingsTarget)}`;
 
   const resolvedSidebarWidth = clampSidebarWidth(sidebarWidth);
 
@@ -150,23 +134,6 @@ export function Sidebar() {
     window.addEventListener('pointerdown', handlePointerDown);
     return () => {
       window.removeEventListener('pointerdown', handlePointerDown);
-    };
-  }, [isUserMenuOpen]);
-
-  useEffect(() => {
-    if (!isUserMenuOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsUserMenuOpen(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isUserMenuOpen]);
 
@@ -247,24 +214,7 @@ export function Sidebar() {
     .filter((group) => group.items.length > 0);
 
   const currentSidebarWidth = isSidebarCollapsed ? COLLAPSED_SIDEBAR_WIDTH : resolvedSidebarWidth;
-  const showEdgeAffordances = !isSidebarCollapsed && (isSidebarHovered || isSidebarResizing);
-  const accountMenuSections = isAuthenticated
-    ? buildAuthenticatedAccountMenuSections()
-    : buildGuestAccountMenuSections(loginTarget);
-  const membershipLabel = isAuthenticated
-    ? hasLivePointsSummary
-      ? pointsDashboard.summary.currentPlan.name || t('headerAccountMenu.free')
-      : isPointsDashboardError
-        ? t('headerAccountMenu.unavailableMembership')
-        : t('headerAccountMenu.loadingMembership')
-    : t('headerAccountMenu.guest');
-  const pointsLabel = isAuthenticated
-    ? hasLivePointsSummary
-      ? `${new Intl.NumberFormat().format(pointsDashboard.summary.balancePoints)} ${t('headerAccountMenu.pointsUnit')}`
-      : isPointsDashboardError
-        ? t('headerAccountMenu.unavailablePoints')
-        : t('headerAccountMenu.loadingPoints')
-    : t('headerAccountMenu.guestPoints');
+  const showEdgeAffordances = isSidebarHovered || isSidebarResizing;
   const userMenuTitle = isAuthenticated
     ? isUserMenuOpen
       ? t('sidebar.userMenu.close')
@@ -272,26 +222,29 @@ export function Sidebar() {
     : t('sidebar.userMenu.login');
 
   const handleUserControlClick = () => {
+    if (!isAuthenticated) {
+      navigate(loginTarget);
+      return;
+    }
+
     setIsUserMenuOpen((open) => !open);
   };
 
-  const handleAccountAction = async (action: AccountMenuAction) => {
+  const handleOpenAccountSettings = () => {
+    setIsUserMenuOpen(false);
+    navigate(accountSettingsTarget);
+  };
+
+  const handleSignOut = async () => {
     setIsUserMenuOpen(false);
 
-    if (action.id === 'sign-out') {
-      if (!isAuthenticated) {
-        navigate('/login', { replace: true });
-        return;
-      }
-
-      await signOut();
+    if (!isAuthenticated) {
       navigate('/login', { replace: true });
       return;
     }
 
-    if (action.to) {
-      navigate(action.to);
-    }
+    await signOut();
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -409,21 +362,54 @@ export function Sidebar() {
           <div ref={userMenuRef} className="relative">
             {isUserMenuOpen ? (
               <div
-                className={`absolute z-40 ${
-                  isSidebarCollapsed ? 'bottom-0 left-full ml-3 w-[21rem]' : 'bottom-full left-0 right-0 mb-2'
+                className={`absolute z-40 rounded-3xl border border-white/10 bg-zinc-950/96 p-2 shadow-[0_20px_48px_rgba(9,9,11,0.34)] backdrop-blur-xl ${
+                  isSidebarCollapsed ? 'bottom-0 left-full ml-3 w-64' : 'bottom-full left-0 right-0 mb-2'
                 }`}
               >
-                <AccountMenuContent
-                  variant="sidebar"
-                  isAuthenticated={isAuthenticated}
-                  user={user}
-                  membershipLabel={membershipLabel}
-                  pointsLabel={pointsLabel}
-                  sections={accountMenuSections}
-                  onAction={(action) => {
-                    void handleAccountAction(action);
+                <div className="mb-2 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary-500/15 text-sm font-bold text-primary-200">
+                      {user?.avatarUrl ? (
+                        <img
+                          src={user.avatarUrl}
+                          alt={user.displayName}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        user?.initials
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white">
+                        {user?.displayName}
+                      </div>
+                      <div className="truncate text-xs text-zinc-400">{user?.email}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
+                    {t('sidebar.userMenu.signedIn')}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAccountSettings}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-zinc-300 transition-colors hover:bg-white/[0.06] hover:text-white"
+                >
+                  <Settings2 className="h-4 w-4 text-zinc-500" />
+                  <span>{t('sidebar.userMenu.profileSettings')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSignOut();
                   }}
-                />
+                  className="mt-1 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>{t('sidebar.userMenu.logout')}</span>
+                </button>
               </div>
             ) : null}
 
@@ -432,8 +418,6 @@ export function Sidebar() {
               data-slot="sidebar-user-control"
               title={isSidebarCollapsed ? userMenuTitle : undefined}
               onClick={handleUserControlClick}
-              aria-haspopup="menu"
-              aria-expanded={isUserMenuOpen}
               className={`group relative flex w-full items-center rounded-2xl border border-white/8 bg-white/[0.04] text-zinc-300 transition-all duration-200 hover:bg-white/[0.07] hover:text-white ${
                 isSidebarCollapsed
                   ? 'mx-auto h-11 w-11 justify-center px-0'
@@ -481,18 +465,23 @@ export function Sidebar() {
         </div>
       </div>
 
-      {showEdgeAffordances ? (
-        <button
-          type="button"
-          data-slot="sidebar-edge-control"
-          title={t('common.collapseSidebar')}
-          aria-label={t('common.collapseSidebar')}
-          onClick={toggleSidebar}
-          className="absolute right-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/8 bg-zinc-950/95 text-zinc-200 shadow-[0_14px_34px_rgba(9,9,11,0.3)] backdrop-blur transition-all duration-200 hover:scale-105 hover:bg-zinc-900 dark:bg-zinc-900/95"
-        >
+      <button
+        type="button"
+        data-slot="sidebar-edge-control"
+        title={isSidebarCollapsed ? t('common.expandSidebar') : t('common.collapseSidebar')}
+        onClick={toggleSidebar}
+        className={`absolute right-1 top-5 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-zinc-950 text-zinc-200 shadow-[0_10px_24px_rgba(9,9,11,0.26)] transition-all duration-200 dark:bg-zinc-900 ${
+          showEdgeAffordances
+            ? 'opacity-100 hover:scale-105 hover:bg-zinc-900'
+            : 'pointer-events-none opacity-0'
+        }`}
+      >
+        {isSidebarCollapsed ? (
+          <PanelLeftOpen className="h-4 w-4" />
+        ) : (
           <PanelLeftClose className="h-4 w-4" />
-        </button>
-      ) : null}
+        )}
+      </button>
 
       <div
         data-slot="sidebar-resize-handle"

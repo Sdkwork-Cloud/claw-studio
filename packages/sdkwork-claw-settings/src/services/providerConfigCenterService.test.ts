@@ -309,62 +309,6 @@ await runTest('providerConfigCenterService normalizes invalid runtime config val
   });
 });
 
-await runTest('providerConfigCenterService exposes Google Gemini, xAI, MiniMax, and Qwen presets aligned with current OpenClaw guidance', async () => {
-  const service = createProviderConfigCenterService({
-    storageApi: {
-      getStorageInfo: async () => null,
-      getText: async () => ({
-        profileId: 'default-sqlite',
-        namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-        key: 'unused',
-        value: null,
-      }),
-      putText: async () => ({
-        profileId: 'default-sqlite',
-        namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-        key: 'unused',
-      }),
-      delete: async () => ({
-        profileId: 'default-sqlite',
-        namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-        key: 'unused',
-        existed: false,
-      }),
-      listKeys: async () => ({
-        profileId: 'default-sqlite',
-        namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-        keys: [],
-      }),
-    },
-  });
-
-  const presets = service.listPresets();
-  const google = presets.find((preset) => preset.id === 'google');
-  const xai = presets.find((preset) => preset.id === 'xai');
-  const minimax = presets.find((preset) => preset.id === 'minimax');
-  const qwen = presets.find((preset) => preset.id === 'qwen');
-
-  assert.equal(google?.draft.baseUrl, 'https://generativelanguage.googleapis.com/v1beta');
-  assert.equal(google?.draft.defaultModelId, 'gemini-3-flash-preview');
-  assert.equal(google?.draft.reasoningModelId, 'gemini-3.1-pro-preview');
-  assert.match(google?.draft.notes || '', /GOOGLE_GEMINI_BASE_URL/);
-
-  assert.equal(xai?.draft.reasoningModelId, 'grok-4-fast');
-  assert.equal(xai?.draft.models.some((model) => model.id === 'grok-4-1-fast'), true);
-  assert.match(xai?.description || '', /Responses API/);
-  assert.match(xai?.draft.notes || '', /plugin and tool allowlist/);
-
-  assert.equal(minimax?.draft.baseUrl, 'https://api.minimax.io/anthropic');
-  assert.equal(minimax?.draft.defaultModelId, 'MiniMax-M2.7');
-  assert.equal(minimax?.draft.models.some((model) => model.id === 'MiniMax-M2.7-highspeed'), true);
-  assert.match(minimax?.draft.notes || '', /image-01/);
-  assert.match(minimax?.draft.notes || '', /api\.minimax\.io/);
-  assert.match(minimax?.draft.notes || '', /api\.minimaxi\.com/);
-
-  assert.match(qwen?.draft.notes || '', /portal\.qwen\.ai/);
-  assert.match(qwen?.draft.notes || '', /DashScope/);
-});
-
 await runTest('providerConfigCenterService exposes writable OpenClaw instances and their agent targets', async () => {
   const service = createProviderConfigCenterService({
     storageApi: {

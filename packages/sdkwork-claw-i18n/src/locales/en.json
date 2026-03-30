@@ -81,23 +81,6 @@
       "logout": "Sign out"
     }
   },
-  "headerAccountMenu": {
-    "membershipCenter": "Member Center",
-    "pointsCenter": "Points Center",
-    "userInfo": "User Info",
-    "settings": "Settings",
-    "feedback": "Feedback",
-    "docs": "Documentation",
-    "guest": "Guest",
-    "free": "Free",
-    "pointsUnit": "pts",
-    "guestPoints": "Sign in for live points",
-    "loadingMembership": "Loading membership",
-    "loadingPoints": "Loading points",
-    "unavailableMembership": "Membership unavailable",
-    "unavailablePoints": "Points unavailable",
-    "downloadFailed": "Failed to open the mobile app download page."
-  },
   "auth": {
     "qrLogin": "Scan to Login",
     "qrDesc": "Scan with WeChat or another supported client to complete sign-in instantly.",
@@ -542,8 +525,6 @@
       "title": "API Keys",
       "description": "Manage API keys to authenticate requests to Claw Studio.",
       "createNew": "Create new secret key",
-      "searchPlaceholder": "Search key name, token, or ID",
-      "searchEmpty": "No API keys match your search.",
       "empty": "No API keys found. Create one to get started.",
       "never": "Never",
       "revokeKey": "Revoke key",
@@ -979,44 +960,54 @@
       "descriptionWithChannel": "Operate {{channel}} routes and monitor the active {{modelFamily}} provider pool from one control plane."
     },
     "runtime": {
-      "title": "Router Runtime",
-      "reason": "Runtime decision",
-      "recommendation": "Recommended managed mode",
-      "conflictHint": "The configured router ports are already occupied, but the running process did not pass the router health check. Resolve the conflict before starting a managed runtime.",
-      "sharedRoot": "Shared Router Root",
-      "configFile": "Resolved Config File",
-      "bind": "Bind Address",
-      "mode": {
-        "attachedExternal": "Attached to external router",
-        "managedActive": "Managed by Claw Studio",
-        "needsManagedStart": "Managed startup is required",
-        "conflicted": "Router startup is blocked"
+      "title": "Local Router Runtime",
+      "description": "Inspect the active local API Router binding, health, shared ownership mode, and desktop login bridge before distributing client access.",
+      "ownership": {
+        "values": {
+          "managed": "Managed by Claw Studio",
+          "attached": "Attached to shared router",
+          "uninitialized": "Waiting for startup",
+          "stopped": "Stopped"
+        },
+        "descriptions": {
+          "managed": "Claw Studio started this local router runtime and will stop only the child processes it owns when the app exits.",
+          "attached": "A healthy shared router was already running, so Claw Studio attached to it and will not stop that external process on exit.",
+          "uninitialized": "The local router control plane is still initializing and has not published a healthy gateway and admin surface yet.",
+          "stopped": "The managed router is not serving traffic right now. Restart the runtime to restore local API access."
+        }
       },
-      "summary": {
-        "attachedExternal": "External instance active",
-        "managedActive": "Managed instance active",
-        "needsManagedStart": "Ready to launch",
-        "conflicted": "Operator action required"
+      "signals": {
+        "gateway": "Gateway",
+        "admin": "Admin API",
+        "authSession": "App Session",
+        "adminAuth": "Admin Token Bridge",
+        "ready": "Ready",
+        "notReady": "Not Ready"
       },
-      "managedMode": {
-        "inProcess": "Start OpenClaw with the Claw app lifecycle in-process once the managed launcher is wired."
+      "endpoints": {
+        "gateway": "Gateway Base URL",
+        "admin": "Admin Base URL",
+        "binding": "Bound Address",
+        "path": "Path"
       },
-      "configSource": {
-        "defaults": "Using default bind addresses because no shared router config file was found.",
-        "file": "Loaded from shared router config."
+      "processes": {
+        "title": "Managed Processes",
+        "gatewayPid": "Gateway PID",
+        "adminPid": "Admin PID",
+        "unavailable": "Not managed"
       },
-      "endpoint": {
-        "admin": "Admin Endpoint",
-        "gateway": "Gateway Endpoint"
+      "paths": {
+        "title": "Shared Storage",
+        "routerHomeDir": "Router Home",
+        "metadataDir": "Claw Metadata",
+        "databasePath": "Database",
+        "extractionDir": "Prebuilt Runtime"
       },
-      "health": {
-        "healthy": "Healthy",
-        "unhealthy": "Unhealthy"
+      "values": {
+        "unavailable": "Unavailable"
       },
-      "port": {
-        "available": "Port available",
-        "occupied": "Port occupied"
-      }
+      "emptyStateTitle": "Router catalog not ready yet",
+      "emptyStateDescription": "Wait for the local gateway and admin endpoints to become healthy, or refresh after Claw Studio attaches to the shared router."
     },
     "pageTabs": {
       "unifiedApiKey": "Unified API Key",
@@ -1030,7 +1021,7 @@
     },
     "admin": {
       "title": "Admin Control Plane",
-      "heading": "OpenClaw Admin",
+      "heading": "sdkwork-api-router Admin",
       "state": {
         "authenticated": "Connected",
         "needsLogin": "Sign-in required",
@@ -1066,18 +1057,58 @@
       },
       "messages": {
         "sessionConnected": "The API Router control plane is authenticated with the current operator session and can call router-native admin APIs directly.",
-        "managedBootstrapConnected": "Claw Studio silently authenticated the local managed OpenClaw runtime and can call router-native admin APIs directly.",
+        "managedBootstrapConnected": "Claw Studio silently authenticated the local managed sdkwork-api-router runtime and can call router-native admin APIs directly.",
         "configuredTokenConnected": "The API Router control plane is authenticated with the configured admin token and can call router-native admin APIs directly.",
-        "configuredTokenConfigurationRequired": "The configured OpenClaw admin token was rejected. Update or remove VITE_OPENCLAW_ADMIN_TOKEN before retrying. Manual sign-in is disabled while that token is configured.",
-        "signInRequired": "Sign in to the OpenClaw admin API to use router-backed control-plane features instead of mock fallbacks.",
+        "configuredTokenConfigurationRequired": "The configured sdkwork-api-router admin token was rejected. Update or remove VITE_API_ROUTER_ADMIN_TOKEN before retrying. Manual sign-in is disabled while that token is configured.",
+        "signInRequired": "Sign in to the sdkwork-api-router admin API to use router-backed control-plane features instead of mock fallbacks.",
         "reauthenticateRequired": "The saved router admin credentials are no longer valid. Sign in again to restore router-backed control-plane access."
       },
       "loginHint": "Use the router admin account for standalone deployments or for the local managed runtime you attached to.",
       "toast": {
-        "connected": "Connected to OpenClaw as {{email}}",
-        "connectionFailed": "Unable to connect to OpenClaw admin",
+        "connected": "Connected to sdkwork-api-router as {{email}}",
+        "connectionFailed": "Unable to connect to sdkwork-api-router admin",
         "disconnected": "Router admin session cleared",
         "disconnectFailed": "Unable to clear the router admin session"
+      }
+    },
+    "runtime": {
+      "title": "Router Runtime",
+      "reason": "Runtime decision",
+      "recommendation": "Recommended managed mode",
+      "conflictHint": "The configured router ports are already occupied, but the running process did not pass the router health check. Resolve the conflict before starting a managed runtime.",
+      "sharedRoot": "Shared Router Root",
+      "configFile": "Resolved Config File",
+      "bind": "Bind Address",
+      "mode": {
+        "attachedExternal": "Attached to external router",
+        "managedActive": "Managed by Claw Studio",
+        "needsManagedStart": "Managed startup is required",
+        "conflicted": "Router startup is blocked"
+      },
+      "summary": {
+        "attachedExternal": "External instance active",
+        "managedActive": "Managed instance active",
+        "needsManagedStart": "Ready to launch",
+        "conflicted": "Operator action required"
+      },
+      "managedMode": {
+        "inProcess": "Start sdkwork-api-router with the Claw app lifecycle in-process once the managed launcher is wired."
+      },
+      "configSource": {
+        "defaults": "Using default bind addresses because no shared router config file was found.",
+        "file": "Loaded from shared router config."
+      },
+      "endpoint": {
+        "admin": "Admin Endpoint",
+        "gateway": "Gateway Endpoint"
+      },
+      "health": {
+        "healthy": "Healthy",
+        "unhealthy": "Unhealthy"
+      },
+      "port": {
+        "available": "Port available",
+        "occupied": "Port occupied"
       }
     },
     "unifiedApiKey": {
@@ -2047,12 +2078,7 @@
       "channels": "Channels",
       "models": "Models",
       "config": "Config",
-      "searchChannelsPlaceholder": "Search channels, providers, or endpoints...",
-      "searchModelsPlaceholder": "Search model name or ID...",
-      "noChannels": "No channels configured yet.",
-      "noChannelsSearchResults": "No channels matched your search.",
       "noModels": "No models configured for this channel.",
-      "noModelsSearchResults": "No models matched your search.",
       "availableAgents": "Available Agents",
       "searchAgentsPlaceholder": "Search agents...",
       "noneDefault": "None (Default)",
@@ -2486,20 +2512,20 @@
         "share": "Share"
       },
       "assistantCta": {
-        "title": "OpenClaw can take the next step",
-        "description": "Use the assistant to optimize this entry, prepare repost variants, or organize the next follow-up action.",
-        "primaryAction": "Ask OpenClaw to continue"
-      },
-      "overviewEyebrow": "Entry detail",
-      "overviewTitle": "Listing overview",
-      "publisherPanelEyebrow": "Publisher",
-      "publisherPanelTitle": "Publisher profile",
-      "backToCommunity": "Back to classifieds",
-      "commentPlaceholder": "Add a follow-up note or question...",
-      "commentsTitle": "Comments ({{count, number}})",
-      "currentUserInitials": "ME",
-      "emptyComments": "No follow-up comments yet. Start the thread with the first question.",
-      "featuredBadge": "Featured",
+      "title": "OpenClaw can take the next step",
+      "description": "Use the assistant to optimize this entry, prepare repost variants, or organize the next follow-up action.",
+      "primaryAction": "Ask OpenClaw to continue"
+    },
+    "overviewEyebrow": "Entry detail",
+    "overviewTitle": "Listing overview",
+    "publisherPanelEyebrow": "Publisher",
+    "publisherPanelTitle": "Publisher profile",
+    "backToCommunity": "Back to classifieds",
+    "commentPlaceholder": "Add a follow-up note or question...",
+    "commentsTitle": "Comments ({{count, number}})",
+    "currentUserInitials": "ME",
+    "emptyComments": "No follow-up comments yet. Start the thread with the first question.",
+    "featuredBadge": "Featured",
       "listingMeta": {
         "title": "Listing metadata",
         "location": "Location",
@@ -2536,51 +2562,51 @@
           "onsite": "On-site delivery"
         }
       },
-      "meta": {
-        "views": "{{count, number}} views"
-      },
-      "newsPanelTitle": "Platform news",
-      "newsPanelDescription": "This is an official news entry, so it stays readable as a retained news module inside the broader classifieds entrance.",
-      "recommendations": {
-        "relatedServicesEyebrow": "Related services",
-        "relatedServicesTitle": "Services worth contacting",
-        "relatedServicesDescription": "Prioritized using the current listing's service demand, tags, and delivery context.",
-        "relatedServicesEmpty": "No closely related services are available right now.",
-        "relatedCompaniesEyebrow": "Related companies",
-        "relatedCompaniesTitle": "Companies worth matching",
-        "relatedCompaniesDescription": "Grouped from active classifieds so you can keep browsing nearby suppliers, operators, and company demand.",
-        "relatedCompaniesEmpty": "No closely related companies are available right now.",
-        "openService": "Open service",
-        "openCompany": "Representative listing",
-        "activeListings": "{{count, number}} active listings",
-        "reasonLabels": {
-          "featured": "featured",
-          "intentServiceLine": "matched demand",
-          "matchedServiceLine": "matched service",
-          "multiListing": "multi listing",
-          "onlineDelivery": "online delivery",
-          "officialPresence": "official presence",
-          "sameCompany": "same company",
-          "sameServiceLine": "same service line",
-          "sharedCategory": "shared category",
-          "sharedLocation": "shared location",
-          "sharedTag": "shared tag"
-        }
-      },
-      "notFoundTitle": "Entry not found",
-      "toasts": {
-        "bookmarkAdded": "Saved to your classifieds shortlist.",
-        "bookmarkFailed": "Failed to update the saved state.",
-        "bookmarkRemoved": "Removed from your classifieds shortlist.",
-        "commentFailed": "Failed to send the comment.",
-        "shareCopied": "Share details copied to the clipboard.",
-        "shareFailed": "Failed to prepare the share action.",
-        "shareReady": "Share sheet is ready."
-      },
-      "roles": {
-        "official": "Official",
-        "coreContributor": "Core Contributor"
+    "meta": {
+      "views": "{{count, number}} views"
+    },
+    "newsPanelTitle": "Platform news",
+    "newsPanelDescription": "This is an official news entry, so it stays readable as a retained news module inside the broader classifieds entrance.",
+    "recommendations": {
+      "relatedServicesEyebrow": "Related services",
+      "relatedServicesTitle": "Services worth contacting",
+      "relatedServicesDescription": "Prioritized using the current listing's service demand, tags, and delivery context.",
+      "relatedServicesEmpty": "No closely related services are available right now.",
+      "relatedCompaniesEyebrow": "Related companies",
+      "relatedCompaniesTitle": "Companies worth matching",
+      "relatedCompaniesDescription": "Grouped from active classifieds so you can keep browsing nearby suppliers, operators, and company demand.",
+      "relatedCompaniesEmpty": "No closely related companies are available right now.",
+      "openService": "Open service",
+      "openCompany": "Representative listing",
+      "activeListings": "{{count, number}} active listings",
+      "reasonLabels": {
+        "featured": "featured",
+        "intentServiceLine": "matched demand",
+        "matchedServiceLine": "matched service",
+        "multiListing": "multi listing",
+        "onlineDelivery": "online delivery",
+        "officialPresence": "official presence",
+        "sameCompany": "same company",
+        "sameServiceLine": "same service line",
+        "sharedCategory": "shared category",
+        "sharedLocation": "shared location",
+        "sharedTag": "shared tag"
       }
+    },
+    "notFoundTitle": "Entry not found",
+    "toasts": {
+      "bookmarkAdded": "Saved to your classifieds shortlist.",
+      "bookmarkFailed": "Failed to update the saved state.",
+      "bookmarkRemoved": "Removed from your classifieds shortlist.",
+      "commentFailed": "Failed to send the comment.",
+      "shareCopied": "Share details copied to the clipboard.",
+      "shareFailed": "Failed to prepare the share action.",
+      "shareReady": "Share sheet is ready."
+    },
+    "roles": {
+      "official": "Official",
+      "coreContributor": "Core Contributor"
+    }
     }
   },
   "clawUpload": {
@@ -2716,16 +2742,10 @@
       "eyebrow": "Points Center",
       "title": "Manage Points, Recharge, and Usage",
       "description": "Track your live point balance, recharge at the backend-configured rate, and purchase available VIP packs from the shared app SDK.",
-      "membershipEyebrow": "Member Center",
-      "membershipTitle": "Manage Membership, Benefits, and Upgrades",
-      "membershipDescription": "Review your current membership plan, remaining validity, bundled points, and available upgrade paths without leaving the account workspace.",
       "rechargeAction": "Recharge Points",
       "upgradeAction": "Upgrade Plus",
       "availablePoints": "Current Balance",
       "growthHint": "Keep your workflows running with ready-to-use points.",
-      "membershipPrimaryHint": "Membership-focused entry with plan and upgrade intent.",
-      "membershipSecondaryHint": "Your wallet stays available while membership remains in focus.",
-      "walletPrimaryHint": "Wallet-focused entry with points balance and recharge intent.",
       "currentPlan": "Membership Plan",
       "planMeta": "{{cycle}} cycle, instant grant of {{grant}} points",
       "planPrice": "{{amount}} for the current cycle",
@@ -2744,72 +2764,65 @@
       "errorDescription": "Please retry after the shared app SDK becomes available again.",
       "retry": "Retry"
     },
-    "rechargeDialog": {
-      "eyebrow": "Points Recharge",
-      "title": "Recharge your points balance",
-      "description": "Choose a live recharge pack from the backend, create a real order, and finish payment through the returned checkout session.",
-      "catalogEyebrow": "Recharge catalog",
-      "catalogTitle": "Available recharge packs",
-      "catalogDescription": "Each pack comes from the backend recharge-pack contract and can be purchased immediately.",
-      "noPacks": "No recharge packs are available right now.",
-      "packageLabel": "Recharge pack",
-      "packageDescriptionFallback": "This recharge pack is delivered by the backend contract and can be purchased immediately.",
-      "summaryEyebrow": "Recharge summary",
-      "summaryTitle": "Confirm this recharge pack",
-      "summaryDescription": "Review the current balance, selected pack, and payment method before creating the order.",
-      "availableBalanceLabel": "Current balance",
-      "rechargeDetailsTitle": "Recharge details",
-      "selectedPointsLabel": "Points to receive",
-      "actualPriceLabel": "Amount to pay",
-      "exchangeRateLabel": "Recharge mode",
-      "exchangeRateValue": "Pack-based checkout",
-      "rateUnavailable": "Recharge packs are currently unavailable.",
-      "paymentEyebrow": "Payment session",
-      "paymentTitle": "Complete payment",
-      "paymentDescription": "The recharge order has been created. Open the provider session, finish payment, then come back to confirm.",
-      "paymentSummaryEyebrow": "Order summary",
-      "paymentSummaryDescription": "The backend has created a recharge order. Finish the provider payment flow before confirming here.",
-      "lockedBadge": "Locked",
-      "checkoutAction": "Create order and continue",
-      "confirmPayment": "I have completed payment",
-      "paymentSessionTitle": "Active payment session",
-      "paymentSessionDescription": "Use the payment session returned by the backend to finish this recharge.",
-      "paymentMethodLabel": "Payment method",
-      "paymentOpenAction": "Open payment page",
-      "paymentParamsTitle": "Payment parameters",
-      "paymentParamsEmpty": "No provider parameters are available for this order yet.",
-      "paymentRecordsTitle": "Latest payment attempts",
-      "paymentRecordsEmpty": "No payment attempts are available yet.",
-      "orderIdLabel": "Order ID",
-      "orderSnLabel": "Order number",
-      "outTradeNoLabel": "External trade no.",
-      "expireTimeLabel": "Pay before"
+  "rechargeDialog": {
+    "eyebrow": "Points Recharge",
+    "title": "Recharge Points",
+    "description": "Choose a preset or custom amount, review the backend exchange rate, and submit the recharge through the real app SDK.",
+    "payable": "Payable now",
+    "commonAmounts": "Common point amounts",
+    "configureTitle": "Configure this recharge",
+    "configureDescription": "Preset values stay as quick actions, but the payable amount always comes from the backend-configured points-to-cash rate.",
+    "customAmount": "Custom points",
+    "customPlaceholder": "Enter a whole-number point value",
+    "backToForm": "Back to recharge setup",
+    "summaryEyebrow": "Recharge information",
+    "summaryTitle": "Review this points recharge",
+    "summaryDescription": "The live rate, chosen payment method, and payable amount all come from the real points recharge contract.",
+    "summaryMeta": "Buy {{points}} points for {{amount}}",
+    "rechargeDetailsTitle": "Points package",
+    "rechargeDetailsDescription": "Review the points quantity, original price, and actual payment here, then complete payment from the QR code on the right.",
+    "selectedPointsLabel": "Points to buy",
+    "purchaseTypeLabel": "Recharge type",
+    "originalPriceLabel": "Original price",
+    "actualPriceLabel": "Actual payment",
+    "exchangeRateLabel": "Exchange rate",
+    "exchangeRateValue": "{{rate}} pts / CNY 1",
+    "rateUnavailable": "The backend has not returned a valid exchange rate yet.",
+    "presetMeta": "Pay {{amount}}",
+    "presetPurchase": "Preset amount",
+    "customPurchase": "Custom amount",
+    "paymentEyebrow": "Scan to pay",
+      "paymentTitle": "Scan to complete the recharge",
+      "paymentDescription": "The QR code on the right updates with the selected payment method.",
+      "qrAlt": "{{method}} recharge QR code",
+      "scanHint": "Use {{method}} to scan the QR code above",
+      "paymentTip": "This is still a simulated payment flow. Confirming will immediately add {{points}} points and append a new record.",
+      "paymentMethod": "Payment Method",
+      "tip": "Recharge is simulated in this build, but the balance, records, and quick panel all update immediately.",
+      "continueToPayment": "Continue to payment",
+      "confirm": "Confirm Recharge",
+      "confirmPayment": "I've completed the recharge"
     },
     "upgradeDialog": {
       "eyebrow": "Membership Upgrade",
       "title": "Upgrade your subscription plan",
       "description": "Choose from the live VIP packs exposed by the app SDK and submit the purchase with the real membership contract.",
-      "groupEyebrow": "Package group",
-      "groupDescriptionFallback": "This group is delivered by the live membership contract and can be purchased immediately.",
       "save20": "Save 20%",
-      "pointsGrant": "Instant bundled grant",
-      "pointsGrantValue": "{{points}} points",
-      "noGrant": "No included points",
-      "includedBenefits": "Included benefits",
-      "includedBenefitsTitle": "Included benefits",
-      "includedBenefitsDescription": "Review the live benefits attached to this VIP package before creating the order.",
-      "includedBenefitsEmpty": "No benefit list is available for this package yet.",
-      "backToPlans": "Back to plans",
-      "summaryEyebrow": "Package information",
-      "summaryTitle": "Confirm the selected package",
-      "summaryDescription": "Review the current membership, selected package, duration, and bundled points before submitting the VIP purchase.",
-      "currentMembership": "Current membership",
-      "defaultPlanDescription": "This VIP pack is available through the shared app SDK and can be activated immediately after purchase.",
-      "noPlans": "No VIP packs are available right now.",
-      "summaryMeta": "{{cycle}} cycle with an instant grant of {{points}} points",
-      "paymentLockedHint": "The payment page is read-only. Use the back action in the top-left corner if you need to change the plan or monthly/yearly cycle.",
-      "paymentSummaryHint": "Need a different package or cycle? Use the back action in the top-left corner first.",
-      "currentPlanHint": "This selection matches your current active plan cycle, so there is nothing new to activate.",
+    "pointsGrant": "Instant bundled grant",
+    "pointsGrantValue": "{{points}} points",
+    "noGrant": "No included points",
+    "includedBenefits": "Included benefits",
+    "backToPlans": "Back to plans",
+    "summaryEyebrow": "Package information",
+    "summaryTitle": "Confirm the selected package",
+    "summaryDescription": "Review the current membership, selected package, duration, and bundled points before submitting the VIP purchase.",
+    "currentMembership": "Current membership",
+    "defaultPlanDescription": "This VIP pack is available through the shared app SDK and can be activated immediately after purchase.",
+    "noPlans": "No VIP packs are available right now.",
+    "summaryMeta": "{{cycle}} cycle with an instant grant of {{points}} points",
+    "paymentLockedHint": "The payment page is read-only. Use the back action in the top-left corner if you need to change the plan or monthly/yearly cycle.",
+    "paymentSummaryHint": "Need a different package or cycle? Use the back action in the top-left corner first.",
+    "currentPlanHint": "This selection matches your current active plan cycle, so there is nothing new to activate.",
       "paymentEyebrow": "Scan to pay",
       "paymentTitle": "Scan to complete payment",
       "paymentDescription": "The right side keeps the active QR code and payment summary in sync with your selected method.",
@@ -2822,35 +2835,18 @@
       "agreementJoiner": "and",
       "serviceAgreement": "Subscription Service Agreement",
       "packageDetailsTitle": "Package information",
-      "packageDetailsDescription": "Check the package, cycle, bundled points, and price before continuing to pay.",
-      "lockedBadge": "Locked",
-      "packageNameLabel": "Plan",
-      "groupLabel": "Group",
-      "durationLabel": "Duration",
-      "durationValue": "{{days}} days",
-      "durationUnknown": "Duration unavailable",
-      "billingCycleLabel": "Billing cycle",
-      "grantPointsLabel": "Bundled points",
-      "originalPriceLabel": "Original price",
-      "actualPriceLabel": "Actual payment",
-      "totalPriceLabel": "Amount due",
-      "checkoutAction": "Create order and continue",
-      "paymentSummaryEyebrow": "Order summary",
-      "paymentSummaryDescription": "The membership order has been created. Open the payment session and confirm after the provider finishes charging.",
-      "paymentSessionTitle": "Payment session",
-      "paymentSessionDescription": "Use the generated payment session details below to complete the charge through the provider.",
-      "paymentMethodLabel": "Payment method",
-      "paymentOpenAction": "Open payment page",
-      "paymentParamsTitle": "Payment parameters",
-      "paymentParamsEmpty": "No provider parameters are available for this order.",
-      "paymentRecordsTitle": "Latest payment records",
-      "paymentRecordsEmpty": "No payment attempts have been recorded yet.",
-      "orderIdLabel": "Order ID",
-      "orderSnLabel": "Order number",
-      "outTradeNoLabel": "Out trade no",
-      "expireTimeLabel": "Expires at",
-      "paymentStatusLabel": "Order status"
-    },
+    "packageDetailsDescription": "Check the package, cycle, bundled points, and price before continuing to pay.",
+    "lockedBadge": "Locked",
+    "packageNameLabel": "Plan",
+    "durationLabel": "Duration",
+    "durationValue": "{{days}} days",
+    "durationUnknown": "Duration unavailable",
+    "billingCycleLabel": "Billing cycle",
+    "grantPointsLabel": "Bundled points",
+    "originalPriceLabel": "Original price",
+    "actualPriceLabel": "Actual payment",
+    "totalPriceLabel": "Amount due"
+  },
     "auth": {
       "signInRequired": "Sign in to read, recharge, or upgrade your live points balance."
     },
@@ -2959,12 +2955,8 @@
     "toasts": {
       "rechargeSuccess": "{{points}} points added successfully.",
       "rechargeFailed": "Recharge failed. Please try again.",
-      "checkoutCreated": "{{plan}} is ready. Open the payment session to finish the purchase.",
       "upgradeSuccess": "{{plan}} activated and {{points}} points granted.",
       "upgradeFailed": "Upgrade failed. Please try again.",
-      "paymentPending": "Payment has not completed yet. Finish the provider flow and confirm again.",
-      "paymentUrlUnavailable": "The backend did not return a payment entry URL for this order.",
-      "paymentOpenFailed": "Failed to open the external payment page.",
       "invalidCustomPoints": "Please enter a positive whole-number point amount."
     }
   },
@@ -3233,34 +3225,6 @@
         "openOfficialSite": "Open official setup page",
         "readFullDocumentation": "Read full documentation",
         "credentials": "Credentials"
-      },
-      "catalog": {
-        "tabs": {
-          "domestic": "Domestic Messaging Apps",
-          "global": "Global Messaging Apps"
-        },
-        "empty": {
-          "domestic": "No domestic messaging entries are available in the current workspace.",
-          "global": "No global messaging channels are available in the current workspace."
-        },
-        "supplemental": {
-          "referenceSetup": "Open the official platform to continue setup and account activation.",
-          "wechat": {
-            "description": "Jump to the WeChat open platform and keep domestic distribution touchpoints within reach."
-          },
-          "feishu": {
-            "description": "Open the Feishu developer platform for bot, app, and tenant integration setup."
-          },
-          "dingtalk": {
-            "description": "Go to DingTalk Open Platform for enterprise bot and workflow integration setup."
-          },
-          "wecom": {
-            "description": "Open the WeCom developer center for enterprise messaging and automation integration."
-          },
-          "qq": {
-            "description": "Open QQ Connect to review platform access and domestic ecosystem entry points."
-          }
-        }
       }
     }
   },
@@ -3440,7 +3404,6 @@
         "disable": "Disable",
         "runNow": "Run now",
         "history": "History",
-        "viewDetails": "View details",
         "delete": "Delete"
       },
       "modal": {
@@ -4184,11 +4147,7 @@
             "skillDisabled": "OpenClaw skill disabled.",
             "skillUpdateFailed": "Failed to update the selected OpenClaw skill.",
             "skillRemoved": "OpenClaw workspace skill removed.",
-            "skillRemoveFailed": "Failed to remove the selected OpenClaw workspace skill.",
-            "skillConfigSaved": "OpenClaw skill configuration saved.",
-            "skillConfigSaveFailed": "Failed to save the selected OpenClaw skill configuration.",
-            "skillSelectionSaved": "Per-agent skill allowlist saved.",
-            "skillSelectionSaveFailed": "Failed to save the agent skill allowlist."
+            "skillRemoveFailed": "Failed to remove the selected OpenClaw workspace skill."
           },
           "panel": {
             "badge": "OpenClaw Agents",
@@ -4213,19 +4172,6 @@
             "boundAccounts": "Bound",
             "availableAccounts": "Available",
             "builtIn": "Built-in",
-            "sharedConfigScopeNotice": "Shared Skill Config Scope",
-            "sharedConfigScopeDescription": "OpenClaw persists writable skill settings at the instance-level skills.entries tree. Agent switching changes the effective workspace and availability view, while configuration still applies anywhere this skill is loaded.",
-            "agentSkillAccessTitle": "Agent Skill Access",
-            "agentSkillAccessAllDescription": "All visible skills are currently available to this agent. Turning one off creates a per-agent allowlist.",
-            "agentSkillAccessCustomDescription": "This agent uses a custom skill allowlist. {{enabledCount}} of {{totalCount}} visible skills are currently enabled.",
-            "agentSkillAccessAllBadge": "All Skills Enabled",
-            "agentSkillAccessCustomBadge": "Custom Allowlist",
-            "agentSkillAccessCardTitle": "Agent Access",
-            "agentSkillAccessEnabled": "Available to this agent",
-            "agentSkillAccessDisabled": "Hidden from this agent",
-            "enableAllAgentSkills": "Enable All",
-            "disableAllAgentSkills": "Disable All",
-            "bundledScopeDescription": "Bundled skills come from the runtime package and can still be blocked by skills.allowBundled before they become available.",
             "workspaceInstallCommand": "Workspace Install Command",
             "workspaceInstallDescription": "OpenClaw loads agent-specific skills from the selected workspace. Run the native OpenClaw CLI in this workspace to install a skill for the selected agent.",
             "installToDefaultWorkspace": "Install to Default Workspace",
@@ -4239,56 +4185,12 @@
             "primaryEnv": "Primary Env",
             "missingPrefix": "Missing",
             "filePreview": "File Preview",
-            "manageSkill": "Configure",
-            "openGuide": "Open Guide",
-            "configured": "Configured",
-            "configuredSummary": "Shared config entry is present. Saved env values: {{envCount}}.",
-            "configChecks": "Required Config Paths",
-            "configChecksSatisfied": "Required config paths ready: {{totalCount}}/{{totalCount}}.",
-            "configChecksMissing": "Required config paths ready: {{satisfiedCount}}/{{totalCount}}.",
-            "configCheckSatisfied": "Present in the shared OpenClaw config.",
-            "configCheckMissing": "Still missing from the shared OpenClaw config.",
-            "allowlistNotice": "This bundled skill is currently blocked by skills.allowBundled, so it will stay unavailable until the allowlist is updated.",
-            "alwaysOn": "Always On",
             "enableSkill": "Enable Skill",
             "disableSkill": "Disable Skill",
             "requirementEnv": "ENV",
             "requirementBins": "Bins",
             "requirementAnyBin": "Any bin",
-            "requirementConfig": "Config",
-            "requirementOs": "OS",
-            "skillConfigDialogDescription": "Review the selected skill's shared configuration. These values are written to the instance-level OpenClaw config, not to a separate per-agent skill tree.",
-            "skillConfigDialogSelectedAgent": "Current agent",
-            "skillConfigDialogEnabled": "Enabled",
-            "skillConfigDialogAlwaysOn": "This skill is marked as always-on by the runtime and cannot be disabled here.",
-            "skillConfigDialogApiKey": "API Key",
-            "skillConfigDialogApiKeyPlaceholder": "Paste the provider key used by this skill",
-            "skillConfigDialogEnv": "Environment Variables",
-            "skillConfigDialogEnvKeyPlaceholder": "ENV_KEY",
-            "skillConfigDialogEnvValuePlaceholder": "value",
-            "skillConfigDialogReadonlyNotice": "This host does not expose a writable OpenClaw config file, so the dialog is read-only.",
-            "skillConfigDialogAllowlistNotice": "This skill is still blocked by the bundled allowlist. Save configuration first if you want it ready once the allowlist is updated.",
-            "instanceSkillViewTitle": "Agent-Aware Skill Workspace",
-            "instanceSkillViewDescription": "Switch agents here to inspect each workspace's effective skills while keeping shared skill configuration in one consistent control surface."
-          },
-          "channels": {
-            "description": "Review the selected agent's effective channel routing. Shared channel credentials stay at the gateway level, while bindings decide which accounts route into this agent.",
-            "routingNoticeEyebrow": "Routing Model",
-            "routingNotice": "OpenClaw keeps channel credentials in shared gateway config and uses top-level bindings to route configured channel accounts to agents. This view shows the effective routing owned by the selected agent, not a separate per-agent channel config tree.",
-            "boundChannels": "Bound Channels",
-            "sharedSetupRequired": "Setup Required",
-            "sharedSetup": "Shared Setup",
-            "routeScope": "Route Scope",
-            "routeScopeNone": "Not routed",
-            "routeScopeAll": "All accounts",
-            "routeScopeMultiple": "{{count}} accounts",
-            "routeHintBound": "This agent currently receives traffic only from the bound accounts shown below.",
-            "routeHintAvailable": "The channel is configured at the gateway, but no binding currently routes it into this agent.",
-            "routeHintNotConfigured": "Configure this channel in the shared Channels workspace before binding it to this agent.",
-            "sharedConfigHint": "Channel credentials and setup remain shared in the gateway-level channel configuration.",
-            "noBoundAccounts": "No bound accounts",
-            "noConfiguredAccounts": "No configured accounts",
-            "openGuide": "Open setup guide"
+            "requirementConfig": "Config"
           },
           "status": {
             "bound": "Bound",
@@ -4318,7 +4220,6 @@
           "skillStates": {
             "disabled": "Disabled",
             "ready": "Ready",
-            "blocked": "Blocked",
             "needsSetup": "Needs Setup"
           },
           "dialog": {
@@ -5769,14 +5670,14 @@
     }
   },
   "market": {
-    "actions": {
-      "installPack": "Install pack",
-      "publishSkill": "New skill",
-      "createSkillWithChat": "Create with chat",
-      "uploadLocalSkill": "Upload local skill",
-      "confirmUninstallSkill": "Uninstall this skill?",
-      "uninstall": "Uninstall"
-    },
+  "actions": {
+    "installPack": "Install pack",
+    "publishSkill": "New skill",
+    "createSkillWithChat": "Create with chat",
+    "uploadLocalSkill": "Upload local skill",
+    "confirmUninstallSkill": "Uninstall this skill?",
+    "uninstall": "Uninstall"
+  },
     "badges": {
       "curated": "Curated"
     },
@@ -5871,18 +5772,18 @@
       "subtitle": "A calmer way to discover, install, and manage the skills that shape your workspace.",
       "title": "Claw Hub"
     },
-    "search": {
-      "placeholders": {
-        "discover": "Search skills, packs, authors, or categories...",
-        "installed": "Search installed skills...",
-        "packages": "Search skill packs, authors, or categories...",
-        "skills": "Search skills, authors, or categories...",
-        "mySkills": "Search my skills..."
-      }
-    },
-    "sections": {
-      "allSkills": "Skill library",
-      "allSkillsDescription": "Browse focused skills with less noise and clearer install intent.",
+  "search": {
+    "placeholders": {
+      "discover": "Search skills, packs, authors, or categories...",
+      "installed": "Search installed skills...",
+      "packages": "Search skill packs, authors, or categories...",
+      "skills": "Search skills, authors, or categories...",
+      "mySkills": "Search my skills..."
+    }
+  },
+  "sections": {
+    "allSkills": "Skill library",
+    "allSkillsDescription": "Browse focused skills with less noise and clearer install intent.",
       "featuredPacks": "Featured packs",
       "featuredPacksDescription": "Curated shortcuts for getting a full workflow online quickly.",
       "featuredPacksEyebrow": "Quick setup",
@@ -5890,13 +5791,13 @@
       "installedSkills": "Installed skills",
       "installedSkillsDescription": "Skills currently available on {{name}}.",
       "libraryEyebrow": "Browse",
-      "matchingPacks": "Matching packs",
-      "myInstalledSkills": "My installed skills",
-      "searchResults": "Search results",
-      "skillPacksDescription": "Browse ready-to-install groups of skills in one place.",
-      "sdkworkOfficialSkills": "SDKWork official skills",
-      "spotlightEyebrow": "Recommended",
-      "spotlightSkills": "Recommended skills",
+    "matchingPacks": "Matching packs",
+    "myInstalledSkills": "My installed skills",
+    "searchResults": "Search results",
+    "skillPacksDescription": "Browse ready-to-install groups of skills in one place.",
+    "sdkworkOfficialSkills": "SDKWork official skills",
+    "spotlightEyebrow": "Recommended",
+    "spotlightSkills": "Recommended skills",
       "spotlightSkillsDescription": "High-signal skills worth trying first when you want the cleanest starting point.",
       "topFreeSkills": "Top free skills",
       "trendingBundles": "Trending bundles"
@@ -5905,12 +5806,12 @@
       "offline": "Offline",
       "online": "Online"
     },
-    "tabs": {
-      "mySkills": "My Skills",
-      "packages": "Skill Packs",
-      "sdkwork": "SDKWork",
-      "skills": "Skills"
-    },
+  "tabs": {
+    "mySkills": "My Skills",
+    "packages": "Skill Packs",
+    "sdkwork": "SDKWork",
+    "skills": "Skills"
+  },
     "views": {
       "discover": "Skill library",
       "discoverDescription": "Default to discovery, keep packs nearby, and make the main catalog easier to scan.",
@@ -6379,7 +6280,7 @@
         "heroDescription": "Great for image, document, and multimodal product flows.",
         "audience": "Multimodal product teams",
         "modelHighlights": [
-          "Gemini 3.1 Pro",
+          "Gemini 2.5 Pro",
           "Gemini Flash",
           "Workspace"
         ]
@@ -6540,10 +6441,9 @@
     "page": {
       "eyebrow": "Provider Config Center",
       "title": "Provider Center",
-      "description": "Manage built-in provider presets, default model lists, API keys, and base URLs without coupling the app to any external router control plane.",
+      "description": "Manage built-in provider presets, default model lists, API keys, and base URLs without coupling the app to sdkwork-api-router.",
       "storageHint": "Provider configs are persisted to a writable SQLite storage profile when one is available."
     },
-    "searchPlaceholder": "Search provider, base URL, model, or API key",
     "summary": {
       "routeConfigs": "Route Configs",
       "llmReady": "LLM Ready",
@@ -6566,7 +6466,6 @@
       "loading": "Loading provider configs...",
       "emptyTitle": "No route config yet",
       "emptyDescription": "Add a route config to store your provider presets, model list, API key, and base URL in the built-in config center.",
-      "searchEmptyDescription": "No provider configs match your search.",
       "noNotes": "No notes",
       "notSet": "Not set",
       "noInstances": "No writable OpenClaw instance is available.",

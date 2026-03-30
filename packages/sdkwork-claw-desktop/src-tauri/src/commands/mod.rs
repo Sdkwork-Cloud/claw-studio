@@ -1,3 +1,4 @@
+pub mod api_router_runtime;
 pub mod app_info;
 pub mod capture_screenshot;
 pub mod component_commands;
@@ -12,12 +13,12 @@ pub mod get_path_info;
 pub mod get_system_info;
 pub mod hub_install_catalog;
 pub mod hub_install_progress;
+pub mod install_api_router_client_setup;
 pub mod job_commands;
 pub mod list_directory;
 pub mod move_path;
 pub mod open_external;
 pub mod path_exists;
-pub mod provider_client_setup;
 pub mod process_commands;
 pub mod read_binary_file;
 pub mod read_text_file;

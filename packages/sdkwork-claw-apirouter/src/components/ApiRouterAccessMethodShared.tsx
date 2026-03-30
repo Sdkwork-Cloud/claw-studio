@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import type { InstanceDirectoryItem } from '@sdkwork/claw-core';
 import {
   getRuntimePlatform,
-  type ProviderClientSetupOpenClawApiKeyStrategy,
+  type ApiRouterInstallerOpenClawApiKeyStrategy,
 } from '@sdkwork/claw-infrastructure';
 import type { ModelMapping } from '@sdkwork/claw-types';
 import {
@@ -47,7 +47,7 @@ export interface ProviderAccessClientInstallSelection {
   envScope: ProviderAccessEnvScope;
 }
 
-export type OpenClawApiKeyStrategy = ProviderClientSetupOpenClawApiKeyStrategy;
+export type OpenClawApiKeyStrategy = ApiRouterInstallerOpenClawApiKeyStrategy;
 
 const OPENCLAW_MODEL_MAPPING_NONE_VALUE = '__none__';
 

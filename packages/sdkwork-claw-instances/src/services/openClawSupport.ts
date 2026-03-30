@@ -348,16 +348,8 @@ export function tokenEstimate(text: string) {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-export function buildOpenClawAgentFileId(agentId: string, name: string, path?: string | null) {
-  const encodedAgentId = encodeURIComponent(agentId);
-  const encodedName = encodeURIComponent(name);
-  const normalizedPath = path?.trim();
-
-  if (!normalizedPath) {
-    return `${OPENCLAW_AGENT_FILE_ID_PREFIX}${encodedAgentId}:${encodedName}`;
-  }
-
-  return `${OPENCLAW_AGENT_FILE_ID_PREFIX}${encodedAgentId}:${encodedName}:${encodeURIComponent(normalizedPath)}`;
+export function buildOpenClawAgentFileId(agentId: string, name: string) {
+  return `${OPENCLAW_AGENT_FILE_ID_PREFIX}${encodeURIComponent(agentId)}:${encodeURIComponent(name)}`;
 }
 
 export function parseOpenClawAgentFileId(fileId: string) {
@@ -372,12 +364,7 @@ export function parseOpenClawAgentFileId(fileId: string) {
   }
 
   const encodedAgentId = encoded.slice(0, separatorIndex);
-  const remainder = encoded.slice(separatorIndex + 1);
-  const pathSeparatorIndex = remainder.indexOf(':');
-  const encodedName =
-    pathSeparatorIndex >= 0 ? remainder.slice(0, pathSeparatorIndex) : remainder;
-  const encodedPath =
-    pathSeparatorIndex >= 0 ? remainder.slice(pathSeparatorIndex + 1) : null;
+  const encodedName = encoded.slice(separatorIndex + 1);
 
   try {
     const agentId = decodeURIComponent(encodedAgentId);
@@ -385,11 +372,7 @@ export function parseOpenClawAgentFileId(fileId: string) {
     if (!agentId || !name) {
       return null;
     }
-    return {
-      agentId,
-      name,
-      path: encodedPath ? decodeURIComponent(encodedPath) : null,
-    };
+    return { agentId, name };
   } catch {
     return null;
   }

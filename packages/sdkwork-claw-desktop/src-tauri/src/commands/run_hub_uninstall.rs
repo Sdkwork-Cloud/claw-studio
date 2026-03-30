@@ -105,19 +105,12 @@ pub struct HubUninstallResult {
 }
 
 #[tauri::command]
-pub async fn run_hub_uninstall(
+pub fn run_hub_uninstall(
     request: RunHubUninstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubUninstallResult, String> {
-    let app_handle = app.clone();
-    let app_state = state.inner().clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
-        run_hub_uninstall_at(&app_handle, &app_state, request).map_err(|error| error.to_string())
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    run_hub_uninstall_at(&app, &state, request).map_err(|error| error.to_string())
 }
 
 pub fn run_hub_uninstall_at<R: Runtime>(

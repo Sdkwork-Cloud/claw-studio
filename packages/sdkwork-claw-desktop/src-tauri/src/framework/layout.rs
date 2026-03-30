@@ -613,6 +613,12 @@ mod tests {
         );
         assert_eq!(
             components
+                .pointer("/entries/sdkwork-api-router/enabledByDefault")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            components
                 .pointer("/entries/zeroclaw/enabledByDefault")
                 .and_then(Value::as_bool),
             Some(false)
@@ -624,6 +630,7 @@ mod tests {
             Some("embedded")
         );
         assert!(upgrades.components.contains_key("openclaw"));
+        assert!(upgrades.components.contains_key("sdkwork-api-router"));
         assert!(!upgrades.components.contains_key("hub-installer"));
     }
 
@@ -681,7 +688,7 @@ mod tests {
 
         set_active_runtime_version(&paths, "openclaw", "2026.3.20-windows-x64")
             .expect("first runtime activation");
-        set_active_runtime_version(&paths, "openclaw", "2026.3.28-windows-x64")
+        set_active_runtime_version(&paths, "openclaw", "2026.3.23-2-windows-x64")
             .expect("second runtime activation");
 
         let active = serde_json::from_str::<ActiveState>(
@@ -695,7 +702,7 @@ mod tests {
 
         assert_eq!(
             openclaw.active_version.as_deref(),
-            Some("2026.3.28-windows-x64")
+            Some("2026.3.23-2-windows-x64")
         );
         assert_eq!(
             openclaw.fallback_version.as_deref(),

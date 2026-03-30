@@ -1,32 +1,7 @@
-import {
-  Suspense,
-  lazy,
-  startTransition,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ButtonHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { ChevronDown, CircleUserRound, Search, Smartphone } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Suspense, lazy, startTransition, useEffect, useState, type ReactNode } from 'react';
+import { Search, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import {
-  DesktopWindowControls,
-  openExternalUrl,
-  useAuthStore,
-} from '@sdkwork/claw-core';
-import { pointsQueryKeys, pointsService } from '@sdkwork/claw-points';
-import { AccountMenuContent } from './AccountMenuContent';
-import {
-  buildAuthenticatedAccountMenuSections,
-  buildGuestAccountMenuSections,
-  MOBILE_APP_DOWNLOAD_URL,
-  type AccountMenuAction,
-} from './accountMenuModel';
+import { DesktopWindowControls, useAppStore } from '@sdkwork/claw-core';
 import { OPEN_COMMAND_PALETTE_EVENT } from './commandPaletteEvents';
 
 const InstanceSwitcher = lazy(() =>
@@ -35,7 +10,7 @@ const InstanceSwitcher = lazy(() =>
   })),
 );
 const PointsHeaderEntry = lazy(() =>
-  import('../lazy/points.ts').then((module) => ({
+  import('@sdkwork/claw-points').then((module) => ({
     default: module.PointsHeaderEntry,
   })),
 );
@@ -92,20 +67,18 @@ function HeaderActionButton({
   onClick,
   children,
   className = '',
-  ...buttonProps
 }: {
   title: string;
   onClick: () => void;
   children: ReactNode;
   className?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
+}) {
   return (
     <button
       type="button"
       data-tauri-drag-region="false"
       title={title}
       onClick={onClick}
-      {...buttonProps}
       className={`flex h-9 items-center justify-center rounded-2xl bg-zinc-950/[0.045] px-3 text-zinc-600 transition-colors hover:bg-zinc-950/[0.08] hover:text-zinc-950 dark:bg-white/[0.06] dark:text-zinc-300 dark:hover:bg-white/[0.12] dark:hover:text-white ${className}`}
     >
       {children}
@@ -119,48 +92,10 @@ export interface AppHeaderProps {
 
 export function AppHeader({ mode = 'default' }: AppHeaderProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { isAuthenticated, user, signOut } = useAuthStore();
+  const openMobileAppDialog = useAppStore((state) => state.openMobileAppDialog);
   const isAuthMode = mode === 'auth';
   const [shouldRenderInstanceSwitcher, setShouldRenderInstanceSwitcher] = useState(false);
   const [shouldRenderPointsEntry, setShouldRenderPointsEntry] = useState(false);
-  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
-  const accountMenuRef = useRef<HTMLDivElement>(null);
-  const loginRedirectTarget = `${location.pathname}${location.search}` || '/';
-  const loginTarget = `/login?redirect=${encodeURIComponent(loginRedirectTarget)}`;
-  const {
-    data: pointsDashboard = pointsService.getEmptyDashboard(),
-    isError: isPointsDashboardError,
-  } = useQuery({
-    queryKey: pointsQueryKeys.dashboard,
-    queryFn: () => pointsService.getDashboard(),
-    placeholderData: pointsService.getEmptyDashboard(),
-    enabled: !isAuthMode && isAuthenticated,
-  });
-  const hasLivePointsSummary = pointsDashboard.summary.isAuthenticated;
-
-  const accountMenuSections = useMemo(
-    () =>
-      isAuthenticated
-        ? buildAuthenticatedAccountMenuSections()
-        : buildGuestAccountMenuSections(loginTarget),
-    [isAuthenticated, loginTarget],
-  );
-  const membershipLabel = isAuthenticated
-    ? hasLivePointsSummary
-      ? pointsDashboard.summary.currentPlan.name || t('headerAccountMenu.free')
-      : isPointsDashboardError
-        ? t('headerAccountMenu.unavailableMembership')
-        : t('headerAccountMenu.loadingMembership')
-    : t('headerAccountMenu.guest');
-  const pointsLabel = isAuthenticated
-    ? hasLivePointsSummary
-      ? `${new Intl.NumberFormat().format(pointsDashboard.summary.balancePoints)} ${t('headerAccountMenu.pointsUnit')}`
-      : isPointsDashboardError
-        ? t('headerAccountMenu.unavailablePoints')
-        : t('headerAccountMenu.loadingPoints')
-    : t('headerAccountMenu.guestPoints');
 
   useEffect(() => {
     if (isAuthMode) {
@@ -191,66 +126,6 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
 
     return () => window.clearTimeout(timeout);
   }, [isAuthMode]);
-
-  useEffect(() => {
-    if (!isAccountMenuOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!accountMenuRef.current?.contains(event.target as Node)) {
-        setIsAccountMenuOpen(false);
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-    };
-  }, [isAccountMenuOpen]);
-
-  useEffect(() => {
-    setIsAccountMenuOpen(false);
-  }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    if (!isAccountMenuOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsAccountMenuOpen(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isAccountMenuOpen]);
-
-  const handleDownloadMobileApp = async () => {
-    try {
-      await openExternalUrl(MOBILE_APP_DOWNLOAD_URL);
-    } catch (error: any) {
-      toast.error(error?.message || t('headerAccountMenu.downloadFailed'));
-    }
-  };
-
-  const handleAccountAction = async (action: AccountMenuAction) => {
-    setIsAccountMenuOpen(false);
-
-    if (action.id === 'sign-out') {
-      await signOut();
-      navigate('/login', { replace: true });
-      return;
-    }
-
-    if (action.to) {
-      navigate(action.to);
-    }
-  };
 
   return (
     <div className="relative z-30 bg-white/72 backdrop-blur-xl dark:bg-zinc-950/78">
@@ -325,9 +200,7 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
             <>
               <HeaderActionButton
                 title={t('install.mobileGuide.headerAction')}
-                onClick={() => {
-                  void handleDownloadMobileApp();
-                }}
+                onClick={openMobileAppDialog}
                 className="gap-2 px-2.5"
               >
                 <Smartphone className="h-4 w-4" />
@@ -340,50 +213,6 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
                   <PointsHeaderEntry />
                 </Suspense>
               ) : null}
-              <div ref={accountMenuRef} className="relative">
-                <HeaderActionButton
-                  title={user?.displayName || t('sidebar.userMenu.open')}
-                  onClick={() => setIsAccountMenuOpen((open) => !open)}
-                  className="gap-2 px-2"
-                  aria-haspopup="menu"
-                  aria-expanded={isAccountMenuOpen}
-                >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-zinc-950/8 text-xs font-semibold text-zinc-700 dark:bg-white/10 dark:text-zinc-100">
-                    {isAuthenticated && user?.avatarUrl ? (
-                      <img
-                        src={user.avatarUrl}
-                        alt={user.displayName}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : isAuthenticated ? (
-                      user?.initials
-                    ) : (
-                      <CircleUserRound className="h-4 w-4" />
-                    )}
-                  </div>
-                  <span className="hidden max-w-28 truncate text-xs font-medium lg:inline">
-                    {isAuthenticated ? user?.displayName : t('sidebar.userMenu.login')}
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 shrink-0 transition-transform ${isAccountMenuOpen ? 'rotate-180' : ''}`}
-                  />
-                </HeaderActionButton>
-
-                {isAccountMenuOpen ? (
-                  <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50">
-                    <AccountMenuContent
-                      isAuthenticated={isAuthenticated}
-                      user={user}
-                      membershipLabel={membershipLabel}
-                      pointsLabel={pointsLabel}
-                      sections={accountMenuSections}
-                      onAction={(action) => {
-                        void handleAccountAction(action);
-                      }}
-                    />
-                  </div>
-                ) : null}
-              </div>
             </>
           ) : null}
           <DesktopWindowControls variant="header" />
