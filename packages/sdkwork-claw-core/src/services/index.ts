@@ -1,6 +1,5 @@
 export * from './appAuthService.ts';
 export * from './appStoreCatalogService.ts';
-export * from './apiRouterStartupService.ts';
 export * from './accountService.ts';
 export * from './cronTaskPayload.ts';
 export * from './chatUploadService.ts';

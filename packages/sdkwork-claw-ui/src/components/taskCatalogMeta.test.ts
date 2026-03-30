@@ -32,10 +32,10 @@ runTest('task catalog badge helpers map task semantics to shared tones', () => {
   assert.equal(getTaskHistoryBadgeTone('running'), 'warning');
 });
 
-runTest('task catalog status helper blocks failed tasks from inline pause-resume toggles', () => {
+runTest('task catalog status helper keeps failed tasks disableable when the runtime still marks them enabled', () => {
   assert.equal(getTaskToggleStatusTarget('active'), 'paused');
   assert.equal(getTaskToggleStatusTarget('paused'), 'active');
-  assert.equal(getTaskToggleStatusTarget('failed'), null);
+  assert.equal(getTaskToggleStatusTarget('failed'), 'paused');
 });
 
 runTest('getTaskPreview normalizes whitespace and truncates long content', () => {

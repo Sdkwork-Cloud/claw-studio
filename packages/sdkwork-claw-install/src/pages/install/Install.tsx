@@ -72,6 +72,7 @@ type ActionState =
 
 type RuntimePaths = NonNullable<RuntimeInfo['paths']>;
 type AssessmentStateMap = Partial<Record<string, InstallChoiceAssessmentState>>;
+const INSTALL_ASSESSMENT_CONCURRENCY = 2;
 
 interface InstallSurfaceChoice {
   id: string;
@@ -182,6 +183,49 @@ function translateOrFallback(
 ) {
   const translated = t(key);
   return translated === key ? fallback ?? translated : translated;
+}
+
+async function inspectInstallChoicesWithConcurrencyLimit(
+  installChoices: InstallSurfaceChoice[],
+  onResult: (choiceId: string, assessment: InstallChoiceAssessmentState) => void,
+  shouldCancel: () => boolean,
+) {
+  let nextIndex = 0;
+
+  async function inspectNextChoice() {
+    while (!shouldCancel()) {
+      const choice = installChoices[nextIndex];
+      nextIndex += 1;
+
+      if (!choice) {
+        return;
+      }
+
+      let assessment: InstallChoiceAssessmentState;
+      try {
+        const result = await installerService.inspectHubInstall(choice.request);
+        assessment = { status: 'success', result };
+      } catch (error: unknown) {
+        assessment = {
+          status: 'error',
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+
+      if (shouldCancel()) {
+        return;
+      }
+
+      onResult(choice.id, assessment);
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(INSTALL_ASSESSMENT_CONCURRENCY, installChoices.length) },
+      () => inspectNextChoice(),
+    ),
+  );
 }
 
 function buildStaticInstallChoices(
@@ -579,32 +623,19 @@ export function Install() {
     );
 
     void (async () => {
-      const results = await Promise.all(
-        installChoices.map(async (choice) => {
-          try {
-            const result = await installerService.inspectHubInstall(choice.request);
-            return [choice.id, { status: 'success', result } satisfies InstallChoiceAssessmentState] as const;
-          } catch (error: unknown) {
-            return [
-              choice.id,
-              {
-                status: 'error',
-                error: error instanceof Error ? error.message : String(error),
-              } satisfies InstallChoiceAssessmentState,
-            ] as const;
+      await inspectInstallChoicesWithConcurrencyLimit(
+        installChoices,
+        (choiceId, assessment) => {
+          if (cancelled) {
+            return;
           }
-        }),
-      );
 
-      if (cancelled) {
-        return;
-      }
-
-      setInstallAssessments(
-        results.reduce<AssessmentStateMap>((accumulator, [id, assessment]) => {
-          accumulator[id] = assessment;
-          return accumulator;
-        }, {}),
+          setInstallAssessments((previous) => ({
+            ...previous,
+            [choiceId]: assessment,
+          }));
+        },
+        () => cancelled,
       );
     })();
 

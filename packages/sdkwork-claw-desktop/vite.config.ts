@@ -6,28 +6,31 @@ import {
   isSharedSdkSourceMode,
   resolvePnpmPackageDistEntry,
 } from '../../scripts/shared-sdk-mode.mjs';
+import {
+  remapWorktreeWorkspaceImport,
+  resolveWorkspacePackageEntry,
+} from './viteWorkspaceResolver.ts';
 
-function workspacePackageResolver() {
+function workspacePackageResolver(packagesRootDir: string) {
   return {
     name: 'workspace-package-resolver',
-    resolveId(source: string) {
-      const match = source.match(/^@sdkwork\/(claw-[^/]+)$/);
-      if (!match) {
-        return null;
-      }
-
-      const dirName = `sdkwork-${match[1]}`;
-      return path.resolve(__dirname, '../../packages', dirName, 'src/index.ts');
+    enforce: 'pre' as const,
+    resolveId(source: string, importer?: string) {
+      return (
+        resolveWorkspacePackageEntry(source, packagesRootDir) ??
+        remapWorktreeWorkspaceImport(source, importer, packagesRootDir)
+      );
     },
   };
 }
 
 export default defineConfig(({ command, mode }) => {
-  const env = loadEnv(mode, '.', '');
+  const env = loadEnv(mode, __dirname, '');
   const useSharedSdkSourceMode = isSharedSdkSourceMode(process.env);
   // Allow pnpm workspace-linked SDK packages that live above apps/claw-studio.
   const workspaceRootDir = path.resolve(__dirname, '../..');
   const monorepoRoot = path.resolve(__dirname, '../../../../..');
+  const packagesRootDir = path.resolve(__dirname, '../../packages');
   const sharedAppSdkSourceEntry = path.resolve(
     __dirname,
     '../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts',
@@ -47,12 +50,19 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     base: command === 'build' ? './' : '/',
-    plugins: [workspacePackageResolver(), react(), tailwindcss()],
+    plugins: [workspacePackageResolver(packagesRootDir), react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),
       'import.meta.env.VITE_ACCESS_TOKEN': JSON.stringify(env.VITE_ACCESS_TOKEN || ''),
     },
     resolve: {
+      dedupe: [
+        'react',
+        'react-dom',
+        '@sdkwork/claw-infrastructure',
+        '@sdkwork/claw-i18n',
+        '@sdkwork/sdk-common',
+      ],
       alias: [
         { find: '@', replacement: path.resolve(__dirname, '.') },
         ...(useSharedSdkSourceMode

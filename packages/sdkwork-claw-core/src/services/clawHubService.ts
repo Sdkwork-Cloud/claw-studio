@@ -8,6 +8,8 @@ import type {
 } from '@sdkwork/app-sdk';
 import type { Review, Skill, SkillPack } from '@sdkwork/claw-types';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { readAppSdkSessionTokens } from '../sdk/appSdkSession.ts';
+import { getAppSdkClientWithSession } from '../sdk/useAppSdkClient.ts';
 
 export interface ClawHubCategory {
   id: string;
@@ -49,13 +51,11 @@ export interface ClawHubService {
 
 const SKILL_PAGE_SIZE = 100;
 
-async function getDefaultClient(): Promise<ClawHubClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultClient(): ClawHubClient {
   return getAppSdkClientWithSession();
 }
 
-async function getDefaultSessionTokens(): Promise<ClawHubSessionTokens> {
-  const { readAppSdkSessionTokens } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultSessionTokens(): ClawHubSessionTokens {
   return readAppSdkSessionTokens();
 }
 

@@ -46,9 +46,20 @@ function readPermissionEntries(manifestPath) {
   return parsed;
 }
 
+export function resolveTauriTargetDir(
+  srcTauriDir = 'src-tauri',
+  cargoTargetDir = process.env.CARGO_TARGET_DIR,
+) {
+  if (typeof cargoTargetDir === 'string' && cargoTargetDir.trim().length > 0) {
+    return path.resolve(cargoTargetDir);
+  }
+
+  return path.join(path.resolve(srcTauriDir), 'target');
+}
+
 export function inspectTauriTarget(srcTauriDir = 'src-tauri') {
   const resolvedSrcTauriDir = path.resolve(srcTauriDir);
-  const targetDir = path.join(resolvedSrcTauriDir, 'target');
+  const targetDir = resolveTauriTargetDir(resolvedSrcTauriDir);
 
   if (!existsSync(targetDir)) {
     return {

@@ -51,7 +51,7 @@ function createRuntimeStatus(
     },
     adminSiteBaseUrl: 'http://127.0.0.1:13003/admin',
     portalSiteBaseUrl: 'http://127.0.0.1:13003/portal',
-    reason: 'Detected a healthy independently started sdkwork-api-router runtime.',
+    reason: 'Detected a healthy independently started router runtime.',
     ...overrides,
   };
 }

@@ -38,12 +38,14 @@ import {
 import type { ProxyProviderModel } from '@sdkwork/claw-types';
 import {
   applyHubInstallResultToProgressState,
+  createHubInstallProgressBatcher,
   createHubInstallProgressState,
   formatHubInstallProgressEvent,
   installBootstrapService,
   installGuidedWizardService,
   installerService,
   reduceHubInstallProgressEvent,
+  type HubInstallProgressBatcher,
   type InstallBootstrapData,
   type InstallProviderDraft,
 } from '../services';
@@ -194,6 +196,9 @@ export function GuidedInstallWizard({
   const navigate = useNavigate();
   const setActiveInstanceId = useInstanceStore((state) => state.setActiveInstanceId);
   const progressRef = useRef<RuntimeEventUnsubscribe | null>(null);
+  const progressBatcherRef = useRef<HubInstallProgressBatcher<HubInstallProgressEvent> | null>(
+    null,
+  );
 
   const [currentStepId, setCurrentStepId] = useState<StepId>('dependencies');
   const [assessment, setAssessment] = useState<AssessmentState>({ status: 'idle' });
@@ -302,6 +307,9 @@ export function GuidedInstallWizard({
   ]);
 
   async function cleanupProgress() {
+    progressBatcherRef.current?.flush();
+    progressBatcherRef.current?.cancel();
+    progressBatcherRef.current = null;
     const unsubscribe = progressRef.current;
     progressRef.current = null;
     if (unsubscribe) {
@@ -407,17 +415,38 @@ export function GuidedInstallWizard({
       ...previous,
       [dependency.id]: { status: 'running', output: '' },
     }));
+    progressBatcherRef.current = createHubInstallProgressBatcher<HubInstallProgressEvent>(
+      (events) => {
+        setDependencyStates((previous) => {
+          let changed = false;
+          let nextState = previous;
+
+          for (const event of events) {
+            const line = formatHubInstallProgressEvent(t as (key: string) => string, event);
+            if (!line.trim()) continue;
+
+            const currentDependencyState =
+              nextState[dependency.id] || { status: 'running', output: '' };
+            const updatedDependencyState = {
+              ...currentDependencyState,
+              output: appendOutput(currentDependencyState.output, line),
+            };
+
+            if (!changed) {
+              changed = true;
+              nextState = { ...previous };
+            }
+
+            nextState[dependency.id] = updatedDependencyState;
+          }
+
+          return changed ? nextState : previous;
+        });
+      },
+    );
     progressRef.current = await installerService.subscribeHubInstallProgress(
       (event: HubInstallProgressEvent) => {
-        const line = formatHubInstallProgressEvent(t as (key: string) => string, event);
-        if (!line.trim()) return;
-        setDependencyStates((previous) => ({
-          ...previous,
-          [dependency.id]: {
-            ...(previous[dependency.id] || { status: 'running', output: '' }),
-            output: appendOutput(previous[dependency.id]?.output || '', line),
-          },
-        }));
+        progressBatcherRef.current?.push(event);
       },
     );
     try {
@@ -468,12 +497,26 @@ export function GuidedInstallWizard({
     setInstallOutput('');
     setInstallResult(null);
     setInstallProgress(createHubInstallProgressState());
+    progressBatcherRef.current = createHubInstallProgressBatcher<HubInstallProgressEvent>(
+      (events) => {
+        setInstallProgress((previous) =>
+          events.reduce(reduceHubInstallProgressEvent, previous),
+        );
+        setInstallOutput((previous) => {
+          let nextOutput = previous;
+
+          for (const event of events) {
+            const line = formatHubInstallProgressEvent(t as (key: string) => string, event);
+            if (!line.trim()) continue;
+            nextOutput = appendOutput(nextOutput, line);
+          }
+
+          return nextOutput;
+        });
+      },
+    );
     progressRef.current = await installerService.subscribeHubInstallProgress((event) => {
-      const line = formatHubInstallProgressEvent(t as (key: string) => string, event);
-      if (line.trim()) {
-        setInstallOutput((previous) => appendOutput(previous, line));
-      }
-      setInstallProgress((previous) => reduceHubInstallProgressEvent(previous, event));
+      progressBatcherRef.current?.push(event);
     });
     try {
       const result = await installerService.runHubInstall(request);

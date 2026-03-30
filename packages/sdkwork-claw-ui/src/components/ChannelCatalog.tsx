@@ -1,14 +1,21 @@
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ExternalLink, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './Button';
 import { Switch } from './Switch';
+import { ChannelRegionTabs } from './ChannelRegionTabs';
 import {
-  isChannelDownloadAppAction,
   getChannelCatalogMonogram,
   getChannelCatalogTone,
   getChannelOfficialLink,
+  getSupplementalChannelCatalogEntries,
+  isChannelDownloadAppAction,
+  isManagedChannelCatalogEntry,
+  partitionChannelCatalogItemsByRegion,
+  resolveDefaultChannelCatalogRegion,
   sortChannelCatalogItems,
+  type ChannelCatalogRegion,
   type ChannelOfficialLink,
 } from './channelCatalogMeta';
 import { getChannelCatalogIcon } from './channelCatalogIcons';
@@ -51,6 +58,8 @@ export interface ChannelCatalogProps {
   texts: ChannelCatalogTexts;
   variant?: ChannelCatalogVariant;
   emptyState?: React.ReactNode;
+  showRegionTabs?: boolean;
+  includeSupplementalItems?: boolean;
   resolveOfficialLink?: (channel: ChannelCatalogItem) => ChannelOfficialLink | null;
   onOpenOfficialLink?: (
     channel: ChannelCatalogItem,
@@ -66,7 +75,9 @@ interface StatusBadgeConfig {
 }
 
 function getOfficialActionLabel(channel: ChannelCatalogItem, texts: ChannelCatalogTexts) {
-  return isChannelDownloadAppAction(channel.id) ? texts.actionDownloadApp : texts.actionOpenOfficialSite;
+  return isChannelDownloadAppAction(channel.id)
+    ? texts.actionDownloadApp
+    : texts.actionOpenOfficialSite;
 }
 
 function getStatusBadge(
@@ -113,6 +124,39 @@ function getStatusBadge(
       'border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
     label: texts.statusNotConfigured,
   };
+}
+
+function buildSupplementalChannelCatalogItems(
+  t: (key: string) => string,
+): ChannelCatalogItem[] {
+  return getSupplementalChannelCatalogEntries().map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    description: t(entry.descriptionKey),
+    status: 'disconnected',
+    enabled: false,
+    configurationMode: 'none',
+    fieldCount: 0,
+    configuredFieldCount: 0,
+    setupSteps: [t('channels.page.catalog.supplemental.referenceSetup')],
+  }));
+}
+
+function mergeSupplementalChannelCatalogItems(
+  items: ChannelCatalogItem[],
+  t: (key: string) => string,
+  includeSupplementalItems: boolean,
+) {
+  if (!includeSupplementalItems) {
+    return sortChannelCatalogItems(items);
+  }
+
+  const existingIds = new Set(items.map((item) => item.id));
+  const supplementalItems = buildSupplementalChannelCatalogItems(t).filter(
+    (item) => !existingIds.has(item.id),
+  );
+
+  return sortChannelCatalogItems([...items, ...supplementalItems]);
 }
 
 function SummaryMetric({
@@ -203,113 +247,139 @@ function ChannelIdentity({
   );
 }
 
-export function ChannelCatalog({
+function RegionEmptyState({
+  title,
+}: {
+  title: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
+      {title}
+    </div>
+  );
+}
+
+function SummaryContent({
   items,
   texts,
-  variant = 'management',
-  emptyState = null,
-  resolveOfficialLink = (channel) => getChannelOfficialLink(channel.id),
+  resolveOfficialLink,
+  onOpenOfficialLink,
+}: {
+  items: ChannelCatalogItem[];
+  texts: ChannelCatalogTexts;
+  resolveOfficialLink: (channel: ChannelCatalogItem) => ChannelOfficialLink | null;
+  onOpenOfficialLink?: (
+    channel: ChannelCatalogItem,
+    link: ChannelOfficialLink,
+  ) => Promise<void> | void;
+}) {
+  return (
+    <div
+      data-slot="channel-catalog-summary"
+      className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35"
+    >
+      {items.map((channel, index) => {
+        const badge = getStatusBadge(channel, texts, 'summary');
+        const officialLink = resolveOfficialLink(channel);
+        const shouldShowConfiguredFieldMetric =
+          typeof channel.configuredFieldCount === 'number' &&
+          typeof channel.fieldCount === 'number' &&
+          channel.fieldCount > 0;
+
+        return (
+          <div
+            key={channel.id}
+            className={cn(
+              'grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_auto] xl:items-center',
+              index === items.length - 1 ? '' : 'border-b border-zinc-200/70 dark:border-zinc-800',
+            )}
+          >
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {channel.name}
+                </h3>
+                <span
+                  className={cn(
+                    'rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em]',
+                    badge.className,
+                  )}
+                >
+                  {badge.label}
+                </span>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {channel.description}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-5">
+              {shouldShowConfiguredFieldMetric ? (
+                <SummaryMetric
+                  label={texts.metricConfiguredFields}
+                  value={`${channel.configuredFieldCount}/${channel.fieldCount}`}
+                />
+              ) : null}
+              <SummaryMetric
+                label={texts.metricSetupSteps}
+                value={channel.setupSteps?.length || 0}
+              />
+              <SummaryMetric
+                label={texts.metricDeliveryState}
+                value={channel.enabled ? texts.stateEnabled : texts.statePending}
+              />
+            </div>
+
+            <div className="xl:max-w-sm">
+              <div className="rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
+                {channel.setupSteps?.[0] || texts.summaryFallback}
+              </div>
+              {officialLink ? (
+                <OfficialLinkButton
+                  channel={channel}
+                  link={officialLink}
+                  label={getOfficialActionLabel(channel, texts)}
+                  className="mt-3"
+                  onOpenOfficialLink={onOpenOfficialLink}
+                />
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ManagementContent({
+  items,
+  texts,
+  resolveOfficialLink,
   onOpenOfficialLink,
   onConfigure,
   onToggleEnabled,
-}: ChannelCatalogProps) {
-  if (items.length === 0) {
-    return <>{emptyState}</>;
-  }
-
-  const sortedItems = sortChannelCatalogItems(items);
-
-  if (variant === 'summary') {
-    return (
-      <div
-        data-slot="channel-catalog-summary"
-        className="overflow-hidden rounded-[1.5rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35"
-      >
-        {sortedItems.map((channel, index) => {
-          const badge = getStatusBadge(channel, texts, variant);
-          const officialLink = resolveOfficialLink(channel);
-          const shouldShowConfiguredFieldMetric =
-            typeof channel.configuredFieldCount === 'number' &&
-            typeof channel.fieldCount === 'number' &&
-            channel.fieldCount > 0;
-
-          return (
-            <div
-              key={channel.id}
-              className={cn(
-                'grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_auto] xl:items-center',
-                index === sortedItems.length - 1
-                  ? ''
-                  : 'border-b border-zinc-200/70 dark:border-zinc-800',
-              )}
-            >
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                    {channel.name}
-                  </h3>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em]',
-                      badge.className,
-                    )}
-                  >
-                    {badge.label}
-                  </span>
-                </div>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                  {channel.description}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-5">
-                {shouldShowConfiguredFieldMetric ? (
-                  <SummaryMetric
-                    label={texts.metricConfiguredFields}
-                    value={`${channel.configuredFieldCount}/${channel.fieldCount}`}
-                  />
-                ) : null}
-                <SummaryMetric
-                  label={texts.metricSetupSteps}
-                  value={channel.setupSteps?.length || 0}
-                />
-                <SummaryMetric
-                  label={texts.metricDeliveryState}
-                  value={channel.enabled ? texts.stateEnabled : texts.statePending}
-                />
-              </div>
-
-              <div className="xl:max-w-sm">
-                <div className="rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
-                  {channel.setupSteps?.[0] || texts.summaryFallback}
-                </div>
-                {officialLink ? (
-                  <OfficialLinkButton
-                    channel={channel}
-                    link={officialLink}
-                    label={getOfficialActionLabel(channel, texts)}
-                    className="mt-3"
-                    onOpenOfficialLink={onOpenOfficialLink}
-                  />
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
+}: {
+  items: ChannelCatalogItem[];
+  texts: ChannelCatalogTexts;
+  resolveOfficialLink: (channel: ChannelCatalogItem) => ChannelOfficialLink | null;
+  onOpenOfficialLink?: (
+    channel: ChannelCatalogItem,
+    link: ChannelOfficialLink,
+  ) => Promise<void> | void;
+  onConfigure?: (channel: ChannelCatalogItem) => void;
+  onToggleEnabled?: (channel: ChannelCatalogItem, nextEnabled: boolean) => void;
+}) {
   return (
     <div
       data-slot="channel-catalog-management"
       className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
     >
       <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {sortedItems.map((channel) => {
-          const badge = getStatusBadge(channel, texts, variant);
+        {items.map((channel) => {
+          const badge = getStatusBadge(channel, texts, 'management');
           const officialLink = resolveOfficialLink(channel);
           const isDownloadAppChannel = isChannelDownloadAppAction(channel.id);
+          const canManageChannel = isManagedChannelCatalogEntry(channel.id);
 
           return (
             <div
@@ -348,7 +418,7 @@ export function ChannelCatalog({
                   />
                 ) : null}
 
-                {isDownloadAppChannel ? (
+                {!canManageChannel ? null : isDownloadAppChannel ? (
                   onToggleEnabled ? (
                     <Switch
                       checked={channel.enabled}
@@ -382,6 +452,95 @@ export function ChannelCatalog({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+export function ChannelCatalog({
+  items,
+  texts,
+  variant = 'management',
+  emptyState = null,
+  showRegionTabs = true,
+  includeSupplementalItems,
+  resolveOfficialLink = (channel) => getChannelOfficialLink(channel.id),
+  onOpenOfficialLink,
+  onConfigure,
+  onToggleEnabled,
+}: ChannelCatalogProps) {
+  const { t } = useTranslation();
+  const shouldIncludeSupplementalItems = includeSupplementalItems ?? items.length > 0;
+
+  const catalogItems = React.useMemo(
+    () =>
+      mergeSupplementalChannelCatalogItems(items, t, shouldIncludeSupplementalItems),
+    [items, shouldIncludeSupplementalItems, t],
+  );
+
+  const regionGroups = React.useMemo(
+    () => partitionChannelCatalogItemsByRegion(catalogItems),
+    [catalogItems],
+  );
+
+  const [activeRegion, setActiveRegion] = React.useState<ChannelCatalogRegion>(() =>
+    resolveDefaultChannelCatalogRegion(regionGroups),
+  );
+
+  React.useEffect(() => {
+    const preferredRegion = resolveDefaultChannelCatalogRegion(regionGroups);
+    if (regionGroups[activeRegion].length === 0 && regionGroups[preferredRegion].length > 0) {
+      setActiveRegion(preferredRegion);
+    }
+  }, [activeRegion, regionGroups]);
+
+  if (catalogItems.length === 0) {
+    return <>{emptyState}</>;
+  }
+
+  const visibleItems = showRegionTabs ? regionGroups[activeRegion] : catalogItems;
+  const regionLabels: Record<ChannelCatalogRegion, string> = {
+    domestic: t('channels.page.catalog.tabs.domestic'),
+    global: t('channels.page.catalog.tabs.global'),
+  };
+  const regionCounts: Record<ChannelCatalogRegion, number> = {
+    domestic: regionGroups.domestic.length,
+    global: regionGroups.global.length,
+  };
+  const regionEmptyMessage =
+    activeRegion === 'domestic'
+      ? t('channels.page.catalog.empty.domestic')
+      : t('channels.page.catalog.empty.global');
+
+  return (
+    <div className="space-y-4">
+      {showRegionTabs ? (
+        <ChannelRegionTabs
+          activeRegion={activeRegion}
+          counts={regionCounts}
+          labels={regionLabels}
+          onChange={setActiveRegion}
+        />
+      ) : null}
+
+      {visibleItems.length === 0 ? (
+        <RegionEmptyState title={regionEmptyMessage} />
+      ) : variant === 'summary' ? (
+        <SummaryContent
+          items={visibleItems}
+          texts={texts}
+          resolveOfficialLink={resolveOfficialLink}
+          onOpenOfficialLink={onOpenOfficialLink}
+        />
+      ) : (
+        <ManagementContent
+          items={visibleItems}
+          texts={texts}
+          resolveOfficialLink={resolveOfficialLink}
+          onOpenOfficialLink={onOpenOfficialLink}
+          onConfigure={onConfigure}
+          onToggleEnabled={onToggleEnabled}
+        />
+      )}
     </div>
   );
 }

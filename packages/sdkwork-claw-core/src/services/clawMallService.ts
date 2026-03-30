@@ -6,6 +6,7 @@ import type {
   SdkworkAppClient,
 } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { getAppSdkClientWithSession } from '../sdk/useAppSdkClient.ts';
 
 type ClawMallClient = Pick<SdkworkAppClient, 'product'>;
 
@@ -67,8 +68,7 @@ export interface ClawMallService {
   getProduct(id: string): Promise<ClawMallProduct>;
 }
 
-async function getDefaultClient(): Promise<ClawMallClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultClient(): ClawMallClient {
   return getAppSdkClientWithSession();
 }
 

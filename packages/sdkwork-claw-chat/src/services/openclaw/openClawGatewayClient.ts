@@ -82,6 +82,7 @@ export interface OpenClawGatewayDeviceIdentityProvider {
 export interface OpenClawGatewayClientOptions {
   url: string;
   authToken?: string | null;
+  resolveAuthToken?: () => string | null | undefined | Promise<string | null | undefined>;
   password?: string | null;
   instanceId?: string;
   clientId?: string;
@@ -655,7 +656,7 @@ export class OpenClawGatewayClient {
     this.clearConnectTimer();
 
     const clientId = trimToUndefined(this.options.clientId) ?? DEFAULT_CLIENT_ID;
-    const explicitGatewayToken = trimToUndefined(this.options.authToken);
+    const explicitGatewayToken = await this.resolveExplicitGatewayToken();
     const authPassword = trimToUndefined(this.options.password);
     const identity = await this.deviceIdentityProvider.loadOrCreate();
     const selectedAuth: SelectedConnectAuth =
@@ -663,6 +664,8 @@ export class OpenClawGatewayClient {
         ? this.selectConnectAuth({
             role: DEFAULT_ROLE,
             deviceId: identity.deviceId,
+            explicitGatewayToken,
+            authPassword,
           })
         : {
             authToken: explicitGatewayToken,
@@ -979,9 +982,11 @@ export class OpenClawGatewayClient {
   private selectConnectAuth(params: {
     role: OpenClawGatewayAuthRole;
     deviceId: string;
+    explicitGatewayToken?: string;
+    authPassword?: string;
   }): SelectedConnectAuth {
-    const explicitGatewayToken = trimToUndefined(this.options.authToken);
-    const authPassword = trimToUndefined(this.options.password);
+    const explicitGatewayToken = trimToUndefined(params.explicitGatewayToken);
+    const authPassword = trimToUndefined(params.authPassword);
     const storedToken = readStoredDeviceToken(this.storage, params.deviceId, params.role)?.token;
     const shouldUseDeviceRetryToken =
       this.pendingDeviceTokenRetry &&
@@ -1000,5 +1005,21 @@ export class OpenClawGatewayClient {
       storedToken,
       canFallbackToShared: Boolean(storedToken && explicitGatewayToken),
     };
+  }
+
+  private async resolveExplicitGatewayToken() {
+    if (typeof this.options.resolveAuthToken === 'function') {
+      try {
+        const resolvedToken = await this.options.resolveAuthToken();
+        const trimmedResolvedToken = trimToUndefined(resolvedToken);
+        if (trimmedResolvedToken) {
+          return trimmedResolvedToken;
+        }
+      } catch {
+        // Fall back to the last known token when live resolution fails.
+      }
+    }
+
+    return trimToUndefined(this.options.authToken);
   }
 }

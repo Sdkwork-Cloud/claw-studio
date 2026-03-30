@@ -2,8 +2,11 @@ import { spawnSync } from 'node:child_process';
 
 const commands = [
   ['node', ['--experimental-strip-types', 'scripts/sdkwork-core-contract.test.ts']],
+  ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/stores/sidebarAutoCollapse.test.ts']],
+  ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/components/desktopWindowControlsRuntime.test.ts']],
   ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/accountService.test.ts']],
   ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/communityService.test.ts']],
+  ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/instanceDirectoryService.test.ts']],
   ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/openClawAgentCatalogService.test.ts']],
   ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/settingsService.test.ts']],
 ];

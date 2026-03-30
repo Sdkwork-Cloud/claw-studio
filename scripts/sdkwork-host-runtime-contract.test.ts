@@ -13,6 +13,94 @@ function readJson<T>(relPath: string): T {
   return JSON.parse(read(relPath)) as T;
 }
 
+function escapeForRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+interface BundledWorkbenchToolContract {
+  id: string;
+  profiles: string[];
+}
+
+function extractBundledChatChannelOrder() {
+  const distDir = path.join(
+    root,
+    'packages/sdkwork-claw-desktop/src-tauri/resources/openclaw-runtime/runtime/package/node_modules/openclaw/dist',
+  );
+  const chatMetaEntry = fs
+    .readdirSync(distDir)
+    .find((entry) => /^chat-meta-.*\.js$/i.test(entry));
+
+  if (!chatMetaEntry) {
+    throw new Error('Unable to locate the bundled OpenClaw chat meta asset');
+  }
+
+  const chatMetaSource = fs.readFileSync(path.join(distDir, chatMetaEntry), 'utf8');
+  const orderMatch = chatMetaSource.match(/const CHAT_CHANNEL_ORDER = \[([\s\S]*?)\];/);
+
+  if (!orderMatch) {
+    throw new Error('Unable to extract the bundled OpenClaw chat channel order');
+  }
+
+  const channelIds = Array.from(orderMatch[1]!.matchAll(/"([^"]+)"/g)).map((match) => match[1]!);
+
+  if (channelIds.length === 0) {
+    throw new Error('Bundled OpenClaw chat channel order is empty');
+  }
+
+  return channelIds;
+}
+
+function extractBundledWorkbenchToolContract(): BundledWorkbenchToolContract[] {
+  const assetsDir = path.join(
+    root,
+    'packages/sdkwork-claw-desktop/src-tauri/resources/openclaw-runtime/runtime/package/node_modules/openclaw/dist/control-ui/assets',
+  );
+  const controlUiIndexEntry = fs
+    .readdirSync(assetsDir)
+    .find((entry) => /^index-.*\.js$/i.test(entry));
+
+  if (!controlUiIndexEntry) {
+    throw new Error('Unable to locate the bundled OpenClaw control-ui index asset');
+  }
+
+  const controlUiSource = fs.readFileSync(path.join(assetsDir, controlUiIndexEntry), 'utf8');
+  const catalogMatch = controlUiSource.match(
+    /\b(?:var|const|let)\s+ag=\[(.*?)\];new Map\(ag\.map/s,
+  );
+
+  if (!catalogMatch) {
+    throw new Error('Unable to extract the bundled OpenClaw control-ui tool catalog');
+  }
+
+  const tools = Array.from(
+    catalogMatch[1].matchAll(
+      /\{id:`([^`]+)`,label:`[^`]+`,description:`[^`]+`,sectionId:`[^`]+`,profiles:\[([^\]]*)\](?:,includeInOpenClawGroup:!0)?\}/g,
+    ),
+  ).map((match) => ({
+    id: match[1]!,
+    profiles: Array.from(match[2]!.matchAll(/`([^`]+)`/g)).map((profileMatch) => profileMatch[1]!),
+  }));
+
+  if (tools.length === 0) {
+    throw new Error('Bundled OpenClaw control-ui tool catalog is empty');
+  }
+
+  return tools;
+}
+
+function extractRustProfileAllowBody(source: string, profile: 'minimal' | 'coding' | 'messaging') {
+  const match = source.match(
+    new RegExp(`"${profile}"\\s*=>\\s*matches!\\(\\s*tool_id,([\\s\\S]*?)\\)`, 'm'),
+  );
+
+  if (!match) {
+    throw new Error(`Unable to locate the ${profile} OpenClaw tool profile in Rust`);
+  }
+
+  return match[1]!;
+}
+
 function extractDesktopLockImporter() {
   const lockSource = read('pnpm-lock.yaml').replace(/\r\n/g, '\n');
   const match = lockSource.match(
@@ -60,6 +148,11 @@ runTest('sdkwork-claw-web stays a Vite-only host without a business runtime serv
   );
 
   assert.equal(pkg.scripts?.dev, 'vite --host 0.0.0.0 --port 3001');
+  assert.ok(exists('packages/sdkwork-claw-web/.env.example'));
+  assert.ok(exists('packages/sdkwork-claw-web/.env.development'));
+  assert.ok(exists('packages/sdkwork-claw-web/.env.test'));
+  assert.ok(exists('packages/sdkwork-claw-web/.env.staging'));
+  assert.ok(exists('packages/sdkwork-claw-web/.env.production'));
   assert.equal(pkg.dependencies?.express, undefined);
   assert.equal(pkg.dependencies?.['sql.js'], undefined);
   assert.equal(pkg.devDependencies?.tsx, undefined);
@@ -87,11 +180,108 @@ runTest('sdkwork-claw-desktop contains the Tauri runtime package surface', () =>
   const desktopLockImporter = extractDesktopLockImporter();
 
   assert.ok(exists('packages/sdkwork-claw-desktop/.env.example'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/.env.development'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/.env.test'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/.env.staging'));
+  assert.ok(exists('packages/sdkwork-claw-desktop/.env.production'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/Cargo.toml'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json'));
   assert.equal(pkg.scripts?.['dev:tauri'], 'vite --host 127.0.0.1 --port 1420 --strictPort');
   assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], undefined);
   assert.doesNotMatch(desktopLockImporter, /'@sdkwork\/claw-core':/);
+});
+
+runTest('sdkwork-claw-desktop OpenClaw workbench tool catalog stays aligned with the upgraded bundled runtime surface', () => {
+  const openClawWorkbenchSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio/openclaw_workbench.rs',
+  );
+  const bundledTools = extractBundledWorkbenchToolContract();
+  const minimalProfileBody = extractRustProfileAllowBody(openClawWorkbenchSource, 'minimal');
+  const codingProfileBody = extractRustProfileAllowBody(openClawWorkbenchSource, 'coding');
+  const messagingProfileBody = extractRustProfileAllowBody(openClawWorkbenchSource, 'messaging');
+
+  assert.match(openClawWorkbenchSource, /"group:openclaw"/);
+
+  for (const tool of bundledTools) {
+    assert.match(
+      openClawWorkbenchSource,
+      new RegExp(`"${escapeForRegex(tool.id)}"`),
+      `expected bundled OpenClaw tool "${tool.id}" to exist in the Rust workbench catalog`,
+    );
+  }
+
+  for (const tool of bundledTools.filter((entry) => entry.profiles.includes('minimal'))) {
+    assert.match(
+      minimalProfileBody,
+      new RegExp(`"${escapeForRegex(tool.id)}"`),
+      `expected bundled OpenClaw minimal profile tool "${tool.id}" to exist in Rust`,
+    );
+  }
+
+  for (const tool of bundledTools.filter((entry) => entry.profiles.includes('coding'))) {
+    assert.match(
+      codingProfileBody,
+      new RegExp(`"${escapeForRegex(tool.id)}"`),
+      `expected bundled OpenClaw coding profile tool "${tool.id}" to exist in Rust`,
+    );
+  }
+
+  for (const tool of bundledTools.filter((entry) => entry.profiles.includes('messaging'))) {
+    assert.match(
+      messagingProfileBody,
+      new RegExp(`"${escapeForRegex(tool.id)}"`),
+      `expected bundled OpenClaw messaging profile tool "${tool.id}" to exist in Rust`,
+    );
+  }
+});
+
+runTest('sdkwork-claw-core OpenClaw managed channel definitions stay aligned with the bundled runtime chat channel order', () => {
+  const openClawConfigSource = read('packages/sdkwork-claw-core/src/services/openClawConfigService.ts');
+  const bundledChannelIds = extractBundledChatChannelOrder();
+  const definitionsBlockMatch = openClawConfigSource.match(
+    /const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition\[] = \[([\s\S]*?)\];\n\nfunction getChannelDefinition/,
+  );
+
+  if (!definitionsBlockMatch) {
+    throw new Error('Unable to locate OPENCLAW_CHANNEL_DEFINITIONS in openClawConfigService.ts');
+  }
+
+  const configuredChannelIds = Array.from(
+    definitionsBlockMatch[1]!.matchAll(/\bid:\s*'([^']+)'/g),
+  ).map((match) => match[1]!);
+
+  assert.deepEqual(
+    configuredChannelIds,
+    bundledChannelIds,
+    'expected managed OpenClaw channel definitions to match the bundled runtime chat channel order',
+  );
+});
+
+runTest('sdkwork hosts pin expected base URLs across development, test, and production env files', () => {
+  const webDevelopmentEnv = read('packages/sdkwork-claw-web/.env.development');
+  const webTestEnv = read('packages/sdkwork-claw-web/.env.test');
+  const webProductionEnv = read('packages/sdkwork-claw-web/.env.production');
+  const desktopDevelopmentEnv = read('packages/sdkwork-claw-desktop/.env.development');
+  const desktopTestEnv = read('packages/sdkwork-claw-desktop/.env.test');
+  const desktopProductionEnv = read('packages/sdkwork-claw-desktop/.env.production');
+
+  for (const source of [webDevelopmentEnv, desktopDevelopmentEnv]) {
+    assert.match(source, /VITE_APP_ENV="development"/);
+    assert.match(source, /VITE_API_BASE_URL="https:\/\/api-dev\.sdkwork\.com"/);
+    assert.match(source, /VITE_IM_WS_URL="wss:\/\/im-dev\.sdkwork\.com\/ws"/);
+  }
+
+  for (const source of [webTestEnv, desktopTestEnv]) {
+    assert.match(source, /VITE_APP_ENV="test"/);
+    assert.match(source, /VITE_API_BASE_URL="https:\/\/api-test\.sdkwork\.com"/);
+    assert.match(source, /VITE_IM_WS_URL="wss:\/\/im-test\.sdkwork\.com\/ws"/);
+  }
+
+  for (const source of [webProductionEnv, desktopProductionEnv]) {
+    assert.match(source, /VITE_APP_ENV="production"/);
+    assert.match(source, /VITE_API_BASE_URL="https:\/\/api\.sdkwork\.com"/);
+    assert.match(source, /VITE_IM_WS_URL="wss:\/\/im\.sdkwork\.com\/ws"/);
+  }
 });
 
 runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React tree', () => {
@@ -101,6 +291,7 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   const desktopBootstrapAppSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/DesktopBootstrapApp.tsx',
   );
+  const bootstrap = read('packages/sdkwork-claw-desktop/src-tauri/src/app/bootstrap.rs');
   const connectDesktopRuntimeBody = desktopBootstrapAppSource.match(
     /const connectDesktopRuntime = useEffectEvent\(async \(\) => \{([\s\S]*?)\n  }\);/,
   )?.[1];
@@ -122,6 +313,14 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   assert.match(
     desktopBootstrapAppSource,
     /shouldRenderShell \? \([\s\S]*<DesktopProviders>[\s\S]*<AppProviders onLanguagePreferenceChange=\{handleLanguagePreferenceChange\}>[\s\S]*<DesktopTrayRouteBridge \/>[\s\S]*<MainLayout \/>/,
+  );
+  assert.match(
+    bootstrap,
+    /app\.emit\(events::APP_READY, \(\)\)\?;[\s\S]*spawn_bundled_openclaw_activation\(/,
+  );
+  assert.doesNotMatch(
+    bootstrap,
+    /activate_bundled_openclaw\(&app_handle, context\.as_ref\(\)\)\?;/,
   );
 });
 
@@ -369,7 +568,7 @@ await runAsyncTest('sdkwork-claw-infrastructure shares the configured platform b
     async subscribeHubInstallProgress() {
       return () => {};
     },
-    async installApiRouterClientSetup() {
+    async applyProviderClientSetup() {
       return { success: true, files: [], environment: [] };
     },
   };
@@ -388,3 +587,4 @@ await runAsyncTest('sdkwork-claw-infrastructure shares the configured platform b
     registryCopyA.configurePlatformBridge(originalBridge);
   }
 });
+

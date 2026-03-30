@@ -18,6 +18,7 @@ import {
   type HubInstallAssessmentDependency,
   type HubInstallAssessmentResult,
   type HubInstallDependencyReport,
+  type HubInstallProgressEvent,
   type HubInstallRequest,
   type HubInstallResult,
   type RuntimeEventUnsubscribe,
@@ -46,13 +47,15 @@ import { useTranslation } from 'react-i18next';
 import { HubInstallDescriptorSummary } from './HubInstallDescriptorSummary';
 import {
   applyHubInstallResultToProgressState,
-  installerService,
+  createHubInstallProgressBatcher,
   createHubInstallProgressState,
   formatHubInstallProgressEvent,
   humanizeHubInstallProgressLabel,
+  installerService,
   openClawBootstrapService,
   openClawInstallWizardService,
   reduceHubInstallProgressEvent,
+  type HubInstallProgressBatcher,
 } from '../services';
 
 type StepId = openClawInstallWizardService.OpenClawWizardStepId;
@@ -264,6 +267,9 @@ export function OpenClawGuidedInstallWizard({
   );
   const { t } = useTranslation();
   const progressUnsubscribeRef = useRef<RuntimeEventUnsubscribe | null>(null);
+  const progressBatcherRef = useRef<HubInstallProgressBatcher<HubInstallProgressEvent> | null>(
+    null,
+  );
   const installSuccessReportedRef = useRef(false);
   const inspectionInFlightRef = useRef(false);
   const [currentStepId, setCurrentStepId] = useState<StepId>('dependencies');
@@ -302,6 +308,9 @@ export function OpenClawGuidedInstallWizard({
   const [copiedCommandId, setCopiedCommandId] = useState<string | null>(null);
 
   const cleanupProgress = async () => {
+    progressBatcherRef.current?.flush();
+    progressBatcherRef.current?.cancel();
+    progressBatcherRef.current = null;
     const unsubscribe = progressUnsubscribeRef.current;
     progressUnsubscribeRef.current = null;
     if (unsubscribe) {
@@ -588,16 +597,29 @@ export function OpenClawGuidedInstallWizard({
       report: undefined,
     });
 
-    progressUnsubscribeRef.current = await installerService.subscribeHubInstallProgress((event) => {
-      const line = formatHubInstallProgressEvent(t as (key: string) => string, event);
-      if (!line.trim()) {
-        return;
-      }
+    progressBatcherRef.current = createHubInstallProgressBatcher<HubInstallProgressEvent>((events) => {
+      updateDependencyInstallState(dependency.id, (previous) => {
+        let output = previous.output;
 
-      updateDependencyInstallState(dependency.id, (previous) => ({
-        ...previous,
-        output: appendTerminalOutput(previous.output, line),
-      }));
+        for (const event of events) {
+          const line = formatHubInstallProgressEvent(t as (key: string) => string, event);
+          if (!line.trim()) {
+            continue;
+          }
+
+          output = appendTerminalOutput(output, line);
+        }
+
+        return output !== previous.output
+          ? {
+              ...previous,
+              output,
+            }
+          : previous;
+      });
+    });
+    progressUnsubscribeRef.current = await installerService.subscribeHubInstallProgress((event) => {
+      progressBatcherRef.current?.push(event);
     });
 
     try {
@@ -651,15 +673,27 @@ export function OpenClawGuidedInstallWizard({
       })}\n${t('install.page.modal.output.starting')}\n`,
     );
 
+    progressBatcherRef.current = createHubInstallProgressBatcher<HubInstallProgressEvent>((events) => {
+      setInstallProgress((previous) =>
+        events.reduce(reduceHubInstallProgressEvent, previous),
+      );
+      setInstallOutput((previous) => {
+        let nextOutput = previous;
+
+        for (const event of events) {
+          const line = formatHubInstallProgressEvent(t as (key: string) => string, event).trim();
+          if (!line) {
+            continue;
+          }
+
+          nextOutput = `${nextOutput}${nextOutput.endsWith('\n') ? '' : '\n'}${line}\n`;
+        }
+
+        return nextOutput;
+      });
+    });
     progressUnsubscribeRef.current = await installerService.subscribeHubInstallProgress((event) => {
-      setInstallProgress((previous) => reduceHubInstallProgressEvent(previous, event));
-
-      const line = formatHubInstallProgressEvent(t as (key: string) => string, event).trim();
-      if (!line) {
-        return;
-      }
-
-      setInstallOutput((previous) => `${previous}${previous.endsWith('\n') ? '' : '\n'}${line}\n`);
+      progressBatcherRef.current?.push(event);
     });
 
     try {

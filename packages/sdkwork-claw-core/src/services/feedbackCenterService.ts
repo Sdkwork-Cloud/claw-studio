@@ -10,6 +10,7 @@ import type {
   SupportInfoVO,
 } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { getAppSdkClientWithSession } from '../sdk/useAppSdkClient.ts';
 
 type FeedbackCenterClient = Pick<SdkworkAppClient, 'feedback'>;
 
@@ -114,8 +115,7 @@ export interface FeedbackCenterService {
   getSupportInfo(): Promise<FeedbackCenterSupportInfo>;
 }
 
-async function getDefaultClient(): Promise<FeedbackCenterClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultClient(): FeedbackCenterClient {
   return getAppSdkClientWithSession();
 }
 

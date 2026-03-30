@@ -1,6 +1,4 @@
 import type {
-  RuntimeApiRouterAdminBootstrapSession,
-  RuntimeApiRouterRuntimeStatus,
   RuntimeEventUnsubscribe,
   RuntimeInfo,
   RuntimeJobRecord,
@@ -13,18 +11,6 @@ import type {
 export class WebRuntimePlatform implements RuntimePlatformAPI {
   async getRuntimeInfo(): Promise<RuntimeInfo> {
     return { platform: 'web' };
-  }
-
-  async getApiRouterRuntimeStatus(): Promise<RuntimeApiRouterRuntimeStatus | null> {
-    return null;
-  }
-
-  async ensureApiRouterRuntimeStarted(): Promise<RuntimeApiRouterRuntimeStatus | null> {
-    return null;
-  }
-
-  async getApiRouterAdminBootstrapSession(): Promise<RuntimeApiRouterAdminBootstrapSession | null> {
-    return null;
   }
 
   async setAppLanguage(_language: RuntimeLanguagePreference): Promise<void> {}

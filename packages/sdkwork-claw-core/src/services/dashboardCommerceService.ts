@@ -14,6 +14,8 @@ import type {
   SdkworkAppClient,
 } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { readAppSdkSessionTokens } from '../sdk/appSdkSession.ts';
+import { getAppSdkClientWithSession } from '../sdk/useAppSdkClient.ts';
 
 export type DashboardCommerceGranularity = 'day' | 'hour';
 export type DashboardCommerceRangeMode = 'seven_days' | 'month' | 'custom';
@@ -127,13 +129,11 @@ export interface DashboardCommerceService {
   getCommerceSnapshot(query?: DashboardCommerceQuery): Promise<DashboardCommerceSnapshot>;
 }
 
-async function getDefaultClient(): Promise<DashboardCommerceClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultClient(): DashboardCommerceClient {
   return getAppSdkClientWithSession();
 }
 
-async function getDefaultSessionTokens(): Promise<DashboardCommerceSessionTokens> {
-  const { readAppSdkSessionTokens } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultSessionTokens(): DashboardCommerceSessionTokens {
   return readAppSdkSessionTokens();
 }
 

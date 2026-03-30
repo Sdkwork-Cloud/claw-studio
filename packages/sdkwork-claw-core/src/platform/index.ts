@@ -12,6 +12,7 @@ export {
   WebPlatform,
   configurePlatformBridge,
   getInstallerPlatform,
+  openExternalUrl,
   getPlatformBridge,
   getRuntimePlatform,
   platform,

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-test('tauriBridge keeps api-router bootstrap session support without desktop auth sync helpers', () => {
+test('tauriBridge exposes the desktop bridge without legacy router runtime hooks', () => {
   const tauriBridgeSource = fs.readFileSync(
     path.join(import.meta.dirname, 'tauriBridge.ts'),
     'utf8',
@@ -15,7 +15,10 @@ test('tauriBridge keeps api-router bootstrap session support without desktop aut
 
   assert.doesNotMatch(tauriBridgeSource, /export async function syncDesktopAuthSession/);
   assert.doesNotMatch(tauriBridgeSource, /export async function clearDesktopAuthSession/);
-  assert.match(tauriBridgeSource, /export async function getApiRouterAdminBootstrapSession/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function installApiRouterClientSetup/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function getApiRouterRuntimeStatus/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function ensureApiRouterRuntimeStarted/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function getApiRouterAdminBootstrapSession/);
   assert.match(tauriBridgeSource, /export async function getDesktopKernelStatus/);
   assert.match(tauriBridgeSource, /export async function ensureDesktopKernelRunning/);
   assert.match(tauriBridgeSource, /export async function restartDesktopKernel/);
@@ -24,5 +27,9 @@ test('tauriBridge keeps api-router bootstrap session support without desktop aut
   assert.match(tauriBridgeSource, /getStatus:\s*getDesktopKernelStatus/);
   assert.match(tauriBridgeSource, /ensureRunning:\s*ensureDesktopKernelRunning/);
   assert.match(tauriBridgeSource, /restart:\s*restartDesktopKernel/);
+  assert.doesNotMatch(tauriBridgeSource, /installApiRouterClientSetup:/);
+  assert.doesNotMatch(tauriBridgeSource, /ensureApiRouterRuntimeStarted:/);
+  assert.doesNotMatch(tauriBridgeSource, /getApiRouterAdminBootstrapSession:/);
+  assert.doesNotMatch(tauriBridgeSource, /getApiRouterRuntimeStatus:/);
   assert.doesNotMatch(desktopProvidersSource, /DesktopAuthSessionBridge/);
 });

@@ -7,8 +7,13 @@ const root = process.cwd();
 const instanceDetailBadgeDescriptorsModuleUrl = pathToFileURL(
   path.join(root, 'packages/sdkwork-claw-instances/src/pages/instanceDetailBadgeDescriptors.ts'),
 ).href;
+const instanceAssistSupportModuleUrl = pathToFileURL(
+  path.join(root, 'packages/sdkwork-claw-instances/src/services/instanceAssistSupport.ts'),
+).href;
 const { buildInstanceDetailBadgeDescriptors } =
   (await import(instanceDetailBadgeDescriptorsModuleUrl)) as typeof import('../packages/sdkwork-claw-instances/src/pages/instanceDetailBadgeDescriptors');
+const { supportsInstanceAssist } =
+  (await import(instanceAssistSupportModuleUrl)) as typeof import('../packages/sdkwork-claw-instances/src/services/instanceAssistSupport');
 
 function read(relPath: string) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
@@ -139,6 +144,24 @@ runTest('sdkwork-claw-instances upgrades the detail page into a sidebar workbenc
   assert.match(detailSource, /instanceWorkbench\.sections\.tools/);
 });
 
+runTest('sdkwork-claw-instances blocks built-in OpenClaw assist activation from instance list and detail', () => {
+  const listSource = read('packages/sdkwork-claw-instances/src/pages/Instances.tsx');
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const typesSource = read('packages/sdkwork-claw-instances/src/types/index.ts');
+  const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceAssistSupport.ts');
+
+  assert.equal(supportsInstanceAssist({ runtimeKind: 'openclaw', isBuiltIn: true }), false);
+  assert.equal(supportsInstanceAssist({ runtimeKind: 'openclaw', isBuiltIn: false }), true);
+  assert.equal(supportsInstanceAssist({ runtimeKind: 'custom', isBuiltIn: true }), true);
+  assert.match(typesSource, /supportsAssist:\s*boolean/);
+  assert.match(serviceSource, /runtimeKind === 'openclaw'/);
+  assert.match(serviceSource, /instance\.isBuiltIn/);
+  assert.match(listSource, /instance\.supportsAssist/);
+  assert.match(listSource, /activeInstanceId === instance\.id && !instance\.supportsAssist/);
+  assert.match(detailSource, /instance\.supportsAssist/);
+  assert.match(detailSource, /activeInstanceId === instance\.id && !instance\.supportsAssist/);
+});
+
 runTest('sdkwork-claw-instances uses a wider detail canvas and row-based operational list shells', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
 
@@ -175,19 +198,154 @@ runTest('sdkwork-claw-instances keeps agents and skills visible in the top summa
 
 runTest('sdkwork-claw-instances turns files into an IDE-style explorer and editor workspace', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const agentPanelSource = read(
+    'packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx',
+  );
+  const detailSectionsSource = read(
+    'packages/sdkwork-claw-instances/src/components/AgentWorkbenchDetailSections.tsx',
+  );
   const explorerSource = read('packages/sdkwork-claw-instances/src/components/InstanceFileExplorer.tsx');
+  const sharedWorkbenchSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceFileWorkbench.tsx',
+  );
   const pkg = readJson<{ dependencies?: Record<string, string> }>(
     'packages/sdkwork-claw-instances/package.json',
   );
+  const filesSectionSource = extractBetween(
+    detailSource,
+    'const renderFilesSection = () => {',
+    'const renderMemorySection = () => {',
+  );
 
   assert.ok(pkg.dependencies?.['@monaco-editor/react']);
-  assert.match(detailSource, /data-slot="instance-files-explorer"/);
-  assert.match(detailSource, /data-slot="instance-files-editor"/);
-  assert.match(detailSource, /@monaco-editor\/react/);
-  assert.match(explorerSource, /data-slot="instance-files-tree"/);
-  assert.match(explorerSource, /directory/i);
+  assert.match(detailSource, /InstanceFileWorkbench/);
+  assert.match(detailSectionsSource, /InstanceFileWorkbench/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-explorer"/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-editor"/);
+  assert.match(sharedWorkbenchSource, /@monaco-editor\/react/);
+  assert.match(filesSectionSource, /data-slot="instance-files-agent-select"/);
+  assert.match(detailSource, /const fileWorkbench = activeSection === 'files' \? selectedAgentWorkbench : null;/);
+  assert.match(detailSource, /const visibleFiles = fileWorkbench\?\.files \?\? EMPTY_WORKBENCH_FILES;/);
+  assert.match(detailSource, /onSaveFile=\{handleSaveWorkbenchFile\}/);
+  assert.match(agentPanelSource, /onSaveFile:/);
+  assert.doesNotMatch(filesSectionSource, /gatewayProfile/);
+  assert.doesNotMatch(filesSectionSource, /runtimeArtifactsDescription/);
+  assert.match(explorerSource, /data-slot="instance-files-list"/);
+  assert.match(explorerSource, /resolveRelativeFilePath/);
+  assert.doesNotMatch(explorerSource, /data-node-kind="directory"/);
+  assert.doesNotMatch(explorerSource, /ChevronDown|ChevronRight|FolderOpen|Folder/);
   assert.doesNotMatch(detailSource, /instanceWorkbench\.sidebar\.title/);
   assert.doesNotMatch(detailSource, /instanceWorkbench\.sidebar\.description/);
+  assert.match(detailSource, /activeSection !== 'files' \? \(/);
+});
+
+runTest('sdkwork-claw-instances uses viewport-adaptive height and tabbed editing for the files workspace', () => {
+  const sharedWorkbenchSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceFileWorkbench.tsx',
+  );
+
+  assert.match(sharedWorkbenchSource, /const \[openFileIds, setOpenFileIds\] = useState<string\[\]>\(\[\]\);/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-tabs"/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-tab"/);
+  assert.match(sharedWorkbenchSource, /h-\[max\(42rem,calc\(100vh-18rem\)\)\]/);
+  assert.match(sharedWorkbenchSource, /overflow-x-auto/);
+  assert.doesNotMatch(sharedWorkbenchSource, /selectedFileRelativePath \|\| selectedFile\.name/);
+  assert.match(sharedWorkbenchSource, /path=\{selectedFile\.path\}/);
+  assert.match(sharedWorkbenchSource, /saveViewState/);
+});
+
+runTest('sdkwork-claw-instances reuses a shared OpenClaw skill workspace in both instance and agent views', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const agentDetailSectionsSource = read(
+    'packages/sdkwork-claw-instances/src/components/AgentWorkbenchDetailSections.tsx',
+  );
+  const sharedSkillWorkspaceSource = read(
+    'packages/sdkwork-claw-instances/src/components/OpenClawSkillWorkspace.tsx',
+  );
+  const skillModelSource = read(
+    'packages/sdkwork-claw-instances/src/components/openClawSkillWorkspaceModel.ts',
+  );
+
+  assert.ok(exists('packages/sdkwork-claw-instances/src/components/OpenClawSkillWorkspace.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-instances/src/components/openClawSkillWorkspaceModel.ts'));
+  assert.match(detailSource, /OpenClawSkillWorkspace/);
+  assert.match(agentDetailSectionsSource, /OpenClawSkillWorkspace/);
+  assert.match(detailSource, /!\['agents', 'files', 'skills'\]\.includes\(activeSection\)/);
+  assert.match(sharedSkillWorkspaceSource, /data-slot="openclaw-skill-workspace"/);
+  assert.match(sharedSkillWorkspaceSource, /skillConfigDialog/);
+  assert.match(sharedSkillWorkspaceSource, /sharedConfigScopeNotice/);
+  assert.match(skillModelSource, /buildOpenClawSkillConfigDraft/);
+  assert.match(skillModelSource, /normalizeOpenClawSkillEnvEntries/);
+});
+
+runTest('sdkwork-claw-instances keeps explorer clicks and tab clicks on the same file activation state machine', () => {
+  const sharedWorkbenchSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceFileWorkbench.tsx',
+  );
+  const workspaceStateSource = read(
+    'packages/sdkwork-claw-instances/src/pages/instanceFileWorkspaceState.ts',
+  );
+
+  assert.match(sharedWorkbenchSource, /activateWorkbenchFile/);
+  assert.match(sharedWorkbenchSource, /syncWorkbenchFileSelection/);
+  assert.match(sharedWorkbenchSource, /onSelectFile=\{handleOpenFileTab\}/);
+  assert.match(sharedWorkbenchSource, /onClick=\{\(\) => handleOpenFileTab\(file\.id\)\}/);
+  assert.match(workspaceStateSource, /export function activateWorkbenchFile/);
+  assert.match(workspaceStateSource, /export function syncWorkbenchFileSelection/);
+  assert.match(workspaceStateSource, /nextSelectedFileId && !nextOpenFileIds\.includes\(nextSelectedFileId\)/);
+});
+
+runTest('sdkwork-claw-instances uses path-aware OpenClaw file ids so same-name files do not alias each other in the editor', () => {
+  const supportSource = read('packages/sdkwork-claw-instances/src/services/openClawSupport.ts');
+  const agentWorkbenchSource = read('packages/sdkwork-claw-instances/src/services/agentWorkbenchService.ts');
+  const instanceWorkbenchSource = read(
+    'packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.ts',
+  );
+
+  assert.match(supportSource, /export function buildOpenClawAgentFileId\(agentId: string, name: string, path\?: string \| null\)/);
+  assert.match(supportSource, /return `\$\{OPENCLAW_AGENT_FILE_ID_PREFIX\}\$\{encodedAgentId\}:\$\{encodedName\}:\$\{encodeURIComponent\(normalizedPath\)\}`;/);
+  assert.match(supportSource, /path: encodedPath \? decodeURIComponent\(encodedPath\) : null/);
+  assert.match(agentWorkbenchSource, /buildOpenClawAgentFileId\(agent\.agent\.id, name, normalizedPath\)/);
+  assert.match(instanceWorkbenchSource, /buildOpenClawAgentFileId\(agent\.agent\.id, name, path\)/);
+});
+
+runTest('sdkwork-claw-instances styles the file tabs like an editor strip and exposes a tab context menu', () => {
+  const sharedWorkbenchSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceFileWorkbench.tsx',
+  );
+
+  assert.match(sharedWorkbenchSource, /const \[tabContextMenu, setTabContextMenu\] = useState/);
+  assert.match(
+    sharedWorkbenchSource,
+    /scrollIntoView\(\{\s*block: 'nearest',\s*inline: 'nearest',\s*behavior: 'smooth',?\s*\}\)/,
+  );
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-tab-context-menu"/);
+  assert.match(sharedWorkbenchSource, /onContextMenu=\{\(event\) =>/);
+  assert.match(sharedWorkbenchSource, /\[scrollbar-width:none\]/);
+  assert.match(sharedWorkbenchSource, /\[&::\-webkit-scrollbar\]:hidden/);
+  assert.match(sharedWorkbenchSource, /Close Others|Close Right|Close All/);
+  assert.match(sharedWorkbenchSource, /Copy Relative Path|Copy Workspace Path/);
+  assert.match(sharedWorkbenchSource, /navigator\.clipboard\.writeText/);
+});
+
+runTest('sdkwork-claw-instances exposes left and right tab overflow navigation controls', () => {
+  const sharedWorkbenchSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceFileWorkbench.tsx',
+  );
+
+  assert.match(sharedWorkbenchSource, /const handleTabStripStepScroll = \(direction: 'left' \| 'right'\)/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-tab-scroll-left"/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-tab-scroll-right"/);
+  assert.match(sharedWorkbenchSource, /ChevronLeft/);
+  assert.match(sharedWorkbenchSource, /ChevronRight/);
+  assert.match(sharedWorkbenchSource, /disabled=\{!tabStripOverflow\.canScrollLeft\}/);
+  assert.match(sharedWorkbenchSource, /disabled=\{!tabStripOverflow\.canScrollRight\}/);
+});
+
+runTest('sdkwork-claw-instances loads agent workbench data for agent, skill, and file surfaces', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+
+  assert.match(detailSource, /!\['agents', 'files', 'skills'\]\.includes\(activeSection\)/);
 });
 
 runTest('sdkwork-claw-instances keeps instance-level destructive actions in the header and out of files/tools sections', () => {
@@ -212,6 +370,37 @@ runTest('sdkwork-claw-instances keeps instance-level destructive actions in the 
   assert.doesNotMatch(toolsSectionSource, /instances\.detail\.dangerZone/);
   assert.doesNotMatch(toolsSectionSource, /instances\.detail\.dangerDescription/);
   assert.doesNotMatch(toolsSectionSource, /instances\.detail\.actions\.uninstallInstance/);
+});
+
+runTest('sdkwork-claw-instances exposes the OpenClaw console browser action in the instance detail header row', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const headerActionsSource = extractBetween(
+    detailSource,
+    '<div className="flex flex-wrap gap-3">',
+    '<div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">',
+  );
+  const managementSummarySource = extractBetween(
+    detailSource,
+    'data-slot="instance-detail-management-summary"',
+    'data-slot="instance-detail-connectivity"',
+  );
+
+  assert.match(detailSource, /const handleOpenOpenClawConsole = async \(\) => \{/);
+  assert.match(detailSource, /await openExternalUrl\(targetUrl\);/);
+  assert.match(detailSource, /data-slot="instance-detail-management-summary"[\s\S]*handleOpenOpenClawConsole/);
+  assert.match(
+    detailSource,
+    /data-slot="instance-detail-openclaw-console-action"[\s\S]*instances\.detail\.actions\.openOpenClawConsole/,
+  );
+  assert.match(
+    headerActionsSource,
+    /instances\.detail\.actions\.openOpenClawConsole/,
+  );
+  assert.equal(
+    [...detailSource.matchAll(/instances\.detail\.actions\.openOpenClawConsole/g)].length,
+    1,
+  );
+  assert.doesNotMatch(managementSummarySource, /instance-detail-openclaw-console-action/);
 });
 
 runTest('sdkwork-claw-instances adds an instance-native LLM provider workspace with editable config chrome', () => {
@@ -416,6 +605,9 @@ runTest('sdkwork-claw-instances links the agents workbench to the agent marketpl
 runTest('sdkwork-claw-instances turns agents into a master-detail workbench backed by an agent-scoped service', () => {
   const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
   const panelSource = read('packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx');
+  const detailSectionsSource = read(
+    'packages/sdkwork-claw-instances/src/components/AgentWorkbenchDetailSections.tsx',
+  );
   const serviceSource = read('packages/sdkwork-claw-instances/src/services/agentWorkbenchService.ts');
 
   assert.match(detailSource, /AgentWorkbenchPanel/);
@@ -423,22 +615,63 @@ runTest('sdkwork-claw-instances turns agents into a master-detail workbench back
   assert.match(detailSource, /agentWorkbenchService\.getAgentWorkbench/);
   assert.match(panelSource, /data-slot="agent-workbench-sidebar"/);
   assert.match(panelSource, /data-slot="agent-workbench-detail"/);
-  assert.match(panelSource, /data-slot="agent-workbench-files"/);
+  assert.match(detailSectionsSource, /data-slot="agent-workbench-files"/);
   assert.match(serviceSource, /authProfilesPath/);
   assert.match(serviceSource, /modelsRegistryPath/);
   assert.match(serviceSource, /sessionsPath/);
   assert.match(serviceSource, /routeStatus/);
 });
 
-runTest('sdkwork-claw-instances gives agent skills an official workspace-scoped install guide and richer status metadata', () => {
+runTest('sdkwork-claw-instances keeps the agent detail area focused on tabs instead of a duplicated hero block', () => {
   const panelSource = read('packages/sdkwork-claw-instances/src/components/AgentWorkbenchPanel.tsx');
+  const detailShellSource = extractBetween(
+    panelSource,
+    '<div data-slot="agent-workbench-detail" className="space-y-5">',
+    '<AgentWorkbenchDetailSections',
+  );
+
+  assert.match(detailShellSource, /agentWorkbenchTabIds\.map/);
+  assert.match(detailShellSource, /onClick=\{\(\) => onEditAgent\(selectedAgentRecord\)\}/);
+  assert.match(detailShellSource, /onClick=\{\(\) => onDeleteAgent\(snapshot\.agent\.agent\.id\)\}/);
+  assert.doesNotMatch(detailShellSource, /snapshot\.agent\.agent\.description/);
+  assert.doesNotMatch(detailShellSource, /snapshot\.agent\.focusAreas\.map/);
+  assert.doesNotMatch(detailShellSource, /text-2xl font-semibold tracking-tight/);
+});
+
+runTest('sdkwork-claw-instances reuses one shared file workbench component for instance and agent file views', () => {
+  const detailSource = read('packages/sdkwork-claw-instances/src/pages/InstanceDetail.tsx');
+  const detailSectionsSource = read(
+    'packages/sdkwork-claw-instances/src/components/AgentWorkbenchDetailSections.tsx',
+  );
+  const sharedWorkbenchSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceFileWorkbench.tsx',
+  );
+
+  assert.match(detailSource, /InstanceFileWorkbench/);
+  assert.match(detailSectionsSource, /InstanceFileWorkbench/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-explorer"/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-editor"/);
+  assert.match(sharedWorkbenchSource, /data-slot="instance-files-tabs"/);
+  assert.match(sharedWorkbenchSource, /MonacoEditor/);
+  assert.match(sharedWorkbenchSource, /activateWorkbenchFile/);
+  assert.match(sharedWorkbenchSource, /syncWorkbenchFileSelection/);
+  assert.doesNotMatch(detailSectionsSource, /InstanceFileExplorer/);
+});
+
+runTest('sdkwork-claw-instances gives agent skills an official workspace-scoped install guide and richer status metadata', () => {
+  const sharedSkillWorkspaceSource = read(
+    'packages/sdkwork-claw-instances/src/components/OpenClawSkillWorkspace.tsx',
+  );
   const serviceSource = read('packages/sdkwork-claw-instances/src/services/agentWorkbenchService.ts');
 
-  assert.match(panelSource, /openclaw skills install/);
-  assert.match(panelSource, /return `cd "\$\{target\}"\\nopenclaw skills install \$\{normalizedSlug\}`;/);
-  assert.match(panelSource, /navigator\.clipboard\.writeText/);
-  assert.match(panelSource, /skill\.scope/);
-  assert.match(panelSource, /skill\.eligible/);
+  assert.match(sharedSkillWorkspaceSource, /openclaw skills install/);
+  assert.match(
+    sharedSkillWorkspaceSource,
+    /return `cd "\$\{target\}"\\nopenclaw skills install \$\{normalizedSlug\}`;/,
+  );
+  assert.match(sharedSkillWorkspaceSource, /navigator\.clipboard\.writeText/);
+  assert.match(sharedSkillWorkspaceSource, /skill\.scope/);
+  assert.match(sharedSkillWorkspaceSource, /skill\.eligible/);
   assert.match(serviceSource, /scope:/);
   assert.match(serviceSource, /installOptions:/);
   assert.match(serviceSource, /skillKey:/);

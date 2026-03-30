@@ -5,6 +5,7 @@ import { useLLMStore } from '@sdkwork/claw-settings';
 import type { Agent, Skill, StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
 import { openClawConversationGateway } from './openClawConversationGateway.ts';
+import { resolveOpenClawInstanceAuthToken } from './openclaw/openClawInstanceAuthToken.ts';
 import type { ChatSession } from '../store/useChatStore.ts';
 import type { ChatModel } from '../types/index.ts';
 
@@ -241,12 +242,12 @@ async function* streamOpenAiCompatibleRequest(
   yield* streamHttpResponse(response);
 }
 
-function buildInstanceHeaders(instance: StudioInstanceRecord) {
+async function buildInstanceHeaders(instance: StudioInstanceRecord) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'text/event-stream, application/json',
   };
-  const authToken = instance.config.authToken;
+  const authToken = await resolveOpenClawInstanceAuthToken(instance);
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
   }
@@ -368,7 +369,7 @@ class ChatService implements IChatService {
               transportKind: activeInstance.transportKind,
             },
           },
-          buildInstanceHeaders(activeInstance),
+          await buildInstanceHeaders(activeInstance),
           abortSignal,
         );
         return;

@@ -364,7 +364,7 @@ mod tests {
     }
 
     fn test_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
-        let install_dir = paths.openclaw_runtime_dir.join("2026.3.23-2-windows-x64");
+        let install_dir = paths.openclaw_runtime_dir.join("2026.3.28-windows-x64");
         let runtime_dir = install_dir.join("runtime");
         let node_path = runtime_dir.join("node").join("node.exe");
         let cli_path = runtime_dir
@@ -379,7 +379,7 @@ mod tests {
         fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
 
         ActivatedOpenClawRuntime {
-            install_key: "2026.3.23-2-windows-x64".to_string(),
+            install_key: "2026.3.28-windows-x64".to_string(),
             install_dir,
             runtime_dir,
             node_path,
