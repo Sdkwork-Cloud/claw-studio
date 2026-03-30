@@ -1,6 +1,4 @@
 import type {
-  ApiRouterClientInstallRequest,
-  ApiRouterClientInstallResult,
   HubInstallCatalogEntry,
   HubInstallCatalogQuery,
   HubInstallDependencyRequest,
@@ -11,6 +9,8 @@ import type {
   HubInstallResult,
   HubUninstallRequest,
   HubUninstallResult,
+  ProviderClientSetupRequest,
+  ProviderClientSetupResult,
 } from '../platform/contracts/installer.ts';
 import type { RuntimeEventUnsubscribe } from '../platform/contracts/runtime.ts';
 import { getInstallerPlatform } from '../platform/registry.ts';
@@ -37,14 +37,14 @@ export const installerService = {
   runHubUninstall: async (request: HubUninstallRequest): Promise<HubUninstallResult> => {
     return getInstallerPlatform().runHubUninstall(request);
   },
+  applyProviderClientSetup: async (
+    request: ProviderClientSetupRequest,
+  ): Promise<ProviderClientSetupResult> => {
+    return getInstallerPlatform().applyProviderClientSetup(request);
+  },
   subscribeHubInstallProgress: async (
     listener: (event: HubInstallProgressEvent) => void,
   ): Promise<RuntimeEventUnsubscribe> => {
     return getInstallerPlatform().subscribeHubInstallProgress(listener);
-  },
-  installApiRouterClientSetup: async (
-    request: ApiRouterClientInstallRequest,
-  ): Promise<ApiRouterClientInstallResult> => {
-    return getInstallerPlatform().installApiRouterClientSetup(request);
   },
 };

@@ -27,10 +27,42 @@ assert.equal(
   'function',
   'run-windows-tauri-bundle must export prepareWindowsNsisRetryScript',
 );
+assert.equal(
+  typeof bundleModule.createWindowsTauriBundleEnv,
+  'function',
+  'run-windows-tauri-bundle must export createWindowsTauriBundleEnv',
+);
+
+const windowsBundleCommand = bundleModule.buildWindowsTauriBundleCommand({
+  platform: 'win32',
+});
+assert.equal(
+  windowsBundleCommand.command,
+  'pnpm.cmd',
+  'Windows tauri bundle runner must invoke pnpm.cmd so spawnSync resolves the executable',
+);
+const windowsBundleEnv = bundleModule.createWindowsTauriBundleEnv({
+  env: {
+    Path: 'C:\\Windows\\System32',
+    USERPROFILE: 'C:\\Users\\admin',
+  },
+  platform: 'win32',
+  existsSync(candidatePath) {
+    return (
+      candidatePath === 'C:\\Users\\admin\\.cargo\\bin' ||
+      candidatePath === 'C:\\Users\\admin\\.cargo\\bin\\cargo.exe'
+    );
+  },
+});
+assert.match(
+  windowsBundleEnv.Path,
+  /^C:\\Users\\admin\\\.cargo\\bin;C:\\Windows\\System32$/,
+  'Windows tauri bundle runner must prepend the Rust cargo bin dir before spawning tauri build',
+);
 
 const replacements = bundleModule.createWindowsNsisSourceReplacements(syntheticWorkspaceRoot);
 
-assert.equal(replacements.length, 6);
+assert.equal(replacements.length, 4);
 assert.deepEqual(replacements.slice(0, 3), [
   {
     from:
@@ -54,16 +86,6 @@ assert.deepEqual(replacements.slice(3), [
       'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\o\\',
     to: 'D:\\.sdkwork-bc\\claw-studio\\openclaw-runtime\\',
   },
-  {
-    from:
-      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\sdkwork-api-router-runtime\\',
-    to: 'D:\\.sdkwork-bc\\claw-studio\\sdkwork-api-router-runtime\\',
-  },
-  {
-    from:
-      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\a\\',
-    to: 'D:\\.sdkwork-bc\\claw-studio\\sdkwork-api-router-runtime\\',
-  },
 ]);
 
 const sampleInstaller = [
@@ -71,8 +93,6 @@ const sampleInstaller = [
   'File /a "/oname=generated\\\\bundled\\\\bundle-manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\b\\foundation\\components\\bundle-manifest.json"',
   'File /a "/oname=resources\\\\openclaw-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw-runtime\\manifest.json"',
   'File /a "/oname=resources\\\\openclaw-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\o\\manifest.json"',
-  'File /a "/oname=resources\\\\sdkwork-api-router-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\sdkwork-api-router-runtime\\manifest.json"',
-  'File /a "/oname=resources\\\\sdkwork-api-router-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\a\\manifest.json"',
 ].join('\n');
 
 const rewrittenInstaller = bundleModule.rewriteNsisSourcePaths(sampleInstaller, replacements);
@@ -84,11 +104,9 @@ const preparedInstaller = bundleModule.prepareWindowsNsisRetryScript({
 
 assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\bundled\\/);
 assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\openclaw-runtime\\/);
-assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\sdkwork-api-router-runtime\\/);
 assert.doesNotMatch(rewrittenInstaller, /generated\\bundled\\\\/);
-assert.doesNotMatch(rewrittenInstaller, /generated\\br\\[boa]\\\\/);
+assert.doesNotMatch(rewrittenInstaller, /generated\\br\\[bo]\\\\/);
 assert.doesNotMatch(rewrittenInstaller, /resources\\openclaw-runtime\\\\/);
-assert.doesNotMatch(rewrittenInstaller, /resources\\sdkwork-api-router-runtime\\\\/);
 assert.match(
   preparedInstaller,
   /!define OUTFILE "D:\\release\\Claw Studio_0\.1\.0_x64-setup\.exe"/,

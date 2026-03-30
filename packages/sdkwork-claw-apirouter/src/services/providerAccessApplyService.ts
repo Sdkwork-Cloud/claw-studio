@@ -1,9 +1,9 @@
 import {
-  type ApiRouterInstalledOpenClawInstance,
   installerService,
   studioMockService,
-  type ApiRouterInstallerCompatibility,
-  type ApiRouterInstallerOpenClawApiKeyStrategy,
+  type ProviderClientSetupCompatibility,
+  type ProviderClientSetupOpenClawApiKeyStrategy,
+  type ProviderClientSetupOpenClawInstance,
 } from '@sdkwork/claw-infrastructure';
 import type { ProxyProvider } from '@sdkwork/claw-types';
 import {
@@ -22,7 +22,7 @@ export interface ApplyClientSetupResult {
 
 export interface ApplyOpenClawSetupResult {
   updatedInstanceIds: string[];
-  openClawInstances: ApiRouterInstalledOpenClawInstance[];
+  openClawInstances: ProviderClientSetupOpenClawInstance[];
 }
 
 export interface ApplyClientSetupOptions {
@@ -31,14 +31,14 @@ export interface ApplyClientSetupOptions {
 }
 
 export interface ApplyOpenClawSetupOptions {
-  apiKeyStrategy: ApiRouterInstallerOpenClawApiKeyStrategy;
+  apiKeyStrategy: ProviderClientSetupOpenClawApiKeyStrategy;
   routerProviderId?: string | null;
   modelMappingId?: string | null;
 }
 
 function resolveInstallerCompatibility(
   client: ProviderAccessClientConfig,
-): ApiRouterInstallerCompatibility {
+): ProviderClientSetupCompatibility {
   if (client.compatibility === 'unsupported') {
     throw new Error('Client setup is unavailable for this provider.');
   }
@@ -107,7 +107,7 @@ class ProviderAccessApplyService {
       throw new Error('OpenClaw setup requires instance selection.');
     }
 
-    const result = await installerService.installApiRouterClientSetup(
+    const result = await installerService.applyProviderClientSetup(
       buildInstallerRequestWithOptions(provider, client, options),
     );
 
@@ -135,12 +135,12 @@ class ProviderAccessApplyService {
       throw new Error('OpenClaw setup is unavailable for this provider.');
     }
 
-    const result = await installerService.installApiRouterClientSetup({
+    const result = await installerService.applyProviderClientSetup({
       ...buildStandardInstallerRequest(provider, client),
       openClaw: {
         instanceIds,
         apiKeyStrategy: options.apiKeyStrategy,
-        routerProviderId: options.routerProviderId ?? undefined,
+        routeProviderId: options.routerProviderId ?? undefined,
         modelMappingId: options.modelMappingId ?? undefined,
       },
     });
@@ -169,7 +169,7 @@ class ProviderAccessApplyService {
 
     return {
       updatedInstanceIds: result.updatedInstanceIds,
-      openClawInstances: result.openClawInstances,
+      openClawInstances: result.openClawInstances || [],
     };
   }
 }

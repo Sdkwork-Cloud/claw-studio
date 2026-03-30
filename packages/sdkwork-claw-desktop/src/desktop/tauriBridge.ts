@@ -6,8 +6,6 @@ import {
   configurePlatformBridge,
 } from '@sdkwork/claw-infrastructure';
 import type {
-  ApiRouterClientInstallRequest,
-  ApiRouterClientInstallResult,
   HubInstallCatalogEntry,
   HubInstallCatalogQuery,
   HubInstallDependencyRequest,
@@ -24,8 +22,6 @@ import type {
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
-  RuntimeApiRouterAdminBootstrapSession,
-  RuntimeApiRouterRuntimeStatus,
   RuntimeAppInfo,
   RuntimeConfigInfo,
   RuntimeDesktopKernelHostInfo,
@@ -38,6 +34,8 @@ import type {
   RuntimeProcessOutputEvent,
   RuntimeStorageInfo,
   RuntimeSystemInfo,
+  ProviderClientSetupRequest,
+  ProviderClientSetupResult,
   StorageDeleteRequest,
   StorageDeleteResult,
   StorageGetTextRequest,
@@ -107,9 +105,6 @@ export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
 export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo {}
 export interface DesktopKernelStatus extends RuntimeDesktopKernelHostInfo {}
 export interface DesktopStorageInfo extends RuntimeStorageInfo {}
-export interface DesktopApiRouterAdminBootstrapSession
-  extends RuntimeApiRouterAdminBootstrapSession {}
-export interface DesktopApiRouterRuntimeStatus extends RuntimeApiRouterRuntimeStatus {}
 
 const noopUnsubscribe: RuntimeEventUnsubscribe = () => {};
 
@@ -1160,52 +1155,13 @@ export async function runHubUninstall(
   );
 }
 
-export async function installApiRouterClientSetup(
-  request: ApiRouterClientInstallRequest,
-): Promise<ApiRouterClientInstallResult> {
-  return invokeDesktopCommand<ApiRouterClientInstallResult>(
-    DESKTOP_COMMANDS.installApiRouterClientSetup,
+export async function applyProviderClientSetup(
+  request: ProviderClientSetupRequest,
+): Promise<ProviderClientSetupResult> {
+  return invokeDesktopCommand<ProviderClientSetupResult>(
+    DESKTOP_COMMANDS.applyProviderClientSetup,
     { request },
-    { operation: 'installer.installApiRouterClientSetup' },
-  );
-}
-
-export async function getApiRouterRuntimeStatus(): Promise<DesktopApiRouterRuntimeStatus | null> {
-  return runDesktopOrFallback(
-    'runtime.getApiRouterRuntimeStatus',
-    () =>
-      invokeDesktopCommand<DesktopApiRouterRuntimeStatus>(
-        DESKTOP_COMMANDS.getApiRouterRuntimeStatus,
-        undefined,
-        { operation: 'runtime.getApiRouterRuntimeStatus' },
-      ),
-    async () => null,
-  );
-}
-
-export async function ensureApiRouterRuntimeStarted(): Promise<DesktopApiRouterRuntimeStatus | null> {
-  return runDesktopOrFallback(
-    'runtime.ensureApiRouterRuntimeStarted',
-    () =>
-      invokeDesktopCommand<DesktopApiRouterRuntimeStatus>(
-        DESKTOP_COMMANDS.ensureApiRouterRuntimeStarted,
-        undefined,
-        { operation: 'runtime.ensureApiRouterRuntimeStarted' },
-      ),
-    async () => null,
-  );
-}
-
-export async function getApiRouterAdminBootstrapSession(): Promise<DesktopApiRouterAdminBootstrapSession | null> {
-  return runDesktopOrFallback(
-    'runtime.getApiRouterAdminBootstrapSession',
-    () =>
-      invokeDesktopCommand<DesktopApiRouterAdminBootstrapSession>(
-        DESKTOP_COMMANDS.getApiRouterAdminBootstrapSession,
-        undefined,
-        { operation: 'runtime.getApiRouterAdminBootstrapSession' },
-      ),
-    async () => null,
+    { operation: 'installer.applyProviderClientSetup' },
   );
 }
 
@@ -1325,14 +1281,11 @@ export const desktopTemplateApi = {
     runHubDependencyInstall,
     runHubInstall,
     runHubUninstall,
+    applyProviderClientSetup,
     subscribeHubInstallProgress,
-    installApiRouterClientSetup,
   },
   runtime: {
     getInfo: getRuntimeInfo,
-    ensureApiRouterRuntimeStarted,
-    getApiRouterAdminBootstrapSession,
-    getApiRouterRuntimeStatus,
     setAppLanguage,
   },
 };
@@ -1390,8 +1343,8 @@ export function configureDesktopPlatformBridge() {
       runHubDependencyInstall: (request) => runHubDependencyInstall(request),
       runHubInstall: (request) => runHubInstall(request),
       runHubUninstall: (request) => runHubUninstall(request),
+      applyProviderClientSetup: (request) => applyProviderClientSetup(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
-      installApiRouterClientSetup: (request) => installApiRouterClientSetup(request),
     },
     components: {
       listComponents: () => desktopComponentsApi.list(),
@@ -1457,9 +1410,6 @@ export function configureDesktopPlatformBridge() {
     },
     runtime: {
       getRuntimeInfo: () => getRuntimeInfo(),
-      ensureApiRouterRuntimeStarted: () => ensureApiRouterRuntimeStarted(),
-      getApiRouterAdminBootstrapSession: () => getApiRouterAdminBootstrapSession(),
-      getApiRouterRuntimeStatus: () => getApiRouterRuntimeStatus(),
       setAppLanguage: (language) => setAppLanguage(language),
       submitProcessJob: (profileId) => submitProcessJob(profileId),
       getJob: (id) => getJob(id),

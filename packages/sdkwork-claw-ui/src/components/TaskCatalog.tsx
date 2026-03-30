@@ -35,6 +35,7 @@ export interface TaskCatalogItem {
   summaryContent?: React.ReactNode;
   summaryDetails?: React.ReactNode;
   summaryFooter?: React.ReactNode;
+  summaryActions?: React.ReactNode;
   actions?: React.ReactNode;
 }
 
@@ -58,16 +59,24 @@ function renderSummary(item: TaskCatalogItem) {
     !item.summaryBadges?.length &&
     !item.summaryContent &&
     !item.summaryDetails &&
-    !item.summaryFooter
+    !item.summaryFooter &&
+    !item.summaryActions
   ) {
     return null;
   }
 
   return (
     <div data-slot="task-catalog-summary">
-      {item.summaryTitle ? (
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-          {item.summaryTitle}
+      {item.summaryTitle || item.summaryActions ? (
+        <div className="flex items-center justify-between gap-3">
+          {item.summaryTitle ? (
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {item.summaryTitle}
+            </div>
+          ) : (
+            <div />
+          )}
+          {item.summaryActions ? <div className="shrink-0">{item.summaryActions}</div> : null}
         </div>
       ) : null}
       {item.summaryBadges?.length ? (

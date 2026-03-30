@@ -4,7 +4,5 @@ export * from './authClient.ts';
 export * from './userClient.ts';
 export * from './accountClient.ts';
 export * from './notificationClient.ts';
-export * from './sdkworkApiRouterAccess.ts';
-export * from './sdkworkApiRouterAdminClient.ts';
 export * from './studioMockServiceProxy.ts';
 export * from './openClawGatewayClient.ts';

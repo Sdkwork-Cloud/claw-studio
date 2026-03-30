@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { sdkworkApiRouterAdminClient } from '@sdkwork/claw-infrastructure';
+import { studioMockService } from '@sdkwork/claw-infrastructure';
 import { dashboardCommerceService } from '@sdkwork/claw-core';
 import { dashboardService } from './dashboardService.ts';
 
@@ -13,7 +13,7 @@ async function runTest(name: string, fn: () => Promise<void>) {
   }
 }
 
-const originalListUsageRecords = sdkworkApiRouterAdminClient.listUsageRecords;
+const originalListUsageRecords = studioMockService.listApiRouterUsageRecords;
 const originalGetCommerceSnapshot = dashboardCommerceService.getCommerceSnapshot;
 
 function buildUsageRecord(
@@ -38,13 +38,19 @@ function buildUsageRecord(
   };
 }
 
-await runTest('dashboardService builds token analytics for the dashboard snapshot from router usage records', async () => {
-  sdkworkApiRouterAdminClient.listUsageRecords = async () => [
-    buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 12, 10)),
-    buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 60, 20, 0.08, Date.UTC(2026, 2, 12, 15)),
-    buildUsageRecord('project-beta', 'claude-sonnet-4.5', 'anthropic', 90, 30, 0.12, Date.UTC(2026, 2, 14, 9)),
-    buildUsageRecord('project-beta', 'claude-sonnet-4.5', 'anthropic', 110, 50, 0.16, Date.UTC(2026, 2, 18, 11)),
-  ];
+await runTest('dashboardService builds token analytics for the dashboard snapshot from studio usage records', async () => {
+  studioMockService.listApiRouterUsageRecords = async () => ({
+    items: [
+      buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 12, 10)),
+      buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 60, 20, 0.08, Date.UTC(2026, 2, 12, 15)),
+      buildUsageRecord('project-beta', 'claude-sonnet-4.5', 'anthropic', 90, 30, 0.12, Date.UTC(2026, 2, 14, 9)),
+      buildUsageRecord('project-beta', 'claude-sonnet-4.5', 'anthropic', 110, 50, 0.16, Date.UTC(2026, 2, 18, 11)),
+    ],
+    total: 4,
+    page: 1,
+    pageSize: 50,
+    hasMore: false,
+  });
 
   const daySnapshot = await dashboardService.getSnapshot({
     granularity: 'day',
@@ -118,8 +124,8 @@ await runTest('dashboardService builds token analytics for the dashboard snapsho
   assert.equal(customSnapshot.revenueAnalytics.totalRevenue, 0);
 });
 
-await runTest('dashboardService returns an empty token snapshot when router usage records are unavailable', async () => {
-  sdkworkApiRouterAdminClient.listUsageRecords = async () => {
+await runTest('dashboardService returns an empty token snapshot when studio usage records are unavailable', async () => {
+  studioMockService.listApiRouterUsageRecords = async () => {
     throw new Error('router offline');
   };
 
@@ -139,9 +145,15 @@ await runTest('dashboardService returns an empty token snapshot when router usag
 });
 
 await runTest('dashboardService surfaces commerce data from claw-core app sdk wrapper', async () => {
-  sdkworkApiRouterAdminClient.listUsageRecords = async () => [
-    buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 24, 9)),
-  ];
+  studioMockService.listApiRouterUsageRecords = async () => ({
+    items: [
+      buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 24, 9)),
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 50,
+    hasMore: false,
+  });
   dashboardCommerceService.getCommerceSnapshot = async () => ({
     businessSummary: {
       todayRevenue: 120,
@@ -222,9 +234,15 @@ await runTest('dashboardService surfaces commerce data from claw-core app sdk wr
 });
 
 await runTest('dashboardService keeps token analytics available when commerce sdk loading fails', async () => {
-  sdkworkApiRouterAdminClient.listUsageRecords = async () => [
-    buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 24, 9)),
-  ];
+  studioMockService.listApiRouterUsageRecords = async () => ({
+    items: [
+      buildUsageRecord('project-alpha', 'gpt-5.4', 'openai', 100, 40, 0.14, Date.UTC(2026, 2, 24, 9)),
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 50,
+    hasMore: false,
+  });
   dashboardCommerceService.getCommerceSnapshot = async () => {
     throw new Error('commerce unavailable');
   };
@@ -240,5 +258,5 @@ await runTest('dashboardService keeps token analytics available when commerce sd
   assert.deepEqual(snapshot.activityFeed.productPerformance, []);
 });
 
-sdkworkApiRouterAdminClient.listUsageRecords = originalListUsageRecords;
+studioMockService.listApiRouterUsageRecords = originalListUsageRecords;
 dashboardCommerceService.getCommerceSnapshot = originalGetCommerceSnapshot;

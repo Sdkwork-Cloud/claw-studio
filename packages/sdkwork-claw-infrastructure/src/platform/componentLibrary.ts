@@ -17,7 +17,6 @@ export const BUNDLED_COMPONENT_IDS: RuntimeBundledComponentId[] = [
   'openclaw',
   'zeroclaw',
   'ironclaw',
-  'sdkwork-api-router',
   'hub-installer',
 ];
 

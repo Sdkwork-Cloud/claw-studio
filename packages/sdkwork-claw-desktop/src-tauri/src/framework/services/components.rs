@@ -31,7 +31,6 @@ pub struct BundledServiceDefaults {
     pub auto_start_component_ids: Vec<String>,
     pub manual_component_ids: Vec<String>,
     pub embedded_component_ids: Vec<String>,
-    pub router_service_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,11 +135,6 @@ impl BundledComponentResources {
             .filter(|definition| definition.startup_mode == PackagedComponentStartupMode::Embedded)
             .map(|definition| definition.id.clone())
             .collect::<Vec<_>>();
-        let router_service_ids = definitions
-            .iter()
-            .find(|definition| definition.id == "sdkwork-api-router")
-            .map(|definition| definition.service_ids.clone())
-            .unwrap_or_default();
 
         Self {
             registry: PackagedComponentRegistry {
@@ -152,7 +146,6 @@ impl BundledComponentResources {
                 auto_start_component_ids,
                 manual_component_ids,
                 embedded_component_ids,
-                router_service_ids,
             },
             upgrade_policy: BundledUpgradePolicy::default(),
         }
@@ -220,7 +213,7 @@ mod tests {
 
         assert_eq!(
             resources.service_defaults.auto_start_component_ids,
-            vec!["openclaw".to_string(), "sdkwork-api-router".to_string()]
+            vec!["openclaw".to_string()]
         );
         assert_eq!(
             resources.service_defaults.manual_component_ids,

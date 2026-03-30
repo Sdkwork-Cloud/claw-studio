@@ -565,6 +565,98 @@ await runTest(
 );
 
 await runTest(
+  'openclaw gateway client resolves the shared auth token fresh for each connect on the same client instance',
+  async () => {
+    const sockets: MockWebSocket[] = [];
+    let requestCounter = 0;
+    let currentToken = 'shared-auth-token-1';
+
+    const client = new OpenClawGatewayClient({
+      url: 'ws://127.0.0.1:18789',
+      authToken: 'stale-static-token',
+      resolveAuthToken: async () => currentToken,
+      createRequestId: () => `req-${++requestCounter}`,
+      now: () => 1_700_000_000_000,
+      webSocketFactory: (url) => {
+        const socket = new MockWebSocket(url);
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      deviceIdentityProvider: {
+        async loadOrCreate() {
+          return null;
+        },
+      },
+    });
+
+    const firstConnectPromise = client.connect();
+    const firstSocket = sockets[0];
+    assert.ok(firstSocket);
+    firstSocket.emitOpen();
+    firstSocket.emitMessage({
+      type: 'event',
+      event: 'connect.challenge',
+      payload: {
+        nonce: 'nonce-1',
+      },
+    });
+
+    await waitFor(() => firstSocket.sent.length === 1);
+    const firstConnectFrame = parseFrame(firstSocket);
+    assert.deepEqual(firstConnectFrame.params?.auth, {
+      token: 'shared-auth-token-1',
+    });
+
+    firstSocket.emitMessage({
+      type: 'res',
+      id: firstConnectFrame.id,
+      ok: true,
+      payload: {
+        type: 'hello-ok',
+        protocol: 3,
+      },
+    });
+
+    await firstConnectPromise;
+    client.disconnect();
+
+    currentToken = 'shared-auth-token-2';
+
+    const secondConnectPromise = client.connect();
+    await waitFor(() => sockets.length === 2);
+    const secondSocket = sockets[1];
+    assert.ok(secondSocket);
+    secondSocket.emitOpen();
+    secondSocket.emitMessage({
+      type: 'event',
+      event: 'connect.challenge',
+      payload: {
+        nonce: 'nonce-2',
+      },
+    });
+
+    await waitFor(() => secondSocket.sent.length === 1);
+    const secondConnectFrame = parseFrame(secondSocket);
+    assert.deepEqual(secondConnectFrame.params?.auth, {
+      token: 'shared-auth-token-2',
+    });
+
+    secondSocket.emitMessage({
+      type: 'res',
+      id: secondConnectFrame.id,
+      ok: true,
+      payload: {
+        type: 'hello-ok',
+        protocol: 3,
+      },
+    });
+
+    await secondConnectPromise;
+    client.disconnect();
+  },
+);
+
+await runTest(
   'openclaw gateway client retries one time with a cached device token after AUTH_TOKEN_MISMATCH',
   async () => {
     const sockets: MockWebSocket[] = [];

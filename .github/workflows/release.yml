@@ -98,6 +98,8 @@ jobs:
             libpipewire-0.3-dev \
             libssl-dev \
             librsvg2-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
             pkg-config \
             rpm \
             patchelf
@@ -195,6 +197,8 @@ jobs:
             libpipewire-0.3-dev \
             libssl-dev \
             librsvg2-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
             pkg-config \
             rpm \
             patchelf
@@ -216,9 +220,6 @@ jobs:
 
       - name: Prepare bundled OpenClaw runtime
         run: node scripts/run-desktop-release-build.mjs --phase prepare-openclaw --target ${{ matrix.target }}
-
-      - name: Prepare bundled sdkwork-api-router runtime
-        run: node scripts/run-desktop-release-build.mjs --phase prepare-api-router --target ${{ matrix.target }}
 
       - name: Build Claw Studio desktop bundle on Windows
         if: matrix.platform == 'windows'

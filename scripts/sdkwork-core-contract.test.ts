@@ -32,6 +32,7 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
 
   assert.ok(exists('packages/sdkwork-claw-core/src/components/CommandPalette.tsx'));
   assert.ok(exists('packages/sdkwork-claw-core/src/components/Sidebar.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-core/src/sdk/appSdkSession.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/sdk/useAppSdkClient.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/stores/useAppStore.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/stores/useInstanceStore.ts'));
@@ -66,6 +67,37 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.match(indexSource, /useAppSdkClient/);
   assert.match(indexSource, /useAppStore/);
   assert.match(indexSource, /useKeyboardShortcuts/);
+});
+
+runTest('sdkwork-claw-core isolates lightweight app session persistence from the generated client factory', () => {
+  const authStoreSource = read('packages/sdkwork-claw-core/src/stores/useAuthStore.ts');
+  const sessionSource = read('packages/sdkwork-claw-core/src/sdk/appSdkSession.ts');
+  const sdkClientSource = read('packages/sdkwork-claw-core/src/sdk/useAppSdkClient.ts');
+  const appStoreCatalogSource = read('packages/sdkwork-claw-core/src/services/appStoreCatalogService.ts');
+  const clawHubServiceSource = read('packages/sdkwork-claw-core/src/services/clawHubService.ts');
+  const clawMallServiceSource = read('packages/sdkwork-claw-core/src/services/clawMallService.ts');
+  const communityServiceSource = read('packages/sdkwork-claw-core/src/services/communityService.ts');
+  const dashboardCommerceServiceSource = read('packages/sdkwork-claw-core/src/services/dashboardCommerceService.ts');
+  const feedbackCenterServiceSource = read('packages/sdkwork-claw-core/src/services/feedbackCenterService.ts');
+
+  assert.match(sessionSource, /resolveAppSdkAccessToken/);
+  assert.match(sessionSource, /readAppSdkSessionTokens/);
+  assert.match(sessionSource, /persistAppSdkSessionStorage/);
+  assert.match(sessionSource, /clearAppSdkSessionStorage/);
+  assert.match(sdkClientSource, /from '\.\/appSdkSession\.ts';/);
+  assert.match(authStoreSource, /from '\.\.\/sdk\/appSdkSession\.ts';/);
+  assert.doesNotMatch(authStoreSource, /from '\.\.\/sdk\/useAppSdkClient\.ts';/);
+
+  for (const source of [
+    appStoreCatalogSource,
+    clawHubServiceSource,
+    clawMallServiceSource,
+    communityServiceSource,
+    dashboardCommerceServiceSource,
+    feedbackCenterServiceSource,
+  ]) {
+    assert.doesNotMatch(source, /await import\('\.\.\/sdk\/useAppSdkClient\.ts'\)/);
+  }
 });
 
 runTest('sdkwork-claw-core owns the shared community wrapper for remote feed sdk access', () => {
@@ -106,11 +138,32 @@ runTest('sdkwork-claw-core owns shared account and settings wrappers for remote 
 
 runTest('sdkwork-claw-core app store persists sidebar width for shell chrome resizing', () => {
   const storeSource = read('packages/sdkwork-claw-core/src/stores/useAppStore.ts');
+  const autoCollapseSource = read('packages/sdkwork-claw-core/src/stores/sidebarAutoCollapse.ts');
 
   assert.match(storeSource, /sidebarWidth:\s*number/);
+  assert.match(storeSource, /export type SidebarCollapsePreference = 'auto' \| 'user';/);
+  assert.match(storeSource, /sidebarCollapsePreference:\s*SidebarCollapsePreference/);
   assert.match(storeSource, /setSidebarWidth:\s*\(width:\s*number\)\s*=>\s*void/);
-  assert.match(storeSource, /sidebarWidth:\s*252/);
+  assert.match(storeSource, /isSidebarCollapsed:\s*resolveAutoSidebarCollapsed\(\)/);
+  assert.match(storeSource, /sidebarCollapsePreference:\s*'auto'/);
+  assert.match(
+    storeSource,
+    /toggleSidebar:\s*\(\)\s*=>\s*set\(\(state\) => \(\{[\s\S]*isSidebarCollapsed:\s*!state\.isSidebarCollapsed,[\s\S]*sidebarCollapsePreference:\s*'user'/,
+  );
+  assert.match(
+    storeSource,
+    /setSidebarCollapsed:\s*\(collapsed\)\s*=>\s*set\(\{\s*isSidebarCollapsed:\s*collapsed,\s*sidebarCollapsePreference:\s*'user'\s*\}\)/,
+  );
   assert.match(storeSource, /setSidebarWidth:\s*\(sidebarWidth\)\s*=>\s*set\(\{\s*sidebarWidth\s*\}\)/);
+  assert.match(storeSource, /sidebarCollapsePreference:\s*state\.sidebarCollapsePreference/);
+  assert.match(
+    storeSource,
+    /const isSidebarCollapsed =\s*sidebarCollapsePreference === 'auto'\s*\?\s*resolveAutoSidebarCollapsed\(\)\s*:\s*nextState\.isSidebarCollapsed \?\? currentState\.isSidebarCollapsed;/,
+  );
+  assert.match(autoCollapseSource, /export function shouldAutoCollapseSidebar/);
+  assert.match(autoCollapseSource, /export function resolveAutoSidebarCollapsed/);
+  assert.match(autoCollapseSource, /runtimeWindow\.screen\?\.availWidth/);
+  assert.match(autoCollapseSource, /runtimeWindow\.devicePixelRatio/);
 });
 
 runTest('sdkwork-claw-core app store tracks one-time mobile guide exposure separately from dialog visibility', () => {
@@ -138,31 +191,48 @@ runTest('sdkwork-claw-core sidebar removes codebox while keeping api-router avai
 
 runTest('sdkwork-claw-core exports shared desktop window controls for shell and auth surfaces', () => {
   const indexSource = read('packages/sdkwork-claw-core/src/index.ts');
-  const controlsSource = read('packages/sdkwork-claw-core/src/components/DesktopWindowControls.tsx');
+  const controlsImplSource = read('packages/sdkwork-claw-core/src/components/DesktopWindowControls.ts');
+  const controlsReexportSource = read('packages/sdkwork-claw-core/src/components/DesktopWindowControls.tsx');
+  const controlsRuntimeSource = read(
+    'packages/sdkwork-claw-core/src/components/desktopWindowControlsRuntime.ts',
+  );
 
   assert.ok(exists('packages/sdkwork-claw-core/src/components/DesktopWindowControls.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-core/src/components/desktopWindowControlsRuntime.ts'));
   assert.match(indexSource, /\.\/components\/DesktopWindowControls/);
-  assert.match(controlsSource, /platform\.getPlatform\(\)\s*===\s*'desktop'/);
-  assert.match(controlsSource, /common\.minimizeWindow/);
-  assert.match(controlsSource, /common\.maximizeWindow/);
-  assert.match(controlsSource, /common\.restoreWindow/);
-  assert.match(controlsSource, /common\.closeWindow/);
+  assert.match(controlsReexportSource, /export \{ DesktopWindowControls \} from '\.\/DesktopWindowControls\.ts';/);
+  assert.match(controlsImplSource, /shouldRenderDesktopWindowControls/);
+  assert.match(controlsRuntimeSource, /data-app-platform/);
+  assert.match(controlsRuntimeSource, /__TAURI_INTERNALS__/);
+  assert.match(controlsImplSource, /common\.minimizeWindow/);
+  assert.match(controlsImplSource, /common\.maximizeWindow/);
+  assert.match(controlsImplSource, /common\.restoreWindow/);
+  assert.match(controlsImplSource, /common\.closeWindow/);
+  assert.doesNotMatch(controlsImplSource, /lazy|Suspense|fallback:\s*null/);
 });
 
 runTest('claw host vite configs switch shared sdk resolution by explicit mode while keeping source mode for development', () => {
   const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
   const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
+  const webEnvExample = read('packages/sdkwork-claw-web/.env.example');
+  const desktopEnvExample = read('packages/sdkwork-claw-desktop/.env.example');
 
   assert.match(webViteConfig, /isSharedSdkSourceMode/);
+  assert.match(webViteConfig, /loadEnv\(mode,\s*__dirname,\s*''\)/);
   assert.match(webViteConfig, /resolvePnpmPackageDistEntry/);
   assert.match(webViteConfig, /@sdkwork\/app-sdk/);
   assert.match(webViteConfig, /sdkwork-app-sdk-typescript/);
   assert.match(webViteConfig, /src\/index\.ts/);
 
   assert.match(desktopViteConfig, /isSharedSdkSourceMode/);
+  assert.match(desktopViteConfig, /loadEnv\(mode,\s*__dirname,\s*''\)/);
   assert.match(desktopViteConfig, /@sdkwork\/app-sdk/);
   assert.match(desktopViteConfig, /sdkwork-app-sdk-typescript/);
   assert.match(desktopViteConfig, /src\/index\.ts/);
+  assert.match(webEnvExample, /VITE_API_BASE_URL/);
+  assert.match(webEnvExample, /VITE_IM_WS_URL/);
+  assert.match(desktopEnvExample, /VITE_API_BASE_URL/);
+  assert.match(desktopEnvExample, /VITE_IM_WS_URL/);
 });
 
 runTest('claw hosts resolve @sdkwork/sdk-common from shared SDK source only in source mode', () => {
@@ -201,8 +271,8 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
-  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build"/);
-  assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
+  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build --mode production"/);
+  assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build --mode production && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
   assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"pnpm prepare:shared-sdk && node scripts\/run-sdkwork-core-check\.mjs"/);
   assert.match(prepareSharedSdkScript, /SDKWORK_SHARED_SDK_MODE/);
   assert.match(prepareSharedSdkScript, /resolveSharedSdkMode/);

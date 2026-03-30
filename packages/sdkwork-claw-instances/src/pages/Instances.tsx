@@ -191,6 +191,13 @@ export function Instances() {
     void loadInstances();
   }, []);
 
+  useEffect(() => {
+    const instance = instances.find((record) => record.id === activeInstanceId) || null;
+    if (instance && activeInstanceId === instance.id && !instance.supportsAssist) {
+      setActiveInstanceId(null);
+    }
+  }, [activeInstanceId, instances, setActiveInstanceId]);
+
   const loadInstalledOpenClawInstalls = async () => {
     setIsLoadingInstalls(true);
     try {
@@ -581,7 +588,7 @@ export function Instances() {
                 </div>
 
                 <div className="relative flex items-center gap-2">
-                  {!isActive && instance.status === 'online' && (
+                  {!isActive && instance.supportsAssist && instance.status === 'online' && (
                     <button
                       onClick={(event) => {
                         event.stopPropagation();
@@ -607,7 +614,7 @@ export function Instances() {
                       <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                         {instance.status === 'online' ? (
                           <>
-                            {!isActive && (
+                            {!isActive && instance.supportsAssist && (
                               <button
                                 onClick={(event) => {
                                   event.stopPropagation();

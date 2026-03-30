@@ -18,9 +18,11 @@ import {
   clearAppSdkSessionTokens,
   getAppSdkClientWithSession,
   persistAppSdkSessionTokens,
+} from '../sdk/useAppSdkClient.ts';
+import {
   readAppSdkSessionTokens,
   resolveAppSdkAccessToken,
-} from '../sdk/useAppSdkClient.ts';
+} from '../sdk/appSdkSession.ts';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
 
 export type AppAuthVerifyType = 'EMAIL' | 'PHONE';

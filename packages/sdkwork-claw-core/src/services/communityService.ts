@@ -1,3 +1,7 @@
+import { readAppSdkSessionTokens } from '../sdk/appSdkSession.ts';
+import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { getAppSdkClientWithSession } from '../sdk/useAppSdkClient.ts';
+
 export interface ListParams {
   keyword?: string;
   page?: number;
@@ -871,8 +875,7 @@ function matchesQuery(post: CommunityPost, query?: string) {
   return searchable.includes(normalizedQuery);
 }
 
-async function defaultClientFactory() {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function defaultClientFactory() {
   return getAppSdkClientWithSession() as unknown as CommunitySdkClient;
 }
 
@@ -1131,4 +1134,3 @@ export function createCommunityService(
 }
 
 export const communityService = createCommunityService();
-import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';

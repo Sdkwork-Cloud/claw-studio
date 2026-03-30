@@ -269,7 +269,7 @@ await runTest(
           async subscribeHubInstallProgress() {
             return () => {};
           },
-          async installApiRouterClientSetup() {
+          async applyProviderClientSetup() {
             throw new Error('not implemented');
           },
         },
@@ -336,7 +336,7 @@ await runTest('getInstallCatalog delegates to the Rust installer catalog bridge'
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -473,7 +473,7 @@ await runTest(
           async subscribeHubInstallProgress() {
             return () => {};
           },
-          async installApiRouterClientSetup() {
+          async applyProviderClientSetup() {
             throw new Error('not implemented');
           },
         },
@@ -538,7 +538,7 @@ await runTest('resolveInstallTarget prefers the Rust-selected variant data for W
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -625,7 +625,7 @@ await runTest('resolveInstallTarget honors an explicit Rust catalog profile sele
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -697,7 +697,7 @@ await runTest('getGuidedInstallNavigation routes claw runtimes into the step-bas
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -844,7 +844,7 @@ await runTest('getList merges app sdk store metadata with the Rust installer cat
         async subscribeHubInstallProgress() {
           return () => {};
         },
-        async installApiRouterClientSetup() {
+        async applyProviderClientSetup() {
           throw new Error('not implemented');
         },
       },
@@ -988,7 +988,7 @@ await runTest('getCategories groups app sdk store entries with merged installer 
         async subscribeHubInstallProgress() {
           return () => {};
         },
-        async installApiRouterClientSetup() {
+        async applyProviderClientSetup() {
           throw new Error('not implemented');
         },
       },
@@ -1094,7 +1094,7 @@ await runTest('getApp resolves detail from app sdk store metadata and merges ins
         async subscribeHubInstallProgress() {
           return () => {};
         },
-        async installApiRouterClientSetup() {
+        async applyProviderClientSetup() {
           throw new Error('not implemented');
         },
       },
@@ -1188,7 +1188,7 @@ await runTest('inspectInstall delegates to the shared installer bridge with the 
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -1279,7 +1279,7 @@ await runTest('inspectInstall preserves persistent install status from the Rust 
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -1469,7 +1469,7 @@ await runTest('getInstallSurfaceSummaries derives installed, ready, and attentio
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -1598,7 +1598,7 @@ await runTest(
         async subscribeHubInstallProgress() {
           return () => {};
         },
-        async installApiRouterClientSetup() {
+        async applyProviderClientSetup() {
           throw new Error('not implemented');
         },
       },
@@ -1731,7 +1731,7 @@ await runTest('installDependencies delegates to the shared dependency installer 
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -1870,7 +1870,7 @@ await runTest('installApp delegates to the shared installer bridge for the selec
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -1991,7 +1991,7 @@ await runTest('uninstallApp delegates to the shared installer bridge', async () 
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -2152,7 +2152,7 @@ await runTest('install lifecycle requests preserve caller-supplied request ids f
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
+      async applyProviderClientSetup() {
         throw new Error('not implemented');
       },
     },
@@ -2175,3 +2175,4 @@ await runTest('install lifecycle requests preserve caller-supplied request ids f
   assert.equal(installCalls[0]?.requestId, 'install-request-1');
   assert.equal(uninstallCalls[0]?.requestId, 'uninstall-request-1');
 });
+

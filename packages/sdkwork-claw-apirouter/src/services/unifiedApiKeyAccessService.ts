@@ -1,5 +1,5 @@
 import {
-  resolveApiRouterGatewayBaseUrl,
+  APP_ENV,
   type AppEnvConfig,
 } from '@sdkwork/claw-infrastructure';
 import type { ProxyProvider, ProxyProviderModel, UnifiedApiKey } from '@sdkwork/claw-types';
@@ -54,8 +54,8 @@ export const UNIFIED_API_ACCESS_GATEWAYS: UnifiedApiAccessGatewayCatalog = {
     channelId: 'google',
     baseUrl: '/v1',
     defaultModel: {
-      id: 'gemini-2.5-pro',
-      name: 'Gemini 2.5 Pro',
+      id: 'gemini-3.1-pro-preview',
+      name: 'Gemini 3.1 Pro',
     },
   },
 };
@@ -86,10 +86,10 @@ function joinUrl(baseUrl: string, path: string) {
 export async function resolveUnifiedApiAccessGateways(
   options: { env?: AppEnvConfig; baseUrl?: string } = {},
 ): Promise<UnifiedApiAccessGatewayCatalog> {
-  const gatewayBaseUrl = await resolveApiRouterGatewayBaseUrl({
-    env: options.env,
-    baseUrl: options.baseUrl,
-  });
+  const env = options.env ?? APP_ENV;
+  const gatewayBaseUrl = normalizeBaseUrl(
+    options.baseUrl || env.openclaw.gatewayBaseUrl || '',
+  );
 
   return {
     openai: {

@@ -1128,16 +1128,16 @@ await runTest('apiRouterService rejects reads when router admin access is unavai
   };
 
   infrastructure.sdkworkApiRouterAdminClient.listProviders = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
   infrastructure.sdkworkApiRouterAdminClient.listCredentials = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
   infrastructure.sdkworkApiRouterAdminClient.listModels = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
   infrastructure.sdkworkApiRouterAdminClient.listTenants = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
 
   try {
@@ -1168,16 +1168,16 @@ await runTest('apiRouterService rejects writes when router admin access is unava
   };
 
   infrastructure.sdkworkApiRouterAdminClient.listProviders = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
   infrastructure.sdkworkApiRouterAdminClient.listCredentials = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
   infrastructure.sdkworkApiRouterAdminClient.listModels = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
   infrastructure.sdkworkApiRouterAdminClient.listTenants = async () => {
-    throw new Error('sdkwork-api-router admin request failed: 401 Unauthorized');
+    throw new Error('router admin request failed: 401 Unauthorized');
   };
 
   try {

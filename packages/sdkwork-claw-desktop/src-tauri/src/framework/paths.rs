@@ -119,13 +119,66 @@ impl AppPaths {
     }
 }
 
+fn tauri_debug_enabled() -> bool {
+    matches!(
+        std::env::var("SDKWORK_TAURI_DEBUG"),
+        Ok(value)
+            if matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+    )
+}
+
+fn trace_paths(message: &str) {
+    if tauri_debug_enabled() {
+        eprintln!("[desktop-tauri][paths] {message}");
+    }
+}
+
+fn trace_resolved_roots(
+    stage: &str,
+    install_root: &PathBuf,
+    use_dev_roots: bool,
+    machine_root: &PathBuf,
+    user_root: &PathBuf,
+) {
+    trace_paths(&format!(
+        "{stage}: install_root={}, use_dev_roots={}, machine_root={}, user_root={}",
+        install_root.display(),
+        use_dev_roots,
+        machine_root.display(),
+        user_root.display()
+    ));
+}
+
 pub fn resolve_paths<R: Runtime>(app: &AppHandle<R>) -> Result<AppPaths> {
     let install_root = resolve_install_root()?;
-    let machine_root = resolve_machine_root(app)?;
-    let user_root = resolve_user_root(app)?;
+    let use_dev_roots = should_use_dev_roots(&install_root);
+    let machine_root = if use_dev_roots {
+        install_root.join("machine")
+    } else {
+        resolve_machine_root(app)?
+    };
+    let user_root = if use_dev_roots {
+        install_root.join("user")
+    } else {
+        resolve_user_root(app)?
+    };
+    trace_resolved_roots(
+        "resolve_paths",
+        &install_root,
+        use_dev_roots,
+        &machine_root,
+        &user_root,
+    );
 
     let paths = build_paths(install_root, machine_root, user_root);
     ensure_runtime_directories(&paths)?;
+    trace_paths(&format!(
+        "resolve_paths completed: main_log_file={}",
+        paths.main_log_file.display()
+    ));
     Ok(paths)
 }
 
@@ -137,12 +190,39 @@ pub(crate) fn resolve_paths_from_current_process_with_overrides(
     machine_root: Option<PathBuf>,
     user_root: Option<PathBuf>,
 ) -> Result<AppPaths> {
+    let install_root = resolve_install_root()?;
+    let use_dev_roots = should_use_dev_roots(&install_root);
+    let resolved_machine_root = if let Some(machine_root) = machine_root {
+        machine_root
+    } else if use_dev_roots {
+        install_root.join("machine")
+    } else {
+        resolve_machine_root_from_current_process()?
+    };
+    let resolved_user_root = if let Some(user_root) = user_root {
+        user_root
+    } else if use_dev_roots {
+        install_root.join("user")
+    } else {
+        resolve_user_root_from_current_process()?
+    };
+    trace_resolved_roots(
+        "resolve_paths_from_current_process",
+        &install_root,
+        use_dev_roots,
+        &resolved_machine_root,
+        &resolved_user_root,
+    );
     let paths = build_paths(
-        resolve_install_root()?,
-        machine_root.unwrap_or(resolve_machine_root_from_current_process()?),
-        user_root.unwrap_or(resolve_user_root_from_current_process()?),
+        install_root,
+        resolved_machine_root,
+        resolved_user_root,
     );
     ensure_runtime_directories(&paths)?;
+    trace_paths(&format!(
+        "resolve_paths_from_current_process completed: main_log_file={}",
+        paths.main_log_file.display()
+    ));
     Ok(paths)
 }
 
@@ -283,6 +363,7 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
 
 fn resolve_install_root() -> Result<PathBuf> {
     let executable = std::env::current_exe()?;
+    trace_paths(&format!("current executable {}", executable.display()));
     executable
         .parent()
         .map(|path| path.to_path_buf())
@@ -293,6 +374,12 @@ fn resolve_install_root() -> Result<PathBuf> {
         })
 }
 
+fn should_use_dev_roots(install_root: &PathBuf) -> bool {
+    install_root
+        .components()
+        .any(|component| matches!(component, std::path::Component::Normal(value) if value.to_string_lossy().eq_ignore_ascii_case(".tauri-target") || value.to_string_lossy().eq_ignore_ascii_case("target-dev")))
+}
+
 #[cfg(windows)]
 fn resolve_machine_root<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf> {
     resolve_machine_root_from_env()
@@ -300,11 +387,12 @@ fn resolve_machine_root<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf> {
 
 #[cfg(windows)]
 fn resolve_machine_root_from_env() -> Result<PathBuf> {
-    let base = std::env::var_os("ProgramData")
+    let base = std::env::var_os("LOCALAPPDATA")
+        .or_else(|| std::env::var_os("ProgramData"))
         .map(PathBuf::from)
-        .ok_or_else(|| FrameworkError::NotFound("ProgramData environment variable".to_string()))?;
+        .ok_or_else(|| FrameworkError::NotFound("LOCALAPPDATA or ProgramData environment variable".to_string()))?;
 
-    Ok(base.join("SdkWork").join("CrawStudio"))
+    Ok(base.join("SdkWork").join("ClawStudio"))
 }
 
 #[cfg(windows)]
@@ -369,11 +457,20 @@ fn resolve_user_root_from_current_process() -> Result<PathBuf> {
 
 pub fn ensure_runtime_directories(paths: &AppPaths) -> Result<()> {
     for directory in paths.managed_roots() {
-        fs::create_dir_all(directory)?;
+        fs::create_dir_all(&directory).map_err(|error| {
+            FrameworkError::Internal(format!(
+                "failed to create runtime directory {}: {error}",
+                directory.display()
+            ))
+        })?;
     }
 
-    crate::framework::layout::initialize_machine_state(paths)?;
-    crate::framework::config::load_or_create_config(paths)?;
+    crate::framework::layout::initialize_machine_state(paths).map_err(|error| {
+        FrameworkError::Internal(format!("failed to initialize machine state: {error}"))
+    })?;
+    crate::framework::config::load_or_create_config(paths).map_err(|error| {
+        FrameworkError::Internal(format!("failed to load or create app config: {error}"))
+    })?;
 
     Ok(())
 }

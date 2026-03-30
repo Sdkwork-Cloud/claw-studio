@@ -191,8 +191,8 @@ await runTest('providerAccessConfigService enables Gemini CLI for Google-compati
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     models: [
       {
-        id: 'gemini-2.5-pro',
-        name: 'Gemini 2.5 Pro',
+        id: 'gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro',
       },
     ],
   });
@@ -219,7 +219,7 @@ await runTest('providerAccessConfigService enables Gemini CLI for Google-compati
     ['~/.gemini/settings.json', '~/.gemini/.env'],
   );
   assert.match(gemini.snippets[0]?.content || '', /"selectedType": "gemini-api-key"/);
-  assert.match(gemini.snippets[0]?.content || '', /"name": "gemini-2\.5-pro"/);
+  assert.match(gemini.snippets[0]?.content || '', /"name": "gemini-3\.1-pro-preview"/);
   assert.match(gemini.snippets[1]?.content || '', /GEMINI_API_KEY="google-router-live-789"/);
   assert.match(
     gemini.snippets[1]?.content || '',
@@ -249,8 +249,8 @@ await runTest('providerAccessConfigService writes bearer-based Gemini env snippe
     baseUrl: 'https://api-router.example.com/gemini',
     models: [
       {
-        id: 'gemini-2.5-pro',
-        name: 'Gemini 2.5 Pro',
+        id: 'gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro',
       },
     ],
   });
@@ -306,13 +306,13 @@ await runTest('providerAccessConfigService enables Claude Code for MiniMax Anthr
   const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
   const provider = createProvider({
     channelId: 'minimax',
-    name: 'MiniMax Claude Bridge',
+    name: 'MiniMax Global Route',
     apiKey: 'minimax-router-live-456',
-    baseUrl: 'https://api.minimax.chat/v1',
+    baseUrl: 'https://api.minimax.io/anthropic',
     models: [
       {
-        id: 'MiniMax-M1-80k',
-        name: 'MiniMax M1 80K',
+        id: 'MiniMax-M2.7',
+        name: 'MiniMax M2.7',
       },
     ],
   });
@@ -322,12 +322,42 @@ await runTest('providerAccessConfigService enables Claude Code for MiniMax Anthr
   assert.ok(claudeCode);
   assert.equal(claudeCode.available, true);
   assert.match(claudeCode.snippets[0]?.content || '', /"ANTHROPIC_AUTH_TOKEN": "minimax-router-live-456"/);
-  assert.match(claudeCode.snippets[0]?.content || '', /"ANTHROPIC_BASE_URL": "https:\/\/api\.minimax\.chat\/v1"/);
-  assert.match(claudeCode.snippets[0]?.content || '', /"model": "MiniMax-M1-80k"/);
+  assert.match(claudeCode.snippets[0]?.content || '', /"ANTHROPIC_BASE_URL": "https:\/\/api\.minimax\.io\/anthropic"/);
+  assert.match(claudeCode.snippets[0]?.content || '', /"model": "MiniMax-M2\.7"/);
 
   const openclaw = configs.find((config) => config.id === 'openclaw');
   assert.ok(openclaw);
   assert.equal(openclaw.available, true);
+  assert.match(openclaw.snippets[0]?.content || '', /--custom-compatibility anthropic/);
+});
+
+await runTest('providerAccessConfigService keeps MiniMax CN Anthropic-compatible routes available to Claude Code and OpenClaw', async () => {
+  const { buildProviderAccessClientConfigs } = await import('./providerAccessConfigService.ts');
+  const provider = createProvider({
+    channelId: 'minimax',
+    name: 'MiniMax CN Route',
+    apiKey: 'minimax-cn-router-live-789',
+    baseUrl: 'https://api.minimaxi.com/anthropic',
+    models: [
+      {
+        id: 'MiniMax-M2.7',
+        name: 'MiniMax M2.7',
+      },
+    ],
+  });
+  const configs = buildProviderAccessClientConfigs(provider);
+
+  const claudeCode = configs.find((config) => config.id === 'claude-code');
+  assert.ok(claudeCode);
+  assert.equal(claudeCode.available, true);
+  assert.match(claudeCode.snippets[0]?.content || '', /"ANTHROPIC_AUTH_TOKEN": "minimax-cn-router-live-789"/);
+  assert.match(claudeCode.snippets[0]?.content || '', /"ANTHROPIC_BASE_URL": "https:\/\/api\.minimaxi\.com\/anthropic"/);
+  assert.match(claudeCode.snippets[0]?.content || '', /"model": "MiniMax-M2\.7"/);
+
+  const openclaw = configs.find((config) => config.id === 'openclaw');
+  assert.ok(openclaw);
+  assert.equal(openclaw.available, true);
+  assert.match(openclaw.snippets[0]?.content || '', /--custom-base-url "https:\/\/api\.minimaxi\.com\/anthropic"/);
   assert.match(openclaw.snippets[0]?.content || '', /--custom-compatibility anthropic/);
 });
 

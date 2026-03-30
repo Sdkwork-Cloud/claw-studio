@@ -44,15 +44,24 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('notification settings SDK contract exposes the app-api notification settings shape', () => {
-  const notificationSettingsType = readFromRepo(
+runTest('notification settings integration keeps the generated update form and the local adapter shape aligned', () => {
+  const notificationSettingsUpdateForm = readFromRepo(
     'spring-ai-plus-app-api',
     'sdkwork-sdk-app',
     'sdkwork-app-sdk-typescript',
     'src',
     'types',
-    'notification-settings-vo.ts',
+    'notification-settings-update-form.ts',
   );
+  const notificationTypeSettingsForm = readFromRepo(
+    'spring-ai-plus-app-api',
+    'sdkwork-sdk-app',
+    'sdkwork-app-sdk-typescript',
+    'src',
+    'types',
+    'notification-type-settings-form.ts',
+  );
+  const coreSettingsServiceSource = read('packages/sdkwork-claw-core/src/services/settingsService.ts');
 
   assert.ok(
     existsInRepo(
@@ -61,19 +70,37 @@ runTest('notification settings SDK contract exposes the app-api notification set
       'sdkwork-app-sdk-typescript',
       'src',
       'types',
-      'notification-type-settings-vo.ts',
+      'notification-settings-update-form.ts',
     ),
-    'generated notification type settings VO should exist',
+    'generated notification settings update form should exist',
   );
-  assert.match(notificationSettingsType, /enablePush\?: boolean/);
-  assert.match(notificationSettingsType, /enableEmail\?: boolean/);
-  assert.match(notificationSettingsType, /enableSms\?: boolean/);
-  assert.match(notificationSettingsType, /enableInApp\?: boolean/);
-  assert.match(notificationSettingsType, /quietHoursStart\?: string/);
-  assert.match(notificationSettingsType, /quietHoursEnd\?: string/);
-  assert.match(notificationSettingsType, /notificationSound\?: string/);
-  assert.match(notificationSettingsType, /vibrationEnabled\?: boolean/);
-  assert.match(notificationSettingsType, /typeSettings\?/);
+  assert.ok(
+    existsInRepo(
+      'spring-ai-plus-app-api',
+      'sdkwork-sdk-app',
+      'sdkwork-app-sdk-typescript',
+      'src',
+      'types',
+      'notification-type-settings-form.ts',
+    ),
+    'generated notification type settings form should exist',
+  );
+  assert.match(notificationSettingsUpdateForm, /enablePush\?: boolean/);
+  assert.match(notificationSettingsUpdateForm, /enableEmail\?: boolean/);
+  assert.match(notificationSettingsUpdateForm, /enableSms\?: boolean/);
+  assert.match(notificationSettingsUpdateForm, /enableInApp\?: boolean/);
+  assert.match(notificationSettingsUpdateForm, /quietHoursStart\?: string/);
+  assert.match(notificationSettingsUpdateForm, /quietHoursEnd\?: string/);
+  assert.match(notificationSettingsUpdateForm, /notificationSound\?: string/);
+  assert.match(notificationSettingsUpdateForm, /vibrationEnabled\?: boolean/);
+  assert.match(notificationTypeSettingsForm, /type: string/);
+  assert.match(coreSettingsServiceSource, /interface RemoteNotificationTypeSettings/);
+  assert.match(coreSettingsServiceSource, /enablePush\?: boolean/);
+  assert.match(coreSettingsServiceSource, /enableEmail\?: boolean/);
+  assert.match(coreSettingsServiceSource, /enableSms\?: boolean/);
+  assert.match(coreSettingsServiceSource, /enableInApp\?: boolean/);
+  assert.match(coreSettingsServiceSource, /interface RemoteNotificationSettings/);
+  assert.match(coreSettingsServiceSource, /typeSettings\?: Record<string, RemoteNotificationTypeSettings>/);
 });
 
 runTest('sdkwork-claw-settings exports Kernel Center through package and service barrels with localized page copy', () => {
@@ -191,4 +218,75 @@ runTest('sdkwork-claw-settings exposes a feedback settings entry backed by claw-
 
   assert.match(enLocaleSource, /"feedback": "Feedback"/);
   assert.match(zhLocaleSource, /"feedback": "反馈"/);
+});
+runTest('provider center presets and localized copy stay aligned with current OpenClaw provider expectations', () => {
+  const providerConfigCenterSource = read(
+    'packages/sdkwork-claw-settings/src/services/providerConfigCenterService.ts',
+  );
+  const llmStoreSource = read('packages/sdkwork-claw-settings/src/store/useLLMStore.ts');
+  const i18nIndexSource = read('packages/sdkwork-claw-i18n/src/index.ts');
+  const localePatchSource = read('packages/sdkwork-claw-i18n/src/localePatches.ts');
+  const enLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/en.json');
+
+  assert.match(providerConfigCenterSource, /Alibaba Cloud Model Studio \/ DashScope API keys/);
+  assert.match(providerConfigCenterSource, /Gemini-compatible Google AI Studio route preset/);
+  assert.match(providerConfigCenterSource, /gemini-3\.1-pro-preview/);
+  assert.match(providerConfigCenterSource, /GOOGLE_GEMINI_BASE_URL/);
+  assert.match(providerConfigCenterSource, /portal\.qwen\.ai OAuth onboarding/);
+  assert.match(providerConfigCenterSource, /native Responses API endpoint/);
+  assert.match(providerConfigCenterSource, /plugin and tool allowlist/);
+  assert.match(providerConfigCenterSource, /reasoningModelId: 'grok-4-fast'/);
+  assert.match(providerConfigCenterSource, /id: 'grok-4-1-fast'/);
+  assert.match(providerConfigCenterSource, /id: 'minimax'/);
+  assert.match(providerConfigCenterSource, /https:\/\/api\.minimax\.io\/anthropic/);
+  assert.match(providerConfigCenterSource, /MiniMax-M2\.7/);
+  assert.match(providerConfigCenterSource, /image-01/);
+
+  assert.match(llmStoreSource, /https:\/\/generativelanguage\.googleapis\.com\/v1beta/);
+  assert.match(llmStoreSource, /gemini-3\.1-pro-preview/);
+  assert.match(llmStoreSource, /defaultModelId: 'gpt-5\.4'/);
+  assert.match(llmStoreSource, /id: 'deepseek-reasoner'/);
+  assert.match(llmStoreSource, /id: 'xai-grok'/);
+  assert.match(llmStoreSource, /https:\/\/api\.x\.ai\/v1/);
+  assert.match(llmStoreSource, /id: 'minimax'/);
+  assert.match(llmStoreSource, /MiniMax-M2\.7/);
+  assert.match(llmStoreSource, /name: 'Qwen \(Model Studio\)'/);
+  assert.match(llmStoreSource, /defaultModelId: 'qwen-max'/);
+  assert.doesNotMatch(llmStoreSource, /qwen-turbo/);
+  assert.doesNotMatch(llmStoreSource, /deepseek-coder/);
+
+  assert.equal(
+    getLocaleValue(enLocale, 'providerCenter.searchPlaceholder'),
+    'Search provider, base URL, model, or API key',
+  );
+  assert.match(i18nIndexSource, /mergeTranslationTree/);
+  assert.match(i18nIndexSource, /zhLocalePatch/);
+  assert.match(localePatchSource, /(Provider 配置中心|Provider \\u914d\\u7f6e\\u4e2d\\u5fc3)/);
+  assert.match(
+    localePatchSource,
+    /(搜索 provider、Base URL、模型或 API 密钥|\\u641c\\u7d22 provider\\u3001Base URL\\u3001\\u6a21\\u578b\\u6216 API \\u5bc6\\u94a5)/,
+  );
+  assert.match(localePatchSource, /(Qwen 推理|Qwen \\u63a8\\u7406)/);
+  assert.match(localePatchSource, /Gemini-compatible gateway/);
+});
+runTest('provider center runtime locale patch is wired through the shared i18n entry', () => {
+  const i18nIndexSource = read('packages/sdkwork-claw-i18n/src/index.ts');
+  const localePatchSource = read('packages/sdkwork-claw-i18n/src/localePatches.ts');
+
+  assert.match(i18nIndexSource, /mergeTranslationTree/);
+  assert.match(i18nIndexSource, /zhLocalePatch/);
+  assert.match(localePatchSource, /(Provider 配置中心|Provider \\u914d\\u7f6e\\u4e2d\\u5fc3)/);
+  assert.match(
+    localePatchSource,
+    /(搜索 provider、Base URL、模型或 API 密钥|\\u641c\\u7d22 provider\\u3001Base URL\\u3001\\u6a21\\u578b\\u6216 API \\u5bc6\\u94a5)/,
+  );
+  assert.match(localePatchSource, /(Qwen 推理|Qwen \\u63a8\\u7406)/);
+});
+runTest('llm store keeps an upgrade-safe persisted merge for built-in provider defaults', () => {
+  const llmStoreSource = read('packages/sdkwork-claw-settings/src/store/useLLMStore.ts');
+
+  assert.match(llmStoreSource, /version: 2/);
+  assert.match(llmStoreSource, /mergeBuiltInChannel/);
+  assert.match(llmStoreSource, /normalizeInstanceConfigs/);
+  assert.match(llmStoreSource, /DEFAULT_CHANNEL_IDS/);
 });

@@ -220,11 +220,17 @@ const CATALOG_SEEDS: &[CatalogSeed] = &[
 ];
 
 #[tauri::command]
-pub fn list_hub_install_catalog<R: Runtime>(
+pub async fn list_hub_install_catalog(
     query: Option<HubInstallCatalogQuery>,
-    app: AppHandle<R>,
+    app: AppHandle,
 ) -> Result<Vec<HubInstallCatalogEntry>, String> {
-    list_hub_install_catalog_at(query, &app).map_err(|error| error.to_string())
+    let app_handle = app.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        list_hub_install_catalog_at(query, &app_handle).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 pub fn list_hub_install_catalog_at<R: Runtime>(

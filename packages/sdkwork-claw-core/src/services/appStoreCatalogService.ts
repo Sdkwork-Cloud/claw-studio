@@ -6,6 +6,7 @@ import type {
   SdkworkAppClient,
 } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { getAppSdkClientWithSession } from '../sdk/useAppSdkClient.ts';
 
 type AppStoreCatalogClient = Pick<SdkworkAppClient, 'app'>;
 
@@ -52,8 +53,7 @@ export interface AppStoreCatalogService {
   getApp(id: string): Promise<AppStoreCatalogApp>;
 }
 
-async function getDefaultClient(): Promise<AppStoreCatalogClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultClient(): AppStoreCatalogClient {
   return getAppSdkClientWithSession();
 }
 

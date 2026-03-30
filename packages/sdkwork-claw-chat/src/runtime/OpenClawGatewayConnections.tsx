@@ -1,19 +1,25 @@
 import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { instanceDirectoryService, useInstanceStore } from '@sdkwork/claw-core';
 import { useChatStore } from '../store/useChatStore';
 
 const DIRECTORY_REFRESH_MS = 15_000;
 
 export function OpenClawGatewayConnections() {
+  const location = useLocation();
   const activeInstanceId = useInstanceStore((state) => state.activeInstanceId);
   const connectGatewayInstances = useChatStore((state) => state.connectGatewayInstances);
+  const isChatRoute =
+    location.pathname === '/chat' || location.pathname.startsWith('/chat/');
 
   const { data: instances = [] } = useQuery({
     queryKey: ['chat', 'gateway-instance-directory'],
     queryFn: () => instanceDirectoryService.listInstances(),
-    refetchInterval: DIRECTORY_REFRESH_MS,
-    staleTime: 5_000,
+    enabled: isChatRoute,
+    refetchInterval: isChatRoute ? DIRECTORY_REFRESH_MS : false,
+    staleTime: DIRECTORY_REFRESH_MS,
+    refetchOnWindowFocus: false,
   });
 
   const instanceIds = useMemo(() => {
@@ -28,12 +34,12 @@ export function OpenClawGatewayConnections() {
   const instanceSignature = useMemo(() => instanceIds.join('|'), [instanceIds]);
 
   useEffect(() => {
-    if (!instanceSignature) {
+    if (!isChatRoute || !instanceSignature) {
       return;
     }
 
     void connectGatewayInstances(instanceSignature.split('|'));
-  }, [connectGatewayInstances, instanceSignature]);
+  }, [connectGatewayInstances, instanceSignature, isChatRoute]);
 
   return null;
 }

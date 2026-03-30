@@ -37,6 +37,10 @@ runTest('sdkwork-claw-shell styles visible scroll containers consistently while 
   assert.match(stylesSource, /scrollbar-color:\s*var\(--scrollbar-thumb\)\s+var\(--scrollbar-track\)/);
   assert.match(stylesSource, /::\-webkit-scrollbar-thumb/);
   assert.match(stylesSource, /\.custom-scrollbar/);
+  assert.match(stylesSource, /\.ghost-scrollbar/);
+  assert.match(stylesSource, /scrollbar-width:\s*none/);
+  assert.match(stylesSource, /\.ghost-scrollbar:hover/);
+  assert.match(stylesSource, /\.ghost-scrollbar:focus-within/);
   assert.match(stylesSource, /\.scrollbar-hide/);
   assert.match(stylesSource, /display:\s*none/);
 });

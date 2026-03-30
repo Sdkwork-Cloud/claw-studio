@@ -233,6 +233,59 @@ runTest('sdkwork-claw-install routes installation through the shared hub-install
   assert.doesNotMatch(bridgeSource, /executeInstallScript/);
 });
 
+runTest('sdkwork-claw-install keeps heavy desktop installer commands off the invoke thread', () => {
+  const installCommandSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_install.rs',
+  );
+  const uninstallCommandSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/commands/run_hub_uninstall.rs',
+  );
+  const catalogCommandSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/commands/hub_install_catalog.rs',
+  );
+
+  assert.match(installCommandSource, /pub async fn run_hub_install/);
+  assert.match(installCommandSource, /pub async fn inspect_hub_install/);
+  assert.match(installCommandSource, /pub async fn run_hub_dependency_install/);
+  assert.match(installCommandSource, /tauri::async_runtime::spawn_blocking/);
+
+  assert.match(uninstallCommandSource, /pub async fn run_hub_uninstall/);
+  assert.match(uninstallCommandSource, /tauri::async_runtime::spawn_blocking/);
+
+  assert.match(catalogCommandSource, /pub async fn list_hub_install_catalog/);
+  assert.match(catalogCommandSource, /tauri::async_runtime::spawn_blocking/);
+});
+
+runTest('sdkwork-claw-install throttles install assessment and progress updates to avoid renderer freezes', () => {
+  const installSource = read('packages/sdkwork-claw-install/src/pages/install/Install.tsx');
+  const guidedWizardSource = read(
+    'packages/sdkwork-claw-install/src/components/GuidedInstallWizard.tsx',
+  );
+  const openClawWizardSource = read(
+    'packages/sdkwork-claw-install/src/components/OpenClawGuidedInstallWizard.tsx',
+  );
+  const bufferServiceSource = read(
+    'packages/sdkwork-claw-install/src/services/hubInstallProgressBuffer.ts',
+  );
+  const serviceIndexSource = read('packages/sdkwork-claw-install/src/services/index.ts');
+
+  assert.match(installSource, /INSTALL_ASSESSMENT_CONCURRENCY/);
+  assert.match(installSource, /inspectInstallChoicesWithConcurrencyLimit/);
+  assert.doesNotMatch(
+    installSource,
+    /Promise\.all\(\s*installChoices\.map\([\s\S]*inspectHubInstall/,
+  );
+
+  assert.match(bufferServiceSource, /createHubInstallProgressBatcher/);
+  assert.match(bufferServiceSource, /requestAnimationFrame/);
+  assert.match(serviceIndexSource, /hubInstallProgressBuffer/);
+
+  assert.match(guidedWizardSource, /createHubInstallProgressBatcher/);
+  assert.match(guidedWizardSource, /progressBatcherRef/);
+  assert.match(openClawWizardSource, /createHubInstallProgressBatcher/);
+  assert.match(openClawWizardSource, /progressBatcherRef/);
+});
+
 runTest('sdkwork-claw-install keeps hub-installer as an updateable git submodule for the desktop runtime', () => {
   const gitModules = read('.gitmodules');
   const registrySource = read(

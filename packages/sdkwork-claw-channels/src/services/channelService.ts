@@ -2,14 +2,11 @@ import React from 'react';
 import { openClawConfigService } from '@sdkwork/claw-core';
 import { studio, studioMockService } from '@sdkwork/claw-infrastructure';
 import {
-  Building2,
   Hash,
   MessageCircle,
   MessageSquare,
   Send,
-  Smile,
   Webhook,
-  Zap,
 } from 'lucide-react';
 import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
 
@@ -66,28 +63,21 @@ export interface IChannelService {
 }
 
 const channelIconNameMap: Record<string, string> = {
-  sdkworkchat: 'MessageSquare',
-  wehcat: 'Send',
-  feishu: 'MessageCircle',
-  qq: 'Smile',
-  dingtalk: 'Zap',
-  wecom: 'Building2',
   telegram: 'Send',
+  whatsapp: 'MessageCircle',
   discord: 'MessageSquare',
+  irc: 'Hash',
   slack: 'Hash',
   googlechat: 'Webhook',
+  signal: 'MessageCircle',
+  imessage: 'MessageCircle',
+  line: 'Send',
 };
 
 const getIconComponent = (iconName: string) => {
   switch (iconName) {
     case 'MessageCircle':
       return React.createElement(MessageCircle, { className: 'h-6 w-6 text-[#00D1B2]' });
-    case 'Smile':
-      return React.createElement(Smile, { className: 'h-6 w-6 text-[#12B7F5]' });
-    case 'Zap':
-      return React.createElement(Zap, { className: 'h-6 w-6 text-[#008CEE]' });
-    case 'Building2':
-      return React.createElement(Building2, { className: 'h-6 w-6 text-[#2B82E4]' });
     case 'Send':
       return React.createElement(Send, { className: 'h-6 w-6 text-[#229ED9]' });
     case 'MessageSquare':

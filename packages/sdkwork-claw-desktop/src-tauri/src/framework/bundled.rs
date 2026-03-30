@@ -4,6 +4,7 @@ use crate::framework::{
     services::{components::ComponentRegistryService, upgrades::ComponentUpgradeService},
     Result,
 };
+use serde_json::Value;
 use std::{fs, path::Path};
 use tauri::{path::BaseDirectory, AppHandle, Manager, Runtime};
 
@@ -17,6 +18,10 @@ pub fn sync_bundled_installation_from_dir(
     bundle_root: &Path,
     paths: &AppPaths,
 ) -> Result<BundledInstallSyncReport> {
+    if bundled_installation_is_current(bundle_root, paths)? {
+        return Ok(BundledInstallSyncReport::default());
+    }
+
     let mut report = BundledInstallSyncReport::default();
     let bundled_foundation_dir = bundle_root.join("foundation");
     let bundled_modules_dir = bundle_root.join("modules");
@@ -113,6 +118,46 @@ fn copy_directory_contents(source_dir: &Path, target_dir: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn bundled_installation_is_current(bundle_root: &Path, paths: &AppPaths) -> Result<bool> {
+    let source_manifest_path = bundle_root
+        .join("foundation")
+        .join("components")
+        .join("bundle-manifest.json");
+    let target_manifest_path = paths
+        .foundation_components_dir
+        .join("bundle-manifest.json");
+
+    if !source_manifest_path.exists()
+        || !target_manifest_path.exists()
+        || !paths.foundation_dir.exists()
+        || !paths.runtimes_dir.exists()
+        || !paths.modules_dir.exists()
+    {
+        return Ok(false);
+    }
+
+    let source_manifest = normalized_bundle_manifest(load_json_value(&source_manifest_path)?)?;
+    let target_manifest = normalized_bundle_manifest(load_json_value(&target_manifest_path)?)?;
+
+    Ok(source_manifest == target_manifest)
+}
+
+fn normalized_bundle_manifest(mut manifest: Value) -> Result<Value> {
+    if let Some(object) = manifest.as_object_mut() {
+        object.remove("generatedAt");
+        Ok(manifest)
+    } else {
+        Err(crate::framework::FrameworkError::ValidationFailed(
+            "bundle manifest must be a JSON object".to_string(),
+        ))
+    }
+}
+
+fn load_json_value(path: &Path) -> Result<Value> {
+    let content = fs::read_to_string(path)?;
+    Ok(serde_json::from_str::<Value>(&content)?)
 }
 
 fn enumerate_child_directory_names(root: &Path) -> Result<Vec<String>> {
@@ -263,6 +308,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn bundled_install_sync_skips_when_bundle_manifest_is_already_applied() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let bundle_root = root.path().join("bundle-source");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        seed_fake_bundle_tree(bundle_root.as_path());
+
+        let first_report = sync_bundled_installation_from_dir(bundle_root.as_path(), &paths)
+            .expect("initial bundled install sync");
+        assert_eq!(first_report.seeded_component_ids, vec!["codex".to_string()]);
+
+        let second_report = sync_bundled_installation_from_dir(bundle_root.as_path(), &paths)
+            .expect("repeat bundled install sync");
+
+        assert!(second_report.seeded_component_ids.is_empty());
+        assert!(second_report.seeded_runtime_ids.is_empty());
+    }
+
     fn seed_fake_bundle_tree(bundle_root: &Path) {
         let component_dir = bundle_root.join("foundation").join("components");
         let hub_registry_dir = bundle_root
@@ -322,6 +386,26 @@ mod tests {
 }"#,
         )
         .expect("upgrade policy");
+        std::fs::write(
+            component_dir.join("bundle-manifest.json"),
+            r#"{
+  "generatedAt": "2026-03-28T00:00:00.000Z",
+  "mode": "dev",
+  "components": [
+    {
+      "id": "codex",
+      "version": "1.2.3",
+      "commit": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      "repositoryUrl": "https://example.invalid/codex.git",
+      "checkoutDir": "components/codex"
+    }
+  ],
+  "runtimeVersions": {
+    "node": "22.16.0"
+  }
+}"#,
+        )
+        .expect("bundle manifest");
         std::fs::write(
             hub_registry_dir.join("software-registry.yaml"),
             "schemaVersion: 1\nentries: []\n",

@@ -135,7 +135,7 @@ function createMockTask(overrides: Record<string, unknown> = {}) {
     executionContent: 'runAssistantTask',
     timeoutSeconds: 60,
     deliveryMode: 'publishSummary',
-    deliveryChannel: 'qq',
+    deliveryChannel: 'slack',
     recipient: 'ops-room',
     ...overrides,
   };

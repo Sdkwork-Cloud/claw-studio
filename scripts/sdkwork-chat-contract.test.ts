@@ -75,6 +75,39 @@ await runTest('sdkwork-claw-chat routes model selection through the composer', (
   assert.match(chatInputSource, /dark:bg-transparent/);
 });
 
+await runTest('sdkwork-claw-chat removes the import-url entry and keeps voice input beside send', () => {
+  const chatInputSource = read('packages/sdkwork-claw-chat/src/components/ChatInput.tsx');
+
+  assert.doesNotMatch(chatInputSource, /showUrlImport/);
+  assert.doesNotMatch(chatInputSource, /handleImportRemoteUrl/);
+  assert.doesNotMatch(chatInputSource, /chat\.input\.importUrl/);
+  assert.match(
+    chatInputSource,
+    /className="flex items-center justify-between gap-3 sm:justify-end"[\s\S]*title=\{\s*activeRecorder\?\.kind === 'audio'[\s\S]*t\('chat\.input\.voiceInput'\)[\s\S]*<AnimatePresence mode="wait">[\s\S]*title=\{t\('chat\.input\.sendMessage'\)\}/,
+  );
+});
+
+await runTest('sdkwork-claw-chat adds searchable channel and model columns with refined scrollbars in the model picker', () => {
+  const chatInputSource = read('packages/sdkwork-claw-chat/src/components/ChatInput.tsx');
+  const zhLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const enLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+
+  assert.match(chatInputSource, /const \[channelSearch, setChannelSearch\] = useState\(''\);/);
+  assert.match(chatInputSource, /const \[modelSearch, setModelSearch\] = useState\(''\);/);
+  assert.match(chatInputSource, /const deferredChannelSearch = useDeferredValue\(channelSearch\);/);
+  assert.match(chatInputSource, /const deferredModelSearch = useDeferredValue\(modelSearch\);/);
+  assert.match(chatInputSource, /const filteredChannels = useMemo\(/);
+  assert.match(chatInputSource, /const filteredModels = useMemo\(/);
+  assert.match(chatInputSource, /placeholder=\{t\('chat\.page\.searchChannelsPlaceholder'\)\}/);
+  assert.match(chatInputSource, /placeholder=\{t\('chat\.page\.searchModelsPlaceholder'\)\}/);
+  assert.match(chatInputSource, /ghost-scrollbar[\s\S]*filteredChannels\.map/);
+  assert.match(chatInputSource, /ghost-scrollbar[\s\S]*filteredModels\.map/);
+  assert.match(zhLocaleSource, /"searchChannelsPlaceholder":\s*"[^"]+"/);
+  assert.match(zhLocaleSource, /"searchModelsPlaceholder":\s*"[^"]+"/);
+  assert.match(enLocaleSource, /"searchChannelsPlaceholder":\s*"[^"]+"/);
+  assert.match(enLocaleSource, /"searchModelsPlaceholder":\s*"[^"]+"/);
+});
+
 await runTest('sdkwork-claw-chat derives active channel and model ids from instance config', () => {
   const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
 
@@ -88,6 +121,26 @@ await runTest('sdkwork-claw-chat routes model configuration entry points to api-
   assert.match(chatPageSource, /onClick=\{\(\) => navigate\('\/api-router'\)\}/);
   assert.match(chatPageSource, /onOpenModelConfig=\{\(\) => navigate\('\/api-router'\)\}/);
   assert.doesNotMatch(chatPageSource, /navigate\('\/settings\/llm'\)/);
+});
+
+await runTest('sdkwork-claw-chat only polls the instance directory for gateway connections on chat routes', () => {
+  const gatewayConnectionsSource = read(
+    'packages/sdkwork-claw-chat/src/runtime/OpenClawGatewayConnections.tsx',
+  );
+
+  assert.match(gatewayConnectionsSource, /useLocation/);
+  assert.match(gatewayConnectionsSource, /const isChatRoute =/);
+  assert.match(
+    gatewayConnectionsSource,
+    /location\.pathname === '\/chat' \|\| location\.pathname\.startsWith\('\/chat\/'\)/,
+  );
+  assert.match(gatewayConnectionsSource, /enabled: isChatRoute/);
+  assert.match(
+    gatewayConnectionsSource,
+    /refetchInterval: isChatRoute \? DIRECTORY_REFRESH_MS : false/,
+  );
+  assert.match(gatewayConnectionsSource, /refetchOnWindowFocus: false/);
+  assert.match(gatewayConnectionsSource, /if \(!isChatRoute \|\| !instanceSignature\)/);
 });
 
 await runTest('sdkwork-claw-chat chat service loads under Node without Vite env injection', async () => {

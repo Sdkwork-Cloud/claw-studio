@@ -319,9 +319,30 @@ function createPresets(): ProviderConfigPreset[] {
       },
     },
     {
+      id: 'google',
+      label: 'Google Gemini',
+      description: 'Gemini-compatible Google AI Studio route preset.',
+      draft: {
+        presetId: 'google',
+        name: 'Google Gemini',
+        providerId: 'google',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: '',
+        defaultModelId: 'gemini-3-flash-preview',
+        reasoningModelId: 'gemini-3.1-pro-preview',
+        models: [
+          { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+          { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
+          { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite' },
+        ],
+        notes:
+          'Use Gemini-compatible routed credentials. Gemini CLI can reuse the routed gateway through GEMINI_API_KEY and GOOGLE_GEMINI_BASE_URL.',
+      },
+    },
+    {
       id: 'xai',
       label: 'xAI',
-      description: 'xAI Grok route preset.',
+      description: 'xAI Grok preset for the native Responses API endpoint.',
       draft: {
         presetId: 'xai',
         name: 'xAI',
@@ -329,11 +350,14 @@ function createPresets(): ProviderConfigPreset[] {
         baseUrl: 'https://api.x.ai/v1',
         apiKey: '',
         defaultModelId: 'grok-4',
-        reasoningModelId: 'grok-4',
+        reasoningModelId: 'grok-4-fast',
         models: [
           { id: 'grok-4', name: 'Grok 4' },
-          { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast Reasoning' },
+          { id: 'grok-4-fast', name: 'Grok 4 Fast' },
+          { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast' },
         ],
+        notes:
+          'Use an xAI API key with the native Responses API endpoint. OpenClaw can expose X search when the xAI plugin and tool allowlist are enabled for the runtime or agent.',
       },
     },
     {
@@ -355,9 +379,29 @@ function createPresets(): ProviderConfigPreset[] {
       },
     },
     {
+      id: 'minimax',
+      label: 'MiniMax',
+      description: 'MiniMax M2.7 preset for the current OpenClaw global and CN Anthropic routes.',
+      draft: {
+        presetId: 'minimax',
+        name: 'MiniMax',
+        providerId: 'minimax',
+        baseUrl: 'https://api.minimax.io/anthropic',
+        apiKey: '',
+        defaultModelId: 'MiniMax-M2.7',
+        reasoningModelId: 'MiniMax-M2.7-highspeed',
+        models: [
+          { id: 'MiniMax-M2.7', name: 'MiniMax M2.7' },
+          { id: 'MiniMax-M2.7-highspeed', name: 'MiniMax M2.7 Highspeed' },
+        ],
+        notes:
+          'Use https://api.minimax.io/anthropic for the global route or https://api.minimaxi.com/anthropic for the CN route. OpenClaw 2026.3.28 also exposes MiniMax image generation through image-01 on the dedicated media path.',
+      },
+    },
+    {
       id: 'qwen',
       label: 'Qwen',
-      description: 'Qwen OpenAI-compatible route preset.',
+      description: 'Qwen preset for Alibaba Cloud Model Studio (DashScope).',
       draft: {
         presetId: 'qwen',
         name: 'Qwen',
@@ -372,6 +416,8 @@ function createPresets(): ProviderConfigPreset[] {
           { id: 'qwq-plus', name: 'QwQ Plus' },
           { id: 'text-embedding-v4', name: 'Text Embedding V4' },
         ],
+        notes:
+          'Use Alibaba Cloud Model Studio / DashScope API keys. OpenClaw no longer supports portal.qwen.ai OAuth onboarding.',
       },
     },
   ].map((preset) => ({

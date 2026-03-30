@@ -57,6 +57,7 @@ import {
   tokenEstimate,
   toIsoStringFromMs,
 } from './openClawSupport.ts';
+import { supportsInstanceAssist } from './instanceAssistSupport.ts';
 import { instanceService } from './instanceService.ts';
 
 type ManagedOpenClawConfigSnapshot = Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>;
@@ -458,6 +459,7 @@ function mapStudioInstance(instance: StudioInstanceRecord) {
     cpu: instance.cpu,
     memory: instance.memory,
     totalMemory: instance.totalMemory,
+    supportsAssist: supportsInstanceAssist(instance),
   } as const;
 }
 
@@ -794,7 +796,7 @@ function mergeOpenClawSnapshots(
     llmProviders: live.llmProviders.length > 0 ? live.llmProviders : base.llmProviders,
     agents: live.agents.length > 0 ? live.agents : base.agents,
     skills: live.skills.length > 0 ? live.skills : base.skills,
-    files: base.files.length > 0 ? base.files : live.files,
+    files: live.files.length > 0 ? live.files : base.files,
     memories: base.memories.length > 0 ? base.memories : live.memories,
     tools: live.tools.length > 0 ? live.tools : base.tools,
   });
@@ -839,7 +841,6 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
 
   return orderedIds
     .map((channelId) => {
-      const isConfigurationFree = channelId === 'sdkworkchat';
       const rawChannel = rawChannels[channelId];
       if (!isRecord(rawChannel)) {
         return null;
@@ -855,24 +856,17 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
         (getBooleanValue(rawChannel, ['configured']) ?? false) ||
         configuredFieldCount > 0 ||
         accountCount > 0;
-      const setupSteps = isConfigurationFree
+      const setupSteps = configured
         ? [
-            'Download the Sdkwork Chat app or open the existing Sdkwork Chat workspace.',
+            `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} channel is configured for the gateway runtime.`,
             enabled
-              ? 'Sdkwork Chat delivery is ready for runtime handoff.'
-              : 'Enable the channel when this runtime should deliver into Sdkwork Chat.',
+              ? 'Channel is enabled for runtime delivery.'
+              : 'Enable the channel after validating connectivity.',
           ]
-        : configured
-          ? [
-              `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} channel is configured for the gateway runtime.`,
-              enabled
-                ? 'Channel is enabled for runtime delivery.'
-                : 'Enable the channel after validating connectivity.',
-            ]
-          : [
-              `Configure credentials or routing for ${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)}.`,
-              'Add at least one account or destination target.',
-            ];
+        : [
+            `Configure credentials or routing for ${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)}.`,
+            'Add at least one account or destination target.',
+          ];
 
       return {
         id: channelId,
@@ -880,23 +874,11 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
         description:
           status.channelDetailLabels?.[channelId] ||
           `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} integration managed by the OpenClaw gateway.`,
-        status: isConfigurationFree
-          ? enabled
-            ? 'connected'
-            : 'disconnected'
-          : configured
-            ? enabled
-              ? 'connected'
-              : 'disconnected'
-            : 'not_configured',
+        status: configured ? (enabled ? 'connected' : 'disconnected') : 'not_configured',
         enabled,
-        configurationMode: isConfigurationFree ? 'none' : 'required',
-        fieldCount: isConfigurationFree ? 0 : Math.max(fieldCount, accountCount, configured ? 1 : 0),
-        configuredFieldCount: isConfigurationFree
-          ? 0
-          : configured
-            ? Math.max(configuredFieldCount, accountCount, 1)
-            : 0,
+        configurationMode: 'required',
+        fieldCount: Math.max(fieldCount, accountCount, configured ? 1 : 0),
+        configuredFieldCount: configured ? Math.max(configuredFieldCount, accountCount, 1) : 0,
         setupSteps,
       } satisfies InstanceWorkbenchChannel;
     })
@@ -1237,7 +1219,7 @@ async function buildOpenClawFiles(
               typeof fileRecord.content === 'string' ? fileRecord.content : '';
 
             return {
-              id: buildOpenClawAgentFileId(agent.agent.id, name),
+              id: buildOpenClawAgentFileId(agent.agent.id, name, path),
               name,
               path,
               category: inferOpenClawFileCategory(name, path),

@@ -8,9 +8,7 @@ use std::{
     fs,
     net::{Ipv4Addr, SocketAddrV4, TcpListener},
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Manager, Runtime};
 use uuid::Uuid;
 
 pub const OPENCLAW_RUNTIME_ID: &str = "openclaw";
@@ -93,16 +91,6 @@ impl OpenClawRuntimeService {
         Self
     }
 
-    pub fn ensure_bundled_runtime<R: Runtime>(
-        &self,
-        app: &AppHandle<R>,
-        paths: &AppPaths,
-    ) -> Result<ActivatedOpenClawRuntime> {
-        let resource_dir = app.path().resource_dir().map_err(FrameworkError::from)?;
-        let resource_root = resolve_bundled_resource_root(&resource_dir)?;
-        self.ensure_bundled_runtime_from_root(paths, &resource_root)
-    }
-
     pub fn ensure_bundled_runtime_from_root(
         &self,
         paths: &AppPaths,
@@ -127,18 +115,8 @@ impl OpenClawRuntimeService {
         }
 
         let install_key = manifest.install_key();
-        let install_dir = paths.openclaw_runtime_dir.join(&install_key);
-        let runtime_dir = install_dir.join("runtime");
-        let manifest_path = install_dir.join("manifest.json");
-
-        ensure_runtime_installation(
-            &bundled_runtime_dir,
-            &resource_root.join("manifest.json"),
-            &manifest,
-            &install_dir,
-            &runtime_dir,
-            &manifest_path,
-        )?;
+        let install_dir = resource_root.to_path_buf();
+        let runtime_dir = bundled_runtime_dir;
 
         let node_path = install_dir.join(&manifest.node_relative_path);
         let cli_path = install_dir.join(&manifest.cli_relative_path);
@@ -218,54 +196,13 @@ pub(crate) fn resolve_bundled_resource_root(resource_dir: &Path) -> Result<PathB
     )))
 }
 
-fn ensure_runtime_installation(
-    bundled_runtime_dir: &Path,
-    bundled_manifest_path: &Path,
-    manifest: &BundledOpenClawManifest,
-    install_dir: &Path,
-    runtime_dir: &Path,
-    manifest_path: &Path,
-) -> Result<()> {
-    let node_path = install_dir.join(&manifest.node_relative_path);
-    let cli_path = install_dir.join(&manifest.cli_relative_path);
-    if install_dir.exists() && node_path.exists() && cli_path.exists() && manifest_path.exists() {
-        return Ok(());
-    }
-
-    if install_dir.exists() {
-        fs::remove_dir_all(install_dir)?;
-    }
-
-    let staging_dir = install_dir.with_extension(format!("staging-{}", unix_timestamp_ms()?));
-    if staging_dir.exists() {
-        fs::remove_dir_all(&staging_dir)?;
-    }
-
-    fs::create_dir_all(&staging_dir)?;
-    copy_directory_recursive(bundled_runtime_dir, &staging_dir.join("runtime"))?;
-    fs::copy(bundled_manifest_path, staging_dir.join("manifest.json"))?;
-
-    if let Some(parent) = install_dir.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    fs::rename(&staging_dir, install_dir)?;
-    if !runtime_dir.exists() {
-        return Err(FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime installation at {}",
-            install_dir.display()
-        )));
-    }
-
-    Ok(())
-}
-
 fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawState> {
     fs::create_dir_all(&paths.openclaw_home_dir)?;
     fs::create_dir_all(&paths.openclaw_state_dir)?;
     fs::create_dir_all(&paths.openclaw_workspace_dir)?;
 
-    let mut config = read_managed_config(&paths.openclaw_config_file)?;
+    let original_config = read_managed_config(&paths.openclaw_config_file)?;
+    let mut config = original_config.clone();
     set_nested_string(&mut config, &["gateway", "mode"], "local");
     set_nested_string(&mut config, &["gateway", "bind"], "loopback");
     let configured_port = get_nested_u16(&config, &["gateway", "port"]).filter(|port| *port > 0);
@@ -301,10 +238,12 @@ fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawStat
         &paths.openclaw_workspace_dir.to_string_lossy(),
     );
 
-    fs::write(
-        &paths.openclaw_config_file,
-        format!("{}\n", serde_json::to_string_pretty(&config)?),
-    )?;
+    if config != original_config {
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{}\n", serde_json::to_string_pretty(&config)?),
+        )?;
+    }
 
     Ok(ManagedOpenClawState {
         home_dir: paths.openclaw_home_dir.clone(),
@@ -370,27 +309,6 @@ fn normalized_target_arch() -> &'static str {
         "aarch64" => "arm64",
         other => other,
     }
-}
-
-fn copy_directory_recursive(source: &Path, target: &Path) -> Result<()> {
-    fs::create_dir_all(target)?;
-
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let entry_path = entry.path();
-        let target_path = target.join(entry.file_name());
-
-        if entry.file_type()?.is_dir() {
-            copy_directory_recursive(&entry_path, &target_path)?;
-        } else {
-            if let Some(parent) = target_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::copy(entry_path, target_path)?;
-        }
-    }
-
-    Ok(())
 }
 
 fn set_nested_string(value: &mut Value, path: &[&str], next: &str) {
@@ -480,13 +398,6 @@ fn generate_gateway_auth_token() -> String {
     Uuid::new_v4().simple().to_string()
 }
 
-fn unix_timestamp_ms() -> Result<u128> {
-    Ok(SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| FrameworkError::Internal(error.to_string()))?
-        .as_millis())
-}
-
 fn find_available_gateway_port(preferred_port: u16) -> Result<u16> {
     for candidate in preferred_port..preferred_port.saturating_add(32) {
         if is_loopback_port_available(candidate) {
@@ -525,10 +436,10 @@ mod tests {
     use serde_json::Value;
     use std::fs;
 
-    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.24";
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.28";
 
     #[test]
-    fn installs_bundled_runtime_into_managed_directory_and_activates_it() {
+    fn uses_bundled_runtime_in_place_and_activates_it() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
@@ -547,14 +458,13 @@ mod tests {
         );
 
         assert_eq!(activated.install_key, expected_install_key);
-        assert!(activated.install_dir.exists());
+        assert_eq!(activated.install_dir, resource_root);
         assert!(activated.runtime_dir.exists());
         assert!(activated.node_path.exists());
         assert!(activated.cli_path.exists());
         assert_eq!(
             activated.cli_path,
-            activated
-                .install_dir
+            resource_root
                 .join("runtime")
                 .join("package")
                 .join("node_modules")
@@ -566,7 +476,15 @@ mod tests {
         assert_eq!(activated.workspace_dir, paths.openclaw_workspace_dir);
         assert_eq!(activated.config_path, paths.openclaw_config_file);
         assert!(activated.gateway_port >= DEFAULT_GATEWAY_PORT);
-        assert!(paths
+        assert_eq!(
+            activated.node_path,
+            resource_root.join(if cfg!(windows) {
+                "runtime/node/node.exe"
+            } else {
+                "runtime/node/bin/node"
+            })
+        );
+        assert!(!paths
             .openclaw_runtime_dir
             .join(&expected_install_key)
             .join("manifest.json")
@@ -632,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn reuses_existing_install_when_the_bundled_runtime_key_matches() {
+    fn does_not_create_a_managed_runtime_copy_when_reactivated() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
@@ -642,15 +560,14 @@ mod tests {
         let first = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("first activation");
-        let sentinel = first.install_dir.join("sentinel.txt");
-        fs::write(&sentinel, "keep").expect("sentinel");
-
         let second = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("second activation");
 
         assert_eq!(first.install_key, second.install_key);
-        assert!(sentinel.exists());
+        assert_eq!(first.install_dir, resource_root);
+        assert_eq!(second.install_dir, resource_root);
+        assert!(!paths.openclaw_runtime_dir.join(&first.install_key).exists());
     }
 
     #[test]

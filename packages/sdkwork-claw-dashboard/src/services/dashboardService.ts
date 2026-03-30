@@ -1,7 +1,5 @@
 import {
-  sdkworkApiRouterAdminClient,
   studioMockService,
-  type ApiRouterUsageRecordDto,
   type MockChannel,
   type MockInstance,
   type MockTask,
@@ -10,7 +8,7 @@ import {
   createEmptyDashboardCommerceSnapshot,
   dashboardCommerceService,
 } from '@sdkwork/claw-core';
-import type { Agent, Skill } from '@sdkwork/claw-types';
+import type { Agent, ApiRouterUsageRecord, Skill } from '@sdkwork/claw-types';
 import type {
   DashboardActivityFeed,
   DashboardAlertItem,
@@ -46,7 +44,29 @@ interface CapabilityCoverageScoreInput extends WorkspaceHealthScoreInput {
 
 interface TokenAnalyticsInput {
   analyticsQuery: ResolvedAnalyticsQuery;
-  usageRecords: ApiRouterUsageRecordDto[];
+  usageRecords: ApiRouterUsageRecordLike[];
+}
+
+type ApiRouterUsageRecordDtoLike = {
+  project_id?: string;
+  model?: string;
+  provider?: string;
+  units?: number;
+  amount?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  created_at_ms?: number;
+};
+
+type ApiRouterUsageRecordLike = ApiRouterUsageRecordDtoLike & Partial<ApiRouterUsageRecord>;
+
+interface UsageSummaryAccumulator {
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  amount: number;
+  requestCount: number;
 }
 
 interface ResolvedAnalyticsQuery {
@@ -90,8 +110,8 @@ const MODEL_PROFILES: ModelProfile[] = [
     standardRate: 0.0000128,
   },
   {
-    id: 'gemini-2.5-pro',
-    modelName: 'Gemini 2.5 Pro',
+    id: 'gemini-3.1-pro-preview',
+    modelName: 'Gemini 3.1 Pro',
     weight: 0.19,
     avgTokensPerRequest: 2950,
     actualRate: 0.0000101,
@@ -255,13 +275,23 @@ function getBucketKeyFromTimestamp(
   return granularity === 'day' ? formatDayKey(date) : formatHourKey(date);
 }
 
-function getAnalyticsReferenceDate(records: ApiRouterUsageRecordDto[]) {
+function getUsageRecordCreatedAtMs(record: ApiRouterUsageRecordLike) {
+  const dtoTimestamp = (record as ApiRouterUsageRecordDtoLike).created_at_ms;
+  if (typeof dtoTimestamp === 'number') {
+    return dtoTimestamp;
+  }
+
+  const typedTimestamp = Date.parse((record as ApiRouterUsageRecord).startedAt || '');
+  return Number.isFinite(typedTimestamp) ? typedTimestamp : 0;
+}
+
+function getAnalyticsReferenceDate(records: ApiRouterUsageRecordLike[]) {
   if (records.length === 0) {
     return REFERENCE_DATE;
   }
 
   const latestTimestamp = records.reduce(
-    (currentLatest, record) => Math.max(currentLatest, record.created_at_ms),
+    (currentLatest, record) => Math.max(currentLatest, getUsageRecordCreatedAtMs(record)),
     0,
   );
 
@@ -272,16 +302,36 @@ function toSafeNumber(value: number | undefined) {
   return Number.isFinite(value) ? Number(value) : 0;
 }
 
-function getUsageRecordInputTokens(record: ApiRouterUsageRecordDto) {
-  return Math.max(0, Math.round(toSafeNumber(record.input_tokens)));
+function getUsageRecordInputTokens(record: ApiRouterUsageRecordLike) {
+  const dtoValue = (record as ApiRouterUsageRecordDtoLike).input_tokens;
+  if (typeof dtoValue === 'number') {
+    return Math.max(0, Math.round(toSafeNumber(dtoValue)));
+  }
+
+  return Math.max(0, Math.round(toSafeNumber((record as ApiRouterUsageRecord).promptTokens)));
 }
 
-function getUsageRecordOutputTokens(record: ApiRouterUsageRecordDto) {
-  return Math.max(0, Math.round(toSafeNumber(record.output_tokens)));
+function getUsageRecordOutputTokens(record: ApiRouterUsageRecordLike) {
+  const dtoValue = (record as ApiRouterUsageRecordDtoLike).output_tokens;
+  if (typeof dtoValue === 'number') {
+    return Math.max(0, Math.round(toSafeNumber(dtoValue)));
+  }
+
+  return Math.max(0, Math.round(toSafeNumber((record as ApiRouterUsageRecord).completionTokens)));
 }
 
-function getUsageRecordTotalTokens(record: ApiRouterUsageRecordDto) {
-  const explicitTotal = Math.max(0, Math.round(toSafeNumber(record.total_tokens)));
+function getUsageRecordTotalTokens(record: ApiRouterUsageRecordLike) {
+  const dtoRecord = record as ApiRouterUsageRecordDtoLike;
+  const typedRecord = record as ApiRouterUsageRecord;
+  const explicitTotal = Math.max(
+    0,
+    Math.round(
+      toSafeNumber(
+        dtoRecord.total_tokens ??
+          typedRecord.promptTokens + typedRecord.completionTokens + typedRecord.cachedTokens,
+      ),
+    ),
+  );
   if (explicitTotal > 0) {
     return explicitTotal;
   }
@@ -291,11 +341,16 @@ function getUsageRecordTotalTokens(record: ApiRouterUsageRecordDto) {
     return derivedTotal;
   }
 
-  return Math.max(0, Math.round(toSafeNumber(record.units)));
+  return Math.max(0, Math.round(toSafeNumber(dtoRecord.units)));
 }
 
-function getUsageRecordAmount(record: ApiRouterUsageRecordDto) {
-  return Math.max(0, toSafeNumber(record.amount));
+function getUsageRecordAmount(record: ApiRouterUsageRecordLike) {
+  const dtoAmount = (record as ApiRouterUsageRecordDtoLike).amount;
+  if (typeof dtoAmount === 'number') {
+    return Math.max(0, toSafeNumber(dtoAmount));
+  }
+
+  return Math.max(0, toSafeNumber((record as ApiRouterUsageRecord).costUsd));
 }
 
 function calculateTokenShare(value: number, total: number) {
@@ -337,26 +392,22 @@ function getAnalyticsWindow(analyticsQuery: ResolvedAnalyticsQuery) {
   };
 }
 
-function filterUsageRecordsByTimeRange(
-  records: ApiRouterUsageRecordDto[],
-  startMs: number,
-  endMs: number,
-) {
+function filterUsageRecordsByTimeRange(records: ApiRouterUsageRecordLike[], startMs: number, endMs: number) {
   return records.filter(
-    (record) => record.created_at_ms >= startMs && record.created_at_ms < endMs,
+    (record) => getUsageRecordCreatedAtMs(record) >= startMs && getUsageRecordCreatedAtMs(record) < endMs,
   );
 }
 
 function filterUsageRecordsForAnalytics(
-  records: ApiRouterUsageRecordDto[],
+  records: ApiRouterUsageRecordLike[],
   analyticsQuery: ResolvedAnalyticsQuery,
 ) {
   const { startMs, endMs } = getAnalyticsWindow(analyticsQuery);
   return filterUsageRecordsByTimeRange(records, startMs, endMs);
 }
 
-function summarizeUsageRecords(records: ApiRouterUsageRecordDto[]) {
-  return records.reduce(
+function summarizeUsageRecords(records: ApiRouterUsageRecordLike[]) {
+  return records.reduce<UsageSummaryAccumulator>(
     (summary, record) => {
       summary.totalTokens += getUsageRecordTotalTokens(record);
       summary.inputTokens += getUsageRecordInputTokens(record);
@@ -377,7 +428,15 @@ function summarizeUsageRecords(records: ApiRouterUsageRecordDto[]) {
 }
 
 function loadRouterUsageRecords() {
-  return sdkworkApiRouterAdminClient.listUsageRecords().catch(() => []);
+  return studioMockService
+    .listApiRouterUsageRecords({
+      page: 1,
+      pageSize: 500,
+      sortBy: 'time',
+      sortOrder: 'desc',
+    })
+    .then((result) => result.items)
+    .catch(() => []);
 }
 
 function resolveAnalyticsQuery(
@@ -725,7 +784,7 @@ function buildAgentSummary(
 }
 
 function buildModelBreakdown(
-  records: ApiRouterUsageRecordDto[],
+  records: ApiRouterUsageRecordLike[],
   totalTokens: number,
 ): DashboardTokenModelBreakdown[] {
   const modelSummary = new Map<
@@ -792,7 +851,7 @@ function buildTokenAnalytics({
 
   filteredUsageRecords.forEach((record) => {
     const bucketKey = getBucketKeyFromTimestamp(
-      record.created_at_ms,
+      getUsageRecordCreatedAtMs(record),
       analyticsQuery.granularity,
     );
     const current = bucketSummaries.get(bucketKey) ?? {
@@ -892,7 +951,7 @@ function buildTokenAnalytics({
 
 function buildTokenSummary(
   tokenAnalytics: DashboardTokenAnalytics,
-  usageRecords: ApiRouterUsageRecordDto[],
+  usageRecords: ApiRouterUsageRecordLike[],
   referenceDate: Date,
 ): DashboardTokenSummary {
   const dayStart = startOfUtcDay(referenceDate);
@@ -945,15 +1004,15 @@ function buildTokenSummary(
 }
 
 function buildRecentApiCalls(
-  usageRecords: ApiRouterUsageRecordDto[],
+  usageRecords: ApiRouterUsageRecordLike[],
 ): DashboardApiCallRecord[] {
   return [...usageRecords]
-    .sort((left, right) => right.created_at_ms - left.created_at_ms)
+    .sort((left, right) => getUsageRecordCreatedAtMs(right) - getUsageRecordCreatedAtMs(left))
     .map((record, index) => ({
-      id: `${record.project_id}-${record.model}-${record.created_at_ms}-${index}`,
-      timestamp: new Date(record.created_at_ms).toISOString(),
-      modelName: record.model,
-      providerName: record.provider || toProviderName(record.model),
+      id: `${(record as ApiRouterUsageRecordDtoLike).project_id || (record as ApiRouterUsageRecord).apiKeyId || 'usage'}-${record.model}-${getUsageRecordCreatedAtMs(record)}-${index}`,
+      timestamp: new Date(getUsageRecordCreatedAtMs(record)).toISOString(),
+      modelName: record.model || 'unknown-model',
+      providerName: record.provider || toProviderName(record.model || 'unknown-model'),
       endpoint: 'not-tracked',
       requestCount: 1,
       tokenCount: getUsageRecordTotalTokens(record),

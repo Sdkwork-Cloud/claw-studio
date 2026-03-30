@@ -16,6 +16,8 @@ tmp-dashboard-encoding-test.txt
 target/
 src-tauri/target/
 packages/*/src-tauri/target/
+packages/*/src-tauri/target-dev/
+packages/*/.tauri-target/
 packages/*/src-tauri/generated/*
 !packages/*/src-tauri/generated/.gitkeep
 
@@ -33,6 +35,14 @@ packages/*/metadata.json
 
 .env*
 !.env.example
+!packages/sdkwork-claw-web/.env.development
+!packages/sdkwork-claw-web/.env.test
+!packages/sdkwork-claw-web/.env.staging
+!packages/sdkwork-claw-web/.env.production
+!packages/sdkwork-claw-desktop/.env.development
+!packages/sdkwork-claw-desktop/.env.test
+!packages/sdkwork-claw-desktop/.env.staging
+!packages/sdkwork-claw-desktop/.env.production
 
 .DS_Store
 Thumbs.db

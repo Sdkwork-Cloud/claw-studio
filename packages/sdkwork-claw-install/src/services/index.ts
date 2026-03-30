@@ -1,6 +1,7 @@
 export * from './installPathService';
 export * from './installerService';
 export * from './hubInstallProgressService';
+export * from './hubInstallProgressBuffer';
 export * from './mobileAppGuideService';
 export * from './openClawBootstrapService';
 export * from './openClawInstallWizardService';

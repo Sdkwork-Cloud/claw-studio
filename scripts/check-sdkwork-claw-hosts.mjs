@@ -53,6 +53,64 @@ assertIncludes(
   '../../../../..',
   'desktop Vite monorepo fs allow root',
 );
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  "from './viteWorkspaceResolver.ts'",
+  'desktop Vite workspace resolver helper import',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  'remapWorktreeWorkspaceImport',
+  'desktop Vite worktree remap support',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  'resolveWorkspacePackageEntry',
+  'desktop Vite workspace package entry resolver',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  'dedupe:',
+  'desktop Vite module dedupe for shared React workspace hot reload',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  "'react'",
+  'desktop Vite React dedupe entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  "'react-dom'",
+  'desktop Vite React DOM dedupe entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  '@sdkwork/claw-infrastructure',
+  'desktop Vite infrastructure dedupe entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  '@sdkwork/claw-i18n',
+  'desktop Vite i18n dedupe entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/vite.config.ts',
+  '@sdkwork/sdk-common',
+  'desktop Vite sdk-common dedupe entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/package.json',
+  '"vite":',
+  'desktop Vite dependency presence',
+);
+assertIncludes(
+  'packages/sdkwork-claw-web/viteWorkspaceResolver.ts',
+  'WORKSPACE_PACKAGE_PATTERN',
+  'web Vite workspace resolver reference implementation',
+);
+if (!fs.existsSync(path.join(root, 'packages/sdkwork-claw-desktop/viteWorkspaceResolver.ts'))) {
+  errors.push('Missing desktop Vite workspace resolver helper: packages/sdkwork-claw-desktop/viteWorkspaceResolver.ts');
+}
 assertAnyIncludes(
   [
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx',

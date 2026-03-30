@@ -64,6 +64,14 @@ export interface SetAgentSkillEnabledInput {
   enabled: boolean;
 }
 
+export interface SaveAgentSkillConfigurationInput {
+  instanceId: string;
+  skillKey: string;
+  enabled: boolean;
+  apiKey?: string;
+  env?: Record<string, string>;
+}
+
 export interface RemoveAgentSkillInput {
   instanceId: string;
   skillKey: string;
@@ -241,6 +249,14 @@ class AgentSkillManagementService {
   }
 
   async setSkillEnabled(input: SetAgentSkillEnabledInput) {
+    await this.saveSkillConfiguration({
+      instanceId: input.instanceId,
+      skillKey: input.skillKey,
+      enabled: input.enabled,
+    });
+  }
+
+  async saveSkillConfiguration(input: SaveAgentSkillConfigurationInput) {
     const skillKey = input.skillKey.trim();
     if (!skillKey) {
       throw new Error('Skill key is required before updating skill configuration.');
@@ -260,8 +276,19 @@ class AgentSkillManagementService {
         configPath,
         skillKey,
         enabled: input.enabled,
+        ...(input.apiKey !== undefined ? { apiKey: input.apiKey } : {}),
+        ...(input.env !== undefined ? { env: input.env } : {}),
       });
       return;
+    }
+
+    const hasExtendedConfig =
+      input.apiKey !== undefined ||
+      Object.keys(input.env || {}).length > 0;
+    if (hasExtendedConfig) {
+      throw new Error(
+        'Skill API Key and environment variables require a writable OpenClaw config file.',
+      );
     }
 
     const result = await this.dependencies.openClawGatewayClient.updateSkill(

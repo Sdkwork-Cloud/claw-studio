@@ -335,3 +335,101 @@ await runTest(
     assert.equal(lockfileContent.includes('calendar-skill'), true);
   },
 );
+
+await runTest(
+  'agentSkillManagementService saves shared skill apiKey and env values through the writable OpenClaw config',
+  async () => {
+    const configWrites: Array<{
+      configPath: string;
+      skillKey: string;
+      enabled?: boolean;
+      apiKey?: string;
+      env?: Record<string, string>;
+    }> = [];
+    const service = createAgentSkillManagementService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail(),
+      },
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => 'D:/OpenClaw/.openclaw/openclaw.json',
+        saveSkillEntry: async (input) => {
+          configWrites.push(input);
+          return null;
+        },
+      },
+      openClawGatewayClient: {
+        updateSkill: async () => {
+          throw new Error('gateway update should not be used when config file is writable');
+        },
+      },
+    });
+
+    await service.saveSkillConfiguration({
+      instanceId: 'openclaw-instance',
+      skillKey: 'calendar',
+      enabled: true,
+      apiKey: 'primary-secret',
+      env: {
+        CALENDAR_TOKEN: 'token-value',
+        CALENDAR_REGION: 'cn-hz',
+      },
+    });
+
+    assert.deepEqual(configWrites, [
+      {
+        configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+        skillKey: 'calendar',
+        enabled: true,
+        apiKey: 'primary-secret',
+        env: {
+          CALENDAR_TOKEN: 'token-value',
+          CALENDAR_REGION: 'cn-hz',
+        },
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'agentSkillManagementService rejects apiKey and env updates when no writable OpenClaw config path is available',
+  async () => {
+    const service = createAgentSkillManagementService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail({
+            lifecycle: {
+              owner: 'remoteService',
+              startStopSupported: false,
+              configWritable: false,
+              notes: [],
+            },
+            dataAccess: {
+              routes: [],
+            },
+          }),
+      },
+      openClawConfigService: {
+        resolveInstanceConfigPath: () => null,
+      },
+      openClawGatewayClient: {
+        updateSkill: async () => {
+          throw new Error('gateway update should not be used for apiKey/env writes');
+        },
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        service.saveSkillConfiguration({
+          instanceId: 'openclaw-instance',
+          skillKey: 'calendar',
+          enabled: true,
+          apiKey: 'primary-secret',
+          env: {
+            CALENDAR_TOKEN: 'token-value',
+          },
+        }),
+      /writable OpenClaw config file/i,
+    );
+  },
+);

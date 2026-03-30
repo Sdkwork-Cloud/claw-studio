@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { Coins, Crown, Sparkles, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import {
   filterPointsTransactions,
   pointsQueryKeys,
@@ -13,6 +14,7 @@ import {
   getCurrentPlanTitle,
 } from '../components/pointsCopy';
 import { PointsTransactionList } from '../components/PointsTransactionList';
+import { resolvePointsPageView } from './pointsViewMode';
 
 const PointsRechargeDialog = lazy(() =>
   import('../components/PointsRechargeDialog').then((module) => ({
@@ -93,7 +95,10 @@ function renderMembershipMeta(
 
 export function Points() {
   const { t, i18n } = useTranslation();
+  const [searchParams] = useSearchParams();
   const language = i18n.resolvedLanguage ?? i18n.language;
+  const pageView = resolvePointsPageView(searchParams.get('view'));
+  const isMembershipView = pageView === 'membership';
   const [activeFilter, setActiveFilter] = useState<PointsTransactionFilter>('all');
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
@@ -112,6 +117,11 @@ export function Points() {
     () => filterPointsTransactions(data.transactions, activeFilter),
     [activeFilter, data.transactions],
   );
+  const heroEyebrow = isMembershipView ? t('points.page.membershipEyebrow') : t('points.page.eyebrow');
+  const heroTitle = isMembershipView ? t('points.page.membershipTitle') : t('points.page.title');
+  const heroDescription = isMembershipView
+    ? t('points.page.membershipDescription')
+    : t('points.page.description');
 
   if (isError) {
     return (
@@ -152,35 +162,45 @@ export function Points() {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
-                  {t('points.page.eyebrow')}
+                  {heroEyebrow}
                 </div>
                 <h1 className="mt-3 text-4xl font-semibold tracking-tight">
-                  {t('points.page.title')}
+                  {heroTitle}
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-white/72">
-                  {t('points.page.description')}
+                  {heroDescription}
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsRechargeOpen(true)}
-                  className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
+                  onClick={() => setIsUpgradeOpen(true)}
+                  className={`rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
+                    isMembershipView
+                      ? 'bg-white text-zinc-950 hover:bg-zinc-100'
+                      : 'border border-white/14 bg-white/8 text-white hover:bg-white/12'
+                  }`}
                 >
-                  {t('points.page.rechargeAction')}
+                  {t('points.page.upgradeAction')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsUpgradeOpen(true)}
-                  className="rounded-2xl border border-white/14 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/12"
+                  onClick={() => setIsRechargeOpen(true)}
+                  className={`rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
+                    isMembershipView
+                      ? 'border border-white/14 bg-white/8 text-white hover:bg-white/12'
+                      : 'bg-white text-zinc-950 hover:bg-zinc-100'
+                  }`}
                 >
-                  {t('points.page.upgradeAction')}
+                  {t('points.page.rechargeAction')}
                 </button>
               </div>
             </div>
 
             <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.75fr)]">
-              <div className="rounded-[28px] bg-white/8 p-5 backdrop-blur">
+              <div className={`rounded-[28px] p-5 backdrop-blur ${
+                isMembershipView ? 'bg-white/6' : 'border border-white/14 bg-white/10'
+              }`}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="text-sm text-white/65">
@@ -197,12 +217,16 @@ export function Points() {
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-emerald-500/12 px-3 py-1.5 text-xs font-semibold text-emerald-200">
                   <Sparkles className="h-3.5 w-3.5" />
                   {data.summary.isAuthenticated
-                    ? t('points.page.growthHint')
+                    ? isMembershipView
+                      ? t('points.page.membershipSecondaryHint')
+                      : t('points.page.growthHint')
                     : t('points.auth.signInRequired')}
                 </div>
               </div>
 
-              <div className="rounded-[28px] bg-white/8 p-5 backdrop-blur">
+              <div className={`rounded-[28px] p-5 backdrop-blur ${
+                isMembershipView ? 'border border-white/14 bg-white/10' : 'bg-white/6'
+              }`}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/18 text-rose-200">
                     <Crown className="h-5 w-5" />
@@ -225,6 +249,9 @@ export function Points() {
                       rate: formatPoints(data.summary.pointsToCashRate, language),
                     })
                     : t('points.page.rateUnavailable')}
+                </div>
+                <div className="mt-4 inline-flex items-center rounded-full bg-white/8 px-3 py-1.5 text-xs font-semibold text-white/80">
+                  {isMembershipView ? t('points.page.membershipPrimaryHint') : t('points.page.walletPrimaryHint')}
                 </div>
               </div>
             </div>

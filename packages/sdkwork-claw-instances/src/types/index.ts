@@ -27,6 +27,7 @@ export interface Instance {
   cpu: number;
   memory: number;
   totalMemory: string;
+  supportsAssist: boolean;
 }
 
 export interface InstanceConfig {

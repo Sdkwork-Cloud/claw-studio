@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import { BookOpen, ExternalLink, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import {
@@ -8,15 +9,21 @@ import {
   type ChannelCatalogVariant,
 } from './ChannelCatalog';
 import { Button } from './Button';
+import { ChannelRegionTabs } from './ChannelRegionTabs';
 import { Input } from './Input';
 import { Label } from './Label';
 import { OverlaySurface } from './OverlaySurface';
 import { Textarea } from './Textarea';
 import {
+  getChannelCatalogRegion,
   isChannelDownloadAppAction,
   getChannelCatalogMonogram,
   getChannelCatalogTone,
   getChannelOfficialLink,
+  getSupplementalChannelCatalogEntries,
+  partitionChannelCatalogItemsByRegion,
+  resolveDefaultChannelCatalogRegion,
+  type ChannelCatalogRegion,
   type ChannelOfficialLink,
 } from './channelCatalogMeta';
 import { getChannelCatalogIcon } from './channelCatalogIcons';
@@ -111,6 +118,52 @@ function getInputType(field: ChannelWorkspaceField) {
   return 'text';
 }
 
+function buildSupplementalChannelWorkspaceItems(
+  t: (key: string) => string,
+): ChannelWorkspaceItem[] {
+  return getSupplementalChannelCatalogEntries().map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    description: t(entry.descriptionKey),
+    status: 'disconnected',
+    enabled: false,
+    configurationMode: 'none',
+    fieldCount: 0,
+    configuredFieldCount: 0,
+    fields: [],
+    setupSteps: [t('channels.page.catalog.supplemental.referenceSetup')],
+    values: {},
+  }));
+}
+
+function mergeSupplementalChannelWorkspaceItems(
+  items: ChannelWorkspaceItem[],
+  t: (key: string) => string,
+) {
+  if (items.length === 0) {
+    return items;
+  }
+
+  const existingIds = new Set(items.map((item) => item.id));
+  const supplementalItems = buildSupplementalChannelWorkspaceItems(t).filter(
+    (item) => !existingIds.has(item.id),
+  );
+
+  return [...items, ...supplementalItems];
+}
+
+function RegionEmptyState({
+  title,
+}: {
+  title: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
+      {title}
+    </div>
+  );
+}
+
 function ChannelIdentity({
   channel,
 }: {
@@ -158,11 +211,26 @@ export function ChannelWorkspace({
   onDeleteConfiguration,
   onToggleEnabled,
 }: ChannelWorkspaceProps) {
+  const { t } = useTranslation();
   const [validationError, setValidationError] = React.useState<string | null>(null);
 
+  const workspaceItems = React.useMemo(
+    () => mergeSupplementalChannelWorkspaceItems(items, t),
+    [items, t],
+  );
+
+  const regionGroups = React.useMemo(
+    () => partitionChannelCatalogItemsByRegion(workspaceItems),
+    [workspaceItems],
+  );
+
+  const [activeRegion, setActiveRegion] = React.useState<ChannelCatalogRegion>(() =>
+    resolveDefaultChannelCatalogRegion(regionGroups),
+  );
+
   const selectedChannel = React.useMemo(
-    () => items.find((channel) => channel.id === selectedChannelId) || null,
-    [items, selectedChannelId],
+    () => workspaceItems.find((channel) => channel.id === selectedChannelId) || null,
+    [selectedChannelId, workspaceItems],
   );
 
   const selectedValues = React.useMemo<Record<string, string>>(() => {
@@ -177,6 +245,23 @@ export function ChannelWorkspace({
     setValidationError(null);
   }, [selectedChannelId]);
 
+  React.useEffect(() => {
+    const preferredRegion = resolveDefaultChannelCatalogRegion(regionGroups);
+    if (regionGroups[activeRegion].length === 0 && regionGroups[preferredRegion].length > 0) {
+      setActiveRegion(preferredRegion);
+    }
+  }, [activeRegion, regionGroups]);
+
+  React.useEffect(() => {
+    if (!selectedChannel) {
+      return;
+    }
+
+    if (getChannelCatalogRegion(selectedChannel.id) !== activeRegion) {
+      onSelectedChannelIdChange(null);
+    }
+  }, [activeRegion, onSelectedChannelIdChange, selectedChannel]);
+
   const displayedError = error || validationError;
   const selectedChannelOfficialLink = selectedChannel
     ? resolveOfficialLink(selectedChannel)
@@ -189,6 +274,19 @@ export function ChannelWorkspace({
   const hasConfiguredValues = selectedChannel
     ? selectedChannel.fields.some((field) => Boolean((selectedValues[field.key] || '').trim()))
     : false;
+  const visibleItems = regionGroups[activeRegion];
+  const regionLabels: Record<ChannelCatalogRegion, string> = {
+    domestic: t('channels.page.catalog.tabs.domestic'),
+    global: t('channels.page.catalog.tabs.global'),
+  };
+  const regionCounts: Record<ChannelCatalogRegion, number> = {
+    domestic: regionGroups.domestic.length,
+    global: regionGroups.global.length,
+  };
+  const regionEmptyMessage =
+    activeRegion === 'domestic'
+      ? t('channels.page.catalog.empty.domestic')
+      : t('channels.page.catalog.empty.global');
 
   const handleOpenSelectedOfficialLink = () => {
     if (!selectedChannel || !selectedChannelOfficialLink) {
@@ -236,11 +334,24 @@ export function ChannelWorkspace({
         </div>
       ) : null}
 
+      {workspaceItems.length > 0 ? (
+        <ChannelRegionTabs
+          activeRegion={activeRegion}
+          counts={regionCounts}
+          labels={regionLabels}
+          onChange={setActiveRegion}
+        />
+      ) : null}
+
       <ChannelCatalog
-        items={items}
+        items={visibleItems}
         texts={texts}
         variant={variant}
-        emptyState={emptyState}
+        emptyState={
+          workspaceItems.length === 0 ? emptyState : <RegionEmptyState title={regionEmptyMessage} />
+        }
+        showRegionTabs={false}
+        includeSupplementalItems={false}
         resolveOfficialLink={(channel) => resolveOfficialLink(channel as ChannelWorkspaceItem)}
         onOpenOfficialLink={
           onOpenOfficialLink

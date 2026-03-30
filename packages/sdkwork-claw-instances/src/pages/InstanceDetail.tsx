@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -8,9 +8,7 @@ import {
   Clock3,
   Copy,
   Edit2,
-  FileCode2,
   Files,
-  FolderTree,
   Hash,
   History,
   Loader2,
@@ -22,8 +20,6 @@ import {
   Plus,
   Power,
   RefreshCw,
-  RotateCcw,
-  Save,
   Server,
   Settings,
   Sparkles,
@@ -69,8 +65,9 @@ import {
   type TaskCatalogItem,
 } from '@sdkwork/claw-ui';
 import { AgentWorkbenchPanel } from '../components/AgentWorkbenchPanel';
-import { InstanceFileExplorer } from '../components/InstanceFileExplorer';
+import { InstanceFileWorkbench } from '../components/InstanceFileWorkbench';
 import { InstanceLLMConfigPanel } from '../components/InstanceLLMConfigPanel';
+import { OpenClawSkillWorkspace } from '../components/OpenClawSkillWorkspace';
 import { buildInstanceDetailBadgeDescriptors } from './instanceDetailBadgeDescriptors';
 import {
   agentWorkbenchService,
@@ -78,6 +75,7 @@ import {
   type AgentWorkbenchSnapshot,
   buildInstanceManagementSummary,
   instanceService,
+  resolveOpenClawConsoleLaunchUrl,
   instanceWorkbenchService,
 } from '../services';
 import type {
@@ -211,7 +209,7 @@ const embeddedCronTaskActionKeys = [
   'tasks.page.actions.history',
 ] as const;
 
-const MonacoEditor = React.lazy(() => import('@monaco-editor/react'));
+const EMPTY_WORKBENCH_FILES: InstanceWorkbenchSnapshot['files'] = [];
 
 function getRuntimeStatusTone(status: string) {
   if (status === 'healthy') {
@@ -581,9 +579,6 @@ export function InstanceDetail() {
   const [workbench, setWorkbench] = useState<InstanceWorkbenchSnapshot | null>(null);
   const [config, setConfig] = useState<InstanceConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-  const [fileDrafts, setFileDrafts] = useState<Record<string, string>>({});
-  const [isSavingFile, setIsSavingFile] = useState(false);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, InstanceLLMProviderUpdate>>({});
   const [isSavingProviderConfig, setIsSavingProviderConfig] = useState(false);
@@ -616,6 +611,7 @@ export function InstanceDetail() {
   const [isInstallingAgentSkill, setIsInstallingAgentSkill] = useState(false);
   const [updatingAgentSkillKeys, setUpdatingAgentSkillKeys] = useState<string[]>([]);
   const [removingAgentSkillKeys, setRemovingAgentSkillKeys] = useState<string[]>([]);
+  const [isSavingAgentSkillSelection, setIsSavingAgentSkillSelection] = useState(false);
   const [taskExecutionsById, setTaskExecutionsById] = useState<Record<string, InstanceWorkbenchTaskExecution[]>>({});
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -659,21 +655,6 @@ export function InstanceDetail() {
 
     void loadWorkbench(id);
   }, [id]);
-
-  useEffect(() => {
-    const files = workbench?.files || [];
-
-    if (files.length === 0) {
-      setSelectedFileId(null);
-      setFileDrafts({});
-      return;
-    }
-
-    setSelectedFileId((current) =>
-      current && files.some((file) => file.id === current) ? current : files[0].id,
-    );
-    setFileDrafts(Object.fromEntries(files.map((file) => [file.id, file.content])));
-  }, [workbench]);
 
   useEffect(() => {
     const providers = workbench?.llmProviders || [];
@@ -743,7 +724,7 @@ export function InstanceDetail() {
   }, [workbench]);
 
   useEffect(() => {
-    if (activeSection !== 'agents' || !id || !workbench || !selectedAgentId) {
+    if (!['agents', 'files', 'skills'].includes(activeSection) || !id || !workbench || !selectedAgentId) {
       if (!selectedAgentId) {
         setSelectedAgentWorkbench(null);
       }
@@ -819,16 +800,22 @@ export function InstanceDetail() {
   const managedConfigPath = workbench?.managedConfigPath || null;
   const managedChannels = workbench?.managedChannels || [];
   const consoleAccess = detail?.consoleAccess || null;
+  const openClawConsoleUrl = resolveOpenClawConsoleLaunchUrl(consoleAccess);
+  const isOpenClawRuntime = detail?.instance.runtimeKind === 'openclaw';
   const isOpenClawConfigWritable =
-    detail?.instance.runtimeKind === 'openclaw' && Boolean(managedConfigPath);
+    isOpenClawRuntime && Boolean(managedConfigPath);
   const canEditManagedChannels = Boolean(id && managedConfigPath && managedChannels.length);
   const isProviderConfigReadonly =
-    detail?.instance.runtimeKind === 'openclaw' ? !managedConfigPath : false;
-  const canOpenOpenClawConsole = Boolean(
-    consoleAccess?.available && (consoleAccess.autoLoginUrl || consoleAccess.url),
-  );
+    isOpenClawRuntime ? !managedConfigPath : false;
+  const canOpenOpenClawConsole = Boolean(openClawConsoleUrl);
   const historyTask = historyTaskId ? workbench?.tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? taskExecutionsById[historyTaskId] || [] : [];
+
+  useEffect(() => {
+    if (instance && activeInstanceId === instance.id && !instance.supportsAssist) {
+      setActiveInstanceId(null);
+    }
+  }, [activeInstanceId, instance, setActiveInstanceId]);
 
   const activeSectionMeta = useMemo(
     () => workbenchSections.find((section) => section.id === activeSection),
@@ -837,11 +824,6 @@ export function InstanceDetail() {
   const managementSummary = useMemo(
     () => (workbench ? buildInstanceManagementSummary(workbench) : null),
     [workbench],
-  );
-
-  const selectedFile = useMemo(
-    () => workbench?.files.find((file) => file.id === selectedFileId) || null,
-    [selectedFileId, workbench],
   );
   const selectedProvider = useMemo(
     () => workbench?.llmProviders.find((provider) => provider.id === selectedProviderId) || null,
@@ -881,8 +863,6 @@ export function InstanceDetail() {
     },
     [workbench],
   );
-
-  const selectedFileDraft = selectedFile ? fileDrafts[selectedFile.id] ?? selectedFile.content : '';
   const selectedProviderDraft = selectedProvider
     ? providerDrafts[selectedProvider.id] || {
         endpoint: selectedProvider.endpoint,
@@ -948,9 +928,7 @@ export function InstanceDetail() {
       }),
     [managedChannelDrafts, managedChannels],
   );
-  const hasPendingFileChanges = Boolean(
-    selectedFile && !selectedFile.isReadonly && selectedFileDraft !== selectedFile.content,
-  );
+
   const hasPendingProviderChanges = Boolean(
     selectedProvider &&
       selectedProviderDraft &&
@@ -964,49 +942,26 @@ export function InstanceDetail() {
           config: selectedProvider.config,
         }),
   );
-  const editorTheme =
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-      ? 'vs-dark'
-      : 'vs';
+  const fileWorkbench = activeSection === 'files' ? selectedAgentWorkbench : null;
+  const visibleFiles = fileWorkbench?.files ?? EMPTY_WORKBENCH_FILES;
 
   const getSharedStatusLabel = (status: string) => t(`instances.shared.status.${status}`);
 
-  const handleFileDraftChange = (value: string) => {
-    if (!selectedFile || selectedFile.isReadonly) {
+  const handleSaveWorkbenchFile = async (
+    file: InstanceWorkbenchSnapshot['files'][number],
+    content: string,
+  ) => {
+    if (!id || file.isReadonly) {
       return;
     }
 
-    setFileDrafts((current) => ({
-      ...current,
-      [selectedFile.id]: value,
-    }));
-  };
-
-  const handleResetFileDraft = () => {
-    if (!selectedFile) {
-      return;
-    }
-
-    setFileDrafts((current) => ({
-      ...current,
-      [selectedFile.id]: selectedFile.content,
-    }));
-  };
-
-  const handleSaveFile = async () => {
-    if (!id || !selectedFile || selectedFile.isReadonly) {
-      return;
-    }
-
-    setIsSavingFile(true);
     try {
-      await instanceService.updateInstanceFileContent(id, selectedFile.id, selectedFileDraft);
+      await instanceService.updateInstanceFileContent(id, file.id, content);
       toast.success(t('instances.detail.instanceWorkbench.files.fileSaved'));
-      await loadWorkbench(id);
+      await loadWorkbench(id, { withSpinner: false });
     } catch (error: any) {
       toast.error(error.message || t('instances.detail.instanceWorkbench.files.fileSaveFailed'));
-    } finally {
-      setIsSavingFile(false);
+      throw error;
     }
   };
 
@@ -1386,6 +1341,62 @@ export function InstanceDetail() {
     }
   };
 
+  const handleSaveAgentSkillConfiguration = async (input: {
+    skillKey: string;
+    enabled: boolean;
+    apiKey?: string;
+    env?: Record<string, string>;
+  }) => {
+    if (!id) {
+      return;
+    }
+
+    setUpdatingAgentSkillKeys((current) => addPendingId(current, input.skillKey));
+    try {
+      await agentSkillManagementService.saveSkillConfiguration({
+        instanceId: id,
+        skillKey: input.skillKey,
+        enabled: input.enabled,
+        apiKey: input.apiKey,
+        env: input.env,
+      });
+      toast.success(t('instances.detail.instanceWorkbench.agents.toasts.skillConfigSaved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(
+        error?.message || t('instances.detail.instanceWorkbench.agents.toasts.skillConfigSaveFailed'),
+      );
+      throw error;
+    } finally {
+      setUpdatingAgentSkillKeys((current) => removePendingId(current, input.skillKey));
+    }
+  };
+
+  const handleSaveAgentSkillSelection = async (
+    nextConfiguredSkillNames: string[] | null,
+  ) => {
+    if (!id || !selectedAgentWorkbench) {
+      return;
+    }
+
+    setIsSavingAgentSkillSelection(true);
+    try {
+      await instanceService.updateOpenClawAgent(id, {
+        id: selectedAgentWorkbench.agent.agent.id,
+        skills: nextConfiguredSkillNames,
+      });
+      toast.success(t('instances.detail.instanceWorkbench.agents.toasts.skillSelectionSaved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      toast.error(
+        error?.message || t('instances.detail.instanceWorkbench.agents.toasts.skillSelectionSaveFailed'),
+      );
+      throw error;
+    } finally {
+      setIsSavingAgentSkillSelection(false);
+    }
+  };
+
   const handleRemoveAgentSkill = async (
     skill: NonNullable<AgentWorkbenchSnapshot['skills'][number]>,
   ) => {
@@ -1457,7 +1468,7 @@ export function InstanceDetail() {
   };
 
   const handleOpenOpenClawConsole = async () => {
-    const targetUrl = consoleAccess?.autoLoginUrl || consoleAccess?.url;
+    const targetUrl = openClawConsoleUrl;
     if (!targetUrl) {
       toast.error(t('instances.detail.toasts.failedToOpenOpenClawConsole'));
       return;
@@ -1585,7 +1596,7 @@ export function InstanceDetail() {
       return;
     }
 
-    if (activeInstanceId !== instance.id) {
+    if (instance.supportsAssist && activeInstanceId !== instance.id) {
       setActiveInstanceId(instance.id);
     }
 
@@ -1841,9 +1852,11 @@ export function InstanceDetail() {
                   {t('instances.detail.instanceWorkbench.overview.management.description')}
                 </p>
               </div>
-              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                {managementSummary.entries.length}
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                  {managementSummary.entries.length}
+                </span>
+              </div>
             </div>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-5">
@@ -2280,6 +2293,10 @@ export function InstanceDetail() {
           onInstallSkill={handleInstallAgentSkill}
           onSetSkillEnabled={handleSetAgentSkillEnabled}
           onRemoveSkill={handleRemoveAgentSkill}
+          onSaveSkillConfiguration={handleSaveAgentSkillConfiguration}
+          isSavingSkillSelection={isSavingAgentSkillSelection}
+          onSaveSkillSelection={handleSaveAgentSkillSelection}
+          onSaveFile={handleSaveWorkbenchFile}
           isReadonly={!isOpenClawConfigWritable}
           isLoading={isAgentWorkbenchLoading}
           isInstallingSkill={isInstallingAgentSkill}
@@ -2500,7 +2517,88 @@ export function InstanceDetail() {
   };
 
   const renderSkillsSection = () => {
-    if (!workbench || workbench.skills.length === 0) {
+    if (!workbench) {
+      return null;
+    }
+
+    if (isOpenClawRuntime && workbench.agents.length > 0) {
+      if (isAgentWorkbenchLoading) {
+        return (
+          <div className="rounded-[1.6rem] border border-zinc-200/70 bg-white/80 px-5 py-8 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/35 dark:text-zinc-400">
+            {t('common.loading')}
+          </div>
+        );
+      }
+
+      if (selectedAgentWorkbench) {
+        return (
+          <OpenClawSkillWorkspace
+            snapshot={selectedAgentWorkbench}
+            isReadonly={!isOpenClawConfigWritable}
+            isInstallingSkill={isInstallingAgentSkill}
+            updatingSkillKeys={updatingAgentSkillKeys}
+            removingSkillKeys={removingAgentSkillKeys}
+            onInstallSkill={handleInstallAgentSkill}
+            onSetSkillEnabled={handleSetAgentSkillEnabled}
+            onRemoveSkill={handleRemoveAgentSkill}
+            onSaveSkillConfiguration={handleSaveAgentSkillConfiguration}
+            isSavingSkillSelection={isSavingAgentSkillSelection}
+            onSaveSkillSelection={handleSaveAgentSkillSelection}
+            header={
+              <div data-slot="instance-skills-agent-select" className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.agents.panel.instanceSkillViewTitle')}
+                  </div>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.agents.panel.instanceSkillViewDescription')}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 font-semibold text-zinc-700 dark:bg-white/[0.06] dark:text-zinc-200">
+                      {selectedAgentWorkbench.agent.agent.name}
+                    </span>
+                    {selectedAgentWorkbench.agent.isDefault ? (
+                      <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 font-semibold text-emerald-700 dark:text-emerald-300">
+                        {t('instances.detail.instanceWorkbench.agents.panel.defaultBadge')}
+                      </span>
+                    ) : null}
+                    <span className="max-w-full break-all rounded-full bg-zinc-950/[0.04] px-2.5 py-1 font-mono dark:bg-white/[0.06]">
+                      {selectedAgentWorkbench.paths.workspacePath || t('common.none')}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full max-w-xs">
+                  <Label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                    {t('chat.page.selectAgent')}
+                  </Label>
+                  <Select
+                    value={selectedAgentId || undefined}
+                    onValueChange={(value) => setSelectedAgentId(value)}
+                    disabled={workbench.agents.length === 0}
+                  >
+                    <SelectTrigger className="rounded-2xl bg-white/90 dark:bg-zinc-950/70">
+                      <SelectValue placeholder={t('chat.page.selectAgent')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workbench.agents.map((agent) => (
+                        <SelectItem key={agent.agent.id} value={agent.agent.id}>
+                          {agent.agent.name}
+                          {agent.isDefault
+                            ? ` · ${t('instances.detail.instanceWorkbench.agents.panel.defaultBadge')}`
+                            : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            }
+          />
+        );
+      }
+    }
+
+    if (workbench.skills.length === 0) {
       return renderSectionAvailability('skills', 'instances.detail.instanceWorkbench.empty.skills');
     }
 
@@ -2546,13 +2644,6 @@ export function InstanceDetail() {
 
   const renderLlmProvidersSection = () => renderManagedLlmProviderSection();
 
-    /*
-
-                      {model.name} ·{' '}
-
-
-
-    */
   const renderOpenClawProviderDialogs = () => {
     const defaultDialogModelValue =
       providerDialogDraft.defaultModelId &&
@@ -3088,206 +3179,45 @@ export function InstanceDetail() {
   };
 
   const renderFilesSection = () => {
+    if (!workbench || workbench.agents.length === 0) {
+      return renderSectionAvailability('files', 'instances.detail.instanceWorkbench.empty.files');
+    }
+
     return (
-      <div className="space-y-6">
-        <div className="rounded-[1.6rem] bg-zinc-950/[0.03] p-5 dark:bg-white/[0.04]">
-          <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-            {t('instances.detail.instanceWorkbench.files.gatewayProfile')}
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-            {t('instances.detail.instanceWorkbench.files.gatewayProfileDescription')}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-              {t('instances.detail.fields.gatewayPort')}: {config?.port}
-            </span>
-            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-              {t('instances.detail.fields.corsOrigins')}: {config?.corsOrigins}
-            </span>
-            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-              {t('instances.detail.fields.agentSandbox')}: {config?.sandbox
-                ? t('instances.detail.instanceWorkbench.files.on')
-                : t('instances.detail.instanceWorkbench.files.off')}
-            </span>
-            <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-              {t('instances.detail.fields.autoUpdate')}: {config?.autoUpdate
-                ? t('instances.detail.instanceWorkbench.files.on')
-                : t('instances.detail.instanceWorkbench.files.off')}
-            </span>
+      <InstanceFileWorkbench
+        files={visibleFiles}
+        workspacePath={fileWorkbench?.paths.workspacePath}
+        isLoading={isAgentWorkbenchLoading}
+        onSaveFile={handleSaveWorkbenchFile}
+        sidebarHeader={
+          <div data-slot="instance-files-agent-select">
+            <Label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+              {t('chat.page.selectAgent')}
+            </Label>
+            <Select
+              value={selectedAgentId || undefined}
+              onValueChange={(value) => setSelectedAgentId(value)}
+              disabled={!workbench || workbench.agents.length === 0}
+            >
+              <SelectTrigger className="rounded-2xl bg-white/90 dark:bg-zinc-950/70">
+                <SelectValue placeholder={t('chat.page.selectAgent')} />
+              </SelectTrigger>
+              <SelectContent>
+                {(workbench?.agents || []).map((agent) => (
+                  <SelectItem key={agent.agent.id} value={agent.agent.id}>
+                    {agent.agent.name}
+                    {agent.isDefault
+                      ? ` · ${t('instances.detail.instanceWorkbench.agents.panel.defaultBadge')}`
+                      : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-
-        <div className="rounded-[1.75rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200/70 px-5 py-4 dark:border-zinc-800">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                <FolderTree className="h-4 w-4" />
-                {t('instances.detail.instanceWorkbench.files.runtimeArtifacts')}
-              </div>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                {t('instances.detail.instanceWorkbench.files.runtimeArtifactsDescription')}
-              </p>
-            </div>
-            {selectedFile ? (
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                  {selectedFile.language}
-                </span>
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                    selectedFile.status === 'missing'
-                      ? getDangerBadge(selectedFile.status)
-                      : getStatusBadge(selectedFile.status)
-                  }`}
-                >
-                  {t(`instances.detail.instanceWorkbench.fileStatus.${selectedFile.status}`)}
-                </span>
-              </div>
-            ) : null}
-          </div>
-
-          {workbench && workbench.files.length > 0 ? (
-            <div className="grid min-h-[42rem] xl:grid-cols-[20rem_minmax(0,1fr)]">
-              <aside
-                data-slot="instance-files-explorer"
-                className="border-b border-zinc-200/70 bg-zinc-950/[0.02] p-3 dark:border-zinc-800 dark:bg-white/[0.02] xl:border-r xl:border-b-0"
-              >
-                <div className="flex items-center justify-between gap-3 px-2 pb-3 pt-1">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                    {t('instances.detail.instanceWorkbench.files.explorer')}
-                  </div>
-                  <div className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
-                    {workbench.files.length}
-                  </div>
-                </div>
-                <InstanceFileExplorer
-                  files={workbench.files}
-                  selectedFileId={selectedFileId}
-                  onSelectFile={setSelectedFileId}
-                />
-              </aside>
-
-              <div data-slot="instance-files-editor" className="flex min-h-[42rem] flex-col">
-                {selectedFile ? (
-                  <>
-                    <div className="border-b border-zinc-200/70 px-5 py-4 dark:border-zinc-800">
-                      <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="truncate text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                              {selectedFile.name}
-                            </h3>
-                            <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                              {selectedFile.isReadonly
-                                ? t('instances.detail.instanceWorkbench.files.previewMode')
-                                : t('instances.detail.instanceWorkbench.files.editMode')}
-                            </span>
-                            {hasPendingFileChanges ? (
-                              <span className="rounded-full bg-amber-500/12 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
-                                {t('instances.detail.instanceWorkbench.files.unsavedChanges')}
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="mt-2 truncate font-mono text-sm text-zinc-500 dark:text-zinc-400">
-                            {selectedFile.path}
-                          </p>
-                        </div>
-                        {selectedFile.isReadonly ? (
-                          <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-                            {t('instances.detail.instanceWorkbench.files.readonlyNotice')}
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={handleResetFileDraft}
-                              disabled={!hasPendingFileChanges}
-                              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                              {t('instances.detail.instanceWorkbench.files.revertDraft')}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleSaveFile}
-                              disabled={!hasPendingFileChanges || isSavingFile}
-                              className="flex items-center gap-2 rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
-                            >
-                              {isSavingFile ? (
-                                <>
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                  {t('instances.detail.instanceWorkbench.files.savingFile')}
-                                </>
-                              ) : (
-                                <>
-                                  <Save className="h-4 w-4" />
-                                  {t('instances.detail.instanceWorkbench.files.saveFile')}
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
-                          {selectedFile.size}
-                        </span>
-                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
-                          {selectedFile.updatedAt}
-                        </span>
-                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
-                          {t(`instances.detail.instanceWorkbench.fileCategories.${selectedFile.category}`)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="min-h-[34rem] flex-1">
-                      <Suspense
-                        fallback={
-                          <div className="flex h-full min-h-[34rem] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                            {t('common.loading')}
-                          </div>
-                        }
-                      >
-                        <MonacoEditor
-                          height="100%"
-                          language={selectedFile.language}
-                          theme={editorTheme}
-                          value={selectedFileDraft}
-                          onChange={(value) => handleFileDraftChange(value ?? '')}
-                          options={{
-                            automaticLayout: true,
-                            fontSize: 13,
-                            lineHeight: 20,
-                            minimap: { enabled: true },
-                            padding: { top: 16, bottom: 16 },
-                            readOnly: selectedFile.isReadonly,
-                            roundedSelection: true,
-                            scrollBeyondLastLine: false,
-                            smoothScrolling: true,
-                            wordWrap: 'on',
-                          }}
-                        />
-                      </Suspense>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full min-h-[34rem] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    {t('instances.detail.instanceWorkbench.files.selectFile')}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="p-5">
-              {renderSectionAvailability('files', 'instances.detail.instanceWorkbench.empty.files')}
-            </div>
-          )}
-        </div>
-      </div>
+        }
+      />
     );
   };
-
   const renderMemorySection = () => {
     if (!workbench || workbench.memories.length === 0) {
       return renderSectionAvailability('memory', 'instances.detail.instanceWorkbench.empty.memory');
@@ -3496,7 +3426,7 @@ export function InstanceDetail() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {activeInstanceId !== instance.id && instance.status === 'online' ? (
+            {instance.supportsAssist && activeInstanceId !== instance.id && instance.status === 'online' ? (
               <button
                 type="button"
                 onClick={() => setActiveInstanceId(instance.id)}
@@ -3509,8 +3439,9 @@ export function InstanceDetail() {
             {canOpenOpenClawConsole ? (
               <button
                 type="button"
-                onClick={handleOpenOpenClawConsole}
-                className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                data-slot="instance-detail-openclaw-console-action"
+                onClick={() => void handleOpenOpenClawConsole()}
+                className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
               >
                 <Wrench className="h-4 w-4" />
                 {t('instances.detail.actions.openOpenClawConsole')}
@@ -3689,11 +3620,19 @@ export function InstanceDetail() {
             </div>
           </aside>
 
-          <section className="rounded-[1.8rem] bg-zinc-950/[0.03] p-5 dark:bg-white/[0.04] md:p-6">
-            <SectionHeading
-              title={activeSectionMeta ? t(activeSectionMeta.sectionTitleKey) : ''}
-              description={activeSectionMeta ? t(activeSectionMeta.sectionDescriptionKey) : ''}
-            />
+          <section
+            className={
+              activeSection === 'files'
+                ? 'overflow-hidden'
+                : 'rounded-[1.8rem] bg-zinc-950/[0.03] p-5 dark:bg-white/[0.04] md:p-6'
+            }
+          >
+            {activeSection !== 'files' ? (
+              <SectionHeading
+                title={activeSectionMeta ? t(activeSectionMeta.sectionTitleKey) : ''}
+                description={activeSectionMeta ? t(activeSectionMeta.sectionDescriptionKey) : ''}
+              />
+            ) : null}
             {renderSectionContent()}
           </section>
         </div>
@@ -3719,3 +3658,4 @@ export function InstanceDetail() {
     </div>
   );
 }
+

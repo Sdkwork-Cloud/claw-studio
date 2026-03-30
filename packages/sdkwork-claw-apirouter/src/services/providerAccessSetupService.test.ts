@@ -115,8 +115,8 @@ await runTest('providerAccessSetupService derives Gemini CLI settings and env ar
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     models: [
       {
-        id: 'gemini-2.5-pro',
-        name: 'Gemini 2.5 Pro',
+        id: 'gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro',
       },
     ],
   });

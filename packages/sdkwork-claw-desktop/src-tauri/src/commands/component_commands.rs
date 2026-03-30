@@ -73,16 +73,16 @@ mod tests {
         let state = AppState::from_context(context);
 
         let catalog = desktop_component_catalog_from_state(&state).expect("component catalog");
-        let router = catalog
+        let openclaw = catalog
             .components
             .iter()
-            .find(|component| component.id == "sdkwork-api-router")
-            .expect("router component");
+            .find(|component| component.id == "openclaw")
+            .expect("openclaw component");
 
-        assert!(router
+        assert!(openclaw
             .capabilities
             .iter()
-            .any(|capability| capability.key == "openai-gateway"));
+            .any(|capability| capability.key == "gateway"));
     }
 
     #[test]

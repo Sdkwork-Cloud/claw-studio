@@ -3,7 +3,7 @@ import { createStore } from 'zustand/vanilla';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { appAuthService } from '../services/index.ts';
 import type { AppAuthOAuthDeviceType, AppAuthSession, AppAuthSocialProvider } from '../services/index.ts';
-import { readAppSdkSessionTokens } from '../sdk/useAppSdkClient.ts';
+import { readAppSdkSessionTokens } from '../sdk/appSdkSession.ts';
 
 const STORAGE_KEY = 'claw-studio-auth-storage';
 

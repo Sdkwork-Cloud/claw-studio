@@ -149,7 +149,7 @@ const vendorProfiles: VendorProfile[] = [
     tagline: 'Multimodal packages for search, docs, and workspace AI.',
     heroDescription: 'Great for image, document, and multimodal product flows.',
     audience: 'Multimodal product teams',
-    modelHighlights: ['Gemini 2.5 Pro', 'Gemini Flash', 'Workspace'],
+    modelHighlights: ['Gemini 3.1 Pro', 'Gemini Flash', 'Workspace'],
     basePricesCny: [85, 209, 499],
     baseTokensMillions: [48, 155, 450],
   },

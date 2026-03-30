@@ -110,7 +110,7 @@ Expected: PASS
 - [ ] **Step 1: Write the failing catalog tests**
 
 Cover:
-- router catalog loading from `sdkwork-api-router`
+- router catalog loading from the legacy bundled router runtime
 - OpenClaw provider/model filtering from managed config
 - runtime availability filtering from Gateway `models.list`
 - selected model persistence per instance

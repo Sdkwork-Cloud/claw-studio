@@ -1,7 +1,7 @@
 import type {
-  ApiRouterInstalledOpenClawInstance,
   MockInstanceLLMProvider,
   MockInstanceLLMProviderModel,
+  ProviderClientSetupOpenClawInstance,
 } from '@sdkwork/claw-infrastructure';
 import type { ProxyProvider } from '@sdkwork/claw-types';
 import type { ProviderAccessClientConfig } from './providerAccessConfigService';
@@ -165,7 +165,7 @@ function getOpenClawDraftIcon(channelId: string) {
 
 export function buildOpenClawInstanceProviderDraft(
   provider: ProxyProvider,
-  openClawInstance: ApiRouterInstalledOpenClawInstance,
+  openClawInstance: ProviderClientSetupOpenClawInstance,
 ): OpenClawInstanceProviderDraft {
   const primaryModelId = provider.models[0]?.id || 'model-id';
   const reasoningModelId = inferReasoningModelId(provider);

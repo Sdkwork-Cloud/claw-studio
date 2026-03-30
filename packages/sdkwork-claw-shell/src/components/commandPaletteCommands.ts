@@ -31,10 +31,12 @@ export interface CommandPaletteCommand {
   icon: ElementType;
   action: () => void;
   category: string;
+  sidebarItemId?: string;
 }
 
 interface BuildCommandPaletteCommandsOptions {
   instances: CommandPaletteInstance[];
+  hiddenSidebarItems: string[];
   navigate: (path: string) => void;
   setActiveInstanceId: (id: string | null) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
@@ -42,6 +44,7 @@ interface BuildCommandPaletteCommandsOptions {
 
 export function buildCommandPaletteCommands({
   instances,
+  hiddenSidebarItems,
   navigate,
   setActiveInstanceId,
   t,
@@ -53,6 +56,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.chat.subtitle'),
       icon: MessageCircle,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'chat',
       action: () => navigate('/chat'),
     },
     {
@@ -61,6 +65,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.dashboard.subtitle'),
       icon: LayoutDashboard,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'dashboard',
       action: () => navigate('/dashboard'),
     },
     {
@@ -69,6 +74,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.apps.subtitle'),
       icon: LayoutGrid,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'apps',
       action: () => navigate('/apps'),
     },
     {
@@ -77,6 +83,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.mall.subtitle'),
       icon: Store,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'mall',
       action: () => navigate('/mall'),
     },
     {
@@ -85,6 +92,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.agents.subtitle'),
       icon: BriefcaseBusiness,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'agents',
       action: () => navigate('/agents'),
     },
     {
@@ -93,6 +101,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.github.subtitle'),
       icon: Github,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'github',
       action: () => navigate('/github'),
     },
     {
@@ -101,6 +110,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.huggingface.subtitle'),
       icon: BrainCircuit,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'huggingface',
       action: () => navigate('/huggingface'),
     },
     {
@@ -109,6 +119,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.upload.subtitle'),
       icon: Waypoints,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'claw-upload',
       action: () => navigate('/claw-center'),
     },
     {
@@ -117,6 +128,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.instances.subtitle'),
       icon: Server,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'instances',
       action: () => navigate('/instances'),
     },
     {
@@ -125,6 +137,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.kernel.subtitle'),
       icon: ShieldCheck,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'kernel',
       action: () => navigate('/kernel'),
     },
     {
@@ -133,6 +146,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.nodes.subtitle'),
       icon: Server,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'nodes',
       action: () => navigate('/nodes'),
     },
     {
@@ -141,6 +155,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.devices.subtitle'),
       icon: Cpu,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'devices',
       action: () => navigate('/devices'),
     },
     {
@@ -149,6 +164,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.codebox.subtitle'),
       icon: Code,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'extensions',
       action: () => navigate('/codebox'),
     },
     {
@@ -157,6 +173,7 @@ export function buildCommandPaletteCommands({
       subtitle: t('commandPalette.commands.apiRouter.subtitle'),
       icon: Router,
       category: t('commandPalette.categories.navigation'),
+      sidebarItemId: 'api-router',
       action: () => navigate('/api-router'),
     },
     {
@@ -189,5 +206,10 @@ export function buildCommandPaletteCommands({
     action: () => setActiveInstanceId(instance.id),
   }));
 
-  return [...baseCommands, ...instanceCommands];
+  const visibleBaseCommands = baseCommands.filter(
+    (command) =>
+      !command.sidebarItemId || !hiddenSidebarItems.includes(command.sidebarItemId),
+  );
+
+  return [...visibleBaseCommands, ...instanceCommands];
 }

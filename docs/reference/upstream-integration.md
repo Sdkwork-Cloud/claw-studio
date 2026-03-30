@@ -8,9 +8,8 @@ This document captures the recommended built-in integration strategy for these u
 - `zeroclaw`
 - `ironclaw`
 - `codex`
-- `sdkwork-api-router`
 
-The target product is the current `claw-studio` workspace, with desktop built-in integration as the first priority and API Router as the shared control-plane foundation.
+The target product is the current `claw-studio` workspace, with desktop built-in integration as the first priority and OpenClaw as the shared control-plane foundation.
 
 ## Source Snapshot
 
@@ -20,7 +19,6 @@ Analysis in this document was checked against the following upstream revisions o
 - `zeroclaw`: `2e48cbf7c3093aa1aa18350e1eeca8c290daa5e2`
 - `ironclaw`: `b9e5acf66e44fcb7e38c795cbdf96ea0ded553cf`
 - `codex`: `70cdb17703a4310b7173642e011f7534d2b2624f`
-- `sdkwork-api-router`: `3bd86733d2f8604194496c6978d70c30e0d0a14e`
 
 Local analysis clones live under `.codex-tools/vendor-analysis/`.
 
@@ -92,13 +90,13 @@ Recommended strategy:
 - integrate interactively through `codex app-server` over stdio
 - model Codex as a protocol-driven tool runtime, not as a text-only CLI
 
-## SDKWork API Router
+## OpenClaw Control Plane
 
-`sdkwork-api-router` is the correct local control plane and provider data plane. It already documents standalone server mode and desktop-oriented embedded mode, loopback trust boundaries, SQLite for local persistence, and OS keyring backed secrets.
+`openclaw` is the correct local control plane and provider data plane. It already documents standalone server mode, desktop-oriented embedded mode, loopback trust boundaries, SQLite for local persistence, and OS keyring backed secrets.
 
 Recommended strategy:
 
-- make API Router the shared local control plane for provider routing and credentials
+- make OpenClaw the shared local control plane for provider routing and credentials
 - replace the current mock-only `sdkwork-claw-apirouter` frontend service with the real backend
 - reuse it for desktop built-in routing before adding more client-side provider logic
 
@@ -109,14 +107,14 @@ The recommended desktop-first architecture is:
 1. Tauri and Rust host
 2. Hub Installer registry and install records
 3. process supervisor and protocol bridges
-4. embedded `sdkwork-api-router`
+4. embedded OpenClaw control plane
 5. external managed runtimes for OpenClaw, ZeroClaw, IronClaw, and Codex
 6. thin web and desktop UI packages consuming package-root APIs
 
 Responsibilities by layer:
 
 - Rust host: install, upgrade, supervise, migrate, back up, and bridge protocols
-- API Router: provider routing, credentials, health, extension runtime, and loopback HTTP APIs
+- OpenClaw control plane: provider routing, credentials, health, extension runtime, and loopback HTTP APIs
 - external runtimes: upstream CLI, gateway, or agent behaviors
 - frontend packages: UI, not runtime ownership
 
@@ -158,7 +156,7 @@ The first corrective actions inside this repository should be:
 - stop presenting ZeroClaw and IronClaw as `pnpm`-first tools in the bundled registry
 - keep OpenClaw as the Node-managed exception
 - make `sdkwork-claw-apirouter` and `sdkwork-claw-extensions` talk to real backends
-- prioritize `API Router + Codex app-server + OpenClaw managed runtime` as the first end-to-end built-in integration
+- prioritize `embedded OpenClaw control plane + Codex app-server + OpenClaw managed runtime` as the first end-to-end built-in integration
 
 ## Suggested Delivery Phases
 
