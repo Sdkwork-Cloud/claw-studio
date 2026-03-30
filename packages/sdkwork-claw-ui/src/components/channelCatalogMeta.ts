@@ -3,10 +3,18 @@ export interface ChannelOfficialLink {
   label: string;
 }
 
+export type ChannelCatalogRegion = 'domestic' | 'global';
+
+export interface ChannelCatalogRegionGroups<T> {
+  domestic: T[];
+  global: T[];
+}
+
 interface ChannelCatalogMeta {
   order: number;
   monogram: string;
   tone: string;
+  region: ChannelCatalogRegion;
   officialLink?: ChannelOfficialLink;
   primaryAction?: 'officialSite' | 'downloadApp';
 }
@@ -20,6 +28,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'SC',
     tone:
       'border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-700 dark:border-emerald-500/20 dark:from-emerald-500/15 dark:to-teal-500/15 dark:text-emerald-200',
+    region: 'domestic',
     officialLink: {
       href: 'https://clawstudio.sdkwork.com/platforms/android',
       label: 'Sdkwork Chat App Download',
@@ -31,6 +40,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'WC',
     tone:
       'border-green-200/80 bg-gradient-to-br from-green-50 to-lime-100 text-green-700 dark:border-green-500/20 dark:from-green-500/15 dark:to-lime-500/15 dark:text-green-200',
+    region: 'domestic',
     officialLink: {
       href: 'https://mp.weixin.qq.com/',
       label: 'WeChat Official Account Platform',
@@ -41,6 +51,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'FS',
     tone:
       'border-sky-200/80 bg-gradient-to-br from-sky-50 to-cyan-100 text-sky-700 dark:border-sky-500/20 dark:from-sky-500/15 dark:to-cyan-500/15 dark:text-sky-200',
+    region: 'domestic',
     officialLink: {
       href: 'https://open.feishu.cn/app?lang=zh-CN',
       label: 'Feishu Open Platform',
@@ -51,6 +62,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'QQ',
     tone:
       'border-cyan-200/80 bg-gradient-to-br from-cyan-50 to-blue-100 text-cyan-700 dark:border-cyan-500/20 dark:from-cyan-500/15 dark:to-blue-500/15 dark:text-cyan-200',
+    region: 'domestic',
     officialLink: {
       href: 'https://q.qq.com/qqbot/#/home',
       label: 'QQ Bot Platform',
@@ -61,6 +73,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'DT',
     tone:
       'border-blue-200/80 bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-700 dark:border-blue-500/20 dark:from-blue-500/15 dark:to-indigo-500/15 dark:text-blue-200',
+    region: 'domestic',
     officialLink: {
       href: 'https://open-dev.dingtalk.com/',
       label: 'DingTalk Developer Console',
@@ -71,6 +84,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'WC',
     tone:
       'border-violet-200/80 bg-gradient-to-br from-violet-50 to-indigo-100 text-violet-700 dark:border-violet-500/20 dark:from-violet-500/15 dark:to-indigo-500/15 dark:text-violet-200',
+    region: 'domestic',
     officialLink: {
       href: 'https://work.weixin.qq.com/wework_admin/loginpage_wx?redirect_uri=https%3A%2F%2Fwork.weixin.qq.com%2Fwework_admin%2Fframe',
       label: 'WeCom Admin Console',
@@ -81,6 +95,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'TG',
     tone:
       'border-sky-200/80 bg-gradient-to-br from-sky-50 to-blue-100 text-sky-700 dark:border-sky-500/20 dark:from-sky-500/15 dark:to-blue-500/15 dark:text-sky-200',
+    region: 'global',
     officialLink: {
       href: 'https://core.telegram.org/bots',
       label: 'Telegram Bot Platform',
@@ -91,6 +106,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'DS',
     tone:
       'border-indigo-200/80 bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-700 dark:border-indigo-500/20 dark:from-indigo-500/15 dark:to-violet-500/15 dark:text-indigo-200',
+    region: 'global',
     officialLink: {
       href: 'https://discord.com/developers/applications',
       label: 'Discord Developer Portal',
@@ -101,6 +117,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'SL',
     tone:
       'border-rose-200/80 bg-gradient-to-br from-rose-50 to-orange-100 text-rose-700 dark:border-rose-500/20 dark:from-rose-500/15 dark:to-orange-500/15 dark:text-rose-200',
+    region: 'global',
     officialLink: {
       href: 'https://api.slack.com/apps',
       label: 'Slack API Apps',
@@ -111,6 +128,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'GC',
     tone:
       'border-amber-200/80 bg-gradient-to-br from-amber-50 to-yellow-100 text-amber-700 dark:border-amber-500/20 dark:from-amber-500/15 dark:to-yellow-500/15 dark:text-amber-200',
+    region: 'global',
     officialLink: {
       href: 'https://developers.google.com/workspace/chat',
       label: 'Google Chat Developer Docs',
@@ -151,6 +169,10 @@ export function getChannelOfficialLink(channelId: string): ChannelOfficialLink |
   return channelCatalogMetaMap[channelId]?.officialLink || null;
 }
 
+export function getChannelCatalogRegion(channelId: string): ChannelCatalogRegion {
+  return channelCatalogMetaMap[channelId]?.region || 'global';
+}
+
 export function isChannelDownloadAppAction(channelId: string) {
   return channelCatalogMetaMap[channelId]?.primaryAction === 'downloadApp';
 }
@@ -189,4 +211,30 @@ export function sortChannelCatalogItems<
       return left.index - right.index;
     })
     .map((entry) => entry.item);
+}
+
+export function partitionChannelCatalogItemsByRegion<
+  T extends { id: string; name?: string; status?: string; enabled?: boolean },
+>(items: T[]): ChannelCatalogRegionGroups<T> {
+  return sortChannelCatalogItems(items).reduce<ChannelCatalogRegionGroups<T>>(
+    (groups, item) => {
+      const region = getChannelCatalogRegion(item.id);
+      groups[region].push(item);
+      return groups;
+    },
+    {
+      domestic: [],
+      global: [],
+    },
+  );
+}
+
+export function resolveDefaultChannelCatalogRegion<T>(
+  groups: ChannelCatalogRegionGroups<T>,
+): ChannelCatalogRegion {
+  if (groups.domestic.length > 0) {
+    return 'domestic';
+  }
+
+  return 'global';
 }

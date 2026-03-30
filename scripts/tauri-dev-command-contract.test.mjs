@@ -29,13 +29,15 @@ const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf
 const bundledSyncDevCommand = 'node ../../scripts/sync-bundled-components.mjs --dev --no-fetch';
 const bundledSyncBuildCommand = 'node ../../scripts/sync-bundled-components.mjs --no-fetch --release';
 const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
+const rustToolchainGuardCommand = 'node ../../scripts/ensure-tauri-rust-toolchain.mjs';
 const devBinaryUnlockGuardCommand =
   'node ../../scripts/ensure-tauri-dev-binary-unlocked.mjs src-tauri sdkwork-claw-desktop';
 const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420';
 const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runtime.mjs';
 const bundledApiRouterPrepareCommand = 'node ../../scripts/prepare-sdkwork-api-router-runtime.mjs';
 const desktopBuildVerifyCommand = 'node ../../scripts/verify-desktop-build-assets.mjs';
-const desktopBundleRunnerCommand = 'node ../../scripts/run-desktop-release-build.mjs --phase bundle';
+const tauriDevRunnerCommand = 'node ../../scripts/run-tauri-cli.mjs dev';
+const desktopBundleRunnerCommand = 'node ../../scripts/run-desktop-release-build.mjs --phase bundle --vite-mode production';
 
 function assertCommandsAppearInOrder(script, commands, label) {
   let lastIndex = -1;
@@ -99,13 +101,14 @@ if (bundledApiRouterPrepareScript !== bundledApiRouterPrepareCommand) {
 assertCommandsAppearInOrder(
   tauriCliDevScript,
   [
+    rustToolchainGuardCommand,
     bundledSyncDevCommand,
     staleTargetGuardCommand,
     bundledOpenClawPrepareCommand,
     bundledApiRouterPrepareCommand,
     devBinaryUnlockGuardCommand,
     devPortGuardCommand,
-    'tauri dev',
+    tauriDevRunnerCommand,
   ],
   'Desktop "tauri:dev"',
 );
@@ -127,6 +130,7 @@ if (!desktopBuildScript.includes(desktopBuildVerifyCommand)) {
 assertCommandsAppearInOrder(
   tauriCliBuildScript,
   [
+    rustToolchainGuardCommand,
     bundledSyncBuildCommand,
     staleTargetGuardCommand,
     bundledOpenClawPrepareCommand,

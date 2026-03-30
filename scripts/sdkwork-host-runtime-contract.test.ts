@@ -59,7 +59,10 @@ runTest('sdkwork-claw-web stays a Vite-only host without a business runtime serv
     'packages/sdkwork-claw-web/package.json',
   );
 
-  assert.equal(pkg.scripts?.dev, 'vite --host 0.0.0.0 --port 3001');
+  assert.equal(
+    pkg.scripts?.dev,
+    'node ../../scripts/run-vite-host.mjs serve --host 0.0.0.0 --port 3001 --mode development',
+  );
   assert.equal(pkg.dependencies?.express, undefined);
   assert.equal(pkg.dependencies?.['sql.js'], undefined);
   assert.equal(pkg.devDependencies?.tsx, undefined);
@@ -89,7 +92,10 @@ runTest('sdkwork-claw-desktop contains the Tauri runtime package surface', () =>
   assert.ok(exists('packages/sdkwork-claw-desktop/.env.example'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/Cargo.toml'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json'));
-  assert.equal(pkg.scripts?.['dev:tauri'], 'vite --host 127.0.0.1 --port 1420 --strictPort');
+  assert.equal(
+    pkg.scripts?.['dev:tauri'],
+    'node ../../scripts/run-vite-host.mjs serve --host 127.0.0.1 --port 1420 --strictPort',
+  );
   assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], undefined);
   assert.doesNotMatch(desktopLockImporter, /'@sdkwork\/claw-core':/);
 });

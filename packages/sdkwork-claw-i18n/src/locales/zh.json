@@ -3166,6 +3166,16 @@
         "openOfficialSite": "前往官方配置页",
         "readFullDocumentation": "查看完整文档",
         "credentials": "凭证信息"
+      },
+      "catalog": {
+        "tabs": {
+          "domestic": "国内通信软件",
+          "global": "国外通信软件"
+        },
+        "empty": {
+          "domestic": "当前工作区暂无可配置的国内通信软件。",
+          "global": "当前工作区暂无可配置的国外通信渠道。"
+        }
       }
     }
   },

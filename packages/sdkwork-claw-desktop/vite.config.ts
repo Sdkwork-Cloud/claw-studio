@@ -23,10 +23,10 @@ function workspacePackageResolver() {
 }
 
 export default defineConfig(({ command, mode }) => {
-  const env = loadEnv(mode, '.', '');
   const useSharedSdkSourceMode = isSharedSdkSourceMode(process.env);
   // Allow pnpm workspace-linked SDK packages that live above apps/claw-studio.
   const workspaceRootDir = path.resolve(__dirname, '../..');
+  const env = loadEnv(mode, workspaceRootDir, '');
   const monorepoRoot = path.resolve(__dirname, '../../../../..');
   const sharedAppSdkSourceEntry = path.resolve(
     __dirname,
@@ -47,6 +47,7 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     base: command === 'build' ? './' : '/',
+    envDir: workspaceRootDir,
     plugins: [workspacePackageResolver(), react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),

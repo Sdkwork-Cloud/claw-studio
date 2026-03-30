@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+
+import { createTauriCliPlan } from './run-tauri-cli.mjs';
+
+const defaultPlan = createTauriCliPlan({
+  argv: ['dev'],
+  env: {},
+  platform: 'linux',
+});
+
+assert.equal(defaultPlan.command, 'tauri');
+assert.deepEqual(defaultPlan.args, ['dev']);
+assert.equal(defaultPlan.env.SDKWORK_VITE_MODE, 'development');
+
+const testPlan = createTauriCliPlan({
+  argv: ['dev', '--vite-mode', 'test', '--', '--target', 'x86_64-pc-windows-msvc'],
+  env: {},
+  platform: 'win32',
+});
+
+assert.equal(testPlan.command, 'tauri.cmd');
+assert.deepEqual(testPlan.args, ['dev', '--', '--target', 'x86_64-pc-windows-msvc']);
+assert.equal(testPlan.env.SDKWORK_VITE_MODE, 'test');
+
+console.log('ok - tauri cli runner forwards vite mode through the tauri process environment');

@@ -50,3 +50,6 @@ libc = "0.2"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[patch.crates-io]
+xcap = { path = "vendor/xcap" }

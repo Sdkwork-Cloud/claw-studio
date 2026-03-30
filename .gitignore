@@ -16,6 +16,7 @@ tmp-dashboard-encoding-test.txt
 target/
 src-tauri/target/
 packages/*/src-tauri/target/
+packages/*/.tauri-target/
 packages/*/src-tauri/generated/*
 !packages/*/src-tauri/generated/.gitkeep
 
@@ -33,6 +34,9 @@ packages/*/metadata.json
 
 .env*
 !.env.example
+!.env.development
+!.env.test
+!.env.production
 
 .DS_Store
 Thumbs.db

@@ -75,10 +75,10 @@ function createManualChunks(sharedAppSdkEntry: string) {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, '.', '');
   const useSharedSdkSourceMode = isSharedSdkSourceMode(process.env);
   // Allow pnpm workspace-linked SDK packages that live above apps/claw-studio.
   const workspaceRootDir = path.resolve(__dirname, '../..');
+  const env = loadEnv(mode, workspaceRootDir, '');
   const monorepoRoot = path.resolve(__dirname, '../../../../..');
   const packagesRootDir = path.resolve(__dirname, '../../packages');
   const sharedAppSdkSourceEntry = path.resolve(
@@ -102,6 +102,7 @@ export default defineConfig(({ mode }) => {
     : sharedAppSdkDistEntry;
 
   return {
+    envDir: workspaceRootDir,
     plugins: [workspacePackageResolver(packagesRootDir), react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),

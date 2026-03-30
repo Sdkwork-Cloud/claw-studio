@@ -4,8 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 3001",
-    "build": "node ../../scripts/prepare-shared-sdk-packages.mjs && vite build",
+    "dev": "node ../../scripts/run-vite-host.mjs serve --host 0.0.0.0 --port 3001 --mode development",
+    "dev:test": "node ../../scripts/run-vite-host.mjs serve --host 0.0.0.0 --port 3001 --mode test",
+    "build": "node ../../scripts/prepare-shared-sdk-packages.mjs && node ../../scripts/run-vite-host.mjs build --mode production",
+    "build:dev": "node ../../scripts/prepare-shared-sdk-packages.mjs && node ../../scripts/run-vite-host.mjs build --mode development",
+    "build:test": "node ../../scripts/prepare-shared-sdk-packages.mjs && node ../../scripts/run-vite-host.mjs build --mode test",
+    "build:prod": "node ../../scripts/prepare-shared-sdk-packages.mjs && node ../../scripts/run-vite-host.mjs build --mode production",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "node ../../scripts/run-workspace-tsc.mjs --noEmit"

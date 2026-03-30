@@ -176,6 +176,78 @@ runTest('claw hosts resolve @sdkwork/sdk-common from shared SDK source only in s
   }
 });
 
+runTest('claw workspace defines tracked Vite env files for development, test, and production hosts', () => {
+  const gitignoreSource = read('.gitignore');
+  const envExampleSource = read('.env.example');
+  const envDevelopmentSource = read('.env.development');
+  const envTestSource = read('.env.test');
+  const envProductionSource = read('.env.production');
+  const workspacePackageJson = read('package.json');
+  const webPackageJson = read('packages/sdkwork-claw-web/package.json');
+  const desktopPackageJson = read('packages/sdkwork-claw-desktop/package.json');
+  const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
+  const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
+  const appSdkSource = read('packages/sdkwork-claw-core/src/sdk/useAppSdkClient.ts');
+
+  assert.match(gitignoreSource, /!\.env\.development/);
+  assert.match(gitignoreSource, /!\.env\.test/);
+  assert.match(gitignoreSource, /!\.env\.production/);
+
+  assert.match(envExampleSource, /VITE_APP_ENV="development"/);
+  assert.match(
+    envExampleSource,
+    /Keep real secrets in \.env\.development\.local or another ignored local env file\./,
+  );
+  assert.match(envDevelopmentSource, /VITE_APP_ENV="development"/);
+  assert.match(envDevelopmentSource, /VITE_API_BASE_URL="https:\/\/api-dev\.sdkwork\.com"/);
+  assert.match(envDevelopmentSource, /VITE_ACCESS_TOKEN=""/);
+  assert.match(
+    envDevelopmentSource,
+    /Use \.env\.development\.local for a real token when needed\./,
+  );
+  assert.match(envTestSource, /VITE_APP_ENV="test"/);
+  assert.match(envTestSource, /VITE_API_BASE_URL="https:\/\/api-test\.sdkwork\.com"/);
+  assert.match(envTestSource, /VITE_ACCESS_TOKEN=""/);
+  assert.match(envProductionSource, /VITE_APP_ENV="production"/);
+  assert.match(envProductionSource, /VITE_API_BASE_URL="https:\/\/api\.sdkwork\.com"/);
+  assert.match(envProductionSource, /VITE_ACCESS_TOKEN=""/);
+  assert.doesNotMatch(envProductionSource, /api-dev\.sdkwork\.com/);
+  assert.doesNotMatch(envProductionSource, /api-test\.sdkwork\.com/);
+
+  assert.match(workspacePackageJson, /"dev:test"\s*:\s*"pnpm --filter @sdkwork\/claw-web run dev:test"/);
+  assert.match(workspacePackageJson, /"build:test"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web run build:test"/);
+  assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
+  assert.match(workspacePackageJson, /"build:prod"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web run build:prod"/);
+  assert.match(workspacePackageJson, /"tauri:dev:test"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:dev:test"/);
+  assert.match(workspacePackageJson, /"tauri:build"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:build"/);
+  assert.match(workspacePackageJson, /"tauri:build:test"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:build:test"/);
+  assert.match(workspacePackageJson, /"tauri:build:prod"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:build:prod"/);
+
+  assert.match(webPackageJson, /"dev:test"\s*:\s*"node \.\.\/\.\.\/scripts\/run-vite-host\.mjs serve --host 0\.0\.0\.0 --port 3001 --mode test"/);
+  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
+  assert.match(webPackageJson, /"build:test"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode test"/);
+  assert.match(webPackageJson, /"build:prod"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
+
+  assert.match(desktopPackageJson, /"dev:test"\s*:\s*"node \.\.\/\.\.\/scripts\/run-vite-host\.mjs serve --mode test"/);
+  assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
+  assert.match(desktopPackageJson, /"build:prod"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
+  assert.match(desktopPackageJson, /"tauri:dev:test"\s*:\s*"[\s\S]*run-tauri-cli\.mjs dev --vite-mode test"/);
+  assert.match(desktopPackageJson, /"tauri:build"\s*:\s*"[\s\S]*run-desktop-release-build\.mjs --phase bundle --vite-mode production"/);
+  assert.match(desktopPackageJson, /"tauri:build:test"\s*:\s*"[\s\S]*run-desktop-release-build\.mjs --phase bundle --vite-mode test"/);
+  assert.match(desktopPackageJson, /"tauri:build:prod"\s*:\s*"[\s\S]*run-desktop-release-build\.mjs --phase bundle --vite-mode production"/);
+
+  for (const source of [webViteConfig, desktopViteConfig]) {
+    assert.match(source, /const workspaceRootDir = path\.resolve\(__dirname, '\.\.\/\.\.'\);/);
+    assert.match(source, /loadEnv\(mode, workspaceRootDir, ''\)/);
+    assert.match(source, /envDir:\s*workspaceRootDir/);
+  }
+
+  assert.doesNotMatch(appSdkSource, /DEFAULT_DEV_BASE_URL/);
+  assert.doesNotMatch(appSdkSource, /DEFAULT_PROD_BASE_URL/);
+  assert.doesNotMatch(appSdkSource, /https:\/\/api-dev\.sdkwork\.com/);
+  assert.doesNotMatch(appSdkSource, /https:\/\/api\.sdkwork\.com/);
+});
+
 runTest('claw hosts restrict relative shared sdk aliases to source mode and keep git mode on installed package resolution', () => {
   const webViteConfig = read('packages/sdkwork-claw-web/vite.config.ts');
   const desktopViteConfig = read('packages/sdkwork-claw-desktop/vite.config.ts');
@@ -201,8 +273,8 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
-  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build"/);
-  assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && vite build && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
+  assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
+  assert.match(desktopPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build && node \.\.\/\.\.\/scripts\/verify-desktop-build-assets\.mjs"/);
   assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"pnpm prepare:shared-sdk && node scripts\/run-sdkwork-core-check\.mjs"/);
   assert.match(prepareSharedSdkScript, /SDKWORK_SHARED_SDK_MODE/);
   assert.match(prepareSharedSdkScript, /resolveSharedSdkMode/);
