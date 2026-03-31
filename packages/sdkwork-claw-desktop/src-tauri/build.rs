@@ -11,6 +11,10 @@ const BUNDLED_MANIFEST_RELATIVE_PATH: &str = "sdkwork-api-router-artifacts/manif
 const FRONTEND_DIST_RELATIVE_PATH: &str = "../dist";
 const GENERATED_BUNDLED_RELATIVE_PATH: &str = "generated/bundled";
 const GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME: &str = "placeholder.txt";
+const API_ROUTER_RESOURCES_RELATIVE_PATH: &str = "resources/sdkwork-api-router-runtime";
+const API_ROUTER_RUNTIME_RELATIVE_PATH: &str = "resources/sdkwork-api-router-runtime/runtime";
+const API_ROUTER_RUNTIME_PLACEHOLDER_RELATIVE_PATH: &str =
+    "resources/sdkwork-api-router-runtime/runtime/placeholder.txt";
 
 #[derive(Debug, Deserialize)]
 struct ArtifactManifest {
@@ -30,6 +34,7 @@ fn main() {
     println!("cargo:rerun-if-changed={ARTIFACTS_DIR_RELATIVE_PATH}");
     println!("cargo:rerun-if-changed={FRONTEND_DIST_RELATIVE_PATH}");
     println!("cargo:rerun-if-changed={GENERATED_BUNDLED_RELATIVE_PATH}");
+    println!("cargo:rerun-if-changed={API_ROUTER_RESOURCES_RELATIVE_PATH}");
 
     let manifest_dir = PathBuf::from(
         env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is always set by Cargo"),
@@ -115,6 +120,7 @@ fn ensure_required_tauri_paths(manifest_dir: &Path) {
     ensure_generated_bundled_placeholder(
         &manifest_dir.join(GENERATED_BUNDLED_RELATIVE_PATH),
     );
+    ensure_api_router_runtime_placeholder(manifest_dir);
 }
 
 fn ensure_directory_exists(directory: &Path, label: &str) {
@@ -188,6 +194,60 @@ fn ensure_generated_bundled_placeholder(directory: &Path) {
 
     cargo_warn(&format!(
         "seeded generated bundled placeholder {} so Tauri resource glob resolution stays valid before sync",
+        placeholder_path.display()
+    ));
+}
+
+fn ensure_api_router_runtime_placeholder(manifest_dir: &Path) {
+    let runtime_directory = manifest_dir.join(API_ROUTER_RUNTIME_RELATIVE_PATH);
+    ensure_directory_exists(&runtime_directory, "sdkwork-api-router bundled runtime");
+
+    let placeholder_path = manifest_dir.join(API_ROUTER_RUNTIME_PLACEHOLDER_RELATIVE_PATH);
+    let has_real_entries = match fs::read_dir(&runtime_directory) {
+        Ok(entries) => entries
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name() != GENERATED_BUNDLED_PLACEHOLDER_FILE_NAME),
+        Err(error) => {
+            cargo_warn(&format!(
+                "failed to inspect sdkwork-api-router bundled runtime at {}: {}",
+                runtime_directory.display(),
+                error
+            ));
+            return;
+        }
+    };
+
+    if has_real_entries {
+        if placeholder_path.is_file() {
+            if let Err(error) = fs::remove_file(&placeholder_path) {
+                cargo_warn(&format!(
+                    "failed to remove stale sdkwork-api-router runtime placeholder {}: {}",
+                    placeholder_path.display(),
+                    error
+                ));
+            }
+        }
+        return;
+    }
+
+    if placeholder_path.is_file() {
+        return;
+    }
+
+    if let Err(error) = fs::write(
+        &placeholder_path,
+        "Bundled sdkwork-api-router runtime placeholder for clean-clone cargo builds.\n",
+    ) {
+        cargo_warn(&format!(
+            "failed to write sdkwork-api-router runtime placeholder {}: {}",
+            placeholder_path.display(),
+            error
+        ));
+        return;
+    }
+
+    cargo_warn(&format!(
+        "seeded sdkwork-api-router runtime placeholder {} so the Tauri resource glob stays valid before runtime preparation",
         placeholder_path.display()
     ));
 }

@@ -207,4 +207,12 @@ if (!tauriBuildScriptSource.includes('placeholder.txt')) {
   fail('Desktop build.rs must seed a visible generated bundled placeholder so Tauri resource glob resolution stays valid on clean clones.');
 }
 
+if (!tauriBuildScriptSource.includes('resources/sdkwork-api-router-runtime')) {
+  fail('Desktop build.rs must tolerate clean-clone cargo test runs when sdkwork-api-router bundled resources have not been prepared yet.');
+}
+
+if (!tauriBuildScriptSource.includes('sdkwork-api-router-runtime/runtime/placeholder.txt')) {
+  fail('Desktop build.rs must seed a visible sdkwork-api-router runtime placeholder so the Tauri resource glob stays valid on clean clones.');
+}
+
 console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');
