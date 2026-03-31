@@ -215,4 +215,12 @@ if (!tauriBuildScriptSource.includes('sdkwork-api-router-runtime/runtime/placeho
   fail('Desktop build.rs must seed a visible sdkwork-api-router runtime placeholder so the Tauri resource glob stays valid on clean clones.');
 }
 
+if (!tauriBuildScriptSource.includes('ErrorKind::AlreadyExists')) {
+  fail('Desktop build.rs must recover when the sdkwork-api-router runtime path already exists as a stale entry during clean-clone cargo test runs.');
+}
+
+if (!tauriBuildScriptSource.includes('symlink_metadata')) {
+  fail('Desktop build.rs must inspect stale sdkwork-api-router runtime paths before recreating the bundled runtime directory.');
+}
+
 console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');

@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::{
     collections::BTreeMap,
     env, fs,
+    io::ErrorKind,
     path::{Component, Path, PathBuf},
 };
 
@@ -128,9 +129,65 @@ fn ensure_directory_exists(directory: &Path, label: &str) {
         return;
     }
 
+    match fs::create_dir_all(directory) {
+        Ok(()) => {
+            cargo_warn(&format!(
+                "created missing {} directory {} so clean-clone cargo builds can resolve the Tauri config",
+                label,
+                directory.display()
+            ));
+        }
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+            repair_stale_directory_entry(directory, label);
+        }
+        Err(error) => {
+            cargo_warn(&format!(
+                "failed to create missing {} directory {}: {}",
+                label,
+                directory.display(),
+                error
+            ));
+        }
+    }
+}
+
+fn repair_stale_directory_entry(directory: &Path, label: &str) {
+    let metadata = match fs::symlink_metadata(directory) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            cargo_warn(&format!(
+                "failed to inspect stale {} path {}: {}",
+                label,
+                directory.display(),
+                error
+            ));
+            return;
+        }
+    };
+
+    if metadata.is_dir() {
+        return;
+    }
+
+    let remove_result = if metadata.file_type().is_symlink() || metadata.is_file() {
+        fs::remove_file(directory)
+    } else {
+        fs::remove_dir_all(directory)
+    };
+
+    if let Err(error) = remove_result {
+        cargo_warn(&format!(
+            "failed to remove stale {} path {}: {}",
+            label,
+            directory.display(),
+            error
+        ));
+        return;
+    }
+
     if let Err(error) = fs::create_dir_all(directory) {
         cargo_warn(&format!(
-            "failed to create missing {} directory {}: {}",
+            "failed to recreate {} directory {} after removing a stale path: {}",
             label,
             directory.display(),
             error
@@ -139,7 +196,7 @@ fn ensure_directory_exists(directory: &Path, label: &str) {
     }
 
     cargo_warn(&format!(
-        "created missing {} directory {} so clean-clone cargo builds can resolve the Tauri config",
+        "recreated {} directory {} after removing a stale clean-clone path",
         label,
         directory.display()
     ));
