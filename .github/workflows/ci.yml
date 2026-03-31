@@ -88,7 +88,17 @@ jobs:
         run: pnpm check:desktop
 
       - name: Run Rust desktop tests
-        run: cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml
+        shell: bash
+        run: |
+          set +e
+          cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml 2>&1 | tee cargo-test.log
+          status=${PIPESTATUS[0]}
+          if [[ $status -ne 0 ]]; then
+            tail -n 200 cargo-test.log
+            summary=$(tail -n 60 cargo-test.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')
+            echo "::error title=Rust desktop tests failed::$summary"
+            exit $status
+          fi
 
       - name: Build web workspace
         run: pnpm build
@@ -134,4 +144,14 @@ jobs:
         run: pnpm prepare:shared-sdk
 
       - name: Run Windows desktop Rust tests
-        run: cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml
+        shell: bash
+        run: |
+          set +e
+          cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml 2>&1 | tee cargo-test.log
+          status=${PIPESTATUS[0]}
+          if [[ $status -ne 0 ]]; then
+            tail -n 200 cargo-test.log
+            summary=$(tail -n 60 cargo-test.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')
+            echo "::error title=Windows desktop Rust tests failed::$summary"
+            exit $status
+          fi
