@@ -208,10 +208,16 @@ function bundleOutputExists(bundleRoot, bundleTarget) {
   }
 
   if (bundleTarget === 'dmg') {
-    const dmgBundleDir = path.join(bundleRoot, 'dmg');
-    return existsSync(dmgBundleDir)
-      && readdirSync(dmgBundleDir, { withFileTypes: true })
-        .some((entry) => entry.isFile() && entry.name.endsWith('.dmg'));
+    const dmgCandidateDirectories = [
+      path.join(bundleRoot, 'dmg'),
+      path.join(bundleRoot, 'macos'),
+    ];
+
+    return dmgCandidateDirectories.some((candidateDirectory) => (
+      existsSync(candidateDirectory)
+      && readdirSync(candidateDirectory, { withFileTypes: true })
+        .some((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.dmg'))
+    ));
   }
 
   return false;

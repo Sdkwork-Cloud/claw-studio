@@ -553,6 +553,37 @@ test('desktop release build runner can recover a macOS dmg bundle failure when t
   }
 });
 
+test('desktop release build runner can recover a macOS dmg bundle failure when Tauri leaves the dmg under the macos bundle directory', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  assert.equal(typeof runner.canRecoverMacosBundleFailure, 'function');
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-macos-bundle-recovery-macos-dir-'));
+
+  try {
+    const targetDir = path.join(tempRoot, 'target');
+    const bundleRoot = path.join(targetDir, 'release', 'bundle');
+    const appBundleDir = path.join(bundleRoot, 'macos', 'Claw Studio.app');
+    const dmgPath = path.join(bundleRoot, 'macos', 'Claw Studio_0.1.0_x64.dmg');
+
+    mkdirSync(path.join(appBundleDir, 'Contents'), { recursive: true });
+    writeFileSync(dmgPath, 'synthetic dmg');
+
+    assert.equal(
+      runner.canRecoverMacosBundleFailure({
+        platform: 'darwin',
+        targetTriple: 'x86_64-apple-darwin',
+        bundleTargets: ['app', 'dmg'],
+        targetDir,
+      }),
+      true,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('desktop release build runner does not recover a macOS dmg bundle failure when the dmg output is missing', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const runner = await import(pathToFileURL(runnerPath).href);
