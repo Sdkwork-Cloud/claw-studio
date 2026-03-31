@@ -6,6 +6,7 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import { parseDesktopTargetTriple } from './release/desktop-targets.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,6 +23,7 @@ const defaultBundleOverlayConfig = path.join(
 const desktopTauriConfig = JSON.parse(
   fs.readFileSync(path.join(desktopSrcTauriDir, 'tauri.conf.json'), 'utf8'),
 );
+const commandEnv = withRustToolchainPath(process.env);
 const windowsNsisShortSourceSpecs = [
   ['generated', 'bundled', ['generated', 'bundled']],
   ['bridge-bundled', 'bundled', ['generated', 'br', 'b']],
@@ -40,7 +42,7 @@ export function buildWindowsTauriBundleCommand({
     : path.resolve(rootDir, configPath);
 
   return {
-    command: 'pnpm',
+    command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
     args: [
       '--dir',
       path.relative(rootDir, desktopPackageDir).replaceAll('\\', '/'),
@@ -138,7 +140,7 @@ function runCommand(command, args, options = {}) {
   return spawnSync(command, args, {
     cwd: options.cwd ?? rootDir,
     env: {
-      ...process.env,
+      ...commandEnv,
       ...(options.env ?? {}),
     },
     shell: options.shell ?? useWindowsShell,

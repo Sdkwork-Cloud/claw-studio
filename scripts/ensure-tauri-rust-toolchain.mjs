@@ -1,11 +1,116 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
+
+function resolvePlatformPathModule(platform = process.platform) {
+  return platform === 'win32' ? path.win32 : path.posix;
+}
+
+function resolvePathDelimiter(platform = process.platform) {
+  return platform === 'win32' ? ';' : ':';
+}
+
+function resolvePathKey(env = process.env, platform = process.platform) {
+  return Object.keys(env).find((key) => key.toUpperCase() === 'PATH')
+    ?? (platform === 'win32' ? 'Path' : 'PATH');
+}
+
+function normalizePathEntry(entry, platform = process.platform) {
+  const pathModule = resolvePlatformPathModule(platform);
+  const normalized = pathModule.normalize(String(entry ?? '').trim());
+
+  return platform === 'win32'
+    ? normalized.replace(/[\\/]+$/, '').toLowerCase()
+    : normalized.replace(/\/+$/, '');
+}
+
+function splitPathEntries(pathValue, platform = process.platform) {
+  return String(pathValue ?? '')
+    .split(resolvePathDelimiter(platform))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function commandExecutableName(command, platform = process.platform) {
+  return platform === 'win32' ? `${command}.exe` : command;
+}
+
+function uniquePathEntries(entries, platform = process.platform) {
+  const dedupedEntries = [];
+  const seen = new Set();
+
+  for (const entry of entries) {
+    const normalizedEntry = normalizePathEntry(entry, platform);
+    if (!normalizedEntry || seen.has(normalizedEntry)) {
+      continue;
+    }
+
+    seen.add(normalizedEntry);
+    dedupedEntries.push(entry);
+  }
+
+  return dedupedEntries;
+}
+
+function resolveCargoHomeBinDir(cargoHome, platform = process.platform) {
+  const trimmedCargoHome = typeof cargoHome === 'string' ? cargoHome.trim() : '';
+  if (!trimmedCargoHome) {
+    return null;
+  }
+
+  const pathModule = resolvePlatformPathModule(platform);
+  return pathModule.basename(trimmedCargoHome).toLowerCase() === 'bin'
+    ? trimmedCargoHome
+    : pathModule.join(trimmedCargoHome, 'bin');
+}
+
+function resolveRustToolchainBinCandidates({
+  env = process.env,
+  platform = process.platform,
+  homeDir = env.HOME ?? os.homedir(),
+  userProfileDir = env.USERPROFILE ?? homeDir,
+} = {}) {
+  const pathModule = resolvePlatformPathModule(platform);
+  const candidates = [];
+  const cargoHomeBinDir = resolveCargoHomeBinDir(env.CARGO_HOME, platform);
+
+  if (cargoHomeBinDir) {
+    candidates.push(cargoHomeBinDir);
+  }
+
+  const standardRustHomeDir =
+    platform === 'win32'
+      ? (typeof userProfileDir === 'string' ? userProfileDir.trim() : '')
+      : (typeof homeDir === 'string' ? homeDir.trim() : '');
+
+  if (standardRustHomeDir) {
+    candidates.push(pathModule.join(standardRustHomeDir, '.cargo', 'bin'));
+  }
+
+  return uniquePathEntries(candidates, platform);
+}
+
+function resolveExistingRustToolchainBinDirs({
+  env = process.env,
+  platform = process.platform,
+  requiredCommands = ['cargo', 'rustc'],
+  pathExists = existsSync,
+} = {}) {
+  return resolveRustToolchainBinCandidates({ env, platform }).filter((candidateDir) => {
+    return requiredCommands.every((command) => {
+      return pathExists(
+        resolvePlatformPathModule(platform).join(candidateDir, commandExecutableName(command, platform)),
+      );
+    });
+  });
+}
 
 function normalizeOutput(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -32,9 +137,16 @@ function formatInspectionFailure(inspection) {
 }
 
 export function inspectCommandAvailability(command, args = ['--version'], options = {}) {
+  const platform = options.platform ?? process.platform;
+  const env = withRustToolchainPath(options.env ?? process.env, {
+    platform,
+    requiredCommands: Array.isArray(options.requiredCommands) && options.requiredCommands.length > 0
+      ? options.requiredCommands
+      : [command],
+  });
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? process.cwd(),
-    env: options.env ?? process.env,
+    env,
     encoding: 'utf8',
     shell: false,
     windowsHide: true,
@@ -94,12 +206,58 @@ export function buildMissingRustToolchainMessage(inspections) {
   ].join('\n');
 }
 
+export function withRustToolchainPath(baseEnv = process.env, options = {}) {
+  const platform = options.platform ?? process.platform;
+  const requiredCommands =
+    Array.isArray(options.requiredCommands) && options.requiredCommands.length > 0
+      ? options.requiredCommands
+      : ['cargo', 'rustc'];
+  const env = { ...baseEnv };
+  const pathKey = resolvePathKey(env, platform);
+  const existingPathValue = env[pathKey] ?? env.PATH ?? env.Path ?? '';
+  const pathEntries = splitPathEntries(existingPathValue, platform);
+
+  for (const candidateDir of [...resolveExistingRustToolchainBinDirs({
+    env,
+    platform,
+    requiredCommands,
+    pathExists: options.pathExists,
+  })].reverse()) {
+    const normalizedCandidateDir = normalizePathEntry(candidateDir, platform);
+    const alreadyPresent = pathEntries.some((entry) => {
+      return normalizePathEntry(entry, platform) === normalizedCandidateDir;
+    });
+    if (!alreadyPresent) {
+      pathEntries.unshift(candidateDir);
+    }
+  }
+
+  for (const key of Object.keys(env)) {
+    if (key !== pathKey && key.toUpperCase() === 'PATH') {
+      delete env[key];
+    }
+  }
+
+  env[pathKey] = uniquePathEntries(pathEntries, platform).join(resolvePathDelimiter(platform));
+  return env;
+}
+
 export function ensureTauriRustToolchain({
   inspectCommand = inspectCommandAvailability,
   requiredCommands = ['cargo', 'rustc'],
+  env = process.env,
+  platform = process.platform,
 } = {}) {
+  const resolvedEnv = withRustToolchainPath(env, {
+    platform,
+    requiredCommands,
+  });
   const inspections = requiredCommands.map((command) => {
-    return inspectCommand(command, ['--version']);
+    return inspectCommand(command, ['--version'], {
+      env: resolvedEnv,
+      platform,
+      requiredCommands,
+    });
   });
   const failedInspections = inspections.filter((inspection) => inspection?.available === false);
 
