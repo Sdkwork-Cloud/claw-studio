@@ -31,14 +31,14 @@ const CLAW_STUDIO_RELEASE_PROFILE = Object.freeze({
         platform: 'linux',
         arch: 'x64',
         target: 'x86_64-unknown-linux-gnu',
-        bundles: Object.freeze(['deb', 'rpm', 'appimage']),
+        bundles: Object.freeze(['deb', 'rpm']),
       }),
       Object.freeze({
         runner: 'ubuntu-24.04-arm',
         platform: 'linux',
         arch: 'arm64',
         target: 'aarch64-unknown-linux-gnu',
-        bundles: Object.freeze(['deb', 'rpm', 'appimage']),
+        bundles: Object.freeze(['deb', 'rpm']),
       }),
       Object.freeze({
         runner: 'macos-15-intel',

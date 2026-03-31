@@ -456,7 +456,7 @@ test('desktop release build runner exposes granular release phases for CI diagno
     '--config',
     desktopBundleOverlayConfig,
     '--bundles',
-    'deb,rpm,appimage',
+    'deb,rpm',
     '--target',
     'aarch64-unknown-linux-gnu',
   ]);
@@ -514,7 +514,7 @@ test('desktop release build runner avoids explicit tauri target flags on native 
     '--config',
     desktopBundleOverlayConfig,
     '--bundles',
-    'deb,rpm,appimage',
+    'deb,rpm',
   ]);
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET, 'aarch64-unknown-linux-gnu');
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'linux');
@@ -543,7 +543,7 @@ test('release plan resolver expands the claw-studio profile into the full deskto
       platform: 'linux',
       arch: 'x64',
       target: 'x86_64-unknown-linux-gnu',
-      bundles: ['deb', 'rpm', 'appimage'],
+      bundles: ['deb', 'rpm'],
     },
   );
   assert.deepEqual(
