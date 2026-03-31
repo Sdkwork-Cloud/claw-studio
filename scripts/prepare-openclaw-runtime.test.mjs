@@ -27,12 +27,31 @@ import {
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'prepare-openclaw-runtime-test-'));
 const actualNodeVersion = process.version.replace(/^v/i, '');
-const expectedOpenClawVersion = '2026.3.24';
+const expectedOpenClawVersion = '2026.3.28';
 
 try {
   if (DEFAULT_OPENCLAW_VERSION !== expectedOpenClawVersion) {
     throw new Error(
       `Expected DEFAULT_OPENCLAW_VERSION=${expectedOpenClawVersion}, received ${DEFAULT_OPENCLAW_VERSION}`,
+    );
+  }
+
+  const bundledManifest = JSON.parse(
+    await readFile(path.join(DEFAULT_RESOURCE_DIR, 'manifest.json'), 'utf8'),
+  );
+  if (bundledManifest.openclawVersion !== expectedOpenClawVersion) {
+    throw new Error(
+      `Expected bundled manifest openclawVersion=${expectedOpenClawVersion}, received ${bundledManifest.openclawVersion}`,
+    );
+  }
+
+  const bundledRuntimePackage = JSON.parse(
+    await readFile(path.join(DEFAULT_RESOURCE_DIR, 'runtime', 'package', 'package.json'), 'utf8'),
+  );
+  const bundledDependencyRange = bundledRuntimePackage.dependencies?.openclaw;
+  if (bundledDependencyRange !== `^${expectedOpenClawVersion}`) {
+    throw new Error(
+      `Expected bundled runtime dependency ^${expectedOpenClawVersion}, received ${bundledDependencyRange}`,
     );
   }
 

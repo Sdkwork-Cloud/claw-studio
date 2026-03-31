@@ -475,7 +475,7 @@ mod tests {
     use crate::framework::paths::resolve_paths_for_root;
     use std::{ffi::OsString, fs};
 
-    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.24";
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.28";
 
     #[test]
     fn detects_internal_register_openclaw_cli_action() {

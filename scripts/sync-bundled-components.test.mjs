@@ -12,6 +12,11 @@ assert.equal(
   'function',
   'sync-bundled-components must export createTauriBundleOverlayConfig',
 );
+assert.equal(
+  typeof syncModule.resolvePreferredComponentRepositoryDir,
+  'function',
+  'sync-bundled-components must export resolvePreferredComponentRepositoryDir',
+);
 
 const overlay = syncModule.createTauriBundleOverlayConfig({
   workspaceRootDir: 'D:\\workspace\\claw-studio',
@@ -51,5 +56,39 @@ for (const [resourceId, expectedSource, expectedTarget] of [
     `overlay bridge source must not expose external mirror roots for ${resourceId}`,
   );
 }
+
+const preferredHubInstallerRepoDir = syncModule.resolvePreferredComponentRepositoryDir({
+  component: {
+    checkoutDir: 'hub-installer',
+    localWorkspaceDir: 'D:\\workspace\\spring-ai-plus\\apps\\hub-installer',
+  },
+  upstreamRootDir: 'D:\\workspace\\spring-ai-plus\\apps\\claw-studio\\.cache\\bundled-components\\upstreams',
+  existsSyncImpl(candidatePath) {
+    return candidatePath === 'D:\\workspace\\spring-ai-plus\\apps\\hub-installer\\.git';
+  },
+});
+
+assert.equal(
+  preferredHubInstallerRepoDir,
+  'D:\\workspace\\spring-ai-plus\\apps\\hub-installer',
+  'sync-bundled-components must prefer the local hub-installer workspace when it is available',
+);
+
+const cachedHubInstallerRepoDir = syncModule.resolvePreferredComponentRepositoryDir({
+  component: {
+    checkoutDir: 'hub-installer',
+    localWorkspaceDir: 'D:\\workspace\\spring-ai-plus\\apps\\hub-installer',
+  },
+  upstreamRootDir: 'D:\\workspace\\spring-ai-plus\\apps\\claw-studio\\.cache\\bundled-components\\upstreams',
+  existsSyncImpl() {
+    return false;
+  },
+});
+
+assert.equal(
+  cachedHubInstallerRepoDir,
+  'D:\\workspace\\spring-ai-plus\\apps\\claw-studio\\.cache\\bundled-components\\upstreams\\hub-installer',
+  'sync-bundled-components must fall back to the cached upstream checkout when no local workspace is available',
+);
 
 console.log('ok - sync-bundled-components emits short Windows Tauri bundle bridge roots');

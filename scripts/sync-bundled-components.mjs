@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import {
   buildNonInteractiveInstallEnv,
   resolveBundledApiRouterCargoTargetDir,
@@ -227,6 +228,7 @@ const componentSources = [
     id: 'hub-installer',
     repoUrl: 'https://github.com/Sdkwork-Cloud/hub-installer.git',
     checkoutDir: 'hub-installer',
+    localWorkspaceDir: path.resolve(rootDir, '..', 'hub-installer'),
     resolveVersion(repoDir, sha) {
       return `${readCargoPackageVersion(path.join(repoDir, 'rust', 'Cargo.toml')) ?? '0.0.0'}+${sha}`;
     },
@@ -425,7 +427,15 @@ function buildComponentWithRetry(component, repoDir) {
 }
 
 function ensureRepository(component) {
-  const repoDir = path.join(upstreamRoot, component.checkoutDir);
+  const repoDir = resolvePreferredComponentRepositoryDir({
+    component,
+    upstreamRootDir: upstreamRoot,
+  });
+
+  if (repoDir !== path.join(upstreamRoot, component.checkoutDir)) {
+    return repoDir;
+  }
+
   if (!fs.existsSync(repoDir)) {
     runCommand(gitCmd, ['clone', '--depth', '1', component.repoUrl, repoDir], { cwd: rootDir });
     return repoDir;
@@ -437,6 +447,23 @@ function ensureRepository(component) {
   }
 
   return repoDir;
+}
+
+export function resolvePreferredComponentRepositoryDir({
+  component,
+  upstreamRootDir = upstreamRoot,
+  existsSyncImpl = fs.existsSync,
+} = {}) {
+  const localWorkspaceDir = component?.localWorkspaceDir;
+  if (
+    typeof localWorkspaceDir === 'string' &&
+    localWorkspaceDir.trim().length > 0 &&
+    existsSyncImpl(path.join(localWorkspaceDir, '.git'))
+  ) {
+    return localWorkspaceDir;
+  }
+
+  return path.join(upstreamRootDir, component.checkoutDir);
 }
 
 function installPnpmWorkspace(cwd) {
@@ -747,7 +774,7 @@ function withExe(name) {
 }
 
 function createCommandEnv() {
-  const env = { ...process.env };
+  const env = withRustToolchainPath(process.env);
   if (process.platform !== 'win32') {
     return env;
   }

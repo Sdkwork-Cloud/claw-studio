@@ -34,7 +34,7 @@ const PREPARED_RUNTIME_MANIFEST_KEYS = [
   'cliRelativePath',
 ];
 
-export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.24';
+export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.28';
 export const DEFAULT_NODE_VERSION = process.env.OPENCLAW_NODE_VERSION ?? '22.16.0';
 export const DEFAULT_OPENCLAW_PACKAGE = process.env.OPENCLAW_PACKAGE_NAME ?? 'openclaw';
 export const DEFAULT_RESOURCE_DIR = path.join(
