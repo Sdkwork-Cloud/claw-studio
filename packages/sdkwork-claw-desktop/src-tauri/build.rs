@@ -256,6 +256,12 @@ fn ensure_generated_bundled_placeholder(directory: &Path) {
 }
 
 fn ensure_api_router_runtime_placeholder(manifest_dir: &Path) {
+    let resource_directory = manifest_dir.join(API_ROUTER_RESOURCES_RELATIVE_PATH);
+    ensure_directory_exists(
+        &resource_directory,
+        "sdkwork-api-router bundled resources",
+    );
+
     let runtime_directory = manifest_dir.join(API_ROUTER_RUNTIME_RELATIVE_PATH);
     ensure_directory_exists(&runtime_directory, "sdkwork-api-router bundled runtime");
 
