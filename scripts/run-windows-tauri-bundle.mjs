@@ -51,6 +51,8 @@ export function buildWindowsTauriBundleCommand({
       'build',
       '--config',
       path.relative(desktopPackageDir, resolvedConfigPath).replaceAll('\\', '/'),
+      '--bundles',
+      'nsis',
       ...(String(targetTriple ?? '').trim().length > 0 ? ['--target', targetTriple] : []),
     ],
   };
