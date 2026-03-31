@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import { normalizeViteMode } from './run-vite-host.mjs';
 import { withSupportedWindowsCmakeGenerator } from './prepare-sdkwork-api-router-runtime.mjs';
 import {
@@ -13,6 +14,11 @@ import {
   normalizeDesktopPlatform,
   parseDesktopTargetTriple,
 } from './release/desktop-targets.mjs';
+import {
+  DEFAULT_RELEASE_PROFILE_ID,
+  resolveDesktopBundleTargets,
+  serializeBundleTargets,
+} from './release/release-profiles.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,11 +34,13 @@ const desktopTauriBundleOverlayConfig = path.join(
 const desktopPackageName = '@sdkwork/claw-desktop';
 
 function resolveReleasePhasePlan({
+  profileId,
   phase,
   requestedTargetTriple,
   releaseMode,
   platform,
   hostArch,
+  bundleTargets,
 }) {
   switch (phase) {
     case 'sync':
@@ -60,13 +68,25 @@ function resolveReleasePhasePlan({
         args: ['scripts/prepare-sdkwork-api-router-runtime.mjs'],
       };
     case 'bundle': {
+      const resolvedBundleTargets = resolveDesktopBundleTargets({
+        profileId,
+        platform,
+        targetTriple: requestedTargetTriple,
+        arch: normalizeDesktopArch(hostArch),
+        bundleTargets,
+      });
+
       if (normalizeDesktopPlatform(platform) === 'windows') {
         return {
           command: process.execPath,
           args: [
             'scripts/run-windows-tauri-bundle.mjs',
+            '--profile',
+            profileId,
             '--config',
             desktopTauriBundleOverlayConfig,
+            '--bundles',
+            serializeBundleTargets(resolvedBundleTargets),
             ...(requestedTargetTriple
               && shouldPassExplicitTauriTarget({
                 requestedTargetTriple,
@@ -88,12 +108,7 @@ function resolveReleasePhasePlan({
         '--config',
         path.join('src-tauri', 'generated', 'tauri.bundle.overlay.json'),
       ];
-      const normalizedPlatform = normalizeDesktopPlatform(platform);
-      if (normalizedPlatform === 'linux') {
-        args.push('--bundles', 'deb');
-      } else if (normalizedPlatform === 'macos') {
-        args.push('--bundles', 'app');
-      }
+      args.push('--bundles', serializeBundleTargets(resolvedBundleTargets));
       if (
         requestedTargetTriple
         && shouldPassExplicitTauriTarget({
@@ -125,6 +140,7 @@ function resolveReleasePhasePlan({
 }
 
 export function createDesktopReleaseBuildPlan({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
   platform = process.platform,
   hostArch = process.arch,
   env = process.env,
@@ -132,6 +148,7 @@ export function createDesktopReleaseBuildPlan({
   phase = 'all',
   releaseMode = false,
   viteMode = 'production',
+  bundleTargets = [],
 } = {}) {
   const requestedTargetTriple = String(targetTriple ?? '').trim();
   const resolvedEnv = requestedTargetTriple
@@ -140,26 +157,29 @@ export function createDesktopReleaseBuildPlan({
         targetTriple: requestedTargetTriple,
       })
     : { ...env };
-  resolvedEnv.SDKWORK_VITE_MODE = normalizeViteMode(
-    viteMode ?? resolvedEnv.SDKWORK_VITE_MODE,
+  const rustToolchainEnv = withRustToolchainPath(resolvedEnv, { platform });
+  rustToolchainEnv.SDKWORK_VITE_MODE = normalizeViteMode(
+    viteMode ?? rustToolchainEnv.SDKWORK_VITE_MODE,
     'production',
   );
 
   const normalizedPhase = String(phase ?? 'all').trim().toLowerCase() || 'all';
   const effectiveReleaseMode = releaseMode || normalizedPhase === 'sync';
   const plan = resolveReleasePhasePlan({
+    profileId,
     phase: normalizedPhase,
     requestedTargetTriple,
     releaseMode: effectiveReleaseMode,
     platform,
     hostArch,
+    bundleTargets,
   });
 
   return {
     command: plan.command,
     args: plan.args,
     cwd: rootDir,
-    env: withSupportedWindowsCmakeGenerator(resolvedEnv, platform),
+    env: withSupportedWindowsCmakeGenerator(rustToolchainEnv, platform),
   };
 }
 
@@ -181,15 +201,23 @@ function shouldPassExplicitTauriTarget({
 
 function parseCliArgs(argv) {
   const options = {
+    profileId: DEFAULT_RELEASE_PROFILE_ID,
     targetTriple: '',
     phase: 'all',
     releaseMode: false,
     viteMode: 'production',
+    bundleTargets: [],
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     const next = argv[index + 1];
+
+    if (token === '--profile') {
+      options.profileId = next ?? DEFAULT_RELEASE_PROFILE_ID;
+      index += 1;
+      continue;
+    }
 
     if (token === '--target') {
       options.targetTriple = next ?? '';
@@ -211,6 +239,15 @@ function parseCliArgs(argv) {
     if (token === '--vite-mode') {
       options.viteMode = next ?? 'production';
       index += 1;
+      continue;
+    }
+
+    if (token === '--bundles') {
+      options.bundleTargets = String(next ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      index += 1;
     }
   }
 
@@ -220,10 +257,12 @@ function parseCliArgs(argv) {
 function runCli() {
   const options = parseCliArgs(process.argv.slice(2));
   const plan = createDesktopReleaseBuildPlan({
+    profileId: options.profileId,
     phase: options.phase,
     targetTriple: options.targetTriple,
     releaseMode: options.releaseMode,
     viteMode: options.viteMode,
+    bundleTargets: options.bundleTargets,
   });
   const child = spawn(plan.command, plan.args, {
     cwd: plan.cwd,

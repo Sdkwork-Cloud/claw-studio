@@ -22,6 +22,10 @@ import {
   normalizeDesktopArch,
   resolveDesktopReleaseTarget,
 } from './desktop-targets.mjs';
+import {
+  DEFAULT_RELEASE_PROFILE_ID,
+  resolveReleaseProfile,
+} from './release-profiles.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -134,6 +138,7 @@ export function resolveExistingDesktopBundleRoot({
 function parseArgs(argv) {
   const [mode, ...rest] = argv;
   const options = {
+    profileId: DEFAULT_RELEASE_PROFILE_ID,
     mode,
     platform: process.platform,
     arch: process.arch,
@@ -145,6 +150,12 @@ function parseArgs(argv) {
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index];
     const next = rest[index + 1];
+
+    if (token === '--profile') {
+      options.profileId = next ?? DEFAULT_RELEASE_PROFILE_ID;
+      index += 1;
+      continue;
+    }
 
     if (token === '--platform') {
       options.platform = next;
@@ -214,6 +225,7 @@ function writeSha256File(filePath) {
     `${checksum}  ${path.basename(filePath)}\n`,
     'utf8',
   );
+  return checksum;
 }
 
 export function readDesktopTauriBundleMetadata(tauriConfigPath = desktopTauriConfigPath) {
@@ -333,14 +345,18 @@ function packageMacosAppArchives({
     rmSync(archivePath, { force: true });
     rmSync(`${archivePath}.sha256.txt`, { force: true });
     runZipCommand(archivePath, macosBundleRoot, appBundle.name);
-    writeSha256File(archivePath);
-    emittedFiles.push(archivePath);
+    emittedFiles.push({
+      archivePath,
+      checksum: writeSha256File(archivePath),
+      size: statSync(archivePath).size,
+    });
   }
 
   return emittedFiles;
 }
 
 export function packageDesktopAssets({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
   platform,
   arch,
   target,
@@ -348,6 +364,7 @@ export function packageDesktopAssets({
   targetDir = desktopTargetDir,
   tauriConfigPath = desktopTauriConfigPath,
 }) {
+  const releaseProfile = resolveReleaseProfile(profileId);
   const targetSpec = resolveDesktopReleaseTarget({
     targetTriple: target,
     platform,
@@ -375,15 +392,26 @@ export function packageDesktopAssets({
   rmSync(platformOutputDir, { recursive: true, force: true });
   ensureDirectory(platformOutputDir);
   const emittedFiles = [];
+  const emittedArtifacts = [];
 
   if (platformId === 'macos') {
-    emittedFiles.push(
-      ...packageMacosAppArchives({
+    const macosArchives = packageMacosAppArchives({
         desktopBundleRoot,
         platformOutputDir,
         archId,
         tauriConfigPath,
-      }),
+      });
+    emittedFiles.push(...macosArchives.map((archive) => archive.archivePath));
+    emittedArtifacts.push(
+      ...macosArchives.map((archive) => ({
+        name: path.basename(archive.archivePath),
+        relativePath: path.relative(outputDir, archive.archivePath).replaceAll('\\', '/'),
+        platform: platformId,
+        arch: archId,
+        kind: 'archive',
+        sha256: archive.checksum,
+        size: archive.size,
+      })),
     );
   }
 
@@ -391,8 +419,17 @@ export function packageDesktopAssets({
     const targetPath = path.join(platformOutputDir, bundleFile.relativePath);
     ensureDirectory(path.dirname(targetPath));
     cpSync(bundleFile.absolutePath, targetPath);
-    writeSha256File(targetPath);
+    const checksum = writeSha256File(targetPath);
     emittedFiles.push(targetPath);
+    emittedArtifacts.push({
+      name: path.basename(targetPath),
+      relativePath: path.relative(outputDir, targetPath).replaceAll('\\', '/'),
+      platform: platformId,
+      arch: archId,
+      kind: buildArtifactKind(platformId, bundleFile.relativePath),
+      sha256: checksum,
+      size: statSync(targetPath).size,
+    });
   }
 
   if (emittedFiles.length === 0) {
@@ -400,6 +437,15 @@ export function packageDesktopAssets({
       `No desktop release assets matched ${platformId} under ${desktopBundleRoot}`,
     );
   }
+
+  writeReleaseAssetManifest({
+    manifestPath: path.join(platformOutputDir, releaseProfile.release.partialManifestFileName),
+    profileId: releaseProfile.id,
+    productName: releaseProfile.productName,
+    platform: platformId,
+    arch: archId,
+    artifacts: emittedArtifacts,
+  });
 }
 
 function runTarCommand(archivePath, workingDirectory, entryName) {
@@ -417,7 +463,12 @@ function runTarCommand(archivePath, workingDirectory, entryName) {
   }
 }
 
-function packageWebAssets({ releaseTag, outputDir }) {
+function packageWebAssets({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
+  releaseTag,
+  outputDir,
+}) {
+  const releaseProfile = resolveReleaseProfile(profileId);
   if (!existsSync(webDistDir)) {
     throw new Error(`Missing Claw web dist directory: ${webDistDir}`);
   }
@@ -441,10 +492,60 @@ function packageWebAssets({ releaseTag, outputDir }) {
     rmSync(archivePath, { force: true });
     rmSync(`${archivePath}.sha256.txt`, { force: true });
     runTarCommand(archivePath, stagingRoot, archiveBaseName);
-    writeSha256File(archivePath);
+    const checksum = writeSha256File(archivePath);
+    const webOutputDir = path.join(outputDir, 'web');
+    ensureDirectory(webOutputDir);
+    writeReleaseAssetManifest({
+      manifestPath: path.join(webOutputDir, releaseProfile.release.partialManifestFileName),
+      profileId: releaseProfile.id,
+      productName: releaseProfile.productName,
+      artifacts: [
+        {
+          name: path.basename(archivePath),
+          relativePath: path.relative(outputDir, archivePath).replaceAll('\\', '/'),
+          platform: 'web',
+          arch: 'any',
+          kind: 'archive',
+          sha256: checksum,
+          size: statSync(archivePath).size,
+        },
+      ],
+    });
   } finally {
     rmSync(stagingRoot, { recursive: true, force: true });
   }
+}
+
+function buildArtifactKind(platformId, relativePath) {
+  const normalizedPath = relativePath.replaceAll('\\', '/').toLowerCase();
+  if (platformId === 'windows' || normalizedPath.endsWith('.dmg')) {
+    return 'installer';
+  }
+  if (normalizedPath.endsWith('.deb') || normalizedPath.endsWith('.rpm') || normalizedPath.endsWith('.appimage')) {
+    return 'package';
+  }
+  return 'archive';
+}
+
+function writeReleaseAssetManifest({
+  manifestPath,
+  profileId,
+  productName,
+  platform,
+  arch,
+  artifacts,
+}) {
+  writeFileSync(
+    manifestPath,
+    `${JSON.stringify({
+      profileId,
+      productName,
+      platform,
+      arch,
+      artifacts,
+    }, null, 2)}\n`,
+    'utf8',
+  );
 }
 
 function printUsage() {

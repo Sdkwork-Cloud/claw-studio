@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import { parseDesktopTargetTriple } from './release/desktop-targets.mjs';
+import {
+  DEFAULT_RELEASE_PROFILE_ID,
+  resolveDesktopBundleTargets,
+  serializeBundleTargets,
+} from './release/release-profiles.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,12 +39,20 @@ const windowsNsisShortSourceSpecs = [
 ];
 
 export function buildWindowsTauriBundleCommand({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
   configPath = defaultBundleOverlayConfig,
   targetTriple = '',
+  bundleTargets = [],
 } = {}) {
   const resolvedConfigPath = path.isAbsolute(configPath)
     ? configPath
     : path.resolve(rootDir, configPath);
+  const resolvedBundleTargets = resolveDesktopBundleTargets({
+    profileId,
+    platform: 'windows',
+    targetTriple,
+    bundleTargets,
+  });
 
   return {
     command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
@@ -52,7 +65,7 @@ export function buildWindowsTauriBundleCommand({
       '--config',
       path.relative(desktopPackageDir, resolvedConfigPath).replaceAll('\\', '/'),
       '--bundles',
-      'nsis',
+      serializeBundleTargets(resolvedBundleTargets),
       ...(String(targetTriple ?? '').trim().length > 0 ? ['--target', targetTriple] : []),
     ],
   };
@@ -111,13 +124,21 @@ export function prepareWindowsNsisRetryScript({
 
 function parseCliArgs(argv) {
   const options = {
+    profileId: DEFAULT_RELEASE_PROFILE_ID,
     configPath: defaultBundleOverlayConfig,
     targetTriple: String(process.env.SDKWORK_DESKTOP_TARGET ?? '').trim(),
+    bundleTargets: [],
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     const next = argv[index + 1];
+
+    if (token === '--profile') {
+      options.profileId = next ?? DEFAULT_RELEASE_PROFILE_ID;
+      index += 1;
+      continue;
+    }
 
     if (token === '--config') {
       options.configPath = next ?? defaultBundleOverlayConfig;
@@ -127,6 +148,15 @@ function parseCliArgs(argv) {
 
     if (token === '--target') {
       options.targetTriple = next ?? '';
+      index += 1;
+      continue;
+    }
+
+    if (token === '--bundles') {
+      options.bundleTargets = String(next ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
       index += 1;
     }
   }
@@ -303,8 +333,10 @@ function main() {
 
   const options = parseCliArgs(process.argv.slice(2));
   const buildPlan = buildWindowsTauriBundleCommand({
+    profileId: options.profileId,
     configPath: options.configPath,
     targetTriple: options.targetTriple,
+    bundleTargets: options.bundleTargets,
   });
   const buildStartedAtMs = Date.now();
   const buildResult = runCommand(buildPlan.command, buildPlan.args, {
