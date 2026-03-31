@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -195,6 +195,37 @@ function normalizeBundleTargets(bundleTargets) {
     : [];
 }
 
+function isTemporaryMacosDmgFileName(fileName) {
+  const normalizedFileName = String(fileName ?? '').trim().toLowerCase();
+  return normalizedFileName.endsWith('.dmg') && normalizedFileName.startsWith('rw.');
+}
+
+function isCompletedMacosDmgFileName(fileName) {
+  const normalizedFileName = String(fileName ?? '').trim().toLowerCase();
+  return normalizedFileName.endsWith('.dmg') && !isTemporaryMacosDmgFileName(normalizedFileName);
+}
+
+function listMacosDmgFiles(bundleRoot, bundleDirectories = ['dmg', 'macos']) {
+  if (!bundleRoot || !existsSync(bundleRoot)) {
+    return [];
+  }
+
+  return bundleDirectories.flatMap((bundleDirectory) => {
+    const candidateDirectory = path.join(bundleRoot, bundleDirectory);
+    if (!existsSync(candidateDirectory)) {
+      return [];
+    }
+
+    return readdirSync(candidateDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && String(entry.name ?? '').toLowerCase().endsWith('.dmg'))
+      .map((entry) => ({
+        name: entry.name,
+        absolutePath: path.join(candidateDirectory, entry.name),
+        directory: bundleDirectory,
+      }));
+  });
+}
+
 function bundleOutputExists(bundleRoot, bundleTarget) {
   if (!bundleRoot || !existsSync(bundleRoot)) {
     return false;
@@ -208,19 +239,29 @@ function bundleOutputExists(bundleRoot, bundleTarget) {
   }
 
   if (bundleTarget === 'dmg') {
-    const dmgCandidateDirectories = [
-      path.join(bundleRoot, 'dmg'),
-      path.join(bundleRoot, 'macos'),
-    ];
-
-    return dmgCandidateDirectories.some((candidateDirectory) => (
-      existsSync(candidateDirectory)
-      && readdirSync(candidateDirectory, { withFileTypes: true })
-        .some((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.dmg'))
-    ));
+    return listMacosDmgFiles(bundleRoot)
+      .some((entry) => isCompletedMacosDmgFileName(entry.name));
   }
 
   return false;
+}
+
+function resolveTemporaryMacosDmgRepairPlan(bundleRoot) {
+  const temporaryDmg = listMacosDmgFiles(bundleRoot)
+    .find((entry) => isTemporaryMacosDmgFileName(entry.name));
+  if (!temporaryDmg) {
+    return null;
+  }
+
+  const finalFileName = temporaryDmg.name.replace(/^rw\.[^.]+\./i, '');
+  if (!isCompletedMacosDmgFileName(finalFileName)) {
+    return null;
+  }
+
+  return {
+    sourcePath: temporaryDmg.absolutePath,
+    targetPath: path.join(bundleRoot, 'dmg', finalFileName),
+  };
 }
 
 export function canRecoverMacosBundleFailure({
@@ -252,6 +293,69 @@ export function canRecoverMacosBundleFailure({
   return normalizedBundleTargets.every((bundleTarget) => (
     bundleOutputExists(bundleRoot, bundleTarget)
   ));
+}
+
+export function repairMacosDmgBundleOutput({
+  platform = process.platform,
+  bundleTargets = [],
+  targetTriple = '',
+  targetDir = path.join(
+    rootDir,
+    'packages',
+    'sdkwork-claw-desktop',
+    'src-tauri',
+    'target',
+  ),
+  spawnSyncImpl = spawnSync,
+} = {}) {
+  if (normalizeDesktopPlatform(platform) !== 'macos') {
+    return false;
+  }
+
+  const normalizedBundleTargets = normalizeBundleTargets(bundleTargets);
+  if (!normalizedBundleTargets.includes('dmg')) {
+    return false;
+  }
+
+  const bundleRoot = resolveExistingDesktopBundleRoot({
+    targetTriple,
+    targetDir,
+  });
+  const repairPlan = resolveTemporaryMacosDmgRepairPlan(bundleRoot);
+  if (!repairPlan) {
+    return false;
+  }
+
+  mkdirSync(path.dirname(repairPlan.targetPath), { recursive: true });
+  rmSync(repairPlan.targetPath, { force: true });
+
+  const repairResult = spawnSyncImpl(
+    'hdiutil',
+    [
+      'convert',
+      repairPlan.sourcePath,
+      '-format',
+      'UDZO',
+      '-o',
+      repairPlan.targetPath,
+    ],
+    {
+      stdio: 'inherit',
+    },
+  );
+
+  if (repairResult?.error) {
+    console.error(`[run-desktop-release-build] failed to repair macOS dmg output: ${repairResult.error.message}`);
+    return false;
+  }
+  if ((repairResult?.status ?? 1) !== 0) {
+    console.error(
+      `[run-desktop-release-build] failed to repair macOS dmg output: hdiutil exited with code ${repairResult?.status ?? 'unknown'}`,
+    );
+    return false;
+  }
+
+  return bundleOutputExists(bundleRoot, 'dmg');
 }
 
 function shouldPassExplicitTauriTarget({
@@ -353,6 +457,15 @@ function runCli() {
       process.exit(1);
     }
 
+    const repairedMacosDmg =
+      (code ?? 0) !== 0
+      && options.phase === 'bundle'
+      && repairMacosDmgBundleOutput({
+        platform: process.platform,
+        targetTriple: options.targetTriple,
+        bundleTargets: plan.bundleTargets,
+      });
+
     if (
       (code ?? 0) !== 0
       && options.phase === 'bundle'
@@ -362,9 +475,15 @@ function runCli() {
         bundleTargets: plan.bundleTargets,
       })
     ) {
-      console.warn(
-        '[run-desktop-release-build] treating non-zero macOS bundle exit as recoverable because the requested .app/.dmg outputs already exist.',
-      );
+      if (repairedMacosDmg) {
+        console.warn(
+          '[run-desktop-release-build] recovered a macOS bundle failure by converting a temporary rw dmg output into the final dmg artifact.',
+        );
+      } else {
+        console.warn(
+          '[run-desktop-release-build] treating non-zero macOS bundle exit as recoverable because the requested .app/.dmg outputs already exist.',
+        );
+      }
       process.exit(0);
     }
 
