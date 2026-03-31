@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -519,6 +519,67 @@ test('desktop release build runner avoids explicit tauri target flags on native 
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET, 'aarch64-unknown-linux-gnu');
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'linux');
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
+});
+
+test('desktop release build runner can recover a macOS dmg bundle failure when the app and dmg outputs already exist', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  assert.equal(typeof runner.canRecoverMacosBundleFailure, 'function');
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-macos-bundle-recovery-'));
+
+  try {
+    const targetDir = path.join(tempRoot, 'target');
+    const bundleRoot = path.join(targetDir, 'release', 'bundle');
+    const appBundleDir = path.join(bundleRoot, 'macos', 'Claw Studio.app');
+    const dmgPath = path.join(bundleRoot, 'dmg', 'Claw Studio_0.1.0_x64.dmg');
+
+    mkdirSync(path.join(appBundleDir, 'Contents'), { recursive: true });
+    mkdirSync(path.dirname(dmgPath), { recursive: true });
+    writeFileSync(dmgPath, 'synthetic dmg');
+
+    assert.equal(
+      runner.canRecoverMacosBundleFailure({
+        platform: 'darwin',
+        targetTriple: 'x86_64-apple-darwin',
+        bundleTargets: ['app', 'dmg'],
+        targetDir,
+      }),
+      true,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop release build runner does not recover a macOS dmg bundle failure when the dmg output is missing', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  assert.equal(typeof runner.canRecoverMacosBundleFailure, 'function');
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-macos-bundle-failure-'));
+
+  try {
+    const targetDir = path.join(tempRoot, 'target');
+    const bundleRoot = path.join(targetDir, 'release', 'bundle');
+    const appBundleDir = path.join(bundleRoot, 'macos', 'Claw Studio.app');
+
+    mkdirSync(path.join(appBundleDir, 'Contents'), { recursive: true });
+
+    assert.equal(
+      runner.canRecoverMacosBundleFailure({
+        platform: 'darwin',
+        targetTriple: 'x86_64-apple-darwin',
+        bundleTargets: ['app', 'dmg'],
+        targetDir,
+      }),
+      false,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('release plan resolver expands the claw-studio profile into the full desktop matrix', async () => {

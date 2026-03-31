@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import { normalizeViteMode } from './run-vite-host.mjs';
 import { withSupportedWindowsCmakeGenerator } from './prepare-sdkwork-api-router-runtime.mjs';
+import { resolveExistingDesktopBundleRoot } from './release/package-release-assets.mjs';
 import {
   buildDesktopReleaseEnv,
   normalizeDesktopArch,
@@ -122,6 +124,7 @@ function resolveReleasePhasePlan({
       return {
         command: 'pnpm',
         args,
+        bundleTargets: resolvedBundleTargets,
       };
     }
     case 'all': {
@@ -180,7 +183,69 @@ export function createDesktopReleaseBuildPlan({
     args: plan.args,
     cwd: rootDir,
     env: withSupportedWindowsCmakeGenerator(rustToolchainEnv, platform),
+    bundleTargets: plan.bundleTargets ?? [],
   };
+}
+
+function normalizeBundleTargets(bundleTargets) {
+  return Array.isArray(bundleTargets)
+    ? bundleTargets
+      .map((entry) => String(entry ?? '').trim().toLowerCase())
+      .filter(Boolean)
+    : [];
+}
+
+function bundleOutputExists(bundleRoot, bundleTarget) {
+  if (!bundleRoot || !existsSync(bundleRoot)) {
+    return false;
+  }
+
+  if (bundleTarget === 'app') {
+    const macosBundleDir = path.join(bundleRoot, 'macos');
+    return existsSync(macosBundleDir)
+      && readdirSync(macosBundleDir, { withFileTypes: true })
+        .some((entry) => entry.isDirectory() && entry.name.endsWith('.app'));
+  }
+
+  if (bundleTarget === 'dmg') {
+    const dmgBundleDir = path.join(bundleRoot, 'dmg');
+    return existsSync(dmgBundleDir)
+      && readdirSync(dmgBundleDir, { withFileTypes: true })
+        .some((entry) => entry.isFile() && entry.name.endsWith('.dmg'));
+  }
+
+  return false;
+}
+
+export function canRecoverMacosBundleFailure({
+  platform = process.platform,
+  bundleTargets = [],
+  targetTriple = '',
+  targetDir = path.join(
+    rootDir,
+    'packages',
+    'sdkwork-claw-desktop',
+    'src-tauri',
+    'target',
+  ),
+} = {}) {
+  if (normalizeDesktopPlatform(platform) !== 'macos') {
+    return false;
+  }
+
+  const normalizedBundleTargets = normalizeBundleTargets(bundleTargets);
+  if (normalizedBundleTargets.length === 0 || !normalizedBundleTargets.includes('dmg')) {
+    return false;
+  }
+
+  const bundleRoot = resolveExistingDesktopBundleRoot({
+    targetTriple,
+    targetDir,
+  });
+
+  return normalizedBundleTargets.every((bundleTarget) => (
+    bundleOutputExists(bundleRoot, bundleTarget)
+  ));
 }
 
 function shouldPassExplicitTauriTarget({
@@ -280,6 +345,21 @@ function runCli() {
     if (signal) {
       console.error(`[run-desktop-release-build] build exited with signal ${signal}`);
       process.exit(1);
+    }
+
+    if (
+      (code ?? 0) !== 0
+      && options.phase === 'bundle'
+      && canRecoverMacosBundleFailure({
+        platform: process.platform,
+        targetTriple: options.targetTriple,
+        bundleTargets: plan.bundleTargets,
+      })
+    ) {
+      console.warn(
+        '[run-desktop-release-build] treating non-zero macOS bundle exit as recoverable because the requested .app/.dmg outputs already exist.',
+      );
+      process.exit(0);
     }
 
     process.exit(code ?? 0);
