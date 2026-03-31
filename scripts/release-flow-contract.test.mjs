@@ -380,7 +380,7 @@ test('desktop release build runner forwards explicit target triples to tauri bui
   assert.equal(arm64WindowsPlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
 });
 
-test('desktop release bundle phase merges the generated Windows bundle overlay config', async () => {
+test('desktop release bundle phase merges the generated Windows bundle overlay config and limits CI installers to nsis', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const runner = await import(pathToFileURL(runnerPath).href);
 
@@ -397,6 +397,12 @@ test('desktop release bundle phase merges the generated Windows bundle overlay c
     '--config',
     path.join(desktopPackageDir, desktopBundleOverlayConfig),
   ]);
+
+  const windowsBundleModulePath = path.join(rootDir, 'scripts', 'run-windows-tauri-bundle.mjs');
+  const windowsBundleModule = await import(pathToFileURL(windowsBundleModulePath).href);
+  const windowsCommand = windowsBundleModule.buildWindowsTauriBundleCommand();
+
+  assert.match(windowsCommand.args.join(' '), /--bundles nsis/);
 });
 
 test('desktop release build runner exposes granular release phases for CI diagnostics', async () => {

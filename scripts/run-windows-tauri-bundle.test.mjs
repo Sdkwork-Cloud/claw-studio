@@ -39,6 +39,25 @@ assert.equal(
   process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
   'run-windows-tauri-bundle must use the Windows pnpm launcher when it shells out to tauri',
 );
+assert.deepEqual(
+  windowsBundleCommand.args.slice(0, 8),
+  [
+    '--dir',
+    'packages/sdkwork-claw-desktop',
+    'exec',
+    'tauri',
+    'build',
+    '--config',
+    'src-tauri/generated/tauri.bundle.overlay.json',
+    '--bundles',
+  ],
+  'run-windows-tauri-bundle must invoke tauri from the desktop package with the generated bundle overlay config',
+);
+assert.equal(
+  windowsBundleCommand.args[8],
+  'nsis',
+  'run-windows-tauri-bundle must request nsis-only Windows installers to avoid flaky WiX/MSI packaging on CI runners',
+);
 
 const replacements = bundleModule.createWindowsNsisSourceReplacements(syntheticWorkspaceRoot);
 
