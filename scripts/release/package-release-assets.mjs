@@ -86,6 +86,14 @@ export function shouldIncludeDesktopBundleFile(platformId, relativePath) {
   }
 
   const lowerCasePath = normalizedPath.toLowerCase();
+  if (
+    normalizedPlatform === 'macos'
+    && lowerCasePath.endsWith('.dmg')
+    && path.posix.basename(normalizedPath).toLowerCase().startsWith('rw.')
+  ) {
+    return false;
+  }
+
   return rule.suffixes.some((suffix) => lowerCasePath.endsWith(suffix));
 }
 

@@ -584,6 +584,87 @@ test('desktop release build runner can recover a macOS dmg bundle failure when T
   }
 });
 
+test('desktop release build runner does not treat a Tauri rw temporary dmg as a completed dmg output', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  assert.equal(typeof runner.canRecoverMacosBundleFailure, 'function');
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-macos-bundle-temp-dmg-'));
+
+  try {
+    const targetDir = path.join(tempRoot, 'target');
+    const bundleRoot = path.join(targetDir, 'release', 'bundle');
+    const appBundleDir = path.join(bundleRoot, 'macos', 'Claw Studio.app');
+    const temporaryDmgPath = path.join(bundleRoot, 'macos', 'rw.86444.Claw.Studio_0.1.0_x64.dmg');
+
+    mkdirSync(path.join(appBundleDir, 'Contents'), { recursive: true });
+    writeFileSync(temporaryDmgPath, 'synthetic temporary dmg');
+
+    assert.equal(
+      runner.canRecoverMacosBundleFailure({
+        platform: 'darwin',
+        targetTriple: 'x86_64-apple-darwin',
+        bundleTargets: ['app', 'dmg'],
+        targetDir,
+      }),
+      false,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop release build runner can repair a macOS dmg bundle failure by converting a Tauri rw temporary dmg into the final dmg artifact', async () => {
+  const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
+  const runner = await import(pathToFileURL(runnerPath).href);
+
+  assert.equal(typeof runner.repairMacosDmgBundleOutput, 'function');
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-macos-bundle-repair-'));
+
+  try {
+    const targetDir = path.join(tempRoot, 'target');
+    const bundleRoot = path.join(targetDir, 'release', 'bundle');
+    const appBundleDir = path.join(bundleRoot, 'macos', 'Claw Studio.app');
+    const temporaryDmgPath = path.join(bundleRoot, 'macos', 'rw.86444.Claw.Studio_0.1.0_x64.dmg');
+    const finalDmgPath = path.join(bundleRoot, 'dmg', 'Claw.Studio_0.1.0_x64.dmg');
+
+    mkdirSync(path.join(appBundleDir, 'Contents'), { recursive: true });
+    mkdirSync(path.dirname(temporaryDmgPath), { recursive: true });
+    writeFileSync(temporaryDmgPath, 'synthetic temporary dmg');
+
+    const spawnCalls = [];
+    const repaired = runner.repairMacosDmgBundleOutput({
+      platform: 'darwin',
+      targetTriple: 'x86_64-apple-darwin',
+      bundleTargets: ['app', 'dmg'],
+      targetDir,
+      spawnSyncImpl(command, args) {
+        spawnCalls.push({ command, args });
+        mkdirSync(path.dirname(finalDmgPath), { recursive: true });
+        writeFileSync(finalDmgPath, 'synthetic finalized dmg');
+        return { status: 0 };
+      },
+    });
+
+    assert.equal(repaired, true);
+    assert.equal(existsSync(finalDmgPath), true);
+    assert.equal(spawnCalls.length, 1);
+    assert.equal(spawnCalls[0].command, 'hdiutil');
+    assert.deepEqual(spawnCalls[0].args, [
+      'convert',
+      temporaryDmgPath,
+      '-format',
+      'UDZO',
+      '-o',
+      finalDmgPath,
+    ]);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('desktop release build runner does not recover a macOS dmg bundle failure when the dmg output is missing', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const runner = await import(pathToFileURL(runnerPath).href);
@@ -681,6 +762,10 @@ test('release asset packager knows how to filter desktop bundle outputs, resolve
   assert.equal(
     packager.shouldIncludeDesktopBundleFile('macos', 'dmg/Claw Studio_0.1.0_aarch64.dmg'),
     true,
+  );
+  assert.equal(
+    packager.shouldIncludeDesktopBundleFile('macos', 'macos/rw.86444.Claw.Studio_0.1.0_x64.dmg'),
+    false,
   );
   assert.equal(
     packager.resolveDesktopBundleRoot({ targetTriple: 'aarch64-pc-windows-msvc' }).replaceAll('\\', '/'),
