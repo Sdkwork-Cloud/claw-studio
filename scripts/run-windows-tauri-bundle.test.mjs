@@ -58,6 +58,14 @@ assert.equal(
   'nsis',
   'run-windows-tauri-bundle must request nsis-only Windows installers to avoid flaky WiX/MSI packaging on CI runners',
 );
+const configuredWindowsBundleCommand = bundleModule.buildWindowsTauriBundleCommand({
+  bundleTargets: ['nsis', 'msi'],
+});
+assert.deepEqual(
+  configuredWindowsBundleCommand.args.slice(-2),
+  ['--bundles', 'nsis,msi'],
+  'run-windows-tauri-bundle must allow release profiles to override the Windows bundle target list when a different application requires it',
+);
 
 const replacements = bundleModule.createWindowsNsisSourceReplacements(syntheticWorkspaceRoot);
 

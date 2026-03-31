@@ -21,62 +21,58 @@ function read(relativePath) {
 
 test('repository exposes a cross-platform claw-studio release workflow', () => {
   const workflowPath = path.join(rootDir, '.github', 'workflows', 'release.yml');
+  const reusableWorkflowPath = path.join(rootDir, '.github', 'workflows', 'release-reusable.yml');
   assert.equal(existsSync(workflowPath), true, 'missing .github/workflows/release.yml');
+  assert.equal(existsSync(reusableWorkflowPath), true, 'missing .github/workflows/release-reusable.yml');
 
   const workflow = read('.github/workflows/release.yml');
+  const reusableWorkflow = read('.github/workflows/release-reusable.yml');
   const gitSourcePreparationCount =
-    workflow.match(/node scripts\/prepare-shared-sdk-git-sources\.mjs/g)?.length ?? 0;
+    reusableWorkflow.match(/node scripts\/prepare-shared-sdk-git-sources\.mjs/g)?.length ?? 0;
   const sharedSdkPreparationCount =
-    workflow.match(/pnpm prepare:shared-sdk/g)?.length ?? 0;
+    reusableWorkflow.match(/pnpm prepare:shared-sdk/g)?.length ?? 0;
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /push:\s*[\s\S]*tags:\s*[\s\S]*release-\*/);
-  assert.match(workflow, /concurrency:/);
-  assert.match(workflow, /verify-release:/);
-  assert.match(workflow, /windows-2022/);
-  assert.match(workflow, /windows-11-arm/);
-  assert.match(workflow, /ubuntu-24\.04/);
-  assert.match(workflow, /ubuntu-24\.04-arm/);
-  assert.match(workflow, /macos-15-intel/);
-  assert.match(workflow, /macos-15/);
-  assert.match(workflow, /arch:\s*x64/);
-  assert.match(workflow, /arch:\s*arm64/);
-  assert.match(workflow, /target:\s*x86_64-pc-windows-msvc/);
-  assert.match(workflow, /target:\s*aarch64-pc-windows-msvc/);
-  assert.match(workflow, /target:\s*x86_64-unknown-linux-gnu/);
-  assert.match(workflow, /target:\s*aarch64-unknown-linux-gnu/);
-  assert.match(workflow, /target:\s*x86_64-apple-darwin/);
-  assert.match(workflow, /target:\s*aarch64-apple-darwin/);
-  assert.match(workflow, /SDKWORK_SHARED_SDK_MODE:\s*git/);
-  assert.match(workflow, /SDKWORK_SHARED_SDK_GIT_REF:\s*main/);
-  assert.match(workflow, /SDKWORK_SHARED_SDK_APP_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
-  assert.match(workflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
+  assert.match(workflow, /uses:\s*\.\/\.github\/workflows\/release-reusable\.yml/);
+  assert.match(workflow, /release_profile:\s*claw-studio/);
+  assert.match(reusableWorkflow, /workflow_call:/);
+  assert.match(reusableWorkflow, /concurrency:/);
+  assert.match(reusableWorkflow, /verify-release:/);
+  assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_MODE:\s*git/);
+  assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_GIT_REF:\s*main/);
+  assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_APP_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
+  assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
   assert.equal(gitSourcePreparationCount, 3);
-  assert.match(workflow, /pnpm install --frozen-lockfile/);
+  assert.match(reusableWorkflow, /pnpm install --frozen-lockfile/);
   assert.equal(sharedSdkPreparationCount, 3);
-  assert.match(workflow, /submodules:\s*recursive/);
-  assert.match(workflow, /libgtk-3-dev/);
-  assert.match(workflow, /libpipewire-0\.3-dev/);
-  assert.match(workflow, /libssl-dev/);
-  assert.match(workflow, /libfuse2t64/);
-  assert.match(workflow, /libgbm-dev/);
-  assert.match(workflow, /file/);
-  assert.match(workflow, /pkg-config/);
-  assert.match(workflow, /libwayland-dev/);
-  assert.match(workflow, /libxkbcommon-dev/);
-  assert.match(workflow, /pnpm build/);
-  assert.match(workflow, /pnpm docs:build/);
-  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase sync --target \$\{\{ matrix\.target \}\} --release/);
-  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
-  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
-  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase prepare-api-router --target \$\{\{ matrix\.target \}\}/);
-  assert.match(workflow, /node scripts\/run-desktop-release-build\.mjs --phase bundle --target \$\{\{ matrix\.target \}\}/);
-  assert.match(workflow, /node scripts\/release\/package-release-assets\.mjs desktop --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
-  assert.match(workflow, /release-assets-desktop-\$\{\{ matrix\.platform \}\}-\$\{\{ matrix\.arch \}\}/);
-  assert.match(workflow, /node scripts\/release\/package-release-assets\.mjs web/);
-  assert.match(workflow, /softprops\/action-gh-release@/);
-  assert.match(workflow, /CMAKE_GENERATOR:\s*Visual Studio 17 2022/);
-  assert.match(workflow, /needs:\s*\[\s*prepare,\s*verify-release\s*\]/);
+  assert.match(reusableWorkflow, /submodules:\s*recursive/);
+  assert.match(reusableWorkflow, /libgtk-3-dev/);
+  assert.match(reusableWorkflow, /libpipewire-0\.3-dev/);
+  assert.match(reusableWorkflow, /libssl-dev/);
+  assert.match(reusableWorkflow, /libfuse2t64/);
+  assert.match(reusableWorkflow, /libgbm-dev/);
+  assert.match(reusableWorkflow, /file/);
+  assert.match(reusableWorkflow, /pkg-config/);
+  assert.match(reusableWorkflow, /libwayland-dev/);
+  assert.match(reusableWorkflow, /libxkbcommon-dev/);
+  assert.match(reusableWorkflow, /pnpm build/);
+  assert.match(reusableWorkflow, /pnpm docs:build/);
+  assert.match(reusableWorkflow, /node scripts\/release\/resolve-release-plan\.mjs --profile \$\{\{ inputs\.release_profile \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase sync --target \$\{\{ matrix\.target \}\} --release/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-api-router --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase bundle --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs web --profile \$\{\{ inputs\.release_profile \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/finalize-release-assets\.mjs --profile \$\{\{ inputs\.release_profile \}\}/);
+  assert.match(reusableWorkflow, /actions\/attest-build-provenance@v3/);
+  assert.match(reusableWorkflow, /attestations:\s*write/);
+  assert.match(reusableWorkflow, /id-token:\s*write/);
+  assert.match(reusableWorkflow, /softprops\/action-gh-release@/);
+  assert.match(reusableWorkflow, /CMAKE_GENERATOR:\s*Visual Studio 17 2022/);
+  assert.match(reusableWorkflow, /needs:\s*\[\s*prepare,\s*verify-release\s*\]/);
 });
 
 test('desktop tauri build script treats sdkwork-api-router prebuilt artifacts as optional metadata across the full release matrix', () => {
@@ -92,12 +88,15 @@ test('root package exposes release helper scripts for desktop and asset packagin
   const rootPackage = JSON.parse(read('package.json'));
 
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-flow-contract\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-profiles\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/finalize-release-assets\.test\.mjs/);
   assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:automation'], /pnpm check:release-flow && pnpm check:ci-flow/);
   assert.match(rootPackage.scripts['lint'], /pnpm check:automation/);
   assert.match(rootPackage.scripts['release:desktop'], /node scripts\/run-desktop-release-build\.mjs/);
   assert.match(rootPackage.scripts['release:package:desktop'], /node scripts\/release\/package-release-assets\.mjs desktop/);
   assert.match(rootPackage.scripts['release:package:web'], /node scripts\/release\/package-release-assets\.mjs web/);
+  assert.match(rootPackage.scripts['release:finalize'], /node scripts\/release\/finalize-release-assets\.mjs/);
 });
 
 test('shared sdk mode helper defaults to source mode and supports git trunk release mode', async () => {
@@ -380,7 +379,7 @@ test('desktop release build runner forwards explicit target triples to tauri bui
   assert.equal(arm64WindowsPlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
 });
 
-test('desktop release bundle phase merges the generated Windows bundle overlay config and limits CI installers to nsis', async () => {
+test('desktop release bundle phase merges the generated Windows bundle overlay config and limits CI installers to the stable profile bundle set', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const runner = await import(pathToFileURL(runnerPath).href);
 
@@ -394,8 +393,12 @@ test('desktop release bundle phase merges the generated Windows bundle overlay c
   assert.equal(windowsBundlePlan.command, process.execPath);
   assert.deepEqual(windowsBundlePlan.args, [
     'scripts/run-windows-tauri-bundle.mjs',
+    '--profile',
+    'claw-studio',
     '--config',
     path.join(desktopPackageDir, desktopBundleOverlayConfig),
+    '--bundles',
+    'nsis',
   ]);
 
   const windowsBundleModulePath = path.join(rootDir, 'scripts', 'run-windows-tauri-bundle.mjs');
@@ -453,7 +456,7 @@ test('desktop release build runner exposes granular release phases for CI diagno
     '--config',
     desktopBundleOverlayConfig,
     '--bundles',
-    'deb',
+    'deb,rpm,appimage',
     '--target',
     'aarch64-unknown-linux-gnu',
   ]);
@@ -462,7 +465,7 @@ test('desktop release build runner exposes granular release phases for CI diagno
   assert.equal(bundlePlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
 });
 
-test('desktop release build runner requests app-only macOS bundles to avoid flaky dmg generation in CI', async () => {
+test('desktop release build runner requests standard macOS dmg and app bundle outputs in CI', async () => {
   const runnerPath = path.join(rootDir, 'scripts', 'run-desktop-release-build.mjs');
   const runner = await import(pathToFileURL(runnerPath).href);
 
@@ -483,7 +486,7 @@ test('desktop release build runner requests app-only macOS bundles to avoid flak
     '--config',
     desktopBundleOverlayConfig,
     '--bundles',
-    'app',
+    'app,dmg',
   ]);
   assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET, 'x86_64-apple-darwin');
   assert.equal(macosBundlePlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'macos');
@@ -511,11 +514,48 @@ test('desktop release build runner avoids explicit tauri target flags on native 
     '--config',
     desktopBundleOverlayConfig,
     '--bundles',
-    'deb',
+    'deb,rpm,appimage',
   ]);
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET, 'aarch64-unknown-linux-gnu');
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_PLATFORM, 'linux');
   assert.equal(nativeLinuxArmPlan.env.SDKWORK_DESKTOP_TARGET_ARCH, 'arm64');
+});
+
+test('release plan resolver expands the claw-studio profile into the full desktop matrix', async () => {
+  const resolverPath = path.join(rootDir, 'scripts', 'release', 'resolve-release-plan.mjs');
+  assert.equal(existsSync(resolverPath), true, 'missing scripts/release/resolve-release-plan.mjs');
+
+  const resolver = await import(pathToFileURL(resolverPath).href);
+  assert.equal(typeof resolver.createReleasePlan, 'function');
+
+  const plan = resolver.createReleasePlan({
+    profileId: 'claw-studio',
+    releaseTag: 'release-2026-03-31-03',
+    gitRef: 'refs/tags/release-2026-03-31-03',
+  });
+
+  assert.equal(plan.profileId, 'claw-studio');
+  assert.equal(plan.desktopMatrix.length, 6);
+  assert.deepEqual(
+    plan.desktopMatrix.find((entry) => entry.platform === 'linux' && entry.arch === 'x64'),
+    {
+      runner: 'ubuntu-24.04',
+      platform: 'linux',
+      arch: 'x64',
+      target: 'x86_64-unknown-linux-gnu',
+      bundles: ['deb', 'rpm', 'appimage'],
+    },
+  );
+  assert.deepEqual(
+    plan.desktopMatrix.find((entry) => entry.platform === 'macos' && entry.arch === 'arm64'),
+    {
+      runner: 'macos-15',
+      platform: 'macos',
+      arch: 'arm64',
+      target: 'aarch64-apple-darwin',
+      bundles: ['app', 'dmg'],
+    },
+  );
 });
 
 test('release asset packager knows how to filter desktop bundle outputs, resolve target roots, and name web archives', async () => {
