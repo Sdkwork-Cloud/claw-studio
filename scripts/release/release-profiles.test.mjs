@@ -37,7 +37,16 @@ test('release profiles expose a reusable claw-studio release matrix with standar
       platform: 'linux',
       arch: 'x64',
     }),
-    ['deb', 'rpm', 'appimage'],
+    ['deb', 'rpm'],
+  );
+  assert.deepEqual(
+    profiles.resolveDesktopBundleTargets({
+      profileId: 'claw-studio',
+      platform: 'linux',
+      arch: 'x64',
+      bundleTargets: ['appimage'],
+    }),
+    ['appimage'],
   );
   assert.deepEqual(
     profiles.resolveDesktopBundleTargets({
