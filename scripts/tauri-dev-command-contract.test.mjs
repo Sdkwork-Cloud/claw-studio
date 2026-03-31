@@ -223,4 +223,8 @@ if (!tauriBuildScriptSource.includes('symlink_metadata')) {
   fail('Desktop build.rs must inspect stale sdkwork-api-router runtime paths before recreating the bundled runtime directory.');
 }
 
+if (!tauriBuildScriptSource.includes('sdkwork-api-router bundled resources')) {
+  fail('Desktop build.rs must repair the sdkwork-api-router bundled resource root before creating the nested runtime directory on clean clones.');
+}
+
 console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');
