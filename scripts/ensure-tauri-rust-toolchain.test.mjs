@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 
 import {
   buildMissingRustToolchainMessage,
   ensureTauriRustToolchain,
+  withRustToolchainPath,
 } from './ensure-tauri-rust-toolchain.mjs';
 
 const successfulChecks = [];
@@ -26,6 +30,52 @@ assert.deepEqual(
   'Rust toolchain guard should verify both cargo and rustc with --version',
 );
 assert.equal(successResult.length, 2, 'Rust toolchain guard should return successful inspections');
+
+const fakeRustHome = mkdtempSync(path.join(os.tmpdir(), 'tauri-rust-toolchain-'));
+const fakeRustBinDir = path.join(fakeRustHome, '.cargo', 'bin');
+mkdirSync(fakeRustBinDir, { recursive: true });
+writeFileSync(path.join(fakeRustBinDir, 'cargo.exe'), '', 'utf8');
+writeFileSync(path.join(fakeRustBinDir, 'rustc.exe'), '', 'utf8');
+
+const fallbackEnv = withRustToolchainPath({
+  PATH: 'C:\\Windows\\System32',
+  USERPROFILE: fakeRustHome,
+}, {
+  platform: 'win32',
+});
+
+assert.match(
+  fallbackEnv.PATH,
+  new RegExp(`^${fakeRustBinDir.replace(/\\/g, '\\\\')}(;|$)`),
+  'Rust toolchain PATH helper should prepend the standard rustup bin directory on Windows',
+);
+
+const fallbackChecks = [];
+const fallbackResult = ensureTauriRustToolchain({
+  env: {
+    PATH: 'C:\\Windows\\System32',
+    USERPROFILE: fakeRustHome,
+  },
+  platform: 'win32',
+  inspectCommand(command, args, options) {
+    fallbackChecks.push({ command, args, options });
+    return {
+      available: true,
+      command,
+      stdout: `${command} 1.90.0`,
+    };
+  },
+});
+
+assert.equal(fallbackResult.length, 2, 'Rust toolchain guard should still succeed with a standard rustup install path');
+assert.equal(fallbackChecks.length, 2, 'Rust toolchain guard should inspect both required commands');
+assert.ok(
+  fallbackChecks.every(
+    ({ options }) => typeof options?.env?.PATH === 'string'
+      && options.env.PATH.startsWith(`${fakeRustBinDir};`),
+  ),
+  'Rust toolchain guard should inspect commands with the augmented PATH',
+);
 
 let missingToolError;
 try {

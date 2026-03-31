@@ -27,6 +27,18 @@ assert.equal(
   'function',
   'run-windows-tauri-bundle must export prepareWindowsNsisRetryScript',
 );
+assert.equal(
+  typeof bundleModule.buildWindowsTauriBundleCommand,
+  'function',
+  'run-windows-tauri-bundle must export buildWindowsTauriBundleCommand',
+);
+
+const windowsBundleCommand = bundleModule.buildWindowsTauriBundleCommand();
+assert.equal(
+  windowsBundleCommand.command,
+  process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+  'run-windows-tauri-bundle must use the Windows pnpm launcher when it shells out to tauri',
+);
 
 const replacements = bundleModule.createWindowsNsisSourceReplacements(syntheticWorkspaceRoot);
 
