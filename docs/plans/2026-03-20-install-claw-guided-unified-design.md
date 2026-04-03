@@ -104,7 +104,7 @@ The configuration and initialization steps must not scatter catalog data across 
 
 Because `sdkwork-claw-install` cannot depend directly on sibling feature packages under repository boundary rules, the install feature should define a small internal aggregation service backed by the same shared `studioMockService` data used by:
 
-- API Router channel/provider catalogs
+- provider channel/provider catalogs
 - Channels configuration records
 - Marketplace pack/skill catalogs
 
@@ -116,7 +116,7 @@ This keeps the install feature aligned with the same authoritative data without 
 
 The wizard should:
 
-- load the API Router channel catalog
+- load the provider channel catalog
 - load existing proxy providers grouped by channel
 - infer suggested base URL and model list from the selected channel's providers
 - allow direct editing of `apiKey`, `baseUrl`, and selected `model`

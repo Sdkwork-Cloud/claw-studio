@@ -22,19 +22,17 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('sdkwork-claw-shell keeps dedicated routes for api-router, model-purchase, and points feature pages', () => {
+runTest('sdkwork-claw-shell keeps dedicated routes for model-purchase and points while removing the legacy api-router route', () => {
   const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
 
   assert.doesNotMatch(routesSource, /FeaturePlaceholder/);
-  assert.match(routesSource, /module\.ProviderConfigCenter/);
   assert.match(routesSource, /@sdkwork\/claw-model-purchase/);
   assert.match(routesSource, /@sdkwork\/claw-points/);
   assert.match(routesSource, /routes\.codeboxComingSoon/);
   assert.doesNotMatch(routesSource, /routes\.apiRouterComingSoon/);
-  assert.match(routesSource, /path="\/api-router"/);
+  assert.doesNotMatch(routesSource, /path="\/api-router"/);
   assert.match(routesSource, /path="\/model-purchase"/);
   assert.match(routesSource, /path="\/points"/);
-  assert.match(routesSource, /<ProviderConfigCenter \/>/);
   assert.match(routesSource, /<ModelPurchase \/>/);
   assert.match(routesSource, /<Points \/>/);
 });
@@ -265,10 +263,6 @@ runTest('sdkwork-claw-shell lazy-loads heavy route modules so the shell entry st
   assert.match(routesSource, /const Market = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-market'\)/);
   assert.match(routesSource, /const Chat = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-chat'\)/);
   assert.match(routesSource, /const Settings = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-settings'\)/);
-  assert.match(
-    routesSource,
-    /const ProviderConfigCenter = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-settings'\)[\s\S]*module\.ProviderConfigCenter/,
-  );
   assert.match(routesSource, /const Points = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-points'\)/);
   assert.match(routesSource, /const AppStore = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-apps'\)/);
   assert.match(routesSource, /const ClawMall = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-mall'\)/);
@@ -412,7 +406,7 @@ runTest('sdkwork-claw-shell routes OAuth callbacks through the dedicated auth ca
   assert.match(layoutSource, /<AppHeader mode="auth" \/>/);
 });
 
-runTest('sdkwork-claw-settings removes the dedicated llm settings tab in favor of api-router configuration', () => {
+runTest('sdkwork-claw-settings removes the dedicated llm settings tab without reintroducing an api-router workspace', () => {
   const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
 
   assert.doesNotMatch(settingsSource, /import \{ LLMSettings \} from '\.\/LLMSettings';/);
@@ -422,7 +416,7 @@ runTest('sdkwork-claw-settings removes the dedicated llm settings tab in favor o
   assert.match(settingsSource, /\? requestedTab \|\| 'general' : 'general'/);
 });
 
-runTest('sdkwork-claw-settings exposes an independent provider config center surface for the api-router route', () => {
+runTest('sdkwork-claw-settings keeps provider config center internal to settings instead of exposing a legacy api-router route', () => {
   const settingsPackage = readJson<{ dependencies?: Record<string, string> }>(
     'packages/sdkwork-claw-settings/package.json',
   );
@@ -431,6 +425,7 @@ runTest('sdkwork-claw-settings exposes an independent provider config center sur
   );
   const settingsIndexSource = read('packages/sdkwork-claw-settings/src/index.ts');
   const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const providerEditorSheetSource = read('packages/sdkwork-claw-settings/src/ProviderConfigEditorSheet.tsx');
   const routePrefetchSource = read('packages/sdkwork-claw-shell/src/application/router/routePrefetch.ts');
   const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
 
@@ -441,13 +436,11 @@ runTest('sdkwork-claw-settings exposes an independent provider config center sur
   assert.match(providerCenterSource, /providerCenter\.actions\.addRouteConfig/);
   assert.match(providerCenterSource, /providerCenter\.table\.provider/);
   assert.match(providerCenterSource, /providerCenter\.dialogs\.apply\.title/);
-  assert.match(providerCenterSource, /providerCenter\.dialogs\.editor\.embeddingModel/);
+  assert.match(providerCenterSource, /ProviderConfigEditorSheet/);
+  assert.match(providerEditorSheetSource, /providerCenter\.dialogs\.editor\.embeddingModel/);
   assert.match(providerCenterSource, /providerCenter\.dialogs\.apply\.agents/);
-  assert.match(routePrefetchSource, /\['\/api-router', \(\) => import\('@sdkwork\/claw-settings'\)\]/);
-  assert.match(
-    routesSource,
-    /const ProviderConfigCenter = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-settings'\)[\s\S]*module\.ProviderConfigCenter/,
-  );
+  assert.doesNotMatch(routePrefetchSource, /\['\/api-router', \(\) => import\('@sdkwork\/claw-settings'\)\]/);
+  assert.doesNotMatch(routesSource, /path="\/api-router"/);
   assert.ok(!shellPackage.dependencies?.['@sdkwork/claw-apirouter']);
 });
 
@@ -479,10 +472,19 @@ runTest('sdkwork-claw-shell warms heavy sidebar routes before click so navigatio
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
   const routePrefetchSource = read('packages/sdkwork-claw-shell/src/application/router/routePrefetch.ts');
 
+  assert.match(sidebarSource, /scheduleSidebarRoutePrefetch/);
   assert.match(sidebarSource, /prefetchSidebarRoute/);
-  assert.match(sidebarSource, /onMouseEnter=\{\(\) => prefetchSidebarRoute\(item\.to\)\}/);
-  assert.match(sidebarSource, /onFocus=\{\(\) => prefetchSidebarRoute\(item\.to\)\}/);
+  assert.match(sidebarSource, /cancelSidebarRoutePrefetch/);
+  assert.match(sidebarSource, /onMouseEnter=\{\(\) => scheduleSidebarRoutePrefetch\(item\.to\)\}/);
+  assert.match(sidebarSource, /onMouseLeave=\{\(\) => cancelSidebarRoutePrefetch\(item\.to\)\}/);
+  assert.match(sidebarSource, /onFocus=\{\(\) => scheduleSidebarRoutePrefetch\(item\.to\)\}/);
+  assert.match(sidebarSource, /onBlur=\{\(\) => cancelSidebarRoutePrefetch\(item\.to\)\}/);
+  assert.match(sidebarSource, /onPointerDown=\{\(\) => prefetchSidebarRoute\(item\.to\)\}/);
   assert.match(routePrefetchSource, /\['\/apps', \(\) => import\('@sdkwork\/claw-apps'\)\]/);
+  assert.match(routePrefetchSource, /\['\/chat', \(\) => import\('@sdkwork\/claw-chat'\)\]/);
+  assert.match(routePrefetchSource, /\['\/dashboard', \(\) => import\('@sdkwork\/claw-dashboard'\)\]/);
+  assert.match(routePrefetchSource, /\['\/settings', \(\) => import\('@sdkwork\/claw-settings'\)\]/);
+  assert.match(routePrefetchSource, /\['\/docs', \(\) => import\('@sdkwork\/claw-docs'\)\]/);
   assert.match(routePrefetchSource, /import\('@sdkwork\/claw-apps'\)/);
   assert.match(routePrefetchSource, /\['\/market', \(\) => import\('@sdkwork\/claw-market'\)\]/);
   assert.match(routePrefetchSource, /import\('@sdkwork\/claw-market'\)/);
@@ -552,6 +554,18 @@ runTest('sdkwork-claw-shell keeps a persistent mobile app entry in the header ch
   assert.match(headerSource, /PointsHeaderEntry/);
 });
 
+runTest('sdkwork-claw-shell restores the authenticated user avatar menu in the app header', () => {
+  const headerSource = read('packages/sdkwork-claw-shell/src/components/AppHeader.tsx');
+
+  assert.match(headerSource, /useAuthStore/);
+  assert.match(headerSource, /sidebar\.userMenu\.profileSettings/);
+  assert.match(headerSource, /sidebar\.userMenu\.logout/);
+  assert.match(headerSource, /user\?\.avatarUrl/);
+  assert.match(headerSource, /CircleUserRound/);
+  assert.doesNotMatch(headerSource, /shadow-\[inset_0_0_0_1px/);
+  assert.doesNotMatch(headerSource, /sidebar\.userMenu\.signedIn/);
+});
+
 runTest('sdkwork-claw-shell only auto-prompts the mobile app guide from the dashboard landing route', () => {
   const layoutSource = read('packages/sdkwork-claw-shell/src/application/layouts/MainLayout.tsx');
 
@@ -567,6 +581,9 @@ runTest('sdkwork-claw-shell keeps sidebar collapse affordance on the hover edge 
   assert.match(sidebarSource, /onPointerDown=\{startSidebarResize\}/);
   assert.match(sidebarSource, /onMouseEnter/);
   assert.match(sidebarSource, /onMouseLeave/);
+  assert.match(sidebarSource, /right-0 top-1\/2/);
+  assert.match(sidebarSource, /-translate-y-1\/2/);
+  assert.doesNotMatch(sidebarSource, /right-1 top-5/);
 });
 
 runTest('sdkwork-claw-shell promotes ClawHub ahead of App Store in the ecosystem navigation', () => {
@@ -648,14 +665,14 @@ runTest('sdkwork-claw-shell promotes chat as the default workspace entry and mov
   );
 });
 
-runTest('sdkwork-claw-shell removes model purchase from shell entry surfaces and keeps devices out of the sidebar', () => {
+runTest('sdkwork-claw-shell removes api-router and model purchase from shell entry surfaces while keeping devices out of the sidebar', () => {
   const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
   const commandPaletteSource = read('packages/sdkwork-claw-shell/src/components/commandPaletteCommands.ts');
   const settingsSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
 
   assert.doesNotMatch(sidebarSource, /id: 'codebox'/);
-  assert.match(sidebarSource, /id: 'api-router'/);
-  assert.match(sidebarSource, /to: '\/api-router'/);
+  assert.doesNotMatch(sidebarSource, /id: 'api-router'/);
+  assert.doesNotMatch(sidebarSource, /to: '\/api-router'/);
   assert.doesNotMatch(sidebarSource, /id: 'model-purchase'/);
   assert.doesNotMatch(sidebarSource, /to: '\/model-purchase'/);
   assert.doesNotMatch(sidebarSource, /label: t\('sidebar\.modelPurchase'\)/);
@@ -664,11 +681,14 @@ runTest('sdkwork-claw-shell removes model purchase from shell entry surfaces and
   assert.doesNotMatch(sidebarSource, /label: t\('sidebar\.devices'\)/);
   assert.doesNotMatch(commandPaletteSource, /id: 'nav-model-purchase'/);
   assert.doesNotMatch(commandPaletteSource, /navigate\('\/model-purchase'\)/);
+  assert.doesNotMatch(commandPaletteSource, /id: 'nav-api-router'/);
+  assert.doesNotMatch(commandPaletteSource, /navigate\('\/api-router'\)/);
   assert.match(commandPaletteSource, /id: 'nav-devices'/);
   assert.match(commandPaletteSource, /navigate\('\/devices'\)/);
   assert.doesNotMatch(settingsSource, /id: 'codebox'/);
   assert.doesNotMatch(settingsSource, /id: 'model-purchase', label: t\('sidebar\.modelPurchase'\)/);
   assert.doesNotMatch(settingsSource, /id: 'devices', label: t\('sidebar\.devices'\)/);
+  assert.doesNotMatch(settingsSource, /id: 'api-router', label: t\('sidebar\.apiRouter'\)/);
 });
 
 runTest('sdkwork-claw-shell labels the setup entry as Install Claw in both locales', () => {

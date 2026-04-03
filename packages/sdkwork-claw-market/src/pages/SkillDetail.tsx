@@ -26,6 +26,7 @@ import { useAuthStore, useInstanceStore, useTaskStore } from '@sdkwork/claw-core
 import { Modal } from '@sdkwork/claw-ui';
 import type { Review, Skill } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
+import { shouldBlockSkillDetailForLoading } from './marketHydrationPolicy.ts';
 
 export function SkillDetail() {
   const { t, i18n } = useTranslation();
@@ -56,6 +57,7 @@ export function SkillDetail() {
   const { data: instances = [], isLoading: isLoadingInstances } = useQuery<Instance[]>({
     queryKey: ['instances'],
     queryFn: instanceService.getInstances,
+    enabled: isInstallModalOpen,
   });
 
   const { data: mySkills = [] } = useQuery<Skill[]>({
@@ -159,7 +161,12 @@ export function SkillDetail() {
     }
   }, [instances, selectedInstanceIds.length]);
 
-  if (isLoadingSkill || isLoadingInstances) {
+  if (
+    shouldBlockSkillDetailForLoading({
+      isLoadingSkill,
+      isLoadingInstances,
+    })
+  ) {
     return (
       <div className="mx-auto max-w-6xl space-y-8 p-8 animate-pulse">
         <div className="h-8 w-24 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
@@ -625,6 +632,14 @@ export function SkillDetail() {
           </div>
 
           {instances.length === 0 ? (
+            isLoadingInstances ? (
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-center dark:border-zinc-800 dark:bg-zinc-900">
+                <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-zinc-500 dark:text-zinc-400" />
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  {t('common.loading')}
+                </p>
+              </div>
+            ) : (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-500">
               <AlertCircle className="mx-auto mb-2 h-6 w-6 opacity-80" />
               <p className="text-sm font-bold">{t('market.modals.noInstances.title')}</p>
@@ -632,6 +647,7 @@ export function SkillDetail() {
                 {t('market.modals.noInstances.description')}
               </p>
             </div>
+            )
           ) : (
             <div className="space-y-5">
               <div>

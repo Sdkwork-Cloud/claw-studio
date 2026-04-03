@@ -3,6 +3,7 @@ import type {
   HubInstallAssessmentResult,
   HubInstallResult,
   PlatformAPI,
+  StoragePlatformAPI,
   StudioPlatformAPI,
 } from '@sdkwork/claw-infrastructure';
 
@@ -37,6 +38,7 @@ function createPlatformStub(
     closeWindow: async () => {},
     listDirectory: async () => [],
     pathExists: async (path) => fileSystem[path.replace(/\\/g, '/')] !== undefined,
+    pathExistsForUserTooling: async (path) => fileSystem[path.replace(/\\/g, '/')] !== undefined,
     getPathInfo: async (path) => ({
       path,
       name: path.split(/[\\/]/).pop() || path,
@@ -53,6 +55,14 @@ function createPlatformStub(
     readBinaryFile: async () => new Uint8Array(),
     writeBinaryFile: async () => {},
     readFile: async (path) => {
+      const normalized = path.replace(/\\/g, '/');
+      if (fileSystem[normalized] === undefined) {
+        throw new Error(`Missing file: ${normalized}`);
+      }
+
+      return fileSystem[normalized];
+    },
+    readFileForUserTooling: async (path) => {
       const normalized = path.replace(/\\/g, '/');
       if (fileSystem[normalized] === undefined) {
         throw new Error(`Missing file: ${normalized}`);
@@ -170,6 +180,104 @@ function createStudioStub(
   };
 }
 
+function createStorageStub(
+  seed: Record<string, string> = {},
+  overrides: Partial<StoragePlatformAPI> = {},
+): StoragePlatformAPI {
+  const records = new Map(Object.entries(seed));
+  const activeProfileId = 'default-sqlite';
+
+  return {
+    getStorageInfo: async () => ({
+      activeProfileId,
+      rootDir: 'test://storage',
+      providers: [
+        {
+          id: 'sqlite-test',
+          kind: 'sqlite',
+          label: 'SQLite Test Storage',
+          availability: 'ready',
+          requiresConfiguration: false,
+          capabilities: {
+            durable: true,
+            structured: true,
+            queryable: true,
+            transactional: true,
+            remote: false,
+          },
+        },
+      ],
+      profiles: [
+        {
+          id: activeProfileId,
+          label: 'Default SQLite',
+          provider: 'sqlite',
+          active: true,
+          availability: 'ready',
+          namespace: 'sdkwork-claw',
+          readOnly: false,
+          connectionConfigured: true,
+          databaseConfigured: true,
+          endpointConfigured: false,
+        },
+      ],
+    }),
+    getText: async (request) => {
+      const profileId = request.profileId || activeProfileId;
+      const namespace = request.namespace || 'sdkwork-claw';
+      const storageKey = `${profileId}:${namespace}:${request.key}`;
+
+      return {
+        profileId,
+        namespace,
+        key: request.key,
+        value: records.get(storageKey) ?? null,
+      };
+    },
+    putText: async (request) => {
+      const profileId = request.profileId || activeProfileId;
+      const namespace = request.namespace || 'sdkwork-claw';
+      const storageKey = `${profileId}:${namespace}:${request.key}`;
+      records.set(storageKey, request.value);
+
+      return {
+        profileId,
+        namespace,
+        key: request.key,
+      };
+    },
+    delete: async (request) => {
+      const profileId = request.profileId || activeProfileId;
+      const namespace = request.namespace || 'sdkwork-claw';
+      const storageKey = `${profileId}:${namespace}:${request.key}`;
+      const existed = records.delete(storageKey);
+
+      return {
+        profileId,
+        namespace,
+        key: request.key,
+        existed,
+      };
+    },
+    listKeys: async (request = {}) => {
+      const profileId = request.profileId || activeProfileId;
+      const namespace = request.namespace || 'sdkwork-claw';
+      const prefix = `${profileId}:${namespace}:`;
+      const keys = [...records.keys()]
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => key.slice(prefix.length))
+        .sort((left, right) => left.localeCompare(right));
+
+      return {
+        profileId,
+        namespace,
+        keys,
+      };
+    },
+    ...overrides,
+  };
+}
+
 function createAssessmentResult(overrides: Partial<HubInstallAssessmentResult> = {}): HubInstallAssessmentResult {
   return {
     registryName: 'hub-installer',
@@ -241,9 +349,14 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
   const { configurePlatformBridge, getPlatformBridge } = await import(
     '@sdkwork/claw-infrastructure'
   );
+  const { kernelPlatformService, OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY } = await import(
+    '@sdkwork/claw-core'
+  );
   const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
 
   const originalBridge = getPlatformBridge();
+  const originalEnsureRunning = kernelPlatformService.ensureRunning;
+  const originalGetInfo = kernelPlatformService.getInfo;
   const fileSystem: Record<string, string> = {
     'D:/Users/admin/.openclaw/openclaw.json': `{
   gateway: { port: 28789 },
@@ -257,11 +370,64 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
     created: [] as Array<Record<string, unknown>>,
     updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
   };
+  const ensureCalls: string[] = [];
+  const storageSeed = {
+    'default-sqlite:studio.provider-center:provider-config-openai-primary': JSON.stringify({
+      id: 'provider-config-openai-primary',
+      name: 'OpenAI Primary',
+      providerId: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '<SECRET>',
+      defaultModelId: 'gpt-4.1',
+      models: [
+        {
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
+        },
+      ],
+      config: {
+        temperature: 0.2,
+        topP: 1,
+        maxTokens: 8192,
+        timeoutMs: 60000,
+        streaming: true,
+      },
+      createdAt: 1,
+      updatedAt: 2,
+    }),
+  };
 
   configurePlatformBridge({
     platform: createPlatformStub(fileSystem),
+    storage: createStorageStub(storageSeed),
     studio: createStudioStub(originalBridge.studio, instanceState),
   });
+
+  kernelPlatformService.ensureRunning = async () => {
+    ensureCalls.push('ensureRunning');
+    return null;
+  };
+  kernelPlatformService.getInfo = async () =>
+    ({
+      localAiProxy: {
+        lifecycle: 'running',
+        baseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+        rootBaseUrl: 'http://ai.sdkwork.localhost:18791',
+        openaiCompatibleBaseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+        anthropicBaseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+        geminiBaseUrl: 'http://ai.sdkwork.localhost:18791',
+        activePort: 18791,
+        loopbackOnly: true,
+        defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+        defaultRouteName: 'SDKWork Default',
+        upstreamBaseUrl: 'https://ai.sdkwork.com',
+        modelCount: 3,
+        configPath: 'D:/state/local-ai-proxy.json',
+        snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+        logPath: 'D:/logs/local-ai-proxy.log',
+        lastError: null,
+      },
+    }) as any;
 
   try {
     const data = await openClawBootstrapService.loadBootstrapData({
@@ -271,7 +437,50 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
 
     assert.equal(data.configPath, 'D:/Users/admin/.openclaw/openclaw.json');
     assert.equal(typeof data.syncedInstanceId, 'string');
-    assert.ok(data.providers.length >= 1);
+    assert.equal(data.providers.length, 3);
+    assert.deepEqual(
+      data.providers.find((provider) => provider.id === 'provider-config-openai-primary')
+        ? {
+            id: data.providers.find((provider) => provider.id === 'provider-config-openai-primary')?.id,
+            channelId:
+              data.providers.find((provider) => provider.id === 'provider-config-openai-primary')
+                ?.channelId,
+            baseUrl:
+              data.providers.find((provider) => provider.id === 'provider-config-openai-primary')
+                ?.baseUrl,
+            apiKey:
+              data.providers.find((provider) => provider.id === 'provider-config-openai-primary')
+                ?.apiKey,
+          }
+        : null,
+      {
+        id: 'provider-config-openai-primary',
+        channelId: 'openai',
+        baseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+        apiKey: OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+      },
+    );
+    assert.equal(
+      data.providers.some(
+        (provider) =>
+          provider.id === 'local-ai-proxy-system-default-anthropic' &&
+          provider.channelId === 'sdkwork' &&
+          provider.baseUrl === 'http://ai.sdkwork.localhost:18791/v1' &&
+          provider.apiKey === OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+      ),
+      true,
+    );
+    assert.equal(
+      data.providers.some(
+        (provider) =>
+          provider.id === 'local-ai-proxy-system-default-gemini' &&
+          provider.channelId === 'sdkwork' &&
+          provider.baseUrl === 'http://ai.sdkwork.localhost:18791' &&
+          provider.apiKey === OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+      ),
+      true,
+    );
+    assert.deepEqual(ensureCalls, ['ensureRunning']);
     assert.ok(data.channels.some((channel) => channel.id === 'telegram'));
     assert.equal(instanceState.created.length, 1);
     assert.equal(instanceState.instances[0]?.deploymentMode, 'local-external');
@@ -281,9 +490,117 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
     assert.equal(instanceState.instances[0]?.websocketUrl, 'ws://127.0.0.1:28789');
     assert.equal(instanceState.instances[0]?.config.websocketUrl, 'ws://127.0.0.1:28789');
   } finally {
+    kernelPlatformService.ensureRunning = originalEnsureRunning;
+    kernelPlatformService.getInfo = originalGetInfo;
     configurePlatformBridge(originalBridge);
   }
 });
+
+await runTest(
+  'openClawBootstrapService keeps broader OpenAI-compatible provider families visible for OpenClaw bootstrap',
+  async () => {
+    const { configurePlatformBridge, getPlatformBridge } = await import(
+      '@sdkwork/claw-infrastructure'
+    );
+    const { kernelPlatformService, OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY } = await import(
+      '@sdkwork/claw-core'
+    );
+    const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+
+    const originalBridge = getPlatformBridge();
+    const originalEnsureRunning = kernelPlatformService.ensureRunning;
+    const originalGetInfo = kernelPlatformService.getInfo;
+    const fileSystem: Record<string, string> = {
+      'D:/Users/admin/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {},
+  models: { providers: {} },
+  agents: { defaults: {} },
+}`,
+    };
+    const instanceState = {
+      instances: [],
+      created: [] as Array<Record<string, unknown>>,
+      updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
+    };
+    const storageSeed = {
+      'default-sqlite:studio.provider-center:provider-config-meta-primary': JSON.stringify({
+        id: 'provider-config-meta-primary',
+        name: 'Meta Llama Primary',
+        providerId: 'meta',
+        baseUrl: 'https://meta.example.com/v1',
+        apiKey: '<SECRET>',
+        defaultModelId: 'llama-4-maverick',
+        models: [
+          {
+            id: 'llama-4-maverick',
+            name: 'Llama 4 Maverick',
+          },
+        ],
+        config: {
+          temperature: 0.2,
+          topP: 1,
+          maxTokens: 8192,
+          timeoutMs: 60000,
+          streaming: true,
+        },
+        createdAt: 1,
+        updatedAt: 2,
+      }),
+    };
+
+    configurePlatformBridge({
+      platform: createPlatformStub(fileSystem),
+      storage: createStorageStub(storageSeed),
+      studio: createStudioStub(originalBridge.studio, instanceState),
+    });
+
+    kernelPlatformService.ensureRunning = async () => null;
+    kernelPlatformService.getInfo = async () =>
+      ({
+        localAiProxy: {
+          lifecycle: 'running',
+          baseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+          rootBaseUrl: 'http://ai.sdkwork.localhost:18791',
+          openaiCompatibleBaseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+          anthropicBaseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+          geminiBaseUrl: 'http://ai.sdkwork.localhost:18791',
+          activePort: 18791,
+          loopbackOnly: true,
+          defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+          defaultRouteName: 'SDKWork Default',
+          upstreamBaseUrl: 'https://ai.sdkwork.com',
+          modelCount: 3,
+          configPath: 'D:/state/local-ai-proxy.json',
+          snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+          logPath: 'D:/logs/local-ai-proxy.log',
+          lastError: null,
+        },
+      }) as any;
+
+    try {
+      const data = await openClawBootstrapService.loadBootstrapData({
+        assessment: createAssessmentResult(),
+        installResult: createInstallResult(),
+      });
+
+      assert.equal(
+        data.providers.some(
+          (provider) =>
+            provider.id === 'provider-config-meta-primary' &&
+            provider.channelId === 'meta' &&
+            provider.baseUrl === 'http://ai.sdkwork.localhost:18791/v1' &&
+            provider.apiKey === OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+        ),
+        true,
+      );
+    } finally {
+      kernelPlatformService.ensureRunning = originalEnsureRunning;
+      kernelPlatformService.getInfo = originalGetInfo;
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
 
 await runTest('openClawBootstrapService includes a real gateway validation snapshot instead of assuming the runtime is ready', async () => {
   const { configurePlatformBridge, getPlatformBridge, openClawGatewayClient } = await import(
@@ -317,9 +634,35 @@ await runTest('openClawBootstrapService includes a real gateway validation snaps
     created: [] as Array<Record<string, unknown>>,
     updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
   };
+  const storageSeed = {
+    'default-sqlite:studio.provider-center:provider-config-openai-primary': JSON.stringify({
+      id: 'provider-config-openai-primary',
+      name: 'OpenAI Primary',
+      providerId: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '<SECRET>',
+      defaultModelId: 'gpt-4.1',
+      models: [
+        {
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
+        },
+      ],
+      config: {
+        temperature: 0.2,
+        topP: 1,
+        maxTokens: 8192,
+        timeoutMs: 60000,
+        streaming: true,
+      },
+      createdAt: 1,
+      updatedAt: 2,
+    }),
+  };
 
   configurePlatformBridge({
     platform: createPlatformStub(fileSystem),
+    storage: createStorageStub(storageSeed),
     studio: createStudioStub(originalBridge.studio, instanceState),
   });
   openClawGatewayClient.validateAccess = async () => ({
@@ -346,6 +689,406 @@ await runTest('openClawBootstrapService includes a real gateway validation snaps
     assert.equal(snapshot.gatewayStatus, 'unreachable');
   } finally {
     openClawGatewayClient.validateAccess = originalValidateAccess;
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawBootstrapService applies provider-center routes through the managed local proxy projection', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import(
+    '@sdkwork/claw-infrastructure'
+  );
+  const {
+    kernelPlatformService,
+    openClawConfigService,
+  } = await import('@sdkwork/claw-core');
+
+  const originalBridge = getPlatformBridge();
+  const originalEnsureRunning = kernelPlatformService.ensureRunning;
+  const originalGetInfo = kernelPlatformService.getInfo;
+  const originalSaveManagedLocalProxyProjection =
+    openClawConfigService.saveManagedLocalProxyProjection.bind(openClawConfigService);
+  const originalSaveProviderSelection =
+    openClawConfigService.saveProviderSelection.bind(openClawConfigService);
+
+  const fileSystem: Record<string, string> = {
+    'D:/Users/admin/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {},
+  models: { providers: {} },
+  agents: { defaults: {} },
+}`,
+  };
+  const instanceState = {
+    instances: [],
+    created: [] as Array<Record<string, unknown>>,
+    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
+  };
+  const storageSeed = {
+    'default-sqlite:studio.provider-center:provider-config-openai-primary': JSON.stringify({
+      id: 'provider-config-openai-primary',
+      schemaVersion: 1,
+      name: 'OpenAI Primary',
+      enabled: true,
+      isDefault: true,
+      managedBy: 'user',
+      clientProtocol: 'openai-compatible',
+      upstreamProtocol: 'openai-compatible',
+      providerId: 'openai',
+      upstreamBaseUrl: 'https://api.openai.com/v1',
+      apiKey: 'sk-openai',
+      defaultModelId: 'gpt-5.4',
+      reasoningModelId: 'o4-mini',
+      models: [
+        {
+          id: 'gpt-5.4',
+          name: 'GPT-5.4',
+        },
+        {
+          id: 'o4-mini',
+          name: 'o4-mini',
+        },
+      ],
+      config: {
+        temperature: 0.35,
+        topP: 0.9,
+        maxTokens: 24000,
+        timeoutMs: 90000,
+        streaming: false,
+      },
+      createdAt: 1,
+      updatedAt: 2,
+    }),
+  };
+  const projectionCalls: Array<Record<string, unknown>> = [];
+  const ensureCalls: string[] = [];
+
+  configurePlatformBridge({
+    platform: createPlatformStub(fileSystem),
+    storage: createStorageStub(storageSeed),
+    studio: createStudioStub(originalBridge.studio, instanceState),
+  });
+
+  kernelPlatformService.ensureRunning = async () => {
+    ensureCalls.push('ensureRunning');
+    return null;
+  };
+  kernelPlatformService.getInfo = async () =>
+    ({
+      localAiProxy: {
+        lifecycle: 'running',
+        baseUrl: 'http://localhost:18791/v1',
+        rootBaseUrl: 'http://localhost:18791',
+        openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
+        anthropicBaseUrl: 'http://localhost:18791/v1',
+        geminiBaseUrl: 'http://localhost:18791',
+        activePort: 18791,
+        loopbackOnly: true,
+        defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+        defaultRouteName: 'SDKWork Default',
+        upstreamBaseUrl: 'https://ai.sdkwork.com',
+        modelCount: 2,
+        configPath: 'D:/state/local-ai-proxy.json',
+        snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+        logPath: 'D:/logs/local-ai-proxy.log',
+        lastError: null,
+      },
+    }) as any;
+  openClawConfigService.saveManagedLocalProxyProjection = async (input) => {
+    projectionCalls.push(input as Record<string, unknown>);
+    return null as any;
+  };
+  openClawConfigService.saveProviderSelection = async () => {
+    throw new Error('raw upstream provider writes should not be used during bootstrap apply');
+  };
+
+  try {
+    const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+
+    const result = await openClawBootstrapService.applyConfiguration({
+      configPath: 'D:/Users/admin/.openclaw/openclaw.json',
+      syncedInstanceId: 'synced-1',
+      providerId: 'provider-config-openai-primary',
+      modelSelection: {
+        defaultModelId: 'gpt-5.4',
+        reasoningModelId: 'o4-mini',
+      },
+      channels: [],
+      disabledChannelIds: [],
+    });
+
+    assert.deepEqual(ensureCalls, ['ensureRunning']);
+    assert.equal(projectionCalls.length, 1);
+    assert.deepEqual(projectionCalls[0], {
+      configPath: 'D:/Users/admin/.openclaw/openclaw.json',
+      projection: {
+        sourceRoute: {
+          id: 'provider-config-openai-primary',
+          schemaVersion: 1,
+          name: 'OpenAI Primary',
+          enabled: true,
+          isDefault: true,
+          managedBy: 'user',
+          clientProtocol: 'openai-compatible',
+          upstreamProtocol: 'openai-compatible',
+          providerId: 'openai',
+          upstreamBaseUrl: 'https://api.openai.com/v1',
+          apiKey: 'sk-openai',
+          defaultModelId: 'gpt-5.4',
+          reasoningModelId: 'o4-mini',
+          embeddingModelId: undefined,
+          models: [
+            {
+              id: 'gpt-5.4',
+              name: 'GPT-5.4',
+            },
+            {
+              id: 'o4-mini',
+              name: 'o4-mini',
+            },
+          ],
+          notes: undefined,
+          exposeTo: ['openclaw'],
+        },
+        provider: {
+          id: 'sdkwork-local-proxy',
+          channelId: 'openai-compatible',
+          name: 'SDKWork Local Proxy',
+          apiKey: 'sk_sdkwork_api_key',
+          baseUrl: 'http://localhost:18791/v1',
+          models: [
+            {
+              id: 'gpt-5.4',
+              name: 'GPT-5.4',
+            },
+            {
+              id: 'o4-mini',
+              name: 'o4-mini',
+            },
+          ],
+          notes: 'Managed local proxy projection for route "OpenAI Primary".',
+          config: {
+            temperature: 0.35,
+            topP: 0.9,
+            maxTokens: 24000,
+            timeoutMs: 90000,
+            streaming: false,
+          },
+        },
+        selection: {
+          defaultModelId: 'gpt-5.4',
+          reasoningModelId: 'o4-mini',
+          embeddingModelId: undefined,
+        },
+      },
+    });
+    assert.equal(result.providerId, 'provider-config-openai-primary');
+    assert.equal(result.syncedInstanceId, 'synced-1');
+  } finally {
+    kernelPlatformService.ensureRunning = originalEnsureRunning;
+    kernelPlatformService.getInfo = originalGetInfo;
+    openClawConfigService.saveManagedLocalProxyProjection =
+      originalSaveManagedLocalProxyProjection;
+    openClawConfigService.saveProviderSelection = originalSaveProviderSelection;
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawBootstrapService applies native gemini provider-center routes through the gemini local proxy endpoint', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import(
+    '@sdkwork/claw-infrastructure'
+  );
+  const {
+    kernelPlatformService,
+    openClawConfigService,
+  } = await import('@sdkwork/claw-core');
+
+  const originalBridge = getPlatformBridge();
+  const originalEnsureRunning = kernelPlatformService.ensureRunning;
+  const originalGetInfo = kernelPlatformService.getInfo;
+  const originalSaveManagedLocalProxyProjection =
+    openClawConfigService.saveManagedLocalProxyProjection.bind(openClawConfigService);
+  const originalSaveProviderSelection =
+    openClawConfigService.saveProviderSelection.bind(openClawConfigService);
+
+  const fileSystem: Record<string, string> = {
+    'D:/Users/admin/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {},
+  models: { providers: {} },
+  agents: { defaults: {} },
+}`,
+  };
+  const instanceState = {
+    instances: [],
+    created: [] as Array<Record<string, unknown>>,
+    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
+  };
+  const storageSeed = {
+    'default-sqlite:studio.provider-center:provider-config-gemini-native': JSON.stringify({
+      id: 'provider-config-gemini-native',
+      schemaVersion: 1,
+      name: 'Gemini Native',
+      enabled: true,
+      isDefault: true,
+      managedBy: 'user',
+      clientProtocol: 'gemini',
+      upstreamProtocol: 'gemini',
+      providerId: 'google',
+      upstreamBaseUrl: 'https://generativelanguage.googleapis.com',
+      apiKey: 'sk-gemini',
+      defaultModelId: 'gemini-2.5-pro',
+      embeddingModelId: 'text-embedding-004',
+      models: [
+        {
+          id: 'gemini-2.5-pro',
+          name: 'Gemini 2.5 Pro',
+        },
+        {
+          id: 'text-embedding-004',
+          name: 'text-embedding-004',
+        },
+      ],
+      config: {
+        temperature: 0.25,
+        topP: 0.95,
+        maxTokens: 32000,
+        timeoutMs: 70000,
+        streaming: true,
+      },
+      createdAt: 1,
+      updatedAt: 2,
+    }),
+  };
+  const projectionCalls: Array<Record<string, unknown>> = [];
+  const ensureCalls: string[] = [];
+
+  configurePlatformBridge({
+    platform: createPlatformStub(fileSystem),
+    storage: createStorageStub(storageSeed),
+    studio: createStudioStub(originalBridge.studio, instanceState),
+  });
+
+  kernelPlatformService.ensureRunning = async () => {
+    ensureCalls.push('ensureRunning');
+    return null;
+  };
+  kernelPlatformService.getInfo = async () =>
+    ({
+      localAiProxy: {
+        lifecycle: 'running',
+        baseUrl: 'http://localhost:18791/v1',
+        rootBaseUrl: 'http://localhost:18791',
+        openaiCompatibleBaseUrl: 'http://localhost:18791/v1',
+        anthropicBaseUrl: 'http://localhost:18791/v1',
+        geminiBaseUrl: 'http://localhost:18791',
+        activePort: 18791,
+        loopbackOnly: true,
+        defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+        defaultRouteName: 'SDKWork Default',
+        upstreamBaseUrl: 'https://ai.sdkwork.com',
+        modelCount: 2,
+        configPath: 'D:/state/local-ai-proxy.json',
+        snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+        logPath: 'D:/logs/local-ai-proxy.log',
+        lastError: null,
+      },
+    }) as any;
+  openClawConfigService.saveManagedLocalProxyProjection = async (input) => {
+    projectionCalls.push(input as Record<string, unknown>);
+    return null as any;
+  };
+  openClawConfigService.saveProviderSelection = async () => {
+    throw new Error('raw upstream provider writes should not be used during bootstrap apply');
+  };
+
+  try {
+    const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+
+    const result = await openClawBootstrapService.applyConfiguration({
+      configPath: 'D:/Users/admin/.openclaw/openclaw.json',
+      syncedInstanceId: 'synced-1',
+      providerId: 'provider-config-gemini-native',
+      modelSelection: {
+        defaultModelId: 'gemini-2.5-pro',
+        embeddingModelId: 'text-embedding-004',
+      },
+      channels: [],
+      disabledChannelIds: [],
+    });
+
+    assert.deepEqual(ensureCalls, ['ensureRunning']);
+    assert.equal(projectionCalls.length, 1);
+    assert.deepEqual(projectionCalls[0], {
+      configPath: 'D:/Users/admin/.openclaw/openclaw.json',
+      projection: {
+        sourceRoute: {
+          id: 'provider-config-gemini-native',
+          schemaVersion: 1,
+          name: 'Gemini Native',
+          enabled: true,
+          isDefault: true,
+          managedBy: 'user',
+          clientProtocol: 'gemini',
+          upstreamProtocol: 'gemini',
+          providerId: 'google',
+          upstreamBaseUrl: 'https://generativelanguage.googleapis.com',
+          apiKey: 'sk-gemini',
+          defaultModelId: 'gemini-2.5-pro',
+          reasoningModelId: undefined,
+          embeddingModelId: 'text-embedding-004',
+          models: [
+            {
+              id: 'gemini-2.5-pro',
+              name: 'Gemini 2.5 Pro',
+            },
+            {
+              id: 'text-embedding-004',
+              name: 'text-embedding-004',
+            },
+          ],
+          notes: undefined,
+          exposeTo: ['openclaw'],
+        },
+        provider: {
+          id: 'sdkwork-local-proxy',
+          channelId: 'gemini',
+          name: 'SDKWork Local Proxy',
+          apiKey: 'sk_sdkwork_api_key',
+          baseUrl: 'http://localhost:18791',
+          models: [
+            {
+              id: 'gemini-2.5-pro',
+              name: 'Gemini 2.5 Pro',
+            },
+            {
+              id: 'text-embedding-004',
+              name: 'text-embedding-004',
+            },
+          ],
+          notes: 'Managed local proxy projection for route "Gemini Native".',
+          config: {
+            temperature: 0.25,
+            topP: 0.95,
+            maxTokens: 32000,
+            timeoutMs: 70000,
+            streaming: true,
+          },
+        },
+        selection: {
+          defaultModelId: 'gemini-2.5-pro',
+          reasoningModelId: undefined,
+          embeddingModelId: 'text-embedding-004',
+        },
+      },
+    });
+    assert.equal(result.providerId, 'provider-config-gemini-native');
+    assert.equal(result.syncedInstanceId, 'synced-1');
+  } finally {
+    kernelPlatformService.ensureRunning = originalEnsureRunning;
+    kernelPlatformService.getInfo = originalGetInfo;
+    openClawConfigService.saveManagedLocalProxyProjection =
+      originalSaveManagedLocalProxyProjection;
+    openClawConfigService.saveProviderSelection = originalSaveProviderSelection;
     configurePlatformBridge(originalBridge);
   }
 });

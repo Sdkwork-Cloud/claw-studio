@@ -18,11 +18,6 @@ export interface AppEnvConfig {
   auth: {
     accessToken: string;
   };
-  apiRouter: {
-    adminBaseUrl: string;
-    gatewayBaseUrl: string;
-    adminToken: string;
-  };
   update: {
     appId: number | null;
     releaseChannel: string;
@@ -142,11 +137,6 @@ export function createAppEnvConfig(source: AppEnvSource = readRuntimeEnvSource()
     auth: {
       accessToken,
     },
-    apiRouter: {
-      adminBaseUrl: normalizeBaseUrl(readString(source, 'VITE_API_ROUTER_ADMIN_BASE_URL')),
-      gatewayBaseUrl: normalizeBaseUrl(readString(source, 'VITE_API_ROUTER_GATEWAY_BASE_URL')),
-      adminToken: normalizeAccessToken(readString(source, 'VITE_API_ROUTER_ADMIN_TOKEN')),
-    },
     update: {
       appId,
       releaseChannel: readString(source, 'VITE_RELEASE_CHANNEL', DEFAULT_RELEASE_CHANNEL) || DEFAULT_RELEASE_CHANNEL,
@@ -167,10 +157,6 @@ export const APP_ENV = createAppEnvConfig();
 
 export function readAccessToken(config: AppEnvConfig = APP_ENV): string {
   return config.auth.accessToken;
-}
-
-export function readApiRouterAdminToken(config: AppEnvConfig = APP_ENV): string {
-  return config.apiRouter.adminToken;
 }
 
 export function hasDesktopUpdateConfig(config: AppEnvConfig = APP_ENV): boolean {

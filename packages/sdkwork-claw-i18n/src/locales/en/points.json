@@ -1,0 +1,260 @@
+{
+  "units": {
+    "points": "Points"
+  },
+  "filters": {
+    "all": "All Records",
+    "earned": "Earned",
+    "spent": "Spent"
+  },
+  "cycles": {
+    "monthly": "Monthly",
+    "yearly": "Yearly"
+  },
+  "paymentMethods": {
+    "wechat": "WeChat Pay",
+    "alipay": "Alipay",
+    "bankcard": "Bank Card"
+  },
+  "header": {
+    "upgrade": "Upgrade Plus",
+    "upgradeShort": "Plus",
+    "pointsButton": "Open points panel"
+  },
+  "quickPanel": {
+    "eyebrow": "Points Wallet",
+    "pointsAvailable": "Available points",
+    "guestHint": "Sign in to read your live points and membership.",
+    "currentPlan": "Current Plan",
+    "thisMonth": "This Month",
+    "recharge": "Recharge Points",
+    "rechargeHint": "Top up in common amounts or use a custom value.",
+    "upgrade": "Upgrade Membership",
+    "upgradeHint": "Unlock monthly bundled points and advanced workflows.",
+    "authRequired": "Sign in to continue with points and membership actions.",
+    "recentRecords": "Recent Records",
+    "openCenter": "Open Points Center",
+    "noRecords": "No recent point records yet."
+  },
+  "page": {
+    "eyebrow": "Points Center",
+    "title": "Manage Points, Recharge, and Usage",
+    "description": "Track your live point balance, recharge at the backend-configured rate, and purchase available VIP packs from the shared app SDK.",
+    "rechargeAction": "Recharge Points",
+    "upgradeAction": "Upgrade Plus",
+    "availablePoints": "Current Balance",
+    "growthHint": "Keep your workflows running with ready-to-use points.",
+    "currentPlan": "Membership Plan",
+    "planMeta": "{{cycle}} cycle, instant grant of {{grant}} points",
+    "planPrice": "{{amount}} for the current cycle",
+    "earnedThisMonth": "Earned This Month",
+    "spentThisMonth": "Spent This Month",
+    "monthlyGrant": "Bundled Grant",
+    "noGrant": "No included grant",
+    "rateTitle": "Exchange Rate",
+    "rateValue": "{{rate}} pts / CNY 1",
+    "rateMeta": "{{rate}} points recharge 1 CNY",
+    "rateUnavailable": "Rate unavailable",
+    "recordsEyebrow": "Point Ledger",
+    "recordsTitle": "All Point Records",
+    "empty": "No point records found for this filter.",
+    "errorTitle": "Failed to load points",
+    "errorDescription": "Please retry after the shared app SDK becomes available again.",
+    "retry": "Retry"
+  },
+  "rechargeDialog": {
+    "eyebrow": "Points Recharge",
+    "title": "Recharge Points",
+    "description": "Choose a preset or custom amount, review the backend exchange rate, and submit the recharge through the real app SDK.",
+    "payable": "Payable now",
+    "commonAmounts": "Common point amounts",
+    "configureTitle": "Configure this recharge",
+    "configureDescription": "Preset values stay as quick actions, but the payable amount always comes from the backend-configured points-to-cash rate.",
+    "customAmount": "Custom points",
+    "customPlaceholder": "Enter a whole-number point value",
+    "backToForm": "Back to recharge setup",
+    "summaryEyebrow": "Recharge information",
+    "summaryTitle": "Review this points recharge",
+    "summaryDescription": "The live rate, chosen payment method, and payable amount all come from the real points recharge contract.",
+    "summaryMeta": "Buy {{points}} points for {{amount}}",
+    "rechargeDetailsTitle": "Points package",
+    "rechargeDetailsDescription": "Review the points quantity, original price, and actual payment here, then complete payment from the QR code on the right.",
+    "selectedPointsLabel": "Points to buy",
+    "purchaseTypeLabel": "Recharge type",
+    "originalPriceLabel": "Original price",
+    "actualPriceLabel": "Actual payment",
+    "exchangeRateLabel": "Exchange rate",
+    "exchangeRateValue": "{{rate}} pts / CNY 1",
+    "rateUnavailable": "The backend has not returned a valid exchange rate yet.",
+    "presetMeta": "Pay {{amount}}",
+    "presetPurchase": "Preset amount",
+    "customPurchase": "Custom amount",
+    "paymentEyebrow": "Scan to pay",
+    "paymentTitle": "Scan to complete the recharge",
+    "paymentDescription": "The QR code on the right updates with the selected payment method.",
+    "qrAlt": "{{method}} recharge QR code",
+    "scanHint": "Use {{method}} to scan the QR code above",
+    "paymentTip": "Confirming sends a live recharge request for {{points}} points and refreshes the wallet after the payment result returns.",
+    "paymentMethod": "Payment Method",
+    "tip": "Recharge uses the live account wallet service. Balance, history, and the quick panel refresh after the backend confirms the payment result.",
+    "continueToPayment": "Continue to payment",
+    "confirm": "Confirm Recharge",
+    "confirmPayment": "I've completed the recharge"
+  },
+  "upgradeDialog": {
+    "eyebrow": "Membership Upgrade",
+    "title": "Upgrade your subscription plan",
+    "description": "Choose from the live VIP packs exposed by the app SDK and submit the purchase with the real membership contract.",
+    "save20": "Save 20%",
+    "pointsGrant": "Instant bundled grant",
+    "pointsGrantValue": "{{points}} points",
+    "noGrant": "No included points",
+    "includedBenefits": "Included benefits",
+    "backToPlans": "Back to plans",
+    "summaryEyebrow": "Package information",
+    "summaryTitle": "Confirm the selected package",
+    "summaryDescription": "Review the current membership, selected package, duration, and bundled points before submitting the VIP purchase.",
+    "currentMembership": "Current membership",
+    "defaultPlanDescription": "This VIP pack is available through the shared app SDK and can be activated immediately after purchase.",
+    "noPlans": "No VIP packs are available right now.",
+    "summaryMeta": "{{cycle}} cycle with an instant grant of {{points}} points",
+    "paymentLockedHint": "The payment page is read-only. Use the back action in the top-left corner if you need to change the plan or monthly/yearly cycle.",
+    "paymentSummaryHint": "Need a different package or cycle? Use the back action in the top-left corner first.",
+    "currentPlanHint": "This selection matches your current active plan cycle, so there is nothing new to activate.",
+    "paymentEyebrow": "Scan to pay",
+    "paymentTitle": "Scan to complete payment",
+    "paymentDescription": "The right side keeps the active QR code and payment summary in sync with your selected method.",
+    "qrAlt": "{{method}} payment QR code",
+    "scanHint": "Use {{method}} to scan the QR code above",
+    "paymentTip": "Confirming submits a live membership purchase for {{points}} points and refreshes the plan summary after the backend responds.",
+    "confirmPayment": "I've completed payment",
+    "agreementPrefix": "By paying, you acknowledge and agree to",
+    "membershipAgreement": "Membership Benefits Notice",
+    "agreementJoiner": "and",
+    "serviceAgreement": "Subscription Service Agreement",
+    "packageDetailsTitle": "Package information",
+    "packageDetailsDescription": "Check the package, cycle, bundled points, and price before continuing to pay.",
+    "lockedBadge": "Locked",
+    "packageNameLabel": "Plan",
+    "durationLabel": "Duration",
+    "durationValue": "{{days}} days",
+    "durationUnknown": "Duration unavailable",
+    "billingCycleLabel": "Billing cycle",
+    "grantPointsLabel": "Bundled points",
+    "originalPriceLabel": "Original price",
+    "actualPriceLabel": "Actual payment",
+    "totalPriceLabel": "Amount due"
+  },
+  "auth": {
+    "signInRequired": "Sign in to read, recharge, or upgrade your live points balance."
+  },
+  "membership": {
+    "guest": "Guest",
+    "free": "Free",
+    "vip": "VIP",
+    "freeMeta": "You are currently using the free membership tier.",
+    "remainingDays": "{{days}} days remaining",
+    "expireAt": "Expires on {{date}}"
+  },
+  "status": {
+    "completed": "Completed",
+    "pending": "Pending",
+    "failed": "Failed"
+  },
+  "planBadges": {
+    "recommended": "Recommended",
+    "current": "Current",
+    "free": "Free"
+  },
+  "plans": {
+    "free": {
+      "title": "Free",
+      "tagline": "A clean starting point for exploration and light daily use.",
+      "audience": "Best for first-time users and product evaluation.",
+      "benefits": [
+        "Daily sign-in rewards stay available",
+        "Core chat and workflow capabilities remain open",
+        "Upgrade to paid plans whenever capacity increases"
+      ]
+    },
+    "plus": {
+      "title": "Plus",
+      "tagline": "A focused plan for creators and operators who need steady output.",
+      "audience": "Great for individual creators and compact execution teams.",
+      "benefits": [
+        "8,800 bundled points every month",
+        "200 extra free points every day",
+        "Priority access to higher-intensity workflow runs"
+      ]
+    },
+    "pro": {
+      "title": "Pro",
+      "tagline": "More monthly capacity for multi-task production and automation.",
+      "audience": "Built for teams handling deeper automation and heavier throughput.",
+      "benefits": [
+        "17,600 bundled points every month",
+        "Higher concurrency for complex task batches",
+        "Better fit for cross-team content and operations flows"
+      ]
+    },
+    "ultra": {
+      "title": "Ultra",
+      "tagline": "A team-scale plan for always-on automation and larger delivery loops.",
+      "audience": "Designed for scaled teams with continuous workflow demand.",
+      "benefits": [
+        "44,000 bundled points every month",
+        "Supports long-running high-load workflows",
+        "Best fit for team-wide automation coverage"
+      ]
+    }
+  },
+  "transactions": {
+    "dailyCheckIn": {
+      "title": "Daily check-in reward",
+      "description": "Your daily sign-in points have arrived."
+    },
+    "aiImageGeneration": {
+      "title": "AI image generation spend",
+      "description": "Points used for a high-resolution image task."
+    },
+    "referralReward": {
+      "title": "Referral reward",
+      "description": "Reward earned after a new user joined from your invite."
+    },
+    "workflowRun": {
+      "title": "Workflow execution spend",
+      "description": "Points used for an automation run."
+    },
+    "welcomePack": {
+      "title": "Welcome bonus pack",
+      "description": "Starter bonus points granted on first login."
+    },
+    "manualTopUp": {
+      "title": "Points recharge",
+      "description": "Recharged via {{method}} for {{amount}}."
+    },
+    "planUpgrade": {
+      "title": "{{plan}} {{cycle}} plan activated",
+      "description": "{{points}} bundled points were granted instantly for {{amount}}."
+    },
+    "fallback": {
+      "title": "Point change",
+      "description": "Your point balance changed."
+    }
+  },
+  "actions": {
+    "processing": "Processing...",
+    "currentPlan": "Current Plan",
+    "freePlan": "Current Free Plan",
+    "upgradeNow": "Upgrade Now",
+    "selectedPlan": "Selected",
+    "selectPlan": "Select this pack"
+  },
+  "toasts": {
+    "rechargeSuccess": "{{points}} points added successfully.",
+    "rechargeFailed": "Recharge failed. Please try again.",
+    "upgradeSuccess": "{{plan}} activated and {{points}} points granted.",
+    "upgradeFailed": "Upgrade failed. Please try again.",
+    "invalidCustomPoints": "Please enter a positive whole-number point amount."
+  }
+}

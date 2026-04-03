@@ -1,12 +1,33 @@
-import type { OpenClawConfigSnapshot } from '@sdkwork/claw-core';
-import type {
-  ApiRouterChannelDto,
-  ApiRouterModelDto,
-  ApiRouterProviderDto,
-} from '@sdkwork/claw-infrastructure';
-import type { LLMChannel, LLMModel } from '@sdkwork/claw-settings';
+import {
+  normalizeLegacyProviderId,
+  type OpenClawConfigSnapshot,
+  type LLMChannel,
+  type LLMModel,
+} from '@sdkwork/claw-core';
 import type { StudioInstanceDetailRecord, StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
+
+type RouterChannelRecord = {
+  id: string;
+  name: string;
+};
+
+type RouterProviderChannelBindingRecord = {
+  channel_id: string;
+  is_primary: boolean;
+};
+
+type RouterProviderRecord = {
+  id: string;
+  channel_id: string;
+  base_url: string;
+  channel_bindings?: RouterProviderChannelBindingRecord[];
+};
+
+type RouterModelRecord = {
+  external_name: string;
+  provider_id: string;
+};
 
 type GatewayModelRecord = {
   id?: string;
@@ -52,9 +73,9 @@ export interface InstanceEffectiveModelCatalogService {
 export interface InstanceEffectiveModelCatalogDependencies {
   getInstance: (instanceId: string) => Promise<StudioInstanceRecord | null>;
   getInstanceDetail: (instanceId: string) => Promise<StudioInstanceDetailRecord | null>;
-  listRouterChannels: () => Promise<ApiRouterChannelDto[]>;
-  listRouterProviders: () => Promise<ApiRouterProviderDto[]>;
-  listRouterModels: () => Promise<ApiRouterModelDto[]>;
+  listRouterChannels: () => Promise<RouterChannelRecord[]>;
+  listRouterProviders: () => Promise<RouterProviderRecord[]>;
+  listRouterModels: () => Promise<RouterModelRecord[]>;
   resolveOpenClawConfigPath: (
     detail: StudioInstanceDetailRecord | null | undefined,
   ) => string | null;
@@ -75,13 +96,7 @@ const CHANNEL_ICON_MAP: Record<string, string> = {
   zhipu: 'ZP',
 };
 
-function normalizeProviderId(providerId: string) {
-  return providerId.startsWith('api-router-')
-    ? providerId.slice('api-router-'.length)
-    : providerId;
-}
-
-function resolveProviderChannelId(provider: ApiRouterProviderDto) {
+function resolveProviderChannelId(provider: RouterProviderRecord) {
   return (
     provider.channel_bindings?.find((binding) => binding.is_primary)?.channel_id ||
     provider.channel_id
@@ -248,7 +263,7 @@ function resolveGatewayModelIdentity(entry: GatewayModelRecord): GatewayModelIde
     return null;
   }
 
-  const normalizedProviderId = normalizeProviderId(
+  const normalizedProviderId = normalizeLegacyProviderId(
     providerId ?? trimString(modelRef.split('/')[0]) ?? 'openclaw',
   );
   return {
@@ -260,9 +275,9 @@ function resolveGatewayModelIdentity(entry: GatewayModelRecord): GatewayModelIde
 }
 
 function buildRouterCatalog(params: {
-  channels: ApiRouterChannelDto[];
-  providers: ApiRouterProviderDto[];
-  models: ApiRouterModelDto[];
+  channels: RouterChannelRecord[];
+  providers: RouterProviderRecord[];
+  models: RouterModelRecord[];
 }) {
   const channelById = new Map(params.channels.map((channel) => [channel.id, channel]));
   const providerById = new Map(params.providers.map((provider) => [provider.id, provider]));
@@ -276,7 +291,7 @@ function buildRouterCatalog(params: {
 
     const channelId = resolveProviderChannelId(provider);
     const channel = channelById.get(channelId);
-    const providerId = normalizeProviderId(provider.id);
+    const providerId = normalizeLegacyProviderId(provider.id);
     const modelId = model.external_name.trim();
     if (!modelId) {
       continue;
@@ -451,7 +466,7 @@ class DefaultInstanceEffectiveModelCatalogService
     const configSnapshot = await this.dependencies.readOpenClawConfigSnapshot(configPath);
     const preferredModelId = resolvePreferredOpenClawModelId(configSnapshot, agentId);
     const configuredProviderIds = new Set(
-      configSnapshot.providerSnapshots.map((provider) => normalizeProviderId(provider.id)),
+      configSnapshot.providerSnapshots.map((provider) => normalizeLegacyProviderId(provider.id)),
     );
     const filtered = routerCatalog.filter(
       (entry) =>

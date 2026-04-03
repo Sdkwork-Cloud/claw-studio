@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
-import type { RuntimeDesktopKernelInfo } from '@sdkwork/claw-infrastructure';
+import type {
+  HostPlatformStatusRecord,
+  ManageRolloutListResult,
+  RuntimeDesktopKernelInfo,
+} from '@sdkwork/claw-infrastructure';
 import type { KernelPlatformSnapshot } from '@sdkwork/claw-core';
+import {
+  DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
+  DEFAULT_BUNDLED_OPENCLAW_VERSION,
+} from '../../../sdkwork-claw-types/src/openclawRelease.ts';
+
+const LOCAL_AI_PROXY_ROOT_BASE_URL = 'http://localhost:18791';
+const LOCAL_AI_PROXY_BASE_URL = `${LOCAL_AI_PROXY_ROOT_BASE_URL}/v1`;
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -54,15 +65,15 @@ function createSnapshot(
     },
     provenance: {
       runtimeId: 'openclaw',
-      installKey: '2026.3.28-windows-x64',
-      openclawVersion: '2026.3.28',
-      nodeVersion: '22.14.0',
+      installKey: `${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+      openclawVersion: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      nodeVersion: DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
       configPath: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home/.openclaw/openclaw.json',
       runtimeHomeDir: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home',
-      runtimeInstallDir: 'C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/2026.3.28-windows-x64',
+      runtimeInstallDir: `C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
     },
   };
 
@@ -177,6 +188,53 @@ function createKernelInfo(
         },
       ],
     },
+    localAiProxy: {
+      lifecycle: 'running',
+      baseUrl: LOCAL_AI_PROXY_BASE_URL,
+      rootBaseUrl: LOCAL_AI_PROXY_ROOT_BASE_URL,
+      openaiCompatibleBaseUrl: LOCAL_AI_PROXY_BASE_URL,
+      anthropicBaseUrl: LOCAL_AI_PROXY_BASE_URL,
+      geminiBaseUrl: LOCAL_AI_PROXY_ROOT_BASE_URL,
+      activePort: 18791,
+      loopbackOnly: true,
+      defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+      defaultRouteName: 'SDKWork Default',
+      defaultRoutes: [
+        {
+          clientProtocol: 'openai-compatible',
+          id: 'local-ai-proxy-system-default-openai-compatible',
+          name: 'SDKWork Default',
+          managedBy: 'system-default',
+          upstreamProtocol: 'sdkwork',
+          upstreamBaseUrl: 'https://ai.sdkwork.com',
+          modelCount: 3,
+        },
+        {
+          clientProtocol: 'anthropic',
+          id: 'local-ai-proxy-system-default-anthropic',
+          name: 'SDKWork Anthropic Default',
+          managedBy: 'system-default',
+          upstreamProtocol: 'sdkwork',
+          upstreamBaseUrl: 'https://ai.sdkwork.com',
+          modelCount: 3,
+        },
+        {
+          clientProtocol: 'gemini',
+          id: 'local-ai-proxy-system-default-gemini',
+          name: 'SDKWork Gemini Default',
+          managedBy: 'system-default',
+          upstreamProtocol: 'sdkwork',
+          upstreamBaseUrl: 'https://ai.sdkwork.com',
+          modelCount: 3,
+        },
+      ],
+      upstreamBaseUrl: 'https://ai.sdkwork.com',
+      modelCount: 3,
+      configPath: 'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.json',
+      snapshotPath: 'C:/ProgramData/SdkWork/ClawStudio/runtime/state/local-ai-proxy.snapshot.json',
+      logPath: 'C:/ProgramData/SdkWork/ClawStudio/logs/app/local-ai-proxy.log',
+      lastError: null,
+    },
     bundledComponents: {
       componentCount: 2,
       defaultStartupComponentIds: ['openclaw'],
@@ -187,7 +245,7 @@ function createKernelInfo(
           id: 'openclaw',
           displayName: 'OpenClaw',
           kind: 'runtime',
-          bundledVersion: '2026.3.28',
+          bundledVersion: DEFAULT_BUNDLED_OPENCLAW_VERSION,
           startupMode: 'embedded',
           installSubdir: 'runtime/openclaw',
         },
@@ -218,6 +276,50 @@ function createKernelInfo(
   };
 }
 
+function createHostPlatformStatus(
+  overrides: Partial<HostPlatformStatusRecord> = {},
+): HostPlatformStatusRecord {
+  return {
+    mode: 'desktopCombined',
+    lifecycle: 'ready',
+    hostId: 'desktop-combined',
+    displayName: 'Desktop Combined Host',
+    version: '0.1.0',
+    desiredStateProjectionVersion: 'phase1',
+    rolloutEngineVersion: 'phase1',
+    manageBasePath: '/claw/manage/v1',
+    internalBasePath: '/claw/internal/v1',
+    capabilityKeys: ['nodeSessions', 'rollouts'],
+    updatedAt: 1_743_100_100_000,
+    ...overrides,
+  };
+}
+
+function createRolloutListResult(
+  overrides: Partial<ManageRolloutListResult> = {},
+): ManageRolloutListResult {
+  return {
+    items: [
+      {
+        id: 'desktop-bootstrap',
+        phase: 'ready',
+        attempt: 1,
+        targetCount: 1,
+        updatedAt: 1_743_100_200_000,
+      },
+      {
+        id: 'remote-repair',
+        phase: 'failed',
+        attempt: 2,
+        targetCount: 2,
+        updatedAt: 1_743_100_300_000,
+      },
+    ],
+    total: 2,
+    ...overrides,
+  };
+}
+
 await runTest('kernelCenterService composes kernel status, host ownership, and storage into a dashboard model', async () => {
   const { createKernelCenterService } = await import('./kernelCenterService.ts');
 
@@ -227,6 +329,23 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
       getStatus: async () => createSnapshot(),
       ensureRunning: async () => createSnapshot(),
       restart: async () => createSnapshot(),
+    },
+    hostPlatformService: {
+      getStatus: async () => ({
+        ...createHostPlatformStatus(),
+        capabilityCount: 2,
+        isReady: true,
+      }),
+    },
+    rolloutService: {
+      list: async () => createRolloutListResult(),
+      summarizePhases: () => ({
+        active: 1,
+        failed: 1,
+        completed: 0,
+        paused: 0,
+        drafts: 0,
+      }),
     },
   });
 
@@ -239,11 +358,54 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
   assert.equal(dashboard.host.controlSocketAvailable, false);
   assert.equal(dashboard.endpoint.activePort, 18845);
   assert.equal(dashboard.endpoint.usesDynamicPort, true);
+  assert.equal(dashboard.localAiProxy.lifecycle, 'Running');
+  assert.equal(dashboard.localAiProxy.baseUrl, LOCAL_AI_PROXY_BASE_URL);
+  assert.equal(dashboard.localAiProxy.rootBaseUrl, LOCAL_AI_PROXY_ROOT_BASE_URL);
+  assert.equal(dashboard.localAiProxy.openaiCompatibleBaseUrl, LOCAL_AI_PROXY_BASE_URL);
+  assert.equal(dashboard.localAiProxy.anthropicBaseUrl, LOCAL_AI_PROXY_BASE_URL);
+  assert.equal(dashboard.localAiProxy.geminiBaseUrl, LOCAL_AI_PROXY_ROOT_BASE_URL);
+  assert.equal(dashboard.localAiProxy.defaultRouteName, 'SDKWork Default');
+  assert.deepEqual(
+    dashboard.localAiProxy.defaultRoutes.map((route) => ({
+      clientProtocol: route.clientProtocol,
+      name: route.name,
+      managedBy: route.managedBy,
+      modelCount: route.modelCount,
+    })),
+    [
+      {
+        clientProtocol: 'openai-compatible',
+        name: 'SDKWork Default',
+        managedBy: 'system-default',
+        modelCount: 3,
+      },
+      {
+        clientProtocol: 'anthropic',
+        name: 'SDKWork Anthropic Default',
+        managedBy: 'system-default',
+        modelCount: 3,
+      },
+      {
+        clientProtocol: 'gemini',
+        name: 'SDKWork Gemini Default',
+        managedBy: 'system-default',
+        modelCount: 3,
+      },
+    ],
+  );
   assert.equal(dashboard.storage.activeProfileLabel, 'SQLite Profile');
   assert.equal(dashboard.storage.activeProfilePath?.endsWith('default.db'), true);
   assert.deepEqual(dashboard.capabilities.readyKeys, ['doctor']);
   assert.deepEqual(dashboard.capabilities.plannedKeys, ['upgrades']);
   assert.equal(dashboard.provenance.installSourceLabel, 'Bundled');
+  assert.equal(dashboard.hostPlatform.modeLabel, 'Desktop Combined');
+  assert.equal(dashboard.hostPlatform.lifecycleLabel, 'Ready');
+  assert.deepEqual(dashboard.hostPlatform.capabilityKeys, ['nodeSessions', 'rollouts']);
+  assert.equal(dashboard.hostPlatform.manageBasePath, '/claw/manage/v1');
+  assert.equal(dashboard.rollouts.total, 2);
+  assert.equal(dashboard.rollouts.phaseCounts.active, 1);
+  assert.equal(dashboard.rollouts.phaseCounts.failed, 1);
+  assert.equal(dashboard.rollouts.latestUpdatedAt, 1_743_100_300_000);
 });
 
 await runTest('kernelCenterService forwards ensureRunning and restart actions through the kernel platform service', async () => {
@@ -263,6 +425,23 @@ await runTest('kernelCenterService forwards ensureRunning and restart actions th
         return createSnapshot({ runtimeState: 'recovering' });
       },
     },
+    hostPlatformService: {
+      getStatus: async () => ({
+        ...createHostPlatformStatus({ lifecycle: 'degraded' }),
+        capabilityCount: 2,
+        isReady: false,
+      }),
+    },
+    rolloutService: {
+      list: async () => createRolloutListResult(),
+      summarizePhases: () => ({
+        active: 1,
+        failed: 1,
+        completed: 0,
+        paused: 0,
+        drafts: 0,
+      }),
+    },
   });
 
   const ensured = await service.ensureRunning();
@@ -271,4 +450,5 @@ await runTest('kernelCenterService forwards ensureRunning and restart actions th
   assert.deepEqual(calls, ['ensureRunning', 'restart']);
   assert.equal(ensured.snapshot?.controlMode, 'nativeService');
   assert.equal(restarted.snapshot?.runtimeState, 'recovering');
+  assert.equal(ensured.hostPlatform.lifecycleLabel, 'Degraded');
 });

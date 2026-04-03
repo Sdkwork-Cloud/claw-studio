@@ -2,7 +2,6 @@
   "source": "upgrade/claw-studio-v5/src/App.tsx",
   "routes": [
     "/",
-    "/api-router",
     "/apps",
     "/apps/:id",
     "/auth",

@@ -1,0 +1,66 @@
+{
+  "detail": {
+    "back": "Back to Hugging Face",
+    "community": {
+      "issueOpened": "opened a discussion about deployment tips.",
+      "oneDayAgo": "1 day ago",
+      "userInitial": "HF",
+      "userName": "Model Maintainer"
+    },
+    "downloadToLocal": "Download to local",
+    "files": {
+      "file": "[FILE]"
+    },
+    "highlyDownloaded": "Highly downloaded model",
+    "modelCard": {
+      "descriptionTitle": "Model description",
+      "howToUse": "How to use",
+      "intendedUseDescription": "Use this model as a starting point for experimentation, evaluation, and downstream fine-tuning in your own environment.",
+      "intendedUseTitle": "Intended use"
+    },
+    "notFoundBack": "Return to models",
+    "notFoundTitle": "Model not found",
+    "stats": {
+      "downloads": "Downloads",
+      "estimatedSize": "Estimated from model files",
+      "size": "Size",
+      "title": "Model stats"
+    },
+    "tabs": {
+      "community": "Classifieds",
+      "files": "Files",
+      "modelCard": "Model card"
+    },
+    "task": {
+      "downloadComplete": "Model download complete",
+      "downloadFailed": "Model download failed",
+      "downloadSubtitle": "Downloading model artifacts",
+      "downloadTitle": "Download {{name}}"
+    },
+    "toast": {
+      "downloadFailed": "Failed to download {{name}}",
+      "downloadStarted": "Downloading {{name}}",
+      "downloadSuccess": "{{name}} downloaded"
+    }
+  },
+  "models": {
+    "emptyDescription": "Try a different keyword or broaden your search.",
+    "emptyTitle": "No models found",
+    "filter": "Filter models",
+    "searchPlaceholder": "Search models, authors, or tags...",
+    "sort": "Sort models",
+    "subtitle": "{{count, number}} models ready to explore",
+    "task": {
+      "downloadComplete": "Model download complete",
+      "downloadFailed": "Model download failed",
+      "downloadSubtitle": "Downloading model artifacts",
+      "downloadTitle": "Download {{name}}"
+    },
+    "title": "Hugging Face Models",
+    "toast": {
+      "downloadFailed": "Failed to download {{name}}",
+      "downloadStarted": "Downloading {{name}}",
+      "downloadSuccess": "{{name}} downloaded"
+    }
+  }
+}

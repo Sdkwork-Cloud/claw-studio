@@ -18,6 +18,13 @@ export interface InstanceChatRoute {
   reason?: string;
 }
 
+const OPENCLAW_HTTP_ENDPOINT_SUFFIXES = [
+  '/v1/chat/completions',
+  '/chat/completions',
+  '/v1/responses',
+  '/responses',
+] as const;
+
 function normalizeUrl(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -51,7 +58,7 @@ function buildEndpoint(
 function buildWebsocketUrl(
   baseUrl: string | null,
   websocketUrl: string | null,
-  suffixesToTrim: string[] = ['/v1/chat/completions', '/chat/completions'],
+  suffixesToTrim: string[] = [...OPENCLAW_HTTP_ENDPOINT_SUFFIXES],
 ) {
   const normalizedCandidate = normalizeUrl(websocketUrl ?? baseUrl);
   if (!normalizedCandidate) {
@@ -80,19 +87,28 @@ function buildWebsocketUrl(
   }
 }
 
+function buildExplicitOpenClawHttpEndpoint(baseUrl: string | null) {
+  const normalizedBaseUrl = normalizeUrl(baseUrl);
+  if (!normalizedBaseUrl) {
+    return undefined;
+  }
+
+  return OPENCLAW_HTTP_ENDPOINT_SUFFIXES.some((suffix) => normalizedBaseUrl.endsWith(suffix))
+    ? normalizedBaseUrl
+    : undefined;
+}
+
 function buildOpenClawGatewayWebsocketUrl(
   baseUrl: string | null,
   websocketUrl: string | null,
 ) {
   const baseCandidate = buildWebsocketUrl(baseUrl, baseUrl, [
     '/ws',
-    '/v1/chat/completions',
-    '/chat/completions',
+    ...OPENCLAW_HTTP_ENDPOINT_SUFFIXES,
   ]);
   const websocketCandidate = buildWebsocketUrl(null, websocketUrl, [
     '/ws',
-    '/v1/chat/completions',
-    '/chat/completions',
+    ...OPENCLAW_HTTP_ENDPOINT_SUFFIXES,
   ]);
 
   if (baseCandidate && websocketCandidate) {
@@ -134,10 +150,7 @@ export function resolveInstanceChatRoute(
       return {
         ...shared,
         mode: 'instanceOpenClawGatewayWs',
-        endpoint: buildEndpoint(baseUrl, '/v1/chat/completions', [
-          '/v1/chat/completions',
-          '/chat/completions',
-        ]),
+        endpoint: buildExplicitOpenClawHttpEndpoint(baseUrl),
         websocketUrl: buildOpenClawGatewayWebsocketUrl(baseUrl, websocketUrl),
       };
     }
@@ -155,10 +168,7 @@ export function resolveInstanceChatRoute(
         return {
           ...shared,
           mode: 'instanceOpenClawGatewayWs',
-          endpoint: buildEndpoint(baseUrl, '/v1/chat/completions', [
-            '/v1/chat/completions',
-            '/chat/completions',
-          ]),
+          endpoint: buildExplicitOpenClawHttpEndpoint(baseUrl),
           websocketUrl: buildOpenClawGatewayWebsocketUrl(baseUrl, websocketUrl),
         };
       }

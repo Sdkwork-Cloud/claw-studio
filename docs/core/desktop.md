@@ -38,6 +38,8 @@ pnpm tauri:icon
 pnpm check:desktop
 ```
 
+Desktop is now one release family inside the broader packaging system. The GitHub release flow keeps the desktop bundle path stable while adding native server, container, kubernetes, and web artifact families in parallel.
+
 ## Environment Model
 
 Desktop runtime behavior relies on typed environment configuration from the infrastructure layer. Common variables include:

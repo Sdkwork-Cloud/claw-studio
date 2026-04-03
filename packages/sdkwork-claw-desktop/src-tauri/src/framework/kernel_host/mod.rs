@@ -1,7 +1,7 @@
+pub mod platform;
 mod platform_linux;
 mod platform_macos;
 mod platform_windows;
-pub mod platform;
 pub mod service_manager;
 pub mod types;
 
@@ -35,7 +35,9 @@ const KERNEL_HOST_OWNERSHIP_MARKER_FILE: &str = "kernel-host/runtime-owner.json"
 mod tests {
     use super::{
         build_desktop_kernel_host_info,
-        platform::{repair_platform_service_artifacts, resolve_platform_service_spec, KernelHostPlatform},
+        platform::{
+            repair_platform_service_artifacts, resolve_platform_service_spec, KernelHostPlatform,
+        },
         types::{DesktopKernelHostInfo, KernelHostOwnershipMarker, KernelServiceManagerKind},
         write_kernel_host_ownership_marker,
     };
@@ -50,11 +52,17 @@ mod tests {
         path.to_string_lossy().replace('\\', "/")
     }
 
-    fn fake_runtime(paths: &crate::framework::paths::AppPaths, gateway_port: u16) -> ActivatedOpenClawRuntime {
+    fn fake_runtime(
+        paths: &crate::framework::paths::AppPaths,
+        gateway_port: u16,
+    ) -> ActivatedOpenClawRuntime {
         ActivatedOpenClawRuntime {
             install_key: "test-runtime".to_string(),
             install_dir: paths.openclaw_runtime_dir.join("test-runtime"),
-            runtime_dir: paths.openclaw_runtime_dir.join("test-runtime").join("runtime"),
+            runtime_dir: paths
+                .openclaw_runtime_dir
+                .join("test-runtime")
+                .join("runtime"),
             node_path: PathBuf::from("node"),
             cli_path: paths
                 .openclaw_runtime_dir
@@ -77,12 +85,8 @@ mod tests {
         DesktopSupervisorInfo {
             lifecycle: "running".to_string(),
             shutdown_requested: false,
-            service_count: 3,
-            managed_service_ids: vec![
-                "openclaw_gateway".to_string(),
-                "web_server".to_string(),
-                "api_router".to_string(),
-            ],
+            service_count: 1,
+            managed_service_ids: vec!["openclaw_gateway".to_string()],
             services: vec![DesktopSupervisorServiceInfo {
                 id: "openclaw_gateway".to_string(),
                 display_name: "OpenClaw Gateway".to_string(),
@@ -110,12 +114,14 @@ mod tests {
         let paths = resolve_paths_for_root(root.path()).expect("paths");
 
         let windows = resolve_platform_service_spec(KernelHostPlatform::Windows, &paths);
-        assert_eq!(windows.service_manager, KernelServiceManagerKind::WindowsService);
+        assert_eq!(
+            windows.service_manager,
+            KernelServiceManagerKind::WindowsService
+        );
         assert_eq!(windows.service_name, "ClawStudioOpenClawKernel");
         assert!(normalize(&windows.launch_target).ends_with("install/claw-studio.exe"));
-        assert!(normalize(&windows.service_config_path).ends_with(
-            "machine/state/kernel-host/windows-service.json"
-        ));
+        assert!(normalize(&windows.service_config_path)
+            .ends_with("machine/state/kernel-host/windows-service.json"));
         assert_eq!(windows.launch_arguments[0], "--run-kernel-host-service");
 
         let macos = resolve_platform_service_spec(KernelHostPlatform::Macos, &paths);
@@ -125,18 +131,16 @@ mod tests {
         );
         assert_eq!(macos.service_name, "ai.sdkwork.clawstudio.openclaw");
         assert!(normalize(&macos.launch_target).ends_with("install/claw-studio"));
-        assert!(normalize(&macos.service_config_path).ends_with(
-            "user-home/Library/LaunchAgents/ai.sdkwork.clawstudio.openclaw.plist"
-        ));
+        assert!(normalize(&macos.service_config_path)
+            .ends_with("user-home/Library/LaunchAgents/ai.sdkwork.clawstudio.openclaw.plist"));
         assert_eq!(macos.launch_arguments[0], "--run-kernel-host-service");
 
         let linux = resolve_platform_service_spec(KernelHostPlatform::Linux, &paths);
         assert_eq!(linux.service_manager, KernelServiceManagerKind::SystemdUser);
         assert_eq!(linux.service_name, "claw-studio-openclaw");
         assert!(normalize(&linux.launch_target).ends_with("install/claw-studio"));
-        assert!(normalize(&linux.service_config_path).ends_with(
-            "user-home/.config/systemd/user/claw-studio-openclaw.service"
-        ));
+        assert!(normalize(&linux.service_config_path)
+            .ends_with("user-home/.config/systemd/user/claw-studio-openclaw.service"));
         assert_eq!(linux.launch_arguments[0], "--run-kernel-host-service");
     }
 
@@ -171,9 +175,9 @@ mod tests {
         assert!(windows_args.iter().any(|value| {
             value.as_str() == Some(paths.machine_root.to_string_lossy().as_ref())
         }));
-        assert!(windows_args.iter().any(|value| {
-            value.as_str() == Some(paths.user_root.to_string_lossy().as_ref())
-        }));
+        assert!(windows_args
+            .iter()
+            .any(|value| { value.as_str() == Some(paths.user_root.to_string_lossy().as_ref()) }));
 
         let macos = repair_platform_service_artifacts(
             KernelHostPlatform::Macos,
@@ -221,8 +225,8 @@ mod tests {
         )
         .expect("write marker");
 
-        let info =
-            build_desktop_kernel_host_info(&paths, Some(&runtime), &stopped_supervisor()).expect("host info");
+        let info = build_desktop_kernel_host_info(&paths, Some(&runtime), &stopped_supervisor())
+            .expect("host info");
 
         assert_native_service(&info, gateway_port);
     }
@@ -264,17 +268,23 @@ pub fn native_kernel_host_is_running(
     Ok(loopback_port_is_ready(marker.active_port))
 }
 
-fn read_kernel_host_ownership_marker(paths: &AppPaths) -> Result<Option<KernelHostOwnershipMarker>> {
+fn read_kernel_host_ownership_marker(
+    paths: &AppPaths,
+) -> Result<Option<KernelHostOwnershipMarker>> {
     let marker_path = kernel_host_ownership_marker_path(paths);
     if !marker_path.exists() {
         return Ok(None);
     }
     let content = fs::read_to_string(marker_path)?;
-    Ok(Some(serde_json::from_str::<KernelHostOwnershipMarker>(&content)?))
+    Ok(Some(serde_json::from_str::<KernelHostOwnershipMarker>(
+        &content,
+    )?))
 }
 
 fn kernel_host_ownership_marker_path(paths: &AppPaths) -> std::path::PathBuf {
-    paths.machine_state_dir.join(KERNEL_HOST_OWNERSHIP_MARKER_FILE)
+    paths
+        .machine_state_dir
+        .join(KERNEL_HOST_OWNERSHIP_MARKER_FILE)
 }
 
 fn loopback_port_is_ready(port: u16) -> bool {
@@ -322,9 +332,8 @@ pub fn build_desktop_kernel_host_info(
         .map(|ownership| ownership.active_port)
         .or_else(|| runtime.map(|configured| configured.gateway_port))
         .unwrap_or(DEFAULT_PREFERRED_PORT);
-    let manifest = runtime.and_then(|configured| {
-        load_manifest(&configured.install_dir.join("manifest.json")).ok()
-    });
+    let manifest = runtime
+        .and_then(|configured| load_manifest(&configured.install_dir.join("manifest.json")).ok());
     let install_key = runtime.map(|configured| configured.install_key.clone());
     let endpoint_source = if native_host_running {
         "attached"
@@ -356,8 +365,7 @@ pub fn build_desktop_kernel_host_info(
                 "running" => "Kernel attached to a healthy local OpenClaw gateway.".to_string(),
                 "starting" => "Kernel launch is in progress.".to_string(),
                 "failedSafe" => {
-                    "Kernel entered failed-safe mode after exhausting restart attempts."
-                        .to_string()
+                    "Kernel entered failed-safe mode after exhausting restart attempts.".to_string()
                 }
                 _ => "Kernel is provisioned but not currently running.".to_string(),
             },
@@ -413,9 +421,8 @@ pub fn build_desktop_kernel_host_info(
             runtime_home_dir: runtime
                 .map(|configured| configured.home_dir.to_string_lossy().into_owned())
                 .unwrap_or_else(|| paths.openclaw_home_dir.to_string_lossy().into_owned()),
-            runtime_install_dir: runtime.map(|configured| {
-                configured.install_dir.to_string_lossy().into_owned()
-            }),
+            runtime_install_dir: runtime
+                .map(|configured| configured.install_dir.to_string_lossy().into_owned()),
         },
     })
 }

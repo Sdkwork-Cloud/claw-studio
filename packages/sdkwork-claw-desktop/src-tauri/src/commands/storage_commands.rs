@@ -1,5 +1,6 @@
 use crate::{
     framework::{
+        runtime,
         storage::{
             StorageDeleteRequest, StorageDeleteResponse, StorageGetTextRequest,
             StorageGetTextResponse, StorageListKeysRequest, StorageListKeysResponse,
@@ -63,35 +64,55 @@ pub fn storage_list_keys_from_state(
 }
 
 #[tauri::command]
-pub fn storage_get_text(
+pub async fn storage_get_text(
     request: StorageGetTextRequest,
     state: tauri::State<'_, AppState>,
 ) -> Result<StorageGetTextResponse, String> {
-    storage_get_text_from_state(&state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("storage.get_text", move || {
+        storage_get_text_from_state(&state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn storage_put_text(
+pub async fn storage_put_text(
     request: StoragePutTextRequest,
     state: tauri::State<'_, AppState>,
 ) -> Result<StoragePutTextResponse, String> {
-    storage_put_text_from_state(&state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("storage.put_text", move || {
+        storage_put_text_from_state(&state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn storage_delete(
+pub async fn storage_delete(
     request: StorageDeleteRequest,
     state: tauri::State<'_, AppState>,
 ) -> Result<StorageDeleteResponse, String> {
-    storage_delete_from_state(&state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("storage.delete", move || {
+        storage_delete_from_state(&state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn storage_list_keys(
+pub async fn storage_list_keys(
     request: StorageListKeysRequest,
     state: tauri::State<'_, AppState>,
 ) -> Result<StorageListKeysResponse, String> {
-    storage_list_keys_from_state(&state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("storage.list_keys", move || {
+        storage_list_keys_from_state(&state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

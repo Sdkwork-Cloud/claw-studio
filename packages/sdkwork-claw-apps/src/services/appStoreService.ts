@@ -1,6 +1,6 @@
 import {
-  getRuntimePlatform,
   installerService,
+  runtime,
   type HubInstallAssessmentResult,
   type HubInstallDependencyResult,
   type HubInstallRecordStatus,
@@ -515,7 +515,7 @@ class AppStoreServiceImpl implements IAppStoreService {
 
   private async loadRuntimeInfo(): Promise<RuntimeInfo | null> {
     if (!this.runtimeInfoPromise) {
-      this.runtimeInfoPromise = getRuntimePlatform()
+      this.runtimeInfoPromise = runtime
         .getRuntimeInfo()
         .catch(() => {
           this.runtimeInfoPromise = null;

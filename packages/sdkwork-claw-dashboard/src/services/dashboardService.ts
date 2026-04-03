@@ -1,16 +1,19 @@
-import {
-  sdkworkApiRouterAdminClient,
-  studioMockService,
-  type ApiRouterUsageRecordDto,
-  type MockChannel,
-  type MockInstance,
-  type MockTask,
-} from '@sdkwork/claw-infrastructure';
+import { studio } from '@sdkwork/claw-infrastructure';
 import {
   createEmptyDashboardCommerceSnapshot,
   dashboardCommerceService,
 } from '@sdkwork/claw-core';
-import type { Agent, Skill } from '@sdkwork/claw-types';
+import type {
+  Agent,
+  ProviderUsageRecord,
+  ProviderUsageRecordsQuery,
+  ProviderUsageRecordsResult,
+  Skill,
+  StudioInstanceDetailRecord,
+  StudioInstanceRecord,
+  StudioWorkbenchChannelRecord,
+  StudioWorkbenchTaskRecord,
+} from '@sdkwork/claw-types';
 import type {
   DashboardActivityFeed,
   DashboardAlertItem,
@@ -34,9 +37,9 @@ import type {
 } from '../types';
 
 interface WorkspaceHealthScoreInput {
-  instances: MockInstance[];
-  tasks: MockTask[];
-  channels: MockChannel[];
+  instances: StudioInstanceRecord[];
+  tasks: StudioWorkbenchTaskRecord[];
+  channels: StudioWorkbenchChannelRecord[];
 }
 
 interface CapabilityCoverageScoreInput extends WorkspaceHealthScoreInput {
@@ -44,9 +47,40 @@ interface CapabilityCoverageScoreInput extends WorkspaceHealthScoreInput {
   installedSkills: Skill[];
 }
 
+interface DashboardServiceDependencies {
+  studioApi: {
+    listInstances(): Promise<StudioInstanceRecord[]>;
+    getInstanceDetail(id: string): Promise<StudioInstanceDetailRecord | null>;
+  };
+  usageRecordsApi: {
+    listProviderUsageRecords(
+      query: ProviderUsageRecordsQuery,
+    ): Promise<ProviderUsageRecordsResult>;
+  };
+  dashboardCommerceApi: Pick<typeof dashboardCommerceService, 'getCommerceSnapshot'>;
+}
+
+export interface DashboardServiceDependencyOverrides {
+  studioApi?: Partial<DashboardServiceDependencies['studioApi']>;
+  usageRecordsApi?: Partial<DashboardServiceDependencies['usageRecordsApi']>;
+  dashboardCommerceApi?: Partial<DashboardServiceDependencies['dashboardCommerceApi']>;
+}
+
 interface TokenAnalyticsInput {
   analyticsQuery: ResolvedAnalyticsQuery;
-  usageRecords: ApiRouterUsageRecordDto[];
+  usageRecords: DashboardUsageRecord[];
+}
+
+interface DashboardUsageRecord {
+  project_id: string;
+  model: string;
+  provider: string;
+  units: number;
+  amount: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  created_at_ms: number;
 }
 
 interface ResolvedAnalyticsQuery {
@@ -129,6 +163,61 @@ function roundPercentage(value: number) {
 
 function uniqueById<T extends { id: string }>(items: T[]) {
   return [...new Map(items.map((item) => [item.id, item])).values()];
+}
+
+function cloneTask(task: StudioWorkbenchTaskRecord): StudioWorkbenchTaskRecord {
+  return {
+    ...task,
+    scheduleConfig: { ...task.scheduleConfig },
+    latestExecution: task.latestExecution ? { ...task.latestExecution } : task.latestExecution ?? null,
+    rawDefinition: task.rawDefinition
+      ? JSON.parse(JSON.stringify(task.rawDefinition)) as Record<string, unknown>
+      : undefined,
+  };
+}
+
+function cloneChannel(channel: StudioWorkbenchChannelRecord): StudioWorkbenchChannelRecord {
+  return {
+    ...channel,
+    setupSteps: [...channel.setupSteps],
+  };
+}
+
+function cloneSkill(skill: Skill): Skill {
+  return {
+    ...skill,
+  };
+}
+
+function cloneAgent(agent: Agent): Agent {
+  return {
+    ...agent,
+  };
+}
+
+function createEmptyUsageRecordsResult(): ProviderUsageRecordsResult {
+  return {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 1,
+    hasMore: false,
+  };
+}
+
+function createDefaultDependencies(): DashboardServiceDependencies {
+  return {
+    studioApi: {
+      listInstances: () => studio.listInstances(),
+      getInstanceDetail: (id) => studio.getInstanceDetail(id),
+    },
+    usageRecordsApi: {
+      listProviderUsageRecords: async () => createEmptyUsageRecordsResult(),
+    },
+    dashboardCommerceApi: {
+      getCommerceSnapshot: (query) => dashboardCommerceService.getCommerceSnapshot(query),
+    },
+  };
 }
 
 function createUtcDate(year: number, monthIndex: number, day: number, hour = 0) {
@@ -255,7 +344,7 @@ function getBucketKeyFromTimestamp(
   return granularity === 'day' ? formatDayKey(date) : formatHourKey(date);
 }
 
-function getAnalyticsReferenceDate(records: ApiRouterUsageRecordDto[]) {
+function getAnalyticsReferenceDate(records: DashboardUsageRecord[]) {
   if (records.length === 0) {
     return REFERENCE_DATE;
   }
@@ -272,15 +361,15 @@ function toSafeNumber(value: number | undefined) {
   return Number.isFinite(value) ? Number(value) : 0;
 }
 
-function getUsageRecordInputTokens(record: ApiRouterUsageRecordDto) {
+function getUsageRecordInputTokens(record: DashboardUsageRecord) {
   return Math.max(0, Math.round(toSafeNumber(record.input_tokens)));
 }
 
-function getUsageRecordOutputTokens(record: ApiRouterUsageRecordDto) {
+function getUsageRecordOutputTokens(record: DashboardUsageRecord) {
   return Math.max(0, Math.round(toSafeNumber(record.output_tokens)));
 }
 
-function getUsageRecordTotalTokens(record: ApiRouterUsageRecordDto) {
+function getUsageRecordTotalTokens(record: DashboardUsageRecord) {
   const explicitTotal = Math.max(0, Math.round(toSafeNumber(record.total_tokens)));
   if (explicitTotal > 0) {
     return explicitTotal;
@@ -294,7 +383,7 @@ function getUsageRecordTotalTokens(record: ApiRouterUsageRecordDto) {
   return Math.max(0, Math.round(toSafeNumber(record.units)));
 }
 
-function getUsageRecordAmount(record: ApiRouterUsageRecordDto) {
+function getUsageRecordAmount(record: DashboardUsageRecord) {
   return Math.max(0, toSafeNumber(record.amount));
 }
 
@@ -338,7 +427,7 @@ function getAnalyticsWindow(analyticsQuery: ResolvedAnalyticsQuery) {
 }
 
 function filterUsageRecordsByTimeRange(
-  records: ApiRouterUsageRecordDto[],
+  records: DashboardUsageRecord[],
   startMs: number,
   endMs: number,
 ) {
@@ -348,14 +437,14 @@ function filterUsageRecordsByTimeRange(
 }
 
 function filterUsageRecordsForAnalytics(
-  records: ApiRouterUsageRecordDto[],
+  records: DashboardUsageRecord[],
   analyticsQuery: ResolvedAnalyticsQuery,
 ) {
   const { startMs, endMs } = getAnalyticsWindow(analyticsQuery);
   return filterUsageRecordsByTimeRange(records, startMs, endMs);
 }
 
-function summarizeUsageRecords(records: ApiRouterUsageRecordDto[]) {
+function summarizeUsageRecords(records: DashboardUsageRecord[]) {
   return records.reduce(
     (summary, record) => {
       summary.totalTokens += getUsageRecordTotalTokens(record);
@@ -376,8 +465,54 @@ function summarizeUsageRecords(records: ApiRouterUsageRecordDto[]) {
   );
 }
 
-function loadRouterUsageRecords() {
-  return sdkworkApiRouterAdminClient.listUsageRecords().catch(() => []);
+function inferProviderId(model: string) {
+  const normalized = model.toLowerCase();
+
+  if (normalized.includes('gpt') || normalized.includes('o4')) {
+    return 'openai';
+  }
+  if (normalized.includes('claude')) {
+    return 'anthropic';
+  }
+  if (normalized.includes('gemini')) {
+    return 'google';
+  }
+  if (normalized.includes('qwen')) {
+    return 'alibaba-cloud';
+  }
+  if (normalized.includes('deepseek')) {
+    return 'deepseek';
+  }
+
+  return 'model-provider';
+}
+
+function mapUsageRecord(record: ProviderUsageRecord): DashboardUsageRecord {
+  const totalTokens = Math.max(
+    0,
+    record.promptTokens + record.completionTokens + record.cachedTokens,
+  );
+
+  return {
+    project_id: record.apiKeyId,
+    model: record.model,
+    provider: inferProviderId(record.model),
+    units: totalTokens,
+    amount: record.costUsd,
+    input_tokens: record.promptTokens,
+    output_tokens: record.completionTokens,
+    total_tokens: totalTokens,
+    created_at_ms: Date.parse(record.startedAt),
+  };
+}
+
+function loadUsageRecords(
+  usageRecordsApi: DashboardServiceDependencies['usageRecordsApi'],
+) {
+  return usageRecordsApi
+    .listProviderUsageRecords({ page: 1, pageSize: 500 })
+    .then((result) => result.items.map(mapUsageRecord))
+    .catch(() => []);
 }
 
 function resolveAnalyticsQuery(
@@ -442,7 +577,7 @@ function resolveAnalyticsQuery(
   };
 }
 
-function scoreTaskStatus(task: MockTask) {
+function scoreTaskStatus(task: StudioWorkbenchTaskRecord) {
   switch (task.status) {
     case 'active':
       return 1;
@@ -455,7 +590,7 @@ function scoreTaskStatus(task: MockTask) {
   }
 }
 
-function scoreChannelStatus(channel: MockChannel) {
+function scoreChannelStatus(channel: StudioWorkbenchChannelRecord) {
   if (channel.status === 'connected' && channel.enabled) {
     return 1;
   }
@@ -465,7 +600,7 @@ function scoreChannelStatus(channel: MockChannel) {
   return 0.15;
 }
 
-function calculateResourceEfficiency(instances: MockInstance[]) {
+function calculateResourceEfficiency(instances: StudioInstanceRecord[]) {
   const onlineInstances = instances.filter((instance) => instance.status === 'online');
   if (onlineInstances.length === 0) {
     return 45;
@@ -502,7 +637,11 @@ function distributeTotal(total: number, weights: number[]) {
   return values;
 }
 
-function calculateEstimatedRuns(tasks: MockTask[], activeInstanceCount: number, bucketCount: number) {
+function calculateEstimatedRuns(
+  tasks: StudioWorkbenchTaskRecord[],
+  activeInstanceCount: number,
+  bucketCount: number,
+) {
   const taskRuns = tasks.reduce((total, task) => {
     if (task.status === 'active') {
       return total + (task.actionType === 'skill' ? 12 : 8);
@@ -643,9 +782,9 @@ export function calculateCapabilityCoverageScore({
 }
 
 function calculateInstanceReadinessScore(
-  instance: MockInstance,
-  tasks: MockTask[],
-  channels: MockChannel[],
+  instance: StudioInstanceRecord,
+  tasks: StudioWorkbenchTaskRecord[],
+  channels: StudioWorkbenchChannelRecord[],
   installedSkills: Skill[],
 ) {
   const statusBaseline =
@@ -701,8 +840,8 @@ function deriveAgentFocusAreas(agent: Agent, installedSkills: Skill[]) {
 
 function buildAgentSummary(
   agent: Agent,
-  tasks: MockTask[],
-  channels: MockChannel[],
+  tasks: StudioWorkbenchTaskRecord[],
+  channels: StudioWorkbenchChannelRecord[],
   installedSkills: Skill[],
 ): DashboardAgentSummary {
   const focusAreas = deriveAgentFocusAreas(agent, installedSkills);
@@ -725,7 +864,7 @@ function buildAgentSummary(
 }
 
 function buildModelBreakdown(
-  records: ApiRouterUsageRecordDto[],
+  records: DashboardUsageRecord[],
   totalTokens: number,
 ): DashboardTokenModelBreakdown[] {
   const modelSummary = new Map<
@@ -892,7 +1031,7 @@ function buildTokenAnalytics({
 
 function buildTokenSummary(
   tokenAnalytics: DashboardTokenAnalytics,
-  usageRecords: ApiRouterUsageRecordDto[],
+  usageRecords: DashboardUsageRecord[],
   referenceDate: Date,
 ): DashboardTokenSummary {
   const dayStart = startOfUtcDay(referenceDate);
@@ -945,7 +1084,7 @@ function buildTokenSummary(
 }
 
 function buildRecentApiCalls(
-  usageRecords: ApiRouterUsageRecordDto[],
+  usageRecords: DashboardUsageRecord[],
 ): DashboardApiCallRecord[] {
   return [...usageRecords]
     .sort((left, right) => right.created_at_ms - left.created_at_ms)
@@ -1098,26 +1237,61 @@ function buildRecommendations({
   return recommendations.slice(0, 4);
 }
 
+interface DashboardInstanceCollections {
+  instance: StudioInstanceRecord;
+  tasks: StudioWorkbenchTaskRecord[];
+  channels: StudioWorkbenchChannelRecord[];
+  installedSkills: Skill[];
+  agents: Agent[];
+}
+
+function collectInstanceWorkbench(
+  instance: StudioInstanceRecord,
+  detail: StudioInstanceDetailRecord | null,
+): DashboardInstanceCollections {
+  const workbench = detail?.workbench;
+
+  return {
+    instance: detail?.instance ?? instance,
+    tasks: uniqueById((workbench?.cronTasks.tasks ?? []).map(cloneTask)),
+    channels: uniqueById((workbench?.channels ?? []).map(cloneChannel)),
+    installedSkills: uniqueById((workbench?.skills ?? []).map(cloneSkill)),
+    agents: uniqueById((workbench?.agents ?? []).map((record) => cloneAgent(record.agent))),
+  };
+}
+
 class DashboardService {
+  private readonly dependencies: DashboardServiceDependencies;
+
+  constructor(dependencies: DashboardServiceDependencies) {
+    this.dependencies = dependencies;
+  }
+
   async getSnapshot(analyticsQuery: DashboardAnalyticsQuery = {}): Promise<DashboardSnapshot> {
-    const [usageRecords, instances, agents, commerceSnapshot] = await Promise.all([
-      loadRouterUsageRecords(),
-      studioMockService.listInstances(),
-      studioMockService.listAgents(),
-      dashboardCommerceService
+    const [usageRecords, instances, commerceSnapshot] = await Promise.all([
+      loadUsageRecords(this.dependencies.usageRecordsApi),
+      this.dependencies.studioApi.listInstances(),
+      this.dependencies.dashboardCommerceApi
         .getCommerceSnapshot(analyticsQuery)
         .catch(() => createEmptyDashboardCommerceSnapshot(analyticsQuery)),
     ]);
     const referenceDate = getAnalyticsReferenceDate(usageRecords);
     const resolvedAnalyticsQuery = resolveAnalyticsQuery(analyticsQuery, referenceDate);
 
-    const instanceSummaries = await Promise.all(
+    const instanceWorkbenchCollections = await Promise.all(
       instances.map(async (instance) => {
-        const instanceTasks = uniqueById(await studioMockService.listTasks(instance.id));
-        const instanceChannels = uniqueById(await studioMockService.listChannels(instance.id));
-        const installedSkills = uniqueById(await studioMockService.listInstalledSkills(instance.id));
+        const detail = await this.dependencies.studioApi.getInstanceDetail(instance.id).catch(() => null);
+        return collectInstanceWorkbench(instance, detail);
+      }),
+    );
 
-        return {
+    const agents = uniqueById(
+      instanceWorkbenchCollections.flatMap((collections) => collections.agents),
+    );
+
+    const instanceSummaries = instanceWorkbenchCollections.map(
+      ({ instance, tasks: instanceTasks, channels: instanceChannels, installedSkills }) =>
+        ({
           instance,
           readinessScore: calculateInstanceReadinessScore(
             instance,
@@ -1131,26 +1305,17 @@ class DashboardService {
             (channel) => channel.status === 'connected' && channel.enabled,
           ).length,
           installedSkillCount: installedSkills.length,
-        } satisfies DashboardInstanceSummary;
-      }),
+        }) satisfies DashboardInstanceSummary,
     );
 
     const tasks = uniqueById(
-      (
-        await Promise.all(instances.map((instance) => studioMockService.listTasks(instance.id)))
-      ).flat(),
+      instanceWorkbenchCollections.flatMap((collections) => collections.tasks),
     );
     const channels = uniqueById(
-      (
-        await Promise.all(instances.map((instance) => studioMockService.listChannels(instance.id)))
-      ).flat(),
+      instanceWorkbenchCollections.flatMap((collections) => collections.channels),
     );
     const installedSkills = uniqueById(
-      (
-        await Promise.all(
-          instances.map((instance) => studioMockService.listInstalledSkills(instance.id)),
-        )
-      ).flat(),
+      instanceWorkbenchCollections.flatMap((collections) => collections.installedSkills),
     );
 
     const healthScore = calculateWorkspaceHealthScore({ instances, tasks, channels });
@@ -1218,4 +1383,25 @@ class DashboardService {
   }
 }
 
-export const dashboardService = new DashboardService();
+export function createDashboardService(
+  overrides: DashboardServiceDependencyOverrides = {},
+) {
+  const defaults = createDefaultDependencies();
+
+  return new DashboardService({
+    studioApi: {
+      ...defaults.studioApi,
+      ...(overrides.studioApi || {}),
+    },
+    usageRecordsApi: {
+      ...defaults.usageRecordsApi,
+      ...(overrides.usageRecordsApi || {}),
+    },
+    dashboardCommerceApi: {
+      ...defaults.dashboardCommerceApi,
+      ...(overrides.dashboardCommerceApi || {}),
+    },
+  });
+}
+
+export const dashboardService = createDashboardService();

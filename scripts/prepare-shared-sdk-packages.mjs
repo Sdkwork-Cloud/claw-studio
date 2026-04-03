@@ -180,5 +180,10 @@ function main() {
 }
 
 if (path.resolve(process.argv[1] ?? '') === __filename) {
-  main();
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }

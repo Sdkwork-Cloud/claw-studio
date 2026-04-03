@@ -43,9 +43,9 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_GIT_REF:\s*main/);
   assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_APP_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
   assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
-  assert.equal(gitSourcePreparationCount, 3);
+  assert.equal(gitSourcePreparationCount, 5);
   assert.match(reusableWorkflow, /pnpm install --frozen-lockfile/);
-  assert.equal(sharedSdkPreparationCount, 3);
+  assert.equal(sharedSdkPreparationCount, 5);
   assert.match(reusableWorkflow, /submodules:\s*recursive/);
   assert.match(reusableWorkflow, /libgtk-3-dev/);
   assert.match(reusableWorkflow, /libpipewire-0\.3-dev/);
@@ -56,15 +56,26 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(reusableWorkflow, /pkg-config/);
   assert.match(reusableWorkflow, /libwayland-dev/);
   assert.match(reusableWorkflow, /libxkbcommon-dev/);
+  assert.match(reusableWorkflow, /pnpm check:server/);
   assert.match(reusableWorkflow, /pnpm build/);
   assert.match(reusableWorkflow, /pnpm docs:build/);
   assert.match(reusableWorkflow, /node scripts\/release\/resolve-release-plan\.mjs --profile \$\{\{ inputs\.release_profile \}\}/);
+  assert.match(reusableWorkflow, /server_matrix: \$\{\{ steps\.plan\.outputs\.server_matrix \}\}/);
+  assert.match(reusableWorkflow, /container_matrix: \$\{\{ steps\.plan\.outputs\.container_matrix \}\}/);
+  assert.match(reusableWorkflow, /kubernetes_matrix: \$\{\{ steps\.plan\.outputs\.kubernetes_matrix \}\}/);
   assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase sync --target \$\{\{ matrix\.target \}\} --release/);
   assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-target --target \$\{\{ matrix\.target \}\}/);
   assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-openclaw --target \$\{\{ matrix\.target \}\}/);
-  assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase prepare-api-router --target \$\{\{ matrix\.target \}\}/);
   assert.match(reusableWorkflow, /node scripts\/run-desktop-release-build\.mjs --profile \$\{\{ inputs\.release_profile \}\} --phase bundle --target \$\{\{ matrix\.target \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /server-release:/);
+  assert.match(reusableWorkflow, /container-release:/);
+  assert.match(reusableWorkflow, /kubernetes-release:/);
+  assert.match(reusableWorkflow, /pnpm server:build/);
+  assert.match(reusableWorkflow, /node scripts\/run-claw-server-build\.mjs --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs server --profile \$\{\{ inputs\.release_profile \}\} --release-tag \$\{\{ needs\.prepare\.outputs\.release_tag \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs container --profile \$\{\{ inputs\.release_profile \}\} --release-tag \$\{\{ needs\.prepare\.outputs\.release_tag \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\}/);
+  assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs kubernetes --profile \$\{\{ inputs\.release_profile \}\} --release-tag \$\{\{ needs\.prepare\.outputs\.release_tag \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs web --profile \$\{\{ inputs\.release_profile \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/finalize-release-assets\.mjs --profile \$\{\{ inputs\.release_profile \}\}/);
   assert.match(reusableWorkflow, /actions\/attest-build-provenance@v3/);
@@ -73,30 +84,41 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(reusableWorkflow, /softprops\/action-gh-release@/);
   assert.match(reusableWorkflow, /CMAKE_GENERATOR:\s*Visual Studio 17 2022/);
   assert.match(reusableWorkflow, /needs:\s*\[\s*prepare,\s*verify-release\s*\]/);
+  assert.match(reusableWorkflow, /-\s*server-release/);
+  assert.match(reusableWorkflow, /-\s*container-release/);
+  assert.match(reusableWorkflow, /-\s*kubernetes-release/);
 });
 
-test('desktop tauri build script treats sdkwork-api-router prebuilt artifacts as optional metadata across the full release matrix', () => {
+test('desktop tauri build script stays clean of removed sdkwork-api-router artifact handling', () => {
   const buildScript = read('packages/sdkwork-claw-desktop/src-tauri/build.rs');
 
-  assert.match(buildScript, /\("linux", "aarch64"\)\s*=>\s*"linux-arm64"/);
-  assert.match(buildScript, /\("macos", "x86_64"\)\s*=>\s*"macos-x64"/);
-  assert.match(buildScript, /cargo:warning=/);
-  assert.doesNotMatch(buildScript, /prebuilt integration does not yet support target/);
+  assert.match(buildScript, /generated\/bundled/);
+  assert.match(buildScript, /placeholder\.txt/);
+  assert.doesNotMatch(buildScript, /sdkwork-api-router/);
 });
 
 test('root package exposes release helper scripts for desktop and asset packaging', () => {
   const rootPackage = JSON.parse(read('package.json'));
 
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-flow-contract\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-deployment-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-profiles\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-desktop-release-build\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-claw-server-build\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/finalize-release-assets\.test\.mjs/);
   assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:automation'], /pnpm check:release-flow && pnpm check:ci-flow/);
   assert.match(rootPackage.scripts['lint'], /pnpm check:automation/);
+  assert.match(rootPackage.scripts['check:server'], /node scripts\/check-server-platform-foundation\.mjs/);
+  assert.match(rootPackage.scripts['check:server'], /cargo test --manifest-path packages\/sdkwork-claw-server\/src-host\/Cargo\.toml/);
   assert.match(rootPackage.scripts['release:desktop'], /node scripts\/run-desktop-release-build\.mjs/);
   assert.match(rootPackage.scripts['release:package:desktop'], /node scripts\/release\/package-release-assets\.mjs desktop/);
+  assert.match(rootPackage.scripts['release:package:server'], /node scripts\/release\/package-release-assets\.mjs server/);
+  assert.match(rootPackage.scripts['release:package:container'], /node scripts\/release\/package-release-assets\.mjs container/);
+  assert.match(rootPackage.scripts['release:package:kubernetes'], /node scripts\/release\/package-release-assets\.mjs kubernetes/);
   assert.match(rootPackage.scripts['release:package:web'], /node scripts\/release\/package-release-assets\.mjs web/);
   assert.match(rootPackage.scripts['release:finalize'], /node scripts\/release\/finalize-release-assets\.mjs/);
+  assert.match(rootPackage.scripts['server:build'], /node scripts\/run-claw-server-build\.mjs/);
 });
 
 test('shared sdk mode helper defaults to source mode and supports git trunk release mode', async () => {
@@ -146,36 +168,50 @@ test('shared sdk package preparation resolves the workspace root consistently fr
       mode: 'git',
     },
   );
+  assert.match(
+    read('scripts/prepare-shared-sdk-packages.mjs'),
+    /if \(path\.resolve\(process\.argv\[1\] \?\? ''\) === __filename\) \{\s*try \{\s*main\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s,
+  );
 });
 
 test('git-backed shared sdk source detection resolves origin from nested directories inside an existing git checkout', async () => {
   const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-git-sources.mjs');
   const helper = await import(pathToFileURL(helperPath).href);
+  const helperSource = read('scripts/prepare-shared-sdk-git-sources.mjs');
 
   assert.equal(typeof helper.isGitCheckout, 'function');
   assert.equal(typeof helper.detectExistingOriginUrl, 'function');
+  assert.match(
+    helperSource,
+    /if \(path\.resolve\(process\.argv\[1\] \?\? ''\) === __filename\) \{\s*try \{\s*main\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s,
+    'prepare-shared-sdk-git-sources must wrap the CLI entrypoint with a top-level error handler',
+  );
 
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-shared-sdk-'));
   const repoRoot = path.join(tempRoot, 'shared-sdk-repo');
   const nestedPackageRoot = path.join(repoRoot, 'packages', 'sdkwork-app-sdk');
+  const gitConfigPath = path.join(repoRoot, '.git', 'config');
 
   mkdirSync(repoRoot, { recursive: true });
   mkdirSync(nestedPackageRoot, { recursive: true });
-
-  const runGit = (args) => {
-    const result = spawnSync('git', args, {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      shell: process.platform === 'win32',
-    });
-
-    assert.equal(result.status, 0, result.stderr || result.stdout || `git ${args.join(' ')} failed`);
-  };
+  mkdirSync(path.dirname(gitConfigPath), { recursive: true });
+  writeFileSync(
+    gitConfigPath,
+    [
+      '[core]',
+      '\trepositoryformatversion = 0',
+      '\tfilemode = false',
+      '\tbare = false',
+      '\tlogallrefupdates = true',
+      '[remote "origin"]',
+      '\turl = https://example.com/shared-sdk.git',
+      '\tfetch = +refs/heads/*:refs/remotes/origin/*',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
 
   try {
-    runGit(['init']);
-    runGit(['remote', 'add', 'origin', 'https://example.com/shared-sdk.git']);
-
     assert.equal(helper.isGitCheckout(nestedPackageRoot), true);
     assert.equal(
       helper.detectExistingOriginUrl(nestedPackageRoot),
@@ -430,12 +466,6 @@ test('desktop release build runner exposes granular release phases for CI diagno
     phase: 'prepare-openclaw',
     targetTriple: 'aarch64-unknown-linux-gnu',
   });
-  const apiRouterPlan = runner.createDesktopReleaseBuildPlan({
-    platform: 'linux',
-    env: {},
-    phase: 'prepare-api-router',
-    targetTriple: 'aarch64-unknown-linux-gnu',
-  });
   const bundlePlan = runner.createDesktopReleaseBuildPlan({
     platform: 'linux',
     env: {},
@@ -446,7 +476,6 @@ test('desktop release build runner exposes granular release phases for CI diagno
   assert.match(syncPlan.args.join(' '), /sync-bundled-components\.mjs --no-fetch --release/);
   assert.match(prepareTargetPlan.args.join(' '), /ensure-tauri-target-clean\.mjs/);
   assert.match(openClawPlan.args.join(' '), /prepare-openclaw-runtime\.mjs/);
-  assert.match(apiRouterPlan.args.join(' '), /prepare-sdkwork-api-router-runtime\.mjs/);
   assert.deepEqual(bundlePlan.args, [
     '--dir',
     desktopPackageDir,
@@ -700,6 +729,7 @@ test('release plan resolver expands the claw-studio profile into the full deskto
 
   const resolver = await import(pathToFileURL(resolverPath).href);
   assert.equal(typeof resolver.createReleasePlan, 'function');
+  assert.equal(typeof resolver.parseArgs, 'function');
 
   const plan = resolver.createReleasePlan({
     profileId: 'claw-studio',
@@ -709,6 +739,9 @@ test('release plan resolver expands the claw-studio profile into the full deskto
 
   assert.equal(plan.profileId, 'claw-studio');
   assert.equal(plan.desktopMatrix.length, 6);
+  assert.equal(plan.serverMatrix.length, 6);
+  assert.equal(plan.containerMatrix.length, 4);
+  assert.equal(plan.kubernetesMatrix.length, 4);
   assert.deepEqual(
     plan.desktopMatrix.find((entry) => entry.platform === 'linux' && entry.arch === 'x64'),
     {
@@ -728,6 +761,40 @@ test('release plan resolver expands the claw-studio profile into the full deskto
       target: 'aarch64-apple-darwin',
       bundles: ['app', 'dmg'],
     },
+  );
+  assert.deepEqual(
+    plan.serverMatrix.find((entry) => entry.platform === 'linux' && entry.arch === 'arm64'),
+    {
+      runner: 'ubuntu-24.04-arm',
+      platform: 'linux',
+      arch: 'arm64',
+      target: 'aarch64-unknown-linux-gnu',
+      archiveFormat: 'tar.gz',
+    },
+  );
+  assert.deepEqual(
+    plan.containerMatrix.find((entry) => entry.arch === 'x64' && entry.accelerator === 'amd-rocm'),
+    {
+      runner: 'ubuntu-24.04',
+      platform: 'linux',
+      arch: 'x64',
+      target: 'x86_64-unknown-linux-gnu',
+      accelerator: 'amd-rocm',
+    },
+  );
+  assert.deepEqual(
+    plan.kubernetesMatrix.find((entry) => entry.arch === 'x64' && entry.accelerator === 'nvidia-cuda'),
+    {
+      runner: 'ubuntu-24.04',
+      platform: 'linux',
+      arch: 'x64',
+      target: 'x86_64-unknown-linux-gnu',
+      accelerator: 'nvidia-cuda',
+    },
+  );
+  assert.throws(
+    () => resolver.parseArgs(['--release-tag']),
+    /Missing value for --release-tag/,
   );
 });
 
@@ -843,7 +910,7 @@ test('bundled component sync resolves the npm global node_modules root for Unix 
   assert.doesNotMatch(syncSource, /-p'\s*,\s*'router-web-service'/);
 });
 
-test('release sync defers heavyweight openclaw and api-router builds to later dedicated phases', async () => {
+test('release sync defers heavyweight openclaw builds to the dedicated preparation phase', async () => {
   const syncPath = path.join(rootDir, 'scripts', 'sync-bundled-components.mjs');
   const syncModule = await import(pathToFileURL(syncPath).href);
 
@@ -862,31 +929,9 @@ test('release sync defers heavyweight openclaw and api-router builds to later de
   );
   assert.deepEqual(
     syncModule.createComponentExecutionPlan({
-      componentId: 'sdkwork-api-router',
-      devMode: false,
-      releaseMode: true,
-    }),
-    {
-      shouldBuild: false,
-      shouldStage: false,
-    },
-  );
-  assert.deepEqual(
-    syncModule.createComponentExecutionPlan({
       componentId: 'hub-installer',
       devMode: false,
       releaseMode: true,
-    }),
-    {
-      shouldBuild: true,
-      shouldStage: true,
-    },
-  );
-  assert.deepEqual(
-    syncModule.createComponentExecutionPlan({
-      componentId: 'sdkwork-api-router',
-      devMode: false,
-      releaseMode: false,
     }),
     {
       shouldBuild: true,

@@ -287,6 +287,8 @@ mod tests {
     };
     use std::{fs, path::PathBuf};
 
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
+
     #[test]
     fn writes_openclaw_cli_shims_for_windows_shells() {
         let temp = tempfile::tempdir().expect("temp dir");
@@ -364,7 +366,8 @@ mod tests {
     }
 
     fn test_runtime(paths: &crate::framework::paths::AppPaths) -> ActivatedOpenClawRuntime {
-        let install_dir = paths.openclaw_runtime_dir.join("2026.3.23-2-windows-x64");
+        let install_key = format!("{TEST_BUNDLED_OPENCLAW_VERSION}-windows-x64");
+        let install_dir = paths.openclaw_runtime_dir.join(&install_key);
         let runtime_dir = install_dir.join("runtime");
         let node_path = runtime_dir.join("node").join("node.exe");
         let cli_path = runtime_dir
@@ -379,7 +382,7 @@ mod tests {
         fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
 
         ActivatedOpenClawRuntime {
-            install_key: "2026.3.23-2-windows-x64".to_string(),
+            install_key,
             install_dir,
             runtime_dir,
             node_path,

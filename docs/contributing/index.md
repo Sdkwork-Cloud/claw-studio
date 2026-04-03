@@ -63,6 +63,18 @@ If your change touches desktop behavior, also run:
 pnpm check:desktop
 ```
 
+If your change touches native server behavior, Docker or Kubernetes deployment bundles, or release metadata, also run:
+
+```bash
+pnpm check:server
+```
+
+If your change touches GitHub workflows, release asset packaging scripts, or release automation contracts, also run:
+
+```bash
+pnpm check:automation
+```
+
 ## Documentation Changes
 
 - update `README.md` and `README.zh-CN.md` for repository entry changes

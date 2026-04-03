@@ -1,0 +1,2 @@
+export const CLAW_SERVER_DEFAULT_HOST = '0.0.0.0';
+export const CLAW_SERVER_DEFAULT_PORT = 18797;

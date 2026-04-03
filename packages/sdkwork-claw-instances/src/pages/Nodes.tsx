@@ -17,6 +17,7 @@ import {
   nodeInventoryService,
   type NodeInventoryHealth,
   type NodeInventoryRecord,
+  type NodeInventorySnapshot,
 } from '../services/index.ts';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -132,17 +133,83 @@ function formatHostVersion(
   });
 }
 
+function formatControlPlaneMode(mode?: string | null) {
+  switch (mode) {
+    case 'desktopCombined':
+      return 'Desktop Combined';
+    case 'server':
+      return 'Server';
+    case 'web':
+      return 'Web Preview';
+    default:
+      return 'Unknown';
+  }
+}
+
+function formatControlPlaneLifecycle(lifecycle?: string | null) {
+  switch (lifecycle) {
+    case 'ready':
+      return 'Ready';
+    case 'starting':
+      return 'Starting';
+    case 'degraded':
+      return 'Degraded';
+    case 'stopping':
+      return 'Stopping';
+    case 'stopped':
+      return 'Stopped';
+    case 'inactive':
+      return 'Inactive';
+    default:
+      return 'Unavailable';
+  }
+}
+
+function formatNodeSessionState(state?: string | null) {
+  switch (state) {
+    case 'pending':
+      return 'Pending';
+    case 'admitted':
+      return 'Admitted';
+    case 'degraded':
+      return 'Degraded';
+    case 'blocked':
+      return 'Blocked';
+    case 'closing':
+      return 'Closing';
+    case 'closed':
+      return 'Closed';
+    default:
+      return 'No Session';
+  }
+}
+
+function formatCompatibilityState(state?: string | null) {
+  switch (state) {
+    case 'compatible':
+      return 'Compatible';
+    case 'degraded':
+      return 'Degraded';
+    case 'blocked':
+      return 'Blocked';
+    default:
+      return 'Unknown';
+  }
+}
+
 export function Nodes() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [nodes, setNodes] = useState<NodeInventoryRecord[]>([]);
+  const [inventory, setInventory] = useState<NodeInventorySnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeAction, setActiveAction] = useState<'ensure' | 'restart' | null>(null);
+  const nodes = inventory?.nodes ?? [];
+  const controlPlane = inventory?.hostPlatform ?? null;
 
   const loadNodes = async () => {
     setIsLoading(true);
     try {
-      setNodes(await nodeInventoryService.listNodes());
+      setInventory(await nodeInventoryService.getInventory());
     } catch (error: any) {
       toast.error(error?.message || t('instances.nodes.toasts.loadFailed'));
     } finally {
@@ -183,6 +250,7 @@ export function Nodes() {
   const managedCount = nodes.filter((node) => node.management === 'managed').length;
   const attachedCount = nodes.filter((node) => node.management === 'attached').length;
   const degradedCount = nodes.filter((node) => node.health !== 'ok').length;
+  const sessionCount = inventory?.sessionCount ?? 0;
 
   if (isLoading && nodes.length === 0) {
     return (
@@ -305,6 +373,44 @@ export function Nodes() {
         ))}
       </div>
 
+      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
+        {[
+          {
+            id: 'mode',
+            label: 'Control Plane Mode',
+            value: formatControlPlaneMode(controlPlane?.mode),
+            detail: controlPlane?.displayName || 'The active host platform backing this node inventory.',
+          },
+          {
+            id: 'lifecycle',
+            label: 'Control Plane Lifecycle',
+            value: formatControlPlaneLifecycle(controlPlane?.lifecycle),
+            detail: controlPlane?.hostId || 'No host platform identifier reported.',
+          },
+          {
+            id: 'sessions',
+            label: 'Active Sessions',
+            value: String(sessionCount),
+            detail: 'Internal node sessions currently reported by the host platform.',
+          },
+        ].map((metric) => (
+          <div
+            key={metric.id}
+            className="rounded-[1.5rem] border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {metric.label}
+            </div>
+            <div className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              {metric.value}
+            </div>
+            <div className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {metric.detail}
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-8 grid grid-cols-1 gap-5 xl:grid-cols-2">
         {nodes.map((node) => (
           <motion.div
@@ -365,6 +471,40 @@ export function Nodes() {
                     </div>
                     <div className="mt-2 text-sm text-zinc-800 dark:text-zinc-200">
                       {formatHostVersion(t, node.host || null, node.version || null)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      Session State
+                    </div>
+                    <div className="mt-2 text-sm text-zinc-800 dark:text-zinc-200">
+                      {formatNodeSessionState(node.sessionState)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      Compatibility
+                    </div>
+                    <div className="mt-2 text-sm text-zinc-800 dark:text-zinc-200">
+                      {formatCompatibilityState(node.compatibilityState)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      Desired Revision
+                    </div>
+                    <div className="mt-2 text-sm text-zinc-800 dark:text-zinc-200">
+                      {node.desiredStateRevision === null
+                        ? t('instances.nodes.values.notAvailable')
+                        : String(node.desiredStateRevision)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      Desired Hash
+                    </div>
+                    <div className="mt-2 break-all font-mono text-xs text-zinc-700 dark:text-zinc-300">
+                      {node.desiredStateHash || t('instances.nodes.values.notAvailable')}
                     </div>
                   </div>
                 </div>

@@ -1,0 +1,87 @@
+{
+  "title": "API 工作区",
+  "description": "统一管理模型路由配置，并查看当前设备上本地代理记录的请求流量。",
+  "tabs": {
+    "providers": "模型配置中心",
+    "requests": "请求日志",
+    "messages": "消息记录"
+  },
+  "sections": {
+    "providers": "模型配置中心",
+    "logs": "请求日志",
+    "providersDescription": "配置本地代理的 Provider 路由、模型列表和默认绑定关系。",
+    "logsDescription": "查看持久化请求轨迹、耗时指标以及按需记录的消息快照。"
+  },
+  "logs": {
+    "description": "通过服务端分页和可展开明细，查看本地 AI Proxy 的请求日志。",
+    "refresh": "刷新",
+    "requests": "请求日志",
+    "messages": "消息记录",
+    "searchPlaceholder": "搜索 provider、模型、预览内容或 base URL",
+    "messageCaptureTitle": "记录消息",
+    "messageCaptureDescription": "开启后，会在本地为每次请求持久化消息快照，默认关闭，仅建议在调试场景下使用。",
+    "messageCaptureUpdatedAt": "最近更新于 {{value}}",
+    "messageCaptureDisabled": "当前未开启消息记录。请求日志仍会保留，但不会保存消息快照。",
+    "status": {
+      "succeeded": "成功",
+      "failed": "失败"
+    },
+    "states": {
+      "loadingRequests": "正在加载请求日志...",
+      "loadingMessages": "正在加载消息记录...",
+      "emptyRequests": "当前还没有请求日志。",
+      "emptyMessages": "当前还没有消息记录。",
+      "loadRequestsFailed": "加载请求日志失败。",
+      "loadMessagesFailed": "加载消息记录失败。",
+      "loadCaptureFailed": "加载消息记录设置失败。",
+      "toggleCaptureFailed": "更新消息记录设置失败。"
+    },
+    "labels": {
+      "enabled": "已开启",
+      "disabled": "未开启",
+      "clickToExpand": "点击行查看详情",
+      "ttft": "首字耗时",
+      "totalDuration": "总耗时",
+      "total": "总量",
+      "input": "输入",
+      "output": "输出",
+      "cache": "缓存"
+    },
+    "pagination": {
+      "summary": "第 {{page}} 页 · 当前 {{start}}-{{end}} 条，共 {{total}} 条",
+      "previous": "上一页",
+      "next": "下一页",
+      "pageSize": "每页"
+    },
+    "requestTable": {
+      "time": "时间",
+      "provider": "Provider",
+      "model": "模型",
+      "duration": "耗时",
+      "tokens": "用量",
+      "baseUrl": "Base URL",
+      "details": "详情",
+      "route": "路由",
+      "protocols": "协议",
+      "endpoint": "接口",
+      "responseStatus": "响应状态",
+      "requestMessages": "请求消息数",
+      "requestPreview": "请求预览",
+      "responsePreview": "响应预览",
+      "requestBody": "请求体",
+      "responseBody": "响应体"
+    },
+    "messageTable": {
+      "time": "时间",
+      "provider": "Provider",
+      "model": "模型",
+      "messageCount": "消息数",
+      "baseUrl": "Base URL",
+      "details": "详情",
+      "requestLogId": "请求日志 ID",
+      "preview": "请求预览",
+      "responsePreview": "响应预览",
+      "messages": "消息内容"
+    }
+  }
+}

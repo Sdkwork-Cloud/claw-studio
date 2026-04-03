@@ -40,8 +40,8 @@
     "instances": "实例",
     "devices": "设备",
     "install": "安装 Claw",
-    "market": "ClawHub",
     "kernelCenter": "内核中心",
+    "market": "ClawHub",
     "nodes": "节点",
     "agentMarket": "数字员工",
     "aiChat": "AI 对话",
@@ -56,11 +56,10 @@
     "ecosystem": "生态",
     "setup": "配置",
     "codebox": "CodeBox",
-    "apiRouter": "API 路由",
+    "providerCenter": "模型配置中心",
     "modelPurchase": "模型购买",
     "clawUpload": "Claw联网",
     "systemResources": "系统资源",
-    "apiRouter": "模型配置中心",
     "cpu": "CPU",
     "ram": "RAM",
     "switchInstance": "切换实例",
@@ -83,15 +82,18 @@
     }
   },
   "auth": {
+    "account": "账号",
+    "phone": "手机号",
+    "verificationCode": "验证码",
     "qrLogin": "扫码登录",
-    "qrDesc": "使用微信或其他受支持的客户端扫描二维码，快速完成登录。",
-    "openApp": "打开微信",
+    "qrDesc": "使用受支持的应用扫描二维码，即可快速完成登录。",
+    "openApp": "打开关联应用并扫码确认登录",
     "welcomeBack": "欢迎回来",
     "createAccount": "创建账号",
     "resetPassword": "重置密码",
-    "loginDesc": "输入你的信息以访问账号。",
-    "registerDesc": "加入我们，开始创造精彩内容。",
-    "resetDesc": "输入你的邮箱以接收重置链接。",
+    "loginDesc": "选择符合账号策略的登录方式，安全继续。",
+    "registerDesc": "通过已验证的邮箱或手机号创建安全的工作区账号。",
+    "resetDesc": "使用邮箱或手机号申请重置验证码，并设置新密码。",
     "name": "姓名",
     "email": "邮箱地址",
     "password": "密码",
@@ -103,10 +105,58 @@
     "noAccount": "还没有账号？",
     "hasAccount": "已经有账号了？",
     "backToLogin": "返回登录",
+    "loginMethods": {
+      "password": "账号密码",
+      "phoneCode": "手机验证码",
+      "emailCode": "邮箱验证码"
+    },
+    "registerMethods": {
+      "email": "邮箱注册",
+      "phone": "手机注册"
+    },
+    "registerHighlights": {
+      "email": "使用工作邮箱完成归属验证。",
+      "phone": "适用于移动优先场景，可通过短信验证码完成注册。",
+      "password": "设置高强度密码用于日常登录。"
+    },
+    "registerFields": {
+      "username": "用户名",
+      "email": "邮箱地址",
+      "phone": "手机号",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "verificationCode": "验证码"
+    },
+    "forgotPasswordFields": {
+      "account": "账号",
+      "code": "验证码",
+      "newPassword": "新密码",
+      "confirmPassword": "确认新密码"
+    },
+    "resetHighlights": {
+      "email": "通过已验证邮箱接收重置验证码。",
+      "phone": "当账号绑定手机号时，可通过短信完成找回。",
+      "password": "完成重置前请设置并确认全新的登录密码。"
+    },
+    "actions": {
+      "sendCode": "发送验证码",
+      "resendCode": "重新发送",
+      "usePassword": "改用密码登录",
+      "usePhoneCode": "改用手机验证码",
+      "useEmailCode": "改用邮箱验证码",
+      "startReset": "发送重置码",
+      "completeReset": "重置密码"
+    },
     "placeholders": {
       "name": "张三",
+      "account": "用户名、手机号或邮箱",
       "email": "you@example.com",
-      "password": "输入你的密码"
+      "phone": "请输入手机号",
+      "password": "输入你的密码",
+      "verificationCode": "请输入验证码",
+      "username": "请输入用户名",
+      "confirmPassword": "请再次输入密码",
+      "newPassword": "请输入新密码"
     },
     "providers": {
       "wechat": "微信",
@@ -116,8 +166,11 @@
     },
     "qrAlt": "登录二维码",
     "qrRefresh": "刷新二维码",
-    "qrScannedHint": "二维码已扫描，请在微信中确认登录。",
-    "qrWeChatHint": "支持后端返回的微信公众号登录二维码。",
+    "qrScannedHint": "二维码已扫描，请在关联应用中确认登录。",
+    "qrTypeHints": {
+      "default": "支持后端下发的二维码登录与确认流程。",
+      "wechatOfficialAccount": "支持后端返回的微信公众号二维码登录。"
+    },
     "qrStatus": {
       "loading": "正在准备二维码...",
       "pending": "扫描二维码继续",
@@ -126,16 +179,35 @@
       "expired": "二维码已过期",
       "error": "无法获取二维码状态"
     },
+    "toasts": {
+      "codeSent": "验证码已发送。",
+      "resetCodeSent": "重置验证码已发送。",
+      "registerSuccess": "注册成功。",
+      "passwordResetSuccess": "密码重置成功。"
+    },
     "errors": {
       "signInFailed": "登录失败。",
       "passwordResetFailed": "发送重置密码请求失败。",
+      "sendCodeFailed": "发送验证码失败。",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "registrationFailed": "注册失败。",
+      "resetPasswordFailed": "重置密码失败。",
       "oauthStartFailed": "发起社交登录失败。",
       "qrGenerateFailed": "加载登录二维码失败。",
       "qrStatusFailed": "刷新二维码登录状态失败。",
-      "invalidQrPayload": "后端返回的二维码数据无效。"
+      "invalidQrPayload": "后端返回的二维码数据无效。",
+      "invalidEmail": "请输入有效的邮箱地址。",
+      "invalidPhone": "请输入有效的手机号码。"
     },
     "oauth": {
       "badge": "OAuth 登录",
+      "helper": "使用当前工作区已配置的可信身份提供方继续登录。",
+      "providerHints": {
+        "wechat": "通过微信身份流程扫码或授权登录。",
+        "douyin": "使用抖音继续登录，适合创作者与移动优先场景。",
+        "github": "使用 GitHub 身份登录，适合研发型工作区。",
+        "google": "使用 Google Workspace 身份继续登录。"
+      },
       "processingTitle": "正在完成登录",
       "processingDesc": "授权提供方已经返回 Claw Studio，正在校验授权结果并创建会话。",
       "processingHint": "请保持此页面打开，直到跳转完成。",
@@ -162,6 +234,9 @@
       "launchOnStartupDescription": "登录电脑后自动启动 Claw Studio。",
       "startMinimized": "最小化启动",
       "startMinimizedDescription": "启动时进入系统托盘而不是直接打开窗口。",
+      "chatComposer": "对话输入",
+      "compactModelSelector": "紧凑模型选择器",
+      "compactModelSelectorDescription": "当模型选择器只有一个 channel 时，隐藏左侧 channel 区域。",
       "updatePreferenceFailed": "更新偏好设置失败",
       "themeModes": {
         "light": "浅色",
@@ -189,10 +264,10 @@
       "wallet": "账户",
       "account": "个人资料设置",
       "notifications": "通知",
+      "feedback": "反馈",
       "security": "安全",
       "api": "API 密钥",
-      "data": "数据与隐私",
-      "feedback": "反馈"
+      "data": "数据与隐私"
     },
     "kernelCenter": {
       "description": "内置 OpenClaw 内核被视为产品的必备基础设施。这里会如实展示当前宿主归属、活动端点、存储配置与运行来源，不会掩盖任何回退行为。",
@@ -270,7 +345,8 @@
         "provenance": "运行来源",
         "capabilityRollup": "能力汇总",
         "managedDirectories": "托管目录",
-        "supervisorAndBundles": "监管器与内置组件"
+        "supervisorAndBundles": "监管器与内置组件",
+        "localAiProxy": "本地 AI 代理"
       },
       "fields": {
         "serviceManager": "服务管理器",
@@ -280,6 +356,10 @@
         "controlSocketAvailable": "控制套接字可用",
         "serviceConfigPath": "服务配置路径",
         "baseUrl": "基础 URL",
+        "localAiProxyRootBaseUrl": "本地代理根地址",
+        "openaiCompatibleBaseUrl": "OpenAI 兼容 Base URL",
+        "anthropicBaseUrl": "Anthropic Base URL",
+        "geminiBaseUrl": "Gemini Base URL",
         "websocketUrl": "WebSocket URL",
         "preferredPort": "首选端口",
         "activePort": "活动端口",
@@ -299,7 +379,15 @@
         "userRoot": "用户根目录",
         "studioDir": "Studio 目录",
         "storageDir": "存储目录",
-        "backupsDir": "备份目录"
+        "backupsDir": "备份目录",
+        "localAiProxyLifecycle": "代理生命周期",
+        "defaultRoute": "默认路由",
+        "upstreamBaseUrl": "上游 Base URL",
+        "loopbackOnly": "仅回环监听",
+        "snapshotPath": "快照路径",
+        "logPath": "日志路径",
+        "modelCount": "模型数量",
+        "lastError": "最后错误"
       },
       "values": {
         "notAvailable": "不可用",
@@ -330,6 +418,12 @@
         "inactive": "非活跃",
         "stopping": "停止中",
         "unknown": "未知"
+      },
+      "localAiProxyLifecycle": {
+        "running": "运行中",
+        "failed": "失败",
+        "stopped": "已停止",
+        "unavailable": "不可用"
       }
     },
     "account": {
@@ -429,6 +523,99 @@
         "invalidEmail": "保存前请输入有效的邮箱地址"
       }
     },
+    "feedback": {
+      "title": "反馈中心",
+      "description": "通过共享 app-sdk 提交产品反馈、跟踪工单处理进度，并查看官方支持信息。",
+      "authRequired": {
+        "title": "登录后管理反馈",
+        "description": "请先登录，再提交新的反馈或查看当前工作台中的历史工单。",
+        "action": "前往登录"
+      },
+      "submit": {
+        "title": "提交反馈",
+        "description": "可直接提交 Bug、建议、功能诉求或使用问题到后端反馈服务。",
+        "typeLabel": "反馈类型",
+        "contactLabel": "联系方式",
+        "contactPlaceholder": "邮箱、手机号或偏好的跟进方式",
+        "contentLabel": "反馈内容",
+        "contentPlaceholder": "请描述问题现象、期望行为以及可复现的关键细节。",
+        "helper": "尽量说明发生了什么、你期待什么，以及希望如何改进。",
+        "action": "提交反馈",
+        "submitting": "提交中..."
+      },
+      "history": {
+        "title": "反馈记录",
+        "description": "查看近期工单、按状态筛选，并打开某条记录继续补充信息。",
+        "refresh": "刷新",
+        "empty": "你还没有提交过任何反馈。",
+        "emptyFiltered": "当前状态筛选下没有匹配的反馈。"
+      },
+      "detail": {
+        "empty": "请选择一条反馈查看详情。",
+        "contact": "联系方式",
+        "submittedAt": "提交时间",
+        "processedAt": "处理时间",
+        "followUps": "补充记录",
+        "followUpPlaceholder": "补充更多上下文、日志或截图，方便支持团队继续处理。",
+        "sendFollowUp": "发送补充",
+        "sendingFollowUp": "发送中...",
+        "closeAction": "关闭工单",
+        "closing": "关闭中...",
+        "noFollowUps": "暂时还没有补充记录。"
+      },
+      "support": {
+        "title": "支持信息",
+        "description": "如需更快响应，可直接使用官方支持渠道处理当前问题。",
+        "hotline": "热线电话",
+        "email": "支持邮箱",
+        "hours": "工作时间",
+        "online": "在线支持",
+        "faq": "FAQ 链接",
+        "helpCenter": "帮助中心",
+        "empty": "暂时无法获取支持信息。"
+      },
+      "faq": {
+        "title": "常见问题",
+        "description": "提交新工单前，可以先搜索常见答案。",
+        "categoryLabel": "分类",
+        "categoryAll": "全部分类",
+        "searchPlaceholder": "搜索常见问题",
+        "empty": "当前查询没有匹配的 FAQ。",
+        "answerTitle": "回答",
+        "selectPrompt": "请选择一条 FAQ 查看回答。"
+      },
+      "status": {
+        "ALL": "全部状态",
+        "PENDING": "待处理",
+        "PROCESSING": "处理中",
+        "PROCESSED": "已处理",
+        "RESOLVED": "已解决",
+        "CLOSED": "已关闭",
+        "REJECTED": "已拒绝"
+      },
+      "types": {
+        "SUGGESTION": "建议",
+        "COMPLAINT": "投诉",
+        "PRAISE": "表扬",
+        "BUG_REPORT": "Bug 反馈",
+        "FEATURE_REQUEST": "功能诉求",
+        "QUESTION": "使用咨询",
+        "OTHER": "其他"
+      },
+      "toasts": {
+        "authRequired": "请先登录后再管理反馈。",
+        "submitSuccess": "反馈提交成功。",
+        "submitFailed": "反馈提交失败。",
+        "loadFeedbackFailed": "加载反馈记录失败。",
+        "loadFeedbackDetailFailed": "加载反馈详情失败。",
+        "followUpSuccess": "补充信息发送成功。",
+        "followUpFailed": "补充信息发送失败。",
+        "closeSuccess": "反馈工单已关闭。",
+        "closeFailed": "关闭反馈工单失败。",
+        "loadSupportFailed": "加载支持信息失败。",
+        "loadFaqFailed": "加载 FAQ 信息失败。"
+      }
+    },
     "apiKeys": {
       "title": "API 密钥",
       "description": "管理用于 Claw Studio 请求认证的 API 密钥。",
@@ -526,6 +713,7 @@
       "downloadInvoice": "下载发票"
     },
     "dataPrivacy": {
+      "loadPreferenceFailed": "加载隐私偏好设置失败",
       "title": "数据与隐私",
       "description": "管理你的数据、遥测及账户删除设置。",
       "updatePreferenceFailed": "更新偏好设置失败",
@@ -566,6 +754,7 @@
       "taskCompletionsDescription": "当任务成功完成时显示桌面通知。",
       "newMessages": "新消息",
       "newMessagesDescription": "当我在渠道中收到新消息时通知我。",
+      "loadPreferenceFailed": "加载通知偏好设置失败",
       "updatePreferenceFailed": "更新偏好设置失败"
     },
     "security": {
@@ -657,99 +846,6 @@
         "modelNamePlaceholder": "显示名称（例如：GPT-4o）",
         "save": "保存配置"
       }
-    },
-    "feedback": {
-      "title": "反馈中心",
-      "description": "通过共享 app-sdk 提交产品反馈、跟踪工单处理进度，并查看官方支持信息。",
-      "authRequired": {
-        "title": "登录后管理反馈",
-        "description": "请先登录，再提交新的反馈或查看当前工作台中的历史工单。",
-        "action": "前往登录"
-      },
-      "submit": {
-        "title": "提交反馈",
-        "description": "可直接提交 Bug、建议、功能诉求或使用问题到后端反馈服务。",
-        "typeLabel": "反馈类型",
-        "contactLabel": "联系方式",
-        "contactPlaceholder": "邮箱、手机号或偏好的跟进方式",
-        "contentLabel": "反馈内容",
-        "contentPlaceholder": "请描述问题现象、期望行为以及可复现的关键细节。",
-        "helper": "尽量说明发生了什么、你期待什么，以及希望如何改进。",
-        "action": "提交反馈",
-        "submitting": "提交中..."
-      },
-      "history": {
-        "title": "反馈记录",
-        "description": "查看近期工单、按状态筛选，并打开某条记录继续补充信息。",
-        "refresh": "刷新",
-        "empty": "你还没有提交过任何反馈。",
-        "emptyFiltered": "当前状态筛选下没有匹配的反馈。"
-      },
-      "detail": {
-        "empty": "请选择一条反馈查看详情。",
-        "contact": "联系方式",
-        "submittedAt": "提交时间",
-        "processedAt": "处理时间",
-        "followUps": "补充记录",
-        "followUpPlaceholder": "补充更多上下文、日志或截图，方便支持团队继续处理。",
-        "sendFollowUp": "发送补充",
-        "sendingFollowUp": "发送中...",
-        "closeAction": "关闭工单",
-        "closing": "关闭中...",
-        "noFollowUps": "暂时还没有补充记录。"
-      },
-      "support": {
-        "title": "支持信息",
-        "description": "如需更快响应，可直接使用官方支持渠道处理当前问题。",
-        "hotline": "热线电话",
-        "email": "支持邮箱",
-        "hours": "工作时间",
-        "online": "在线支持",
-        "faq": "FAQ 链接",
-        "helpCenter": "帮助中心",
-        "empty": "暂时无法获取支持信息。"
-      },
-      "faq": {
-        "title": "常见问题",
-        "description": "提交新工单前，可以先搜索常见答案。",
-        "categoryLabel": "分类",
-        "categoryAll": "全部分类",
-        "searchPlaceholder": "搜索常见问题",
-        "empty": "当前查询没有匹配的 FAQ。",
-        "answerTitle": "回答",
-        "selectPrompt": "请选择一条 FAQ 查看回答。"
-      },
-      "status": {
-        "ALL": "全部状态",
-        "PENDING": "待处理",
-        "PROCESSING": "处理中",
-        "PROCESSED": "已处理",
-        "RESOLVED": "已解决",
-        "CLOSED": "已关闭",
-        "REJECTED": "已拒绝"
-      },
-      "types": {
-        "SUGGESTION": "建议",
-        "COMPLAINT": "投诉",
-        "PRAISE": "表扬",
-        "BUG_REPORT": "Bug 反馈",
-        "FEATURE_REQUEST": "功能诉求",
-        "QUESTION": "使用咨询",
-        "OTHER": "其他"
-      },
-      "toasts": {
-        "authRequired": "请先登录后再管理反馈。",
-        "submitSuccess": "反馈提交成功。",
-        "submitFailed": "反馈提交失败。",
-        "loadFeedbackFailed": "加载反馈记录失败。",
-        "loadFeedbackDetailFailed": "加载反馈详情失败。",
-        "followUpSuccess": "补充信息发送成功。",
-        "followUpFailed": "补充信息发送失败。",
-        "closeSuccess": "反馈工单已关闭。",
-        "closeFailed": "关闭反馈工单失败。",
-        "loadSupportFailed": "加载支持信息失败。",
-        "loadFaqFailed": "加载 FAQ 信息失败。"
-      }
     }
   },
   "commandPalette": {
@@ -819,17 +915,13 @@
         "title": "前往 CodeBox",
         "subtitle": "打开预置的 CodeBox 集成路由"
       },
-      "apiRouter": {
-        "title": "前往 API 路由",
-        "subtitle": "管理模型渠道与代理提供方"
+      "providerCenter": {
+        "title": "前往模型配置中心",
+        "subtitle": "管理 LLM、Embedding 与路由配置"
       },
       "modelPurchase": {
         "title": "前往模型购买",
         "subtitle": "浏览独立模型套餐与计费方案"
-      },
-      "apiRouter": {
-        "title": "前往模型配置中心",
-        "subtitle": "管理 LLM、Embedding 与路由配置"
       },
       "settings": {
         "title": "前往设置",
@@ -954,609 +1046,7 @@
     "failedTryAgain": "任务执行失败，请重试。"
   },
   "routes": {
-    "codeboxComingSoon": "CodeBox 集成即将上线。",
-    "apiRouterComingSoon": "API 路由集成即将上线。"
-  },
-  "apiRouterPage": {
-    "page": {
-      "eyebrow": "路由控制平面",
-      "title": "API 路由",
-      "description": "在一个运营界面中统一管理模型厂商、代理提供方和密钥生命周期。",
-      "descriptionWithChannel": "在同一个控制平面中管理 {{channel}} 路由，并监控当前活跃的 {{modelFamily}} 提供方池。"
-    },
-    "pageTabs": {
-      "unifiedApiKey": "统一 API 密钥",
-      "routeConfig": "路由配置",
-      "modelMapping": "模型映射",
-      "usageRecords": "使用记录"
-    },
-    "routeConfig": {
-      "emptyTitle": "暂时还没有可配置的模型通道",
-      "emptyDescription": "即使当前没有路由数据，API Router 控制台也会继续显示。接入 router 数据或创建上游提供方后，这里就会出现可配置的路由视图。"
-    },
-    "admin": {
-      "title": "管理控制面",
-      "heading": "sdkwork-api-router 管理端",
-      "state": {
-        "authenticated": "已连接",
-        "needsLogin": "需要登录",
-        "needsConfiguration": "需要修正配置",
-        "unavailable": "不可用"
-      },
-      "authSource": {
-        "session": "操作员会话",
-        "managedBootstrap": "本地托管静默引导",
-        "configuredToken": "已配置令牌",
-        "none": "未提供凭据"
-      },
-      "fields": {
-        "authSource": "认证来源",
-        "adminBaseUrl": "管理端地址",
-        "gatewayBaseUrl": "网关地址",
-        "operator": "当前操作员",
-        "email": "管理员邮箱",
-        "password": "密码"
-      },
-      "placeholders": {
-        "email": "admin@example.com",
-        "password": "输入管理员密码"
-      },
-      "actions": {
-        "refresh": "刷新",
-        "signIn": "登录",
-        "disconnect": "断开连接"
-      },
-      "values": {
-        "autoResolved": "由运行时自动解析",
-        "unknown": "未知"
-      },
-      "messages": {
-        "sessionConnected": "当前 API Router 控制面已经通过操作员会话完成认证，可以直接调用 router 原生管理接口。",
-        "managedBootstrapConnected": "Claw Studio 已为当前本地托管的 sdkwork-api-router 静默完成认证，可以直接调用 router 原生管理接口。",
-        "configuredTokenConnected": "当前 API Router 控制面已经通过预配置管理员令牌完成认证，可以直接调用 router 原生管理接口。",
-        "configuredTokenConfigurationRequired": "预配置的 sdkwork-api-router 管理员令牌已被服务端拒绝。请先更新或移除 VITE_API_ROUTER_ADMIN_TOKEN，然后再重试；只要该令牌仍然被配置，手动登录就会保持禁用。",
-        "signInRequired": "请登录 sdkwork-api-router 管理接口，这样控制面能力才能切换到真实 router 后端，而不是继续使用 mock 回退。",
-        "reauthenticateRequired": "已保存的 router 管理凭据已经失效。请重新登录，恢复 router-backed 控制面访问能力。"
-      },
-      "loginHint": "无论是独立部署的服务端，还是当前附着的本地托管运行时，都使用这里的 router 管理员账号登录。",
-      "toast": {
-        "connected": "已使用 {{email}} 连接到 sdkwork-api-router",
-        "connectionFailed": "连接 sdkwork-api-router 管理端失败",
-        "disconnected": "已清除 router 管理会话",
-        "disconnectFailed": "清除 router 管理会话失败"
-      }
-    },
-    "runtime": {
-      "title": "路由运行时",
-      "reason": "运行时判断",
-      "recommendation": "建议的托管模式",
-      "conflictHint": "当前配置端口已经被占用，但占用进程没有通过 router 健康检查。在启动托管实例前，需要先处理这个冲突。",
-      "sharedRoot": "共享 Router 根目录",
-      "configFile": "解析后的配置文件",
-      "bind": "绑定地址",
-      "mode": {
-        "attachedExternal": "已附着到外部 Router",
-        "managedActive": "由 Claw Studio 托管运行",
-        "needsManagedStart": "需要进入托管启动",
-        "conflicted": "Router 启动被阻塞"
-      },
-      "summary": {
-        "attachedExternal": "外部实例已运行",
-        "managedActive": "托管实例已运行",
-        "needsManagedStart": "可以准备启动",
-        "conflicted": "需要人工处理"
-      },
-      "managedMode": {
-        "inProcess": "在托管启动器接入后，由 Claw 随应用生命周期以进程内方式启动 sdkwork-api-router。"
-      },
-      "configSource": {
-        "defaults": "未发现共享 router 配置文件，当前使用默认绑定地址。",
-        "file": "已从共享 router 配置加载。"
-      },
-      "endpoint": {
-        "admin": "管理端点",
-        "gateway": "网关端点"
-      },
-      "health": {
-        "healthy": "健康",
-        "unhealthy": "异常"
-      },
-      "port": {
-        "available": "端口可用",
-        "occupied": "端口已占用"
-      }
-    },
-    "unifiedApiKey": {
-      "filters": {
-        "searchPlaceholder": "搜索密钥名称、备注或 API 密钥",
-        "allGroups": "全部分组",
-        "modelMappingSearchPlaceholder": "搜索映射名称、描述或映射模型",
-        "routeConfigSearchPlaceholder": "搜索路由配置名称、分组、渠道或模型"
-      },
-      "table": {
-        "name": "名称",
-        "apiKey": "API 密钥",
-        "source": "来源",
-        "group": "分组",
-        "usage": "用量",
-        "expiresAt": "到期时间",
-        "status": "状态",
-        "createdAt": "创建时间",
-        "actions": "操作",
-        "emptyTitle": "当前筛选条件下暂无匹配的统一 API 密钥",
-        "emptyDescription": "新建一个全局 API 密钥，或放宽当前搜索条件。"
-      },
-      "actions": {
-        "createKey": "新建密钥",
-        "refresh": "刷新",
-        "copyKey": "复制密钥",
-        "copySnippet": "复制片段",
-        "usageMethod": "使用方式",
-        "routeConfig": "路由配置",
-        "associateModelMapping": "关联模型映射",
-        "clearModelMapping": "清除映射",
-        "enable": "启用",
-        "disable": "禁用",
-        "edit": "编辑",
-        "delete": "删除",
-        "confirmDelete": "确认删除 {{name}} 吗？"
-      },
-      "sources": {
-        "system-generated": "系统生成",
-        "custom": "自定义"
-      },
-      "dialogs": {
-        "usageTitle": "使用方式",
-        "createTitle": "新建统一 API 密钥",
-        "editTitle": "编辑统一 API 密钥",
-        "routeConfigTitle": "路由配置",
-        "associateModelMappingTitle": "关联模型映射",
-        "exampleRequest": "示例请求",
-        "create": "创建密钥",
-        "save": "保存更改"
-      },
-      "detail": {
-        "openaiBaseUrl": "OpenAI 基础 URL",
-        "anthropicBaseUrl": "Anthropic 基础 URL",
-        "baseUrl": "基础 URL",
-        "authHeader": "认证请求头",
-        "gatewayHint": "一键配置会把每个客户端映射到对应的统一网关协议。兼容 OpenAI 的客户端使用 /v1，Claude Code 使用 /anthropic。",
-        "geminiGatewayHint": "统一 API 密钥现在已通过路由化 Gemini 网关支持 Gemini CLI。启用环境配置时，安装器会写入 GEMINI_API_KEY、GOOGLE_GEMINI_BASE_URL 以及对应的认证机制。",
-        "secretRevealHint": "当前设备暂时没有这把密钥的本地明文托管副本。如需恢复复制、本地使用和一键接入，请在这里重新创建或轮换这把密钥。"
-      },
-      "fields": {
-        "name": "名称",
-        "nameHint": "使用业务可识别的密钥名称，让操作人员和客户团队一眼就能认出。",
-        "apiKey": "API 密钥",
-        "apiKeyHint": "手动模式下请输入完整的 `sk-...` 路由密钥；托管模式会自动生成并在本机保存一个脱敏展示的 `sk-ar-v1-...` 密钥供本地使用。",
-        "group": "分组",
-        "groupHint": "按租户、流量层级、客户分群或运营边界对统一密钥进行分组。",
-        "groupName": "首个分组名称",
-        "groupNameHint": "当前还没有 router tenant。输入首个分组名称后，Claw Studio 会先创建 tenant，再创建这把统一密钥。",
-        "keyMode": "密钥模式",
-        "generateKey": "系统生成",
-        "generateKeyHint": "推荐。平台会为这个路由创建并管理一个全新的对外 API 密钥。",
-        "customKey": "手动输入",
-        "customKeyHint": "当你需要保留现有外部凭据时，可使用手动提供的 API 密钥。",
-        "systemGeneratedTitle": "托管统一密钥",
-        "systemGeneratedCreateHint": "创建后会自动生成一个 `sk-ar-v1-...` 格式的新密钥。",
-        "systemGeneratedExistingHint": "该密钥由平台托管。编辑元数据会保留当前生成凭据，并继续在本机保留可复制、可一键接入的明文副本。",
-        "systemGeneratedPreview": "保存后系统将为你创建一个新的对外 API 密钥。",
-        "keyModeLockedTitle": "密钥轮换需单独处理",
-        "keyModeLockedHint": "这个 router 托管密钥仍然可以在这里修改租户、名称、到期时间和备注，但创建后的明文密钥会被有意隐藏。",
-        "expiresAt": "到期时间",
-        "expiresAtHint": "使用日期选择器跟踪轮换计划或合同截止时间。",
-        "notes": "备注"
-      },
-      "placeholders": {
-        "name": "全局生产密钥",
-        "groupName": "Acme Workspace",
-        "apiKey": "sk-ar-v1-...",
-        "notes": "描述租户、用途、配额策略或轮换背景。"
-      },
-      "toast": {
-        "copySuccess": "统一 API 密钥已复制",
-        "copyFailed": "复制统一 API 密钥失败",
-        "copyUnavailable": "当前设备还没有这把密钥的本地明文托管副本。请在这里重新创建或轮换后再复制或进行本地一键接入。",
-        "accessConfigCopied": "使用片段已复制",
-        "accessConfigCopyFailed": "复制使用片段失败",
-        "validationFailed": "请填写名称，并选择或输入分组。自定义模式还需要提供 API 密钥值。",
-        "keyCreated": "统一 API 密钥已创建",
-        "groupUpdated": "密钥分组已更新",
-        "statusUpdated": "密钥状态已更新",
-        "routeConfigUpdated": "路由配置已更新",
-        "routeConfigValidationFailed": "自定义路由必须选择一个路由配置。",
-        "modelMappingUpdated": "模型映射关联已更新",
-        "keyUpdated": "统一 API 密钥已更新",
-        "keyDeleted": "统一 API 密钥已删除"
-      },
-      "values": {
-        "never": "永不过期",
-        "mappedTo": "已关联 {{name}}",
-        "mappingUnavailable": "映射已不可用",
-        "sdkworkRemoteRoute": "SDKWORK 远程默认路由",
-        "customRouteTo": "自定义路由到 {{name}}",
-        "routeConfigUnavailable": "路由配置已不可用",
-        "modelMappingOptional": "模型映射可选",
-        "routeConfigMeta": "{{channel}} · {{group}}",
-        "associationHint": "为该 Key 选择一个模型映射，清空选择即可移除当前关联。",
-        "noRouteConfigs": "当前搜索条件下没有可用的路由配置。",
-        "noModelMappings": "当前搜索条件下没有匹配的模型映射。",
-        "hiddenAfterCreation": "已脱敏",
-        "oneTimeSecretUnavailable": "当前设备没有这把密钥的本地明文托管副本"
-      },
-      "routeConfig": {
-        "sidebar": {
-          "sdkworkRemote": {
-            "title": "SDKWORK 远程路由",
-            "description": "默认路由。未配置覆盖规则的请求会继续走远程 SDKWORK API Router 标准化服务。"
-          },
-          "custom": {
-            "title": "自定义路由配置",
-            "description": "选择一个本地路由配置作为覆盖层，只改这把统一密钥的路由去向。"
-          },
-          "modelMapping": {
-            "title": "模型映射配置",
-            "description": "可选地为这把统一密钥附加模型映射。不配置时保持原始模型路由。"
-          }
-        },
-        "sdkworkRemote": {
-          "title": "保持 SDKWORK 远程路由",
-          "description": "使用 SDKWORK 远程路由作为默认兜底。这样本地设置只做增量覆盖，远端继续承担标准化路由服务和未配置请求。"
-        },
-        "custom": {
-          "title": "选择自定义路由",
-          "description": "这里列出路由配置中的可选项。选中后，这把统一密钥会优先走本地指定的路由配置。"
-        }
-      }
-    },
-    "modelMapping": {
-      "filters": {
-        "searchPlaceholder": "搜索映射名称、描述、channel 或模型"
-      },
-      "table": {
-        "name": "名称",
-        "description": "描述",
-        "status": "状态",
-        "effectiveTime": "有效时间",
-        "createdAt": "创建时间",
-        "actions": "操作",
-        "emptyTitle": "当前筛选条件下暂无模型映射",
-        "emptyDescription": "新建一个映射，将一个源模型路由到目标模型。"
-      },
-      "actions": {
-        "create": "新建模型映射",
-        "refresh": "刷新",
-        "viewDetail": "查看详情",
-        "edit": "编辑",
-        "delete": "删除",
-        "enable": "启用",
-        "disable": "禁用",
-        "addRule": "添加映射规则",
-        "selectSourceModel": "选择源模型",
-        "selectTargetModel": "选择目标模型",
-        "confirmDelete": "确认删除 {{name}} 吗？"
-      },
-      "dialogs": {
-        "createTitle": "新建模型映射",
-        "editTitle": "编辑模型映射",
-        "detailTitle": "模型映射详情",
-        "modelSelectorTitle": "选择模型",
-        "create": "创建映射",
-        "save": "保存更改"
-      },
-      "fields": {
-        "name": "名称",
-        "description": "描述",
-        "effectiveFrom": "生效开始",
-        "effectiveTo": "生效结束",
-        "rules": "映射规则",
-        "rulesHint": "每条规则表示一个源模型到一个目标模型，同一个源模型在同一个映射中只能出现一次。",
-        "sourceModel": "源模型",
-        "targetModel": "目标模型"
-      },
-      "placeholders": {
-        "name": "全局助手映射",
-        "description": "描述该映射适用的业务场景与路由意图。",
-        "searchModel": "搜索模型名称或 Model ID"
-      },
-      "toast": {
-        "validationFailed": "请完整填写名称、生效时间范围，并至少配置一条完整的源模型到目标模型映射规则。结束日期必须不早于开始日期，且源模型不能重复。",
-        "created": "模型映射已创建",
-        "updated": "模型映射已更新",
-        "statusUpdated": "模型映射状态已更新",
-        "deleted": "模型映射已删除"
-      },
-      "values": {
-        "ruleCount": "{{count}} 条规则",
-        "ruleIndex": "规则 {{index}}",
-        "until": "至",
-        "noDescription": "暂无描述。",
-        "modelCatalogEmpty": "当前还没有可用于映射的 channel 模型，请先创建或更新代理提供商模型。",
-        "modelSelectionEmpty": "当前 channel 下暂无可选模型。"
-      }
-    },
-    "usageRecords": {
-      "summary": {
-        "totalRequests": "总请求数",
-        "totalTokens": "总 Token 消耗",
-        "promptTokens": "输入",
-        "completionTokens": "输出",
-        "cachedTokens": "缓存",
-        "totalSpend": "总消费",
-        "averageDuration": "平均耗时"
-      },
-      "filters": {
-        "apiKey": "API 密钥",
-        "allApiKeys": "全部 API 密钥",
-        "timeRange": "时间范围",
-        "startDate": "开始日期",
-        "endDate": "结束日期",
-        "invalidDateRange": "结束日期不能早于开始日期"
-      },
-      "timeRanges": {
-        "last24Hours": "近 24 小时",
-        "last7Days": "近 7 天",
-        "last30Days": "近 30 天",
-        "custom": "自定义"
-      },
-      "actions": {
-        "refresh": "刷新",
-        "reset": "重置",
-        "exportCsv": "导出 CSV"
-      },
-      "table": {
-        "apiKey": "API 密钥",
-        "model": "模型",
-        "reasoningEffort": "推理强度",
-        "endpoint": "端点",
-        "type": "类型",
-        "tokenDetail": "TOKEN 明细",
-        "cost": "费用",
-        "ttft": "首 TOKEN (TTFT)",
-        "duration": "耗时",
-        "time": "时间",
-        "userAgent": "USER-AGENT",
-        "streaming": "流式",
-        "standard": "非流式",
-        "emptyTitle": "当前筛选条件下暂无使用记录",
-        "emptyDescription": "请尝试切换 API 密钥或调整时间范围。"
-      },
-      "pagination": {
-        "totalResults": "共 {{count}} 条结果",
-        "showingRange": "显示 {{start}} 至 {{end}}",
-        "previous": "上一页",
-        "next": "下一页",
-        "pageSize": "每页条数"
-      },
-      "toast": {
-        "exported": "CSV 已导出",
-        "exportFailed": "CSV 导出失败"
-      },
-      "values": {
-        "milliseconds": "{{value}} 毫秒"
-      }
-    },
-    "summary": {
-      "providers": "提供方",
-      "healthy": "健康",
-      "attention": "需关注",
-      "groups": "分组"
-    },
-    "sidebar": {
-      "title": "模型渠道",
-      "heading": "渠道目录",
-      "description": "选择一个基础模型厂商，查看其路由代理提供方清单和运行状态。",
-      "providers": "{{count}} 个提供方"
-    },
-    "filters": {
-      "searchPlaceholder": "搜索提供方名称、模型或端点",
-      "allGroups": "全部分组",
-      "allChannels": "全部渠道",
-      "channelPlaceholder": "筛选渠道"
-    },
-    "table": {
-      "name": "名称",
-      "channel": "渠道",
-      "apiKey": "API 密钥",
-      "group": "分组",
-      "usage": "用量",
-      "expiresAt": "到期时间",
-      "status": "状态",
-      "createdAt": "创建时间",
-      "actions": "操作",
-      "oneTimeSecretHidden": "单次明文已隐藏",
-      "groupLockedHint": "如需将该提供方移动到其他分组，请先在“编辑”中重新输入 API 密钥。",
-      "statusManagedHint": "状态由 router 健康快照派生，不支持手动切换。",
-      "emptyTitle": "当前视图下没有匹配的代理提供方",
-      "emptyDescription": "试试其他渠道，或放宽当前筛选条件。"
-    },
-    "actions": {
-      "createKey": "新建密钥",
-      "refresh": "刷新",
-      "copyKey": "复制密钥",
-      "usageMethod": "使用方式",
-      "addModel": "添加模型",
-      "removeModel": "移除",
-      "enable": "启用",
-      "disable": "禁用",
-      "edit": "编辑",
-      "delete": "删除",
-      "confirmDelete": "确认删除 {{name}} 吗？"
-    },
-    "status": {
-      "active": "启用中",
-      "warning": "告警",
-      "disabled": "已禁用",
-      "expired": "已过期"
-    },
-    "dialogs": {
-      "usageTitle": "使用方式",
-      "createTitle": "创建密钥",
-      "editTitle": "编辑提供方",
-      "instanceSelectorTitle": "选择 OpenClaw 实例",
-      "instanceSelectorDescription": "选择应接收 {{provider}} 作为托管 API 路由提供方的 OpenClaw 实例。",
-      "exampleRequest": "示例请求",
-      "create": "创建密钥",
-      "save": "保存更改"
-    },
-    "quickSetup": {
-      "title": "一键配置",
-      "description": "可分别一键配置本地文件或环境变量，适用于 Codex、Claude Code、OpenCode、OpenClaw 和 Gemini CLI，同时保留手动片段作为兜底方案。",
-      "primaryAction": "一键配置",
-      "configureLocalFiles": "配置本地文件",
-      "configureEnvironment": "配置环境变量",
-      "selectInstances": "选择实例",
-      "applyToInstances": "应用到实例",
-      "processing": "配置中...",
-      "available": "准备安装",
-      "unavailable": "当前路由不支持",
-      "copyAll": "复制完整配置",
-      "copySnippet": "复制片段",
-      "installMode": {
-        "title": "安装模式",
-        "options": {
-          "standard": "标准配置",
-          "env": "仅环境变量",
-          "both": "配置 + 环境变量"
-        }
-      },
-      "envScope": {
-        "title": "环境范围",
-        "options": {
-          "user": "当前用户",
-          "system": "系统范围"
-        }
-      },
-      "environmentPreview": {
-        "title": "环境变量",
-        "description": "只有执行“配置环境变量”时，才会持久化这些环境变量。"
-      },
-      "selectionCount": "已选择 {{count}} 个",
-      "selectionHint": "选择一个或多个实例，把该 API 路由提供方注入到 OpenClaw。",
-      "selectAll": "全选",
-      "clearSelection": "清空",
-      "loadingInstances": "正在加载实例...",
-      "emptyInstancesTitle": "暂无 OpenClaw 实例",
-      "emptyInstancesDescription": "应用一键配置前，请先创建或连接一个实例。",
-      "openclawSummary": "一键配置会把该提供方写入所选 OpenClaw 实例，同时保留下方的手动命令作为兜底方案。",
-      "tabs": {
-        "default": "默认",
-        "codex": "Codex",
-        "claude-code": "Claude Code",
-        "opencode": "OpenCode",
-        "openclaw": "OpenClaw",
-        "gemini": "Gemini CLI"
-      },
-      "kinds": {
-        "env": "环境变量",
-        "file": "配置文件",
-        "command": "命令"
-      },
-      "instanceStatus": {
-        "online": "在线",
-        "offline": "离线",
-        "starting": "启动中",
-        "error": "错误"
-      },
-      "clients": {
-        "codex": {
-          "title": "Codex",
-          "description": "安装 ~/.codex/config.toml 和 ~/.codex/auth.json，并写入 API Router 模型提供方、OpenAI 基础 URL 与默认路由模型。"
-        },
-        "claude-code": {
-          "title": "Claude Code",
-          "description": "安装 ~/.claude/settings.json，并写入 Anthropic 网关令牌、基础 URL 和默认模型。"
-        },
-        "opencode": {
-          "title": "OpenCode",
-          "description": "安装全局 OpenCode 配置，写入提供方路由、凭据和默认模型选择。"
-        },
-        "openclaw": {
-          "title": "OpenClaw",
-          "description": "为所选 OpenClaw 实例写入托管提供方清单，并保持运行时视图同步。"
-        },
-        "gemini": {
-          "title": "Gemini CLI",
-          "description": "安装 ~/.gemini/settings.json 和 ~/.gemini/.env，并使用 Gemini API 密钥认证与所选默认模型。"
-        }
-      },
-      "reasons": {
-        "requiresOpenAICompatible": "Codex 一键配置需要兼容 OpenAI 的路由。",
-        "requiresAnthropicCompatible": "Claude Code 一键配置需要兼容 Anthropic 的路由。",
-        "requiresOpenAIOrAnthropicCompatible": "当前客户端仅支持兼容 OpenAI 或 Anthropic 的路由。",
-        "requiresGeminiCompatible": "Gemini CLI 一键配置当前需要兼容 Gemini 的 Google 路由。",
-        "requiresGoogleIssuedGeminiKey": "Gemini CLI 当前需要 Google 直接签发的 Gemini API 密钥，因此无法通过统一 API 网关密钥安装。",
-        "requiresOneTimeKeyReveal": "当前设备还没有这把密钥的本地明文托管副本。如需一键配置，请先在这里重新创建或轮换密钥。"
-      }
-    },
-    "detail": {
-      "baseUrl": "基础 URL",
-      "authHeader": "认证请求头",
-      "models": "模型",
-      "notes": "备注",
-      "secretUnavailable": "当前无法在 Claw Studio 中再次查看该提供方的明文密钥。如需复制手动 Header，请先重新输入或轮换密钥。"
-    },
-    "fields": {
-      "name": "名称",
-      "nameHint": "使用一个便于团队识别的提供方名称。",
-      "apiKey": "API 密钥",
-      "apiKeyHint": "按代理提供方签发的原样粘贴上游密钥。",
-      "apiKeyEditHint": "留空即可保持当前 router credential。如需轮换密钥或移动到其他分组，请输入新的 API 密钥。",
-      "group": "分组",
-      "groupHint": "使用分组隔离生产、沙箱或共享路由等流量域。",
-      "baseUrl": "基础 URL",
-      "baseUrlHint": "输入提供方端点根地址。这个 URL 会被一键配置复用到客户端。",
-      "models": "模型",
-      "modelsHint": "添加一个或多个模型。每行都需要模型 ID 和显示名称。",
-      "modelId": "模型 ID",
-      "modelDisplayName": "显示名称",
-      "expiresAt": "到期时间",
-      "expiresAtHint": "使用日期控件跟踪密钥轮换或合同到期。",
-      "notes": "备注"
-    },
-    "placeholders": {
-      "providerName": "OpenAI 生产路由",
-      "apiKey": "sk-router-live-...",
-      "baseUrl": "https://api.example.com/v1",
-      "modelId": "gpt-4.1-mini",
-      "modelDisplayName": "GPT-4.1 Mini",
-      "notes": "添加路由备注、配额策略或轮换背景。"
-    },
-    "toast": {
-      "copySuccess": "API 密钥已复制",
-      "copyFailed": "无法复制 API 密钥",
-      "copyUnavailable": "该提供方的明文 API 密钥已不再可用。如需再次复制，请先重新输入或轮换密钥。",
-      "accessConfigCopied": "接入配置已复制",
-      "accessConfigCopyFailed": "无法复制接入配置",
-      "instanceLoadFailed": "无法加载实例",
-      "clientSetupInstalled": "{{client}} 已完成配置。已写入 {{count}} 个文件。",
-      "clientSetupInstalledWithEnv": "{{client}} 已完成配置。已写入 {{files}} 个文件，并更新 {{envs}} 个环境目标。",
-      "clientSetupEnvUpdated": "{{client}} 已完成配置。已更新 {{count}} 个环境目标。",
-      "clientSetupComplete": "{{client}} 已完成配置。",
-      "clientSetupFailed": "无法配置 {{client}}",
-      "openClawNoInstanceSelected": "至少选择一个 OpenClaw 实例",
-      "openClawSetupApplied": "已应用到 {{count}} 个实例",
-      "openClawSetupFailed": "无法配置所选 OpenClaw 实例",
-      "validationFailed": "请填写名称、API 密钥、分组、基础 URL，并为每一行模型补全 ID 和显示名称。",
-      "validationFailedEdit": "请填写名称、分组、基础 URL，并为每一行模型补全 ID 和显示名称。只有在轮换 credential 或移动分组时才需要重新输入 API 密钥。",
-      "providerCreated": "提供方已创建",
-      "providerCreateFailed": "创建提供方失败",
-      "groupUpdated": "分组已更新",
-      "groupUpdateFailed": "更新分组失败",
-      "statusUpdated": "提供方状态已更新",
-      "statusUpdateFailed": "更新提供方状态失败",
-      "providerUpdated": "提供方已更新",
-      "providerUpdateFailed": "更新提供方失败",
-      "providerDeleted": "提供方已删除",
-      "providerDeleteFailed": "删除提供方失败"
-    },
-    "values": {
-      "never": "永不过期",
-      "modelIndex": "模型 {{index}}",
-      "requestCountShort": "{{value}} 次请求",
-      "tokenCountShort": "{{value}} 个 Token"
-    }
+    "codeboxComingSoon": "CodeBox 集成即将上线。"
   },
   "dashboard": {
     "page": {
@@ -2011,17 +1501,17 @@
   "chat": {
     "page": {
       "noInstanceTitle": "未选择实例",
-      "noInstanceDescription": "请先从侧边栏选择一个实例后再开始聊天。",
+      "noInstanceDescription": "请先在侧边栏选择一个实例后再开始对话。",
       "manageInstances": "管理实例",
       "selectModel": "选择模型",
-      "selectAgent": "选择智能体",
+      "selectAgent": "选择 Agent",
       "selectSkill": "选择技能",
-      "channels": "渠道",
+      "channels": "通道",
       "models": "模型",
       "config": "配置",
-      "noModels": "当前渠道尚未配置模型。",
-      "availableAgents": "可用智能体",
-      "searchAgentsPlaceholder": "搜索智能体...",
+      "noModels": "当前通道尚未配置模型。",
+      "availableAgents": "可用 Agent",
+      "searchAgentsPlaceholder": "搜索 Agent...",
       "noneDefault": "无（默认）",
       "availableSkills": "可用技能",
       "searchSkillsPlaceholder": "搜索技能...",
@@ -2030,27 +1520,35 @@
       "emptyWithSkill": "我已启用“{{skill}}”技能，会在 {{appName}} 中帮你处理与 {{category}} 相关的任务。",
       "emptyDefault": "我会在 {{appName}} 中帮你编写代码、回答问题、起草邮件，或一起头脑风暴。",
       "selectedModelFallback": "当前所选模型",
-      "errorResponse": "抱歉，处理你的请求时出现了问题。请检查 API 密钥或网络连接。",
+      "jumpToLatest": "跳转到最新消息",
+      "errorResponse": "抱歉，处理你的请求时出现了错误。请检查 API Key 或网络连接。",
+      "headerStatus": {
+        "ready": "就绪",
+        "responding": "回复中",
+        "connected": "已连接",
+        "reconnecting": "重连中",
+        "disconnected": "已断开"
+      },
       "suggestions": {
         "quantum": "用简单易懂的方式解释量子计算",
-        "python": "编写一个用于抓取网站内容的 Python 脚本",
-        "react": "帮我调试这个 React 组件",
+        "python": "帮我写一个抓取网站内容的 Python 脚本",
+        "react": "帮我排查这个 React 组件的问题",
         "email": "帮我起草一封发给老板的专业邮件"
       }
     },
     "input": {
-      "placeholder": "向 Claw Studio 提问...",
-      "attachFile": "附加文件",
+      "placeholder": "在 Claw Studio 中提问...",
+      "attachFile": "添加附件",
       "uploadImage": "上传图片",
       "voiceInput": "语音输入",
       "stopGenerating": "停止生成",
-      "disclaimer": "AI 模型可能会出错，请核实重要信息。",
+      "disclaimer": "AI 模型可能会出错，重要信息请务必自行核实。",
       "modelLabel": "模型",
-      "readyWith": "当前将使用 {{model}}",
+      "readyWith": "当前模型：{{model}}",
       "respondingWith": "正在使用 {{model}} 回复",
-      "nextReplyUses": "当前回复仍使用 {{currentModel}}，下一条消息将切换为 {{nextModel}}。",
+      "nextReplyUses": "本次回复继续使用 {{currentModel}}，下一条消息将切换为 {{nextModel}}。",
       "importUrl": "导入 URL",
-      "importUrlHint": "拉取远程资源后会先走 S3 预签名上传，再作为附件加入当前消息。",
+      "importUrlHint": "获取远程资源后，将通过预签名 S3 流程上传，并作为附件加入当前消息。",
       "urlPlaceholder": "https://example.com/asset.png",
       "urlFileNamePlaceholder": "可选文件名",
       "importAction": "上传 URL",
@@ -2059,23 +1557,23 @@
       "stopRecording": "停止录制",
       "recordingVoice": "正在录制语音消息",
       "recordingScreen": "正在录制屏幕",
-      "preparingRecording": "正在整理录制附件...",
+      "preparingRecording": "正在准备录制附件...",
       "recordingFailed": "录制失败，请重试。",
       "recordingPermissionDenied": "录制语音需要麦克风权限。",
-      "screenRecordingDenied": "录屏需要屏幕捕获权限。",
+      "screenRecordingDenied": "录屏需要屏幕录制权限。",
       "nativeScreenshotUnavailable": "当前运行环境暂不支持原生截图。",
-      "uploading": "附件上传中...",
+      "uploading": "正在上传附件...",
       "ready": "已就绪",
       "failed": "失败",
       "retryUpload": "重试",
       "removeAttachment": "移除附件",
-      "dropFiles": "松开即可附加文件",
-      "dropFilesHint": "支持图片、录音、录屏、文档以及远程 URL。",
+      "dropFiles": "拖拽文件到这里添加附件",
+      "dropFilesHint": "支持图片、录音录像、文档，以及远程 URL 资源。",
       "uploadFailedGeneric": "附件上传失败，请重试。",
       "invalidUrl": "请输入有效的 http 或 https URL。",
       "waitForUploads": "请等待附件上传完成后再发送。",
-      "waitForRecording": "请等待录制内容整理完成后再发送。",
-      "stopRecordingBeforeSend": "请先结束当前录制，再发送消息。",
+      "waitForRecording": "请等待录制处理完成后再发送。",
+      "stopRecordingBeforeSend": "请先停止当前录制后再发送消息。",
       "sendMessage": "发送消息",
       "attachmentKinds": {
         "file": "文件",
@@ -2090,9 +1588,20 @@
     "message": {
       "copyMessage": "复制消息",
       "copyCode": "复制代码",
-      "copied": "已复制！",
+      "copied": "已复制",
       "assistant": "助手",
-      "regenerateResponse": "重新生成回答",
+      "toolOutput": "工具输出",
+      "toolSingle": "1 个工具",
+      "toolsMultiple": "{{count}} 个工具",
+      "toolsMore": "+ 另外 {{count}} 个",
+      "toolCall": "工具调用",
+      "toolResult": "工具结果",
+      "completed": "已完成",
+      "reasoning": "推理过程",
+      "json": "JSON",
+      "jsonArray": "数组（{{count}} 项）",
+      "jsonObjectCount": "对象（{{count}} 个键）",
+      "regenerateResponse": "重新生成",
       "attachmentKinds": {
         "file": "文件",
         "image": "图片",
@@ -2108,13 +1617,13 @@
       "fileSizeMb": "{{size}} MB"
     },
     "sidebar": {
-      "newChat": "新建对话",
+      "newChat": "新对话",
       "today": "今天",
-      "previous7Days": "过去 7 天",
+      "previous7Days": "最近 7 天",
       "older": "更早",
       "deleteChat": "删除对话",
-      "noHistory": "暂无聊天记录",
-      "noHistoryDescription": "开始一段新对话后会显示在这里。"
+      "noHistory": "暂无对话历史",
+      "noHistoryDescription": "开始一段新对话后，会在这里显示。"
     }
   },
   "community": {
@@ -2556,7 +2065,6 @@
     "subtitle": "从注册中心读取 OpenClaw 实例，并把网关连通性集中展示在一个界面里。",
     "description": "这个基于注册中心的视图会展示已经注册到 Claw Studio 的 OpenClaw 运行时，方便你在智能体上线前核对联网状态、网关暴露情况以及路由就绪度。",
     "refresh": "刷新注册中心",
-    "openApiRouter": "打开 API 路由",
     "loadFailed": "加载注册中心连接状态失败",
     "loadFailedDescription": "当前无法读取 OpenClaw 注册中心快照。",
     "emptyTitle": "当前还没有已注册的 OpenClaw 实例",
@@ -2737,9 +2245,9 @@
       "paymentDescription": "右侧展示当前支付二维码，切换支付方式后二维码会同步更新。",
       "qrAlt": "{{method}} 充值二维码",
       "scanHint": "请使用{{method}}扫描上方二维码",
-      "paymentTip": "当前为模拟支付流程，确认后会立即充值 {{points}} 积分并更新积分记录。",
+      "paymentTip": "确认后会发起真实的 {{points}} 积分充值请求，待支付结果返回后刷新钱包信息。",
       "paymentMethod": "支付方式",
-      "tip": "当前版本先模拟支付流程，但余额、记录和头部积分面板都会即时更新。",
+      "tip": "充值已接入真实账户钱包服务。后端确认支付结果后，余额、记录和头部积分面板会同步刷新。",
       "continueToPayment": "去支付",
       "confirm": "确认充值",
       "confirmPayment": "我已完成充值"
@@ -2769,7 +2277,7 @@
       "paymentDescription": "右侧展示当前支付二维码与支付摘要，切换方式后二维码会同步更新。",
       "qrAlt": "{{method}} 支付二维码",
       "scanHint": "请使用{{method}}扫描上方二维码",
-      "paymentTip": "当前为模拟支付流程，确认后会立即发放 {{points}} 积分并更新积分记录。",
+      "paymentTip": "确认后会提交真实会员购买请求，待后端返回结果后刷新套餐与积分信息。",
       "confirmPayment": "我已完成支付",
       "agreementPrefix": "支付即代表您已阅读并同意",
       "membershipAgreement": "《会员权益说明》",
@@ -2906,11 +2414,11 @@
     "title": "OpenClaw 联网中心",
     "subtitle": "按分类、能力和关键词搜索海量 OpenClaw 主体与服务，在一个页面里完成发现、撮合、一键联网与 ACP 命令交接。",
     "searchPlaceholder": "搜索智能体、服务、标签或联网方式...",
-    "allCategories": "全部分类",
     "searchSummaryIdle": "在 {{categories}} 个分类下浏览 {{count}} 个注册主体，从搜索工作台直接开始撮合与联网。",
     "searchSummaryActive": "在 {{category}} 中搜索“{{query}}”，当前工作台已匹配 {{count}} 个注册条目。",
     "topMatchEmptyTitle": "暂时没有可用的首选条目",
     "topMatchEmptyDescription": "可以调整关键词、放宽分类，或直接走快速联网流程先完成连接。",
+    "allCategories": "全部分类",
     "actions": {
       "quickConnect": "一键快速联网",
       "quickRegister": "一键注册",
@@ -3124,10 +2632,12 @@
       "deployNow": "立即部署",
       "deployed": "已部署",
       "deploying": "部署中...",
+      "deliveryNotice": "软件类产品的构建与部署会走真实交付流程。提交需求后，系统才会进入商业化交付链路。",
       "features": "功能",
       "generate": "生成",
       "generated": "已生成",
       "generating": "生成中...",
+      "requestBuild": "提交构建需求",
       "visitSite": "访问网站"
     },
     "validUntil": "有效期至"
@@ -3343,7 +2853,11 @@
         "lightContext": "使用轻量上下文",
         "lightContextHelp": "当任务只需要轻量上下文时，跳过较重的工作区 bootstrap。",
         "deliveryBestEffort": "尽力交付",
-        "deliveryBestEffortHelp": "当下游交付短暂异常时，不让整个 cron 运行直接失败。"
+        "deliveryBestEffortHelp": "当下游交付短暂异常时，不让整个 cron 运行直接失败。",
+        "toolAllowlist": "工具允许列表",
+        "toolAllowlistPlaceholder": "exec\ngroup:filesystem\nread",
+        "toolAllowlistHelp": "每行填写一个工具或分组标记。保持为空时，将继续使用上游 OpenClaw 的默认工具策略。",
+        "toolAllowlistTokensHelp": "支持 exec、read 这类工具 ID，也支持 group:filesystem 这类 group:* 缩写。"
       },
       "actions": {
         "refresh": "刷新",
@@ -3868,6 +3382,83 @@
             "description": "检查可调用工具、执行权限和高影响运行时控制。"
           }
         },
+        "webSearch": {
+          "badge": "??????",
+          "title": "??????",
+          "description": "???? OpenClaw ???????????????? Provider ????????",
+          "enabledDescription": "???????????????????",
+          "providerPanel": "Provider ??",
+          "advancedDescription": "?? JSON ??????? Provider ? plugins.entries.<provider>.config.webSearch ???",
+          "fields": {
+            "enabled": "??",
+            "provider": "?? Provider",
+            "providerEditor": "?? Provider",
+            "maxResults": "?????",
+            "timeoutSeconds": "?????",
+            "cacheTtlMinutes": "????????",
+            "apiKeySource": "API Key",
+            "baseUrl": "Base URL",
+            "model": "??",
+            "advancedConfig": "?? JSON"
+          },
+          "metrics": {
+            "activeProvider": "?? Provider",
+            "managedProviders": "?? Provider"
+          },
+          "placeholders": {
+            "provider": "??? Provider",
+            "apiKeySource": "sk-...",
+            "baseUrl": "https://search.example.com",
+            "model": "sonar-pro",
+            "advancedConfig": "{\n  \"language\": \"zh-CN\"\n}"
+          },
+          "errors": {
+            "providerRequired": "????????? Provider?",
+            "maxResultsInvalid": "?????????? 0 ????",
+            "timeoutInvalid": "????????? 0 ????",
+            "cacheTtlInvalid": "????????? 0 ????"
+          },
+          "toasts": {
+            "saved": "??????????",
+            "saveFailed": "???????????"
+          }
+        },
+        "authCooldowns": {
+          "badge": "托管认证冷却",
+          "title": "认证冷却控制",
+          "description": "查看并调整 OpenClaw 在限速、过载回退和计费重试中使用的认证冷却参数。",
+          "note": "将字段保持为空，即可继续使用 OpenClaw 上游默认值。",
+          "fields": {
+            "rateLimitedProfileRotations": "限速时切换档案次数",
+            "overloadedProfileRotations": "过载时切换档案次数",
+            "overloadedBackoffMs": "过载回退时间（ms）",
+            "billingBackoffHours": "计费回退时间（小时）",
+            "billingMaxHours": "计费最大等待时间（小时）",
+            "failureWindowHours": "失败窗口（小时）"
+          },
+          "placeholders": {
+            "defaultValue": "使用上游默认值"
+          },
+          "metrics": {
+            "overloadedBackoff": "过载回退",
+            "failureWindow": "失败窗口"
+          },
+          "values": {
+            "upstreamDefault": "上游默认值"
+          },
+          "errors": {
+            "rateLimitedProfileRotationsInvalid": "限速切换档案次数必须为大于或等于 0 的整数。",
+            "overloadedProfileRotationsInvalid": "过载切换档案次数必须为大于或等于 0 的整数。",
+            "overloadedBackoffMsInvalid": "过载回退时间必须为大于或等于 0 的整数。",
+            "billingBackoffHoursInvalid": "计费回退时间必须为大于或等于 0 的整数。",
+            "billingMaxHoursInvalid": "计费最大等待时间必须为大于或等于 0 的整数。",
+            "failureWindowHoursInvalid": "失败窗口时间必须为大于或等于 0 的整数。"
+          },
+          "toasts": {
+            "saved": "认证冷却配置已保存。",
+            "saveFailed": "保存认证冷却配置失败。"
+          }
+        },
         "summary": {
           "healthScore": "健康评分",
           "connectedChannels": "已连接渠道",
@@ -3932,7 +3523,7 @@
               "workspaceAgent": "这个工作区来自当前默认 agent，是 Prompt、Skills 与 Agent 文件的主要文件系统范围。",
               "workspaceArtifact": "这个工作区路径是从实例 artifact 映射中发现的，而不是直接来自 agent 注册信息。",
               "workspaceNamespace": "还没有可直接展示的工作区路径，先以存储 namespace 作为管理范围的代替展示。",
-              "scopeFull": "Agent CRUD、Channel 配置、Provider 配置和文件编辑都可以通过发现到的 OpenClaw 配置面完成。",
+              "scopeFull": "当前实例的 Provider 路由由 Provider Center 统一管理并在这里以只读方式展示；Agent CRUD、Channel 配置和文件编辑仍然通过发现到的 OpenClaw 配置面完成。",
               "scopePartial": "对话、文件或模型相关能力可能仍然可用，但在没有可写配置附着的情况下，完整的 agent 与 channel 管理还不能打通。",
               "scopeReadonly": "这个实例目前可以被发现和观察，但在挂上可写管理路径之前，Claw Studio 应该把它视为只读。"
             }
@@ -4000,7 +3591,7 @@
           "saveConfig": "保存提供方",
           "saving": "保存中...",
           "revertConfig": "恢复配置",
-          "readonlyNotice": "当前 Provider 配置仅以 OpenClaw 只读快照展示。接入原生 Provider 写入能力后才会开放编辑。",
+          "readonlyNotice": "当前 OpenClaw 实例的 Provider 路由由 Provider Center 统一管理。请前往 Provider Center 修改投影后的 base URL、API Key 和模型路由。",
           "saved": "LLM 提供方已保存",
           "saveFailed": "保存 LLM 提供方失败",
           "selectProvider": "选择一个 LLM 提供方以检查或编辑其运行时配置。",
@@ -4263,35 +3854,42 @@
     "page": {
       "title": "扩展",
       "tabs": {
-        "discover": "发现",
+        "discover": "目录",
         "installed": "已安装"
       },
-      "searchPlaceholder": "搜索扩展...",
-      "featured": {
-        "badge": "精选",
-        "title": "强化你的工作流",
-        "description": "发现强大的扩展来自定义你的 Claw 环境。只需一次点击即可添加新工具、集成和能力。",
-        "browse": "浏览热门扩展"
+      "searchPlaceholder": "搜索内置或本地扩展...",
+      "summary": {
+        "eyebrow": "内置 OpenClaw Runtime",
+        "title": "在本地运行时中管理内置插件",
+        "description": "查看内置 OpenClaw 扩展目录，将插件安装到本地内核插件目录，并在 Claw Studio 内直接卸载已安装插件。",
+        "metrics": {
+          "bundled": "内置",
+          "installed": "已安装",
+          "local": "仅本地"
+        }
       },
       "empty": {
         "title": "未找到扩展",
-        "description": "尝试调整搜索词或筛选条件。"
+        "description": "请尝试更宽泛的关键字，或切换标签查看完整的本地插件目录。"
       },
-      "status": {
-        "online": "在线",
-        "offline": "离线"
+      "labels": {
+        "bundled": "内置",
+        "local": "本地",
+        "installed": "已安装",
+        "notInstalled": "未安装",
+        "category": "类别",
+        "version": "版本",
+        "origin": "来源",
+        "provider": "提供方",
+        "channel": "渠道",
+        "plugin": "插件"
       },
       "actions": {
+        "refresh": "刷新",
         "uninstall": "卸载"
       },
-      "modal": {
-        "title": "安装扩展",
-        "byAuthor": "作者：{{author}}",
-        "noInstancesTitle": "暂无可用实例",
-        "noInstancesDescription": "请先创建一个实例。",
-        "selectTargetInstances": "选择目标实例",
-        "installing": "安装中...",
-        "installToInstance": "安装到实例"
+      "errors": {
+        "runtimeUnavailable": "当前宿主环境无法访问内置 OpenClaw runtime。"
       },
       "toasts": {
         "installSuccess": "扩展安装成功",
@@ -4299,7 +3897,7 @@
         "uninstallSuccess": "扩展卸载成功",
         "uninstallFailed": "扩展卸载失败"
       },
-      "confirmUninstall": "确认要卸载这个扩展吗？"
+      "confirmUninstall": "确认要卸载 {{name}} 吗？"
     }
   },
   "repositoryCard": {
@@ -4315,39 +3913,79 @@
   },
   "devices": {
     "page": {
-      "actions": {
-        "registerDevice": "注册设备",
-        "remove": "移除"
-      },
       "banner": {
-        "description": "连接硬件后即可通过 Claw Studio 进行监控。",
-        "title": "注册设备"
+        "eyebrow": "OpenClaw 网关",
+        "description": "基于真实 OpenClaw 工作区管理设备配对申请、已配对节点，以及设备令牌的轮换与撤销。",
+        "title": "设备"
       },
-      "confirmUninstallSkill": "卸载这个技能？",
-      "confirmUnregister": "注销这个设备？",
-      "empty": {
-        "description": "注册一个设备后即可开始监控。",
-        "title": "未找到设备"
+      "instanceCard": {
+        "instance": "工作区实例",
+        "runtime": "运行时",
+        "version": "内置版本"
       },
-      "installedSkills": "已安装技能",
-      "modal": {
-        "deviceName": "设备名称",
-        "deviceNameDescription": "给设备起一个便于识别的名称，方便后续查找。",
-        "deviceNamePlaceholder": "我的设备",
-        "title": "注册新设备"
+      "values": {
+        "notAvailable": "不可用"
       },
-      "moreActions": "更多操作",
-      "noSkillsInstalled": "暂无已安装技能",
-      "powerLabel": "功耗",
-      "selectDeviceHint": "选择一个设备查看详情。",
-      "skillVersion": "v{{version}}",
-      "specs": {
-        "latency": "延迟",
-        "ram": "内存",
-        "soc": "SoC",
-        "storage": "存储"
+      "actions": {
+        "refresh": "刷新",
+        "copyToken": "复制令牌",
+        "approve": "批准",
+        "reject": "拒绝",
+        "rotateToken": "轮换令牌",
+        "revokeToken": "撤销令牌",
+        "removeDevice": "移除设备"
       },
-      "subtitle": "监控你已注册的硬件",
+      "confirmRejectPairing": "确认拒绝这个设备配对申请吗？",
+      "confirmRemoveDevice": "确认将这个已配对设备从工作区移除吗？",
+      "confirmRevokeToken": "确认撤销该设备的 {{role}} 令牌吗？",
+      "pendingRequests": {
+        "title": "待处理申请",
+        "description": "批准或拒绝请求加入当前 OpenClaw 工作区的设备。",
+        "empty": "当前没有待处理的配对申请。",
+        "fields": {
+          "roles": "申请角色",
+          "scopes": "申请权限",
+          "ip": "远端 IP",
+          "requestedAt": "申请时间"
+        }
+      },
+      "pairedDevices": {
+        "title": "已配对设备",
+        "description": "查看已经与当前工作区建立正式配对的设备。",
+        "empty": "当前还没有已配对设备。",
+        "fields": {
+          "roles": "已分配角色",
+          "scopes": "已批准权限",
+          "ip": "远端 IP",
+          "approvedAt": "批准时间"
+        }
+      },
+      "pairingGuide": {
+        "title": "配对说明",
+        "description": "请使用官方 OpenClaw 设备配对流程，确保审批与令牌始终和当前内置运行时保持一致。",
+        "steps": {
+          "open": "在 OpenClaw 设备端或节点端发起面向当前内置网关的配对请求。",
+          "connect": "等待请求出现在这里，并核对申请角色、权限范围与来源地址。",
+          "approve": "批准后在这里统一轮换或撤销设备令牌，确保凭据变更始终可追踪。"
+        }
+      },
+      "tokenList": {
+        "title": "令牌列表",
+        "description": "管理 {{device}} 的已签发设备令牌。",
+        "noSelection": "请选择一个已配对设备以查看其令牌。",
+        "selectDevice": "选择一个已配对设备，查看已签发令牌并轮换凭据。",
+        "empty": "当前所选设备尚未签发任何令牌。",
+        "fields": {
+          "scopes": "权限范围",
+          "rotatedAt": "轮换时间",
+          "lastUsedAt": "最近使用时间"
+        }
+      },
+      "tokenReveal": {
+        "title": "已生成新的设备令牌",
+        "description": "请复制 {{device}}（角色：{{role}}）的新令牌并妥善保存。"
+      },
+      "subtitle": "直接操作真实 OpenClaw 配对工作区，而不是模拟设备遥测界面。",
       "title": "设备"
     }
   },
@@ -4994,6 +4632,62 @@
           "singlePath": "当前产品只提供一种受支持的安装路径，因此我们将其作为默认推荐。"
         }
       },
+      "experience": {
+        "heading": "通过 {{method}} 安装 {{product}}",
+        "steps": {
+          "method": {
+            "title": "选择安装方式",
+            "description": "确认当前选择的路径，以及为什么它更适合这台设备。"
+          },
+          "prepare": {
+            "title": "准备安装环境",
+            "description": "先检查依赖、阻塞项和可自动修复的内容，再开始安装。"
+          },
+          "install": {
+            "title": "执行安装",
+            "description": "启动真实安装流程，并持续查看实时执行输出。"
+          },
+          "complete": {
+            "title": "完成安装",
+            "description": "检查结果、安装路径以及下一步动作。"
+          }
+        },
+        "actions": {
+          "continue": "继续",
+          "continueToInstall": "继续安装",
+          "autoFix": "自动修复",
+          "backToMethods": "返回方式列表",
+          "retry": "重新尝试"
+        },
+        "prepare": {
+          "heading": "准备安装环境",
+          "description": "确认当前方式已就绪，然后再进入真实安装。",
+          "issues": "阻塞项",
+          "dependenciesTitle": "依赖与工具",
+          "dependenciesDescription": "如果安装器支持自动修复，可直接在这里补齐缺失依赖。",
+          "labels": {
+            "blockers": "阻塞项",
+            "dependencies": "依赖数",
+            "readiness": "就绪状态"
+          }
+        },
+        "install": {
+          "heading": "执行安装",
+          "description": "这里会启动所选方式对应的真实安装流程。",
+          "labels": {
+            "status": "当前状态"
+          },
+          "status": {
+            "idle": "等待开始"
+          }
+        },
+        "complete": {
+          "successTitle": "安装完成",
+          "errorTitle": "安装需要处理",
+          "successDescription": "{{method}} 已执行完成，可以继续检查运行路径。",
+          "errorDescription": "{{method}} 没有完整执行成功，请查看输出后再重试。"
+        }
+      },
       "systemRequirements": {
         "title": "系统要求",
         "description": "建议准备现代 CPU、稳定的网络连接，以及足够的磁盘空间来完成 {{product}} 的安装与运行。"
@@ -5341,62 +5035,6 @@
           "model": "模型",
           "bindings": "已绑定通道",
           "bindingsValue": "已绑定 {{count}} 个通道"
-        }
-      },
-      "experience": {
-        "heading": "通过 {{method}} 安装 {{product}}",
-        "steps": {
-          "method": {
-            "title": "选择安装方式",
-            "description": "确认当前选择的路径，以及为什么它更适合这台设备。"
-          },
-          "prepare": {
-            "title": "准备安装环境",
-            "description": "先检查依赖、阻塞项和可自动修复的内容，再开始安装。"
-          },
-          "install": {
-            "title": "执行安装",
-            "description": "启动真实安装流程，并持续查看实时执行输出。"
-          },
-          "complete": {
-            "title": "完成安装",
-            "description": "检查结果、安装路径以及下一步动作。"
-          }
-        },
-        "actions": {
-          "continue": "继续",
-          "continueToInstall": "继续安装",
-          "autoFix": "自动修复",
-          "backToMethods": "返回方式列表",
-          "retry": "重新尝试"
-        },
-        "prepare": {
-          "heading": "准备安装环境",
-          "description": "确认当前方式已就绪，然后再进入真实安装。",
-          "issues": "阻塞项",
-          "dependenciesTitle": "依赖与工具",
-          "dependenciesDescription": "如果安装器支持自动修复，可直接在这里补齐缺失依赖。",
-          "labels": {
-            "blockers": "阻塞项",
-            "dependencies": "依赖数",
-            "readiness": "就绪状态"
-          }
-        },
-        "install": {
-          "heading": "执行安装",
-          "description": "这里会启动所选方式对应的真实安装流程。",
-          "labels": {
-            "status": "当前状态"
-          },
-          "status": {
-            "idle": "等待开始"
-          }
-        },
-        "complete": {
-          "successTitle": "安装完成",
-          "errorTitle": "安装需要处理",
-          "successDescription": "{{method}} 已执行完成，可以继续检查运行路径。",
-          "errorDescription": "{{method}} 没有完整执行成功，请查看输出后再重试。"
         }
       }
     },
@@ -5999,15 +5637,6 @@
       }
     }
   },
-  "apiRouterWorkspace": {
-    "eyebrow": "路由商业区",
-    "title": "API 路由工作区",
-    "description": "在不新增顶级路由的前提下，把路由运维和模型采购整合到同一个 API 路由工作区中。",
-    "tabs": {
-      "routerConsole": "路由控制台",
-      "modelPurchase": "模型购买"
-    }
-  },
   "modelPurchase": {
     "eyebrow": "模型商业区",
     "title": "模型购买",
@@ -6109,18 +5738,20 @@
       "priceLabel": "应付金额",
       "benefitsLabel": "套餐亮点",
       "methodTitle": "选择支付方式",
-      "methodDescription": "这里先模拟支付交互流程，用于打磨套餐确认和支付体验。",
+      "methodDescription": "这里用于确认当前套餐的预期支付方式。对于精选供应商套餐，只有接入真实计费契约后才会开放订单提交。",
       "methodSelected": "当前已选",
       "methodTapToUse": "点击切换为该支付方式",
       "scanTitle": "使用当前方式继续支付",
-      "scanDescription": "请使用{{method}}完成本次模拟支付。",
+      "scanDescription": "待当前工作区接入真实商业结算能力后，将使用{{method}}完成支付。",
       "summaryTitle": "支付摘要",
-      "summaryDescription": "完成这次模拟支付后，将自动返回订阅套餐列表页面。",
+      "summaryDescription": "当前页面仅作为商业报价预览。只有接入真实订单服务后，底部按钮才会开放提交。",
       "summaryLocked": "要改套餐，需要先返回上一页。",
-      "mockTag": "模拟支付",
+      "availabilityTag": "订单服务未接入",
       "confirmPayment": "确认支付",
-      "successBanner": "{{vendor}} · {{plan}}（{{cycle}}）已完成模拟支付。",
-      "successDescription": "整条交互流程已经跑通，本次模拟支付金额：{{price}}。",
+      "checkoutUnavailable": "订单服务未接入",
+      "unavailableMessage": "当前工作区尚未为精选供应商套餐接入真实下单与支付 API。此页面仅可用于查看报价和套餐摘要。",
+      "successBanner": "{{vendor}} · {{plan}}（{{cycle}}）订单已提交。",
+      "successDescription": "订单金额：{{price}}。",
       "methods": {
         "wechat": "微信支付",
         "alipay": "支付宝",
@@ -6388,107 +6019,281 @@
       }
     }
   },
+  "apiLogs": {
+    "title": "API 工作区",
+    "description": "统一管理模型路由配置，并查看当前设备上本地代理记录的请求流量。",
+    "tabs": {
+      "providers": "模型配置中心",
+      "requests": "请求日志",
+      "messages": "消息记录"
+    },
+    "sections": {
+      "providers": "模型配置中心",
+      "logs": "请求日志",
+      "providersDescription": "配置本地代理的 Provider 路由、模型列表和默认绑定关系。",
+      "logsDescription": "查看持久化请求轨迹、耗时指标以及按需记录的消息快照。"
+    },
+    "logs": {
+      "description": "通过服务端分页和可展开明细，查看本地 AI Proxy 的请求日志。",
+      "refresh": "刷新",
+      "requests": "请求日志",
+      "messages": "消息记录",
+      "searchPlaceholder": "搜索 provider、模型、预览内容或 base URL",
+      "messageCaptureTitle": "记录消息",
+      "messageCaptureDescription": "开启后，会在本地为每次请求持久化消息快照，默认关闭，仅建议在调试场景下使用。",
+      "messageCaptureUpdatedAt": "最近更新于 {{value}}",
+      "messageCaptureDisabled": "当前未开启消息记录。请求日志仍会保留，但不会保存消息快照。",
+      "status": {
+        "succeeded": "成功",
+        "failed": "失败"
+      },
+      "states": {
+        "loadingRequests": "正在加载请求日志...",
+        "loadingMessages": "正在加载消息记录...",
+        "emptyRequests": "当前还没有请求日志。",
+        "emptyMessages": "当前还没有消息记录。",
+        "loadRequestsFailed": "加载请求日志失败。",
+        "loadMessagesFailed": "加载消息记录失败。",
+        "loadCaptureFailed": "加载消息记录设置失败。",
+        "toggleCaptureFailed": "更新消息记录设置失败。"
+      },
+      "labels": {
+        "enabled": "已开启",
+        "disabled": "未开启",
+        "clickToExpand": "点击行查看详情",
+        "ttft": "首字耗时",
+        "totalDuration": "总耗时",
+        "total": "总量",
+        "input": "输入",
+        "output": "输出",
+        "cache": "缓存"
+      },
+      "pagination": {
+        "summary": "第 {{page}} 页 · 当前 {{start}}-{{end}} 条，共 {{total}} 条",
+        "previous": "上一页",
+        "next": "下一页",
+        "pageSize": "每页"
+      },
+      "requestTable": {
+        "time": "时间",
+        "provider": "Provider",
+        "model": "模型",
+        "duration": "耗时",
+        "tokens": "用量",
+        "baseUrl": "Base URL",
+        "details": "详情",
+        "route": "路由",
+        "protocols": "协议",
+        "endpoint": "接口",
+        "responseStatus": "响应状态",
+        "requestMessages": "请求消息数",
+        "requestPreview": "请求预览",
+        "responsePreview": "响应预览",
+        "requestBody": "请求体",
+        "responseBody": "响应体"
+      },
+      "messageTable": {
+        "time": "时间",
+        "provider": "Provider",
+        "model": "模型",
+        "messageCount": "消息数",
+        "baseUrl": "Base URL",
+        "details": "详情",
+        "requestLogId": "请求日志 ID",
+        "preview": "请求预览",
+        "responsePreview": "响应预览",
+        "messages": "消息内容"
+      }
+    }
+  },
   "providerCenter": {
     "page": {
-      "eyebrow": "模型配置中心",
+      "eyebrow": "本地代理路由中心",
       "title": "模型配置中心",
-      "description": "在当前应用内统一维护内置 Provider 预设、默认模型列表、API Key 和 Base URL，无需直接耦合 sdkwork-api-router。",
-      "storageHint": "当存在可写 SQLite 存储配置时，Provider 配置会优先持久化到 SQLite。"
+      "description": "在这里统一管理本地代理路由、上游协议、默认模型与凭据，再投影给内置运行时消费者。",
+      "storageHint": "当存在可写存储配置时，路由记录会持久化到可写的 SQLite 存储档案中。"
     },
     "summary": {
       "routeConfigs": "路由配置",
-      "llmReady": "LLM 就绪",
-      "embeddingReady": "Embedding 就绪"
+      "llmReady": "已启用路由",
+      "embeddingReady": "默认路由"
     },
     "table": {
       "name": "名称",
-      "provider": "Provider",
-      "endpoint": "Base URL",
+      "provider": "路由",
+      "endpoint": "上游基础地址",
+      "health": "健康度",
+      "usage": "用量",
+      "avgLatency": "平均延迟",
+      "rpm": "RPM",
+      "lastTest": "最近测试",
+      "status": "状态",
       "selection": "模型选择",
-      "apiKey": "API Key",
+      "apiKey": "API 密钥",
       "updatedAt": "更新时间",
       "actions": "操作",
-      "models": "个模型",
-      "llmDefault": "LLM",
+      "models": "模型",
+      "llmDefault": "默认模型",
       "reasoning": "推理",
-      "embedding": "Embedding"
+      "embedding": "向量",
+      "inputTokensShort": "入",
+      "outputTokensShort": "出",
+      "cacheTokensShort": "缓存",
+      "defaultRoute": "默认",
+      "systemDefault": "系统默认",
+      "enabled": "已启用",
+      "exposeTo": "暴露给",
+      "totalTokensShort": "总"
     },
     "states": {
-      "loading": "正在加载模型配置...",
+      "loading": "正在加载代理路由...",
       "emptyTitle": "还没有路由配置",
-      "emptyDescription": "新增一条路由配置，把默认模型列表、API Key 与 Base URL 统一收敛到内置配置中心。",
+      "emptyDescription": "新增一条路由配置，把上游协议、模型目录、API Key 和兜底 Base URL 统一纳入内置本地代理控制面。",
       "noNotes": "暂无备注",
       "notSet": "未设置",
+      "notTested": "未测试",
+      "noIncidents": "暂无异常",
       "noInstances": "当前没有可写的 OpenClaw 实例。",
-      "selectInstance": "请选择一个实例以查看可应用的 Agent。",
-      "noAgents": "当前实例没有可应用的 Agent。"
+      "selectInstance": "请选择一个实例以预览 Agent 目标。",
+      "noAgents": "选中的实例下暂无可用 Agent。",
+      "enabled": "已启用",
+      "disabled": "已停用"
     },
     "actions": {
+      "import": "导入",
+      "importing": "导入中...",
       "refresh": "刷新",
       "addRouteConfig": "新增路由配置",
+      "test": "测试",
+      "testing": "测试中...",
       "quickApply": "快速应用",
       "edit": "编辑",
       "delete": "删除",
       "cancel": "取消",
-      "saveChanges": "保存修改",
+      "saveChanges": "保存更改",
       "createConfig": "创建配置",
-      "selectAllAgents": "全选 Agent",
-      "clearAgentSelection": "清空选择",
+      "selectAllAgents": "全选",
+      "clearAgentSelection": "清空",
       "applyConfig": "应用配置"
+    },
+    "import": {
+      "sources": {
+        "codex": {
+          "label": "Codex",
+          "description": "复用 ~/.codex/config.toml 和 auth.json 中的 Provider 配置与密钥。"
+        },
+        "claudeCode": {
+          "label": "Claude Code",
+          "description": "当 ~/.claude/settings.json 包含静态 Anthropic API Key 时快速导入。"
+        },
+        "openCode": {
+          "label": "OpenCode",
+          "description": "复用全局 OpenCode Provider 配置与认证记录。"
+        }
+      }
     },
     "dialogs": {
       "editor": {
-        "createTitle": "新增路由配置",
+        "createTitle": "创建路由配置",
         "editTitle": "编辑路由配置",
-        "description": "配置 Provider 元信息、默认模型、Embedding 模型和运行参数，以满足 OpenClaw 兼容实例的接入要求。",
-        "preset": "内置预设",
-        "presetPlaceholder": "选择一个内置预设",
+        "description": "定义一条本地代理路由，选择对外暴露的客户端协议，指向对应的上游协议，并把模型默认值与运行时参数集中维护。",
+        "preset": "预设",
+        "presetPlaceholder": "选择内置预设",
         "customPreset": "自定义",
         "name": "配置名称",
-        "providerId": "Provider ID",
-        "baseUrl": "Base URL",
-        "apiKey": "API Key",
-        "defaultModel": "默认 LLM",
+        "knownProvider": "已知提供方",
+        "knownProviderPlaceholder": "选择已知提供方",
+        "customProvider": "自定义提供方 ID",
+        "providerId": "提供方 ID",
+        "providerIdHint": "选择已知提供方后会自动填入规范的提供方 ID。只有在你需要自定义路由 ID 时才需要覆盖它。",
+        "providerVendor": "服务商",
+        "modelFamily": "模型系列",
+        "baseUrl": "基础 URL",
+        "clientProtocol": "客户端协议",
+        "upstreamProtocol": "上游协议",
+        "apiKey": "API 密钥",
+        "defaultModel": "默认模型",
         "reasoningModel": "推理模型",
-        "embeddingModel": "Embedding 模型",
+        "embeddingModel": "向量模型",
         "models": "模型列表",
-        "modelsHint": "每行一个模型，格式为 `model-id=显示名称`。",
+        "modelsHint": "每行一个模型。使用 `model-id=显示名称`。如果此列表为空，将自动补入上面的默认 / 推理 / 向量模型 id。",
         "notes": "备注",
-        "runtimeTitle": "运行参数",
+        "enabled": "启用路由",
+        "enabledHint": "停用后的路由会保留在存储中，但不会投影到当前运行时。",
+        "defaultRoute": "默认路由",
+        "defaultRouteHint": "每种客户端协议同时只能保留一条默认生效路由。",
+        "runtimeTitle": "运行时配置",
         "temperature": "Temperature",
         "topP": "Top P",
         "maxTokens": "Max Tokens",
-        "timeoutMs": "超时（毫秒）",
+        "timeoutMs": "超时时间（ms）",
         "streaming": "流式输出",
-        "streamingHint": "开启后，Provider 路由按流式响应工作。"
+        "streamingHint": "为投影后的路由运行时启用流式响应。",
+        "sidebarTitle": "提供方目录",
+        "sidebarDescription": "在左侧快速选择提供方，直接载入推荐的预设和模型包。",
+        "sidebarSearchPlaceholder": "搜索提供方、服务商或模型系列",
+        "customRoute": "自定义路由",
+        "customRouteHint": "当你需要自定义 provider id 或上游地址时，保留手动配置模式。",
+        "emptyProviderSearch": "当前搜索条件下没有匹配的 provider。",
+        "selectedProvider": "当前提供方",
+        "selectedProviderHint": "手动路由保持完全灵活，你可以按自己的方式填写提供方 ID、上游地址和模型目录。",
+        "accessTitle": "访问与路由",
+        "accessDescription": "把路由名称、凭证、端点和协议映射放在一个区域里完成配置。",
+        "modelsSectionDescription": "按行追加模型、支持上下排序，并让默认 / 推理 / 向量角色始终和列表保持一致。",
+        "addModel": "添加模型",
+        "modelId": "模型 ID",
+        "modelIdPlaceholder": "例如 gpt-5.4",
+        "modelName": "显示名称",
+        "modelNamePlaceholder": "用于路由目录展示",
+        "modelListEmptyTitle": "还没有添加模型",
+        "modelListEmptyDescription": "先添加一行模型，再在右侧选择默认、推理和向量角色。",
+        "selectionTitle": "路由角色",
+        "selectionDescription": "从当前模型列表中选择默认聊天、推理和向量模型。",
+        "runtimeDescription": "不用离开当前编辑器，就可以细调投影后的运行时行为。"
       },
       "apply": {
-        "title": "快速应用模型配置",
-        "description": "把选中的路由配置同步到 OpenClaw 实例默认 Provider 选择，并按需更新 Agent 的模型绑定。",
-        "instance": "目标实例",
-        "instancePlaceholder": "选择一个实例",
-        "configPath": "配置文件路径",
-        "targetSummary": "配置摘要",
+        "title": "快速应用路由配置",
+        "description": "将选中的路由配置应用到某个 OpenClaw 实例的默认 Provider 选择中，并可在本地代理完整投影生效前同步更新 Agent 模型绑定。",
+        "instance": "实例",
+        "instancePlaceholder": "选择实例",
+        "configPath": "配置路径",
+        "targetSummary": "路由配置摘要",
         "agents": "Agent 列表",
-        "agentHint": "勾选的 Agent 会把主模型切换为默认 LLM；如果配置了推理模型，会自动写入 fallback。",
+        "agentHint": "勾选的 Agent 会切换到当前选择的默认 LLM；如果已配置推理模型，也会一并作为 fallback 加入。",
         "defaultAgent": "默认 Agent",
         "currentModel": "当前模型"
       },
       "delete": {
         "title": "删除路由配置",
-        "description": "确认从本地配置中心删除 `{{name}}` 吗？删除后不会自动修改任何实例，除非重新应用其它配置。"
+        "description": "确认从本地 Provider 配置中心删除 `{{name}}` 吗？此操作不会修改任何实例，直到你应用其他配置。"
       }
     },
+    "health": {
+      "healthy": "健康",
+      "degraded": "降级",
+      "failed": "失败",
+      "disabled": "已停用"
+    },
+    "testStatus": {
+      "passed": "通过",
+      "failed": "失败"
+    },
     "toasts": {
-      "loadFailed": "加载模型配置失败。",
-      "loadInstancesFailed": "加载可应用实例失败。",
-      "loadInstanceTargetFailed": "加载实例应用目标失败。",
-      "saveFailed": "保存模型配置失败。",
-      "deleteFailed": "删除模型配置失败。",
-      "applyFailed": "应用模型配置失败。",
-      "saved": "模型配置已保存。",
-      "deleted": "模型配置已删除。",
-      "applied": "模型配置已应用。"
+      "importFailed": "无法从 {{source}} 导入 Provider 配置。",
+      "importEmpty": "{{source}} 中没有可导入的 Provider 配置。",
+      "importedSingle": "已从 {{source}} 导入 {{name}}。",
+      "importedMultiple": "已从 {{source}} 导入 {{count}} 条路由。",
+      "loadFailed": "无法加载路由配置。",
+      "loadInstancesFailed": "无法加载应用目标。",
+      "loadInstanceTargetFailed": "无法加载所选实例目标。",
+      "saveFailed": "无法保存路由配置。",
+      "deleteFailed": "无法删除路由配置。",
+      "testFailed": "路由测试失败。",
+      "applyFailed": "无法应用路由配置。",
+      "saved": "路由配置已保存。",
+      "deleted": "路由配置已删除。",
+      "testPassed": "路由测试通过。",
+      "applied": "路由配置已应用。"
     }
   }
 }

@@ -6,6 +6,11 @@ import {
   isSharedSdkSourceMode,
   resolvePnpmPackageDistEntry,
 } from '../../scripts/shared-sdk-mode.mjs';
+import {
+  createDesktopManualChunks,
+  DESKTOP_DEDUPE_PACKAGES,
+  resolveDesktopModulePreloadDependencies,
+} from './viteBuildOptimization.ts';
 
 function workspacePackageResolver() {
   return {
@@ -44,16 +49,19 @@ export default defineConfig(({ command, mode }) => {
     __dirname,
     '../../../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/dist/index.js',
   );
+  const sharedAppSdkChunkEntry = useSharedSdkSourceMode
+    ? sharedAppSdkSourceEntry
+    : sharedAppSdkDistEntry;
 
   return {
     base: command === 'build' ? './' : '/',
     envDir: workspaceRootDir,
     plugins: [workspacePackageResolver(), react(), tailwindcss()],
     define: {
-      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),
       'import.meta.env.VITE_ACCESS_TOKEN': JSON.stringify(env.VITE_ACCESS_TOKEN || ''),
     },
     resolve: {
+      dedupe: [...DESKTOP_DEDUPE_PACKAGES],
       alias: [
         { find: '@', replacement: path.resolve(__dirname, '.') },
         ...(useSharedSdkSourceMode
@@ -71,6 +79,17 @@ export default defineConfig(({ command, mode }) => {
       hmr: process.env.DISABLE_HMR !== 'true',
       fs: {
         allow: [monorepoRoot],
+      },
+    },
+    build: {
+      modulePreload: {
+        resolveDependencies: (_filename, deps, context) =>
+          resolveDesktopModulePreloadDependencies(deps, context),
+      },
+      rollupOptions: {
+        output: {
+          manualChunks: createDesktopManualChunks(sharedAppSdkChunkEntry),
+        },
       },
     },
   };

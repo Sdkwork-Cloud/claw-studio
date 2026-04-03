@@ -23,6 +23,10 @@ import {
   createSkillCatalog,
 } from './marketPresentation';
 import {
+  shouldLoadMarketInstanceCatalog,
+  shouldLoadMarketInstalledSkills,
+} from './marketHydrationPolicy.ts';
+import {
   createMySkillsCatalogGridStyle,
   createPackCatalogGridStyle,
   createSkillCatalogGridStyle,
@@ -83,6 +87,15 @@ export function Market() {
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  const shouldLoadInstances = shouldLoadMarketInstanceCatalog({
+    activeTab,
+    isInstallSkillModalOpen: Boolean(installModalSkill),
+    isInstallPackModalOpen: Boolean(installModalPack),
+  });
+  const shouldLoadInstalledSkills = shouldLoadMarketInstalledSkills({
+    activeTab,
+    activeInstanceId,
+  });
   const formatDownloadCount = (value: number) => new Intl.NumberFormat(i18n.language).format(value);
   const formatInstanceStatus = (status: Instance['status']) =>
     status === 'online' ? t('market.status.online') : t('market.status.offline');
@@ -121,12 +134,13 @@ export function Market() {
     queryKey: ['mySkills', activeInstanceId],
     queryFn: () =>
       activeInstanceId ? mySkillService.getMySkills(activeInstanceId) : Promise.resolve([]),
-    enabled: !!activeInstanceId,
+    enabled: shouldLoadInstalledSkills,
   });
 
   const { data: instances = [] } = useQuery<Instance[]>({
     queryKey: ['instances'],
     queryFn: instanceService.getInstances,
+    enabled: shouldLoadInstances,
   });
 
   React.useEffect(() => {

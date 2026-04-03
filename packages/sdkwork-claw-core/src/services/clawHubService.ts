@@ -8,6 +8,10 @@ import type {
 } from '@sdkwork/app-sdk';
 import type { Review, Skill, SkillPack } from '@sdkwork/claw-types';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import {
+  getAppSdkClientWithSession,
+  readAppSdkSessionTokens,
+} from '../sdk/useAppSdkClient.ts';
 
 export interface ClawHubCategory {
   id: string;
@@ -49,13 +53,11 @@ export interface ClawHubService {
 
 const SKILL_PAGE_SIZE = 100;
 
-async function getDefaultClient(): Promise<ClawHubClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultClient(): ClawHubClient {
   return getAppSdkClientWithSession();
 }
 
-async function getDefaultSessionTokens(): Promise<ClawHubSessionTokens> {
-  const { readAppSdkSessionTokens } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultSessionTokens(): ClawHubSessionTokens {
   return readAppSdkSessionTokens();
 }
 
@@ -196,6 +198,43 @@ function mapReview(value: SkillReviewVO | null | undefined): Review {
   };
 }
 
+function matchesPackageFilters(
+  value: SkillPackageVO | null | undefined,
+  params: ClawHubPackageListParams,
+) {
+  if (!value) {
+    return false;
+  }
+
+  const categoryId = toOptionalString(params.categoryId);
+  if (categoryId && toIdString(value.categoryId) !== categoryId) {
+    return false;
+  }
+
+  const keyword = normalizeLookupKey(toOptionalString(params.keyword));
+  if (!keyword) {
+    return true;
+  }
+
+  const searchText = [
+    value.packageKey,
+    value.name,
+    value.summary,
+    value.description,
+    value.categoryName,
+    value.authorName,
+    ...(value.tags || []),
+  ]
+    .map((item) => normalizeLookupKey(item))
+    .join(' ');
+
+  return searchText.includes(keyword);
+}
+
+function normalizeLookupKey(value: string | undefined): string {
+  return (value || '').trim().toLowerCase();
+}
+
 async function listAllSkillPages(
   client: ClawHubClient,
   params: ClawHubSkillListParams = {},
@@ -245,12 +284,12 @@ export function createClawHubService(
 
   return {
     async listCategories() {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : await getDefaultSessionTokens();
+      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
       if (!requireAuthToken(sessionTokens.authToken)) {
         return [];
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       const payload = unwrapAppSdkResponse<SkillCategoryVO[]>(
         await client.skill.listCategories(),
         'Failed to load ClawHub categories.',
@@ -262,22 +301,22 @@ export function createClawHubService(
     },
 
     async listSkills(params = {}) {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : await getDefaultSessionTokens();
+      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
       if (!requireAuthToken(sessionTokens.authToken)) {
         return [];
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return (await listAllSkillPages(client, params)).map(mapSkill);
     },
 
     async getSkill(id: string) {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : await getDefaultSessionTokens();
+      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
       if (!requireAuthToken(sessionTokens.authToken)) {
         throw new Error('Failed to load ClawHub skill without an authenticated app session.');
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapSkill(
         unwrapAppSdkResponse<SkillVO>(
           await client.skill.detail(id),
@@ -287,29 +326,28 @@ export function createClawHubService(
     },
 
     async listPackages(params = {}) {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : await getDefaultSessionTokens();
+      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
       if (!requireAuthToken(sessionTokens.authToken)) {
         return [];
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       const payload = unwrapAppSdkResponse<SkillPackageVO[]>(
-        await client.skill.listPackages(withDefinedQuery({
-          categoryId: toOptionalQueryValue(params.categoryId),
-          keyword: toOptionalQueryValue(params.keyword),
-        })),
+        await client.skill.listPackages(),
         'Failed to load ClawHub packages.',
       );
-      return payload.map(mapPackage);
+      return payload
+        .filter((item) => matchesPackageFilters(item, params))
+        .map(mapPackage);
     },
 
     async getPackage(id: string) {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : await getDefaultSessionTokens();
+      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
       if (!requireAuthToken(sessionTokens.authToken)) {
         throw new Error('Failed to load ClawHub package without an authenticated app session.');
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapPackage(
         unwrapAppSdkResponse<SkillPackageVO>(
           await client.skill.detailPackage(id),
@@ -319,12 +357,12 @@ export function createClawHubService(
     },
 
     async listReviews(skillId: string) {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : await getDefaultSessionTokens();
+      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
       if (!requireAuthToken(sessionTokens.authToken)) {
         return [];
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       const payload = unwrapAppSdkResponse<SkillReviewVO[]>(
         await client.skill.listReviews(skillId),
         'Failed to load ClawHub skill reviews.',

@@ -14,11 +14,16 @@ import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@sdkwork/claw-ui';
+import { useRolloutStore } from '@sdkwork/claw-core';
 import { Section } from './Shared';
 import {
   kernelCenterService,
   type KernelCenterDashboard,
 } from './services/index.ts';
+import {
+  resolveEndpointPortValue,
+  resolveLocalAiProxyPortValue,
+} from './kernelCenterView.ts';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -148,10 +153,86 @@ function translateSupervisorLifecycle(t: Translate, lifecycle?: string | null) {
   }
 }
 
+function translateLocalAiProxyLifecycle(t: Translate, lifecycle?: string | null) {
+  switch (lifecycle?.trim().toLowerCase()) {
+    case 'running':
+      return t('settings.kernelCenter.localAiProxyLifecycle.running');
+    case 'failed':
+      return t('settings.kernelCenter.localAiProxyLifecycle.failed');
+    case 'stopped':
+      return t('settings.kernelCenter.localAiProxyLifecycle.stopped');
+    default:
+      return t('settings.kernelCenter.localAiProxyLifecycle.unavailable');
+  }
+}
+
 function translateBoolean(t: Translate, value: boolean) {
   return value
     ? t('settings.kernelCenter.values.yes')
     : t('settings.kernelCenter.values.no');
+}
+
+function formatLocalAiProxyClientProtocolLabel(clientProtocol: string) {
+  switch (clientProtocol) {
+    case 'openai-compatible':
+      return 'OpenAI-Compatible';
+    case 'anthropic':
+      return 'Anthropic';
+    case 'gemini':
+      return 'Gemini';
+    default:
+      return clientProtocol || 'Unknown';
+  }
+}
+
+function formatLocalAiProxyDefaultRouteValue(route: {
+  name: string;
+  managedBy: string;
+  upstreamProtocol: string;
+  modelCount: number;
+}) {
+  const managementLabel = route.managedBy === 'system-default' ? 'system default' : route.managedBy;
+  const modelLabel = `${route.modelCount} model${route.modelCount === 1 ? '' : 's'}`;
+  return [route.name, managementLabel, route.upstreamProtocol, modelLabel].join(' | ');
+}
+
+function formatHostPlatformCapabilityValue(values: string[], emptyLabel: string) {
+  return values.length > 0 ? values.join(', ') : emptyLabel;
+}
+
+function formatRolloutPhase(
+  phase: KernelCenterDashboard['rollouts']['items'][number]['phase'],
+) {
+  switch (phase) {
+    case 'draft':
+      return 'Draft';
+    case 'previewing':
+      return 'Previewing';
+    case 'awaitingApproval':
+      return 'Awaiting Approval';
+    case 'ready':
+      return 'Ready';
+    case 'promoting':
+      return 'Promoting';
+    case 'paused':
+      return 'Paused';
+    case 'completed':
+      return 'Completed';
+    case 'failed':
+      return 'Failed';
+    default:
+      return 'Cancelled';
+  }
+}
+
+function canStartRollout(
+  phase: KernelCenterDashboard['rollouts']['items'][number]['phase'],
+) {
+  return phase === 'ready' || phase === 'awaitingApproval';
+}
+
+function formatTimestampValue(timestamp: number | null, emptyLabel: string) {
+  return timestamp ? new Date(timestamp).toLocaleString() : emptyLabel;
 }
 
 function MetricCard({
@@ -215,6 +296,21 @@ export function KernelCenter() {
   const [dashboard, setDashboard] = useState<KernelCenterDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeAction, setActiveAction] = useState<'ensure' | 'restart' | null>(null);
+  const [activeRolloutAction, setActiveRolloutAction] = useState<'preview' | 'start' | null>(null);
+  const {
+    status: rolloutStatus,
+    items: rolloutItems,
+    total: rolloutTotal,
+    phaseCounts,
+    preview: rolloutPreview,
+    previewFailures,
+    selectedRolloutId,
+    error: rolloutError,
+    load: loadRollouts,
+    previewRollout,
+    startRollout,
+    reset: resetRollouts,
+  } = useRolloutStore();
 
   const notAvailableLabel = t('settings.kernelCenter.values.notAvailable');
   const noneLabel = t('settings.kernelCenter.values.none');
@@ -230,6 +326,95 @@ export function KernelCenter() {
     t,
     dashboard?.snapshot?.raw.provenance.installSource,
   );
+  const host = dashboard?.host ?? {
+    serviceManagerLabel: null,
+    ownershipLabel: null,
+    startupModeLabel: null,
+    controlSocketLabel: null,
+    controlSocketAvailable: false,
+    serviceConfigPath: null,
+  };
+  const endpoint = dashboard?.endpoint ?? {
+    preferredPort: null,
+    activePort: null,
+    baseUrl: null,
+    websocketUrl: null,
+    usesDynamicPort: false,
+  };
+  const storage = dashboard?.storage ?? {
+    activeProfileId: null,
+    activeProfileLabel: null,
+    activeProfilePath: null,
+    rootDir: null,
+    profileCount: 0,
+  };
+  const provenance = dashboard?.provenance ?? {
+    installSourceLabel: null,
+    platformLabel: null,
+    openclawVersion: null,
+    nodeVersion: null,
+    configPath: null,
+    runtimeHomeDir: null,
+    runtimeInstallDir: null,
+  };
+  const localAiProxy = dashboard?.localAiProxy ?? {
+    lifecycle: 'Unavailable',
+    baseUrl: null,
+    rootBaseUrl: null,
+    openaiCompatibleBaseUrl: null,
+    anthropicBaseUrl: null,
+    geminiBaseUrl: null,
+    activePort: null,
+    loopbackOnly: true,
+    defaultRouteName: null,
+    defaultRoutes: [],
+    upstreamBaseUrl: null,
+    modelCount: 0,
+    configPath: null,
+    snapshotPath: null,
+    logPath: null,
+    lastError: null,
+  };
+  const capabilities = dashboard?.capabilities ?? {
+    readyKeys: [],
+    plannedKeys: [],
+  };
+  const hostPlatform = dashboard?.hostPlatform ?? {
+    status: null,
+    modeLabel: 'Unknown',
+    lifecycleLabel: 'Unavailable',
+    hostId: null,
+    displayName: null,
+    version: null,
+    desiredStateProjectionVersion: null,
+    rolloutEngineVersion: null,
+    manageBasePath: null,
+    internalBasePath: null,
+    capabilityKeys: [],
+    capabilityCount: 0,
+  };
+  const resolvedRolloutItems =
+    rolloutStatus === 'ready' || rolloutItems.length > 0
+      ? rolloutItems
+      : dashboard?.rollouts.items ?? [];
+  const resolvedRolloutTotal =
+    rolloutStatus === 'ready' || rolloutItems.length > 0
+      ? rolloutTotal
+      : dashboard?.rollouts.total ?? 0;
+  const resolvedRolloutCounts =
+    rolloutStatus === 'ready' || rolloutItems.length > 0
+      ? phaseCounts
+      : dashboard?.rollouts.phaseCounts ?? {
+          active: 0,
+          failed: 0,
+          completed: 0,
+          paused: 0,
+          drafts: 0,
+        };
+  const localAiProxyLifecycleLabel = translateLocalAiProxyLifecycle(
+    t,
+    localAiProxy.lifecycle,
+  );
 
   const loadDashboard = async () => {
     setIsLoading(true);
@@ -244,12 +429,21 @@ export function KernelCenter() {
 
   useEffect(() => {
     void loadDashboard();
+    void loadRollouts();
+    return () => {
+      resetRollouts();
+    };
   }, []);
+
+  const handleRefresh = async () => {
+    await Promise.all([loadDashboard(), loadRollouts()]);
+  };
 
   const handleEnsureRunning = async () => {
     setActiveAction('ensure');
     try {
       setDashboard(await kernelCenterService.ensureRunning());
+      await loadRollouts();
       toast.success(t('settings.kernelCenter.toasts.ensureSuccess'));
     } catch (error: any) {
       toast.error(error?.message || t('settings.kernelCenter.toasts.ensureFailed'));
@@ -262,11 +456,37 @@ export function KernelCenter() {
     setActiveAction('restart');
     try {
       setDashboard(await kernelCenterService.restart());
+      await loadRollouts();
       toast.success(t('settings.kernelCenter.toasts.restartSuccess'));
     } catch (error: any) {
       toast.error(error?.message || t('settings.kernelCenter.toasts.restartFailed'));
     } finally {
       setActiveAction(null);
+    }
+  };
+
+  const handlePreviewRollout = async (rolloutId: string) => {
+    setActiveRolloutAction('preview');
+    try {
+      await previewRollout(rolloutId);
+      toast.success('Loaded rollout preview.');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to preview rollout.');
+    } finally {
+      setActiveRolloutAction(null);
+    }
+  };
+
+  const handleStartRollout = async (rolloutId: string) => {
+    setActiveRolloutAction('start');
+    try {
+      await startRollout(rolloutId);
+      await loadDashboard();
+      toast.success('Rollout start requested.');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to start rollout.');
+    } finally {
+      setActiveRolloutAction(null);
     }
   };
 
@@ -313,7 +533,7 @@ export function KernelCenter() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              onClick={() => void loadDashboard()}
+              onClick={() => void handleRefresh()}
               disabled={isLoading}
               className="rounded-xl"
             >
@@ -370,9 +590,9 @@ export function KernelCenter() {
         <MetricCard
           icon={Waypoints}
           label={t('settings.kernelCenter.metrics.endpoint')}
-          value={dashboard?.endpoint.baseUrl || notAvailableLabel}
+          value={endpoint.baseUrl || notAvailableLabel}
           detail={
-            dashboard?.endpoint.usesDynamicPort
+            endpoint.usesDynamicPort
               ? t('settings.kernelCenter.endpoint.dynamicPort')
               : t('settings.kernelCenter.endpoint.preferredActive')
           }
@@ -380,6 +600,239 @@ export function KernelCenter() {
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Section title="Host Platform">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <ValueRow
+              label="Platform Mode"
+              value={hostPlatform.modeLabel}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label="Platform Lifecycle"
+              value={hostPlatform.lifecycleLabel}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label="Display Name"
+              value={hostPlatform.displayName}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label="Host ID"
+              value={hostPlatform.hostId}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label="Platform Version"
+              value={hostPlatform.version}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label="Projection Version"
+              value={hostPlatform.desiredStateProjectionVersion}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label="Rollout Engine"
+              value={hostPlatform.rolloutEngineVersion}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label="Capability Count"
+              value={String(hostPlatform.capabilityCount)}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label="Manage Base Path"
+              value={hostPlatform.manageBasePath}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label="Internal Base Path"
+              value={hostPlatform.internalBasePath}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label="Capabilities"
+              value={formatHostPlatformCapabilityValue(hostPlatform.capabilityKeys, noneLabel)}
+              emptyLabel={noneLabel}
+            />
+            <ValueRow
+              label="Latest Rollout Sync"
+              value={formatTimestampValue(dashboard?.rollouts.latestUpdatedAt ?? null, noneLabel)}
+              emptyLabel={noneLabel}
+            />
+          </div>
+        </Section>
+
+        <Section title="Rollout Control">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              {[
+                {
+                  id: 'total',
+                  label: 'Total',
+                  value: String(resolvedRolloutTotal),
+                },
+                {
+                  id: 'active',
+                  label: 'Active',
+                  value: String(resolvedRolloutCounts.active),
+                },
+                {
+                  id: 'failed',
+                  label: 'Failed',
+                  value: String(resolvedRolloutCounts.failed),
+                },
+                {
+                  id: 'completed',
+                  label: 'Completed',
+                  value: String(resolvedRolloutCounts.completed),
+                },
+              ].map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                    {item.label}
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {rolloutError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+                {rolloutError}
+              </div>
+            ) : null}
+
+            <div className="space-y-3">
+              {resolvedRolloutItems.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 px-4 py-3 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                  No rollout records are available yet.
+                </div>
+              ) : (
+                resolvedRolloutItems.slice(0, 4).map((item) => {
+                  const isBusy = selectedRolloutId === item.id && activeRolloutAction !== null;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-[1.5rem] border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+                    >
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                              {item.id}
+                            </div>
+                            <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                              {formatRolloutPhase(item.phase)}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                            <div>Attempt {item.attempt}</div>
+                            <div>{item.targetCount} targets</div>
+                            <div className="col-span-2">
+                              Updated {formatTimestampValue(item.updatedAt, noneLabel)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => void handlePreviewRollout(item.id)}
+                            disabled={isBusy}
+                            className="rounded-xl"
+                          >
+                            {isBusy && activeRolloutAction === 'preview'
+                              ? 'Previewing...'
+                              : 'Preview'}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => void handleStartRollout(item.id)}
+                            disabled={isBusy || !canStartRollout(item.phase)}
+                            className="rounded-xl"
+                          >
+                            {isBusy && activeRolloutAction === 'start'
+                              ? 'Starting...'
+                              : 'Start'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {rolloutPreview ? (
+              <div className="rounded-[1.5rem] border border-zinc-100 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    Preview: {rolloutPreview.rolloutId}
+                  </div>
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    {formatRolloutPhase(rolloutPreview.phase)}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-zinc-600 dark:text-zinc-400">
+                  <div className="rounded-2xl border border-zinc-100 bg-white/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                    Admissible {rolloutPreview.summary.admissibleTargets}
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-white/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                    Degraded {rolloutPreview.summary.degradedTargets}
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-white/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                    Blocked {rolloutPreview.summary.blockedTargets}
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-white/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                    Predicted Waves {rolloutPreview.summary.predictedWaveCount}
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-zinc-100 bg-white/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                    Blocked Targets
+                  </div>
+                  {previewFailures.length === 0 ? (
+                    <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                      No blocked targets in the current preview.
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      {previewFailures.map((target) => (
+                        <div
+                          key={target.nodeId}
+                          className="rounded-xl border border-zinc-100 bg-zinc-50/80 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"
+                        >
+                          <div className="font-medium text-zinc-800 dark:text-zinc-200">
+                            {target.nodeId}
+                          </div>
+                          <div className="mt-1">{target.blockedReason || target.preflightOutcome}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </Section>
+
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Section title={t('settings.kernelCenter.sections.hostOwnership')}>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <ValueRow
@@ -400,7 +853,7 @@ export function KernelCenter() {
             <ValueRow
               label={t('settings.kernelCenter.fields.controlSocket')}
               value={
-                dashboard?.host.controlSocketLabel
+                host.controlSocketLabel
                 || t('settings.kernelCenter.values.notExposedYet')
               }
               emptyLabel={notAvailableLabel}
@@ -408,12 +861,12 @@ export function KernelCenter() {
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.controlSocketAvailable')}
-              value={translateBoolean(t, Boolean(dashboard?.host.controlSocketAvailable))}
+              value={translateBoolean(t, Boolean(host.controlSocketAvailable))}
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.serviceConfigPath')}
-              value={dashboard?.host.serviceConfigPath || null}
+              value={host.serviceConfigPath || null}
               emptyLabel={notAvailableLabel}
               mono
             />
@@ -424,42 +877,34 @@ export function KernelCenter() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <ValueRow
               label={t('settings.kernelCenter.fields.baseUrl')}
-              value={dashboard?.endpoint.baseUrl || null}
+              value={endpoint.baseUrl || null}
               emptyLabel={notAvailableLabel}
               mono
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.websocketUrl')}
-              value={dashboard?.endpoint.websocketUrl || null}
+              value={endpoint.websocketUrl || null}
               emptyLabel={notAvailableLabel}
               mono
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.preferredPort')}
-              value={
-                dashboard?.endpoint.preferredPort !== null
-                  ? String(dashboard.endpoint.preferredPort)
-                  : null
-              }
+              value={resolveEndpointPortValue(dashboard, 'preferredPort')}
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.activePort')}
-              value={
-                dashboard?.endpoint.activePort !== null
-                  ? String(dashboard.endpoint.activePort)
-                  : null
-              }
+              value={resolveEndpointPortValue(dashboard, 'activePort')}
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.openclawVersion')}
-              value={dashboard?.provenance.openclawVersion || null}
+              value={provenance.openclawVersion || null}
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.nodeVersion')}
-              value={dashboard?.provenance.nodeVersion || null}
+              value={provenance.nodeVersion || null}
               emptyLabel={notAvailableLabel}
             />
           </div>
@@ -471,24 +916,24 @@ export function KernelCenter() {
           <div className="space-y-4">
             <ValueRow
               label={t('settings.kernelCenter.fields.activeProfile')}
-              value={dashboard?.storage.activeProfileLabel || dashboard?.storage.activeProfileId || null}
+              value={storage.activeProfileLabel || storage.activeProfileId || null}
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.profilePath')}
-              value={dashboard?.storage.activeProfilePath || null}
+              value={storage.activeProfilePath || null}
               emptyLabel={notAvailableLabel}
               mono
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.storageRoot')}
-              value={dashboard?.storage.rootDir || null}
+              value={storage.rootDir || null}
               emptyLabel={notAvailableLabel}
               mono
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.profileCount')}
-              value={String(dashboard?.storage.profileCount || 0)}
+              value={String(storage.profileCount || 0)}
               emptyLabel={notAvailableLabel}
             />
           </div>
@@ -503,24 +948,24 @@ export function KernelCenter() {
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.platform')}
-              value={dashboard?.provenance.platformLabel || null}
+              value={provenance.platformLabel || null}
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.configPath')}
-              value={dashboard?.provenance.configPath || null}
+              value={provenance.configPath || null}
               emptyLabel={notAvailableLabel}
               mono
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.runtimeHome')}
-              value={dashboard?.provenance.runtimeHomeDir || null}
+              value={provenance.runtimeHomeDir || null}
               emptyLabel={notAvailableLabel}
               mono
             />
             <ValueRow
               label={t('settings.kernelCenter.fields.runtimeInstallDir')}
-              value={dashboard?.provenance.runtimeInstallDir || null}
+              value={provenance.runtimeInstallDir || null}
               emptyLabel={notAvailableLabel}
               mono
             />
@@ -534,7 +979,7 @@ export function KernelCenter() {
                 {t('settings.kernelCenter.capabilityRollup.ready')}
               </div>
               <div className="mt-2 text-zinc-800 dark:text-zinc-200">
-                {renderList(dashboard?.capabilities.readyKeys || [], noneLabel)}
+                {renderList(capabilities.readyKeys, noneLabel)}
               </div>
             </div>
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -542,7 +987,7 @@ export function KernelCenter() {
                 {t('settings.kernelCenter.capabilityRollup.planned')}
               </div>
               <div className="mt-2 text-zinc-800 dark:text-zinc-200">
-                {renderList(dashboard?.capabilities.plannedKeys || [], noneLabel)}
+                {renderList(capabilities.plannedKeys, noneLabel)}
               </div>
             </div>
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -562,6 +1007,104 @@ export function KernelCenter() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Section title={t('settings.kernelCenter.sections.localAiProxy')}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <ValueRow
+              label={t('settings.kernelCenter.fields.localAiProxyLifecycle')}
+              value={localAiProxyLifecycleLabel}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.localAiProxyRootBaseUrl')}
+              value={localAiProxy.rootBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.baseUrl')}
+              value={localAiProxy.baseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.openaiCompatibleBaseUrl')}
+              value={localAiProxy.openaiCompatibleBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.anthropicBaseUrl')}
+              value={localAiProxy.anthropicBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.geminiBaseUrl')}
+              value={localAiProxy.geminiBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.activePort')}
+              value={resolveLocalAiProxyPortValue(dashboard)}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.modelCount')}
+              value={String(localAiProxy.modelCount)}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.defaultRoute')}
+              value={localAiProxy.defaultRouteName || null}
+              emptyLabel={noneLabel}
+            />
+            {localAiProxy.defaultRoutes.map((route) => (
+              <ValueRow
+                key={route.clientProtocol}
+                label={`${formatLocalAiProxyClientProtocolLabel(route.clientProtocol)} Default`}
+                value={formatLocalAiProxyDefaultRouteValue(route)}
+                emptyLabel={noneLabel}
+              />
+            ))}
+            <ValueRow
+              label={t('settings.kernelCenter.fields.upstreamBaseUrl')}
+              value={localAiProxy.upstreamBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.loopbackOnly')}
+              value={translateBoolean(t, Boolean(localAiProxy.loopbackOnly))}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.lastError')}
+              value={localAiProxy.lastError || null}
+              emptyLabel={noneLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.configPath')}
+              value={localAiProxy.configPath || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.snapshotPath')}
+              value={localAiProxy.snapshotPath || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.logPath')}
+              value={localAiProxy.logPath || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+          </div>
+        </Section>
+
         <Section title={t('settings.kernelCenter.sections.managedDirectories')}>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <ValueRow

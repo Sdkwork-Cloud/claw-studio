@@ -9,7 +9,15 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from 'react';
-import { AppProviders, MainLayout, bootstrapShellRuntime } from '@sdkwork/claw-shell';
+import {
+  AppProviders,
+  MainLayout,
+  bootstrapShellRuntime,
+  listSidebarRoutePrefetchPaths,
+  prefetchSidebarRoute,
+  prefetchSidebarRoutes,
+  resolveSidebarStartupRoute,
+} from '@sdkwork/claw-shell';
 import type { DistributionId } from '@sdkwork/claw-distribution';
 import { getDistributionManifest } from '@sdkwork/claw-distribution';
 import type { RuntimeLanguagePreference } from '@sdkwork/claw-infrastructure';
@@ -421,9 +429,22 @@ export function DesktopBootstrapApp({
 
       setMilestones((current) => ({ ...current, hasRuntimeConnected: true }));
 
+      const startupRoute = resolveSidebarStartupRoute(window.location.pathname);
+      const warmSidebarRoutesHandle = window.setTimeout(() => {
+        if (bootRunIdRef.current !== runId) {
+          return;
+        }
+
+        prefetchSidebarRoutes(
+          listSidebarRoutePrefetchPaths().filter((path) => path !== startupRoute),
+        );
+      }, 0);
+      prefetchSidebarRoute(startupRoute);
+
       logStartup('info', 'Bootstrapping shell runtime.', undefined, runId);
       await bootstrapShellRuntime();
       if (bootRunIdRef.current !== runId) {
+        window.clearTimeout(warmSidebarRoutesHandle);
         return;
       }
 

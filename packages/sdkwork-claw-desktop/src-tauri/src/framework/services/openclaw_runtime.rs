@@ -14,9 +14,11 @@ use tauri::{AppHandle, Manager, Runtime};
 use uuid::Uuid;
 
 pub const OPENCLAW_RUNTIME_ID: &str = "openclaw";
-const BUNDLED_RESOURCE_DIR: &str = "openclaw-runtime";
-const NESTED_BUNDLED_RESOURCE_DIR: &str = "resources/openclaw-runtime";
+const BUNDLED_RESOURCE_DIR: &str = "openclaw";
+const NESTED_BUNDLED_RESOURCE_DIR: &str = "resources/openclaw";
 const DEFAULT_GATEWAY_PORT: u16 = 18_789;
+const LEGACY_PROVIDER_RUNTIME_CONFIG_KEYS: [&str; 5] =
+    ["temperature", "topP", "maxTokens", "timeoutMs", "streaming"];
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -201,20 +203,36 @@ impl OpenClawRuntimeService {
 }
 
 pub(crate) fn resolve_bundled_resource_root(resource_dir: &Path) -> Result<PathBuf> {
-    let direct = resource_dir.join(BUNDLED_RESOURCE_DIR);
-    if direct.exists() {
-        return Ok(direct);
+    resolve_bundled_resource_root_with_manifest_dir(
+        resource_dir,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+    )
+}
+
+fn resolve_bundled_resource_root_with_manifest_dir(
+    resource_dir: &Path,
+    manifest_dir: &Path,
+) -> Result<PathBuf> {
+    let candidates = [
+        resource_dir.join(BUNDLED_RESOURCE_DIR),
+        resource_dir.join(NESTED_BUNDLED_RESOURCE_DIR),
+        manifest_dir.join("resources").join(BUNDLED_RESOURCE_DIR),
+    ];
+
+    for candidate in candidates.iter() {
+        if candidate.exists() {
+            return Ok(candidate.to_path_buf());
+        }
     }
 
-    let nested = resource_dir.join(NESTED_BUNDLED_RESOURCE_DIR);
-    if nested.exists() {
-        return Ok(nested);
-    }
+    let candidate_paths = candidates
+        .iter()
+        .map(|candidate| candidate.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
 
     Err(FrameworkError::NotFound(format!(
-        "bundled openclaw runtime resources not found under {} or {}",
-        direct.display(),
-        nested.display()
+        "bundled openclaw runtime resources not found under any of: {candidate_paths}"
     )))
 }
 
@@ -266,6 +284,7 @@ fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawStat
     fs::create_dir_all(&paths.openclaw_workspace_dir)?;
 
     let mut config = read_managed_config(&paths.openclaw_config_file)?;
+    sanitize_legacy_provider_runtime_config(&mut config);
     set_nested_string(&mut config, &["gateway", "mode"], "local");
     set_nested_string(&mut config, &["gateway", "bind"], "loopback");
     let configured_port = get_nested_u16(&config, &["gateway", "port"]).filter(|port| *port > 0);
@@ -283,16 +302,6 @@ fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawStat
         &mut config,
         &["gateway", "auth", "token"],
         gateway_auth_token.as_str(),
-    );
-    set_nested_bool(
-        &mut config,
-        &["gateway", "http", "endpoints", "chatCompletions", "enabled"],
-        true,
-    );
-    set_nested_bool(
-        &mut config,
-        &["gateway", "http", "endpoints", "responses", "enabled"],
-        true,
     );
     ensure_nested_string_array_contains(&mut config, &["gateway", "tools", "allow"], "cron");
     set_nested_string(
@@ -334,6 +343,28 @@ fn read_managed_config(path: &Path) -> Result<Value> {
         "managed openclaw config must be a JSON object: {}",
         path.display()
     )))
+}
+
+fn sanitize_legacy_provider_runtime_config(config: &mut Value) {
+    let Some(models_root) = config.get_mut("models").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let Some(providers_root) = models_root
+        .get_mut("providers")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+
+    for provider in providers_root.values_mut() {
+        let Some(provider_root) = provider.as_object_mut() else {
+            continue;
+        };
+
+        for key in LEGACY_PROVIDER_RUNTIME_CONFIG_KEYS {
+            provider_root.remove(key);
+        }
+    }
 }
 
 pub(crate) fn load_manifest(path: &Path) -> Result<BundledOpenClawManifest> {
@@ -395,10 +426,6 @@ fn copy_directory_recursive(source: &Path, target: &Path) -> Result<()> {
 
 fn set_nested_string(value: &mut Value, path: &[&str], next: &str) {
     set_nested_value(value, path, Value::String(next.to_string()));
-}
-
-fn set_nested_bool(value: &mut Value, path: &[&str], next: bool) {
-    set_nested_value(value, path, Value::Bool(next));
 }
 
 fn set_nested_u16(value: &mut Value, path: &[&str], next: u16) {
@@ -519,13 +546,14 @@ fn reserve_any_loopback_port() -> Option<u16> {
 mod tests {
     use super::{
         normalized_target_arch, normalized_target_platform, resolve_bundled_resource_root,
-        BundledOpenClawManifest, OpenClawRuntimeService, DEFAULT_GATEWAY_PORT, OPENCLAW_RUNTIME_ID,
+        resolve_bundled_resource_root_with_manifest_dir, BundledOpenClawManifest,
+        OpenClawRuntimeService, DEFAULT_GATEWAY_PORT, OPENCLAW_RUNTIME_ID,
     };
     use crate::framework::{layout::ActiveState, paths::resolve_paths_for_root};
     use serde_json::Value;
     use std::fs;
 
-    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.28";
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
 
     #[test]
     fn installs_bundled_runtime_into_managed_directory_and_activates_it() {
@@ -588,13 +616,13 @@ mod tests {
             config
                 .pointer("/gateway/http/endpoints/chatCompletions/enabled")
                 .and_then(Value::as_bool),
-            Some(true)
+            None
         );
         assert_eq!(
             config
                 .pointer("/gateway/http/endpoints/responses/enabled")
                 .and_then(Value::as_bool),
-            Some(true)
+            None
         );
         assert_eq!(
             config.pointer("/gateway/auth/mode").and_then(Value::as_str),
@@ -775,7 +803,7 @@ mod tests {
     }
 
     #[test]
-    fn preserves_existing_gateway_http_tool_allow_entries_when_adding_cron() {
+    fn preserves_existing_gateway_http_endpoint_flags_when_adding_cron() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
@@ -791,6 +819,7 @@ mod tests {
     },
     http: {
       endpoints: {
+        chatCompletions: { enabled: false },
         responses: { enabled: false },
       },
     },
@@ -817,10 +846,68 @@ mod tests {
         );
         assert_eq!(
             config
+                .pointer("/gateway/http/endpoints/chatCompletions/enabled")
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            config
                 .pointer("/gateway/http/endpoints/responses/enabled")
                 .and_then(Value::as_bool),
-            Some(true)
+            Some(false)
         );
+    }
+
+    #[test]
+    fn ensure_bundled_runtime_sanitizes_legacy_provider_runtime_fields() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  "models": {
+    "providers": {
+      "sdkwork-local-proxy": {
+        "baseUrl": "http://127.0.0.1:18791/v1",
+        "apiKey": "sk_sdkwork_api_key",
+        "temperature": 0.35,
+        "topP": 0.9,
+        "maxTokens": 24000,
+        "timeoutMs": 90000,
+        "streaming": false,
+        "models": [
+          { "id": "gpt-5.4", "name": "GPT-5.4" }
+        ]
+      }
+    }
+  }
+}
+"#,
+        )
+        .expect("seed config file");
+
+        service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+        )
+        .expect("config json");
+        let provider = config
+            .pointer("/models/providers/sdkwork-local-proxy")
+            .and_then(Value::as_object)
+            .expect("provider object");
+
+        assert!(!provider.contains_key("temperature"));
+        assert!(!provider.contains_key("topP"));
+        assert!(!provider.contains_key("maxTokens"));
+        assert!(!provider.contains_key("timeoutMs"));
+        assert!(!provider.contains_key("streaming"));
     }
 
     #[test]
@@ -865,13 +952,29 @@ mod tests {
     fn resolves_bundled_runtime_from_nested_resources_directory() {
         let temp = tempfile::tempdir().expect("temp dir");
         let resource_dir = temp.path().join("target").join("debug");
-        let nested_resource_root = resource_dir.join("resources").join("openclaw-runtime");
+        let nested_resource_root = resource_dir.join("resources").join("openclaw");
         fs::create_dir_all(&nested_resource_root).expect("nested resource root");
 
         let resolved =
             resolve_bundled_resource_root(&resource_dir).expect("resolved resource root");
 
         assert_eq!(resolved, nested_resource_root);
+    }
+
+    #[test]
+    fn resolves_bundled_runtime_from_source_resources_directory_when_dev_target_resources_are_missing(
+    ) {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let manifest_dir = temp.path().join("src-tauri");
+        let resource_dir = temp.path().join("target").join("debug");
+        let source_resource_root = manifest_dir.join("resources").join("openclaw");
+        fs::create_dir_all(&source_resource_root).expect("source resource root");
+
+        let resolved =
+            resolve_bundled_resource_root_with_manifest_dir(&resource_dir, &manifest_dir)
+                .expect("resolved source resource root");
+
+        assert_eq!(resolved, source_resource_root);
     }
 
     fn create_bundled_runtime_fixture(root: &std::path::Path, version: &str) -> std::path::PathBuf {

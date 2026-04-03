@@ -1,9 +1,18 @@
 import {
-  getKernelPlatform,
+  kernel,
   type KernelPlatformAPI,
   type RuntimeDesktopKernelHostInfo,
   type RuntimeDesktopKernelInfo,
 } from '@sdkwork/claw-infrastructure';
+import type {
+  LocalAiProxyMessageCaptureSettings,
+  LocalAiProxyMessageLogRecord,
+  LocalAiProxyMessageLogsQuery,
+  LocalAiProxyRequestLogRecord,
+  LocalAiProxyRequestLogsQuery,
+  LocalAiProxyRouteTestRecord,
+  PaginatedResult,
+} from '@sdkwork/claw-types';
 
 export type KernelPlatformControlMode =
   | 'nativeService'
@@ -71,7 +80,7 @@ export function mapKernelPlatformSnapshot(
 export function createKernelPlatformService(
   options: CreateKernelPlatformServiceOptions = {},
 ) {
-  const resolveKernelPlatform = options.getKernelPlatform ?? getKernelPlatform;
+  const resolveKernelPlatform = options.getKernelPlatform ?? (() => kernel);
 
   return {
     async getInfo(): Promise<RuntimeDesktopKernelInfo | null> {
@@ -91,6 +100,30 @@ export function createKernelPlatformService(
     async restart(): Promise<KernelPlatformSnapshot | null> {
       const status = await resolveKernelPlatform().restart();
       return status ? mapKernelPlatformSnapshot(status) : null;
+    },
+
+    async testLocalAiProxyRoute(
+      routeId: string,
+    ): Promise<LocalAiProxyRouteTestRecord | null> {
+      return resolveKernelPlatform().testLocalAiProxyRoute(routeId);
+    },
+
+    async listLocalAiProxyRequestLogs(
+      query: LocalAiProxyRequestLogsQuery,
+    ): Promise<PaginatedResult<LocalAiProxyRequestLogRecord>> {
+      return resolveKernelPlatform().listLocalAiProxyRequestLogs(query);
+    },
+
+    async listLocalAiProxyMessageLogs(
+      query: LocalAiProxyMessageLogsQuery,
+    ): Promise<PaginatedResult<LocalAiProxyMessageLogRecord>> {
+      return resolveKernelPlatform().listLocalAiProxyMessageLogs(query);
+    },
+
+    async updateLocalAiProxyMessageCapture(
+      enabled: boolean,
+    ): Promise<LocalAiProxyMessageCaptureSettings> {
+      return resolveKernelPlatform().updateLocalAiProxyMessageCapture(enabled);
     },
   };
 }

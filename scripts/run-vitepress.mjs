@@ -60,12 +60,32 @@ export function ensureVitepressPackageLink(rootDir = process.cwd()) {
   return packageLinkPath;
 }
 
+export function maybeCleanVitepressDist(rootDir = process.cwd(), cliArgs = process.argv.slice(2)) {
+  const [command, siteDir] = cliArgs;
+  if (command !== 'build' || !siteDir) {
+    return null;
+  }
+
+  const distDir = path.join(rootDir, siteDir, '.vitepress', 'dist');
+  if (fs.existsSync(distDir)) {
+    fs.rmSync(distDir, { recursive: true, force: true });
+  }
+
+  return distDir;
+}
+
 function main() {
   ensureVitepressPackageLink(process.cwd());
+  maybeCleanVitepressDist(process.cwd(), process.argv.slice(2));
   const vitepressCli = resolveVitepressCli(process.cwd());
   const child = spawn(process.execPath, [vitepressCli, ...process.argv.slice(2)], {
     cwd: process.cwd(),
     stdio: 'inherit',
+  });
+
+  child.on('error', (error) => {
+    console.error(`[run-vitepress] ${error.message}`);
+    process.exit(1);
   });
 
   child.on('exit', (code, signal) => {
@@ -81,5 +101,10 @@ function main() {
 const entryUrl = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 
 if (entryUrl === import.meta.url) {
-  main();
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }

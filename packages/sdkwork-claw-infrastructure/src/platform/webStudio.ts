@@ -1,3 +1,4 @@
+import { DEFAULT_BUNDLED_OPENCLAW_VERSION } from '@sdkwork/claw-types';
 import type {
   StudioConversationMessage,
   StudioConversationRecord,
@@ -27,6 +28,10 @@ import type {
   StudioInstanceStorageStatus,
   StudioInstanceRuntimeNote,
   StudioStorageBinding,
+  StudioWorkbenchFileRecord,
+  StudioWorkbenchLLMProviderRecord,
+  StudioWorkbenchSnapshot,
+  StudioWorkbenchTaskRecord,
   StudioWorkbenchTaskExecutionRecord,
 } from '@sdkwork/claw-types';
 import type {
@@ -39,13 +44,158 @@ import type {
 
 const INSTANCE_STORAGE_KEY = 'claw-studio:studio:instances:v1';
 const CONVERSATION_STORAGE_KEY = 'claw-studio:studio:conversations:v1';
-type StudioMockService = typeof import('../services/index.ts')['studioMockService'];
-type StudioMockTask = Awaited<ReturnType<StudioMockService['listTasks']>>[number];
+const WORKBENCH_STORAGE_KEY = 'claw-studio:studio:workbench:v1';
+const DEFAULT_INSTANCE_ID = 'local-built-in';
+const DEFAULT_OPENCLAW_PROVIDER_ID = 'openai';
+const DEFAULT_OPENCLAW_AGENT_FILE_ID = '/workspace/main/AGENTS.md';
+const DEFAULT_OPENCLAW_MEMORY_FILE_ID = '/workspace/main/MEMORY.md';
+const DEFAULT_OPENCLAW_CONFIG_FILE_ID = '/workspace/main/openclaw.json';
 
-async function getStudioMockService(): Promise<StudioMockService> {
-  const module = await import('../services/index.ts');
-  return module.getStudioMockService();
+type BrowserOpenClawWorkbenchChannelRecord = StudioWorkbenchSnapshot['channels'][number] & {
+  values?: Record<string, string>;
+};
+
+interface BrowserOpenClawChannelTemplate {
+  id: string;
+  name: string;
+  description: string;
+  configurationMode: 'required' | 'none';
+  fieldCount: number;
+  setupSteps: string[];
 }
+
+const BROWSER_OPENCLAW_CHANNEL_TEMPLATES: BrowserOpenClawChannelTemplate[] = [
+  {
+    id: 'sdkworkchat',
+    name: 'Sdkwork Chat',
+    description:
+      'Deliver OpenClaw conversations directly into the first-party Sdkwork Chat experience.',
+    configurationMode: 'none',
+    fieldCount: 0,
+    setupSteps: [
+      'Download the Sdkwork Chat app or open the existing Sdkwork Chat workspace.',
+      'Sign in with your SDKWork account to receive OpenClaw conversations immediately.',
+      'Keep this channel enabled when the current runtime should hand off into Sdkwork Chat.',
+    ],
+  },
+  {
+    id: 'wehcat',
+    name: 'Wehcat',
+    description:
+      'Connect a WeChat official account workflow so OpenClaw can serve China-facing channels.',
+    configurationMode: 'required',
+    fieldCount: 4,
+    setupSteps: [
+      'Create or manage a WeChat official account in the WeChat platform.',
+      'Paste the App ID, App Secret, token, and optional AES key here.',
+      'Configure the callback URL on the WeChat side and enable the channel.',
+    ],
+  },
+  {
+    id: 'qq',
+    name: 'QQ',
+    description:
+      'Connect a QQ bot so OpenClaw can route commands, alerts, and approvals into QQ groups.',
+    configurationMode: 'required',
+    fieldCount: 2,
+    setupSteps: [
+      'Create or manage the target QQ bot in the QQ bot platform.',
+      'Paste the bot key and target group ID here.',
+      'Enable the channel after a dry-run delivery succeeds.',
+    ],
+  },
+  {
+    id: 'dingtalk',
+    name: 'DingTalk',
+    description:
+      'Connect a DingTalk custom robot so OpenClaw can broadcast updates into DingTalk workspaces.',
+    configurationMode: 'required',
+    fieldCount: 2,
+    setupSteps: [
+      'Create a custom robot in the target DingTalk group.',
+      'Copy the access token and signing secret into this form.',
+      'Enable the channel after the first connectivity check succeeds.',
+    ],
+  },
+  {
+    id: 'wecom',
+    name: 'WeCom',
+    description:
+      'Connect a WeCom application so OpenClaw can serve enterprise WeCom conversations.',
+    configurationMode: 'required',
+    fieldCount: 3,
+    setupSteps: [
+      'Create a WeCom application with bot or customer-contact permissions.',
+      'Paste the corp ID, agent ID, and secret here.',
+      'Save the configuration and verify that message delivery succeeds.',
+    ],
+  },
+  {
+    id: 'feishu',
+    name: 'Feishu',
+    description:
+      'Connect a Feishu bot so OpenClaw can receive and reply to team messages.',
+    configurationMode: 'required',
+    fieldCount: 4,
+    setupSteps: [
+      'Create a Feishu app in the open platform.',
+      'Copy the App ID and App Secret into this form.',
+      'Add the event callback URL from your OpenClaw deployment if needed.',
+    ],
+  },
+  {
+    id: 'telegram',
+    name: 'Telegram',
+    description:
+      'Use a Telegram bot token to bring OpenClaw into direct messages or group chats.',
+    configurationMode: 'required',
+    fieldCount: 7,
+    setupSteps: [
+      'Create a bot with BotFather and copy the bot token.',
+      'Optionally set a webhook URL if Telegram should push events to your host.',
+      'Enable the channel after the required credentials are filled.',
+    ],
+  },
+  {
+    id: 'discord',
+    name: 'Discord',
+    description:
+      'Attach OpenClaw to a Discord bot for server and DM conversations.',
+    configurationMode: 'required',
+    fieldCount: 1,
+    setupSteps: [
+      'Create a Discord application and bot in the developer portal.',
+      'Paste the bot token here and invite the bot to your server.',
+      'Turn the channel on once the token has been validated.',
+    ],
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    description:
+      'Configure bot and app tokens so OpenClaw can work inside Slack workspaces.',
+    configurationMode: 'required',
+    fieldCount: 3,
+    setupSteps: [
+      'Create or open your Slack app and install it to the target workspace.',
+      'Paste the bot token and app token below.',
+      'Add a signing secret if your workspace uses slash commands or events.',
+    ],
+  },
+  {
+    id: 'googlechat',
+    name: 'Google Chat',
+    description:
+      'Provide Google Chat service account or ref details for enterprise workspace delivery.',
+    configurationMode: 'required',
+    fieldCount: 6,
+    setupSteps: [
+      'Create a Google Chat app and service account.',
+      'Provide either the inline service account JSON or a service account reference.',
+      'Fill audience or webhook information if your deployment requires it.',
+    ],
+  },
+];
 
 function asObject(value: unknown) {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -67,7 +217,7 @@ function asNumber(value: unknown) {
 
 function mapSessionTarget(
   sessionTarget: string | undefined,
-): Pick<StudioMockTask, 'sessionMode' | 'customSessionId'> {
+): Pick<StudioWorkbenchTaskRecord, 'sessionMode' | 'customSessionId'> {
   if (sessionTarget === 'main') {
     return { sessionMode: 'main' };
   }
@@ -91,8 +241,8 @@ function mapSessionTarget(
 
 function mapDelivery(
   delivery: Record<string, unknown>,
-  sessionMode: StudioMockTask['sessionMode'],
-): Pick<StudioMockTask, 'deliveryMode' | 'deliveryBestEffort' | 'deliveryChannel' | 'recipient'> {
+  sessionMode: StudioWorkbenchTaskRecord['sessionMode'],
+): Pick<StudioWorkbenchTaskRecord, 'deliveryMode' | 'deliveryBestEffort' | 'deliveryChannel' | 'recipient'> {
   const deliveryMode = asString(delivery.mode);
   const recipient = asString(delivery.to);
   const deliveryBestEffort = asBoolean(delivery.bestEffort) ? true : undefined;
@@ -123,9 +273,18 @@ function mapDelivery(
   };
 }
 
-function mapOpenClawTaskPayloadToMockTask(
+function cloneTaskRawDefinition(payload: StudioInstanceTaskMutationPayload) {
+  return JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+}
+
+function toIsoString(value: number = Date.now()) {
+  return new Date(value).toISOString();
+}
+
+function buildOpenClawTaskRecord(
   payload: StudioInstanceTaskMutationPayload,
-): Omit<StudioMockTask, 'id' | 'instanceId'> {
+  existing?: StudioWorkbenchTaskRecord,
+): StudioWorkbenchTaskRecord {
   const root = asObject(payload);
   const schedule = asObject(root.schedule);
   const jobPayload = asObject(root.payload);
@@ -139,6 +298,7 @@ function mapOpenClawTaskPayloadToMockTask(
     const everyMs = asNumber(schedule.everyMs) || 30 * 60 * 1000;
     const intervalMinutes = Math.max(1, Math.round(everyMs / (60 * 1000)));
     return {
+      id: existing?.id || `web-task-${Math.random().toString(36).slice(2, 10)}`,
       name: asString(root.name) || 'Untitled task',
       description: asString(root.description),
       prompt: asString(jobPayload.message) || asString(jobPayload.text) || '',
@@ -158,11 +318,13 @@ function mapOpenClawTaskPayloadToMockTask(
       deleteAfterRun: asBoolean(root.deleteAfterRun),
       agentId: asString(root.agentId),
       model: asString(jobPayload.model),
-      thinking: asString(jobPayload.thinking) as StudioMockTask['thinking'],
+      thinking: asString(jobPayload.thinking) as StudioWorkbenchTaskRecord['thinking'],
       lightContext: asBoolean(jobPayload.lightContext),
       ...deliveryState,
-      lastRun: undefined,
-      nextRun: undefined,
+      lastRun: existing?.lastRun,
+      nextRun: existing?.nextRun,
+      latestExecution: existing?.latestExecution ? { ...existing.latestExecution } : null,
+      rawDefinition: cloneTaskRawDefinition(payload),
     };
   }
 
@@ -178,6 +340,7 @@ function mapOpenClawTaskPayloadToMockTask(
     const scheduledTime = `${hours}:${minutes}`;
 
     return {
+      id: existing?.id || `web-task-${Math.random().toString(36).slice(2, 10)}`,
       name: asString(root.name) || 'Untitled task',
       description: asString(root.description),
       prompt: asString(jobPayload.message) || asString(jobPayload.text) || '',
@@ -197,15 +360,18 @@ function mapOpenClawTaskPayloadToMockTask(
       deleteAfterRun: asBoolean(root.deleteAfterRun),
       agentId: asString(root.agentId),
       model: asString(jobPayload.model),
-      thinking: asString(jobPayload.thinking) as StudioMockTask['thinking'],
+      thinking: asString(jobPayload.thinking) as StudioWorkbenchTaskRecord['thinking'],
       lightContext: asBoolean(jobPayload.lightContext),
       ...deliveryState,
-      lastRun: undefined,
-      nextRun: undefined,
+      lastRun: existing?.lastRun,
+      nextRun: existing?.nextRun,
+      latestExecution: existing?.latestExecution ? { ...existing.latestExecution } : null,
+      rawDefinition: cloneTaskRawDefinition(payload),
     };
   }
 
   return {
+    id: existing?.id || `web-task-${Math.random().toString(36).slice(2, 10)}`,
     name: asString(root.name) || 'Untitled task',
     description: asString(root.description),
     prompt: asString(jobPayload.message) || asString(jobPayload.text) || '',
@@ -226,14 +392,15 @@ function mapOpenClawTaskPayloadToMockTask(
     deleteAfterRun: asBoolean(root.deleteAfterRun),
     agentId: asString(root.agentId),
     model: asString(jobPayload.model),
-    thinking: asString(jobPayload.thinking) as StudioMockTask['thinking'],
+    thinking: asString(jobPayload.thinking) as StudioWorkbenchTaskRecord['thinking'],
     lightContext: asBoolean(jobPayload.lightContext),
     ...deliveryState,
-    lastRun: undefined,
-    nextRun: undefined,
+    lastRun: existing?.lastRun,
+    nextRun: existing?.nextRun,
+    latestExecution: existing?.latestExecution ? { ...existing.latestExecution } : null,
+    rawDefinition: cloneTaskRawDefinition(payload),
   };
 }
-const DEFAULT_INSTANCE_ID = 'local-built-in';
 
 interface StudioInstanceRegistryDocument {
   version: 1;
@@ -243,6 +410,11 @@ interface StudioInstanceRegistryDocument {
 interface StudioConversationRegistryDocument {
   version: 1;
   conversations: StudioConversationRecord[];
+}
+
+interface StudioWorkbenchRegistryDocument {
+  version: 1;
+  workbenches: Record<string, StudioWorkbenchSnapshot>;
 }
 
 function now() {
@@ -298,7 +470,7 @@ function createDefaultBuiltInInstance(): StudioInstanceRecord {
     isBuiltIn: true,
     isDefault: true,
     iconType: 'server',
-    version: 'bundled',
+    version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
     typeLabel: 'Built-In OpenClaw',
     host: '127.0.0.1',
     port: 18789,
@@ -315,6 +487,618 @@ function createDefaultBuiltInInstance(): StudioInstanceRecord {
     updatedAt: createdAt,
     lastSeenAt: createdAt,
   };
+}
+
+function normalizeBuiltInInstance(instance: StudioInstanceRecord): StudioInstanceRecord {
+  const baseline = createDefaultBuiltInInstance();
+  const resolvedPort =
+    instance.port ??
+    (instance.config?.port ? Number.parseInt(instance.config.port, 10) : baseline.port) ??
+    baseline.port;
+  const resolvedBaseUrl =
+    instance.baseUrl ??
+    instance.config?.baseUrl ??
+    `http://127.0.0.1:${resolvedPort}`;
+  const resolvedWebsocketUrl =
+    instance.websocketUrl ??
+    instance.config?.websocketUrl ??
+    `ws://127.0.0.1:${resolvedPort}`;
+
+  return {
+    ...baseline,
+    ...instance,
+    name: baseline.name,
+    description: baseline.description,
+    runtimeKind: 'openclaw',
+    deploymentMode: 'local-managed',
+    transportKind: 'openclawGatewayWs',
+    status: instance.status || baseline.status,
+    isBuiltIn: true,
+    isDefault: true,
+    iconType: 'server',
+    version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+    typeLabel: baseline.typeLabel,
+    host: '127.0.0.1',
+    port: resolvedPort,
+    baseUrl: resolvedBaseUrl,
+    websocketUrl: resolvedWebsocketUrl,
+    cpu: instance.cpu ?? baseline.cpu,
+    memory: instance.memory ?? baseline.memory,
+    totalMemory: instance.totalMemory ?? baseline.totalMemory,
+    uptime: instance.uptime ?? baseline.uptime,
+    capabilities:
+      Array.isArray(instance.capabilities) && instance.capabilities.length > 0
+        ? instance.capabilities
+        : baseline.capabilities,
+    storage: {
+      ...baseline.storage,
+      ...(instance.storage || {}),
+      provider: instance.storage?.provider ?? baseline.storage.provider,
+      namespace: instance.storage?.namespace ?? baseline.storage.namespace,
+    },
+    config: createDefaultInstanceConfig({
+      ...(instance.config || {}),
+      port: String(resolvedPort),
+      baseUrl: resolvedBaseUrl,
+      websocketUrl: resolvedWebsocketUrl,
+    }),
+    createdAt: instance.createdAt ?? baseline.createdAt,
+    updatedAt: instance.updatedAt ?? baseline.updatedAt,
+    lastSeenAt: instance.lastSeenAt ?? baseline.lastSeenAt,
+  };
+}
+
+function isManagedOpenClawWorkbenchInstance(instance: StudioInstanceRecord) {
+  return instance.runtimeKind === 'openclaw' && instance.deploymentMode === 'local-managed';
+}
+
+function formatWorkbenchFileSize(content: string) {
+  const bytes = new TextEncoder().encode(content).length;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const kilobytes = bytes / 1024;
+  return `${kilobytes >= 10 ? kilobytes.toFixed(0) : kilobytes.toFixed(1)} KB`;
+}
+
+function summarizeMemoryContent(content: string) {
+  const lines = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.startsWith('#'));
+
+  return lines[0] || 'Managed OpenClaw workspace memory for the browser-backed workbench.';
+}
+
+function createWorkbenchFile(params: {
+  id: string;
+  name: string;
+  path: string;
+  category: StudioWorkbenchFileRecord['category'];
+  language: string;
+  description: string;
+  content: string;
+}): StudioWorkbenchFileRecord {
+  const updatedAt = toIsoString();
+  return {
+    id: params.id,
+    name: params.name,
+    path: params.path,
+    category: params.category,
+    language: params.language,
+    size: formatWorkbenchFileSize(params.content),
+    updatedAt,
+    status: 'synced',
+    description: params.description,
+    content: params.content,
+    isReadonly: false,
+  };
+}
+
+function buildDefaultOpenClawConfigContent(instance: StudioInstanceRecord) {
+  return JSON.stringify(
+    {
+      runtime: 'openclaw',
+      version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      instanceId: instance.id,
+      gateway: {
+        baseUrl: instance.baseUrl ?? null,
+        websocketUrl: instance.websocketUrl ?? null,
+        port: instance.config.port,
+      },
+      workspace: {
+        root: '/workspace/main',
+      },
+      channels: {
+        sdkworkchat: {
+          enabled: true,
+        },
+      },
+      models: {
+        defaultProvider: DEFAULT_OPENCLAW_PROVIDER_ID,
+      },
+    },
+    null,
+    2,
+  );
+}
+
+function buildOpenClawConfigFile(instance: StudioInstanceRecord) {
+  return createWorkbenchFile({
+    id: DEFAULT_OPENCLAW_CONFIG_FILE_ID,
+    name: 'openclaw.json',
+    path: DEFAULT_OPENCLAW_CONFIG_FILE_ID,
+    category: 'config',
+    language: 'json',
+    description: 'Browser-backed OpenClaw runtime configuration snapshot.',
+    content: buildDefaultOpenClawConfigContent(instance),
+  });
+}
+
+function buildOpenClawMemoryEntries(files: StudioWorkbenchFileRecord[]) {
+  return files
+    .filter((file) => file.category === 'memory' || file.name === 'MEMORY.md')
+    .map((file) => ({
+      id: `memory:${file.id}`,
+      title: file.name,
+      type: 'runbook' as const,
+      summary: summarizeMemoryContent(file.content),
+      source: 'system' as const,
+      updatedAt: file.updatedAt,
+      retention: 'pinned' as const,
+      tokens: Math.max(1, Math.ceil(file.content.length / 4)),
+    }));
+}
+
+function normalizeChannelValues(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, candidate]) => typeof candidate === 'string')
+      .map(([key, candidate]) => [key, candidate as string]),
+  );
+}
+
+function countConfiguredChannelValues(values: Record<string, string>) {
+  return Object.values(values).filter((value) => value.trim().length > 0).length;
+}
+
+function resolveBrowserOpenClawChannelTemplate(
+  channelId: string,
+  current?: Partial<BrowserOpenClawWorkbenchChannelRecord> | null,
+): BrowserOpenClawChannelTemplate {
+  const matched = BROWSER_OPENCLAW_CHANNEL_TEMPLATES.find((template) => template.id === channelId);
+  if (matched) {
+    return matched;
+  }
+
+  return {
+    id: channelId,
+    name: current?.name || channelId,
+    description: current?.description || 'Managed browser-backed OpenClaw channel.',
+    configurationMode: current?.configurationMode || 'required',
+    fieldCount:
+      typeof current?.fieldCount === 'number' && Number.isFinite(current.fieldCount)
+        ? current.fieldCount
+        : 0,
+    setupSteps: current?.setupSteps ? [...current.setupSteps] : [],
+  };
+}
+
+function createBrowserOpenClawChannelRecord(input: {
+  template: BrowserOpenClawChannelTemplate;
+  values?: Record<string, string>;
+  enabled?: boolean;
+}): BrowserOpenClawWorkbenchChannelRecord {
+  const values = normalizeChannelValues(input.values);
+  const configuredFieldCount = countConfiguredChannelValues(values);
+  const enabled =
+    typeof input.enabled === 'boolean'
+      ? input.enabled
+      : input.template.configurationMode === 'none'
+        ? true
+        : configuredFieldCount > 0;
+  const status =
+    input.template.configurationMode === 'none'
+      ? enabled
+        ? 'connected'
+        : 'disconnected'
+      : configuredFieldCount === 0
+        ? 'not_configured'
+        : enabled
+          ? 'connected'
+          : 'disconnected';
+
+  return {
+    id: input.template.id,
+    name: input.template.name,
+    description: input.template.description,
+    status,
+    enabled,
+    configurationMode: input.template.configurationMode,
+    fieldCount: input.template.fieldCount,
+    configuredFieldCount,
+    setupSteps: [...input.template.setupSteps],
+    values,
+  };
+}
+
+function sortBrowserOpenClawChannels(
+  channels: BrowserOpenClawWorkbenchChannelRecord[],
+) {
+  const order = new Map(
+    BROWSER_OPENCLAW_CHANNEL_TEMPLATES.map((template, index) => [template.id, index] as const),
+  );
+
+  return [...channels].sort((left, right) => {
+    const leftOrder = order.get(left.id) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = order.get(right.id) ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function sortWorkbenchFiles(files: StudioWorkbenchFileRecord[]) {
+  return [...files].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function buildDefaultOpenClawWorkbenchChannels() {
+  return BROWSER_OPENCLAW_CHANNEL_TEMPLATES.map((template) =>
+    createBrowserOpenClawChannelRecord({ template }),
+  );
+}
+
+function parseWorkbenchConfigRoot(content: string) {
+  try {
+    const parsed = JSON.parse(content);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function updateWorkbenchConfigFile(
+  snapshot: StudioWorkbenchSnapshot,
+  instance: StudioInstanceRecord,
+  updater: (root: Record<string, unknown>) => void,
+) {
+  const currentConfigFile =
+    snapshot.files.find((file) => file.id === DEFAULT_OPENCLAW_CONFIG_FILE_ID) ||
+    buildOpenClawConfigFile(instance);
+  const root = parseWorkbenchConfigRoot(currentConfigFile.content);
+  updater(root);
+  const content = `${JSON.stringify(root, null, 2)}\n`;
+  const nextConfigFile: StudioWorkbenchFileRecord = {
+    ...currentConfigFile,
+    content,
+    size: formatWorkbenchFileSize(content),
+    updatedAt: toIsoString(),
+    status: 'modified',
+  };
+
+  return sortWorkbenchFiles([
+    ...snapshot.files.filter((file) => file.id !== DEFAULT_OPENCLAW_CONFIG_FILE_ID),
+    nextConfigFile,
+  ]);
+}
+
+function createDefaultWorkbenchSnapshot(instance: StudioInstanceRecord): StudioWorkbenchSnapshot {
+  if (!isManagedOpenClawWorkbenchInstance(instance)) {
+    return {
+      channels: [],
+      cronTasks: {
+        tasks: [],
+        taskExecutionsById: {},
+      },
+      llmProviders: [],
+      agents: [],
+      skills: [],
+      files: [],
+      memory: [],
+      tools: [],
+    };
+  }
+
+  const agentsFile = createWorkbenchFile({
+    id: DEFAULT_OPENCLAW_AGENT_FILE_ID,
+    name: 'AGENTS.md',
+    path: DEFAULT_OPENCLAW_AGENT_FILE_ID,
+    category: 'prompt',
+    language: 'markdown',
+    description: 'Primary agent instructions for the browser-backed OpenClaw workspace.',
+    content: [
+      '# Main Agent',
+      '',
+      `You are the primary managed agent for ${instance.name}.`,
+      '- Prefer real runtime actions over placeholder responses.',
+      '- Keep plans concise and execution-oriented.',
+    ].join('\n'),
+  });
+  const memoryFile = createWorkbenchFile({
+    id: DEFAULT_OPENCLAW_MEMORY_FILE_ID,
+    name: 'MEMORY.md',
+    path: DEFAULT_OPENCLAW_MEMORY_FILE_ID,
+    category: 'memory',
+    language: 'markdown',
+    description: 'Pinned workspace memory for the managed OpenClaw browser workbench.',
+    content: [
+      '# Workspace Memory',
+      '',
+      `- Runtime: ${instance.name}`,
+      `- Transport: ${instance.transportKind}`,
+      `- Gateway: ${instance.baseUrl ?? 'unconfigured'}`,
+    ].join('\n'),
+  });
+  const configFile = buildOpenClawConfigFile(instance);
+  const files = sortWorkbenchFiles([agentsFile, memoryFile, configFile]);
+
+  return {
+    channels: buildDefaultOpenClawWorkbenchChannels(),
+    cronTasks: {
+      tasks: [],
+      taskExecutionsById: {},
+    },
+    llmProviders: [
+      {
+        id: DEFAULT_OPENCLAW_PROVIDER_ID,
+        name: 'OpenAI',
+        provider: 'openai',
+        endpoint: 'https://api.openai.com/v1',
+        apiKeySource: 'env:OPENAI_API_KEY',
+        status: 'configurationRequired',
+        defaultModelId: 'gpt-5.4',
+        reasoningModelId: 'o4-mini',
+        embeddingModelId: 'text-embedding-3-large',
+        description: 'Primary hosted provider profile for the managed browser workbench.',
+        icon: 'O',
+        lastCheckedAt: toIsoString(),
+        capabilities: ['chat', 'reasoning', 'embedding'],
+        models: [
+          {
+            id: 'gpt-5.4',
+            name: 'GPT-5.4',
+            role: 'primary',
+            contextWindow: '128k',
+          },
+          {
+            id: 'o4-mini',
+            name: 'o4-mini',
+            role: 'reasoning',
+            contextWindow: '200k',
+          },
+          {
+            id: 'text-embedding-3-large',
+            name: 'text-embedding-3-large',
+            role: 'embedding',
+            contextWindow: '8k',
+          },
+        ],
+        config: {
+          temperature: 0.2,
+          topP: 1,
+          maxTokens: 4096,
+          timeoutMs: 60000,
+          streaming: true,
+        },
+      },
+    ],
+    agents: [
+      {
+        agent: {
+          id: 'main',
+          name: 'Main',
+          description: 'Primary managed OpenClaw workspace agent.',
+          avatar: 'M',
+          systemPrompt: 'Coordinate managed OpenClaw workbench activity.',
+          creator: 'Claw Studio Web',
+        },
+        focusAreas: ['planning', 'automation', 'operations'],
+        automationFitScore: 82,
+      },
+    ],
+    skills: [],
+    files,
+    memory: buildOpenClawMemoryEntries(files),
+    tools: [
+      {
+        id: 'cron',
+        name: 'Cron Scheduler',
+        description: 'Create and run browser-backed OpenClaw scheduled tasks.',
+        category: 'automation',
+        status: 'ready',
+        access: 'write',
+        command: 'openclaw:cron',
+      },
+      {
+        id: 'workspace-files',
+        name: 'Workspace Files',
+        description: 'Edit managed OpenClaw workspace files from the browser.',
+        category: 'filesystem',
+        status: 'ready',
+        access: 'write',
+        command: 'openclaw:files',
+      },
+    ],
+  };
+}
+
+function cloneWorkbenchTaskExecution(
+  execution: StudioWorkbenchTaskExecutionRecord,
+): StudioWorkbenchTaskExecutionRecord {
+  return {
+    ...execution,
+  };
+}
+
+function cloneWorkbenchTask(task: StudioWorkbenchTaskRecord): StudioWorkbenchTaskRecord {
+  return {
+    ...task,
+    scheduleConfig: { ...task.scheduleConfig },
+    latestExecution: task.latestExecution ? cloneWorkbenchTaskExecution(task.latestExecution) : null,
+    rawDefinition: task.rawDefinition ? JSON.parse(JSON.stringify(task.rawDefinition)) as Record<string, unknown> : undefined,
+  };
+}
+
+function cloneWorkbenchProvider(
+  provider: StudioWorkbenchLLMProviderRecord,
+): StudioWorkbenchLLMProviderRecord {
+  return {
+    ...provider,
+    capabilities: [...provider.capabilities],
+    models: provider.models.map((model) => ({ ...model })),
+    config: { ...provider.config },
+  };
+}
+
+function cloneWorkbenchSnapshot(snapshot: StudioWorkbenchSnapshot): StudioWorkbenchSnapshot {
+  return {
+    channels: snapshot.channels.map((channel) => ({
+      ...channel,
+      setupSteps: [...channel.setupSteps],
+    })),
+    cronTasks: {
+      tasks: snapshot.cronTasks.tasks.map(cloneWorkbenchTask),
+      taskExecutionsById: Object.fromEntries(
+        Object.entries(snapshot.cronTasks.taskExecutionsById).map(([taskId, executions]) => [
+          taskId,
+          executions.map(cloneWorkbenchTaskExecution),
+        ]),
+      ),
+    },
+    llmProviders: snapshot.llmProviders.map(cloneWorkbenchProvider),
+    agents: snapshot.agents.map((agent) => ({
+      ...agent,
+      agent: { ...agent.agent },
+      focusAreas: [...agent.focusAreas],
+    })),
+    skills: snapshot.skills.map((skill) => ({ ...skill })),
+    files: snapshot.files.map((file) => ({ ...file })),
+    memory: snapshot.memory.map((entry) => ({ ...entry })),
+    tools: snapshot.tools.map((tool) => ({ ...tool })),
+  };
+}
+
+function createWorkbenchFallback(instances: StudioInstanceRecord[]): StudioWorkbenchRegistryDocument {
+  return {
+    version: 1,
+    workbenches: Object.fromEntries(
+      instances
+        .filter(isManagedOpenClawWorkbenchInstance)
+        .map((instance) => [instance.id, createDefaultWorkbenchSnapshot(instance)]),
+    ),
+  };
+}
+
+function readWorkbenchRegistry(instances: StudioInstanceRecord[] = readInstances().instances): StudioWorkbenchRegistryDocument {
+  const storage = getStorage();
+  const fallback = createWorkbenchFallback(instances);
+
+  if (!storage) {
+    return fallback;
+  }
+
+  const raw = storage.getItem(WORKBENCH_STORAGE_KEY);
+  if (!raw) {
+    storage.setItem(WORKBENCH_STORAGE_KEY, JSON.stringify(fallback));
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<StudioWorkbenchRegistryDocument>;
+    return {
+      version: 1,
+      workbenches: {
+        ...fallback.workbenches,
+        ...(asObject(parsed.workbenches) as Record<string, StudioWorkbenchSnapshot>),
+      },
+    };
+  } catch {
+    storage.setItem(WORKBENCH_STORAGE_KEY, JSON.stringify(fallback));
+    return fallback;
+  }
+}
+
+function writeWorkbenchRegistry(document: StudioWorkbenchRegistryDocument) {
+  const storage = getStorage();
+  if (!storage) {
+    return;
+  }
+
+  storage.setItem(WORKBENCH_STORAGE_KEY, JSON.stringify(document));
+}
+
+function readManagedOpenClawWorkbench(instance: StudioInstanceRecord): StudioWorkbenchSnapshot | null {
+  if (!isManagedOpenClawWorkbenchInstance(instance)) {
+    return null;
+  }
+
+  const document = readWorkbenchRegistry();
+  const existing = document.workbenches[instance.id];
+  if (existing) {
+    return cloneWorkbenchSnapshot(existing);
+  }
+
+  const created = createDefaultWorkbenchSnapshot(instance);
+  document.workbenches[instance.id] = created;
+  writeWorkbenchRegistry(document);
+  return cloneWorkbenchSnapshot(created);
+}
+
+function updateManagedOpenClawWorkbench(
+  instanceId: string,
+  updater: (snapshot: StudioWorkbenchSnapshot, instance: StudioInstanceRecord) => StudioWorkbenchSnapshot,
+): StudioWorkbenchSnapshot | null {
+  const instances = readInstances().instances;
+  const instance = instances.find((entry) => entry.id === instanceId);
+  if (!instance || !isManagedOpenClawWorkbenchInstance(instance)) {
+    return null;
+  }
+
+  const document = readWorkbenchRegistry(instances);
+  const current = document.workbenches[instanceId] || createDefaultWorkbenchSnapshot(instance);
+  const next = updater(cloneWorkbenchSnapshot(current), instance);
+  next.memory = buildOpenClawMemoryEntries(next.files);
+  document.workbenches[instanceId] = next;
+  writeWorkbenchRegistry(document);
+  return cloneWorkbenchSnapshot(next);
+}
+
+function removeManagedOpenClawWorkbench(instanceId: string) {
+  const document = readWorkbenchRegistry();
+  if (!(instanceId in document.workbenches)) {
+    return;
+  }
+
+  delete document.workbenches[instanceId];
+  writeWorkbenchRegistry(document);
+}
+
+function synchronizeManagedOpenClawWorkbench(instance: StudioInstanceRecord) {
+  if (!isManagedOpenClawWorkbenchInstance(instance)) {
+    removeManagedOpenClawWorkbench(instance.id);
+    return;
+  }
+
+  updateManagedOpenClawWorkbench(instance.id, (snapshot) => {
+    const configFile = buildOpenClawConfigFile(instance);
+    const nextFiles = snapshot.files.filter((file) => file.id !== DEFAULT_OPENCLAW_CONFIG_FILE_ID);
+    nextFiles.push(configFile);
+    nextFiles.sort((left, right) => left.path.localeCompare(right.path));
+    return {
+      ...snapshot,
+      files: nextFiles,
+    };
+  });
 }
 
 function readInstances(): StudioInstanceRegistryDocument {
@@ -336,15 +1120,23 @@ function readInstances(): StudioInstanceRegistryDocument {
 
   try {
     const parsed = JSON.parse(raw) as Partial<StudioInstanceRegistryDocument>;
-    const instances = Array.isArray(parsed.instances) ? parsed.instances : [];
+    const storedInstances = Array.isArray(parsed.instances) ? parsed.instances : [];
+    const instances = storedInstances.map((instance) =>
+      instance.id === DEFAULT_INSTANCE_ID ? normalizeBuiltInInstance(instance) : instance,
+    );
     if (!instances.some((instance) => instance.id === DEFAULT_INSTANCE_ID)) {
       instances.unshift(createDefaultBuiltInInstance());
     }
 
-    return {
+    const normalizedDocument = {
       version: 1,
       instances,
-    };
+    } satisfies StudioInstanceRegistryDocument;
+    if (JSON.stringify(normalizedDocument) !== raw) {
+      storage.setItem(INSTANCE_STORAGE_KEY, JSON.stringify(normalizedDocument));
+    }
+
+    return normalizedDocument;
   } catch {
     storage.setItem(INSTANCE_STORAGE_KEY, JSON.stringify(fallback));
     return fallback;
@@ -551,6 +1343,46 @@ function buildEndpoint(
   };
 }
 
+function normalizeOpenClawConfiguredHttpEndpoint(
+  value: string | null | undefined,
+): string | null {
+  const normalized = value?.trim().replace(/\/+$/, '');
+  return normalized || null;
+}
+
+function resolveConfiguredOpenClawHttpEndpoints(instance: StudioInstanceRecord) {
+  const baseUrl = normalizeOpenClawConfiguredHttpEndpoint(instance.baseUrl);
+  if (!baseUrl) {
+    return [];
+  }
+
+  const configuredEndpoints: Array<{
+    id: 'openai-http-chat' | 'openai-http-responses';
+    label: string;
+    kind: 'openaiChatCompletions' | 'openaiResponses';
+    suffixes: string[];
+  }> = [
+    {
+      id: 'openai-http-chat',
+      label: 'OpenAI Chat Completions',
+      kind: 'openaiChatCompletions',
+      suffixes: ['/v1/chat/completions', '/chat/completions'],
+    },
+    {
+      id: 'openai-http-responses',
+      label: 'OpenAI Responses',
+      kind: 'openaiResponses',
+      suffixes: ['/v1/responses', '/responses'],
+    },
+  ];
+
+  return configuredEndpoints
+    .filter((endpoint) => endpoint.suffixes.some((suffix) => baseUrl.endsWith(suffix)))
+    .map((endpoint) =>
+      buildEndpoint(instance, endpoint.id, endpoint.label, endpoint.kind, baseUrl, 'config'),
+    );
+}
+
 function buildConnectivityEndpoints(instance: StudioInstanceRecord): StudioInstanceConnectivityEndpoint[] {
   const endpoints: StudioInstanceConnectivityEndpoint[] = [];
 
@@ -561,16 +1393,7 @@ function buildConnectivityEndpoints(instance: StudioInstanceRecord): StudioInsta
     endpoints.push(buildEndpoint(instance, 'gateway-ws', 'Gateway WebSocket', 'websocket', instance.websocketUrl, 'config'));
   }
   if (instance.runtimeKind === 'openclaw' && instance.baseUrl) {
-    endpoints.push(
-      buildEndpoint(
-        instance,
-        'openai-http-chat',
-        'OpenAI Chat Completions',
-        'openaiChatCompletions',
-        `${instance.baseUrl.replace(/\/$/, '')}/v1/chat/completions`,
-        'derived',
-      ),
-    );
+    endpoints.push(...resolveConfiguredOpenClawHttpEndpoints(instance));
   }
   if (instance.runtimeKind === 'zeroclaw' && instance.baseUrl) {
     endpoints.push(buildEndpoint(instance, 'dashboard', 'Gateway Dashboard', 'dashboard', instance.baseUrl, 'derived'));
@@ -582,10 +1405,14 @@ function buildConnectivityEndpoints(instance: StudioInstanceRecord): StudioInsta
   return endpoints;
 }
 
-function buildCapabilities(instance: StudioInstanceRecord): StudioInstanceCapabilitySnapshot[] {
+function buildCapabilities(
+  instance: StudioInstanceRecord,
+  workbench: StudioWorkbenchSnapshot | null = null,
+): StudioInstanceCapabilitySnapshot[] {
   const allCapabilities: StudioInstanceCapability[] = ['chat', 'health', 'files', 'memory', 'tasks', 'tools', 'models'];
   const supported = new Set(instance.capabilities);
   const storageStatus = resolveStorageStatus(instance.storage);
+  const workbenchBacked = isManagedOpenClawWorkbenchInstance(instance) && workbench != null;
 
   return allCapabilities.map((capability) => {
     let status: StudioInstanceCapabilityStatus = supported.has(capability) ? 'ready' : 'unsupported';
@@ -593,7 +1420,13 @@ function buildCapabilities(instance: StudioInstanceRecord): StudioInstanceCapabi
       ? 'Advertised by the instance record.'
       : 'This runtime is not currently modeled as supporting this capability.';
 
-    if (supported.has(capability) && (capability === 'memory' || capability === 'tasks') && storageStatus !== 'ready') {
+    if (
+      workbenchBacked &&
+      (capability === 'files' || capability === 'memory' || capability === 'tasks' || capability === 'tools' || capability === 'models')
+    ) {
+      status = 'ready';
+      detail = 'Managed OpenClaw browser workbench persists this capability locally when native adapters are unavailable.';
+    } else if (supported.has(capability) && (capability === 'memory' || capability === 'tasks') && storageStatus !== 'ready') {
       status = 'configurationRequired';
       detail = 'Capability depends on a configured durable storage binding.';
     } else if (supported.has(capability) && instance.deploymentMode !== 'local-managed' && (capability === 'files' || capability === 'tools')) {
@@ -643,7 +1476,9 @@ function buildDataAccessSnapshot(
   instance: StudioInstanceRecord,
   storage: StudioInstanceStorageSnapshot,
   observability: StudioInstanceObservabilitySnapshot,
+  workbench: StudioWorkbenchSnapshot | null = null,
 ): StudioInstanceDataAccessSnapshot {
+  const workbenchBacked = isManagedOpenClawWorkbenchInstance(instance) && workbench != null;
   const routes: StudioInstanceDataAccessEntry[] = [
     createDataAccessEntry({
       id: 'config',
@@ -674,7 +1509,23 @@ function buildDataAccessSnapshot(
     }),
   ];
 
-  if (instance.config.workspacePath) {
+  if (workbenchBacked) {
+    routes.push(
+      createDataAccessEntry({
+        id: 'files',
+        label: 'Workspace',
+        scope: 'files',
+        mode: 'metadataOnly',
+        status: 'ready',
+        target: WORKBENCH_STORAGE_KEY,
+        readonly: false,
+        authoritative: true,
+        detail:
+          'Managed OpenClaw workspace files are persisted through the browser workbench state.',
+        source: 'integration',
+      }),
+    );
+  } else if (instance.config.workspacePath) {
     routes.push(
       createDataAccessEntry({
         id: 'files',
@@ -722,52 +1573,56 @@ function buildDataAccessSnapshot(
       id: 'memory',
       label: 'Memory',
       scope: 'memory',
-      mode: 'storageBinding',
-      status: storageStatus,
-      target: getStorageTarget(storage),
+      mode: workbenchBacked ? 'metadataOnly' : 'storageBinding',
+      status: workbenchBacked ? 'ready' : storageStatus,
+      target: workbenchBacked ? WORKBENCH_STORAGE_KEY : getStorageTarget(storage),
       readonly: false,
-      authoritative: storage.status === 'ready',
-      detail:
-        'Memory detail is described through the configured storage binding in the web fallback.',
+      authoritative: workbenchBacked || storage.status === 'ready',
+      detail: workbenchBacked
+        ? 'Managed OpenClaw memory entries are derived from browser-persisted workspace notes.'
+        : 'Memory detail is described through the configured storage binding in the web fallback.',
       source: 'storage',
     }),
     createDataAccessEntry({
       id: 'tasks',
       label: 'Tasks',
       scope: 'tasks',
-      mode: instance.baseUrl ? 'remoteEndpoint' : 'metadataOnly',
-      status: instance.baseUrl ? 'planned' : 'configurationRequired',
-      target: instance.baseUrl ?? null,
+      mode: workbenchBacked ? 'metadataOnly' : instance.baseUrl ? 'remoteEndpoint' : 'metadataOnly',
+      status: workbenchBacked ? 'ready' : instance.baseUrl ? 'planned' : 'configurationRequired',
+      target: workbenchBacked ? WORKBENCH_STORAGE_KEY : instance.baseUrl ?? null,
       readonly: false,
-      authoritative: false,
-      detail:
-        'Task operations depend on runtime-specific adapters and are not directly mounted in the web fallback.',
+      authoritative: workbenchBacked,
+      detail: workbenchBacked
+        ? 'Managed OpenClaw task definitions and execution history are persisted through the browser workbench state.'
+        : 'Task operations depend on runtime-specific adapters and are not directly mounted in the web fallback.',
       source: 'integration',
     }),
     createDataAccessEntry({
       id: 'tools',
       label: 'Tools',
       scope: 'tools',
-      mode: instance.baseUrl ? 'remoteEndpoint' : 'metadataOnly',
-      status: instance.baseUrl ? 'planned' : 'configurationRequired',
-      target: instance.baseUrl ?? null,
+      mode: workbenchBacked ? 'metadataOnly' : instance.baseUrl ? 'remoteEndpoint' : 'metadataOnly',
+      status: workbenchBacked ? 'ready' : instance.baseUrl ? 'planned' : 'configurationRequired',
+      target: workbenchBacked ? WORKBENCH_STORAGE_KEY : instance.baseUrl ?? null,
       readonly: true,
-      authoritative: false,
-      detail:
-        'Tool detail is currently limited to endpoint and metadata posture in the web fallback.',
+      authoritative: workbenchBacked,
+      detail: workbenchBacked
+        ? 'Managed OpenClaw tool metadata is projected from the browser workbench state.'
+        : 'Tool detail is currently limited to endpoint and metadata posture in the web fallback.',
       source: 'integration',
     }),
     createDataAccessEntry({
       id: 'models',
       label: 'Models',
       scope: 'models',
-      mode: instance.baseUrl ? 'remoteEndpoint' : 'metadataOnly',
-      status: instance.baseUrl ? 'planned' : 'configurationRequired',
-      target: instance.baseUrl ?? null,
+      mode: workbenchBacked ? 'metadataOnly' : instance.baseUrl ? 'remoteEndpoint' : 'metadataOnly',
+      status: workbenchBacked ? 'ready' : instance.baseUrl ? 'planned' : 'configurationRequired',
+      target: workbenchBacked ? WORKBENCH_STORAGE_KEY : instance.baseUrl ?? null,
       readonly: false,
-      authoritative: false,
-      detail:
-        'Provider and model surfaces require runtime-specific adapters beyond the web fallback.',
+      authoritative: workbenchBacked,
+      detail: workbenchBacked
+        ? 'Managed OpenClaw provider and model selections are persisted through the browser workbench state.'
+        : 'Provider and model surfaces require runtime-specific adapters beyond the web fallback.',
       source: 'integration',
     }),
   );
@@ -860,7 +1715,7 @@ function buildOfficialRuntimeNotes(instance: StudioInstanceRecord): StudioInstan
     return [
       {
         title: 'Gateway-first transport',
-        content: 'OpenClaw centers its runtime around the Gateway WebSocket and can also expose an OpenAI-compatible HTTP chat endpoint on the same gateway port.',
+        content: 'OpenClaw centers its runtime around the Gateway WebSocket and can optionally expose OpenAI-compatible HTTP endpoints when enabled.',
         sourceUrl: 'https://docs.openclaw.ai/gateway/openai-http-api',
       },
     ];
@@ -895,6 +1750,7 @@ function buildOfficialRuntimeNotes(instance: StudioInstanceRecord): StudioInstan
 function buildInstanceDetailRecord(
   instance: StudioInstanceRecord,
   logs: string,
+  workbench: StudioWorkbenchSnapshot | null = null,
 ): StudioInstanceDetailRecord {
   const storage = buildStorageSnapshot(instance);
   const observability = buildObservabilitySnapshot(instance, logs);
@@ -911,10 +1767,11 @@ function buildInstanceDetailRecord(
       endpoints: buildConnectivityEndpoints(instance),
     },
     observability,
-    dataAccess: buildDataAccessSnapshot(instance, storage, observability),
+    dataAccess: buildDataAccessSnapshot(instance, storage, observability, workbench),
     artifacts: buildArtifacts(instance, storage, observability),
-    capabilities: buildCapabilities(instance),
+    capabilities: buildCapabilities(instance, workbench),
     officialRuntimeNotes: buildOfficialRuntimeNotes(instance),
+    workbench,
   };
 }
 
@@ -976,6 +1833,10 @@ function buildInstanceRecord(input: StudioCreateInstanceInput): StudioInstanceRe
     websocketUrl,
     port: port != null ? String(port) : input.config?.port,
   });
+  const capabilities: StudioInstanceCapability[] =
+    input.runtimeKind === 'openclaw'
+      ? ['chat', 'health', 'files', 'memory', 'tasks', 'tools', 'models']
+      : ['chat', 'health'];
 
   return {
     id: createInstanceId(),
@@ -998,7 +1859,7 @@ function buildInstanceRecord(input: StudioCreateInstanceInput): StudioInstanceRe
     memory: 0,
     totalMemory: 'Unknown',
     uptime: '-',
-    capabilities: ['chat', 'health'],
+    capabilities,
     storage: {
       ...createDefaultStorageBinding(),
       ...(input.storage || {}),
@@ -1009,6 +1870,24 @@ function buildInstanceRecord(input: StudioCreateInstanceInput): StudioInstanceRe
     createdAt,
     updatedAt: createdAt,
     lastSeenAt: null,
+  };
+}
+
+function createTaskExecutionRecord(
+  task: StudioWorkbenchTaskRecord,
+  trigger: StudioWorkbenchTaskExecutionRecord['trigger'],
+): StudioWorkbenchTaskExecutionRecord {
+  const startedAt = toIsoString();
+
+  return {
+    id: `web-execution-${Math.random().toString(36).slice(2, 10)}`,
+    taskId: task.id,
+    status: 'success',
+    trigger,
+    startedAt,
+    finishedAt: startedAt,
+    summary: `Executed ${task.name} from the browser-backed OpenClaw workbench.`,
+    details: task.prompt,
   };
 }
 
@@ -1028,7 +1907,8 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     }
 
     const logs = await this.getInstanceLogs(id);
-    return buildInstanceDetailRecord(instance, logs);
+    const workbench = readManagedOpenClawWorkbench(instance);
+    return buildInstanceDetailRecord(instance, logs, workbench);
   }
 
   async createInstance(input: StudioCreateInstanceInput): Promise<StudioInstanceRecord> {
@@ -1036,6 +1916,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     const instance = buildInstanceRecord(input);
     document.instances.push(instance);
     writeInstances(document);
+    synchronizeManagedOpenClawWorkbench(instance);
     return instance;
   }
 
@@ -1082,6 +1963,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
       instance.id === id ? updated : instance,
     );
     writeInstances(document);
+    synchronizeManagedOpenClawWorkbench(updated);
     return updated;
   }
 
@@ -1112,6 +1994,7 @@ export class WebStudioPlatform implements StudioPlatformAPI {
         !conversation.participantInstanceIds.includes(id),
     );
     writeConversations(conversations);
+    removeManagedOpenClawWorkbench(id);
     return true;
   }
 
@@ -1177,17 +2060,39 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     instanceId: string,
     payload: StudioInstanceTaskMutationPayload,
   ): Promise<void> {
-    const studioMockService = await getStudioMockService();
-    await studioMockService.createTask(instanceId, mapOpenClawTaskPayloadToMockTask(payload));
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => ({
+      ...snapshot,
+      cronTasks: {
+        ...snapshot.cronTasks,
+        tasks: [...snapshot.cronTasks.tasks, buildOpenClawTaskRecord(payload)],
+      },
+    }));
+    if (!updated) {
+      throw new Error(`Instance "${instanceId}" does not support browser-backed task persistence.`);
+    }
   }
 
   async updateInstanceTask(
-    _instanceId: string,
+    instanceId: string,
     taskId: string,
     payload: StudioInstanceTaskMutationPayload,
   ): Promise<void> {
-    const studioMockService = await getStudioMockService();
-    const updated = await studioMockService.updateTask(taskId, mapOpenClawTaskPayloadToMockTask(payload));
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+      const current = snapshot.cronTasks.tasks.find((task) => task.id === taskId);
+      if (!current) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+
+      return {
+        ...snapshot,
+        cronTasks: {
+          ...snapshot.cronTasks,
+          tasks: snapshot.cronTasks.tasks.map((task) =>
+            task.id === taskId ? buildOpenClawTaskRecord(payload, current) : task,
+          ),
+        },
+      };
+    });
     if (!updated) {
       throw new Error(`Task "${taskId}" not found`);
     }
@@ -1198,9 +2103,29 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     fileId: string,
     content: string,
   ): Promise<boolean> {
-    const studioMockService = await getStudioMockService();
-    const updated = await studioMockService.updateInstanceFileContent(instanceId, fileId, content);
-    return Boolean(updated);
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+      const current = snapshot.files.find((file) => file.id === fileId);
+      if (!current) {
+        return snapshot;
+      }
+
+      return {
+        ...snapshot,
+        files: snapshot.files.map((file) =>
+          file.id === fileId
+            ? {
+                ...file,
+                content,
+                size: formatWorkbenchFileSize(content),
+                updatedAt: toIsoString(),
+                status: 'modified',
+              }
+            : file,
+        ),
+      };
+    });
+
+    return Boolean(updated?.files.some((file) => file.id === fileId && file.content === content));
   }
 
   async updateInstanceLlmProviderConfig(
@@ -1208,62 +2133,359 @@ export class WebStudioPlatform implements StudioPlatformAPI {
     providerId: string,
     update: StudioUpdateInstanceLlmProviderConfigInput,
   ): Promise<boolean> {
-    const studioMockService = await getStudioMockService();
-    const updated = await studioMockService.updateInstanceLlmProviderConfig(
-      instanceId,
-      providerId,
-      update,
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+      const current = snapshot.llmProviders.find((provider) => provider.id === providerId);
+      if (!current) {
+        return snapshot;
+      }
+
+      return {
+        ...snapshot,
+        llmProviders: snapshot.llmProviders.map((provider) =>
+          provider.id === providerId
+            ? {
+                ...provider,
+                endpoint: update.endpoint,
+                apiKeySource: update.apiKeySource,
+                defaultModelId: update.defaultModelId,
+                reasoningModelId: update.reasoningModelId,
+                embeddingModelId: update.embeddingModelId,
+                status: update.apiKeySource.trim() ? 'ready' : 'configurationRequired',
+                lastCheckedAt: toIsoString(),
+                models: provider.models.map((model) => {
+                  if (model.role === 'primary') {
+                    return {
+                      ...model,
+                      id: update.defaultModelId,
+                      name: update.defaultModelId,
+                    };
+                  }
+                  if (model.role === 'reasoning' && update.reasoningModelId) {
+                    return {
+                      ...model,
+                      id: update.reasoningModelId,
+                      name: update.reasoningModelId,
+                    };
+                  }
+                  if (model.role === 'embedding' && update.embeddingModelId) {
+                    return {
+                      ...model,
+                      id: update.embeddingModelId,
+                      name: update.embeddingModelId,
+                    };
+                  }
+                  return model;
+                }),
+                config: { ...update.config },
+              }
+            : provider,
+        ),
+      };
+    });
+
+    return Boolean(
+      updated?.llmProviders.some(
+        (provider) =>
+          provider.id === providerId &&
+          provider.defaultModelId === update.defaultModelId &&
+          provider.endpoint === update.endpoint,
+      ),
     );
-    return Boolean(updated);
+  }
+
+  async setInstanceChannelEnabled(
+    instanceId: string,
+    channelId: string,
+    enabled: boolean,
+  ): Promise<boolean> {
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot, instance) => {
+      const current = snapshot.channels.find((channel) => channel.id === channelId) as
+        | BrowserOpenClawWorkbenchChannelRecord
+        | undefined;
+      const template = resolveBrowserOpenClawChannelTemplate(channelId, current);
+      const nextChannel = createBrowserOpenClawChannelRecord({
+        template,
+        values: current?.values,
+        enabled,
+      });
+
+      return {
+        ...snapshot,
+        channels: sortBrowserOpenClawChannels(
+          [
+            ...snapshot.channels.filter((channel) => channel.id !== channelId),
+            nextChannel,
+          ] as BrowserOpenClawWorkbenchChannelRecord[],
+        ),
+        files: updateWorkbenchConfigFile(snapshot, instance, (root) => {
+          const channelsRoot = asObject(root.channels);
+          const currentChannelRoot = asObject(channelsRoot[channelId]);
+          if (template.configurationMode === 'none' || nextChannel.configuredFieldCount > 0) {
+            root.channels = {
+              ...channelsRoot,
+              [channelId]: {
+                ...currentChannelRoot,
+                ...normalizeChannelValues(current?.values),
+                enabled: nextChannel.enabled,
+              },
+            };
+            return;
+          }
+
+          const { [channelId]: _deletedChannel, ...restChannels } = channelsRoot;
+          root.channels = restChannels;
+        }),
+      };
+    });
+
+    return Boolean(
+      updated?.channels.some(
+        (channel) => channel.id === channelId && channel.enabled === enabled,
+      ),
+    );
+  }
+
+  async saveInstanceChannelConfig(
+    instanceId: string,
+    channelId: string,
+    values: Record<string, string>,
+  ): Promise<boolean> {
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot, instance) => {
+      const current = snapshot.channels.find((channel) => channel.id === channelId) as
+        | BrowserOpenClawWorkbenchChannelRecord
+        | undefined;
+      const template = resolveBrowserOpenClawChannelTemplate(channelId, current);
+      const nextValues = {
+        ...normalizeChannelValues(current?.values),
+        ...normalizeChannelValues(values),
+      };
+      const nextChannel = createBrowserOpenClawChannelRecord({
+        template,
+        values: nextValues,
+        enabled: true,
+      });
+
+      return {
+        ...snapshot,
+        channels: sortBrowserOpenClawChannels(
+          [
+            ...snapshot.channels.filter((channel) => channel.id !== channelId),
+            nextChannel,
+          ] as BrowserOpenClawWorkbenchChannelRecord[],
+        ),
+        files: updateWorkbenchConfigFile(snapshot, instance, (root) => {
+          const channelsRoot = asObject(root.channels);
+          root.channels = {
+            ...channelsRoot,
+            [channelId]: {
+              ...asObject(channelsRoot[channelId]),
+              ...nextValues,
+              enabled: true,
+            },
+          };
+        }),
+      };
+    });
+
+    return Boolean(
+      updated?.channels.some(
+        (channel) =>
+          channel.id === channelId &&
+          channel.enabled &&
+          channel.status === 'connected',
+      ),
+    );
+  }
+
+  async deleteInstanceChannelConfig(
+    instanceId: string,
+    channelId: string,
+  ): Promise<boolean> {
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot, instance) => {
+      const current = snapshot.channels.find((channel) => channel.id === channelId) as
+        | BrowserOpenClawWorkbenchChannelRecord
+        | undefined;
+      const template = resolveBrowserOpenClawChannelTemplate(channelId, current);
+      const nextChannel = createBrowserOpenClawChannelRecord({
+        template,
+        values: {},
+        enabled: template.configurationMode === 'none',
+      });
+
+      return {
+        ...snapshot,
+        channels: sortBrowserOpenClawChannels(
+          [
+            ...snapshot.channels.filter((channel) => channel.id !== channelId),
+            nextChannel,
+          ] as BrowserOpenClawWorkbenchChannelRecord[],
+        ),
+        files: updateWorkbenchConfigFile(snapshot, instance, (root) => {
+          const channelsRoot = asObject(root.channels);
+          const { [channelId]: _deletedChannel, ...restChannels } = channelsRoot;
+          root.channels =
+            template.configurationMode === 'none'
+              ? {
+                  ...restChannels,
+                  [channelId]: {
+                    enabled: true,
+                  },
+                }
+              : restChannels;
+        }),
+      };
+    });
+
+    return Boolean(
+      updated?.channels.some(
+        (channel) =>
+          channel.id === channelId &&
+          channel.configuredFieldCount === 0 &&
+          (channel.configurationMode === 'none'
+            ? channel.enabled
+            : channel.status === 'not_configured'),
+      ),
+    );
   }
 
   async cloneInstanceTask(
-    _instanceId: string,
+    instanceId: string,
     taskId: string,
     name?: string,
   ): Promise<void> {
-    const studioMockService = await getStudioMockService();
-    const cloned = await studioMockService.cloneTask(taskId, name ? { name } : {});
-    if (!cloned) {
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+      const source = snapshot.cronTasks.tasks.find((task) => task.id === taskId);
+      if (!source) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+
+      const clonedTask: StudioWorkbenchTaskRecord = {
+        ...cloneWorkbenchTask(source),
+        id: `web-task-${Math.random().toString(36).slice(2, 10)}`,
+        name: name?.trim() || `${source.name} (copy)`,
+        latestExecution: null,
+        lastRun: undefined,
+        nextRun: undefined,
+      };
+      const taskExecutionsById = { ...snapshot.cronTasks.taskExecutionsById };
+      delete taskExecutionsById[clonedTask.id];
+
+      return {
+        ...snapshot,
+        cronTasks: {
+          tasks: [clonedTask, ...snapshot.cronTasks.tasks],
+          taskExecutionsById,
+        },
+      };
+    });
+    if (!updated) {
       throw new Error(`Task "${taskId}" not found`);
     }
   }
 
   async runInstanceTaskNow(
-    _instanceId: string,
+    instanceId: string,
     taskId: string,
   ): Promise<StudioWorkbenchTaskExecutionRecord> {
-    const studioMockService = await getStudioMockService();
-    const execution = await studioMockService.runTaskNow(taskId);
-    if (!execution) {
+    let execution: StudioWorkbenchTaskExecutionRecord | null = null;
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+      const task = snapshot.cronTasks.tasks.find((entry) => entry.id === taskId);
+      if (!task) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+
+      execution = createTaskExecutionRecord(task, 'manual');
+      const taskExecutionsById = {
+        ...snapshot.cronTasks.taskExecutionsById,
+        [taskId]: [execution, ...(snapshot.cronTasks.taskExecutionsById[taskId] || [])],
+      };
+
+      return {
+        ...snapshot,
+        cronTasks: {
+          tasks: snapshot.cronTasks.tasks.map((entry) =>
+            entry.id === taskId
+              ? {
+                  ...entry,
+                  latestExecution: cloneWorkbenchTaskExecution(execution!),
+                  lastRun: execution!.startedAt,
+                }
+              : entry,
+          ),
+          taskExecutionsById,
+        },
+      };
+    });
+    if (!updated || !execution) {
       throw new Error(`Task "${taskId}" not found`);
     }
     return execution;
   }
 
   async listInstanceTaskExecutions(
-    _instanceId: string,
+    instanceId: string,
     taskId: string,
   ): Promise<StudioWorkbenchTaskExecutionRecord[]> {
-    const studioMockService = await getStudioMockService();
-    return studioMockService.listTaskExecutions(taskId);
+    const instance = await this.getInstance(instanceId);
+    if (!instance) {
+      return [];
+    }
+
+    const workbench = readManagedOpenClawWorkbench(instance);
+    return (workbench?.cronTasks.taskExecutionsById[taskId] || []).map(cloneWorkbenchTaskExecution);
   }
 
   async updateInstanceTaskStatus(
-    _instanceId: string,
+    instanceId: string,
     taskId: string,
     status: 'active' | 'paused',
   ): Promise<void> {
-    const studioMockService = await getStudioMockService();
-    const updated = await studioMockService.updateTaskStatus(taskId, status);
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+      const current = snapshot.cronTasks.tasks.find((task) => task.id === taskId);
+      if (!current) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+
+      return {
+        ...snapshot,
+        cronTasks: {
+          ...snapshot.cronTasks,
+          tasks: snapshot.cronTasks.tasks.map((task) =>
+            task.id === taskId
+              ? {
+                  ...task,
+                  status,
+                }
+              : task,
+          ),
+        },
+      };
+    });
     if (!updated) {
       throw new Error(`Task "${taskId}" not found`);
     }
   }
 
-  async deleteInstanceTask(_instanceId: string, taskId: string): Promise<boolean> {
-    const studioMockService = await getStudioMockService();
-    return studioMockService.deleteTask(taskId);
+  async deleteInstanceTask(instanceId: string, taskId: string): Promise<boolean> {
+    let deleted = false;
+    const updated = updateManagedOpenClawWorkbench(instanceId, (snapshot) => {
+      if (!snapshot.cronTasks.tasks.some((task) => task.id === taskId)) {
+        return snapshot;
+      }
+
+      deleted = true;
+      const taskExecutionsById = { ...snapshot.cronTasks.taskExecutionsById };
+      delete taskExecutionsById[taskId];
+      return {
+        ...snapshot,
+        cronTasks: {
+          tasks: snapshot.cronTasks.tasks.filter((task) => task.id !== taskId),
+          taskExecutionsById,
+        },
+      };
+    });
+
+    return Boolean(updated && deleted);
   }
 
   async listConversations(instanceId: string): Promise<StudioConversationRecord[]> {

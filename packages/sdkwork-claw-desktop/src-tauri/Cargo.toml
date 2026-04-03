@@ -13,6 +13,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dependencies]
+async-stream = "0.3"
 axum = "0.8"
 dirs = "6.0.0"
 hub-installer-rs = { path = "vendor/hub-installer/rust" }
@@ -20,8 +21,9 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 jsonwebtoken = "9.3"
 json5 = "0.4"
 postgres = "0.19.12"
-reqwest = { version = "0.12", default-features = false, features = ["http2", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["http2", "rustls-tls", "stream"] }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
+sdkwork-claw-host-core = { path = "../../sdkwork-claw-host-core/src-host" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"

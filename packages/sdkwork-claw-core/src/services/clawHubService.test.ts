@@ -87,9 +87,8 @@ await runTest(
                 },
               };
             },
-            listPackages: async (params?: Record<string, unknown>) => {
-              assert.equal(params?.categoryId, '1');
-              assert.equal(params?.keyword, 'developer');
+            listPackages: async (...args: unknown[]) => {
+              assert.equal(args.length, 0);
               return {
               code: '2000',
               data: [
@@ -98,6 +97,7 @@ await runTest(
                   packageKey: 'developer-pack',
                   name: 'Developer Pack',
                   description: 'A curated pack for developers.',
+                  categoryId: 1,
                   categoryName: 'Development',
                   authorName: 'SDKWork',
                   installCount: 5600,
@@ -114,6 +114,18 @@ await runTest(
                       ratingAvg: 4.8,
                     },
                   ],
+                },
+                {
+                  packageId: 12,
+                  packageKey: 'marketing-pack',
+                  name: 'Marketing Pack',
+                  description: 'A curated pack for growth.',
+                  categoryId: 2,
+                  categoryName: 'Marketing',
+                  authorName: 'SDKWork',
+                  installCount: 1800,
+                  ratingAvg: 4.4,
+                  skills: [],
                 },
               ],
               };
@@ -181,6 +193,7 @@ await runTest(
     assert.equal(skills[0]?.ratingCount, 128);
     assert.equal(skill.readme, '# GitHub PR Assistant');
     assert.equal(skill.repositoryUrl, 'https://github.com/sdkwork/github-pr-assistant');
+    assert.equal(packages.length, 1);
     assert.equal(packages[0]?.packageKey, 'developer-pack');
     assert.equal(packages[0]?.skills[0]?.skillKey, 'github-pr-assistant');
     assert.equal(skillPackage.skills[0]?.id, '7');
@@ -301,8 +314,8 @@ await runTest(
       urls.some(
         (url) =>
           url.pathname === '/app/v3/api/skills/packages' &&
-          url.searchParams.get('categoryId') === '1' &&
-          url.searchParams.get('keyword') === 'developer',
+          !url.searchParams.get('categoryId') &&
+          !url.searchParams.get('keyword'),
       ),
     );
     assert.ok(urls.some((url) => url.pathname === '/app/v3/api/skills/packages/11'));

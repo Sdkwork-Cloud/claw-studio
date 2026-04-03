@@ -11,32 +11,70 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
   }
 }
 
-await runTest('getList exposes the seeded channel catalog', async () => {
-  const result = await channelService.getList('local-built-in', { page: 1, pageSize: 20 });
+async function withMockedWindowStorage(fn: () => Promise<void>) {
+  const originalWindow = (globalThis as typeof globalThis & { window?: unknown }).window;
+  const storage = new Map<string, string>();
+  const localStorage = {
+    getItem(key: string) {
+      return storage.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      storage.set(key, value);
+    },
+    removeItem(key: string) {
+      storage.delete(key);
+    },
+  };
 
-  assert.equal(result.items[0]?.id, 'sdkworkchat');
-  assert.equal(result.items.some((channel) => channel.id === 'wehcat'), true);
-  assert.equal(result.items[0]?.fieldCount, 0);
-  assert.equal(result.items[0]?.configuredFieldCount, 0);
-  assert.equal(result.items[0]?.status, 'connected');
+  (globalThis as typeof globalThis & { window?: { localStorage: typeof localStorage } }).window = {
+    localStorage,
+  };
+
+  try {
+    await fn();
+  } finally {
+    (globalThis as typeof globalThis & { window?: unknown }).window = originalWindow;
+  }
+}
+
+await runTest('getList exposes the seeded channel catalog', async () => {
+  await withMockedWindowStorage(async () => {
+    const result = await channelService.getList('local-built-in', { page: 1, pageSize: 20 });
+
+    assert.equal(result.items[0]?.id, 'sdkworkchat');
+    assert.equal(result.items.some((channel) => channel.id === 'wehcat'), true);
+    assert.equal(result.items[0]?.fieldCount, 0);
+    assert.equal(result.items[0]?.configuredFieldCount, 0);
+    assert.equal(result.items[0]?.status, 'connected');
+  });
 });
 
 await runTest('saveChannelConfig and deleteChannelConfig keep state in sync with v3 behavior', async () => {
-  await channelService.saveChannelConfig('local-built-in', 'wehcat', {
-    appId: 'wx1234567890abcdef',
-    appSecret: 'secret',
-    token: 'token',
+  await withMockedWindowStorage(async () => {
+    await channelService.saveChannelConfig('local-built-in', 'wehcat', {
+      appId: 'wx1234567890abcdef',
+      appSecret: 'secret',
+      token: 'token',
+    });
+
+    let wehcat = await channelService.getById('local-built-in', 'wehcat');
+    assert.equal(wehcat?.enabled, true);
+    assert.equal(wehcat?.status, 'connected');
+    assert.equal(
+      wehcat?.fields.find((field) => field.key === 'appId')?.value,
+      'wx1234567890abcdef',
+    );
+
+    await channelService.deleteChannelConfig('local-built-in', 'wehcat');
+
+    wehcat = await channelService.getById('local-built-in', 'wehcat');
+    assert.equal(wehcat?.enabled, false);
+    assert.equal(wehcat?.status, 'not_configured');
+    assert.equal(
+      wehcat?.fields.find((field) => field.key === 'appId')?.value,
+      undefined,
+    );
   });
-
-  let wehcat = await channelService.getById('local-built-in', 'wehcat');
-  assert.equal(wehcat?.enabled, true);
-  assert.equal(wehcat?.status, 'connected');
-
-  await channelService.deleteChannelConfig('local-built-in', 'wehcat');
-
-  wehcat = await channelService.getById('local-built-in', 'wehcat');
-  assert.equal(wehcat?.enabled, false);
-  assert.equal(wehcat?.status, 'not_configured');
 });
 
 await runTest('create preserves the v3 unimplemented mutation contract', async () => {

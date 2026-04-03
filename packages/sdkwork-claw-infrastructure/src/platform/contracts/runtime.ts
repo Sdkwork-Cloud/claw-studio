@@ -1,4 +1,8 @@
 import type { RuntimeDesktopKernelHostInfo } from './kernel.ts';
+import type {
+  LocalAiProxyRouteTestRecord,
+  LocalAiProxyRouteRuntimeMetrics,
+} from '@sdkwork/claw-types';
 
 export interface RuntimeAppInfo {
   name: string;
@@ -195,56 +199,6 @@ export interface RuntimeStorageInfo {
   profiles: RuntimeStorageProfileInfo[];
 }
 
-export type RuntimeApiRouterRuntimeMode =
-  | 'attachedExternal'
-  | 'managedActive'
-  | 'needsManagedStart'
-  | 'conflicted';
-
-export type RuntimeApiRouterManagedMode = 'inProcess';
-
-export type RuntimeApiRouterConfigSource = 'defaults' | 'file' | 'env';
-
-export interface RuntimeApiRouterEndpointStatus {
-  bindAddr: string;
-  healthUrl: string;
-  enabled: boolean;
-  publicBaseUrl?: string | null;
-  healthy: boolean;
-  portAvailable: boolean;
-}
-
-export interface RuntimeApiRouterRuntimeStatus {
-  mode: RuntimeApiRouterRuntimeMode;
-  recommendedManagedMode?: RuntimeApiRouterManagedMode | null;
-  sharedRootDir: string;
-  configDir: string;
-  configSource: RuntimeApiRouterConfigSource;
-  resolvedConfigFile?: string | null;
-  admin: RuntimeApiRouterEndpointStatus;
-  portal: RuntimeApiRouterEndpointStatus;
-  gateway: RuntimeApiRouterEndpointStatus;
-  adminSiteBaseUrl?: string | null;
-  portalSiteBaseUrl?: string | null;
-  reason: string;
-}
-
-export type RuntimeApiRouterAdminBootstrapSessionSource = 'managedLocalJwt';
-
-export interface RuntimeApiRouterAdminBootstrapSessionUser {
-  id: string;
-  email: string;
-  displayName: string;
-  active: boolean;
-  createdAtMs: number;
-}
-
-export interface RuntimeApiRouterAdminBootstrapSession {
-  token: string;
-  source: RuntimeApiRouterAdminBootstrapSessionSource;
-  user: RuntimeApiRouterAdminBootstrapSessionUser;
-}
-
 export type RuntimeDesktopKernelCapabilityStatus = 'ready' | 'planned';
 export type RuntimeDesktopProviderAvailability = 'ready' | 'configurationRequired' | 'planned';
 
@@ -399,6 +353,40 @@ export interface RuntimeDesktopBundledComponentsInfo {
   components: RuntimeDesktopBundledComponentInfo[];
 }
 
+export interface RuntimeDesktopLocalAiProxyInfo {
+  lifecycle: string;
+  baseUrl?: string | null;
+  rootBaseUrl?: string | null;
+  openaiCompatibleBaseUrl?: string | null;
+  anthropicBaseUrl?: string | null;
+  geminiBaseUrl?: string | null;
+  activePort?: number | null;
+  loopbackOnly: boolean;
+  defaultRouteId?: string | null;
+  defaultRouteName?: string | null;
+  defaultRoutes: RuntimeDesktopLocalAiProxyDefaultRouteInfo[];
+  upstreamBaseUrl?: string | null;
+  modelCount: number;
+  routeMetrics: LocalAiProxyRouteRuntimeMetrics[];
+  routeTests: LocalAiProxyRouteTestRecord[];
+  messageCaptureEnabled: boolean;
+  observabilityDbPath?: string | null;
+  configPath: string;
+  snapshotPath: string;
+  logPath: string;
+  lastError?: string | null;
+}
+
+export interface RuntimeDesktopLocalAiProxyDefaultRouteInfo {
+  clientProtocol: string;
+  id: string;
+  name: string;
+  managedBy: string;
+  upstreamProtocol: string;
+  upstreamBaseUrl: string;
+  modelCount: number;
+}
+
 export interface RuntimeDesktopKernelInfo {
   directories: RuntimeDesktopKernelDirectories;
   capabilities: RuntimeDesktopKernelCapability[];
@@ -410,6 +398,7 @@ export interface RuntimeDesktopKernelInfo {
   payments: RuntimeDesktopPaymentInfo;
   integrations: RuntimeDesktopIntegrationInfo;
   supervisor: RuntimeDesktopSupervisorInfo;
+  localAiProxy: RuntimeDesktopLocalAiProxyInfo;
   bundledComponents: RuntimeDesktopBundledComponentsInfo;
   storage: RuntimeStorageInfo;
   host: RuntimeDesktopKernelHostInfo;
@@ -417,8 +406,10 @@ export interface RuntimeDesktopKernelInfo {
 
 export type RuntimeEventUnsubscribe = () => void | Promise<void>;
 
+export type RuntimePlatformKind = 'web' | 'desktop' | 'server';
+
 export interface RuntimeInfo {
-  platform: 'web' | 'desktop';
+  platform: RuntimePlatformKind;
   app?: RuntimeAppInfo | null;
   paths?: RuntimePathsInfo | null;
   config?: RuntimeConfigInfo | null;
@@ -427,9 +418,6 @@ export interface RuntimeInfo {
 
 export interface RuntimePlatformAPI {
   getRuntimeInfo(): Promise<RuntimeInfo>;
-  getApiRouterRuntimeStatus(): Promise<RuntimeApiRouterRuntimeStatus | null>;
-  ensureApiRouterRuntimeStarted?(): Promise<RuntimeApiRouterRuntimeStatus | null>;
-  getApiRouterAdminBootstrapSession(): Promise<RuntimeApiRouterAdminBootstrapSession | null>;
   setAppLanguage(language: RuntimeLanguagePreference): Promise<void>;
   submitProcessJob(profileId: string): Promise<string>;
   getJob(id: string): Promise<RuntimeJobRecord>;

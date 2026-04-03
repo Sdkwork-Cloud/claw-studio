@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { createViteHostPlan } from './run-vite-host.mjs';
+
+const modulePath = path.resolve(import.meta.dirname, 'run-vite-host.mjs');
 
 const servePlan = createViteHostPlan({
   argv: ['serve', '--host', '0.0.0.0', '--port', '3001'],
@@ -31,5 +35,17 @@ const explicitModePlan = createViteHostPlan({
 assert.equal(explicitModePlan.command, 'vite.cmd');
 assert.deepEqual(explicitModePlan.args, ['build', '--mode', 'test']);
 assert.equal(explicitModePlan.env.SDKWORK_VITE_MODE, 'test');
+assert.throws(
+  () => createViteHostPlan({
+    argv: ['build', '--mode'],
+    env: {},
+    platform: 'linux',
+  }),
+  /Missing value for --mode/,
+);
+assert.match(
+  readFileSync(modulePath, 'utf8'),
+  /if \(path\.resolve\(process\.argv\[1\] \?\? ''\) === __filename\) \{\s*try \{\s*runCli\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s,
+);
 
 console.log('ok - vite host runner resolves explicit and default modes for serve and build commands');

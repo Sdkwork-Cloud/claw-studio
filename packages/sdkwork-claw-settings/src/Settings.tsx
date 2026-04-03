@@ -17,13 +17,14 @@ import { useSearchParams } from 'react-router-dom';
 import { Account } from '@sdkwork/claw-account';
 import { Input } from '@sdkwork/claw-ui';
 import { AccountSettings } from './AccountSettings';
-import { ApiKeysSettings } from './ApiKeysSettings';
+import { ApiSettings } from './ApiSettings';
 import { BillingSettings } from './BillingSettings';
 import { DataPrivacySettings } from './DataPrivacySettings';
 import { FeedbackSettings } from './FeedbackSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { NotificationSettings } from './NotificationSettings';
 import { SecuritySettings } from './SecuritySettings';
+import { resolveSettingsContentShellClassName } from './settingsLayout';
 
 export function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -110,7 +111,7 @@ export function Settings() {
       </div>
 
       <div className="scrollbar-hide flex-1 overflow-x-hidden overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl p-8 md:p-12">
+        <div className={resolveSettingsContentShellClassName(activeTab)}>
           <motion.div
             key={activeTab}
             initial={{ opacity: 0, y: 10 }}
@@ -125,7 +126,7 @@ export function Settings() {
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'feedback' && <FeedbackSettings />}
             {activeTab === 'security' && <SecuritySettings />}
-            {activeTab === 'api' && <ApiKeysSettings />}
+            {activeTab === 'api' && <ApiSettings />}
             {activeTab === 'data' && <DataPrivacySettings />}
           </motion.div>
         </div>

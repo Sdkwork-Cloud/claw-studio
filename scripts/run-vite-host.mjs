@@ -25,6 +25,17 @@ function resolveDefaultMode(command) {
   return command === 'build' ? 'production' : 'development';
 }
 
+function readOptionValue(argv, index, flag) {
+  const next = argv[index + 1];
+  const normalizedNext = String(next ?? '').trim();
+
+  if (!normalizedNext || normalizedNext.startsWith('--')) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  return normalizedNext;
+}
+
 function stripModeArg(argv) {
   const args = [];
   let explicitMode;
@@ -32,7 +43,7 @@ function stripModeArg(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === '--mode') {
-      explicitMode = argv[index + 1];
+      explicitMode = readOptionValue(argv, index, '--mode');
       index += 1;
       continue;
     }
@@ -100,5 +111,10 @@ function runCli() {
 }
 
 if (path.resolve(process.argv[1] ?? '') === __filename) {
-  runCli();
+  try {
+    runCli();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }

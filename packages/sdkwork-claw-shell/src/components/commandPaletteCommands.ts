@@ -8,7 +8,6 @@ import {
   LayoutGrid,
   LayoutDashboard,
   MessageCircle,
-  Router,
   Server,
   Settings,
   ShieldCheck,
@@ -150,14 +149,6 @@ export function buildCommandPaletteCommands({
       icon: Code,
       category: t('commandPalette.categories.navigation'),
       action: () => navigate('/codebox'),
-    },
-    {
-      id: 'nav-api-router',
-      title: t('commandPalette.commands.apiRouter.title'),
-      subtitle: t('commandPalette.commands.apiRouter.subtitle'),
-      icon: Router,
-      category: t('commandPalette.categories.navigation'),
-      action: () => navigate('/api-router'),
     },
     {
       id: 'nav-settings',

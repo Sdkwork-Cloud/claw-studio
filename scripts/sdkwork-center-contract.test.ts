@@ -44,7 +44,7 @@ runTest('sdkwork-claw-center is implemented locally instead of re-exporting claw
   assert.match(indexSource, /ClawUpload/);
   assert.match(uploadPageSource, /studio\.listInstances\(\)/);
   assert.match(uploadPageSource, /instance\.runtimeKind === 'openclaw'/);
-  assert.match(uploadPageSource, /navigate\('\/api-router'\)/);
+  assert.doesNotMatch(uploadPageSource, /navigate\('\/api-router'\)/);
   assert.match(uploadPageSource, /navigate\(`\/instances\/\$\{instance\.id\}`\)/);
   assert.match(uploadPageSource, /clawUpload\.summary\.gatewayReady/);
 });
@@ -108,9 +108,11 @@ runTest('claw networking surface uses registry-focused copy and clean capability
   const zhLocale = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
 
   assert.doesNotMatch(uploadPageSource, /join\(' 路 '\)/);
+  assert.doesNotMatch(enLocale, /"openApiRouter"/);
   assert.match(enLocale, /"clawUpload": "Claw Networking"/);
   assert.match(enLocale, /"title": "Go to Claw Networking"/);
   assert.match(enLocale, /"eyebrow": "Registry Linked"/);
+  assert.doesNotMatch(zhLocale, /"openApiRouter"/);
   assert.match(zhLocale, /"clawUpload": "Claw联网"/);
   assert.match(zhLocale, /"title": "前往 Claw联网"/);
   assert.match(zhLocale, /"eyebrow": "注册中心已连接"/);

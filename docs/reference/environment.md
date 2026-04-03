@@ -8,7 +8,6 @@ Start from the root `.env.example`. Package-level `.env.example` files add runti
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Yes for AI features | Gemini-backed model access |
 | `APP_URL` | Runtime-dependent | Host URL used by hosted deployments |
 | `VITE_API_BASE_URL` | Recommended | Shared backend API base URL |
 | `VITE_ACCESS_TOKEN` | Optional | Bearer token for backend requests and update checks |
@@ -25,6 +24,7 @@ Start from the root `.env.example`. Package-level `.env.example` files add runti
 - update `.env.example` when adding a new variable
 - document new variables in the relevant package and public docs
 - keep desktop-specific values consistent with the distribution and update flow
+- AI generation now depends on an active OpenClaw-compatible instance plus Provider Center configuration, not a browser-side Gemini key
 
 ## Related Files
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, RotateCcw, Save, SlidersHorizontal } from 'lucide-react';
+import { RefreshCw, RotateCcw, Save, Settings, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -21,6 +21,8 @@ interface InstanceLLMConfigPanelProps {
   isSaving: boolean;
   isReadonly: boolean;
   readonlyMessage?: string;
+  onOpenProviderCenter?: () => void;
+  openProviderCenterLabel?: string;
   onFieldChange: (
     field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
     value: string,
@@ -40,6 +42,8 @@ export function InstanceLLMConfigPanel({
   isSaving,
   isReadonly,
   readonlyMessage,
+  onOpenProviderCenter,
+  openProviderCenterLabel,
   onFieldChange,
   onConfigChange,
   onReset,
@@ -98,7 +102,18 @@ export function InstanceLLMConfigPanel({
 
       {isReadonly && readonlyMessage ? (
         <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-          {readonlyMessage}
+          <div>{readonlyMessage}</div>
+          {onOpenProviderCenter && openProviderCenterLabel ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onOpenProviderCenter}
+              className="mt-3 rounded-2xl border-amber-300/80 bg-white/80 px-4 py-2 text-amber-900 hover:bg-white dark:border-amber-400/30 dark:bg-zinc-950/30 dark:text-amber-100 dark:hover:bg-zinc-950/50"
+            >
+              <Settings className="h-4 w-4" />
+              {openProviderCenterLabel}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 

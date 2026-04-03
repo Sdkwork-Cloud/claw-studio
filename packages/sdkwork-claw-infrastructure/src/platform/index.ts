@@ -10,6 +10,16 @@ export type {
   PlatformWindowStateUnsubscribe,
 } from './types.ts';
 export type {
+  HostPlatformLifecycle,
+  HostPlatformMode,
+  HostPlatformStatusRecord,
+  InternalErrorEnvelope,
+  InternalNodeCompatibilityState,
+  InternalNodeSessionRecord,
+  InternalNodeSessionState,
+  InternalPlatformAPI,
+} from './contracts/internal.ts';
+export type {
   KernelPlatformAPI,
   RuntimeDesktopKernelControlSocketInfo,
   RuntimeDesktopKernelControlSocketKind,
@@ -19,6 +29,7 @@ export type {
   RuntimeDesktopKernelHostInfo,
   RuntimeDesktopKernelHostServiceInfo,
   RuntimeDesktopKernelInstallSource,
+  RuntimeKernelPreflightOutcome,
   RuntimeDesktopKernelOwnershipMode,
   RuntimeDesktopKernelProvenanceInfo,
   RuntimeDesktopKernelRuntimeState,
@@ -46,19 +57,6 @@ export type {
   RuntimeDesktopComponentStartupMode,
 } from './contracts/components.ts';
 export type {
-  ApiRouterClientInstallRequest,
-  ApiRouterClientInstallResult,
-  ApiRouterInstalledEnvironment,
-  ApiRouterInstalledFile,
-  ApiRouterInstalledOpenClawInstance,
-  ApiRouterInstallerClientId,
-  ApiRouterInstallerCompatibility,
-  ApiRouterInstallerEnvScope,
-  ApiRouterInstallerInstallMode,
-  ApiRouterInstallerModel,
-  ApiRouterInstallerOpenClawApiKeyStrategy,
-  ApiRouterInstallerOpenClawOptions,
-  ApiRouterInstallerProvider,
   HubInstallAssessmentCheckType,
   HubInstallAssessmentCommand,
   HubInstallAssessmentDataItem,
@@ -107,20 +105,24 @@ export type {
   InstallerPlatformAPI,
 } from './contracts/installer.ts';
 export type {
-  RuntimeApiRouterAdminBootstrapSession,
-  RuntimeApiRouterAdminBootstrapSessionSource,
-  RuntimeApiRouterAdminBootstrapSessionUser,
-  RuntimeApiRouterConfigSource,
-  RuntimeApiRouterEndpointStatus,
-  RuntimeApiRouterManagedMode,
-  RuntimeApiRouterRuntimeMode,
-  RuntimeApiRouterRuntimeStatus,
+  ManagePlatformAPI,
+  ManageRolloutCandidateRevisionSummary,
+  ManageRolloutListResult,
+  ManageRolloutPhase,
+  ManageRolloutPreview,
+  ManageRolloutPreviewSummary,
+  ManageRolloutRecord,
+  ManageRolloutTargetPreviewRecord,
+  PreviewRolloutRequest,
+} from './contracts/manage.ts';
+export type {
   RuntimeAppInfo,
   RuntimeConfigInfo,
   RuntimeDesktopFilesystemInfo,
   RuntimeDesktopIntegrationInfo,
   RuntimeDesktopIntegrationAdapterInfo,
   RuntimeDesktopKernelInfo,
+  RuntimeDesktopLocalAiProxyInfo,
   RuntimeDesktopNotificationInfo,
   RuntimeDesktopNotificationProviderInfo,
   RuntimeDesktopPaymentInfo,
@@ -139,6 +141,7 @@ export type {
   RuntimeJobUpdateEvent,
   RuntimeLanguagePreference,
   RuntimePathsInfo,
+  RuntimePlatformKind,
   RuntimePlatformAPI,
   RuntimeProcessOutputEvent,
   RuntimeProcessOutputStream,
@@ -167,6 +170,15 @@ export type {
   StudioUpdateInstanceInput,
 } from './contracts/studio.ts';
 export type {
+  LocalAiProxyLoggedMessage,
+  LocalAiProxyMessageCaptureSettings,
+  LocalAiProxyMessageLogRecord,
+  LocalAiProxyMessageLogsQuery,
+  LocalAiProxyRequestLogRecord,
+  LocalAiProxyRequestLogsQuery,
+  LocalAiProxyRequestLogStatus,
+  LocalAiProxyRouteTestRecord,
+  PaginatedResult,
   StudioConversationRecord,
   StudioInstanceDetailRecord,
   StudioInstanceConfig,
@@ -177,14 +189,21 @@ export {
   components,
   configurePlatformBridge,
   getComponentPlatform,
+  getInternalPlatform,
   getInstallerPlatform,
   getKernelPlatform,
+  getManagePlatform,
   getPlatformBridge,
   getRuntimePlatform,
   getStoragePlatform,
   getStudioPlatform,
+  internal,
+  installer,
   kernel,
+  manage,
   platform,
+  runtime,
+  STUDIO_DETAIL_CACHE_TTL_MS,
   storage,
   studio,
 } from './registry.ts';
@@ -197,7 +216,20 @@ export {
 } from './componentLibrary.ts';
 export { openExternalUrl } from './openExternalUrl.ts';
 export { WebComponentPlatform } from './webComponents.ts';
+export {
+  configureServerBrowserPlatformBridge,
+  createServerBrowserPlatformBridge,
+  readServerBrowserPlatformBridgeConfig,
+  SERVER_HOST_MODE_META_NAME,
+  SERVER_INTERNAL_BASE_PATH_META_NAME,
+  SERVER_MANAGE_BASE_PATH_META_NAME,
+  type ConfigureServerBrowserPlatformBridgeOptions,
+  type ServerBrowserBridgeDocumentLike,
+  type ServerBrowserPlatformBridgeConfig,
+} from './serverBrowserBridge.ts';
+export { WebInternalPlatform, DEFAULT_INTERNAL_BASE_PATH } from './webInternal.ts';
 export { WebKernelPlatform } from './webKernel.ts';
+export { WebManagePlatform, DEFAULT_MANAGE_BASE_PATH } from './webManage.ts';
 export { WebPlatform } from './web.ts';
 export { WebStoragePlatform } from './webStorage.ts';
 export { WebStudioPlatform } from './webStudio.ts';

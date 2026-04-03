@@ -1,21 +1,17 @@
 import {
   openClawGatewayClient,
   studio,
-  studioMockService,
   type OpenClawAgentFileResult,
   type OpenClawAgentFilesListResult,
   type OpenClawAgentsListResult,
   type OpenClawChannelStatusResult,
   type OpenClawConfigSnapshot,
+  type OpenClawMemorySearchResult,
   type OpenClawModelRecord,
   type OpenClawSkillsStatusResult,
   type OpenClawToolsCatalogResult,
-  type MockInstanceLLMProvider,
-  type MockInstanceMemoryEntry,
-  type MockTaskExecutionHistoryEntry,
-  type MockInstanceTool,
 } from '@sdkwork/claw-infrastructure';
-import { openClawConfigService } from '@sdkwork/claw-core';
+import { buildOpenClawCronTaskPayload, openClawConfigService } from '@sdkwork/claw-core';
 import type {
   Agent,
   Skill,
@@ -51,6 +47,7 @@ import {
   isNonEmptyString,
   isRecord,
   mapOpenClawProviderModels,
+  normalizeOpenClawAgentId,
   parseOpenClawAgentFileId,
   summarizeMarkdown,
   titleCaseIdentifier,
@@ -60,32 +57,16 @@ import {
 import { instanceService } from './instanceService.ts';
 
 type ManagedOpenClawConfigSnapshot = Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>;
+type ManagedOpenClawAgentSnapshot = ManagedOpenClawConfigSnapshot['agentSnapshots'][number];
 type ManagedOpenClawChannelSnapshot = ManagedOpenClawConfigSnapshot['channelSnapshots'][number];
+type ManagedOpenClawWebSearchConfig = ManagedOpenClawConfigSnapshot['webSearchConfig'];
+type ManagedOpenClawAuthCooldownsConfig = ManagedOpenClawConfigSnapshot['authCooldownsConfig'];
 type OpenClawChannelDefinition = ReturnType<typeof openClawConfigService.getChannelDefinitions>[number];
+type RegistryInstanceRecord = NonNullable<Awaited<ReturnType<typeof instanceService.getInstanceById>>>;
+type RegistryInstanceConfig = NonNullable<Awaited<ReturnType<typeof instanceService.getInstanceConfig>>>;
 
 function clampScore(score: number) {
   return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function deriveRuntimeHealthScore(
-  cpu: number,
-  memory: number,
-  status: string,
-  connectedChannels: number,
-  activeTasks: number,
-  installedSkills: number,
-) {
-  const baseline =
-    status === 'online' ? 88 : status === 'starting' ? 62 : status === 'error' ? 24 : 18;
-
-  return clampScore(
-    baseline -
-      cpu * 0.28 -
-      memory * 0.24 +
-      Math.min(10, connectedChannels * 4) +
-      Math.min(10, activeTasks * 3) +
-      Math.min(8, installedSkills * 2),
-  );
 }
 
 function deriveFocusAreas(agent: Agent, skills: Skill[]) {
@@ -128,23 +109,6 @@ function mapAgent(agent: Agent, tasks: InstanceWorkbenchTask[], skills: Skill[])
   };
 }
 
-function mapMemoryEntry(entry: MockInstanceMemoryEntry): InstanceWorkbenchMemoryEntry {
-  return { ...entry };
-}
-
-function mapTool(tool: MockInstanceTool): InstanceWorkbenchTool {
-  return { ...tool };
-}
-
-function mapLlmProvider(provider: MockInstanceLLMProvider): InstanceWorkbenchLLMProvider {
-  return {
-    ...provider,
-    capabilities: [...provider.capabilities],
-    models: provider.models.map((model) => ({ ...model })),
-    config: { ...provider.config },
-  };
-}
-
 function mapManagedChannel(
   channel: ManagedOpenClawChannelSnapshot,
 ): InstanceWorkbenchChannel {
@@ -176,7 +140,27 @@ function cloneWorkbenchChannel(channel: InstanceWorkbenchChannel): InstanceWorkb
   return {
     ...channel,
     setupSteps: [...channel.setupSteps],
+    accounts: channel.accounts?.map((account) => ({ ...account })),
   };
+}
+
+function cloneManagedWebSearchConfig(
+  config: ManagedOpenClawWebSearchConfig | null | undefined,
+) {
+  if (!config) {
+    return null;
+  }
+
+  return {
+    ...config,
+    providers: config.providers.map((provider) => ({ ...provider })),
+  };
+}
+
+function cloneManagedAuthCooldownsConfig(
+  config: ManagedOpenClawAuthCooldownsConfig | null | undefined,
+) {
+  return config ? { ...config } : null;
 }
 
 function mapOpenClawChannelDefinition(definition: OpenClawChannelDefinition): InstanceWorkbenchChannel {
@@ -236,7 +220,7 @@ function mergeOpenClawChannelCollections(
     mergedChannels.set(channel.id, {
       id: channel.id,
       name: baseChannel.name || channel.name,
-      description: baseChannel.description || channel.description,
+      description: channel.description || baseChannel.description,
       status: channel.status,
       enabled: channel.enabled,
       configurationMode: channel.configurationMode || baseChannel.configurationMode || 'required',
@@ -246,7 +230,11 @@ function mergeOpenClawChannelCollections(
           ? channel.configuredFieldCount
           : baseChannel.configuredFieldCount,
       setupSteps:
-        baseChannel.setupSteps.length > 0 ? [...baseChannel.setupSteps] : [...channel.setupSteps],
+        channel.setupSteps.length > 0 ? [...channel.setupSteps] : [...baseChannel.setupSteps],
+      accounts:
+        channel.accounts && channel.accounts.length > 0
+          ? channel.accounts.map((account) => ({ ...account }))
+          : baseChannel.accounts?.map((account) => ({ ...account })),
     });
   });
 
@@ -277,8 +265,17 @@ function mapManagedProvider(
   };
 }
 
+function mapLlmProvider(provider: InstanceWorkbenchLLMProvider): InstanceWorkbenchLLMProvider {
+  return {
+    ...provider,
+    capabilities: [...provider.capabilities],
+    models: provider.models.map((model) => ({ ...model })),
+    config: { ...provider.config },
+  };
+}
+
 function mapManagedAgent(
-  agentSnapshot: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['agentSnapshots'][number],
+  agentSnapshot: ManagedOpenClawAgentSnapshot,
   tasks: InstanceWorkbenchTask[],
   skills: Skill[],
   runtimeRecord?: InstanceWorkbenchAgent,
@@ -311,6 +308,7 @@ function mapManagedAgent(
       fallbacks: [...agentSnapshot.model.fallbacks],
     },
     params: { ...agentSnapshot.params },
+    paramSources: { ...agentSnapshot.paramSources },
     configSource: 'managedConfig',
   };
 }
@@ -319,6 +317,202 @@ function cloneTaskExecution(
   execution: InstanceWorkbenchTaskExecution,
 ): InstanceWorkbenchTaskExecution {
   return { ...execution };
+}
+
+function cloneWorkbenchRawDefinition(rawDefinition: Record<string, unknown> | undefined) {
+  return rawDefinition
+    ? JSON.parse(JSON.stringify(rawDefinition)) as Record<string, unknown>
+    : undefined;
+}
+
+function isWorkbenchTaskScheduleMode(
+  value: unknown,
+): value is InstanceWorkbenchTask['scheduleMode'] {
+  return value === 'interval' || value === 'datetime' || value === 'cron';
+}
+
+function isWorkbenchTaskActionType(
+  value: unknown,
+): value is InstanceWorkbenchTask['actionType'] {
+  return value === 'message' || value === 'skill';
+}
+
+function isWorkbenchTaskStatus(
+  value: unknown,
+): value is InstanceWorkbenchTask['status'] {
+  return value === 'active' || value === 'paused' || value === 'failed';
+}
+
+function isWorkbenchTaskSessionMode(
+  value: unknown,
+): value is InstanceWorkbenchTask['sessionMode'] {
+  return value === 'isolated' || value === 'main' || value === 'current' || value === 'custom';
+}
+
+function isWorkbenchTaskWakeUpMode(
+  value: unknown,
+): value is InstanceWorkbenchTask['wakeUpMode'] {
+  return value === 'immediate' || value === 'nextCycle';
+}
+
+function isWorkbenchTaskExecutionContent(
+  value: unknown,
+): value is InstanceWorkbenchTask['executionContent'] {
+  return value === 'runAssistantTask' || value === 'sendPromptMessage';
+}
+
+function isWorkbenchTaskDeliveryMode(
+  value: unknown,
+): value is InstanceWorkbenchTask['deliveryMode'] {
+  return value === 'publishSummary' || value === 'webhook' || value === 'none';
+}
+
+function isWorkbenchTaskThinking(
+  value: unknown,
+): value is InstanceWorkbenchTask['thinking'] {
+  return (
+    value === 'off' ||
+    value === 'minimal' ||
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh'
+  );
+}
+
+function isWorkbenchTaskExecutionStatus(
+  value: unknown,
+): value is InstanceWorkbenchTaskExecution['status'] {
+  return value === 'success' || value === 'failed' || value === 'running';
+}
+
+function isWorkbenchTaskExecutionTrigger(
+  value: unknown,
+): value is InstanceWorkbenchTaskExecution['trigger'] {
+  return value === 'schedule' || value === 'manual' || value === 'clone';
+}
+
+function normalizeWorkbenchTaskExecution(
+  execution: unknown,
+  taskId: string,
+): InstanceWorkbenchTaskExecution | null {
+  if (!isRecord(execution)) {
+    return null;
+  }
+
+  const startedAt = getStringValue(execution, ['startedAt']);
+  const status = isWorkbenchTaskExecutionStatus(execution.status) ? execution.status : null;
+  if (!startedAt || !status) {
+    return null;
+  }
+
+  return {
+    id: getStringValue(execution, ['id']) || `${taskId}-latest`,
+    taskId: getStringValue(execution, ['taskId']) || taskId,
+    status,
+    trigger: isWorkbenchTaskExecutionTrigger(execution.trigger) ? execution.trigger : 'schedule',
+    startedAt,
+    finishedAt: getStringValue(execution, ['finishedAt']),
+    summary: getStringValue(execution, ['summary']) || 'Task execution recorded.',
+    details: getStringValue(execution, ['details']),
+  };
+}
+
+function normalizeWorkbenchTask(task: unknown): InstanceWorkbenchTask | null {
+  if (!isRecord(task)) {
+    return null;
+  }
+
+  const id = getStringValue(task, ['id']);
+  if (!id) {
+    return null;
+  }
+
+  const scheduleConfig = getObjectValue(task, ['scheduleConfig']) || {};
+  const agentId = getStringValue(task, ['agentId']);
+  const rawDefinition = getObjectValue(task, ['rawDefinition']);
+  const hasLatestExecution = Object.prototype.hasOwnProperty.call(task, 'latestExecution');
+  const latestExecutionValue = hasLatestExecution ? task.latestExecution : undefined;
+
+  return {
+    ...(task as unknown as InstanceWorkbenchTask),
+    id,
+    name: getStringValue(task, ['name']) || titleCaseIdentifier(id),
+    description: getStringValue(task, ['description']),
+    prompt: getStringValue(task, ['prompt']) as InstanceWorkbenchTask['prompt'],
+    schedule: getStringValue(task, ['schedule']) as InstanceWorkbenchTask['schedule'],
+    scheduleMode: isWorkbenchTaskScheduleMode(task.scheduleMode)
+      ? task.scheduleMode
+      : (task.scheduleMode as InstanceWorkbenchTask['scheduleMode']),
+    scheduleConfig: { ...scheduleConfig },
+    cronExpression: getStringValue(task, ['cronExpression']),
+    actionType: isWorkbenchTaskActionType(task.actionType)
+      ? task.actionType
+      : (task.actionType as InstanceWorkbenchTask['actionType']),
+    status: isWorkbenchTaskStatus(task.status)
+      ? task.status
+      : (task.status as InstanceWorkbenchTask['status']),
+    sessionMode: isWorkbenchTaskSessionMode(task.sessionMode)
+      ? task.sessionMode
+      : (task.sessionMode as InstanceWorkbenchTask['sessionMode']),
+    customSessionId: getStringValue(task, ['customSessionId']),
+    wakeUpMode: isWorkbenchTaskWakeUpMode(task.wakeUpMode)
+      ? task.wakeUpMode
+      : (task.wakeUpMode as InstanceWorkbenchTask['wakeUpMode']),
+    executionContent: isWorkbenchTaskExecutionContent(task.executionContent)
+      ? task.executionContent
+      : (task.executionContent as InstanceWorkbenchTask['executionContent']),
+    timeoutSeconds: getNumberValue(task, ['timeoutSeconds']),
+    deleteAfterRun: getBooleanValue(task, ['deleteAfterRun']),
+    agentId: agentId ? normalizeOpenClawAgentId(agentId) : undefined,
+    model: getStringValue(task, ['model']),
+    thinking: isWorkbenchTaskThinking(task.thinking)
+      ? task.thinking
+      : (task.thinking as InstanceWorkbenchTask['thinking']),
+    lightContext: getBooleanValue(task, ['lightContext']),
+    deliveryMode: isWorkbenchTaskDeliveryMode(task.deliveryMode)
+      ? task.deliveryMode
+      : (task.deliveryMode as InstanceWorkbenchTask['deliveryMode']),
+    deliveryBestEffort: getBooleanValue(task, ['deliveryBestEffort']),
+    deliveryChannel: getStringValue(task, ['deliveryChannel']),
+    deliveryLabel: getStringValue(task, ['deliveryLabel']),
+    recipient: getStringValue(task, ['recipient']),
+    lastRun: getStringValue(task, ['lastRun']),
+    nextRun: getStringValue(task, ['nextRun']),
+    latestExecution: hasLatestExecution
+      ? latestExecutionValue === null
+        ? null
+        : latestExecutionValue === undefined
+          ? undefined
+          : normalizeWorkbenchTaskExecution(latestExecutionValue, id)
+      : undefined,
+    rawDefinition: cloneWorkbenchRawDefinition(rawDefinition),
+  };
+}
+
+function normalizeWorkbenchTaskCollection(tasks: InstanceWorkbenchTask[]): InstanceWorkbenchTask[] {
+  const orderedIds: string[] = [];
+  const normalizedTasks = new Map<string, InstanceWorkbenchTask>();
+
+  tasks.forEach((task) => {
+    const normalizedTask = normalizeWorkbenchTask(task);
+    if (!normalizedTask) {
+      return;
+    }
+
+    const current = normalizedTasks.get(normalizedTask.id);
+    if (!current) {
+      orderedIds.push(normalizedTask.id);
+      normalizedTasks.set(normalizedTask.id, normalizedTask);
+      return;
+    }
+
+    normalizedTasks.set(normalizedTask.id, mergeWorkbenchTasks(current, normalizedTask));
+  });
+
+  return orderedIds
+    .map((taskId) => normalizedTasks.get(taskId))
+    .filter(Boolean) as InstanceWorkbenchTask[];
 }
 
 function cloneWorkbenchAgent(agent: InstanceWorkbenchAgent): InstanceWorkbenchAgent {
@@ -333,18 +527,267 @@ function cloneWorkbenchAgent(agent: InstanceWorkbenchAgent): InstanceWorkbenchAg
         }
       : undefined,
     params: agent.params ? { ...agent.params } : undefined,
+    paramSources: agent.paramSources ? { ...agent.paramSources } : undefined,
   };
 }
 
-function cloneWorkbenchTask(task: InstanceWorkbenchTask): InstanceWorkbenchTask {
+function normalizeWorkbenchAgent(agent: InstanceWorkbenchAgent): InstanceWorkbenchAgent {
   return {
-    ...task,
-    scheduleConfig: { ...task.scheduleConfig },
-    latestExecution: task.latestExecution ? cloneTaskExecution(task.latestExecution) : task.latestExecution ?? null,
-    rawDefinition: task.rawDefinition
-      ? JSON.parse(JSON.stringify(task.rawDefinition)) as Record<string, unknown>
-      : undefined,
+    ...cloneWorkbenchAgent(agent),
+    agent: {
+      ...agent.agent,
+      id: normalizeOpenClawAgentId(agent.agent.id),
+    },
   };
+}
+
+function mergeWorkbenchAgents(
+  baseAgent: InstanceWorkbenchAgent,
+  overrideAgent: InstanceWorkbenchAgent,
+): InstanceWorkbenchAgent {
+  const normalizedBase = normalizeWorkbenchAgent(baseAgent);
+  const normalizedOverride = normalizeWorkbenchAgent(overrideAgent);
+
+  return {
+    ...normalizedBase,
+    ...normalizedOverride,
+    agent: {
+      ...normalizedBase.agent,
+      ...normalizedOverride.agent,
+      id: normalizedOverride.agent.id || normalizedBase.agent.id,
+      name: normalizedOverride.agent.name || normalizedBase.agent.name,
+      description: normalizedOverride.agent.description || normalizedBase.agent.description,
+      avatar: normalizedOverride.agent.avatar || normalizedBase.agent.avatar,
+      systemPrompt:
+        normalizedOverride.agent.systemPrompt || normalizedBase.agent.systemPrompt,
+      creator: normalizedOverride.agent.creator || normalizedBase.agent.creator,
+    },
+    focusAreas:
+      normalizedOverride.focusAreas.length > 0
+        ? [...normalizedOverride.focusAreas]
+        : [...normalizedBase.focusAreas],
+    automationFitScore:
+      normalizedOverride.automationFitScore ?? normalizedBase.automationFitScore,
+    model: normalizedOverride.model
+      ? {
+          primary: normalizedOverride.model.primary,
+          fallbacks: [...normalizedOverride.model.fallbacks],
+        }
+      : normalizedBase.model
+        ? {
+            primary: normalizedBase.model.primary,
+            fallbacks: [...normalizedBase.model.fallbacks],
+          }
+        : undefined,
+    params: normalizedOverride.params
+      ? { ...normalizedOverride.params }
+      : normalizedBase.params
+        ? { ...normalizedBase.params }
+        : undefined,
+    paramSources: normalizedOverride.paramSources
+      ? { ...normalizedOverride.paramSources }
+      : normalizedBase.paramSources
+        ? { ...normalizedBase.paramSources }
+        : undefined,
+  };
+}
+
+function mergeOpenClawAgentCollections(
+  baseAgents: InstanceWorkbenchAgent[],
+  overrideAgents: InstanceWorkbenchAgent[],
+): InstanceWorkbenchAgent[] {
+  const orderedIds: string[] = [];
+  const mergedAgents = new Map<string, InstanceWorkbenchAgent>();
+  const baseAgentsById = new Map<string, InstanceWorkbenchAgent>();
+
+  baseAgents.forEach((agent) => {
+    const normalizedAgent = normalizeWorkbenchAgent(agent);
+    baseAgentsById.set(normalizedAgent.agent.id, normalizedAgent);
+  });
+
+  overrideAgents.forEach((agent) => {
+    const normalizedAgent = normalizeWorkbenchAgent(agent);
+    orderedIds.push(normalizedAgent.agent.id);
+    mergedAgents.set(
+      normalizedAgent.agent.id,
+      baseAgentsById.has(normalizedAgent.agent.id)
+        ? mergeWorkbenchAgents(baseAgentsById.get(normalizedAgent.agent.id)!, normalizedAgent)
+        : normalizedAgent,
+    );
+  });
+
+  baseAgentsById.forEach((agent, agentId) => {
+    if (!mergedAgents.has(agentId)) {
+      orderedIds.push(agentId);
+      mergedAgents.set(agentId, agent);
+    }
+  });
+
+  return orderedIds
+    .map((agentId) => mergedAgents.get(agentId))
+    .filter(Boolean)
+    .map((agent) => cloneWorkbenchAgent(agent!));
+}
+
+function buildManagedOpenClawAgents(
+  agentSnapshots: ManagedOpenClawAgentSnapshot[],
+  runtimeAgents: InstanceWorkbenchAgent[],
+  tasks: InstanceWorkbenchTask[],
+  skills: Skill[],
+): InstanceWorkbenchAgent[] {
+  const runtimeAgentsById = new Map(
+    runtimeAgents.map((agent) => {
+      const normalizedAgent = normalizeWorkbenchAgent(agent);
+      return [normalizedAgent.agent.id, normalizedAgent] as const;
+    }),
+  );
+  const managedAgents = agentSnapshots.map((agentSnapshot) =>
+    mapManagedAgent(
+      agentSnapshot,
+      tasks,
+      skills,
+      runtimeAgentsById.get(normalizeOpenClawAgentId(agentSnapshot.id)),
+    ),
+  );
+  const managedAgentIds = new Set(managedAgents.map((agent) => agent.agent.id));
+
+  return [
+    ...managedAgents,
+    ...runtimeAgents
+      .filter((agent) => !managedAgentIds.has(normalizeOpenClawAgentId(agent.agent.id)))
+      .map(cloneWorkbenchAgent),
+  ];
+}
+
+function cloneWorkbenchTask(task: InstanceWorkbenchTask): InstanceWorkbenchTask {
+  const normalizedTask = normalizeWorkbenchTask(task);
+  if (!normalizedTask) {
+    return {
+      ...(task as InstanceWorkbenchTask),
+      scheduleConfig: {},
+      latestExecution: null,
+    };
+  }
+
+  const hasLatestExecution = Object.prototype.hasOwnProperty.call(
+    normalizedTask,
+    'latestExecution',
+  );
+
+  return {
+    ...normalizedTask,
+    scheduleConfig: { ...normalizedTask.scheduleConfig },
+    latestExecution: hasLatestExecution
+      ? normalizedTask.latestExecution
+        ? cloneTaskExecution(normalizedTask.latestExecution)
+        : normalizedTask.latestExecution
+      : undefined,
+    rawDefinition: cloneWorkbenchRawDefinition(normalizedTask.rawDefinition),
+  };
+}
+
+function mergeWorkbenchTasks(
+  baseTask: InstanceWorkbenchTask,
+  overrideTask: InstanceWorkbenchTask,
+): InstanceWorkbenchTask {
+  const mergedTask = {
+    ...baseTask,
+    ...overrideTask,
+    id: getStringValue(overrideTask, ['id']) || baseTask.id,
+    name: getStringValue(overrideTask, ['name']) || baseTask.name,
+    description: getStringValue(overrideTask, ['description']) || baseTask.description,
+    prompt: getStringValue(overrideTask, ['prompt']) || baseTask.prompt,
+    schedule: getStringValue(overrideTask, ['schedule']) || baseTask.schedule,
+    scheduleMode: isWorkbenchTaskScheduleMode(overrideTask.scheduleMode)
+      ? overrideTask.scheduleMode
+      : baseTask.scheduleMode,
+    scheduleConfig: {
+      ...baseTask.scheduleConfig,
+      ...(isRecord(overrideTask.scheduleConfig) ? overrideTask.scheduleConfig : {}),
+    },
+    cronExpression: getStringValue(overrideTask, ['cronExpression']) || baseTask.cronExpression,
+    actionType: isWorkbenchTaskActionType(overrideTask.actionType)
+      ? overrideTask.actionType
+      : baseTask.actionType,
+    status: isWorkbenchTaskStatus(overrideTask.status) ? overrideTask.status : baseTask.status,
+    sessionMode: isWorkbenchTaskSessionMode(overrideTask.sessionMode)
+      ? overrideTask.sessionMode
+      : baseTask.sessionMode,
+    customSessionId: getStringValue(overrideTask, ['customSessionId']) || baseTask.customSessionId,
+    wakeUpMode: isWorkbenchTaskWakeUpMode(overrideTask.wakeUpMode)
+      ? overrideTask.wakeUpMode
+      : baseTask.wakeUpMode,
+    executionContent: isWorkbenchTaskExecutionContent(overrideTask.executionContent)
+      ? overrideTask.executionContent
+      : baseTask.executionContent,
+    timeoutSeconds:
+      getNumberValue(overrideTask, ['timeoutSeconds']) ?? baseTask.timeoutSeconds,
+    deleteAfterRun:
+      getBooleanValue(overrideTask, ['deleteAfterRun']) ?? baseTask.deleteAfterRun,
+    agentId:
+      (getStringValue(overrideTask, ['agentId'])
+        ? normalizeOpenClawAgentId(getStringValue(overrideTask, ['agentId']))
+        : undefined) || baseTask.agentId,
+    model: getStringValue(overrideTask, ['model']) || baseTask.model,
+    thinking: isWorkbenchTaskThinking(overrideTask.thinking)
+      ? overrideTask.thinking
+      : baseTask.thinking,
+    lightContext:
+      getBooleanValue(overrideTask, ['lightContext']) ?? baseTask.lightContext,
+    deliveryMode: isWorkbenchTaskDeliveryMode(overrideTask.deliveryMode)
+      ? overrideTask.deliveryMode
+      : baseTask.deliveryMode,
+    deliveryBestEffort:
+      getBooleanValue(overrideTask, ['deliveryBestEffort']) ?? baseTask.deliveryBestEffort,
+    deliveryChannel:
+      getStringValue(overrideTask, ['deliveryChannel']) || baseTask.deliveryChannel,
+    deliveryLabel:
+      getStringValue(overrideTask, ['deliveryLabel']) || baseTask.deliveryLabel,
+    recipient: getStringValue(overrideTask, ['recipient']) || baseTask.recipient,
+    lastRun: getStringValue(overrideTask, ['lastRun']) || baseTask.lastRun,
+    nextRun: getStringValue(overrideTask, ['nextRun']) || baseTask.nextRun,
+    latestExecution:
+      overrideTask.latestExecution === undefined
+        ? baseTask.latestExecution
+        : overrideTask.latestExecution
+          ? cloneTaskExecution(overrideTask.latestExecution)
+          : overrideTask.latestExecution,
+    rawDefinition:
+      cloneWorkbenchRawDefinition(overrideTask.rawDefinition) ||
+      cloneWorkbenchRawDefinition(baseTask.rawDefinition),
+  } satisfies InstanceWorkbenchTask;
+
+  return cloneWorkbenchTask(mergedTask);
+}
+
+function mergeOpenClawTaskCollections(
+  baseTasks: InstanceWorkbenchTask[],
+  overrideTasks: InstanceWorkbenchTask[],
+): InstanceWorkbenchTask[] {
+  const normalizedBaseTasks = normalizeWorkbenchTaskCollection(baseTasks);
+  const normalizedOverrideTasks = normalizeWorkbenchTaskCollection(overrideTasks);
+  const orderedIds: string[] = [];
+  const mergedTasks = new Map<string, InstanceWorkbenchTask>();
+
+  normalizedOverrideTasks.forEach((task) => {
+    const baseTask = normalizedBaseTasks.find((entry) => entry.id === task.id);
+    orderedIds.push(task.id);
+    mergedTasks.set(
+      task.id,
+      baseTask ? mergeWorkbenchTasks(baseTask, task) : cloneWorkbenchTask(task),
+    );
+  });
+
+  normalizedBaseTasks.forEach((task) => {
+    if (!mergedTasks.has(task.id)) {
+      orderedIds.push(task.id);
+      mergedTasks.set(task.id, cloneWorkbenchTask(task));
+    }
+  });
+
+  return orderedIds
+    .map((taskId) => mergedTasks.get(taskId))
+    .filter(Boolean) as InstanceWorkbenchTask[];
 }
 
 function mapBackendWorkbench(
@@ -360,35 +803,27 @@ function mapBackendWorkbench(
     ...channel,
     setupSteps: [...channel.setupSteps],
   }));
-  const mappedTasks = workbench.cronTasks.tasks.map(cloneWorkbenchTask);
+  const mappedTasks = normalizeWorkbenchTaskCollection(workbench.cronTasks.tasks);
   const mappedSkills = workbench.skills.map((skill) => ({ ...skill }));
   const runtimeAgents: InstanceWorkbenchAgent[] = workbench.agents.map(
     ({ agent, focusAreas, automationFitScore }) => ({
-      agent: { ...agent },
+      agent: {
+        ...agent,
+        id: normalizeOpenClawAgentId(agent.id),
+      },
       focusAreas: [...focusAreas],
       automationFitScore,
       configSource: 'runtime' as const,
     }),
   );
-  const managedAgents: InstanceWorkbenchAgent[] =
-    managedConfigSnapshot?.agentSnapshots.map((agentSnapshot) =>
-      mapManagedAgent(
-        agentSnapshot,
-        mappedTasks,
-        mappedSkills,
-        runtimeAgents.find((record) => record.agent.id === agentSnapshot.id),
-      ),
-    ) || [];
   const mappedAgents: InstanceWorkbenchAgent[] =
-    managedAgents.length > 0
-      ? [
-          ...managedAgents,
-          ...runtimeAgents
-            .filter(
-              (record) => !managedAgents.some((managedAgent) => managedAgent.agent.id === record.agent.id),
-            )
-            .map(cloneWorkbenchAgent),
-        ]
+    (managedConfigSnapshot?.agentSnapshots.length || 0) > 0
+      ? buildManagedOpenClawAgents(
+          managedConfigSnapshot!.agentSnapshots,
+          runtimeAgents,
+          mappedTasks,
+          mappedSkills,
+        )
       : runtimeAgents.map(cloneWorkbenchAgent);
   const mappedFiles = workbench.files.map((file) => ({ ...file }));
   const mappedLlmProviders = workbench.llmProviders.map(mapLlmProvider);
@@ -551,25 +986,6 @@ interface InstanceWorkbenchServiceDependencies {
     ): Promise<void>;
     deleteInstanceTask(instanceId: string, taskId: string): Promise<boolean>;
   };
-  studioMockService: {
-    getInstance(id: string): Promise<any>;
-    getInstanceConfig(id: string): Promise<any>;
-    getInstanceToken(id: string): Promise<string>;
-    getInstanceLogs(id: string): Promise<string>;
-    listChannels(id: string): Promise<any[]>;
-    listTasks(id: string): Promise<any[]>;
-    listInstalledSkills(id: string): Promise<Skill[]>;
-    listAgents(): Promise<Agent[]>;
-    listInstanceFiles(id: string): Promise<MockInstanceTool[] | any[]>;
-    listInstanceLlmProviders(id: string): Promise<MockInstanceLLMProvider[]>;
-    listInstanceMemories(id: string): Promise<MockInstanceMemoryEntry[]>;
-    listInstanceTools(id: string): Promise<MockInstanceTool[]>;
-    listTaskExecutions(id: string): Promise<MockTaskExecutionHistoryEntry[]>;
-    cloneTask(id: string, overrides?: { name?: string }): Promise<any>;
-    runTaskNow(id: string): Promise<any>;
-    updateTaskStatus(id: string, status: 'active' | 'paused'): Promise<boolean>;
-    deleteTask(id: string): Promise<boolean>;
-  };
   instanceService: {
     getInstanceById(id: string): Promise<any>;
     getInstanceConfig(id: string): Promise<any>;
@@ -600,17 +1016,68 @@ interface InstanceWorkbenchServiceDependencies {
       instanceId: string,
       args: { agentId: string; name: string },
     ): Promise<OpenClawAgentFileResult>;
+    searchMemory(
+      instanceId: string,
+      args: { query: string; maxResults?: number; minScore?: number },
+    ): Promise<OpenClawMemorySearchResult>;
+    getDoctorMemoryStatus(
+      instanceId: string,
+      args?: Record<string, unknown>,
+    ): Promise<Record<string, unknown>>;
     listWorkbenchCronJobs(instanceId: string): Promise<InstanceWorkbenchTask[]>;
     listWorkbenchCronRuns(
       instanceId: string,
       taskId: string,
     ): Promise<InstanceWorkbenchTaskExecution[]>;
+    addCronJob(instanceId: string, payload: Record<string, unknown>): Promise<{ id?: string }>;
+    updateCronJob(
+      instanceId: string,
+      taskId: string,
+      patch: Record<string, unknown>,
+    ): Promise<{ id?: string }>;
+    removeCronJob(instanceId: string, taskId: string): Promise<boolean>;
+    runCronJob(
+      instanceId: string,
+      taskId: string,
+    ): Promise<{ ok?: boolean; enqueued?: boolean; runId?: string }>;
+  };
+}
+
+function toCreateTaskInput(
+  task: InstanceWorkbenchTask,
+  overrides: Partial<InstanceWorkbenchTask> = {},
+) {
+  return {
+    name: overrides.name ?? task.name,
+    description: overrides.description ?? task.description,
+    prompt: overrides.prompt ?? task.prompt,
+    schedule: overrides.schedule ?? task.schedule,
+    scheduleMode: overrides.scheduleMode ?? task.scheduleMode,
+    scheduleConfig: overrides.scheduleConfig ?? task.scheduleConfig,
+    cronExpression: overrides.cronExpression ?? task.cronExpression,
+    actionType: overrides.actionType ?? task.actionType,
+    status: overrides.status ?? task.status,
+    sessionMode: overrides.sessionMode ?? task.sessionMode,
+    customSessionId: overrides.customSessionId ?? task.customSessionId,
+    wakeUpMode: overrides.wakeUpMode ?? task.wakeUpMode,
+    executionContent: overrides.executionContent ?? task.executionContent,
+    timeoutSeconds: overrides.timeoutSeconds ?? task.timeoutSeconds,
+    deleteAfterRun: overrides.deleteAfterRun ?? task.deleteAfterRun,
+    agentId: overrides.agentId ?? task.agentId,
+    model: overrides.model ?? task.model,
+    thinking: overrides.thinking ?? task.thinking,
+    lightContext: overrides.lightContext ?? task.lightContext,
+    deliveryMode: overrides.deliveryMode ?? task.deliveryMode,
+    deliveryBestEffort: overrides.deliveryBestEffort ?? task.deliveryBestEffort,
+    deliveryChannel: overrides.deliveryChannel ?? task.deliveryChannel,
+    recipient: overrides.recipient ?? task.recipient,
+    lastRun: overrides.lastRun ?? task.lastRun,
+    nextRun: overrides.nextRun ?? task.nextRun,
   };
 }
 
 export interface InstanceWorkbenchServiceDependencyOverrides {
   studioApi?: Partial<InstanceWorkbenchServiceDependencies['studioApi']>;
-  studioMockService?: Partial<InstanceWorkbenchServiceDependencies['studioMockService']>;
   instanceService?: Partial<InstanceWorkbenchServiceDependencies['instanceService']>;
   openClawGatewayClient?: Partial<InstanceWorkbenchServiceDependencies['openClawGatewayClient']>;
 }
@@ -625,25 +1092,6 @@ function createDefaultDependencies(): InstanceWorkbenchServiceDependencies {
       updateInstanceTaskStatus: (instanceId, taskId, status) =>
         studio.updateInstanceTaskStatus(instanceId, taskId, status),
       deleteInstanceTask: (instanceId, taskId) => studio.deleteInstanceTask(instanceId, taskId),
-    },
-    studioMockService: {
-      getInstance: (id) => studioMockService.getInstance(id),
-      getInstanceConfig: (id) => studioMockService.getInstanceConfig(id),
-      getInstanceToken: (id) => studioMockService.getInstanceToken(id),
-      getInstanceLogs: (id) => studioMockService.getInstanceLogs(id),
-      listChannels: (id) => studioMockService.listChannels(id),
-      listTasks: (id) => studioMockService.listTasks(id),
-      listInstalledSkills: (id) => studioMockService.listInstalledSkills(id),
-      listAgents: () => studioMockService.listAgents(),
-      listInstanceFiles: (id) => studioMockService.listInstanceFiles(id),
-      listInstanceLlmProviders: (id) => studioMockService.listInstanceLlmProviders(id),
-      listInstanceMemories: (id) => studioMockService.listInstanceMemories(id),
-      listInstanceTools: (id) => studioMockService.listInstanceTools(id),
-      listTaskExecutions: (id) => studioMockService.listTaskExecutions(id),
-      cloneTask: (id, overrides) => studioMockService.cloneTask(id, overrides),
-      runTaskNow: (id) => studioMockService.runTaskNow(id),
-      updateTaskStatus: (id, status) => studioMockService.updateTaskStatus(id, status).then(Boolean),
-      deleteTask: (id) => studioMockService.deleteTask(id),
     },
     instanceService: {
       getInstanceById: (id) => instanceService.getInstanceById(id),
@@ -660,9 +1108,17 @@ function createDefaultDependencies(): InstanceWorkbenchServiceDependencies {
       listAgents: (instanceId) => openClawGatewayClient.listAgents(instanceId),
       listAgentFiles: (instanceId, args) => openClawGatewayClient.listAgentFiles(instanceId, args),
       getAgentFile: (instanceId, args) => openClawGatewayClient.getAgentFile(instanceId, args),
+      searchMemory: (instanceId, args) => openClawGatewayClient.searchMemory(instanceId, args),
+      getDoctorMemoryStatus: (instanceId, args) =>
+        openClawGatewayClient.getDoctorMemoryStatus(instanceId, args),
       listWorkbenchCronJobs: (instanceId) => openClawGatewayClient.listWorkbenchCronJobs(instanceId),
       listWorkbenchCronRuns: (instanceId, taskId) =>
         openClawGatewayClient.listWorkbenchCronRuns(instanceId, taskId),
+      addCronJob: (instanceId, payload) => openClawGatewayClient.addCronJob(instanceId, payload as never),
+      updateCronJob: (instanceId, taskId, patch) =>
+        openClawGatewayClient.updateCronJob(instanceId, taskId, patch as never),
+      removeCronJob: (instanceId, taskId) => openClawGatewayClient.removeCronJob(instanceId, taskId),
+      runCronJob: (instanceId, taskId) => openClawGatewayClient.runCronJob(instanceId, taskId),
     },
   };
 }
@@ -680,6 +1136,12 @@ interface OpenClawGatewaySections {
 
 function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
   return detail?.instance.runtimeKind === 'openclaw';
+}
+
+function isProviderCenterManagedOpenClawDetail(
+  detail: StudioInstanceDetailRecord | null | undefined,
+) {
+  return detail?.instance.runtimeKind === 'openclaw' && detail.instance.deploymentMode !== 'remote';
 }
 
 function countOverviewEntries(detail: StudioInstanceDetailRecord) {
@@ -734,12 +1196,17 @@ function buildOpenClawSnapshotFromSections(
   detail: StudioInstanceDetailRecord,
   sections: OpenClawGatewaySections,
 ): InstanceWorkbenchSnapshot {
+  const normalizedTasks = normalizeWorkbenchTaskCollection(sections.tasks);
   const connectedChannelCount = sections.channels.filter(
     (channel) => channel.status === 'connected' && channel.enabled,
   ).length;
-  const activeTaskCount = sections.tasks.filter((task) => task.status === 'active').length;
+  const activeTaskCount = normalizedTasks.filter((task) => task.status === 'active').length;
   const readyToolCount = sections.tools.filter((tool) => tool.status === 'ready').length;
-  const sectionCounts = buildOpenClawSectionCounts(detail, sections);
+  const sectionCounts = buildOpenClawSectionCounts(detail, {
+    ...sections,
+    tasks: normalizedTasks,
+  });
+  const capabilityMap = getCapabilityMap(detail);
 
   return {
     instance: mapStudioInstance(detail.instance),
@@ -754,18 +1221,27 @@ function buildOpenClawSnapshotFromSections(
     installedSkillCount: sections.skills.length,
     readyToolCount,
     sectionCounts,
-    sectionAvailability: buildSectionAvailability(detail, {
-      channels: sections.channels.length,
-      cronTasks: sections.tasks.length,
-      llmProviders: sections.llmProviders.length,
-      agents: sections.agents.length,
-      skills: sections.skills.length,
-      files: sections.files.length,
-      memory: sections.memories.length,
-      tools: sections.tools.length,
-    }),
+    sectionAvailability: {
+      ...buildSectionAvailability(detail, {
+        channels: sections.channels.length,
+        cronTasks: normalizedTasks.length,
+        llmProviders: sections.llmProviders.length,
+        agents: sections.agents.length,
+        skills: sections.skills.length,
+        files: sections.files.length,
+        memory: sections.memories.length,
+        tools: sections.tools.length,
+      }),
+      files:
+        sections.files.length > 0
+          ? {
+              status: 'ready',
+              detail: 'Runtime file data is available for this instance workbench.',
+            }
+          : resolveCapabilityAvailability(capabilityMap.get('files')),
+    },
     channels: sections.channels,
-    tasks: sections.tasks.map(cloneWorkbenchTask),
+    tasks: normalizedTasks.map(cloneWorkbenchTask),
     agents: sections.agents.map((agent) => ({
       ...agent,
       agent: { ...agent.agent },
@@ -790,9 +1266,9 @@ function mergeOpenClawSnapshots(
 ): InstanceWorkbenchSnapshot {
   return buildOpenClawSnapshotFromSections(base.detail, {
     channels: mergeOpenClawChannelCollections(base.channels, live.channels),
-    tasks: live.tasks.length > 0 ? live.tasks : base.tasks,
+    tasks: mergeOpenClawTaskCollections(base.tasks, live.tasks),
     llmProviders: live.llmProviders.length > 0 ? live.llmProviders : base.llmProviders,
-    agents: live.agents.length > 0 ? live.agents : base.agents,
+    agents: mergeOpenClawAgentCollections(base.agents, live.agents),
     skills: live.skills.length > 0 ? live.skills : base.skills,
     files: base.files.length > 0 ? base.files : live.files,
     memories: base.memories.length > 0 ? base.memories : live.memories,
@@ -806,6 +1282,20 @@ function finalizeOpenClawSnapshot(
   managedConfigPath: string | null,
   managedConfigSnapshot: ManagedOpenClawConfigSnapshot | null,
 ): InstanceWorkbenchSnapshot {
+  const llmProviders =
+    isProviderCenterManagedOpenClawDetail(detail) &&
+    (managedConfigSnapshot?.providerSnapshots.length || 0) > 0
+      ? managedConfigSnapshot!.providerSnapshots.map(mapManagedProvider)
+      : snapshot.llmProviders;
+  const agents =
+    (managedConfigSnapshot?.agentSnapshots.length || 0) > 0
+      ? buildManagedOpenClawAgents(
+          managedConfigSnapshot!.agentSnapshots,
+          snapshot.agents,
+          snapshot.tasks,
+          snapshot.skills,
+        )
+      : snapshot.agents.map(cloneWorkbenchAgent);
   const channels = mergeOpenClawChannelCollections(
     buildOpenClawChannelCatalog(managedConfigSnapshot),
     snapshot.channels,
@@ -813,10 +1303,10 @@ function finalizeOpenClawSnapshot(
   const finalizedSnapshot = buildOpenClawSnapshotFromSections(detail, {
     channels,
     tasks: snapshot.tasks,
-    agents: snapshot.agents,
+    agents,
     skills: snapshot.skills,
     files: snapshot.files,
-    llmProviders: snapshot.llmProviders,
+    llmProviders,
     memories: snapshot.memories,
     tools: snapshot.tools,
   });
@@ -825,7 +1315,81 @@ function finalizeOpenClawSnapshot(
     ...finalizedSnapshot,
     managedConfigPath,
     managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
+    managedWebSearchConfig: cloneManagedWebSearchConfig(managedConfigSnapshot?.webSearchConfig),
+    managedAuthCooldownsConfig: cloneManagedAuthCooldownsConfig(
+      managedConfigSnapshot?.authCooldownsConfig,
+    ),
   };
+}
+
+function normalizeChannelConnectionStatus(
+  value: unknown,
+): InstanceWorkbenchChannel['status'] | null {
+  return value === 'connected' || value === 'disconnected' || value === 'not_configured'
+    ? value
+    : null;
+}
+
+function formatChannelAccountState(status: InstanceWorkbenchChannel['status']) {
+  switch (status) {
+    case 'connected':
+      return 'connected';
+    case 'disconnected':
+      return 'disconnected';
+    default:
+      return 'not configured';
+  }
+}
+
+function buildOpenClawChannelAccounts(
+  status: OpenClawChannelStatusResult,
+  channelId: string,
+  rawChannel: Record<string, unknown>,
+): NonNullable<InstanceWorkbenchChannel['accounts']> {
+  const embeddedAccounts = getObjectValue(rawChannel, ['accounts']) || {};
+  const runtimeAccounts = getObjectValue(status, ['channelAccounts', channelId]) || {};
+  const accountIds = Array.from(
+    new Set([...Object.keys(embeddedAccounts), ...Object.keys(runtimeAccounts)]),
+  ).sort((left, right) => left.localeCompare(right));
+
+  return accountIds
+    .map((accountId) => {
+      const embedded = getRecordValue(embeddedAccounts, [accountId]) || {};
+      const runtime = getRecordValue(runtimeAccounts, [accountId]) || {};
+      const configured =
+        (getBooleanValue(runtime, ['configured']) ??
+          getBooleanValue(embedded, ['configured']) ??
+          false) ||
+        Object.keys(getObjectValue(runtime, ['fields']) || {}).length > 0 ||
+        Object.keys(getObjectValue(embedded, ['fields']) || {}).length > 0;
+      const enabled =
+        getBooleanValue(runtime, ['enabled']) ??
+        getBooleanValue(embedded, ['enabled']) ??
+        configured;
+      const normalizedStatus =
+        normalizeChannelConnectionStatus(getStringValue(runtime, ['status'])) ||
+        normalizeChannelConnectionStatus(getStringValue(embedded, ['status'])) ||
+        (configured ? (enabled ? 'connected' : 'disconnected') : 'not_configured');
+
+      return {
+        id: accountId,
+        name:
+          getStringValue(runtime, ['label']) ||
+          getStringValue(runtime, ['name']) ||
+          getStringValue(embedded, ['label']) ||
+          getStringValue(embedded, ['name']) ||
+          titleCaseIdentifier(accountId),
+        status: normalizedStatus,
+        enabled,
+        configured,
+        detail:
+          getStringValue(runtime, ['detail']) ||
+          getStringValue(runtime, ['message']) ||
+          getStringValue(embedded, ['detail']) ||
+          undefined,
+      };
+    })
+    .filter((account) => account.id.length > 0);
 }
 
 function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWorkbenchChannel[] {
@@ -845,10 +1409,12 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
         return null;
       }
 
+      const channelName = status.channelLabels?.[channelId] || titleCaseIdentifier(channelId);
       const rawFields = getObjectValue(rawChannel, ['fields']) || {};
-      const rawAccounts = getObjectValue(rawChannel, ['accounts']) || {};
+      const accounts = buildOpenClawChannelAccounts(status, channelId, rawChannel);
       const fieldCount = Object.keys(rawFields).length;
-      const accountCount = Object.keys(rawAccounts).length;
+      const accountCount = accounts.length;
+      const connectedAccountCount = accounts.filter((account) => account.status === 'connected').length;
       const configuredFieldCount = Object.values(rawFields).filter((value) => isConfiguredValue(value)).length;
       const enabled = getBooleanValue(rawChannel, ['enabled']) ?? false;
       const configured =
@@ -862,24 +1428,41 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
               ? 'Sdkwork Chat delivery is ready for runtime handoff.'
               : 'Enable the channel when this runtime should deliver into Sdkwork Chat.',
           ]
+        : accounts.length > 0
+          ? [
+              `${channelName} runtime reports ${connectedAccountCount}/${accountCount} connected accounts.`,
+              ...accounts.map(
+                (account) =>
+                  `${account.name} (${account.id}): ${formatChannelAccountState(account.status)}${
+                    account.detail ? ` - ${account.detail}` : ''
+                  }`,
+              ),
+            ]
         : configured
           ? [
-              `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} channel is configured for the gateway runtime.`,
+              `${channelName} channel is configured for the gateway runtime.`,
               enabled
                 ? 'Channel is enabled for runtime delivery.'
                 : 'Enable the channel after validating connectivity.',
             ]
           : [
-              `Configure credentials or routing for ${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)}.`,
+              `Configure credentials or routing for ${channelName}.`,
               'Add at least one account or destination target.',
             ];
 
       return {
         id: channelId,
-        name: status.channelLabels?.[channelId] || titleCaseIdentifier(channelId),
+        name: channelName,
         description:
           status.channelDetailLabels?.[channelId] ||
-          `${status.channelLabels?.[channelId] || titleCaseIdentifier(channelId)} integration managed by the OpenClaw gateway.`,
+          (accounts.length > 0
+            ? `${channelName} integration managed by the OpenClaw gateway. Accounts: ${accounts
+                .map(
+                  (account) =>
+                    `${account.name} (${formatChannelAccountState(account.status)})`,
+                )
+                .join(', ')}.`
+            : `${channelName} integration managed by the OpenClaw gateway.`),
         status: isConfigurationFree
           ? enabled
             ? 'connected'
@@ -898,6 +1481,7 @@ function buildOpenClawChannels(status: OpenClawChannelStatusResult): InstanceWor
             ? Math.max(configuredFieldCount, accountCount, 1)
             : 0,
         setupSteps,
+        accounts,
       } satisfies InstanceWorkbenchChannel;
     })
     .filter(Boolean) as InstanceWorkbenchChannel[];
@@ -1088,8 +1672,43 @@ function inferToolAccess(toolId: string): InstanceWorkbenchTool['access'] {
   return 'execute';
 }
 
-function buildOpenClawTools(catalog: OpenClawToolsCatalogResult): InstanceWorkbenchTool[] {
+function mergeUniqueValues(current: string[] | undefined, next: string[] | undefined) {
+  const merged = [...(current || [])];
+
+  (next || []).forEach((value) => {
+    if (value && !merged.includes(value)) {
+      merged.push(value);
+    }
+  });
+
+  return merged.length > 0 ? merged : undefined;
+}
+
+function mergeToolStatus(
+  current: InstanceWorkbenchTool['status'],
+  next: InstanceWorkbenchTool['status'],
+): InstanceWorkbenchTool['status'] {
+  const priority = {
+    ready: 0,
+    beta: 1,
+    restricted: 2,
+  } as const;
+
+  return priority[next] > priority[current] ? next : current;
+}
+
+function buildOpenClawTools(
+  catalog: OpenClawToolsCatalogResult,
+  agentNameById: ReadonlyMap<string, string> = new Map(),
+): InstanceWorkbenchTool[] {
   const toolMap = new Map<string, InstanceWorkbenchTool>();
+  const scopedAgentIds =
+    typeof catalog.agentId === 'string' && catalog.agentId.trim()
+      ? [normalizeOpenClawAgentId(catalog.agentId)]
+      : [];
+  const scopedAgentNames = scopedAgentIds
+    .map((agentId) => agentNameById.get(agentId) || titleCaseIdentifier(agentId))
+    .filter((value) => value.length > 0);
 
   (Array.isArray(catalog.groups) ? catalog.groups : []).forEach((group) => {
     const tools = Array.isArray(group.tools) ? group.tools : [];
@@ -1116,6 +1735,41 @@ function buildOpenClawTools(catalog: OpenClawToolsCatalogResult): InstanceWorkbe
         access: inferToolAccess(id),
         command: `tool:${id}`,
         lastUsedAt: undefined,
+        agentIds: scopedAgentIds.length > 0 ? [...scopedAgentIds] : undefined,
+        agentNames: scopedAgentNames.length > 0 ? [...scopedAgentNames] : undefined,
+      });
+    });
+  });
+
+  return [...toolMap.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function buildOpenClawScopedTools(
+  catalogs: OpenClawToolsCatalogResult[],
+  agents: InstanceWorkbenchAgent[],
+): InstanceWorkbenchTool[] {
+  const toolMap = new Map<string, InstanceWorkbenchTool>();
+  const agentNameById = new Map(
+    agents.map((agent) => [agent.agent.id, agent.agent.name] as const),
+  );
+
+  catalogs.forEach((catalog) => {
+    buildOpenClawTools(catalog, agentNameById).forEach((tool) => {
+      const current = toolMap.get(tool.id);
+      if (!current) {
+        toolMap.set(tool.id, {
+          ...tool,
+          agentIds: tool.agentIds ? [...tool.agentIds] : undefined,
+          agentNames: tool.agentNames ? [...tool.agentNames] : undefined,
+        });
+        return;
+      }
+
+      toolMap.set(tool.id, {
+        ...current,
+        status: mergeToolStatus(current.status, tool.status),
+        agentIds: mergeUniqueValues(current.agentIds, tool.agentIds),
+        agentNames: mergeUniqueValues(current.agentNames, tool.agentNames),
       });
     });
   });
@@ -1149,6 +1803,370 @@ function inferOpenClawFileCategory(
   return 'artifact';
 }
 
+function mapOpenClawFileEntryToWorkbenchFile(params: {
+  agent: InstanceWorkbenchAgent;
+  entry: Record<string, unknown>;
+  workspace?: string;
+  content?: string;
+}): InstanceWorkbenchFile | null {
+  const entryPath =
+    typeof params.entry.path === 'string' && params.entry.path.trim()
+      ? params.entry.path.trim()
+      : null;
+  const requestPath = deriveOpenClawFileRequestPath(
+    typeof params.entry.name === 'string' ? params.entry.name : null,
+    entryPath,
+    params.workspace,
+  );
+  if (!requestPath) {
+    return null;
+  }
+
+  const displayName = getWorkbenchPathBasename(requestPath) || requestPath;
+  const fallbackPath =
+    (params.workspace ? `${params.workspace.replace(/\/+$/, '')}/${requestPath}` : '') ||
+    `/${params.agent.agent.id}/${requestPath}`;
+  const path = entryPath || fallbackPath;
+  const content =
+    typeof params.content === 'string'
+      ? params.content
+      : typeof params.entry.content === 'string'
+        ? params.entry.content
+        : '';
+
+  return {
+    id: buildOpenClawAgentFileId(params.agent.agent.id, requestPath),
+    name: displayName,
+    path,
+    category: inferOpenClawFileCategory(requestPath, path),
+    language: inferLanguageFromPath(path),
+    size: formatSize(typeof params.entry.size === 'number' ? params.entry.size : undefined),
+    updatedAt: toIsoStringFromMs(
+      typeof params.entry.updatedAtMs === 'number' ? params.entry.updatedAtMs : undefined,
+    ) || 'Unknown',
+    status: params.entry.missing === true ? 'missing' : 'synced',
+    description: `${requestPath} workspace file for ${params.agent.agent.name}.`,
+    content,
+    isReadonly: false,
+  };
+}
+
+function normalizeOpenClawFilePath(path?: string | null) {
+  if (typeof path !== 'string') {
+    return null;
+  }
+
+  const normalized = path.replace(/\\/g, '/').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized === '/') {
+    return normalized;
+  }
+
+  return normalized.replace(/\/+$/, '');
+}
+
+function isRootedOpenClawFilePath(path: string) {
+  return (
+    path.startsWith('/') ||
+    /^[A-Za-z]:\//.test(path) ||
+    path.startsWith('//')
+  );
+}
+
+function shouldCompareOpenClawPathCaseInsensitively(path: string) {
+  return /^[A-Za-z]:\//.test(path) || path.startsWith('//');
+}
+
+function normalizeOpenClawComparablePath(path: string) {
+  return shouldCompareOpenClawPathCaseInsensitively(path) ? path.toLowerCase() : path;
+}
+
+function trimComparableOpenClawPathPrefix(path: string, prefix: string) {
+  const comparablePath = normalizeOpenClawComparablePath(path);
+  const comparablePrefix = normalizeOpenClawComparablePath(prefix);
+
+  if (comparablePath === comparablePrefix) {
+    return '';
+  }
+
+  if (!comparablePath.startsWith(`${comparablePrefix}/`)) {
+    return null;
+  }
+
+  return path.slice(prefix.length + 1);
+}
+
+function getWorkbenchPathBasename(path: string) {
+  return path.split('/').filter(Boolean).slice(-1)[0] || path;
+}
+
+function trimOpenClawWorkspacePrefix(path: string | null, workspace?: string) {
+  const normalizedPath = normalizeOpenClawFilePath(path);
+  const normalizedWorkspace = normalizeOpenClawFilePath(workspace);
+
+  if (!normalizedPath || !normalizedWorkspace) {
+    return null;
+  }
+
+  const relativePath = trimComparableOpenClawPathPrefix(normalizedPath, normalizedWorkspace);
+  if (relativePath === '') {
+    return null;
+  }
+
+  if (relativePath === null) {
+    return null;
+  }
+
+  return relativePath;
+}
+
+function normalizeOpenClawRequestPath(name?: string | null) {
+  const normalizedName = normalizeOpenClawFilePath(name);
+  if (!normalizedName) {
+    return null;
+  }
+
+  return normalizedName.replace(/^\/+/, '');
+}
+
+function deriveOpenClawFileRequestPath(
+  name: string | null,
+  path: string | null,
+  workspace?: string,
+) {
+  const relativeFromWorkspace = trimOpenClawWorkspacePrefix(path, workspace);
+  if (relativeFromWorkspace) {
+    return relativeFromWorkspace;
+  }
+
+  const normalizedPath = normalizeOpenClawFilePath(path);
+  if (normalizedPath && !isRootedOpenClawFilePath(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  const normalizedName = normalizeOpenClawRequestPath(name);
+  if (normalizedName) {
+    return normalizedName;
+  }
+
+  if (!normalizedPath) {
+    return null;
+  }
+
+  return getWorkbenchPathBasename(normalizedPath);
+}
+
+function buildDetailOnlyWorkbenchSnapshot(
+  detail: StudioInstanceDetailRecord,
+  managedConfigPath: string | null = null,
+  managedConfigSnapshot: ManagedOpenClawConfigSnapshot | null = null,
+): InstanceWorkbenchSnapshot {
+  const emptySectionCounts = {
+    channels: 0,
+    cronTasks: 0,
+    llmProviders: 0,
+    agents: 0,
+    skills: 0,
+    files: 0,
+    memory: 0,
+    tools: 0,
+  } as const;
+
+  return {
+    instance: mapStudioInstance(detail.instance),
+    config: mapStudioConfig(detail),
+    token: detail.config.authToken || '',
+    logs: detail.logs,
+    detail,
+    managedConfigPath,
+    managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
+    healthScore: detail.health.score,
+    runtimeStatus: detail.health.status,
+    connectedChannelCount: 0,
+    activeTaskCount: 0,
+    installedSkillCount: 0,
+    readyToolCount: 0,
+    sectionCounts: {
+      overview: countOverviewEntries(detail),
+      ...emptySectionCounts,
+    },
+    sectionAvailability: buildSectionAvailability(detail, emptySectionCounts),
+    channels: [],
+    tasks: [],
+    agents: [],
+    skills: [],
+    files: [],
+    llmProviders: [],
+    memories: [],
+    tools: [],
+  };
+}
+
+function buildRegistryBackedDetail(
+  instance: RegistryInstanceRecord,
+  config: RegistryInstanceConfig,
+  token: string | undefined,
+  logs: string,
+): StudioInstanceDetailRecord {
+  const evaluatedAt = Date.now();
+  const healthScore = instance.status === 'online' ? 80 : 35;
+  const healthStatus =
+    instance.status === 'online'
+      ? 'healthy'
+      : instance.status === 'offline'
+        ? 'offline'
+        : 'attention';
+
+  return {
+    instance: {
+      id: instance.id,
+      name: instance.name,
+      description: undefined,
+      runtimeKind: 'custom',
+      deploymentMode: 'remote',
+      transportKind: 'customHttp',
+      status: instance.status === 'starting' ? 'starting' : instance.status,
+      isBuiltIn: false,
+      isDefault: false,
+      iconType: instance.iconType,
+      version: instance.version,
+      typeLabel: instance.type,
+      host: instance.ip,
+      port: Number.parseInt(config.port, 10) || null,
+      baseUrl: null,
+      websocketUrl: null,
+      cpu: instance.cpu,
+      memory: instance.memory,
+      totalMemory: instance.totalMemory,
+      uptime: instance.uptime,
+      capabilities: ['chat', 'health'],
+      storage: {
+        provider: 'localFile',
+        namespace: 'claw-studio',
+      },
+      config: {
+        port: config.port,
+        sandbox: config.sandbox,
+        autoUpdate: config.autoUpdate,
+        logLevel: config.logLevel,
+        corsOrigins: config.corsOrigins,
+        authToken: token || undefined,
+      },
+      createdAt: evaluatedAt,
+      updatedAt: evaluatedAt,
+      lastSeenAt: evaluatedAt,
+    },
+    config: {
+      port: config.port,
+      sandbox: config.sandbox,
+      autoUpdate: config.autoUpdate,
+      logLevel: config.logLevel,
+      corsOrigins: config.corsOrigins,
+      authToken: token || undefined,
+    },
+    logs,
+    health: {
+      score: healthScore,
+      status: healthStatus,
+      checks: [],
+      evaluatedAt,
+    },
+    lifecycle: {
+      owner: 'remoteService',
+      startStopSupported: false,
+      configWritable: true,
+      notes: ['Registry-backed detail projection.'],
+    },
+    storage: {
+      status: 'planned',
+      provider: 'localFile',
+      namespace: 'claw-studio',
+      durable: true,
+      queryable: false,
+      transactional: false,
+      remote: false,
+    },
+    connectivity: {
+      primaryTransport: 'customHttp',
+      endpoints: [],
+    },
+    observability: {
+      status: logs ? 'limited' : 'unavailable',
+      logAvailable: Boolean(logs),
+      logPreview: logs ? logs.split('\n').filter(Boolean).slice(-5) : [],
+      metricsSource: 'derived',
+      lastSeenAt: evaluatedAt,
+    },
+    dataAccess: {
+      routes: [
+        {
+          id: 'config',
+          label: 'Configuration',
+          scope: 'config',
+          mode: 'metadataOnly',
+          status: 'ready',
+          target: 'studio.instances registry metadata',
+          readonly: false,
+          authoritative: false,
+          detail: 'Registry-backed detail projects configuration from Claw Studio metadata.',
+          source: 'integration',
+        },
+        {
+          id: 'logs',
+          label: 'Logs',
+          scope: 'logs',
+          mode: 'metadataOnly',
+          status: logs ? 'limited' : 'planned',
+          target: null,
+          readonly: true,
+          authoritative: false,
+          detail: 'Registry-backed detail only exposes derived log preview lines.',
+          source: 'derived',
+        },
+      ],
+    },
+    artifacts: [
+      {
+        id: 'storage-binding',
+        label: 'Storage Binding',
+        kind: 'storageBinding',
+        status: 'planned',
+        location: 'claw-studio',
+        readonly: false,
+        detail: 'Registry-backed detail projects storage metadata only.',
+        source: 'storage',
+      },
+    ],
+    capabilities: [
+      {
+        id: 'chat',
+        status: 'ready',
+        detail: 'Registry-backed detail projection.',
+        source: 'runtime',
+      },
+      {
+        id: 'health',
+        status: 'ready',
+        detail: 'Registry-backed detail projection.',
+        source: 'runtime',
+      },
+    ],
+    officialRuntimeNotes: [],
+  };
+}
+
+function buildRegistryWorkbenchSnapshot(
+  instance: RegistryInstanceRecord,
+  config: RegistryInstanceConfig,
+  token: string | undefined,
+  logs: string,
+): InstanceWorkbenchSnapshot {
+  return buildDetailOnlyWorkbenchSnapshot(buildRegistryBackedDetail(instance, config, token, logs));
+}
+
 function buildOpenClawAgents(
   agentsResult: OpenClawAgentsListResult | null,
   configSnapshot: OpenClawConfigSnapshot | null,
@@ -1161,7 +2179,7 @@ function buildOpenClawAgents(
     configuredAgents
       .map((entry) => {
         const id = getStringValue(entry, ['id']);
-        return id ? [id, entry] as const : null;
+        return id ? [normalizeOpenClawAgentId(id), entry] as const : null;
       })
       .filter(Boolean) as Array<readonly [string, Record<string, unknown>]>,
   );
@@ -1169,7 +2187,7 @@ function buildOpenClawAgents(
     (Array.isArray(agentsResult?.agents) ? agentsResult?.agents : configuredAgents).filter(isRecord);
 
   return sourceAgents.map((entry) => {
-    const agentId = getStringValue(entry, ['id']) || 'main';
+    const agentId = normalizeOpenClawAgentId(getStringValue(entry, ['id']));
     const configured = configuredById.get(agentId);
     const name =
       getStringValue(entry, ['name']) ||
@@ -1204,7 +2222,7 @@ function buildOpenClawAgents(
   });
 }
 
-async function buildOpenClawFiles(
+async function buildOpenClawFilesCatalog(
   instanceId: string,
   agents: InstanceWorkbenchAgent[],
   dependencies: InstanceWorkbenchServiceDependencies,
@@ -1218,48 +2236,80 @@ async function buildOpenClawFiles(
         .catch(() => ({ files: [] }) as OpenClawAgentFilesListResult);
       const workspace = listed.workspace || '';
 
-      return Promise.all(
-        listed.files
-          .filter((entry) => isRecord(entry) && isNonEmptyString(entry.name))
-          .map(async (entry) => {
-            const name = entry.name.trim();
-            const fetched = await dependencies.openClawGatewayClient
-              .getAgentFile(instanceId, {
-                agentId: agent.agent.id,
-                name,
-              })
-              .catch(() => null);
-            const fileRecord = isRecord(fetched?.file) ? fetched.file : entry;
-            const path =
-              (typeof fileRecord.path === 'string' && fileRecord.path.trim()) ||
-              (workspace ? `${workspace.replace(/\/+$/, '')}/${name}` : `/${agent.agent.id}/${name}`);
-            const content =
-              typeof fileRecord.content === 'string' ? fileRecord.content : '';
-
-            return {
-              id: buildOpenClawAgentFileId(agent.agent.id, name),
-              name,
-              path,
-              category: inferOpenClawFileCategory(name, path),
-              language: inferLanguageFromPath(path),
-              size: formatSize(
-                typeof fileRecord.size === 'number' ? fileRecord.size : undefined,
-              ),
-              updatedAt: toIsoStringFromMs(
-                typeof fileRecord.updatedAtMs === 'number' ? fileRecord.updatedAtMs : undefined,
-              ) || 'Unknown',
-              status:
-                fileRecord.missing === true ? 'missing' : 'synced',
-              description: `${name} bootstrap file for ${agent.agent.name}.`,
-              content,
-              isReadonly: false,
-            } satisfies InstanceWorkbenchFile;
+      return listed.files
+        .filter(isRecord)
+        .map((entry) =>
+          mapOpenClawFileEntryToWorkbenchFile({
+            agent,
+            entry,
+            workspace,
+            content: '',
           }),
-      );
+        )
+        .filter(Boolean) as InstanceWorkbenchFile[];
     }),
   );
 
   return files.flat().sort((left, right) => left.path.localeCompare(right.path));
+}
+
+async function buildOpenClawMemoryFiles(
+  instanceId: string,
+  agents: InstanceWorkbenchAgent[],
+  dependencies: InstanceWorkbenchServiceDependencies,
+): Promise<InstanceWorkbenchFile[]> {
+  const files = await Promise.all(
+    agents.map(async (agent) => {
+      const fetched = await dependencies.openClawGatewayClient
+        .getAgentFile(instanceId, {
+          agentId: agent.agent.id,
+          name: 'MEMORY.md',
+        })
+        .catch(() => null);
+
+      if (!isRecord(fetched?.file) || fetched.file.missing === true) {
+        return null;
+      }
+
+      const file = mapOpenClawFileEntryToWorkbenchFile({
+        agent,
+        entry: fetched.file,
+        workspace:
+          typeof fetched.workspace === 'string' && fetched.workspace.trim()
+            ? fetched.workspace
+            : agent.workspace,
+        content: typeof fetched.file.content === 'string' ? fetched.file.content : '',
+      });
+
+      if (!file || file.category !== 'memory' || !file.content.trim()) {
+        return null;
+      }
+
+      return file;
+    }),
+  );
+
+  return files
+    .filter(Boolean)
+    .sort((left, right) => left!.path.localeCompare(right!.path)) as InstanceWorkbenchFile[];
+}
+
+function mergeOpenClawFileCollections(
+  baseFiles: InstanceWorkbenchFile[],
+  overrideFiles: InstanceWorkbenchFile[],
+): InstanceWorkbenchFile[] {
+  const mergedFiles = new Map<string, InstanceWorkbenchFile>();
+
+  baseFiles.forEach((file) => {
+    mergedFiles.set(file.id, { ...file });
+  });
+
+  overrideFiles.forEach((file) => {
+    const current = mergedFiles.get(file.id);
+    mergedFiles.set(file.id, current ? { ...current, ...file } : { ...file });
+  });
+
+  return [...mergedFiles.values()].sort((left, right) => left.path.localeCompare(right.path));
 }
 
 function buildOpenClawMemories(
@@ -1290,14 +2340,17 @@ function buildOpenClawMemories(
     }
 
     const parsed = parseOpenClawAgentFileId(file.id);
-    const agentName = parsed ? agentNameById.get(parsed.agentId) || titleCaseIdentifier(parsed.agentId) : file.name;
+    const parsedAgentId = parsed ? normalizeOpenClawAgentId(parsed.agentId) : null;
+    const agentName = parsedAgentId
+      ? agentNameById.get(parsedAgentId) || titleCaseIdentifier(parsedAgentId)
+      : file.name;
 
     entries.push({
       id: `memory-${file.id}`,
       title: `${agentName} Memory`,
       type: 'conversation',
       summary: summarizeMarkdown(file.content, 220),
-      source: parsed && parsed.agentId !== 'main' ? 'agent' : 'system',
+      source: parsedAgentId && parsedAgentId !== 'main' ? 'agent' : 'system',
       updatedAt: file.updatedAt,
       retention: 'pinned',
       tokens: tokenEstimate(file.content),
@@ -1327,6 +2380,153 @@ function buildOpenClawMemories(
         tokens: 16,
       });
     });
+
+  return entries;
+}
+
+function getPathLeaf(path: string) {
+  const normalized = path.replace(/\\/g, '/');
+  const segments = normalized.split('/').filter(Boolean);
+  return segments[segments.length - 1] || path;
+}
+
+function inferRuntimeMemoryEntryType(path: string) {
+  const normalized = path.toLowerCase();
+  if (normalized.endsWith('memory.md') || normalized.includes('/sessions/')) {
+    return 'conversation' as const;
+  }
+  if (
+    normalized.includes('runbook') ||
+    normalized.includes('playbook') ||
+    normalized.includes('guide')
+  ) {
+    return 'runbook' as const;
+  }
+  return 'artifact' as const;
+}
+
+function inferRuntimeMemoryEntrySource(path: string) {
+  return path.toLowerCase().includes('/sessions/') ? ('task' as const) : ('system' as const);
+}
+
+function extractRuntimeMemorySnippet(entry: Record<string, unknown>) {
+  return (
+    getStringValue(entry, ['text']) ||
+    getStringValue(entry, ['snippet']) ||
+    getStringValue(entry, ['content']) ||
+    ''
+  );
+}
+
+function formatRuntimeMemoryLineRange(entry: Record<string, unknown>) {
+  const start =
+    getNumberValue(entry, ['from']) ??
+    getNumberValue(entry, ['lineStart']) ??
+    getNumberValue(entry, ['startLine']);
+  const end =
+    getNumberValue(entry, ['to']) ??
+    getNumberValue(entry, ['lineEnd']) ??
+    getNumberValue(entry, ['endLine']);
+
+  if (typeof start !== 'number' && typeof end !== 'number') {
+    return null;
+  }
+
+  if (typeof start === 'number' && typeof end === 'number' && end >= start) {
+    return `${start}-${end}`;
+  }
+
+  return `${start ?? end}`;
+}
+
+function buildOpenClawRuntimeMemories(
+  doctorStatus: Record<string, unknown> | null,
+  searchResult: OpenClawMemorySearchResult | null,
+): InstanceWorkbenchMemoryEntry[] {
+  const results = (searchResult?.results || []).filter(isRecord);
+  const provider = getStringValue(doctorStatus, ['provider']);
+  const agentId = getStringValue(doctorStatus, ['agentId']);
+  const embeddingOk = getBooleanValue(doctorStatus, ['embedding', 'ok']);
+  const embeddingError = getStringValue(doctorStatus, ['embedding', 'error']);
+  const searchDisabled = searchResult?.disabled === true;
+  const hasRuntimeSnapshot = Boolean(doctorStatus) || results.length > 0 || searchDisabled;
+
+  if (!hasRuntimeSnapshot) {
+    return [];
+  }
+
+  const statusParts: string[] = [];
+  if (provider) {
+    statusParts.push(`Provider=${provider}`);
+  }
+  if (agentId) {
+    statusParts.push(`Agent=${agentId}`);
+  }
+  if (embeddingOk === true) {
+    statusParts.push('Embedding ready');
+  } else if (embeddingError) {
+    statusParts.push(`Embedding issue: ${embeddingError}`);
+  }
+  if (searchDisabled) {
+    statusParts.push('Semantic recall disabled');
+  }
+  if (results.length > 0) {
+    statusParts.push(`${results.length} indexed hit${results.length === 1 ? '' : 's'} available`);
+  }
+
+  const entries: InstanceWorkbenchMemoryEntry[] = [
+    {
+      id: 'memory-runtime',
+      title: 'Memory Runtime',
+      type: 'fact',
+      summary:
+        statusParts.length > 0
+          ? `${statusParts.join('. ')}.`.replace(/\.\./g, '.')
+          : 'Indexed memory runtime is available.',
+      source: 'system',
+      updatedAt: 'Live',
+      retention: embeddingOk === false || searchDisabled ? 'expiring' : 'rolling',
+      tokens: 24,
+    },
+  ];
+
+  results.forEach((result, index) => {
+    const path =
+      getStringValue(result, ['path']) ||
+      getStringValue(result, ['file']) ||
+      getStringValue(result, ['uri']) ||
+      '';
+    const snippet = summarizeMarkdown(extractRuntimeMemorySnippet(result), 220);
+    const score = getNumberValue(result, ['score']);
+    const lineRange = formatRuntimeMemoryLineRange(result);
+    const prefixParts = [path];
+
+    if (lineRange) {
+      prefixParts.push(`lines ${lineRange}`);
+    }
+    if (typeof score === 'number') {
+      prefixParts.push(`score ${score.toFixed(2)}`);
+    }
+
+    const summary = [prefixParts.filter(Boolean).join(' • '), snippet]
+      .filter((part) => part && part.trim())
+      .join('. ');
+
+    if (!summary) {
+      return;
+    }
+
+    entries.push({
+      id: `memory-runtime-hit-${index}`,
+      title: path ? getPathLeaf(path) : `Memory Hit ${index + 1}`,
+      type: inferRuntimeMemoryEntryType(path),
+      summary,
+      source: inferRuntimeMemoryEntrySource(path),
+      updatedAt: 'Live',
+      retention: 'pinned',
+      tokens: tokenEstimate(summary),
+    });
+  });
 
   return entries;
 }
@@ -1365,10 +2565,21 @@ class InstanceWorkbenchService {
     }
 
     workbench.cronTasks.tasks.forEach((task) => {
-      this.openClawTaskInstanceById.set(task.id, detail.instance.id);
+      const normalizedTask = normalizeWorkbenchTask(task);
+      if (!normalizedTask) {
+        return;
+      }
+
+      const rawTaskId = getStringValue(task, ['id']) || normalizedTask.id;
+      const executions =
+        workbench.cronTasks.taskExecutionsById[normalizedTask.id] ||
+        workbench.cronTasks.taskExecutionsById[rawTaskId] ||
+        [];
+
+      this.openClawTaskInstanceById.set(normalizedTask.id, detail.instance.id);
       this.backendTaskExecutionsById.set(
-        task.id,
-        (workbench.cronTasks.taskExecutionsById[task.id] || []).map(cloneTaskExecution),
+        normalizedTask.id,
+        executions.map(cloneTaskExecution),
       );
     });
   }
@@ -1404,7 +2615,6 @@ class InstanceWorkbenchService {
       modelsResult,
       channelsResult,
       skillsResult,
-      toolsResult,
       agentsResult,
       tasksResult,
     ] = await Promise.allSettled([
@@ -1412,7 +2622,6 @@ class InstanceWorkbenchService {
       this.dependencies.openClawGatewayClient.listModels(instanceId),
       this.dependencies.openClawGatewayClient.getChannelStatus(instanceId, {}),
       this.dependencies.openClawGatewayClient.getSkillsStatus(instanceId, {}),
-      this.dependencies.openClawGatewayClient.getToolsCatalog(instanceId, {}),
       this.dependencies.openClawGatewayClient.listAgents(instanceId),
       this.dependencies.openClawGatewayClient.listWorkbenchCronJobs(instanceId),
     ]);
@@ -1435,12 +2644,24 @@ class InstanceWorkbenchService {
       tasks,
       skills,
     );
-    const tools =
-      toolsResult.status === 'fulfilled' ? buildOpenClawTools(toolsResult.value) : [];
-    const files = await buildOpenClawFiles(instanceId, agents, this.dependencies).catch(() => []);
-    const memories = buildOpenClawMemories(
-      configResult.status === 'fulfilled' ? configResult.value : null,
-      files,
+    const toolCatalogResults = await Promise.allSettled(
+      (agents.length > 0
+        ? agents.map((agent) =>
+            this.dependencies.openClawGatewayClient.getToolsCatalog(instanceId, {
+              agentId: agent.agent.id,
+            }),
+          )
+        : [this.dependencies.openClawGatewayClient.getToolsCatalog(instanceId, {})]),
+    );
+    const tools = buildOpenClawScopedTools(
+      toolCatalogResults
+        .filter(
+          (
+            result,
+          ): result is PromiseFulfilledResult<OpenClawToolsCatalogResult> =>
+            result.status === 'fulfilled',
+        )
+        .map((result) => result.value),
       agents,
     );
 
@@ -1450,8 +2671,6 @@ class InstanceWorkbenchService {
       llmProviders.length > 0 ||
       agents.length > 0 ||
       skills.length > 0 ||
-      files.length > 0 ||
-      memories.length > 1 ||
       tools.length > 0;
 
     if (!hasGatewayData) {
@@ -1463,9 +2682,9 @@ class InstanceWorkbenchService {
       tasks,
       agents,
       skills,
-      files,
+      files: [],
       llmProviders,
-      memories,
+      memories: [],
       tools,
     });
   }
@@ -1527,711 +2746,89 @@ class InstanceWorkbenchService {
       return this.getOpenClawWorkbench(id, detail, managedConfigSnapshot);
     }
 
-    const [
-      instance,
-      config,
-      token,
-      logs,
-      channels,
-      rawTasks,
-      skills,
-      agents,
-      files,
-      llmProviders,
-      memories,
-      tools,
-    ] = await Promise.all([
-      this.dependencies.studioMockService.getInstance(id),
-      this.dependencies.studioMockService.getInstanceConfig(id),
-      this.dependencies.studioMockService.getInstanceToken(id),
-      this.dependencies.studioMockService.getInstanceLogs(id),
-      this.dependencies.studioMockService.listChannels(id),
-      this.dependencies.studioMockService.listTasks(id),
-      this.dependencies.studioMockService.listInstalledSkills(id),
-      this.dependencies.studioMockService.listAgents(),
-      this.dependencies.studioMockService.listInstanceFiles(id),
-      this.dependencies.studioMockService.listInstanceLlmProviders(id),
-      this.dependencies.studioMockService.listInstanceMemories(id),
-      this.dependencies.studioMockService.listInstanceTools(id),
-    ]);
+    if (detail?.workbench) {
+      return mapBackendWorkbench(detail, managedConfigSnapshot);
+    }
 
     if (detail) {
-      const mappedChannels: InstanceWorkbenchChannel[] =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.channels.map((channel) => ({
-              ...channel,
-              setupSteps: [...channel.setupSteps],
-            }))
-          : managedConfigSnapshot
-            ? managedConfigSnapshot.channelSnapshots.map(mapManagedChannel)
-          : channels.map((channel) => ({
-              id: channel.id,
-              name: channel.name,
-              description: channel.description,
-              status: channel.status,
-              enabled: channel.enabled,
-              configurationMode: channel.configurationMode,
-              fieldCount: channel.fields.length,
-              configuredFieldCount: channel.fields.filter((field) => Boolean(field.value)).length,
-              setupSteps: [...channel.setupGuide],
-            }));
-
-      const deliveryChannelNameMap = Object.fromEntries(
-        mappedChannels.map((channel) => [channel.id, channel.name]),
-      ) as Record<string, string>;
-      const taskExecutionsById =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? Object.fromEntries(
-              Object.entries(detail.workbench.cronTasks.taskExecutionsById).map(
-                ([taskId, executions]) => [
-                  taskId,
-                  executions.map((execution) => ({ ...execution })),
-                ],
-              ),
-            ) as Record<string, InstanceWorkbenchTaskExecution[]>
-          : (Object.fromEntries(
-              await Promise.all(
-                rawTasks.map(async (task) => {
-                  const executions = await this.dependencies.studioMockService.listTaskExecutions(task.id);
-                  return [task.id, executions] as const;
-                }),
-              ),
-            ) as Record<string, MockTaskExecutionHistoryEntry[]>);
-      const mappedTasks: InstanceWorkbenchTask[] =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.cronTasks.tasks.map((task) => ({
-              ...task,
-              scheduleConfig: { ...task.scheduleConfig },
-              latestExecution:
-                task.latestExecution ?? taskExecutionsById[task.id]?.[0] ?? null,
-            }))
-          : rawTasks.map((task) => ({
-              ...task,
-              deliveryLabel:
-                task.deliveryMode === 'none'
-                  ? undefined
-                  : deliveryChannelNameMap[task.deliveryChannel || ''] ||
-                    task.deliveryChannel ||
-                    undefined,
-              latestExecution: taskExecutionsById[task.id]?.[0] || null,
-            }));
-      const mappedFiles: InstanceWorkbenchFile[] =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.files.map((file) => ({ ...file }))
-          : files.map((file) => ({ ...file }));
-      const mappedLlmProviders =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.llmProviders.map((provider) => ({
-              ...provider,
-              capabilities: [...provider.capabilities],
-              models: provider.models.map((model) => ({ ...model })),
-              config: { ...provider.config },
-            }))
-          : managedConfigSnapshot
-            ? managedConfigSnapshot.providerSnapshots.map(mapManagedProvider)
-          : llmProviders.map(mapLlmProvider);
-      const mappedMemories =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.memory.map((entry) => ({ ...entry }))
-          : memories.map(mapMemoryEntry);
-      const mappedTools =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.tools.map((tool) => ({ ...tool }))
-          : tools.map(mapTool);
-      const mappedSkills =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? detail.workbench.skills.map((skill) => ({ ...skill }))
-          : skills;
-      const mappedAgents: InstanceWorkbenchAgent[] =
-        detail.instance.runtimeKind === 'openclaw' && detail.workbench
-          ? (() => {
-              const runtimeAgents: InstanceWorkbenchAgent[] = detail.workbench.agents.map((agent) => ({
-                ...agent,
-                agent: { ...agent.agent },
-                focusAreas: [...agent.focusAreas],
-                configSource: 'runtime' as const,
-              }));
-              const managedAgents: InstanceWorkbenchAgent[] =
-                managedConfigSnapshot?.agentSnapshots.map((agentSnapshot) =>
-                  mapManagedAgent(
-                    agentSnapshot,
-                    mappedTasks,
-                    mappedSkills,
-                    runtimeAgents.find((record) => record.agent.id === agentSnapshot.id),
-                  ),
-                ) || [];
-
-              return managedAgents.length > 0
-                ? [
-                    ...managedAgents,
-                    ...runtimeAgents.filter(
-                      (record) =>
-                        !managedAgents.some((managedAgent) => managedAgent.agent.id === record.agent.id),
-                    ),
-                  ]
-                : runtimeAgents.map(cloneWorkbenchAgent);
-            })()
-          : managedConfigSnapshot?.agentSnapshots.length
-            ? managedConfigSnapshot.agentSnapshots.map((agentSnapshot) =>
-                mapManagedAgent(agentSnapshot, mappedTasks, mappedSkills),
-              )
-            : agents.map((agent) => mapAgent(agent, mappedTasks, mappedSkills));
-      const connectedChannelCount = mappedChannels.filter(
-        (channel) => channel.status === 'connected' && channel.enabled,
-      ).length;
-      const activeTaskCount = mappedTasks.filter((task) => task.status === 'active').length;
-      const readyToolCount = mappedTools.filter((tool) => tool.status === 'ready').length;
-      const sectionCounts = {
-        overview:
-          detail.connectivity.endpoints.length +
-          detail.capabilities.length +
-          detail.dataAccess.routes.length +
-          detail.artifacts.length,
-        channels: mappedChannels.length,
-        cronTasks: mappedTasks.length,
-        llmProviders: mappedLlmProviders.length,
-        agents: mappedAgents.length,
-        skills: mappedSkills.length,
-        files: mappedFiles.length,
-        memory: mappedMemories.length,
-        tools: mappedTools.length,
-      } as const;
-
-      return {
-        instance: mapStudioInstance(detail.instance),
-        config: mapStudioConfig(detail),
-        token: detail.config.authToken || '',
-        logs: detail.logs,
-        detail,
-        managedConfigPath,
-        managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
-        healthScore: detail.health.score,
-        runtimeStatus: detail.health.status,
-        connectedChannelCount,
-        activeTaskCount,
-        installedSkillCount: mappedSkills.length,
-        readyToolCount,
-        sectionCounts,
-        sectionAvailability: buildSectionAvailability(detail, sectionCounts),
-        channels: mappedChannels,
-        tasks: mappedTasks,
-        agents: mappedAgents,
-        skills: mappedSkills,
-        files: mappedFiles,
-        llmProviders: mappedLlmProviders,
-        memories: mappedMemories,
-        tools: mappedTools,
-      };
+      return buildDetailOnlyWorkbenchSnapshot(detail, managedConfigPath, managedConfigSnapshot);
     }
 
-    if (!instance || !config) {
-      const [liveInstance, liveConfig, liveToken, liveLogs] = await Promise.all([
-        this.dependencies.instanceService.getInstanceById(id),
-        this.dependencies.instanceService.getInstanceConfig(id),
-        this.dependencies.instanceService.getInstanceToken(id),
-        this.dependencies.instanceService.getInstanceLogs(id),
-      ]);
+    const [liveInstance, liveConfig, liveToken, liveLogs] = await Promise.all([
+      this.dependencies.instanceService.getInstanceById(id),
+      this.dependencies.instanceService.getInstanceConfig(id),
+      this.dependencies.instanceService.getInstanceToken(id),
+      this.dependencies.instanceService.getInstanceLogs(id),
+    ]);
 
-      if (!liveInstance || !liveConfig) {
-        return null;
-      }
-
-      return {
-        instance: liveInstance,
-        config: liveConfig,
-        token: liveToken || '',
-        logs: liveLogs,
-        detail: {
-          instance: detail?.instance || {
-            id: liveInstance.id,
-            name: liveInstance.name,
-            description: undefined,
-            runtimeKind: 'custom',
-            deploymentMode: 'remote',
-            transportKind: 'customHttp',
-            status: liveInstance.status === 'starting' ? 'starting' : liveInstance.status,
-            isBuiltIn: false,
-            isDefault: false,
-            iconType: liveInstance.iconType,
-            version: liveInstance.version,
-            typeLabel: liveInstance.type,
-            host: liveInstance.ip,
-            port: Number.parseInt(liveConfig.port, 10) || null,
-            baseUrl: null,
-            websocketUrl: null,
-            cpu: liveInstance.cpu,
-            memory: liveInstance.memory,
-            totalMemory: liveInstance.totalMemory,
-            uptime: liveInstance.uptime,
-            capabilities: ['chat', 'health'],
-            storage: {
-              provider: 'localFile',
-              namespace: 'claw-studio',
-            },
-            config: {
-              port: liveConfig.port,
-              sandbox: liveConfig.sandbox,
-              autoUpdate: liveConfig.autoUpdate,
-              logLevel: liveConfig.logLevel,
-              corsOrigins: liveConfig.corsOrigins,
-            },
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            lastSeenAt: Date.now(),
-          },
-          config: {
-            port: liveConfig.port,
-            sandbox: liveConfig.sandbox,
-            autoUpdate: liveConfig.autoUpdate,
-            logLevel: liveConfig.logLevel,
-            corsOrigins: liveConfig.corsOrigins,
-          },
-          logs: liveLogs,
-          health: {
-            score: liveInstance.status === 'online' ? 80 : 35,
-            status: liveInstance.status === 'online' ? 'healthy' : liveInstance.status === 'offline' ? 'offline' : 'attention',
-            checks: [],
-            evaluatedAt: Date.now(),
-          },
-          lifecycle: {
-            owner: 'remoteService',
-            startStopSupported: false,
-            configWritable: true,
-            notes: ['Fallback detail projection.'],
-          },
-          storage: {
-            status: 'planned',
-            provider: 'localFile',
-            namespace: 'claw-studio',
-            durable: true,
-            queryable: false,
-            transactional: false,
-            remote: false,
-          },
-          connectivity: {
-            primaryTransport: 'customHttp',
-            endpoints: [],
-          },
-          observability: {
-            status: 'limited',
-            logAvailable: Boolean(liveLogs),
-            logPreview: liveLogs ? liveLogs.split('\n').filter(Boolean).slice(-5) : [],
-            metricsSource: 'derived',
-            lastSeenAt: Date.now(),
-          },
-          dataAccess: {
-            routes: [
-              {
-                id: 'config',
-                label: 'Configuration',
-                scope: 'config',
-                mode: 'metadataOnly',
-                status: 'ready',
-                target: 'studio.instances registry metadata',
-                readonly: false,
-                authoritative: false,
-                detail: 'Fallback detail projects configuration from Claw Studio metadata.',
-                source: 'integration',
-              },
-              {
-                id: 'logs',
-                label: 'Logs',
-                scope: 'logs',
-                mode: 'metadataOnly',
-                status: liveLogs ? 'limited' : 'planned',
-                target: null,
-                readonly: true,
-                authoritative: false,
-                detail: 'Fallback detail only exposes derived log preview lines.',
-                source: 'derived',
-              },
-            ],
-          },
-          artifacts: [
-            {
-              id: 'storage-binding',
-              label: 'Storage Binding',
-              kind: 'storageBinding',
-              status: 'planned',
-              location: 'claw-studio',
-              readonly: false,
-              detail: 'Fallback detail projects storage metadata only.',
-              source: 'storage',
-            },
-          ],
-          capabilities: [
-            {
-              id: 'chat',
-              status: 'ready',
-              detail: 'Fallback instance detail projection.',
-              source: 'runtime',
-            },
-            {
-              id: 'health',
-              status: 'ready',
-              detail: 'Fallback instance detail projection.',
-              source: 'runtime',
-            },
-          ],
-          officialRuntimeNotes: [],
-        },
-        managedConfigPath: null,
-        managedChannels: undefined,
-        healthScore: liveInstance.status === 'online' ? 80 : 35,
-        runtimeStatus:
-          liveInstance.status === 'online'
-            ? 'healthy'
-            : liveInstance.status === 'offline'
-              ? 'offline'
-              : 'attention',
-        connectedChannelCount: 0,
-        activeTaskCount: 0,
-        installedSkillCount: 0,
-        readyToolCount: 0,
-        sectionCounts: {
-          overview: 1,
-          channels: 0,
-          cronTasks: 0,
-          llmProviders: 0,
-          agents: 0,
-          skills: 0,
-          files: 0,
-          memory: 0,
-          tools: 0,
-        },
-        sectionAvailability: {
-          overview: {
-            status: 'ready',
-            detail: 'Fallback overview is available.',
-          },
-          channels: {
-            status: 'planned',
-            detail: 'No channel adapter is configured for this instance yet.',
-          },
-          cronTasks: {
-            status: 'planned',
-            detail: 'No task adapter is configured for this instance yet.',
-          },
-          llmProviders: {
-            status: 'planned',
-            detail: 'No model adapter is configured for this instance yet.',
-          },
-          agents: {
-            status: 'planned',
-            detail: 'No agent adapter is configured for this instance yet.',
-          },
-          skills: {
-            status: 'planned',
-            detail: 'No skill adapter is configured for this instance yet.',
-          },
-          files: {
-            status: 'planned',
-            detail: 'No file adapter is configured for this instance yet.',
-          },
-          memory: {
-            status: 'planned',
-            detail: 'No memory adapter is configured for this instance yet.',
-          },
-          tools: {
-            status: 'planned',
-            detail: 'No tool adapter is configured for this instance yet.',
-          },
-        },
-        channels: [],
-        tasks: [],
-        agents: [],
-        skills: [],
-        files: [],
-        llmProviders: [],
-        memories: [],
-        tools: [],
-      };
+    if (!liveInstance || !liveConfig) {
+      return null;
     }
 
-    const mappedChannels: InstanceWorkbenchChannel[] = channels.map((channel) => ({
-      id: channel.id,
-      name: channel.name,
-      description: channel.description,
-      status: channel.status,
-      enabled: channel.enabled,
-      fieldCount: channel.fields.length,
-      configuredFieldCount: channel.fields.filter((field) => Boolean(field.value)).length,
-      setupSteps: [...channel.setupGuide],
-    }));
+    return buildRegistryWorkbenchSnapshot(liveInstance, liveConfig, liveToken, liveLogs);
+  }
 
-    const deliveryChannelNameMap = Object.fromEntries(
-      mappedChannels.map((channel) => [channel.id, channel.name]),
-    ) as Record<string, string>;
-    const taskExecutions = await Promise.all(
-      rawTasks.map(async (task) => {
-        const executions = await this.dependencies.studioMockService.listTaskExecutions(task.id);
-        return [task.id, executions] as const;
-      }),
-    );
-    const taskExecutionsById = Object.fromEntries(
-      taskExecutions,
-    ) as Record<string, MockTaskExecutionHistoryEntry[]>;
-    const mappedTasks: InstanceWorkbenchTask[] = rawTasks.map((task) => ({
-      ...task,
-      deliveryLabel:
-        task.deliveryMode === 'none'
-          ? undefined
-          : deliveryChannelNameMap[task.deliveryChannel || ''] ||
-            task.deliveryChannel ||
-            undefined,
-      latestExecution: taskExecutionsById[task.id]?.[0] || null,
-    }));
-    const mappedFiles: InstanceWorkbenchFile[] = files.map((file) => ({ ...file }));
-    const mappedLlmProviders = llmProviders.map(mapLlmProvider);
-    const mappedMemories = memories.map(mapMemoryEntry);
-    const mappedTools = tools.map(mapTool);
+  async listInstanceFiles(
+    instanceId: string,
+    agents: InstanceWorkbenchAgent[] = [],
+  ): Promise<InstanceWorkbenchFile[]> {
+    if (agents.length > 0) {
+      return buildOpenClawFilesCatalog(instanceId, agents, this.dependencies);
+    }
 
-    const connectedChannelCount = mappedChannels.filter(
-      (channel) => channel.status === 'connected' && channel.enabled,
-    ).length;
-    const activeTaskCount = mappedTasks.filter((task) => task.status === 'active').length;
-    const readyToolCount = mappedTools.filter((tool) => tool.status === 'ready').length;
-    const healthScore = deriveRuntimeHealthScore(
-      instance.cpu,
-      instance.memory,
-      instance.status,
-      connectedChannelCount,
-      activeTaskCount,
-      skills.length,
-    );
+    return [];
+  }
 
-    return {
-      instance,
-      config,
-      token: token || '',
-      logs,
-      detail: {
-        instance: {
-          id: instance.id,
-          name: instance.name,
-          description: undefined,
-          runtimeKind: 'custom',
-          deploymentMode: 'remote',
-          transportKind: 'customHttp',
-          status: instance.status === 'starting' ? 'starting' : instance.status,
-          isBuiltIn: false,
-          isDefault: false,
-          iconType: instance.iconType,
-          version: instance.version,
-          typeLabel: instance.type,
-          host: instance.ip,
-          port: Number.parseInt(config.port, 10) || null,
-          baseUrl: null,
-          websocketUrl: null,
-          cpu: instance.cpu,
-          memory: instance.memory,
-          totalMemory: instance.totalMemory,
-          uptime: instance.uptime,
-          capabilities: ['chat', 'health'],
-          storage: {
-            provider: 'localFile',
-            namespace: 'claw-studio',
-          },
-          config: {
-            port: config.port,
-            sandbox: config.sandbox,
-            autoUpdate: config.autoUpdate,
-            logLevel: config.logLevel,
-            corsOrigins: config.corsOrigins,
-          },
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          lastSeenAt: Date.now(),
-        },
-        config: {
-          port: config.port,
-          sandbox: config.sandbox,
-          autoUpdate: config.autoUpdate,
-          logLevel: config.logLevel,
-          corsOrigins: config.corsOrigins,
-        },
-        logs,
-        health: {
-          score: healthScore,
-          status: healthScore >= 80 ? 'healthy' : healthScore >= 55 ? 'attention' : 'degraded',
-          checks: [],
-          evaluatedAt: Date.now(),
-        },
-        lifecycle: {
-          owner: 'externalProcess',
-          startStopSupported: false,
-          configWritable: true,
-          notes: ['Mock-backed detail projection.'],
-        },
-        storage: {
-          status: 'planned',
-          provider: 'localFile',
-          namespace: 'claw-studio',
-          durable: true,
-          queryable: false,
-          transactional: false,
-          remote: false,
-        },
-        connectivity: {
-          primaryTransport: 'customHttp',
-          endpoints: [],
-        },
-        observability: {
-          status: logs ? 'ready' : 'limited',
-          logAvailable: Boolean(logs),
-          logPreview: logs ? logs.split('\n').filter(Boolean).slice(-5) : [],
-          metricsSource: 'derived',
-          lastSeenAt: Date.now(),
-        },
-        dataAccess: {
-          routes: [
-            {
-              id: 'config',
-              label: 'Configuration',
-              scope: 'config',
-              mode: 'metadataOnly',
-              status: 'ready',
-              target: 'studio.instances registry metadata',
-              readonly: false,
-              authoritative: false,
-              detail: 'Mock-backed detail projects configuration from Claw Studio metadata.',
-              source: 'integration',
-            },
-            {
-              id: 'logs',
-              label: 'Logs',
-              scope: 'logs',
-              mode: 'metadataOnly',
-              status: logs ? 'limited' : 'planned',
-              target: null,
-              readonly: true,
-              authoritative: false,
-              detail: 'Mock-backed detail only exposes derived log preview lines.',
-              source: 'derived',
-            },
-          ],
-        },
-        artifacts: [
-          {
-            id: 'storage-binding',
-            label: 'Storage Binding',
-            kind: 'storageBinding',
-            status: 'planned',
-            location: 'claw-studio',
-            readonly: false,
-            detail: 'Mock-backed detail projects storage metadata only.',
-            source: 'storage',
-          },
-        ],
-        capabilities: [
-          {
-            id: 'chat',
-            status: 'ready',
-            detail: 'Mock-backed detail projection.',
-            source: 'runtime',
-          },
-          {
-            id: 'health',
-            status: 'ready',
-            detail: 'Mock-backed detail projection.',
-            source: 'runtime',
-          },
-        ],
-        officialRuntimeNotes: [],
-      },
-      managedConfigPath: null,
-      managedChannels: undefined,
-      healthScore,
-      runtimeStatus: healthScore >= 80 ? 'healthy' : healthScore >= 55 ? 'attention' : 'degraded',
-      connectedChannelCount,
-      activeTaskCount,
-      installedSkillCount: skills.length,
-      readyToolCount,
-      sectionCounts: {
-        overview: 1,
-        channels: mappedChannels.length,
-        cronTasks: mappedTasks.length,
-        llmProviders: mappedLlmProviders.length,
-        agents: agents.length,
-        skills: skills.length,
-        files: mappedFiles.length,
-        memory: mappedMemories.length,
-        tools: mappedTools.length,
-      },
-      sectionAvailability: {
-        overview: {
-          status: 'ready',
-          detail: 'Overview is available through the workbench projection.',
-        },
-        channels: {
-          status: mappedChannels.length > 0 ? 'ready' : 'planned',
-          detail:
-            mappedChannels.length > 0
-              ? 'Channel data is available for this instance workbench.'
-              : 'Channel data is not configured for this instance yet.',
-        },
-        cronTasks: {
-          status: mappedTasks.length > 0 ? 'ready' : 'planned',
-          detail:
-            mappedTasks.length > 0
-              ? 'Task data is available for this instance workbench.'
-              : 'Task data is not configured for this instance yet.',
-        },
-        llmProviders: {
-          status: mappedLlmProviders.length > 0 ? 'ready' : 'planned',
-          detail:
-            mappedLlmProviders.length > 0
-              ? 'Model provider data is available for this instance workbench.'
-              : 'Model provider data is not configured for this instance yet.',
-        },
-        agents: {
-          status: agents.length > 0 ? 'ready' : 'planned',
-          detail:
-            agents.length > 0
-              ? 'Agent data is available for this instance workbench.'
-              : 'Agent data is not configured for this instance yet.',
-        },
-        skills: {
-          status: skills.length > 0 ? 'ready' : 'planned',
-          detail:
-            skills.length > 0
-              ? 'Skill data is available for this instance workbench.'
-              : 'Skill data is not configured for this instance yet.',
-        },
-        files: {
-          status: mappedFiles.length > 0 ? 'ready' : 'planned',
-          detail:
-            mappedFiles.length > 0
-              ? 'Runtime file data is available for this instance workbench.'
-              : 'Runtime file data is not configured for this instance yet.',
-        },
-        memory: {
-          status: mappedMemories.length > 0 ? 'ready' : 'planned',
-          detail:
-            mappedMemories.length > 0
-              ? 'Memory data is available for this instance workbench.'
-              : 'Memory data is not configured for this instance yet.',
-        },
-        tools: {
-          status: mappedTools.length > 0 ? 'ready' : 'planned',
-          detail:
-            mappedTools.length > 0
-              ? 'Tool data is available for this instance workbench.'
-              : 'Tool data is not configured for this instance yet.',
-        },
-      },
-      channels: mappedChannels,
-      tasks: mappedTasks,
-      agents: agents.map((agent) => mapAgent(agent, mappedTasks, skills)),
-      skills,
-      files: mappedFiles,
-      llmProviders: mappedLlmProviders,
-      memories: mappedMemories,
-      tools: mappedTools,
-    };
+  async listInstanceMemories(
+    instanceId: string,
+    agents: InstanceWorkbenchAgent[] = [],
+  ): Promise<InstanceWorkbenchMemoryEntry[]> {
+    const [configSnapshot, memoryFiles, doctorMemoryStatus, runtimeSearchResult] = await Promise.all([
+      this.dependencies.openClawGatewayClient.getConfig(instanceId).catch(() => null),
+      agents.length > 0
+        ? buildOpenClawMemoryFiles(instanceId, agents, this.dependencies).catch(() => [])
+        : Promise.resolve([] as InstanceWorkbenchFile[]),
+      agents.length > 0
+        ? this.dependencies.openClawGatewayClient.getDoctorMemoryStatus(instanceId).catch(() => null)
+        : Promise.resolve(null),
+      agents.length > 0
+        ? this.dependencies.openClawGatewayClient
+            .searchMemory(instanceId, {
+              query: 'recent work decisions runbook',
+              maxResults: 6,
+            })
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    const runtimeMemories = buildOpenClawRuntimeMemories(doctorMemoryStatus, runtimeSearchResult);
+
+    if (runtimeMemories.some((entry) => entry.id.startsWith('memory-runtime-hit-'))) {
+      return runtimeMemories;
+    }
+
+    if (runtimeMemories.length > 0) {
+      return [
+        ...runtimeMemories,
+        ...buildOpenClawMemories(configSnapshot, memoryFiles, agents).filter(
+          (entry) => entry.id !== 'memory-backend',
+        ),
+      ];
+    }
+
+    if (agents.length > 0 || configSnapshot) {
+      return buildOpenClawMemories(configSnapshot, memoryFiles, agents);
+    }
+
+    return [];
   }
 
   async createTask(instanceId: string, payload: Record<string, unknown>): Promise<void> {
+    const detail = await this.dependencies.studioApi.getInstanceDetail(instanceId);
+    if (isOpenClawDetail(detail)) {
+      await this.dependencies.openClawGatewayClient.addCronJob(instanceId, payload);
+      return;
+    }
+
     await studio.createInstanceTask(instanceId, payload);
   }
 
@@ -2240,33 +2837,65 @@ class InstanceWorkbenchService {
     id: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
+    const detail = await this.dependencies.studioApi.getInstanceDetail(instanceId);
+    if (isOpenClawDetail(detail)) {
+      await this.dependencies.openClawGatewayClient.updateCronJob(instanceId, id, payload);
+      return;
+    }
+
     await studio.updateInstanceTask(instanceId, id, payload);
   }
 
   async cloneTask(id: string, name?: string): Promise<void> {
     const instanceId = this.openClawTaskInstanceById.get(id);
-    if (instanceId) {
-      await this.dependencies.studioApi.cloneInstanceTask(instanceId, id, name);
-      return;
+    if (!instanceId) {
+      throw new Error('Task is not available from the current runtime snapshot.');
     }
-    const cloned = await this.dependencies.studioMockService.cloneTask(id, name ? { name } : {});
-    if (!cloned) {
-      throw new Error('Failed to clone task');
+
+    const tasks = await this.dependencies.openClawGatewayClient.listWorkbenchCronJobs(instanceId);
+    const current = tasks.find((task) => task.id === id);
+    if (!current) {
+      throw new Error('Task is not available from the current runtime snapshot.');
     }
+
+    await this.dependencies.openClawGatewayClient.addCronJob(
+      instanceId,
+      buildOpenClawCronTaskPayload(
+        toCreateTaskInput(current, {
+          name: name || current.name,
+        }),
+        current.rawDefinition,
+      ),
+    );
   }
 
   async runTaskNow(id: string): Promise<InstanceWorkbenchTaskExecution> {
     const instanceId = this.openClawTaskInstanceById.get(id);
-    if (instanceId) {
-      const execution = await this.dependencies.studioApi.runInstanceTaskNow(instanceId, id);
-      const current = this.backendTaskExecutionsById.get(id) || [];
-      this.backendTaskExecutionsById.set(id, [cloneTaskExecution(execution), ...current]);
-      return execution;
+    if (!instanceId) {
+      throw new Error('Task is not available from the current runtime snapshot.');
     }
-    const execution = await this.dependencies.studioMockService.runTaskNow(id);
-    if (!execution) {
-      throw new Error('Failed to run task');
+
+    await this.dependencies.openClawGatewayClient.runCronJob(instanceId, id);
+    const executions = await this.dependencies.openClawGatewayClient.listWorkbenchCronRuns(
+      instanceId,
+      id,
+    );
+    if (executions.length > 0) {
+      this.backendTaskExecutionsById.set(id, executions.map(cloneTaskExecution));
+      return cloneTaskExecution(executions[0]!);
     }
+
+    const execution: InstanceWorkbenchTaskExecution = {
+      id: `${id}-${Date.now()}`,
+      taskId: id,
+      status: 'running',
+      trigger: 'manual',
+      startedAt: new Date().toISOString(),
+      summary: 'Cron job has been queued.',
+      details: undefined,
+    };
+    const current = this.backendTaskExecutionsById.get(id) || [];
+    this.backendTaskExecutionsById.set(id, [cloneTaskExecution(execution), ...current]);
     return execution;
   }
 
@@ -2289,36 +2918,34 @@ class InstanceWorkbenchService {
         return executions;
       }
     }
-    return this.dependencies.studioMockService.listTaskExecutions(id);
+
+    const executions = this.backendTaskExecutionsById.get(id) || [];
+    return executions.map(cloneTaskExecution);
   }
 
   async updateTaskStatus(id: string, status: 'active' | 'paused'): Promise<void> {
     const instanceId = this.openClawTaskInstanceById.get(id);
-    if (instanceId) {
-      await this.dependencies.studioApi.updateInstanceTaskStatus(instanceId, id, status);
-      return;
+    if (!instanceId) {
+      throw new Error('Task is not available from the current runtime snapshot.');
     }
-    const updated = await this.dependencies.studioMockService.updateTaskStatus(id, status);
-    if (!updated) {
-      throw new Error('Failed to update task status');
-    }
+
+    await this.dependencies.openClawGatewayClient.updateCronJob(instanceId, id, {
+      enabled: status === 'active',
+    });
   }
 
   async deleteTask(id: string): Promise<void> {
     const instanceId = this.openClawTaskInstanceById.get(id);
-    if (instanceId) {
-      const deleted = await this.dependencies.studioApi.deleteInstanceTask(instanceId, id);
-      if (!deleted) {
-        throw new Error('Failed to delete task');
-      }
-      this.openClawTaskInstanceById.delete(id);
-      this.backendTaskExecutionsById.delete(id);
-      return;
+    if (!instanceId) {
+      throw new Error('Task is not available from the current runtime snapshot.');
     }
-    const deleted = await this.dependencies.studioMockService.deleteTask(id);
+
+    const deleted = await this.dependencies.openClawGatewayClient.removeCronJob(instanceId, id);
     if (!deleted) {
       throw new Error('Failed to delete task');
     }
+    this.openClawTaskInstanceById.delete(id);
+    this.backendTaskExecutionsById.delete(id);
   }
 }
 
@@ -2330,10 +2957,6 @@ export function createInstanceWorkbenchService(
     studioApi: {
       ...defaults.studioApi,
       ...(overrides.studioApi || {}),
-    },
-    studioMockService: {
-      ...defaults.studioMockService,
-      ...(overrides.studioMockService || {}),
     },
     instanceService: {
       ...defaults.instanceService,

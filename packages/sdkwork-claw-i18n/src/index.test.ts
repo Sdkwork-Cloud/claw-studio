@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import en from './locales/en.json' with { type: 'json' };
-import zh from './locales/zh.json' with { type: 'json' };
+import en from './locales/en/index.ts';
+import zh from './locales/zh/index.ts';
 import {
   APP_STORE_STORAGE_KEY,
   DEFAULT_LANGUAGE,
@@ -29,6 +29,8 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(currentDirectory, '../../..');
 const packagesRoot = join(workspaceRoot, 'packages');
 const approvedLocaleDirectory = join(packagesRoot, 'sdkwork-claw-i18n', 'src', 'locales');
+const legacyEnglishLocalePath = join(approvedLocaleDirectory, 'en.json');
+const legacyChineseLocalePath = join(approvedLocaleDirectory, 'zh.json');
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -188,6 +190,34 @@ await runTest('i18n interpolation formats numeric counts using the active locale
 
 await runTest('english and chinese locale key sets remain aligned', () => {
   assert.deepEqual(flattenKeys(en).sort(), flattenKeys(zh).sort());
+});
+
+await runTest('locale resources keep split directories and compatibility aggregate json files aligned', () => {
+  const englishDirectory = join(approvedLocaleDirectory, 'en');
+  const chineseDirectory = join(approvedLocaleDirectory, 'zh');
+  assert.equal(existsSync(legacyEnglishLocalePath), true);
+  assert.equal(existsSync(legacyChineseLocalePath), true);
+  assert.equal(existsSync(englishDirectory), true);
+  assert.equal(existsSync(chineseDirectory), true);
+
+  const englishFiles = readdirSync(englishDirectory).filter((entry) => extname(entry) === '.json').sort();
+  const chineseFiles = readdirSync(chineseDirectory).filter((entry) => extname(entry) === '.json').sort();
+  const compatibilityDomains = englishFiles.map((entry) => entry.slice(0, -'.json'.length)).sort();
+  const englishCompatibility = JSON.parse(readFileSync(legacyEnglishLocalePath, 'utf8')) as Record<string, unknown>;
+  const chineseCompatibility = JSON.parse(readFileSync(legacyChineseLocalePath, 'utf8')) as Record<string, unknown>;
+  assert.deepEqual(englishFiles, chineseFiles);
+  assert.equal(englishFiles.length > 10, true);
+  assert.deepEqual(Object.keys(englishCompatibility).sort(), compatibilityDomains);
+  assert.deepEqual(Object.keys(chineseCompatibility).sort(), compatibilityDomains);
+});
+
+await runTest('locale structure validation script passes for the current split-resource layout', () => {
+  return import('../scripts/check-locale-structure.mjs').then((module) => {
+    assert.equal(typeof module.validateLocaleStructure, 'function');
+    const result = module.validateLocaleStructure();
+    assert.equal(result.ok, true);
+    assert.match(result.message, /locale structure ok/i);
+  });
 });
 
 await runTest('formatting helpers use the selected application language', () => {

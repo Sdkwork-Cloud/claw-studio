@@ -35,6 +35,7 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
     closeWindow: async () => {},
     listDirectory: async () => [],
     pathExists: async () => false,
+    pathExistsForUserTooling: async () => false,
     getPathInfo: async (path) => ({
       path,
       name: path.split(/[\\/]/).pop() || path,
@@ -52,6 +53,9 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
     writeBinaryFile: async () => {},
     readFile: async () => {
       throw new Error('readFile stub not configured');
+    },
+    readFileForUserTooling: async () => {
+      throw new Error('readFileForUserTooling stub not configured');
     },
     writeFile: async () => {},
     ...overrides,

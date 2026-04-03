@@ -11,6 +11,12 @@ export { ThemeManager } from './application/providers/ThemeManager';
 export { MainLayout } from './application/layouts/MainLayout';
 export { AppRoutes } from './application/router/AppRoutes';
 export { ROUTE_PATHS } from './application/router/routePaths';
+export {
+  listSidebarRoutePrefetchPaths,
+  prefetchSidebarRoute,
+  prefetchSidebarRoutes,
+  resolveSidebarStartupRoute,
+} from './application/router/routePrefetch';
 export { AppHeader } from './components/AppHeader';
 export { InstanceSwitcher } from './components/InstanceSwitcher';
 export { Sidebar } from './components/Sidebar';

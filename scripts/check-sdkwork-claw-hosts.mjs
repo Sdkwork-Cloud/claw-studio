@@ -33,6 +33,10 @@ function assertAnyIncludes(relPaths, pattern, label) {
 
 assertIncludes('packages/sdkwork-claw-web/src/App.tsx', '@sdkwork/claw-shell', 'web host shell dependency');
 assertIncludes('packages/sdkwork-claw-desktop/package.json', '@sdkwork/claw-shell', 'desktop package shell dependency');
+assertIncludes('packages/sdkwork-claw-server/package.json', '@sdkwork/claw-host-core', 'server package host-core dependency');
+assertIncludes('packages/sdkwork-claw-host-core/package.json', '@sdkwork/claw-host-core', 'host-core package name');
+read('packages/sdkwork-claw-server/src-host/Cargo.toml');
+read('packages/sdkwork-claw-host-core/src-host/Cargo.toml');
 assertIncludes(
   'packages/sdkwork-claw-web/vite.config.ts',
   'allow:',

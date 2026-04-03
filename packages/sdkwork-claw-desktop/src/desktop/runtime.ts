@@ -57,6 +57,18 @@ export class DesktopBridgeError extends Error {
   }
 }
 
+export function createDesktopUnavailableError(
+  operation: string,
+  command?: DesktopCommandName,
+): DesktopBridgeError {
+  return new DesktopBridgeError({
+    operation,
+    runtime: 'web',
+    command,
+    cause: 'Tauri runtime is unavailable.',
+  });
+}
+
 interface TauriInternalsLike {
   invoke?: unknown;
 }
@@ -136,12 +148,7 @@ export async function invokeDesktopCommand<T>(
 ): Promise<T> {
   const operation = options?.operation ?? command;
   if (!(await waitForTauriRuntime())) {
-    throw new DesktopBridgeError({
-      operation,
-      runtime: 'web',
-      command,
-      cause: 'Tauri runtime is unavailable.',
-    });
+    throw createDesktopUnavailableError(operation, command);
   }
 
   try {
@@ -201,4 +208,13 @@ export async function runDesktopOrFallback<T>(
       cause,
     });
   }
+}
+
+export async function runDesktopOnly<T>(
+  operation: string,
+  desktopCall: () => Promise<T>,
+): Promise<T> {
+  return runDesktopOrFallback(operation, desktopCall, async () => {
+    throw createDesktopUnavailableError(operation);
+  });
 }

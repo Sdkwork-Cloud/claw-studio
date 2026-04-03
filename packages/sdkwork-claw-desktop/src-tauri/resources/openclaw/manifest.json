@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "runtimeId": "openclaw",
+  "openclawVersion": "2026.4.1",
+  "nodeVersion": "22.16.0",
+  "platform": "windows",
+  "arch": "x64",
+  "nodeRelativePath": "runtime/node/node.exe",
+  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
+}

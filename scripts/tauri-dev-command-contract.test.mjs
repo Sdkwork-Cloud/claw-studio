@@ -26,6 +26,7 @@ function parsePort(url) {
 
 const desktopPackage = readJson('packages/sdkwork-claw-desktop/package.json');
 const tauriConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json');
+const tauriWindowsConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json');
 const bundledSyncDevCommand = 'node ../../scripts/sync-bundled-components.mjs --dev --no-fetch';
 const bundledSyncBuildCommand = 'node ../../scripts/sync-bundled-components.mjs --no-fetch --release';
 const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
@@ -34,7 +35,6 @@ const devBinaryUnlockGuardCommand =
   'node ../../scripts/ensure-tauri-dev-binary-unlocked.mjs src-tauri sdkwork-claw-desktop';
 const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420';
 const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runtime.mjs';
-const bundledApiRouterPrepareCommand = 'node ../../scripts/prepare-sdkwork-api-router-runtime.mjs';
 const desktopBuildVerifyCommand = 'node ../../scripts/verify-desktop-build-assets.mjs';
 const tauriDevRunnerCommand = 'node ../../scripts/run-tauri-cli.mjs dev';
 const desktopBundleRunnerCommand = 'node ../../scripts/run-desktop-release-build.mjs --phase bundle --vite-mode production';
@@ -91,11 +91,8 @@ if (bundledOpenClawPrepareScript !== bundledOpenClawPrepareCommand) {
   );
 }
 
-const bundledApiRouterPrepareScript = desktopPackage.scripts?.['prepare:api-router-runtime'];
-if (bundledApiRouterPrepareScript !== bundledApiRouterPrepareCommand) {
-  fail(
-    `Desktop package must define "prepare:api-router-runtime" as "${bundledApiRouterPrepareCommand}".`,
-  );
+if ('prepare:api-router-runtime' in (desktopPackage.scripts ?? {})) {
+  fail('Desktop package must not keep the legacy "prepare:api-router-runtime" script after api-router runtime extraction.');
 }
 
 assertCommandsAppearInOrder(
@@ -103,10 +100,9 @@ assertCommandsAppearInOrder(
   [
     rustToolchainGuardCommand,
     bundledSyncDevCommand,
+    devBinaryUnlockGuardCommand,
     staleTargetGuardCommand,
     bundledOpenClawPrepareCommand,
-    bundledApiRouterPrepareCommand,
-    devBinaryUnlockGuardCommand,
     devPortGuardCommand,
     tauriDevRunnerCommand,
   ],
@@ -126,16 +122,22 @@ if (typeof desktopBuildScript !== 'string' || desktopBuildScript.trim().length =
 if (!desktopBuildScript.includes(desktopBuildVerifyCommand)) {
   fail(`Desktop "build" must verify bundled frontend assets with "${desktopBuildVerifyCommand}".`);
 }
+if (
+  !/if \(path\.resolve\(process\.argv\[1\] \?\? ''\) === __filename\) \{\s*try \{\s*main\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s.test(
+    readText('scripts/verify-desktop-build-assets.mjs'),
+  )
+) {
+  fail('Desktop bundled asset verification script must wrap the CLI entrypoint with a top-level error handler.');
+}
 
 assertCommandsAppearInOrder(
   tauriCliBuildScript,
   [
     rustToolchainGuardCommand,
     bundledSyncBuildCommand,
+    devBinaryUnlockGuardCommand,
     staleTargetGuardCommand,
     bundledOpenClawPrepareCommand,
-    bundledApiRouterPrepareCommand,
-    devBinaryUnlockGuardCommand,
     desktopBundleRunnerCommand,
   ],
   'Desktop "tauri:build"',
@@ -148,12 +150,12 @@ if (!tauriCliBuildScript.includes(desktopBundleRunnerCommand)) {
 }
 
 const bundledResources = tauriConfig.bundle?.resources;
-if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/openclaw-runtime/**/*')) {
-  fail('Desktop Tauri bundle resources must include resources/openclaw-runtime/**/*.');
+if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/openclaw/**/*')) {
+  fail('Desktop Tauri bundle resources must include resources/openclaw/**/*.');
 }
 
-if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/sdkwork-api-router-runtime/**/*')) {
-  fail('Desktop Tauri bundle resources must include resources/sdkwork-api-router-runtime/**/*.');
+if (Array.isArray(bundledResources) && bundledResources.includes('resources/sdkwork-api-router-runtime/**/*')) {
+  fail('Desktop Tauri bundle resources must not include legacy sdkwork-api-router bundled runtime resources.');
 }
 
 const windowsBundleResources = bundledComponentsModule.createTauriBundleOverlayConfig({
@@ -169,7 +171,6 @@ const expectedWindowsBundleSources = [
   'generated/br/b/',
   'vendor/hub-installer/registry/',
   'generated/br/o/',
-  'generated/br/a/',
 ];
 
 for (const source of expectedWindowsBundleSources) {
@@ -186,12 +187,21 @@ for (const source of Object.keys(windowsBundleResources)) {
   }
 }
 
-if (windowsBundleResources['generated/br/o/'] !== 'resources/openclaw-runtime/') {
-  fail('Desktop Windows bundle overlay must map the OpenClaw bridge root into resources/openclaw-runtime/.');
+if (windowsBundleResources['generated/br/o/'] !== 'resources/openclaw/') {
+  fail('Desktop Windows bundle overlay must map the OpenClaw bridge root into resources/openclaw/.');
 }
 
-if (windowsBundleResources['generated/br/a/'] !== 'resources/sdkwork-api-router-runtime/') {
-  fail('Desktop Windows bundle overlay must map the sdkwork-api-router bridge root into resources/sdkwork-api-router-runtime/.');
+const windowsTauriResources = tauriWindowsConfig.bundle?.resources;
+if (!windowsTauriResources || Array.isArray(windowsTauriResources)) {
+  fail('Desktop Windows Tauri config must declare bundle.resources as a source-to-target mapping object.');
+}
+
+if (windowsTauriResources['resources/openclaw/'] !== 'resources/ocrt/') {
+  fail('Desktop Windows Tauri config must package resources/openclaw/ into resources/ocrt/.');
+}
+
+if ('resources/openclaw-runtime/' in windowsTauriResources) {
+  fail('Desktop Windows Tauri config must not reference the legacy resources/openclaw-runtime/ path.');
 }
 
 const tauriBuildScriptSource = readText('packages/sdkwork-claw-desktop/src-tauri/build.rs');
@@ -207,24 +217,8 @@ if (!tauriBuildScriptSource.includes('placeholder.txt')) {
   fail('Desktop build.rs must seed a visible generated bundled placeholder so Tauri resource glob resolution stays valid on clean clones.');
 }
 
-if (!tauriBuildScriptSource.includes('resources/sdkwork-api-router-runtime')) {
-  fail('Desktop build.rs must tolerate clean-clone cargo test runs when sdkwork-api-router bundled resources have not been prepared yet.');
-}
-
-if (!tauriBuildScriptSource.includes('sdkwork-api-router-runtime/runtime/placeholder.txt')) {
-  fail('Desktop build.rs must seed a visible sdkwork-api-router runtime placeholder so the Tauri resource glob stays valid on clean clones.');
-}
-
-if (!tauriBuildScriptSource.includes('ErrorKind::AlreadyExists')) {
-  fail('Desktop build.rs must recover when the sdkwork-api-router runtime path already exists as a stale entry during clean-clone cargo test runs.');
-}
-
-if (!tauriBuildScriptSource.includes('symlink_metadata')) {
-  fail('Desktop build.rs must inspect stale sdkwork-api-router runtime paths before recreating the bundled runtime directory.');
-}
-
-if (!tauriBuildScriptSource.includes('sdkwork-api-router bundled resources')) {
-  fail('Desktop build.rs must repair the sdkwork-api-router bundled resource root before creating the nested runtime directory on clean clones.');
+if (tauriBuildScriptSource.includes('sdkwork-api-router')) {
+  fail('Desktop build.rs must not retain sdkwork-api-router bundled runtime handling after api-router extraction.');
 }
 
 console.log('ok - desktop Tauri commands stay aligned with devUrl and stale-target protection');

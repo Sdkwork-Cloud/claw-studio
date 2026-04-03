@@ -16,7 +16,6 @@ import {
   Package,
   PanelLeftClose,
   Puzzle,
-  Router,
   Server,
   Settings,
   Users,
@@ -46,13 +45,23 @@ export function Sidebar() {
     async function fetchInstances() {
       const data = await instanceDirectoryService.listInstances();
       setInstances(data);
-      if (data.length > 0 && !activeInstanceId) {
-        setActiveInstanceId(data[0].id);
-      }
     }
 
     void fetchInstances();
-  }, [activeInstanceId, setActiveInstanceId]);
+  }, []);
+
+  useEffect(() => {
+    if (instances.length === 0) {
+      if (activeInstanceId) {
+        setActiveInstanceId(null);
+      }
+      return;
+    }
+
+    if (!activeInstanceId || !instances.some((instance) => instance.id === activeInstanceId)) {
+      setActiveInstanceId(instances[0].id);
+    }
+  }, [activeInstanceId, instances, setActiveInstanceId]);
 
   const activeInstance = instances.find((instance) => instance.id === activeInstanceId);
 
@@ -89,7 +98,6 @@ export function Sidebar() {
         { id: 'install', to: '/install', icon: Download, label: t('sidebar.install') },
         { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
         { id: 'devices', to: '/devices', icon: Cpu, label: t('sidebar.devices') },
-        { id: 'api-router', to: '/api-router', icon: Router, label: t('sidebar.apiRouter') },
       ],
     },
   ]

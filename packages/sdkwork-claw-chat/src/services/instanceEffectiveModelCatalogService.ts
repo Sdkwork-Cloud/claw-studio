@@ -1,6 +1,8 @@
-import { openClawConfigService } from '@sdkwork/claw-core';
 import {
-  sdkworkApiRouterAdminClient,
+  openClawConfigService,
+  providerRoutingCatalogService,
+} from '@sdkwork/claw-core';
+import {
   studio,
 } from '@sdkwork/claw-infrastructure';
 import { getSharedOpenClawGatewayClient } from './openclaw/openClawGatewayClientRegistry.ts';
@@ -15,9 +17,39 @@ import { createInstanceEffectiveModelCatalogService } from './instanceEffectiveM
 export const instanceEffectiveModelCatalogService = createInstanceEffectiveModelCatalogService({
   getInstance: (instanceId) => studio.getInstance(instanceId),
   getInstanceDetail: (instanceId) => studio.getInstanceDetail(instanceId),
-  listRouterChannels: () => sdkworkApiRouterAdminClient.listChannels(),
-  listRouterProviders: () => sdkworkApiRouterAdminClient.listProviders(),
-  listRouterModels: () => sdkworkApiRouterAdminClient.listModels(),
+  listRouterChannels: async () =>
+    (await providerRoutingCatalogService.listProviderChannels()).map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+    })),
+  listRouterProviders: async () =>
+    Array.from(
+      new Map(
+        (await providerRoutingCatalogService.listConfiguredProviders()).map((provider) => [
+          provider.channelId,
+          provider,
+        ]),
+      ).values(),
+    ).map((provider) => ({
+      id: provider.channelId,
+      channel_id: provider.channelId,
+      base_url: provider.baseUrl,
+      channel_bindings: [{ channel_id: provider.channelId, is_primary: true }],
+    })),
+  listRouterModels: async () =>
+    Array.from(
+      new Map(
+        (await providerRoutingCatalogService.listConfiguredProviders()).map((provider) => [
+          provider.channelId,
+          provider,
+        ]),
+      ).values(),
+    ).flatMap((provider) =>
+      provider.models.map((model) => ({
+        external_name: model.id,
+        provider_id: provider.channelId,
+      })),
+    ),
   resolveOpenClawConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
   readOpenClawConfigSnapshot: (configPath) => openClawConfigService.readConfigSnapshot(configPath),
   listGatewayModels: async (instanceId) => {

@@ -1,18 +1,25 @@
 use crate::{
-    framework::services::process::{ProcessRequest, ProcessResult},
+    framework::{
+        runtime,
+        services::process::{ProcessRequest, ProcessResult},
+    },
     state::AppState,
 };
 
 #[tauri::command]
-pub fn process_run_capture(
+pub async fn process_run_capture(
     request: ProcessRequest,
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<ProcessResult, String> {
-    state
-        .context
-        .services
-        .process
-        .run_capture_and_emit(request, &app)
-        .map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("process.run_capture", move || {
+        state
+            .context
+            .services
+            .process
+            .run_capture_and_emit(request, &app)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }

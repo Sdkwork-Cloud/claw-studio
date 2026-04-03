@@ -32,6 +32,27 @@
 | `pnpm release:package:desktop` | Collect built desktop installers and checksum files into `artifacts/release` |
 | `pnpm release:package:web` | Archive built web and docs assets into `artifacts/release` |
 
+## Server And Deployment Commands
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm server:dev` | Run the native Rust server host in development mode |
+| `pnpm server:build` | Build the native Rust server binary in release mode; append `-- --target <triple>` for an explicit release target |
+| `pnpm check:server` | Validate server package structure and run native Rust server tests |
+| `pnpm release:plan` | Resolve the current multi-family release plan and emit the target matrices |
+| `pnpm release:package:server` | Collect a built native server archive into `artifacts/release` |
+| `pnpm release:package:container` | Package Docker deployment bundles into `artifacts/release` |
+| `pnpm release:package:kubernetes` | Package Helm-compatible deployment bundles into `artifacts/release` |
+| `pnpm release:finalize` | Merge family manifests, compute top-level checksums, and emit `release-manifest.json` |
+
+## Release And CI Automation
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm check:release-flow` | Validate release workflow, packaging, and release manifest contracts |
+| `pnpm check:ci-flow` | Validate the mainline CI workflow contract |
+| `pnpm check:automation` | Run the full release and CI automation contract suite |
+
 ## Documentation Commands
 
 | Command | Purpose |
@@ -56,4 +77,4 @@ The repository release workflow lives at `.github/workflows/release.yml`.
 
 - `push` tags matching `release-*` trigger a full Claw Studio release
 - `workflow_dispatch` can rebuild assets for an existing tag or explicit git ref
-- published assets include desktop bundles for Windows, Linux, and macOS plus a web/docs archive
+- published assets include desktop bundles, native server archives, container bundles, kubernetes bundles, and a web/docs archive

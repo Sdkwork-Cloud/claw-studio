@@ -13,7 +13,13 @@ import type {
   StudioWorkbenchTaskRecord,
   StudioWorkbenchToolRecord,
 } from '@sdkwork/claw-types';
-import type { OpenClawAgentParamValue, OpenClawChannelSnapshot } from '@sdkwork/claw-core';
+import type {
+  OpenClawAuthCooldownsConfigSnapshot,
+  OpenClawAgentParamSource,
+  OpenClawAgentParamValue,
+  OpenClawChannelSnapshot,
+  OpenClawWebSearchConfigSnapshot,
+} from '@sdkwork/claw-core';
 
 export interface Instance {
   id: string;
@@ -60,6 +66,7 @@ export interface InstanceWorkbenchAgent extends StudioWorkbenchAgentRecord {
     fallbacks: string[];
   };
   params?: Record<string, OpenClawAgentParamValue>;
+  paramSources?: Record<string, OpenClawAgentParamSource>;
   configSource?: 'managedConfig' | 'runtime';
 }
 export type InstanceWorkbenchFile = StudioWorkbenchFileRecord;
@@ -91,6 +98,8 @@ export interface InstanceWorkbenchSnapshot {
   detail: StudioInstanceDetailRecord;
   managedConfigPath?: string | null;
   managedChannels?: OpenClawChannelSnapshot[];
+  managedWebSearchConfig?: OpenClawWebSearchConfigSnapshot | null;
+  managedAuthCooldownsConfig?: OpenClawAuthCooldownsConfigSnapshot | null;
   healthScore: number;
   runtimeStatus: StudioInstanceHealthStatus;
   connectedChannelCount: number;

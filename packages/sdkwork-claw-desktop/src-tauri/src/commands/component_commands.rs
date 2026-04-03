@@ -1,6 +1,7 @@
 use crate::{
     framework::{
         kernel::{DesktopComponentCatalogInfo, DesktopComponentControlResult},
+        runtime,
         services::component_host::ComponentControlAction,
         Result as FrameworkResult,
     },
@@ -32,20 +33,29 @@ pub fn desktop_component_control_from_state(
 }
 
 #[tauri::command]
-pub fn desktop_component_catalog(
+pub async fn desktop_component_catalog(
     state: tauri::State<'_, AppState>,
 ) -> Result<DesktopComponentCatalogInfo, String> {
-    desktop_component_catalog_from_state(&state).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("desktop.component_catalog", move || {
+        desktop_component_catalog_from_state(&state)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn desktop_component_control(
+pub async fn desktop_component_control(
     component_id: String,
     action: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<DesktopComponentControlResult, String> {
-    desktop_component_control_from_state(&state, component_id.as_str(), action.as_str())
-        .map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("desktop.component_control", move || {
+        desktop_component_control_from_state(&state, component_id.as_str(), action.as_str())
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
@@ -73,16 +83,16 @@ mod tests {
         let state = AppState::from_context(context);
 
         let catalog = desktop_component_catalog_from_state(&state).expect("component catalog");
-        let router = catalog
+        let openclaw = catalog
             .components
             .iter()
-            .find(|component| component.id == "sdkwork-api-router")
-            .expect("router component");
+            .find(|component| component.id == "openclaw")
+            .expect("openclaw component");
 
-        assert!(router
+        assert!(openclaw
             .capabilities
             .iter()
-            .any(|capability| capability.key == "openai-gateway"));
+            .any(|capability| capability.key == "gateway"));
     }
 
     #[test]

@@ -7,11 +7,25 @@ import { fileURLToPath } from 'node:url';
 
 import {
   DEFAULT_RELEASE_PROFILE_ID,
+  buildContainerReleaseMatrix,
   buildDesktopReleaseMatrix,
+  buildKubernetesReleaseMatrix,
+  buildServerReleaseMatrix,
   resolveReleaseProfile,
 } from './release-profiles.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
+
+function readOptionValue(argv, index, flag) {
+  const next = argv[index + 1];
+  const normalizedNext = String(next ?? '').trim();
+
+  if (!normalizedNext || normalizedNext.startsWith('--')) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  return normalizedNext;
+}
 
 export function createReleasePlan({
   profileId = DEFAULT_RELEASE_PROFILE_ID,
@@ -37,10 +51,13 @@ export function createReleasePlan({
       ...profile.release,
     },
     desktopMatrix: buildDesktopReleaseMatrix(profile.id),
+    serverMatrix: buildServerReleaseMatrix(profile.id),
+    containerMatrix: buildContainerReleaseMatrix(profile.id),
+    kubernetesMatrix: buildKubernetesReleaseMatrix(profile.id),
   };
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {
     profileId: DEFAULT_RELEASE_PROFILE_ID,
     releaseTag: '',
@@ -50,22 +67,21 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    const next = argv[index + 1];
 
     if (token === '--profile') {
-      options.profileId = next ?? DEFAULT_RELEASE_PROFILE_ID;
+      options.profileId = readOptionValue(argv, index, '--profile');
       index += 1;
       continue;
     }
 
     if (token === '--release-tag') {
-      options.releaseTag = next ?? '';
+      options.releaseTag = readOptionValue(argv, index, '--release-tag');
       index += 1;
       continue;
     }
 
     if (token === '--git-ref') {
-      options.gitRef = next ?? '';
+      options.gitRef = readOptionValue(argv, index, '--git-ref');
       index += 1;
       continue;
     }
@@ -93,6 +109,9 @@ function writeGitHubOutput(plan) {
     `manifest_file_name=${plan.release.manifestFileName}`,
     `global_checksums_file_name=${plan.release.globalChecksumsFileName}`,
     `desktop_matrix=${JSON.stringify(plan.desktopMatrix)}`,
+    `server_matrix=${JSON.stringify(plan.serverMatrix)}`,
+    `container_matrix=${JSON.stringify(plan.containerMatrix)}`,
+    `kubernetes_matrix=${JSON.stringify(plan.kubernetesMatrix)}`,
   ];
   fs.appendFileSync(githubOutputPath, `${outputLines.join('\n')}\n`, 'utf8');
 }

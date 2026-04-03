@@ -36,10 +36,14 @@ test('repository exposes a mainline CI workflow for push and pull request verifi
   assert.match(workflow, /libxkbcommon-dev/);
   assert.match(workflow, /pnpm lint/);
   assert.match(workflow, /pnpm check:desktop/);
+  assert.match(workflow, /pnpm check:server/);
   assert.match(workflow, /pnpm build/);
+  assert.match(workflow, /pnpm server:build/);
   assert.match(workflow, /pnpm docs:build/);
   assert.match(
     workflow,
     /cargo test --manifest-path packages\/sdkwork-claw-desktop\/src-tauri\/Cargo\.toml/,
   );
+  assert.match(workflow, /Run Windows server checks[\s\S]*pnpm check:server/);
+  assert.match(workflow, /Run Windows server build[\s\S]*pnpm server:build/);
 });

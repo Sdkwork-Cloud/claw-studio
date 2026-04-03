@@ -1,4 +1,5 @@
-import type { ProxyProvider } from '@sdkwork/claw-types';
+import { inferLocalAiProxyClientProtocol } from '@sdkwork/claw-core';
+import type { LocalAiProxyClientProtocol, ProxyProvider } from '@sdkwork/claw-types';
 
 export type OpenClawWizardAssessmentStatus = 'idle' | 'loading' | 'ready' | 'blocked' | 'error';
 export type OpenClawWizardActionStatus =
@@ -53,21 +54,17 @@ export interface OpenClawVerificationSummary {
   items: OpenClawVerificationItem[];
 }
 
-const OPENCLAW_COMPATIBLE_CHANNELS = new Set([
-  'openai',
-  'anthropic',
-  'xai',
-  'deepseek',
-  'qwen',
-  'zhipu',
-  'baidu',
-  'tencent-hunyuan',
-  'doubao',
-  'moonshot',
-  'stepfun',
-  'iflytek-spark',
-  'minimax',
-]);
+const OPENCLAW_COMPATIBLE_CLIENT_PROTOCOLS = new Set(['openai-compatible', 'anthropic', 'gemini']);
+
+function resolveOpenClawCompatibleClientProtocol(
+  provider: ProxyProvider,
+): LocalAiProxyClientProtocol {
+  if (provider.clientProtocol) {
+    return provider.clientProtocol;
+  }
+
+  return inferLocalAiProxyClientProtocol(provider.channelId);
+}
 
 function isReasoningModel(model: ProxyProvider['models'][number]) {
   return /(reason|reasoner|thinking|r1|o1|o3|o4|t1|k1|opus)/i.test(`${model.id} ${model.name}`);
@@ -82,7 +79,47 @@ function createStep(id: OpenClawWizardStepId, status: OpenClawWizardStepStatus):
 }
 
 export function filterOpenClawCompatibleProviders(providers: ProxyProvider[]) {
-  return providers.filter((provider) => OPENCLAW_COMPATIBLE_CHANNELS.has(provider.channelId));
+  return providers.filter(
+    (provider) =>
+      OPENCLAW_COMPATIBLE_CLIENT_PROTOCOLS.has(resolveOpenClawCompatibleClientProtocol(provider)),
+  );
+}
+
+export function sortOpenClawBootstrapProviders(providers: ProxyProvider[]) {
+  const statusRank: Record<ProxyProvider['status'], number> = {
+    active: 0,
+    warning: 1,
+    expired: 2,
+    disabled: 3,
+  };
+  const protocolRank: Record<string, number> = {
+    'openai-compatible': 0,
+    anthropic: 1,
+    gemini: 2,
+  };
+
+  return [...providers].sort((left, right) => {
+    const statusDelta = statusRank[left.status] - statusRank[right.status];
+    if (statusDelta !== 0) {
+      return statusDelta;
+    }
+
+    if (left.isDefault !== right.isDefault) {
+      return left.isDefault ? -1 : 1;
+    }
+
+    if (left.managedBy !== right.managedBy) {
+      return left.managedBy === 'user' ? -1 : 1;
+    }
+
+    const leftProtocolRank = protocolRank[left.clientProtocol || ''] ?? 99;
+    const rightProtocolRank = protocolRank[right.clientProtocol || ''] ?? 99;
+    if (leftProtocolRank !== rightProtocolRank) {
+      return leftProtocolRank - rightProtocolRank;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
 }
 
 export function buildOpenClawModelSelection(provider: ProxyProvider): OpenClawModelSelection {

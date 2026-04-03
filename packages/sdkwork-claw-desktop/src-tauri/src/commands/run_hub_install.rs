@@ -1,6 +1,6 @@
 use crate::{
     commands::hub_install_progress::{emit_hub_install_progress, HubInstallProgressOperationKind},
-    framework::{FrameworkError, Result as FrameworkResult},
+    framework::{runtime, FrameworkError, Result as FrameworkResult},
     state::AppState,
 };
 use hub_installer_rs::{
@@ -308,30 +308,45 @@ pub struct HubInstallDependencyResult {
 }
 
 #[tauri::command]
-pub fn run_hub_install(
+pub async fn run_hub_install(
     request: RunHubInstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubInstallResult, String> {
-    run_hub_install_at(&app, &state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("installer.run_hub_install", move || {
+        run_hub_install_at(&app, &state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn inspect_hub_install(
+pub async fn inspect_hub_install(
     request: RunHubInstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubInstallAssessmentResult, String> {
-    inspect_hub_install_at(&app, &state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("installer.inspect_hub_install", move || {
+        inspect_hub_install_at(&app, &state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn run_hub_dependency_install(
+pub async fn run_hub_dependency_install(
     request: RunHubDependencyInstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubInstallDependencyResult, String> {
-    run_hub_dependency_install_at(&app, &state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("installer.run_hub_dependency_install", move || {
+        run_hub_dependency_install_at(&app, &state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 pub fn run_hub_install_at<R: Runtime>(

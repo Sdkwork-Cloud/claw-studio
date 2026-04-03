@@ -2,7 +2,6 @@ export type RuntimeBundledComponentId =
   | 'openclaw'
   | 'zeroclaw'
   | 'ironclaw'
-  | 'sdkwork-api-router'
   | 'hub-installer';
 
 export type RuntimeDesktopComponentKind =

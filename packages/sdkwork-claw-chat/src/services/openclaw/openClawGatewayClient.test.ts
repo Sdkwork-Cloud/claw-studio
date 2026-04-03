@@ -441,12 +441,14 @@ await runTest(
 
     const resetPromise = client.resetSession({
       key: 'claw-studio:instance-alpha:session-1',
+      reason: 'new',
     });
     await waitFor(() => socket.sent.length === 9);
     const resetFrame = parseFrame(socket);
     assert.equal(resetFrame.method, 'sessions.reset');
     assert.deepEqual(resetFrame.params, {
       key: 'claw-studio:instance-alpha:session-1',
+      reason: 'new',
     });
     socket.emitMessage({
       type: 'res',
@@ -512,6 +514,81 @@ await runTest(
 );
 
 await runTest(
+  'openclaw gateway client includes maxChars in chat.history requests when supplied',
+  async () => {
+    const sockets: MockWebSocket[] = [];
+    let requestCounter = 0;
+
+    const client = new OpenClawGatewayClient({
+      url: 'ws://127.0.0.1:18789',
+      createRequestId: () => `req-${++requestCounter}`,
+      now: () => 1_700_000_000_000,
+      webSocketFactory: (url) => {
+        const socket = new MockWebSocket(url);
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      deviceIdentityProvider: {
+        async loadOrCreate() {
+          return null;
+        },
+      },
+    });
+
+    const connectPromise = client.connect();
+    const socket = sockets[0];
+    assert.ok(socket);
+    socket.emitOpen();
+    socket.emitMessage({
+      type: 'event',
+      event: 'connect.challenge',
+      payload: {
+        nonce: 'nonce-history-maxchars',
+      },
+    });
+
+    await waitFor(() => socket.sent.length === 1);
+    const connectFrame = parseFrame(socket);
+    socket.emitMessage({
+      type: 'res',
+      id: connectFrame.id,
+      ok: true,
+      payload: {
+        type: 'hello-ok',
+        protocol: 3,
+      },
+    });
+    await connectPromise;
+
+    const historyPromise = client.getChatHistory({
+      sessionKey: 'claw-studio:instance-alpha:session-history-cap',
+      limit: 120,
+      maxChars: 4096,
+    });
+    await waitFor(() => socket.sent.length === 2);
+    const historyFrame = parseFrame(socket);
+    assert.equal(historyFrame.method, 'chat.history');
+    assert.deepEqual(historyFrame.params, {
+      sessionKey: 'claw-studio:instance-alpha:session-history-cap',
+      limit: 120,
+      maxChars: 4096,
+    });
+    socket.emitMessage({
+      type: 'res',
+      id: historyFrame.id,
+      ok: true,
+      payload: {
+        thinkingLevel: null,
+        messages: [],
+      },
+    });
+
+    await historyPromise;
+    client.disconnect();
+  },
+);
+
+await runTest(
   'openclaw gateway client uses the control-ui client id by default for browser webchat compatibility',
   async () => {
     const sockets: MockWebSocket[] = [];
@@ -560,6 +637,233 @@ await runTest(
     });
 
     await connectPromise;
+    client.disconnect();
+  },
+);
+
+await runTest(
+  'openclaw gateway client emits gap notifications when gateway event sequences skip values',
+  async () => {
+    const sockets: MockWebSocket[] = [];
+    const chatEvents: Array<Record<string, unknown>> = [];
+    const gapEvents: Array<{ expected: number; received: number }> = [];
+    let requestCounter = 0;
+
+    const client = new OpenClawGatewayClient({
+      url: 'ws://127.0.0.1:18789',
+      createRequestId: () => `req-${++requestCounter}`,
+      now: () => 1_700_000_000_000,
+      webSocketFactory: (url) => {
+        const socket = new MockWebSocket(url);
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      deviceIdentityProvider: {
+        async loadOrCreate() {
+          return null;
+        },
+      },
+    });
+
+    client.on('chat', (event) => {
+      chatEvents.push(event as Record<string, unknown>);
+    });
+    client.on('gap', (event) => {
+      gapEvents.push(event);
+    });
+
+    const connectPromise = client.connect();
+    const socket = sockets[0];
+    assert.ok(socket);
+    socket.emitOpen();
+    socket.emitMessage({
+      type: 'event',
+      event: 'connect.challenge',
+      payload: {
+        nonce: 'nonce-gap',
+      },
+    });
+
+    await waitFor(() => socket.sent.length === 1);
+    const connectFrame = parseFrame(socket);
+    socket.emitMessage({
+      type: 'res',
+      id: connectFrame.id,
+      ok: true,
+      payload: {
+        type: 'hello-ok',
+        protocol: 3,
+      },
+    });
+    await connectPromise;
+
+    socket.emitMessage({
+      type: 'event',
+      event: 'chat',
+      seq: 1,
+      payload: {
+        runId: 'run-1',
+        sessionKey: 'claw-studio:instance-alpha:session-1',
+        state: 'delta',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'partial 1' }],
+        },
+      },
+    });
+    socket.emitMessage({
+      type: 'event',
+      event: 'chat',
+      seq: 3,
+      payload: {
+        runId: 'run-1',
+        sessionKey: 'claw-studio:instance-alpha:session-1',
+        state: 'delta',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'partial 3' }],
+        },
+      },
+    });
+
+    assert.deepEqual(gapEvents, [
+      {
+        expected: 2,
+        received: 3,
+      },
+    ]);
+    assert.equal(chatEvents.length, 2);
+    assert.equal(chatEvents[1]?.sessionKey, 'claw-studio:instance-alpha:session-1');
+
+    client.disconnect();
+  },
+);
+
+await runTest(
+  'openclaw gateway client sends session transcript subscription RPCs and forwards session.message events',
+  async () => {
+    const sockets: MockWebSocket[] = [];
+    const sessionMessageEvents: Array<Record<string, unknown>> = [];
+    let requestCounter = 0;
+
+    const client = new OpenClawGatewayClient({
+      url: 'ws://127.0.0.1:18789',
+      createRequestId: () => `req-${++requestCounter}`,
+      now: () => 1_700_000_000_000,
+      webSocketFactory: (url) => {
+        const socket = new MockWebSocket(url);
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      deviceIdentityProvider: {
+        async loadOrCreate() {
+          return null;
+        },
+      },
+    });
+
+    (client as any).on('session.message', (event: Record<string, unknown>) => {
+      sessionMessageEvents.push(event);
+    });
+
+    const connectPromise = client.connect();
+    const socket = sockets[0];
+    assert.ok(socket);
+    socket.emitOpen();
+    socket.emitMessage({
+      type: 'event',
+      event: 'connect.challenge',
+      payload: {
+        nonce: 'nonce-session-message',
+      },
+    });
+
+    await waitFor(() => socket.sent.length === 1);
+    const connectFrame = parseFrame(socket);
+    socket.emitMessage({
+      type: 'res',
+      id: connectFrame.id,
+      ok: true,
+      payload: {
+        type: 'hello-ok',
+        protocol: 3,
+      },
+    });
+    await connectPromise;
+
+    const subscribePromise = (client as any).subscribeSessionMessages({
+      key: 'claw-studio:instance-alpha:session-1',
+    });
+    await waitFor(() => socket.sent.length === 2);
+    const subscribeFrame = parseFrame(socket);
+    assert.equal(subscribeFrame.method, 'sessions.messages.subscribe');
+    assert.deepEqual(subscribeFrame.params, {
+      key: 'claw-studio:instance-alpha:session-1',
+    });
+    socket.emitMessage({
+      type: 'res',
+      id: subscribeFrame.id,
+      ok: true,
+      payload: {
+        subscribed: true,
+        key: 'claw-studio:instance-alpha:session-1',
+      },
+    });
+    assert.deepEqual(await subscribePromise, {
+      subscribed: true,
+      key: 'claw-studio:instance-alpha:session-1',
+    });
+
+    socket.emitMessage({
+      type: 'event',
+      event: 'session.message',
+      seq: 1,
+      payload: {
+        sessionKey: 'claw-studio:instance-alpha:session-1',
+        messageId: 'msg-1',
+        messageSeq: 1,
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'live transcript delta' }],
+        },
+      },
+    });
+
+    assert.deepEqual(sessionMessageEvents, [
+      {
+        sessionKey: 'claw-studio:instance-alpha:session-1',
+        messageId: 'msg-1',
+        messageSeq: 1,
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'live transcript delta' }],
+        },
+      },
+    ]);
+
+    const unsubscribePromise = (client as any).unsubscribeSessionMessages({
+      key: 'claw-studio:instance-alpha:session-1',
+    });
+    await waitFor(() => socket.sent.length === 3);
+    const unsubscribeFrame = parseFrame(socket);
+    assert.equal(unsubscribeFrame.method, 'sessions.messages.unsubscribe');
+    assert.deepEqual(unsubscribeFrame.params, {
+      key: 'claw-studio:instance-alpha:session-1',
+    });
+    socket.emitMessage({
+      type: 'res',
+      id: unsubscribeFrame.id,
+      ok: true,
+      payload: {
+        subscribed: false,
+        key: 'claw-studio:instance-alpha:session-1',
+      },
+    });
+    assert.deepEqual(await unsubscribePromise, {
+      subscribed: false,
+      key: 'claw-studio:instance-alpha:session-1',
+    });
+
     client.disconnect();
   },
 );

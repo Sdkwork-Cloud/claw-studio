@@ -1,4 +1,4 @@
-import { studioMockService } from '@sdkwork/claw-infrastructure';
+import { studio } from '@sdkwork/claw-infrastructure';
 import type { Agent, ListParams, PaginatedResult } from '@sdkwork/claw-types';
 
 export interface CreateAgentDTO {
@@ -12,13 +12,13 @@ export interface CreateAgentDTO {
 export interface UpdateAgentDTO extends Partial<CreateAgentDTO> {}
 
 export interface IAgentService {
-  getList(params?: ListParams): Promise<PaginatedResult<Agent>>;
-  getById(id: string): Promise<Agent | null>;
+  getList(params?: ListParams, instanceId?: string): Promise<PaginatedResult<Agent>>;
+  getById(id: string, instanceId?: string): Promise<Agent | null>;
   create(data: CreateAgentDTO): Promise<Agent>;
   update(id: string, data: UpdateAgentDTO): Promise<Agent>;
   delete(id: string): Promise<boolean>;
-  getAgents(): Promise<Agent[]>;
-  getAgent(id: string): Promise<Agent>;
+  getAgents(instanceId?: string): Promise<Agent[]>;
+  getAgent(id: string, instanceId?: string): Promise<Agent>;
 }
 
 function paginateAgents(agents: Agent[], params: ListParams = {}): PaginatedResult<Agent> {
@@ -47,14 +47,20 @@ function paginateAgents(agents: Agent[], params: ListParams = {}): PaginatedResu
   };
 }
 
+function mapWorkbenchAgent(record: NonNullable<Awaited<ReturnType<typeof studio.getInstanceDetail>>>['workbench']['agents'][number]): Agent {
+  return {
+    ...record.agent,
+  };
+}
+
 class AgentService implements IAgentService {
-  async getList(params: ListParams = {}): Promise<PaginatedResult<Agent>> {
-    return paginateAgents(await this.getAgents(), params);
+  async getList(params: ListParams = {}, instanceId?: string): Promise<PaginatedResult<Agent>> {
+    return paginateAgents(await this.getAgents(instanceId), params);
   }
 
-  async getById(id: string): Promise<Agent | null> {
+  async getById(id: string, instanceId?: string): Promise<Agent | null> {
     try {
-      return await this.getAgent(id);
+      return await this.getAgent(id, instanceId);
     } catch {
       return null;
     }
@@ -72,12 +78,18 @@ class AgentService implements IAgentService {
     throw new Error('Method not implemented.');
   }
 
-  async getAgents(): Promise<Agent[]> {
-    return studioMockService.listAgents();
+  async getAgents(instanceId?: string): Promise<Agent[]> {
+    if (!instanceId) {
+      return [];
+    }
+
+    const detail = await studio.getInstanceDetail(instanceId);
+    return detail?.workbench?.agents.map(mapWorkbenchAgent) || [];
   }
 
-  async getAgent(id: string): Promise<Agent> {
-    const agent = await studioMockService.getAgent(id);
+  async getAgent(id: string, instanceId?: string): Promise<Agent> {
+    const agents = await this.getAgents(instanceId);
+    const agent = agents.find((candidate) => candidate.id === id);
     if (!agent) {
       throw new Error('Agent not found');
     }

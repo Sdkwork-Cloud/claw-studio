@@ -22,6 +22,11 @@ impl FileSystemService {
         filesystem::path_exists(paths, path)
     }
 
+    pub fn path_exists_for_user_tooling(&self, paths: &AppPaths, path: &str) -> Result<bool> {
+        let resolved = policy::resolve_user_tooling_config_path(paths, Path::new(path))?;
+        Ok(resolved.exists())
+    }
+
     pub fn get_path_info(&self, paths: &AppPaths, path: &str) -> Result<ManagedPathInfo> {
         filesystem::get_path_info(paths, path)
     }
@@ -52,6 +57,11 @@ impl FileSystemService {
 
     pub fn read_text(&self, paths: &AppPaths, path: &str) -> Result<String> {
         let resolved = policy::resolve_managed_path(paths, Path::new(path))?;
+        Ok(std::fs::read_to_string(resolved)?)
+    }
+
+    pub fn read_text_for_user_tooling(&self, paths: &AppPaths, path: &str) -> Result<String> {
+        let resolved = policy::resolve_user_tooling_config_path(paths, Path::new(path))?;
         Ok(std::fs::read_to_string(resolved)?)
     }
 

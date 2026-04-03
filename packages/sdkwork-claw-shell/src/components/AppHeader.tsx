@@ -1,7 +1,8 @@
-import { Suspense, lazy, startTransition, useEffect, useState, type ReactNode } from 'react';
-import { Search, Smartphone } from 'lucide-react';
+import { Suspense, lazy, startTransition, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown, CircleUserRound, LogIn, LogOut, Search, Settings2, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { DesktopWindowControls, useAppStore } from '@sdkwork/claw-core';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { DesktopWindowControls, useAppStore, useAuthStore } from '@sdkwork/claw-core';
 import { OPEN_COMMAND_PALETTE_EVENT } from './commandPaletteEvents';
 
 const InstanceSwitcher = lazy(() =>
@@ -79,7 +80,7 @@ function HeaderActionButton({
       data-tauri-drag-region="false"
       title={title}
       onClick={onClick}
-      className={`flex h-9 items-center justify-center rounded-2xl bg-zinc-950/[0.045] px-3 text-zinc-600 transition-colors hover:bg-zinc-950/[0.08] hover:text-zinc-950 dark:bg-white/[0.06] dark:text-zinc-300 dark:hover:bg-white/[0.12] dark:hover:text-white ${className}`}
+      className={`flex h-9 items-center justify-center rounded-xl bg-zinc-950/[0.04] px-3 text-zinc-600 transition-colors hover:bg-zinc-950/[0.065] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.09] dark:hover:text-white ${className}`}
     >
       {children}
     </button>
@@ -93,9 +94,16 @@ export interface AppHeaderProps {
 export function AppHeader({ mode = 'default' }: AppHeaderProps) {
   const { t } = useTranslation();
   const openMobileAppDialog = useAppStore((state) => state.openMobileAppDialog);
+  const { isAuthenticated, user, signOut } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const isAuthMode = mode === 'auth';
   const [shouldRenderInstanceSwitcher, setShouldRenderInstanceSwitcher] = useState(false);
   const [shouldRenderPointsEntry, setShouldRenderPointsEntry] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const accountSettingsTarget = '/settings?tab=account';
+  const loginTarget = `/login?redirect=${encodeURIComponent(accountSettingsTarget)}`;
 
   useEffect(() => {
     if (isAuthMode) {
@@ -126,6 +134,53 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
 
     return () => window.clearTimeout(timeout);
   }, [isAuthMode]);
+
+  useEffect(() => {
+    setIsUserMenuOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!isUserMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isUserMenuOpen]);
+
+  const handleUserControlClick = () => {
+    if (!isAuthenticated) {
+      navigate(loginTarget);
+      return;
+    }
+
+    setIsUserMenuOpen((open) => !open);
+  };
+
+  const handleOpenAccountSettings = () => {
+    setIsUserMenuOpen(false);
+    navigate(accountSettingsTarget);
+  };
+
+  const handleSignOut = async () => {
+    setIsUserMenuOpen(false);
+
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    await signOut();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <div className="relative z-30 bg-white/72 backdrop-blur-xl dark:bg-zinc-950/78">
@@ -213,6 +268,85 @@ export function AppHeader({ mode = 'default' }: AppHeaderProps) {
                   <PointsHeaderEntry />
                 </Suspense>
               ) : null}
+              <div ref={userMenuRef} className="relative">
+                {isUserMenuOpen ? (
+                  <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-2xl bg-white/96 p-2 shadow-[0_14px_32px_rgba(9,9,11,0.14)] backdrop-blur-xl dark:bg-zinc-950/96">
+                    <div className="mb-2 rounded-xl bg-zinc-50/90 p-3 dark:bg-white/[0.04]">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary-500/10 text-sm font-bold text-primary-700 dark:text-primary-200">
+                          {user?.avatarUrl ? (
+                            <img
+                              src={user.avatarUrl}
+                              alt={user.displayName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            user?.initials
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                            {user?.displayName}
+                          </div>
+                          <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                            {user?.email}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenAccountSettings}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-600 transition-colors hover:bg-zinc-100/90 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/[0.05] dark:hover:text-white"
+                    >
+                      <Settings2 className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                      <span>{t('sidebar.userMenu.profileSettings')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleSignOut();
+                      }}
+                      className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-rose-500 transition-colors hover:bg-rose-500/8 hover:text-rose-600 dark:text-rose-300 dark:hover:text-rose-200"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>{t('sidebar.userMenu.logout')}</span>
+                    </button>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  title={isAuthenticated ? t('sidebar.userMenu.open') : t('sidebar.userMenu.login')}
+                  onClick={handleUserControlClick}
+                  className="group flex h-9 items-center gap-2 rounded-xl bg-zinc-950/[0.04] px-2 text-zinc-600 transition-colors hover:bg-zinc-950/[0.065] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.09] dark:hover:text-white"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/92 text-xs font-semibold text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                    {isAuthenticated && user?.avatarUrl ? (
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.displayName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : isAuthenticated ? (
+                      user?.initials
+                    ) : (
+                      <CircleUserRound className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                    )}
+                  </span>
+                  <span className="hidden max-w-[10rem] truncate text-xs font-medium xl:inline">
+                    {isAuthenticated ? user?.displayName : t('sidebar.userMenu.login')}
+                  </span>
+                  {isAuthenticated ? (
+                    <ChevronDown className={`hidden h-4 w-4 text-zinc-400 transition-transform dark:text-zinc-500 xl:inline ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                  ) : (
+                    <LogIn className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                  )}
+                </button>
+              </div>
             </>
           ) : null}
           <DesktopWindowControls variant="header" />

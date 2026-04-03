@@ -8,7 +8,6 @@
 
 | 变量 | 是否必需 | 作用 |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | AI 功能需要 | Gemini 模型访问 |
 | `APP_URL` | 取决于部署方式 | 托管环境下的应用地址 |
 | `VITE_API_BASE_URL` | 推荐 | 共享后端 API 地址 |
 | `VITE_ACCESS_TOKEN` | 可选 | 后端请求与更新检查令牌 |
@@ -25,6 +24,7 @@
 - 新增变量时同步更新 `.env.example`
 - 在相关包和公共文档中记录新变量
 - 桌面端变量应与分发和更新流程保持一致
+- AI 生成功能现在依赖活动的 OpenClaw 兼容实例与 Provider Center 配置，而不是浏览器侧 Gemini 密钥
 
 ## 相关文件
 

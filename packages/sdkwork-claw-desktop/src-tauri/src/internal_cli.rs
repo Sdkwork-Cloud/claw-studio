@@ -1,9 +1,7 @@
 use crate::framework::{
     kernel_host::{
-        clear_kernel_host_ownership_marker,
-        platform::resolve_current_platform_service_spec,
-        types::KernelHostOwnershipMarker,
-        write_kernel_host_ownership_marker,
+        clear_kernel_host_ownership_marker, platform::resolve_current_platform_service_spec,
+        types::KernelHostOwnershipMarker, write_kernel_host_ownership_marker,
     },
     paths::AppPaths,
     services::{
@@ -13,6 +11,8 @@ use crate::framework::{
     },
     FrameworkError, Result,
 };
+#[cfg(windows)]
+use std::sync::OnceLock;
 use std::{
     ffi::{OsStr, OsString},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream},
@@ -22,8 +22,6 @@ use std::{
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-#[cfg(windows)]
-use std::sync::OnceLock;
 #[cfg(windows)]
 use windows_service::{
     define_windows_service,
@@ -58,7 +56,10 @@ static WINDOWS_KERNEL_HOST_LAUNCH_CONTEXT: OnceLock<WindowsKernelHostLaunchConte
     OnceLock::new();
 
 #[cfg(windows)]
-define_windows_service!(ffi_kernel_host_service_main, windows_kernel_host_service_main);
+define_windows_service!(
+    ffi_kernel_host_service_main,
+    windows_kernel_host_service_main
+);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum InternalCliAction {
@@ -200,10 +201,7 @@ fn run_kernel_host_service_for_current_install(
 
     #[cfg(windows)]
     {
-        if try_run_windows_kernel_host_service(
-            machine_root.clone(),
-            user_root.clone(),
-        )? {
+        if try_run_windows_kernel_host_service(machine_root.clone(), user_root.clone())? {
             return Ok(());
         }
     }
@@ -274,8 +272,8 @@ impl KernelHostRuntimeLoop {
             user_root,
         )?;
         let resource_root = resolve_current_bundled_resource_root()?;
-        let runtime =
-            OpenClawRuntimeService::new().ensure_bundled_runtime_from_root(&paths, &resource_root)?;
+        let runtime = OpenClawRuntimeService::new()
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)?;
         let supervisor = SupervisorService::new();
         let service_spec = resolve_current_platform_service_spec(&paths);
 
@@ -373,20 +371,22 @@ fn run_windows_kernel_host_service() -> Result<()> {
     let launch_context = WINDOWS_KERNEL_HOST_LAUNCH_CONTEXT
         .get()
         .cloned()
-        .ok_or_else(|| FrameworkError::Internal("missing windows kernel host launch context".to_string()))?;
+        .ok_or_else(|| {
+            FrameworkError::Internal("missing windows kernel host launch context".to_string())
+        })?;
     let (shutdown_tx, shutdown_rx) = mpsc::channel();
-    let status_handle = service_control_handler::register(
-        &launch_context.service_name,
-        move |control_event| match control_event {
-            ServiceControl::Stop => {
-                let _ = shutdown_tx.send(());
-                ServiceControlHandlerResult::NoError
+    let status_handle =
+        service_control_handler::register(&launch_context.service_name, move |control_event| {
+            match control_event {
+                ServiceControl::Stop => {
+                    let _ = shutdown_tx.send(());
+                    ServiceControlHandlerResult::NoError
+                }
+                ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+                _ => ServiceControlHandlerResult::NotImplemented,
             }
-            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-            _ => ServiceControlHandlerResult::NotImplemented,
-        },
-    )
-    .map_err(map_windows_service_error)?;
+        })
+        .map_err(map_windows_service_error)?;
 
     set_windows_service_status(
         &status_handle,
@@ -396,22 +396,20 @@ fn run_windows_kernel_host_service() -> Result<()> {
         WINDOWS_KERNEL_HOST_SERVICE_WAIT_HINT,
     )?;
 
-    let runtime_loop = match KernelHostRuntimeLoop::start(
-        launch_context.machine_root,
-        launch_context.user_root,
-    ) {
-        Ok(runtime_loop) => runtime_loop,
-        Err(error) => {
-            let _ = set_windows_service_status(
-                &status_handle,
-                ServiceState::Stopped,
-                ServiceControlAccept::empty(),
-                ServiceExitCode::Win32(1),
-                Duration::default(),
-            );
-            return Err(error);
-        }
-    };
+    let runtime_loop =
+        match KernelHostRuntimeLoop::start(launch_context.machine_root, launch_context.user_root) {
+            Ok(runtime_loop) => runtime_loop,
+            Err(error) => {
+                let _ = set_windows_service_status(
+                    &status_handle,
+                    ServiceState::Stopped,
+                    ServiceControlAccept::empty(),
+                    ServiceExitCode::Win32(1),
+                    Duration::default(),
+                );
+                return Err(error);
+            }
+        };
 
     set_windows_service_status(
         &status_handle,
@@ -475,7 +473,7 @@ mod tests {
     use crate::framework::paths::resolve_paths_for_root;
     use std::{ffi::OsString, fs};
 
-    const TEST_BUNDLED_OPENCLAW_VERSION: &str = "2026.3.28";
+    const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
 
     #[test]
     fn detects_internal_register_openclaw_cli_action() {
@@ -587,7 +585,7 @@ mod tests {
         install_root: &std::path::Path,
         capture_path: Option<&std::path::Path>,
     ) {
-        let resource_root = install_root.join("openclaw-runtime");
+        let resource_root = install_root.join("openclaw");
         let runtime_root = resource_root.join("runtime");
         let node_relative_path = resolve_test_node_executable()
             .to_string_lossy()

@@ -49,10 +49,12 @@ runTest('sdkwork-claw-dashboard aggregates shared runtime data into a control-pl
   const serviceSource = read('packages/sdkwork-claw-dashboard/src/services/dashboardService.ts');
 
   assert.match(serviceSource, /listInstances/);
-  assert.match(serviceSource, /listTasks/);
-  assert.match(serviceSource, /listChannels/);
-  assert.match(serviceSource, /listInstalledSkills/);
-  assert.match(serviceSource, /listAgents/);
+  assert.match(serviceSource, /getInstanceDetail/);
+  assert.match(serviceSource, /detail\?\.workbench/);
+  assert.match(serviceSource, /cronTasks\.tasks/);
+  assert.match(serviceSource, /workbench\?\.channels/);
+  assert.match(serviceSource, /workbench\?\.skills/);
+  assert.match(serviceSource, /workbench\?\.agents/);
   assert.match(serviceSource, /calculateWorkspaceHealthScore/);
   assert.match(serviceSource, /calculateCapabilityCoverageScore/);
   assert.match(serviceSource, /tokenAnalytics/);
@@ -66,6 +68,9 @@ runTest('sdkwork-claw-dashboard aggregates shared runtime data into a control-pl
   assert.match(serviceSource, /dashboardCommerceService/);
   assert.match(serviceSource, /getCommerceSnapshot/);
   assert.match(serviceSource, /createEmptyDashboardCommerceSnapshot/);
+  assert.match(serviceSource, /createDashboardService/);
+  assert.match(serviceSource, /usageRecordsApi/);
+  assert.doesNotMatch(serviceSource, /studioMockService/);
   assert.match(serviceSource, /businessSummary/);
   assert.match(serviceSource, /tokenSummary/);
   assert.match(serviceSource, /recentApiCalls/);

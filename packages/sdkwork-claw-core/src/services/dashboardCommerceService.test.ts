@@ -15,100 +15,25 @@ function runTest(name: string, callback: () => void | Promise<void>) {
 }
 
 await runTest(
-  'dashboardCommerceService maps generated app sdk commerce payload into numeric dashboard data',
+  'dashboardCommerceService derives commerce analytics from current generated sdk order and product payloads',
   async () => {
     let orderRequestCount = 0;
     let productRequestCount = 0;
+
     const service = createDashboardCommerceService({
+      getNow: () => new Date('2026-03-24T12:00:00.000Z'),
       getSessionTokens: () => ({
         authToken: 'auth-token',
       }),
       getClient: () =>
         ({
-          dashboard: {
-            getCommerceStatistics: async (params?: Record<string, unknown>) => {
-              assert.deepEqual(params, {
-                granularity: 'day',
-                rangeMode: 'seven_days',
-              });
-
-              return {
-                code: '2000',
-                data: {
-                  businessSummary: {
-                    todayRevenue: '120.00',
-                    weekRevenue: '200.00',
-                    monthRevenue: '240.00',
-                    yearRevenue: '240.00',
-                    todayOrders: 1,
-                    weekOrders: 3,
-                    monthOrders: 4,
-                    yearOrders: 4,
-                    averageOrderValue: '66.67',
-                    conversionRate: 33.3,
-                    revenueDelta: 400,
-                  },
-                  revenueAnalytics: {
-                    granularity: 'day',
-                    rangeMode: 'seven_days',
-                    totalRevenue: '200.00',
-                    dailyRevenue: '28.57',
-                    projectedMonthlyRevenue: '857.10',
-                    totalOrders: 3,
-                    averageOrderValue: '66.67',
-                    peakRevenueLabel: '03-24',
-                    peakRevenueValue: '120.00',
-                    deltaPercentage: 400,
-                    revenueTrend: [
-                      {
-                        label: '03-24',
-                        bucketKey: '2026-03-24',
-                        revenue: '120.00',
-                        orders: 1,
-                        averageOrderValue: '120.00',
-                      },
-                    ],
-                    productBreakdown: [
-                      {
-                        id: '11',
-                        productName: 'VIP Membership',
-                        orders: 1,
-                        revenue: '120.00',
-                        share: 60,
-                        dailyRevenue: '17.14',
-                      },
-                    ],
-                  },
-                  recentRevenueRecords: [
-                    {
-                      id: '1',
-                      timestamp: '2026-03-24T09:00:00Z',
-                      productName: 'VIP Membership',
-                      orderNo: 'SN-001',
-                      revenueAmount: '120.00',
-                      channel: 'app',
-                      status: 'completed',
-                    },
-                  ],
-                  productPerformance: [
-                    {
-                      id: '11',
-                      productName: 'VIP Membership',
-                      revenue: '120.00',
-                      orders: 1,
-                      share: 60,
-                      trendDelta: 200,
-                    },
-                  ],
-                },
-              };
-            },
-          },
           order: {
             listOrders: async (params?: Record<string, unknown>) => {
               orderRequestCount += 1;
               assert.equal(params?.page, '1');
-              assert.equal(params?.size, '10');
+              assert.equal(params?.size, '100');
+              assert.ok(typeof params?.startTime === 'string');
+              assert.ok(typeof params?.endTime === 'string');
 
               return {
                 code: '2000',
@@ -118,11 +43,49 @@ await runTest(
                       orderId: '1',
                       orderSn: 'SN-001',
                       subject: 'VIP Membership',
-                      totalAmount: '120.00',
+                      paidAmount: '120.00',
                       status: 'COMPLETED',
-                      createdAt: '2026-03-24T09:00:00Z',
+                      paymentProvider: 'app',
+                      payTime: '2026-03-24T09:00:00Z',
+                    },
+                    {
+                      orderId: '2',
+                      orderSn: 'SN-002',
+                      subject: 'Copilot Pack',
+                      paidAmount: '80.00',
+                      status: 'PAID',
+                      paymentProvider: 'wechat',
+                      payTime: '2026-03-22T09:00:00Z',
+                    },
+                    {
+                      orderId: '3',
+                      orderSn: 'SN-003',
+                      subject: 'VIP Membership',
+                      totalAmount: '40.00',
+                      status: 'DELIVERED',
+                      createdAt: '2026-03-19T09:00:00Z',
+                    },
+                    {
+                      orderId: '4',
+                      orderSn: 'SN-004',
+                      subject: 'Starter Kit',
+                      paidAmount: '60.00',
+                      status: 'COMPLETED',
+                      payTime: '2026-03-15T09:00:00Z',
+                    },
+                    {
+                      orderId: '5',
+                      orderSn: 'SN-005',
+                      subject: 'Starter Kit',
+                      totalAmount: '50.00',
+                      status: 'COMPLETED',
+                      createdAt: '2026-02-27T09:00:00Z',
                     },
                   ],
+                  totalElements: 5,
+                  number: 0,
+                  size: 100,
+                  last: true,
                 },
               };
             },
@@ -131,7 +94,7 @@ await runTest(
             getProducts: async (params?: Record<string, unknown>) => {
               productRequestCount += 1;
               assert.equal(params?.page, '1');
-              assert.equal(params?.size, '20');
+              assert.equal(params?.size, '50');
 
               return {
                 code: '2000',
@@ -143,7 +106,23 @@ await runTest(
                       price: 120,
                       sales: 3,
                     },
+                    {
+                      id: '22',
+                      title: 'Copilot Pack',
+                      price: 80,
+                      sales: 1,
+                    },
+                    {
+                      id: '33',
+                      title: 'Starter Kit',
+                      price: 60,
+                      sales: 4,
+                    },
                   ],
+                  totalElements: 3,
+                  number: 0,
+                  size: 50,
+                  last: true,
                 },
               };
             },
@@ -157,13 +136,28 @@ await runTest(
     });
 
     assert.equal(snapshot.businessSummary.todayRevenue, 120);
-    assert.equal(snapshot.businessSummary.conversionRate, 33.3);
-    assert.equal(snapshot.revenueAnalytics.totalRevenue, 200);
-    assert.equal(snapshot.revenueAnalytics.revenueTrend[0]?.averageOrderValue, 120);
+    assert.equal(snapshot.businessSummary.weekRevenue, 240);
+    assert.equal(snapshot.businessSummary.monthRevenue, 300);
+    assert.equal(snapshot.businessSummary.yearRevenue, 350);
+    assert.equal(snapshot.businessSummary.averageOrderValue, 80);
+    assert.equal(snapshot.businessSummary.conversionRate, 100);
+    assert.equal(snapshot.businessSummary.revenueDelta, 300);
+    assert.equal(snapshot.revenueAnalytics.totalRevenue, 240);
+    assert.equal(snapshot.revenueAnalytics.totalOrders, 3);
+    assert.equal(snapshot.revenueAnalytics.averageOrderValue, 80);
+    assert.equal(snapshot.revenueAnalytics.peakRevenueLabel, '03-24');
+    assert.equal(snapshot.revenueAnalytics.peakRevenueValue, 120);
+    const march22TrendPoint = snapshot.revenueAnalytics.revenueTrend.find(
+      (item) => item.bucketKey === '2026-03-22',
+    );
+    assert.equal(march22TrendPoint?.revenue, 80);
+    assert.equal(march22TrendPoint?.averageOrderValue, 80);
     assert.equal(snapshot.revenueAnalytics.productBreakdown[0]?.productName, 'VIP Membership');
+    assert.equal(snapshot.revenueAnalytics.productBreakdown[0]?.share, 66.7);
     assert.equal(snapshot.recentRevenueRecords[0]?.status, 'completed');
-    assert.equal(snapshot.recentRevenueRecords[0]?.revenueAmount, 120);
-    assert.equal(snapshot.productPerformance[0]?.trendDelta, 200);
+    assert.equal(snapshot.recentRevenueRecords[1]?.channel, 'wechat');
+    assert.equal(snapshot.productPerformance[0]?.id, '11');
+    assert.equal(snapshot.productPerformance[0]?.orders, 2);
     assert.equal(orderRequestCount, 1);
     assert.equal(productRequestCount, 1);
   },
@@ -173,6 +167,7 @@ await runTest(
   'dashboardCommerceService returns an empty snapshot when no auth session is available',
   async () => {
     const service = createDashboardCommerceService({
+      getNow: () => new Date('2026-03-24T12:00:00.000Z'),
       getSessionTokens: () => ({
         authToken: '',
       }),
@@ -199,7 +194,7 @@ await runTest(
 );
 
 await runTest(
-  'dashboardCommerceService issues the generated app sdk HTTP request when an auth session is available',
+  'dashboardCommerceService issues current generated app sdk HTTP requests when an auth session is available',
   async () => {
     const originalFetch = globalThis.fetch;
     const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
@@ -221,21 +216,10 @@ await runTest(
             code: '2000',
             data: {
               content: [],
-            },
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
-
-      if (url.pathname === '/app/v3/api/products') {
-        return new Response(
-          JSON.stringify({
-            code: '2000',
-            data: {
-              content: [],
+              totalElements: 0,
+              number: 0,
+              size: 100,
+              last: true,
             },
           }),
           {
@@ -249,36 +233,11 @@ await runTest(
         JSON.stringify({
           code: '2000',
           data: {
-            businessSummary: {
-              todayRevenue: '18.00',
-              weekRevenue: '54.00',
-              monthRevenue: '108.00',
-              yearRevenue: '108.00',
-              todayOrders: 1,
-              weekOrders: 3,
-              monthOrders: 6,
-              yearOrders: 6,
-              averageOrderValue: '18.00',
-              conversionRate: 12.5,
-              revenueDelta: 25,
-            },
-            revenueAnalytics: {
-              granularity: 'day',
-              rangeMode: 'month',
-              selectedMonthKey: '2026-03',
-              totalRevenue: '54.00',
-              dailyRevenue: '1.74',
-              projectedMonthlyRevenue: '54.00',
-              totalOrders: 3,
-              averageOrderValue: '18.00',
-              peakRevenueLabel: '03-24',
-              peakRevenueValue: '18.00',
-              deltaPercentage: 25,
-              revenueTrend: [],
-              productBreakdown: [],
-            },
-            recentRevenueRecords: [],
-            productPerformance: [],
+            content: [],
+            totalElements: 0,
+            number: 0,
+            size: 50,
+            last: true,
           },
         }),
         {
@@ -290,6 +249,7 @@ await runTest(
 
     try {
       const service = createDashboardCommerceService({
+        getNow: () => new Date('2026-03-24T12:00:00.000Z'),
         getSessionTokens: () => ({
           authToken: 'session-auth-token',
         }),
@@ -309,7 +269,7 @@ await runTest(
       globalThis.fetch = originalFetch;
     }
 
-    assert.equal(fetchCalls.length, 3);
+    assert.ok(fetchCalls.length >= 2);
 
     const urls = fetchCalls.map(({ input }) => {
       const rawUrl =
@@ -320,19 +280,17 @@ await runTest(
             : input.url;
       return new URL(rawUrl);
     });
-    const dashboardUrl = urls.find((url) => url.pathname === '/app/v3/api/dashboard/statistics/commerce');
     const orderUrl = urls.find((url) => url.pathname === '/app/v3/api/orders');
     const productUrl = urls.find((url) => url.pathname === '/app/v3/api/products');
 
-    assert.ok(dashboardUrl);
     assert.ok(orderUrl);
     assert.ok(productUrl);
-    assert.equal(dashboardUrl?.searchParams.get('granularity'), 'day');
-    assert.equal(dashboardUrl?.searchParams.get('rangeMode'), 'month');
-    assert.equal(dashboardUrl?.searchParams.get('monthKey'), '2026-03');
     assert.equal(orderUrl?.searchParams.get('page'), '1');
-    assert.equal(orderUrl?.searchParams.get('size'), '10');
+    assert.equal(orderUrl?.searchParams.get('size'), '100');
+    assert.ok(orderUrl?.searchParams.get('startTime'));
+    assert.ok(orderUrl?.searchParams.get('endTime'));
     assert.equal(productUrl?.searchParams.get('page'), '1');
-    assert.equal(productUrl?.searchParams.get('size'), '20');
+    assert.equal(productUrl?.searchParams.get('size'), '50');
+    assert.ok(urls.every((url) => url.pathname !== '/app/v3/api/dashboard/statistics/commerce'));
   },
 );

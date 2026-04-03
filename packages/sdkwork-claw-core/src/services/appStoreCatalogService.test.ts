@@ -15,17 +15,48 @@ function runTest(name: string, callback: () => void | Promise<void>) {
 }
 
 await runTest(
-  'appStoreCatalogService maps generated app sdk store payloads into AppStore catalog objects',
+  'appStoreCatalogService maps current generated app sdk app payloads into AppStore catalog objects',
   async () => {
+    let searchRequestCount = 0;
+
     const service = createAppStoreCatalogService({
       getClient: () =>
         ({
           app: {
-            listStoreApps: async (params?: Record<string, unknown>) => {
-              assert.equal(params?.keyword, 'claw');
-              assert.equal(params?.category, 'SDK');
-              assert.equal(params?.page, 2);
-              assert.equal(params?.size, 5);
+            searchApps: async (params?: Record<string, unknown>) => {
+              searchRequestCount += 1;
+
+              if (params?.keyword) {
+                assert.equal(params?.keyword, 'claw');
+                assert.equal(params?.page, 2);
+                assert.equal(params?.size, 5);
+
+                return {
+                  code: '2000',
+                  data: {
+                    content: [
+                      {
+                        appId: '1001',
+                        name: 'OpenClaw Desktop',
+                        description: 'Desktop automation app.',
+                        appType: 'APP_SDK',
+                        installSkill: {
+                          name: 'SDKWork',
+                        },
+                        iconUrl: 'https://cdn.sdkwork.com/openclaw/icon.png',
+                        version: '1.0.0',
+                      },
+                    ],
+                    totalElements: 6,
+                    number: 1,
+                    size: 5,
+                    last: false,
+                  },
+                };
+              }
+
+              assert.equal(params?.page, 1);
+
               return {
                 code: '2000',
                 data: {
@@ -33,40 +64,34 @@ await runTest(
                     {
                       appId: '1001',
                       name: 'OpenClaw Desktop',
-                      description: 'Desktop automation app.',
-                      developer: 'SDKWork',
-                      category: 'SDK',
-                      iconUrl: 'https://cdn.sdkwork.com/openclaw/icon.png',
-                      version: '1.0.0',
+                      appType: 'APP_SDK',
+                    },
+                    {
+                      appId: '1002',
+                      name: 'ZeroClaw Ops',
+                      appType: 'APP_TOOLING',
                     },
                   ],
-                  totalElements: 6,
-                  number: 1,
-                  size: 5,
-                  last: false,
+                  totalElements: 2,
+                  number: 0,
+                  size: 100,
+                  last: true,
                 },
               };
             },
-            listStoreCategories: async () => ({
-              code: '2000',
-              data: [
-                {
-                  code: 'sdk',
-                  name: 'SDK',
-                  count: 2,
-                },
-              ],
-            }),
-            retrieveStore: async (appId: string | number) => {
+            retrieve: async (appId: string | number) => {
               assert.equal(appId, '1001');
+
               return {
                 code: '2000',
                 data: {
                   appId: '1001',
                   name: 'OpenClaw Desktop',
                   description: 'Desktop automation app.',
-                  developer: 'SDKWork',
-                  category: 'SDK',
+                  appType: 'APP_SDK',
+                  installSkill: {
+                    name: 'SDKWork',
+                  },
                   iconUrl: 'https://cdn.sdkwork.com/openclaw/icon.png',
                   version: '1.0.1',
                   storeUrl: 'https://store.sdkwork.com/openclaw',
@@ -80,27 +105,121 @@ await runTest(
 
     const page = await service.listApps({
       keyword: 'claw',
-      category: 'SDK',
       page: 2,
       pageSize: 5,
     });
     const categories = await service.listCategories();
     const app = await service.getApp('1001');
 
+    assert.equal(searchRequestCount, 2);
     assert.equal(page.total, 6);
     assert.equal(page.page, 2);
     assert.equal(page.pageSize, 5);
     assert.equal(page.hasMore, true);
     assert.equal(page.items[0]?.developer, 'SDKWork');
-    assert.equal(categories[0]?.code, 'sdk');
+    assert.equal(page.items[0]?.category, 'SDK');
+    assert.deepEqual(categories, [
+      {
+        code: 'sdk',
+        name: 'SDK',
+        count: 1,
+      },
+      {
+        code: 'tooling',
+        name: 'Tooling',
+        count: 1,
+      },
+    ]);
     assert.equal(app.id, '1001');
+    assert.equal(app.category, 'SDK');
     assert.equal(app.storeUrl, 'https://store.sdkwork.com/openclaw');
     assert.equal(app.downloadUrl, 'https://cdn.sdkwork.com/openclaw/download.zip');
   },
 );
 
 await runTest(
-  'appStoreCatalogService issues generated app sdk HTTP requests for public store resources',
+  'appStoreCatalogService filters category results on the client when store-specific sdk endpoints are unavailable',
+  async () => {
+    const requestedPages: number[] = [];
+
+    const service = createAppStoreCatalogService({
+      getClient: () =>
+        ({
+          app: {
+            searchApps: async (params?: Record<string, unknown>) => {
+              requestedPages.push(Number(params?.page || 1));
+
+              if (Number(params?.page || 1) === 1) {
+                return {
+                  code: '2000',
+                  data: {
+                    content: [
+                      {
+                        appId: '1001',
+                        name: 'OpenClaw Desktop',
+                        appType: 'APP_SDK',
+                      },
+                      {
+                        appId: '1002',
+                        name: 'ZeroClaw Ops',
+                        appType: 'APP_TOOLING',
+                      },
+                    ],
+                    totalElements: 4,
+                    number: 0,
+                    size: 2,
+                    last: false,
+                  },
+                };
+              }
+
+              return {
+                code: '2000',
+                data: {
+                  content: [
+                    {
+                      appId: '1003',
+                      name: 'IronClaw Studio',
+                      appType: 'APP_SDK',
+                    },
+                    {
+                      appId: '1004',
+                      name: 'Signal Center',
+                      appType: 'APP_COMMUNITY',
+                    },
+                  ],
+                  totalElements: 4,
+                  number: 1,
+                  size: 2,
+                  last: true,
+                },
+              };
+            },
+          },
+        }) as any,
+    });
+
+    const page = await service.listApps({
+      category: 'SDK',
+      page: 1,
+      pageSize: 5,
+    });
+
+    assert.deepEqual(requestedPages, [1, 2]);
+    assert.equal(page.total, 2);
+    assert.equal(page.page, 1);
+    assert.equal(page.pageSize, 5);
+    assert.equal(page.hasMore, false);
+    assert.deepEqual(
+      page.items.map((item) => item.id),
+      ['1001', '1003'],
+    );
+    assert.ok(page.items.every((item) => item.category === 'SDK'));
+  },
+);
+
+await runTest(
+  'appStoreCatalogService issues generated app sdk HTTP requests for current public app resources',
   async () => {
     const originalFetch = globalThis.fetch;
     const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
@@ -116,14 +235,7 @@ await runTest(
             : input.url;
       const url = new URL(rawUrl);
 
-      if (url.pathname === '/app/v3/api/app/store/categories') {
-        return new Response(JSON.stringify({ code: '2000', data: [] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      if (url.pathname === '/app/v3/api/app/store/1001') {
+      if (url.pathname === '/app/v3/api/app/manage/1001') {
         return new Response(JSON.stringify({ code: '2000', data: { appId: '1001' } }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -159,7 +271,6 @@ await runTest(
 
       await service.listApps({
         keyword: 'claw',
-        category: 'SDK',
         page: 2,
         pageSize: 5,
       });
@@ -169,7 +280,7 @@ await runTest(
       globalThis.fetch = originalFetch;
     }
 
-    assert.equal(fetchCalls.length, 3);
+    assert.ok(fetchCalls.length >= 3);
 
     const urls = fetchCalls.map(({ input }) => {
       const rawUrl =
@@ -184,14 +295,13 @@ await runTest(
     assert.ok(
       urls.some(
         (url) =>
-          url.pathname === '/app/v3/api/app/store' &&
+          url.pathname === '/app/v3/api/app/manage/search' &&
           url.searchParams.get('keyword') === 'claw' &&
-          url.searchParams.get('category') === 'SDK' &&
           url.searchParams.get('page') === '2' &&
           url.searchParams.get('size') === '5',
       ),
     );
-    assert.ok(urls.some((url) => url.pathname === '/app/v3/api/app/store/categories'));
-    assert.ok(urls.some((url) => url.pathname === '/app/v3/api/app/store/1001'));
+    assert.ok(urls.some((url) => url.pathname === '/app/v3/api/app/manage/1001'));
+    assert.ok(urls.every((url) => !url.pathname.startsWith('/app/v3/api/app/store')));
   },
 );

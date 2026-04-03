@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   Coins,
@@ -23,6 +23,11 @@ import type {
   DashboardAlertItem,
   DashboardSnapshot,
 } from '../types';
+import {
+  createInitialDashboardDeferredSections,
+  mergeDashboardDeferredSections,
+  scheduleDashboardSectionHydration,
+} from './dashboardSectionHydration.ts';
 
 const surfaceClass =
   'min-w-0 rounded-[2rem] border border-white/70 bg-white/78 p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/6 dark:bg-zinc-900/82';
@@ -108,6 +113,35 @@ function getAlertTone(severity: DashboardAlertItem['severity']) {
   return 'positive';
 }
 
+function DeferredDashboardSurface({
+  eyebrow,
+  title,
+  description,
+  minHeightClass = 'min-h-[22rem]',
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  minHeightClass?: string;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <section className={surfaceClass}>
+      <SectionHeader
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+      />
+      <div
+        className={`mt-6 flex items-center justify-center rounded-[1.6rem] border border-dashed border-zinc-300/80 bg-white/60 text-sm text-zinc-500 dark:border-zinc-700/70 dark:bg-zinc-950/35 dark:text-zinc-400 ${minHeightClass}`}
+      >
+        {t('common.loading')}
+      </div>
+    </section>
+  );
+}
+
 export function DashboardPage() {
   const { t, i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
@@ -120,6 +154,10 @@ export function DashboardPage() {
   const [customEnd, setCustomEnd] = useState('2026-03-18');
   const [activeTab, setActiveTab] = useState<WorkbenchTab>('api');
   const [apiStatusFilter, setApiStatusFilter] = useState<ApiStatusFilter>('all');
+  const [hydratedSections, setHydratedSections] = useState(
+    createInitialDashboardDeferredSections(),
+  );
+  const dashboardHydrationBootstrappedRef = useRef(false);
 
   const analyticsQuery = useMemo<DashboardAnalyticsQuery>(() => {
     if (rangeMode === 'month') return { granularity, rangeMode, monthKey };
@@ -182,6 +220,24 @@ export function DashboardPage() {
   useEffect(() => {
     void loadSnapshot(analyticsQuery);
   }, [analyticsQuery]);
+
+  useEffect(() => {
+    if (!snapshot || dashboardHydrationBootstrappedRef.current) {
+      return;
+    }
+
+    dashboardHydrationBootstrappedRef.current = true;
+
+    return scheduleDashboardSectionHydration({
+      onBatchReady: (nextState) => {
+        startTransition(() => {
+          setHydratedSections((current) =>
+            mergeDashboardDeferredSections(current, nextState),
+          );
+        });
+      },
+    });
+  }, [Boolean(snapshot)]);
 
   const businessSummary = snapshot?.businessSummary;
   const tokenSummary = snapshot?.tokenSummary;
@@ -429,177 +485,214 @@ export function DashboardPage() {
           </div>
 
           <div className={analyticsSplitGridClass}>
-            <section className={surfaceClass}>
-              <SectionHeader
-                eyebrow={t('dashboard.metrics.revenue.eyebrow')}
-                title={t('dashboard.sections.revenueTrend')}
-                description={t('dashboard.sections.revenueTrendDescription')}
-                action={
-                  <div className="inline-flex max-w-full rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
-                    {rangeSummaryLabel}
-                  </div>
-                }
-              />
-              <div className="mt-6">
-                {revenueAnalytics ? (
-                  <RevenueTrendChart
-                    points={revenueAnalytics.revenueTrend}
-                    yAxisFormatter={(value) => formatCurrency(value)}
+            {hydratedSections.revenueAnalytics ? (
+              <>
+                <section className={surfaceClass}>
+                  <SectionHeader
+                    eyebrow={t('dashboard.metrics.revenue.eyebrow')}
+                    title={t('dashboard.sections.revenueTrend')}
+                    description={t('dashboard.sections.revenueTrendDescription')}
+                    action={
+                      <div className="inline-flex max-w-full rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
+                        {rangeSummaryLabel}
+                      </div>
+                    }
                   />
-                ) : (
-                  <div className="flex h-64 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">--</div>
-                )}
-              </div>
-            </section>
-            <section className={surfaceClass}>
-              <SectionHeader
-                eyebrow={t('dashboard.metrics.revenue.eyebrow')}
-                title={t('dashboard.sections.revenueDistribution')}
-                description={t('dashboard.sections.revenueDistributionDescription')}
-              />
-              <div className={distributionSplitGridClass}>
-                {revenueAnalytics ? (
-                  <DistributionRingChart
-                    rows={revenueAnalytics.productBreakdown}
-                    sliceClassNames={chartPalette.map((item) => item.sliceClassName)}
-                    centerLabel={t('dashboard.table.revenue')}
-                    centerValue={formatCurrency(revenueAnalytics.totalRevenue)}
-                    ariaLabel={t('dashboard.charts.revenueDistribution')}
-                    valueAccessor={(row) => row.revenue}
-                  />
-                ) : (
-                  <div className="flex min-h-[20rem] items-center justify-center rounded-[1.6rem] border border-dashed border-zinc-300/80 bg-white/60 text-sm text-zinc-500 dark:border-zinc-700/70 dark:bg-zinc-950/35 dark:text-zinc-400">--</div>
-                )}
-                <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
-                  <div className={tableScrollClass}>
-                    <table className="w-full min-w-[40rem] border-collapse text-left">
-                      <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
-                        <tr>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.productName')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.orders')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.revenue')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.labels.shareOfTotal')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.dailyRevenue')}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-200/70 dark:divide-white/6">
-                        {revenueAnalytics?.productBreakdown.map((row, index) => (
-                          <tr key={row.id} className="bg-white/70 dark:bg-zinc-950/35">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <span className={`h-2.5 w-2.5 rounded-full ${chartPalette[index % chartPalette.length].dotClassName}`} />
-                                <span className="font-semibold text-zinc-950 dark:text-zinc-50">{row.productName}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatInteger(row.orders)}</td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.revenue)}</td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatPercent(row.share)}</td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.dailyRevenue)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="mt-6">
+                    {revenueAnalytics ? (
+                      <RevenueTrendChart
+                        points={revenueAnalytics.revenueTrend}
+                        yAxisFormatter={(value) => formatCurrency(value)}
+                      />
+                    ) : (
+                      <div className="flex h-64 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">--</div>
+                    )}
                   </div>
-                </div>
-              </div>
-            </section>
+                </section>
+                <section className={surfaceClass}>
+                  <SectionHeader
+                    eyebrow={t('dashboard.metrics.revenue.eyebrow')}
+                    title={t('dashboard.sections.revenueDistribution')}
+                    description={t('dashboard.sections.revenueDistributionDescription')}
+                  />
+                  <div className={distributionSplitGridClass}>
+                    {revenueAnalytics ? (
+                      <DistributionRingChart
+                        rows={revenueAnalytics.productBreakdown}
+                        sliceClassNames={chartPalette.map((item) => item.sliceClassName)}
+                        centerLabel={t('dashboard.table.revenue')}
+                        centerValue={formatCurrency(revenueAnalytics.totalRevenue)}
+                        ariaLabel={t('dashboard.charts.revenueDistribution')}
+                        valueAccessor={(row) => row.revenue}
+                      />
+                    ) : (
+                      <div className="flex min-h-[20rem] items-center justify-center rounded-[1.6rem] border border-dashed border-zinc-300/80 bg-white/60 text-sm text-zinc-500 dark:border-zinc-700/70 dark:bg-zinc-950/35 dark:text-zinc-400">--</div>
+                    )}
+                    <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
+                      <div className={tableScrollClass}>
+                        <table className="w-full min-w-[40rem] border-collapse text-left">
+                          <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
+                            <tr>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.productName')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.orders')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.revenue')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.labels.shareOfTotal')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.dailyRevenue')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-200/70 dark:divide-white/6">
+                            {revenueAnalytics?.productBreakdown.map((row, index) => (
+                              <tr key={row.id} className="bg-white/70 dark:bg-zinc-950/35">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <span className={`h-2.5 w-2.5 rounded-full ${chartPalette[index % chartPalette.length].dotClassName}`} />
+                                    <span className="font-semibold text-zinc-950 dark:text-zinc-50">{row.productName}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatInteger(row.orders)}</td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.revenue)}</td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatPercent(row.share)}</td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.dailyRevenue)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </>
+            ) : (
+              <>
+                <DeferredDashboardSurface
+                  eyebrow={t('dashboard.metrics.revenue.eyebrow')}
+                  title={t('dashboard.sections.revenueTrend')}
+                  description={t('dashboard.sections.revenueTrendDescription')}
+                />
+                <DeferredDashboardSurface
+                  eyebrow={t('dashboard.metrics.revenue.eyebrow')}
+                  title={t('dashboard.sections.revenueDistribution')}
+                  description={t('dashboard.sections.revenueDistributionDescription')}
+                  minHeightClass="min-h-[20rem]"
+                />
+              </>
+            )}
           </div>
 
           <div className={analyticsSplitGridClass}>
-            <section className={surfaceClass}>
-              <SectionHeader
-                eyebrow={t('dashboard.metrics.tokenUsage.eyebrow')}
-                title={t('dashboard.sections.tokenIntelligence')}
-                description={t('dashboard.sections.tokenIntelligenceDescription')}
-              />
-              <div className="mt-6">
-                {tokenAnalytics ? (
-                  <TokenTrendChart
-                    points={tokenAnalytics.usageTrend}
-                    series={chartSeries}
-                    controls={{
-                      granularity,
-                      onGranularityChange: setGranularity,
-                      rangeMode,
-                      onRangeModeChange: setRangeMode,
-                      monthKey,
-                      monthOptions,
-                      onMonthKeyChange: setMonthKey,
-                      customStart,
-                      customEnd,
-                      onCustomStartChange: setCustomStart,
-                      onCustomEndChange: setCustomEnd,
-                    }}
-                    yAxisFormatter={(value) => formatTokens(value)}
+            {hydratedSections.tokenAnalytics ? (
+              <>
+                <section className={surfaceClass}>
+                  <SectionHeader
+                    eyebrow={t('dashboard.metrics.tokenUsage.eyebrow')}
+                    title={t('dashboard.sections.tokenIntelligence')}
+                    description={t('dashboard.sections.tokenIntelligenceDescription')}
                   />
-                ) : (
-                  <div className="flex h-64 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">--</div>
-                )}
-              </div>
-            </section>
-            <section className={surfaceClass}>
-              <SectionHeader
-                eyebrow={t('dashboard.metrics.tokenUsage.eyebrow')}
-                title={t('dashboard.sections.modelDistribution')}
-                description={t('dashboard.sections.modelDistributionDescription')}
-              />
-              <div className={distributionSplitGridClass}>
-                {tokenAnalytics ? (
-                  <ModelDistributionChart
-                    rows={tokenAnalytics.modelBreakdown}
-                    sliceClassNames={chartPalette.map((item) => item.sliceClassName)}
-                    centerLabel={t('dashboard.table.requestCount')}
-                    centerValue={formatInteger(tokenAnalytics.totalRequestCount)}
-                  />
-                ) : (
-                  <div className="flex min-h-[20rem] items-center justify-center rounded-[1.6rem] border border-dashed border-zinc-300/80 bg-white/60 text-sm text-zinc-500 dark:border-zinc-700/70 dark:bg-zinc-950/35 dark:text-zinc-400">--</div>
-                )}
-                <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
-                  <div className={tableScrollClass}>
-                    <table className="w-full min-w-[44rem] border-collapse text-left">
-                      <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
-                        <tr>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.modelName')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.requestCount')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.token')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.actualAmount')}</th>
-                          <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.standardAmount')}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-200/70 dark:divide-white/6">
-                        {tokenAnalytics?.modelBreakdown.map((row, index) => (
-                          <tr key={row.id} className="bg-white/70 dark:bg-zinc-950/35">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <span className={`h-2.5 w-2.5 rounded-full ${chartPalette[index % chartPalette.length].dotClassName}`} />
-                                <div>
-                                  <div className="font-semibold text-zinc-950 dark:text-zinc-50">{row.modelName}</div>
-                                  <div className="text-xs text-zinc-500 dark:text-zinc-400">{formatPercent(row.share)}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatInteger(row.requestCount)}</td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatTokens(row.tokens)}</td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.actualAmount)}</td>
-                            <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.standardAmount)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="mt-6">
+                    {tokenAnalytics ? (
+                      <TokenTrendChart
+                        points={tokenAnalytics.usageTrend}
+                        series={chartSeries}
+                        controls={{
+                          granularity,
+                          onGranularityChange: setGranularity,
+                          rangeMode,
+                          onRangeModeChange: setRangeMode,
+                          monthKey,
+                          monthOptions,
+                          onMonthKeyChange: setMonthKey,
+                          customStart,
+                          customEnd,
+                          onCustomStartChange: setCustomStart,
+                          onCustomEndChange: setCustomEnd,
+                        }}
+                        yAxisFormatter={(value) => formatTokens(value)}
+                      />
+                    ) : (
+                      <div className="flex h-64 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">--</div>
+                    )}
                   </div>
-                </div>
-              </div>
-            </section>
+                </section>
+                <section className={surfaceClass}>
+                  <SectionHeader
+                    eyebrow={t('dashboard.metrics.tokenUsage.eyebrow')}
+                    title={t('dashboard.sections.modelDistribution')}
+                    description={t('dashboard.sections.modelDistributionDescription')}
+                  />
+                  <div className={distributionSplitGridClass}>
+                    {tokenAnalytics ? (
+                      <ModelDistributionChart
+                        rows={tokenAnalytics.modelBreakdown}
+                        sliceClassNames={chartPalette.map((item) => item.sliceClassName)}
+                        centerLabel={t('dashboard.table.requestCount')}
+                        centerValue={formatInteger(tokenAnalytics.totalRequestCount)}
+                      />
+                    ) : (
+                      <div className="flex min-h-[20rem] items-center justify-center rounded-[1.6rem] border border-dashed border-zinc-300/80 bg-white/60 text-sm text-zinc-500 dark:border-zinc-700/70 dark:bg-zinc-950/35 dark:text-zinc-400">--</div>
+                    )}
+                    <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-200/70 dark:border-white/6">
+                      <div className={tableScrollClass}>
+                        <table className="w-full min-w-[44rem] border-collapse text-left">
+                          <thead className="bg-zinc-50/80 dark:bg-zinc-900/85">
+                            <tr>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.modelName')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.requestCount')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.token')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.actualAmount')}</th>
+                              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{t('dashboard.table.standardAmount')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-200/70 dark:divide-white/6">
+                            {tokenAnalytics?.modelBreakdown.map((row, index) => (
+                              <tr key={row.id} className="bg-white/70 dark:bg-zinc-950/35">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <span className={`h-2.5 w-2.5 rounded-full ${chartPalette[index % chartPalette.length].dotClassName}`} />
+                                    <div>
+                                      <div className="font-semibold text-zinc-950 dark:text-zinc-50">{row.modelName}</div>
+                                      <div className="text-xs text-zinc-500 dark:text-zinc-400">{formatPercent(row.share)}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatInteger(row.requestCount)}</td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatTokens(row.tokens)}</td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.actualAmount)}</td>
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300">{formatCurrency(row.standardAmount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </>
+            ) : (
+              <>
+                <DeferredDashboardSurface
+                  eyebrow={t('dashboard.metrics.tokenUsage.eyebrow')}
+                  title={t('dashboard.sections.tokenIntelligence')}
+                  description={t('dashboard.sections.tokenIntelligenceDescription')}
+                />
+                <DeferredDashboardSurface
+                  eyebrow={t('dashboard.metrics.tokenUsage.eyebrow')}
+                  title={t('dashboard.sections.modelDistribution')}
+                  description={t('dashboard.sections.modelDistributionDescription')}
+                  minHeightClass="min-h-[20rem]"
+                />
+              </>
+            )}
           </div>
 
-          <section className={surfaceClass}>
-            <SectionHeader
-              eyebrow={t('dashboard.sections.activityWorkbench')}
-              title={t('dashboard.sections.activityWorkbench')}
-              description={t('dashboard.sections.activityWorkbenchDescription')}
-            />
+          {hydratedSections.activityWorkbench ? (
+            <section className={surfaceClass}>
+              <SectionHeader
+                eyebrow={t('dashboard.sections.activityWorkbench')}
+                title={t('dashboard.sections.activityWorkbench')}
+                description={t('dashboard.sections.activityWorkbenchDescription')}
+              />
 
-            <div className="mt-6 flex flex-wrap gap-2">
+              <div className="mt-6 flex flex-wrap gap-2">
               {[
                 { id: 'api' as const, label: t('dashboard.tabs.recentApiCalls') },
                 { id: 'revenue' as const, label: t('dashboard.tabs.recentRevenueRecords') },
@@ -625,7 +718,7 @@ export function DashboardPage() {
               })}
             </div>
 
-            <div className="mt-6">
+              <div className="mt-6">
               {activeTab === 'api' ? (
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-2">
@@ -771,8 +864,16 @@ export function DashboardPage() {
                   ))}
                 </div>
               ) : null}
-            </div>
-          </section>
+              </div>
+            </section>
+          ) : (
+            <DeferredDashboardSurface
+              eyebrow={t('dashboard.sections.activityWorkbench')}
+              title={t('dashboard.sections.activityWorkbench')}
+              description={t('dashboard.sections.activityWorkbenchDescription')}
+              minHeightClass="min-h-[28rem]"
+            />
+          )}
 
           {error ? (
             <div className="flex items-center gap-3 rounded-[1.5rem] border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">

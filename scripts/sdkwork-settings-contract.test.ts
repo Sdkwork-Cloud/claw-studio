@@ -16,6 +16,37 @@ function exists(relPath: string) {
   return fs.existsSync(path.join(root, relPath));
 }
 
+function readLocale(language: 'en' | 'zh'): Record<string, unknown> {
+  const legacyLocalePath = `packages/sdkwork-claw-i18n/src/locales/${language}.json`;
+
+  if (exists(legacyLocalePath)) {
+    return readJson<Record<string, unknown>>(legacyLocalePath);
+  }
+
+  const localeDirectory = path.join(root, 'packages', 'sdkwork-claw-i18n', 'src', 'locales', language);
+  const localeEntries = fs
+    .readdirSync(localeDirectory)
+    .filter((entry) => entry.endsWith('.json'))
+    .sort();
+
+  return Object.fromEntries(
+    localeEntries.map((entry) => [
+      path.basename(entry, '.json'),
+      JSON.parse(fs.readFileSync(path.join(localeDirectory, entry), 'utf8')),
+    ]),
+  );
+}
+
+function readLocaleSectionSource(language: 'en' | 'zh', section: string) {
+  const legacyLocalePath = `packages/sdkwork-claw-i18n/src/locales/${language}.json`;
+
+  if (exists(legacyLocalePath)) {
+    return read(legacyLocalePath);
+  }
+
+  return read(`packages/sdkwork-claw-i18n/src/locales/${language}/${section}.json`);
+}
+
 function getLocaleValue(locale: Record<string, unknown>, key: string) {
   return key.split('.').reduce<unknown>((current, segment) => {
     if (!current || typeof current !== 'object' || !(segment in current)) {
@@ -44,7 +75,7 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('notification settings SDK contract exposes the app-api notification settings shape', () => {
+runTest('notification settings SDK contract exposes the current app-api notification settings resources', () => {
   const notificationSettingsType = readFromRepo(
     'spring-ai-plus-app-api',
     'sdkwork-sdk-app',
@@ -52,6 +83,14 @@ runTest('notification settings SDK contract exposes the app-api notification set
     'src',
     'types',
     'notification-settings-vo.ts',
+  );
+  const notificationTypeSettingsForm = readFromRepo(
+    'spring-ai-plus-app-api',
+    'sdkwork-sdk-app',
+    'sdkwork-app-sdk-typescript',
+    'src',
+    'types',
+    'notification-type-settings-form.ts',
   );
 
   assert.ok(
@@ -61,27 +100,246 @@ runTest('notification settings SDK contract exposes the app-api notification set
       'sdkwork-app-sdk-typescript',
       'src',
       'types',
-      'notification-type-settings-vo.ts',
+      'notification-type-vo.ts',
     ),
-    'generated notification type settings VO should exist',
+    'generated notification type VO should exist',
   );
-  assert.match(notificationSettingsType, /enablePush\?: boolean/);
-  assert.match(notificationSettingsType, /enableEmail\?: boolean/);
-  assert.match(notificationSettingsType, /enableSms\?: boolean/);
-  assert.match(notificationSettingsType, /enableInApp\?: boolean/);
-  assert.match(notificationSettingsType, /quietHoursStart\?: string/);
-  assert.match(notificationSettingsType, /quietHoursEnd\?: string/);
-  assert.match(notificationSettingsType, /notificationSound\?: string/);
-  assert.match(notificationSettingsType, /vibrationEnabled\?: boolean/);
-  assert.match(notificationSettingsType, /typeSettings\?/);
+  assert.match(notificationSettingsType, /system\?: boolean/);
+  assert.match(notificationSettingsType, /message\?: boolean/);
+  assert.match(notificationSettingsType, /activity\?: boolean/);
+  assert.match(notificationSettingsType, /promotion\?: boolean/);
+  assert.match(notificationSettingsType, /sound\?: boolean/);
+  assert.match(notificationSettingsType, /vibration\?: boolean/);
+  assert.match(notificationTypeSettingsForm, /type: string/);
+  assert.match(notificationTypeSettingsForm, /enabled\?: boolean/);
+  assert.match(notificationTypeSettingsForm, /pushMethod\?: string/);
+  assert.match(notificationTypeSettingsForm, /needReminder\?: boolean/);
+});
+
+runTest('sdkwork-claw-settings routes the api tab to the dedicated API workspace instead of the legacy api-key page', () => {
+  const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
+  const apiSettingsSource = read('packages/sdkwork-claw-settings/src/ApiSettings.tsx');
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const servicesIndexSource = read('packages/sdkwork-claw-settings/src/services/index.ts');
+
+  assert.match(settingsSource, /ApiSettings/);
+  assert.match(settingsSource, /activeTab === 'api' && <ApiSettings \/>/);
+  assert.doesNotMatch(settingsSource, /activeTab === 'api' && <ApiKeysSettings \/>/);
+  assert.equal(exists('packages/sdkwork-claw-settings/src/ApiKeysSettings.tsx'), false);
+  assert.equal(exists('packages/sdkwork-claw-settings/src/LLMSettings.tsx'), false);
+  assert.equal(exists('packages/sdkwork-claw-settings/src/services/apiKeyService.ts'), false);
+  assert.doesNotMatch(servicesIndexSource, /apiKeyService/);
+  assert.match(apiSettingsSource, /ProviderConfigCenter/);
+  assert.match(apiSettingsSource, /localAiProxyLogsService/);
+  assert.match(apiSettingsSource, /data-slot="api-settings-top-tabs"/);
+  assert.doesNotMatch(apiSettingsSource, /data-slot="api-settings-section-tabs"/);
+  assert.doesNotMatch(apiSettingsSource, /resolveApiRequestLogsTab/);
+  assert.doesNotMatch(apiSettingsSource, /apiLogs\.sections\.providersDescription/);
+  assert.doesNotMatch(apiSettingsSource, /apiLogs\.sections\.logsDescription/);
+  assert.match(providerCenterSource, /providerConfigCenterService/);
+  assert.match(providerCenterSource, /quickApply/);
+  assert.doesNotMatch(providerCenterSource, /studioMockService/);
+});
+
+runTest('sdkwork-claw-settings keeps Provider Center fully localized in Chinese and renders it in a full-width workspace shell', () => {
+  const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const zhLocale = readLocale('zh');
+  const providerCenterLocale = getLocaleValue(zhLocale, 'providerCenter');
+
+  assert.match(settingsSource, /resolveSettingsContentShellClassName\(activeTab\)/);
+  assert.doesNotMatch(providerCenterSource, /max-w-\[1500px\]/);
+  assert.equal(
+    getLocaleValue(zhLocale, 'providerCenter.page.eyebrow'),
+    '本地代理路由中心',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'providerCenter.table.provider'),
+    '路由',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'providerCenter.states.loading'),
+    '正在加载代理路由...',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'providerCenter.dialogs.editor.clientProtocol'),
+    '客户端协议',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'providerCenter.dialogs.editor.upstreamProtocol'),
+    '上游协议',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'providerCenter.dialogs.editor.enabled'),
+    '启用路由',
+  );
+  assert.equal(
+    getLocaleValue(zhLocale, 'providerCenter.toasts.saved'),
+    '路由配置已保存。',
+  );
+  assert.ok(
+    !JSON.stringify(providerCenterLocale).includes('????'),
+    'Provider Center zh locale should not contain placeholder question-mark copy',
+  );
+});
+
+runTest('sdkwork-claw-settings renders Provider Center route editing in a sidebar editor with row-based model management', () => {
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const editorSheetSource = read('packages/sdkwork-claw-settings/src/ProviderConfigEditorSheet.tsx');
+
+  assert.match(providerCenterSource, /ProviderConfigEditorSheet/);
+  assert.match(editorSheetSource, /data-slot="provider-center-editor-shell"/);
+  assert.match(editorSheetSource, /data-slot="provider-center-provider-sidebar"/);
+  assert.match(editorSheetSource, /data-slot="provider-center-model-list"/);
+  assert.match(editorSheetSource, /data-slot="provider-center-model-list-header"/);
+  assert.match(editorSheetSource, /data-slot="provider-center-model-list-row"/);
+  assert.match(editorSheetSource, /appendProviderConfigModelRow/);
+  assert.match(editorSheetSource, /moveProviderConfigModelRow/);
+  assert.doesNotMatch(editorSheetSource, /value=\{draft\.modelsText\}/);
+  assert.doesNotMatch(editorSheetSource, /<Label>\{t\('providerCenter\.dialogs\.editor\.modelId'\)\}<\/Label>/);
+  assert.doesNotMatch(editorSheetSource, /<Label>\{t\('providerCenter\.dialogs\.editor\.modelName'\)\}<\/Label>/);
+});
+
+runTest('sdkwork-claw-settings promotes route status controls to the top of the Provider Center editor before the access form', () => {
+  const editorSheetSource = read('packages/sdkwork-claw-settings/src/ProviderConfigEditorSheet.tsx');
+  const routeHeroIndex = editorSheetSource.indexOf('data-slot="provider-center-route-hero"');
+  const routeStatusIndex = editorSheetSource.indexOf('data-slot="provider-center-route-status"');
+  const accessTitleIndex = editorSheetSource.indexOf("providerCenter.dialogs.editor.accessTitle");
+
+  assert.ok(routeHeroIndex >= 0, 'Provider Center editor should expose a dedicated route hero section');
+  assert.ok(routeStatusIndex >= 0, 'Provider Center editor should expose a dedicated route status section');
+  assert.ok(accessTitleIndex >= 0, 'Provider Center editor should still expose the access form section');
+  assert.ok(
+    routeStatusIndex < accessTitleIndex,
+    'route status controls should appear before the access form section',
+  );
+});
+
+runTest('sdkwork-claw-settings keeps the Provider Center table focused on route operations instead of exposing API keys inline', () => {
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+
+  assert.doesNotMatch(providerCenterSource, /providerCenter\.table\.apiKey/);
+  assert.doesNotMatch(providerCenterSource, /maskRouteApiKey/);
+});
+
+runTest('sdkwork-claw-settings opens Provider Center route details from row double-click and supports a dedicated view mode', () => {
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const editorSheetSource = read('packages/sdkwork-claw-settings/src/ProviderConfigEditorSheet.tsx');
+
+  assert.match(providerCenterSource, /openViewDialog/);
+  assert.match(providerCenterSource, /onDoubleClick=\{\(\) => openViewDialog\(record\)\}/);
+  assert.match(providerCenterSource, /mode=\{editorMode\}/);
+  assert.match(editorSheetSource, /mode: 'view' \| 'edit'/);
+  assert.match(editorSheetSource, /const isReadOnly = mode === 'view' \|\| draft\.managedBy !== 'user';/);
+  assert.match(editorSheetSource, /onEditRequest\?: \(\) => void;/);
+});
+
+runTest('sdkwork-claw-settings prioritizes Provider Center summary cards above a dedicated table toolbar and removes oversized intro copy', () => {
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const summaryIndex = providerCenterSource.indexOf('data-slot="provider-center-summary"');
+  const toolbarIndex = providerCenterSource.indexOf('data-slot="provider-center-table-toolbar"');
+  const tableIndex = providerCenterSource.indexOf('data-slot="provider-center-table"');
+
+  assert.ok(summaryIndex >= 0, 'Provider Center should expose a summary section');
+  assert.ok(toolbarIndex >= 0, 'Provider Center should expose a table toolbar section');
+  assert.ok(tableIndex >= 0, 'Provider Center should still expose the table section');
+  assert.ok(summaryIndex < toolbarIndex, 'summary cards should appear before the table toolbar');
+  assert.ok(toolbarIndex < tableIndex, 'table toolbar should appear before table content');
+  assert.doesNotMatch(providerCenterSource, /providerCenter\.page\.description/);
+  assert.doesNotMatch(providerCenterSource, /providerCenter\.page\.storageHint/);
+});
+
+runTest('sdkwork-claw-settings exposes a Provider Center import dropdown that delegates tool config imports through the dedicated import service', () => {
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const servicesIndexSource = read('packages/sdkwork-claw-settings/src/services/index.ts');
+
+  assert.match(providerCenterSource, /data-slot="provider-center-import-menu"/);
+  assert.match(providerCenterSource, /providerCenter\.actions\.import/);
+  assert.match(providerCenterSource, /providerCenter\.import\.sources\.codex\.label/);
+  assert.match(providerCenterSource, /providerCenter\.import\.sources\.claudeCode\.label/);
+  assert.match(providerCenterSource, /providerCenter\.import\.sources\.openCode\.label/);
+  assert.match(providerCenterSource, /providerConfigImportService\.importProviderConfigs/);
+  assert.match(providerCenterSource, /toast\.success\(/);
+  assert.match(providerCenterSource, /await loadRecords\(/);
+  assert.match(servicesIndexSource, /providerConfigImportService/);
+});
+
+runTest('sdkwork-claw-settings consolidates route base URL and model summary into a standalone Provider Center route detail dialog workflow', () => {
+  const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
+  const healthIndicatorSource = read('packages/sdkwork-claw-settings/src/ProviderRouteHealthIndicator.tsx');
+  const routeDetailDialogSource = read('packages/sdkwork-claw-settings/src/ProviderRouteDetailDialog.tsx');
+
+  assert.match(providerCenterSource, /ProviderRouteDetailDialog/);
+  assert.match(providerCenterSource, /ProviderRouteHealthIndicator/);
+  assert.match(providerCenterSource, /data-slot="provider-center-route-summary-cell"/);
+  assert.doesNotMatch(providerCenterSource, /<th className="px-5 py-4">\{t\('providerCenter\.table\.endpoint'\)\}<\/th>/);
+  assert.doesNotMatch(providerCenterSource, /<th className="px-5 py-4">\{t\('providerCenter\.table\.selection'\)\}<\/th>/);
+  assert.doesNotMatch(providerCenterSource, /providerCenter\.table\.lastTest'\)\}<\/th>/);
+  assert.doesNotMatch(providerCenterSource, /section className="overflow-hidden/);
+  assert.match(healthIndicatorSource, /createPortal/);
+  assert.match(healthIndicatorSource, /min-w-max/);
+  assert.match(routeDetailDialogSource, /data-slot="provider-center-route-detail-dialog"/);
+  assert.match(routeDetailDialogSource, /data-slot="provider-center-route-model-list"/);
+  assert.match(routeDetailDialogSource, /data-slot="provider-center-route-model-editor"/);
+  assert.match(routeDetailDialogSource, /appendProviderConfigModelRow/);
+  assert.match(routeDetailDialogSource, /updateProviderConfigModelRow/);
+  assert.match(routeDetailDialogSource, /removeProviderConfigModelRow/);
+  assert.match(routeDetailDialogSource, /createProviderConfigDraftFromForm/);
+  assert.match(routeDetailDialogSource, /onSaveRequest/);
+  assert.match(routeDetailDialogSource, /onEditRequest/);
+});
+
+runTest('wallet settings content no longer applies a nested centered max-width shell inside the full-width settings workspace', () => {
+  const accountSource = read('packages/sdkwork-claw-account/src/Account.tsx');
+
+  assert.doesNotMatch(accountSource, /mx-auto max-w-5xl/);
+});
+
+runTest('general, security, and data settings use wide responsive workspace layouts instead of narrow centered forms', () => {
+  const generalSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
+  const securitySource = read('packages/sdkwork-claw-settings/src/SecuritySettings.tsx');
+  const dataPrivacySource = read('packages/sdkwork-claw-settings/src/DataPrivacySettings.tsx');
+
+  assert.match(generalSource, /xl:grid-cols/);
+  assert.match(securitySource, /xl:grid-cols/);
+  assert.match(dataPrivacySource, /xl:grid-cols/);
+  assert.doesNotMatch(generalSource, /2xl:grid-cols/);
+  assert.doesNotMatch(securitySource, /2xl:grid-cols/);
+  assert.doesNotMatch(securitySource, /max-w-md/);
+});
+
+runTest('data privacy settings keep the workspace visible while preferences load or if the fetch fails', () => {
+  const dataPrivacySource = read('packages/sdkwork-claw-settings/src/DataPrivacySettings.tsx');
+  const enLocale = readLocale('en');
+  const zhLocale = readLocale('zh');
+
+  assert.doesNotMatch(dataPrivacySource, /if \(!prefs\)\s*\{\s*return null;\s*\}/s);
+  assert.match(dataPrivacySource, /useState<UserPreferences\['privacy'\]>\(/);
+  assert.match(dataPrivacySource, /settings\.dataPrivacy\.loadPreferenceFailed/);
+  assert.match(dataPrivacySource, /\.catch\(\(\)\s*=>/);
+  assert.notEqual(getLocaleValue(enLocale, 'settings.dataPrivacy.loadPreferenceFailed'), undefined);
+  assert.notEqual(getLocaleValue(zhLocale, 'settings.dataPrivacy.loadPreferenceFailed'), undefined);
+});
+
+runTest('notification settings keep the workspace visible while preferences load or if the fetch fails', () => {
+  const notificationSource = read('packages/sdkwork-claw-settings/src/NotificationSettings.tsx');
+  const enLocale = readLocale('en');
+  const zhLocale = readLocale('zh');
+
+  assert.doesNotMatch(notificationSource, /if \(!prefs\)\s*\{\s*return null;\s*\}/s);
+  assert.match(notificationSource, /useState<UserPreferences\['notifications'\]>\(/);
+  assert.match(notificationSource, /settings\.notifications\.loadPreferenceFailed/);
+  assert.match(notificationSource, /\.catch\(\(\)\s*=>/);
+  assert.notEqual(getLocaleValue(enLocale, 'settings.notifications.loadPreferenceFailed'), undefined);
+  assert.notEqual(getLocaleValue(zhLocale, 'settings.notifications.loadPreferenceFailed'), undefined);
 });
 
 runTest('sdkwork-claw-settings exports Kernel Center through package and service barrels with localized page copy', () => {
   const indexSource = read('packages/sdkwork-claw-settings/src/index.ts');
   const servicesIndexSource = read('packages/sdkwork-claw-settings/src/services/index.ts');
   const kernelCenterSource = read('packages/sdkwork-claw-settings/src/KernelCenter.tsx');
-  const enLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/en.json');
-  const zhLocale = readJson<Record<string, unknown>>('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const enLocale = readLocale('en');
+  const zhLocale = readLocale('zh');
   const directKeys = [...kernelCenterSource.matchAll(/\bt\('([^']+)'\)/g)].map((match) => match[1]);
   const uniqueKeys = [...new Set(directKeys)].sort();
   const missingKeys = uniqueKeys.filter(
@@ -167,8 +425,8 @@ runTest('sdkwork-claw-settings service uses shared app sdk wrapper instead of in
 
 runTest('sdkwork-claw-settings exposes a feedback settings entry backed by claw-core feedbackCenterService', () => {
   const settingsSource = read('packages/sdkwork-claw-settings/src/Settings.tsx');
-  const enLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/en.json');
-  const zhLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
+  const enLocaleSource = readLocaleSectionSource('en', 'settings');
+  const zhLocaleSource = readLocaleSectionSource('zh', 'settings');
 
   assert.ok(
     exists('packages/sdkwork-claw-settings/src/FeedbackSettings.tsx'),

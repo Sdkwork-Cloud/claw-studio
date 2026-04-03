@@ -1,6 +1,4 @@
 import type {
-  ApiRouterClientInstallRequest,
-  ApiRouterClientInstallResult,
   HubInstallCatalogEntry,
   HubInstallCatalogQuery,
   HubInstallDependencyRequest,
@@ -49,13 +47,5 @@ export class WebInstallerPlatform implements InstallerPlatformAPI {
 
   async subscribeHubInstallProgress(): Promise<RuntimeEventUnsubscribe> {
     return () => {};
-  }
-
-  async installApiRouterClientSetup(
-    _request: ApiRouterClientInstallRequest,
-  ): Promise<ApiRouterClientInstallResult> {
-    throw new Error(
-      'Tauri API is not available in this web preview environment. In a real Tauri app, this would install API Router client configuration through the desktop runtime.',
-    );
   }
 }

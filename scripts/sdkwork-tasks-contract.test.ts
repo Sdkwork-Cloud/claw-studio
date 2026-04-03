@@ -50,12 +50,20 @@ runTest('sdkwork-claw-tasks is implemented locally instead of re-exporting claw-
   assert.match(indexSource, /taskService/);
 });
 
-runTest('sdkwork-claw-tasks routes cron CRUD through the shared manager and the real studio bridge', () => {
+runTest('sdkwork-claw-tasks routes cron CRUD through the shared manager and the real runtime bridges', () => {
   const serviceSource = read('packages/sdkwork-claw-core/src/services/taskService.ts');
   const pageSource = read('packages/sdkwork-claw-tasks/src/pages/Tasks.tsx');
 
   assert.match(serviceSource, /studio\.getInstanceDetail\(instanceId\)/);
-  assert.match(serviceSource, /detail\?\.instance\.runtimeKind === 'openclaw'/);
+  assert.match(serviceSource, /function hasWorkbench\(detail: StudioInstanceDetailRecord \| null \| undefined\)/);
+  assert.match(serviceSource, /function isOpenClawDetail\(detail: StudioInstanceDetailRecord \| null \| undefined\)/);
+  assert.match(serviceSource, /return detail\?\.instance\.runtimeKind === 'openclaw';/);
+  assert.match(serviceSource, /function canManageTasks\(detail: StudioInstanceDetailRecord \| null \| undefined\)/);
+  assert.match(
+    serviceSource,
+    /return Boolean\(detail\) && \(hasWorkbench\(detail\) \|\| isOpenClawDetail\(detail\)\);/,
+  );
+  assert.match(serviceSource, /return canManageTasks\(detail\) \? detail : null;/);
   assert.match(serviceSource, /studio\.createInstanceTask\(/);
   assert.match(serviceSource, /studio\.updateInstanceTask\(/);
   assert.match(serviceSource, /studio\.cloneInstanceTask\(/);
@@ -63,6 +71,12 @@ runTest('sdkwork-claw-tasks routes cron CRUD through the shared manager and the 
   assert.match(serviceSource, /studio\.listInstanceTaskExecutions\(/);
   assert.match(serviceSource, /studio\.updateInstanceTaskStatus\(/);
   assert.match(serviceSource, /studio\.deleteInstanceTask\(/);
+  assert.match(serviceSource, /openClawGatewayClient\.listWorkbenchCronJobs\(/);
+  assert.match(serviceSource, /openClawGatewayClient\.addCronJob\(/);
+  assert.match(serviceSource, /openClawGatewayClient\.updateCronJob\(/);
+  assert.match(serviceSource, /openClawGatewayClient\.runCronJob\(/);
+  assert.match(serviceSource, /openClawGatewayClient\.listWorkbenchCronRuns\(/);
+  assert.match(serviceSource, /openClawGatewayClient\.removeCronJob\(/);
   assert.doesNotMatch(serviceSource, /fetch\('/);
   assert.doesNotMatch(serviceSource, /const tasksData/);
 
@@ -100,9 +114,14 @@ runTest('sdkwork-claw-tasks shared manager uses the shared task catalog surface'
 
 runTest('sdkwork-claw-tasks shared manager binds cron agent selection to the connected instance catalog', () => {
   const managerSource = read('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx');
+  const dataSource = read('packages/sdkwork-claw-commons/src/components/cronTasksManagerData.ts');
   const coreServiceSource = read('packages/sdkwork-claw-core/src/services/openClawAgentCatalogService.ts');
 
-  assert.match(managerSource, /openClawAgentCatalogService\.getCatalog\(activeInstanceId\)/);
+  assert.match(managerSource, /loadTaskStudioSnapshot/);
+  assert.match(managerSource, /getAgentCatalog:\s*\(instanceId\)\s*=>/);
+  assert.match(managerSource, /openClawAgentCatalogService\.getCatalog\(instanceId\)/);
+  assert.match(dataSource, /getAgentCatalog:\s*\(instanceId:\s*string\)\s*=>\s*Promise<OpenClawAgentCatalog>/);
+  assert.match(dataSource, /input\.getAgentCatalog\(input\.instanceId\)/);
   assert.match(managerSource, /buildTaskAgentSelectState/);
   assert.match(managerSource, /DEFAULT_TASK_AGENT_SELECT_VALUE/);
   assert.match(

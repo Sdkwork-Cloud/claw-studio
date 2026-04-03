@@ -106,6 +106,28 @@ pub fn resolve_managed_path(paths: &AppPaths, candidate: &Path) -> Result<PathBu
     })
 }
 
+pub fn resolve_user_tooling_config_path(paths: &AppPaths, candidate: &Path) -> Result<PathBuf> {
+    let host_home = resolve_host_home_directory(paths);
+    let raw = if candidate.as_os_str().is_empty() {
+        host_home
+    } else if candidate.is_absolute() {
+        candidate.to_path_buf()
+    } else {
+        host_home.join(candidate)
+    };
+    let normalized = normalize_path(&raw);
+    let allowed = user_tooling_config_files(paths);
+
+    if allowed.iter().any(|allowed_path| normalized == *allowed_path) {
+        return Ok(normalized);
+    }
+
+    Err(FrameworkError::PolicyViolation {
+        path: normalized,
+        reason: "path is outside allowlisted user tooling config files".to_string(),
+    })
+}
+
 pub fn ensure_parent_directory(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -195,6 +217,63 @@ fn managed_path_roots(paths: &AppPaths) -> Vec<PathBuf> {
     }
 
     roots
+}
+
+fn user_tooling_config_files(paths: &AppPaths) -> Vec<PathBuf> {
+    let home = resolve_host_home_directory(paths);
+    let mut files = vec![
+        home.join(".codex").join("config.toml"),
+        home.join(".codex").join("auth.json"),
+        home.join(".claude").join("settings.json"),
+        home.join(".config").join("opencode").join("opencode.json"),
+        home.join(".config").join("opencode").join("opencode.jsonc"),
+        home.join(".config").join("opencode").join("auth.json"),
+        home.join(".local").join("share").join("opencode").join("auth.json"),
+        home.join("AppData")
+            .join("Roaming")
+            .join("opencode")
+            .join("opencode.json"),
+        home.join("AppData")
+            .join("Roaming")
+            .join("opencode")
+            .join("opencode.jsonc"),
+        home.join("AppData")
+            .join("Roaming")
+            .join("opencode")
+            .join("auth.json"),
+        home.join("Library")
+            .join("Application Support")
+            .join("opencode")
+            .join("auth.json"),
+    ];
+
+    for file in &mut files {
+        *file = normalize_path(file);
+    }
+
+    files.sort();
+    files.dedup();
+    files
+}
+
+fn resolve_host_home_directory(paths: &AppPaths) -> PathBuf {
+    let normalized_user_root = normalize_path(&paths.user_root);
+    let mut current = Some(normalized_user_root.as_path());
+
+    while let Some(path) = current {
+        if path.file_name().and_then(|value| value.to_str()) == Some(".sdkwork") {
+            if let Some(parent) = path.parent() {
+                return parent.to_path_buf();
+            }
+        }
+
+        current = path.parent();
+    }
+
+    normalized_user_root
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or(normalized_user_root)
 }
 
 fn discover_registered_openclaw_roots(paths: &AppPaths) -> Vec<PathBuf> {
@@ -487,7 +566,8 @@ fn normalize_path(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{
-        ensure_not_managed_root, resolve_managed_path, validate_command_spawn, ExecutionPolicy,
+        ensure_not_managed_root, resolve_managed_path, resolve_user_tooling_config_path,
+        validate_command_spawn, ExecutionPolicy,
     };
     use crate::framework::{config::SecurityConfig, paths::resolve_paths_for_root};
     use hub_installer_rs::{
@@ -518,6 +598,32 @@ mod tests {
         assert!(error
             .to_string()
             .contains("outside managed runtime directories"));
+    }
+
+    #[test]
+    fn resolves_allowlisted_user_tooling_config_file() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let candidate = root.path().join(".codex").join("config.toml");
+
+        let resolved =
+            resolve_user_tooling_config_path(&paths, &candidate).expect("allowlisted tooling path");
+
+        assert_eq!(resolved, candidate);
+    }
+
+    #[test]
+    fn rejects_non_allowlisted_user_tooling_file() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let candidate = root.path().join(".codex").join("history.json");
+
+        let error = resolve_user_tooling_config_path(&paths, &candidate)
+            .expect_err("non-allowlisted tooling path should be denied");
+
+        assert!(error
+            .to_string()
+            .contains("allowlisted user tooling config files"));
     }
 
     #[test]

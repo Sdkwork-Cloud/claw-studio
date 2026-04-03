@@ -40,6 +40,8 @@ import {
   applyHubInstallResultToProgressState,
   createHubInstallProgressState,
   formatHubInstallProgressEvent,
+  isExistingGuidedInstallProviderDraft,
+  isGuidedInstallProviderDraftReady,
   installBootstrapService,
   installGuidedWizardService,
   installerService,
@@ -148,7 +150,7 @@ function buildProviderDraft(
   const nextChannelId =
     channelId ||
     previous?.channelId ||
-    data.apiRouterChannels[0]?.id ||
+    data.providerChannels[0]?.id ||
     data.providers[0]?.channelId ||
     '';
   const providers = data.providers.filter((item) => item.channelId === nextChannelId);
@@ -165,7 +167,7 @@ function buildProviderDraft(
     name:
       provider?.name ||
       previous?.name ||
-      `${data.apiRouterChannels.find((item) => item.id === nextChannelId)?.name || nextChannelId} Guided`,
+      `${data.providerChannels.find((item) => item.id === nextChannelId)?.name || nextChannelId} Guided`,
     apiKey: provider?.apiKey || previous?.apiKey || '',
     baseUrl: provider?.baseUrl || previous?.baseUrl || '',
     modelId:
@@ -270,9 +272,7 @@ export function GuidedInstallWizard({
     if (
       !selectedInstanceId ||
       !providerDraft ||
-      !providerDraft.apiKey.trim() ||
-      !providerDraft.baseUrl.trim() ||
-      !providerDraft.modelId.trim()
+      !isGuidedInstallProviderDraftReady(providerDraft)
     ) {
       return t('install.page.guided.configure.validation.provider');
     }
@@ -300,6 +300,9 @@ export function GuidedInstallWizard({
     selectedInstanceId,
     t,
   ]);
+  const isExistingProviderDraft = providerDraft
+    ? isExistingGuidedInstallProviderDraft(providerDraft)
+    : false;
 
   async function cleanupProgress() {
     const unsubscribe = progressRef.current;
@@ -900,7 +903,7 @@ export function GuidedInstallWizard({
                         >
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {data.apiRouterChannels.map((channel) => (
+                            {data.providerChannels.map((channel) => (
                               <SelectItem key={channel.id} value={channel.id}>
                                 {channel.name}
                               </SelectItem>
@@ -935,15 +938,34 @@ export function GuidedInstallWizard({
                       </div>
                       <div className="space-y-2">
                         <Label>{t('install.page.guided.configure.providerName')}</Label>
-                        <Input value={providerDraft.name} onChange={(event) => setProviderDraft({ ...providerDraft, name: event.target.value })} />
+                        <Input
+                          value={providerDraft.name}
+                          disabled={isExistingProviderDraft}
+                          onChange={(event) =>
+                            setProviderDraft({ ...providerDraft, name: event.target.value })
+                          }
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>{t('install.page.guided.configure.apiKey')}</Label>
-                        <Input type="password" value={providerDraft.apiKey} onChange={(event) => setProviderDraft({ ...providerDraft, apiKey: event.target.value })} />
+                        <Input
+                          type="password"
+                          value={providerDraft.apiKey}
+                          disabled={isExistingProviderDraft}
+                          onChange={(event) =>
+                            setProviderDraft({ ...providerDraft, apiKey: event.target.value })
+                          }
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>{t('install.page.guided.configure.baseUrl')}</Label>
-                        <Input value={providerDraft.baseUrl} onChange={(event) => setProviderDraft({ ...providerDraft, baseUrl: event.target.value })} />
+                        <Input
+                          value={providerDraft.baseUrl}
+                          disabled={isExistingProviderDraft}
+                          onChange={(event) =>
+                            setProviderDraft({ ...providerDraft, baseUrl: event.target.value })
+                          }
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>{t('install.page.guided.configure.model')}</Label>
@@ -1170,7 +1192,7 @@ export function GuidedInstallWizard({
                     <div className="rounded-[1.25rem] border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
                       <div className="text-xs text-zinc-500 dark:text-zinc-400">{t('install.page.guided.success.modelChannel')}</div>
                       <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                        {data?.apiRouterChannels.find((channel) => channel.id === providerDraft?.channelId)?.name || providerDraft?.channelId || '-'}
+                        {data?.providerChannels.find((channel) => channel.id === providerDraft?.channelId)?.name || providerDraft?.channelId || '-'}
                       </div>
                     </div>
                     <div className="rounded-[1.25rem] border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">

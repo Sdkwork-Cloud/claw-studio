@@ -2,7 +2,12 @@ import { create, type StateCreator } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { appAuthService } from '../services/index.ts';
-import type { AppAuthOAuthDeviceType, AppAuthSession, AppAuthSocialProvider } from '../services/index.ts';
+import type {
+  AppAuthOAuthDeviceType,
+  AppAuthPasswordResetChannel,
+  AppAuthSession,
+  AppAuthSocialProvider,
+} from '../services/index.ts';
 import { readAppSdkSessionTokens } from '../sdk/useAppSdkClient.ts';
 
 const STORAGE_KEY = 'claw-studio-auth-storage';
@@ -17,14 +22,20 @@ export interface AuthUser {
 }
 
 export interface SignInInput {
-  email: string;
+  account?: string;
+  email?: string;
   password: string;
 }
 
 export interface RegisterInput {
-  name: string;
-  email: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  phone?: string;
   password: string;
+  confirmPassword?: string;
+  verificationCode?: string;
+  channel?: 'EMAIL' | 'PHONE';
 }
 
 export interface OAuthSignInInput {
@@ -35,13 +46,43 @@ export interface OAuthSignInInput {
   deviceType?: AppAuthOAuthDeviceType;
 }
 
+export interface PhoneCodeSignInInput {
+  phone: string;
+  code: string;
+  deviceId?: string;
+  deviceType?: AppAuthOAuthDeviceType;
+}
+
+export interface EmailCodeSignInInput {
+  email: string;
+  code: string;
+  deviceId?: string;
+  deviceType?: AppAuthOAuthDeviceType;
+}
+
+export interface PasswordResetRequestInput {
+  account: string;
+  channel: AppAuthPasswordResetChannel;
+}
+
+export interface PasswordResetInput {
+  account: string;
+  code: string;
+  newPassword: string;
+  confirmPassword?: string;
+}
+
 export interface AuthStoreState {
   isAuthenticated: boolean;
   user: AuthUser | null;
   signIn: (credentials: SignInInput) => Promise<AuthUser>;
+  signInWithPhoneCode: (payload: PhoneCodeSignInInput) => Promise<AuthUser>;
+  signInWithEmailCode: (payload: EmailCodeSignInInput) => Promise<AuthUser>;
   register: (payload: RegisterInput) => Promise<AuthUser>;
   signInWithOAuth: (payload: OAuthSignInInput) => Promise<AuthUser>;
   applySession: (session: AppAuthSession) => AuthUser;
+  requestPasswordReset: (payload: PasswordResetRequestInput) => Promise<void>;
+  resetPassword: (payload: PasswordResetInput) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   syncUserProfile: (profile: {
@@ -130,34 +171,85 @@ function buildAuthUserFromSession(
   });
 }
 
+function resolveSignInAccount(credentials: SignInInput) {
+  const account = (credentials.account || credentials.email || '').trim();
+  if (!account) {
+    throw new Error('Sign-in account is required.');
+  }
+  return account;
+}
+
 const createAuthStoreState: StateCreator<AuthStoreState, [], [], AuthStoreState> = (set) => ({
   isAuthenticated: false,
   user: null,
   async signIn(credentials) {
+    const account = resolveSignInAccount(credentials);
     const result = await appAuthService.login({
-      username: credentials.email.trim(),
+      username: account,
       password: credentials.password,
     });
     const user = toAuthUserFromIdentity(
       result.userInfo ?? {
-        email: credentials.email.trim(),
-        username: credentials.email.trim(),
+        email: account,
+        username: account,
+      },
+    );
+    set({ isAuthenticated: true, user });
+    return user;
+  },
+  async signInWithPhoneCode(payload) {
+    const result = await appAuthService.loginWithPhone({
+      phone: payload.phone,
+      code: payload.code,
+      deviceId: payload.deviceId,
+      deviceType: payload.deviceType,
+    });
+    const user = toAuthUserFromIdentity(
+      result.userInfo ?? {
+        username: payload.phone.trim(),
+      },
+    );
+    set({ isAuthenticated: true, user });
+    return user;
+  },
+  async signInWithEmailCode(payload) {
+    const result = await appAuthService.loginWithEmail({
+      email: payload.email,
+      code: payload.code,
+      deviceId: payload.deviceId,
+      deviceType: payload.deviceType,
+    });
+    const user = toAuthUserFromIdentity(
+      result.userInfo ?? {
+        email: payload.email.trim(),
+        username: payload.email.trim(),
       },
     );
     set({ isAuthenticated: true, user });
     return user;
   },
   async register(payload) {
+    const username = (
+      payload.username
+      || payload.email
+      || payload.phone
+      || payload.name
+      || ''
+    ).trim();
     const result = await appAuthService.register({
-      username: payload.email.trim(),
+      username,
       password: payload.password,
-      confirmPassword: payload.password,
-      email: payload.email.trim(),
+      confirmPassword: payload.confirmPassword || payload.password,
+      email: payload.email?.trim(),
+      phone: payload.phone?.trim(),
+      type: payload.channel,
+      verificationCode: payload.verificationCode?.trim(),
     });
     const user = toAuthUserFromIdentity(
       result.userInfo ?? {
         nickname: payload.name,
-        email: payload.email.trim(),
+        email: payload.email?.trim(),
+        username: username || payload.phone?.trim(),
       },
     );
     set({ isAuthenticated: true, user });
@@ -180,9 +272,23 @@ const createAuthStoreState: StateCreator<AuthStoreState, [], [], AuthStoreState>
     set({ isAuthenticated: true, user });
     return user;
   },
+  async requestPasswordReset(payload) {
+    await appAuthService.requestPasswordReset({
+      account: payload.account.trim(),
+      channel: payload.channel,
+    });
+  },
+  async resetPassword(payload) {
+    await appAuthService.resetPassword({
+      account: payload.account.trim(),
+      code: payload.code.trim(),
+      newPassword: payload.newPassword,
+      confirmPassword: payload.confirmPassword,
+    });
+  },
   async sendPasswordReset(email) {
     await appAuthService.requestPasswordReset({
-      account: email.trim(),
+      account: email,
       channel: 'EMAIL',
     });
   },

@@ -143,6 +143,65 @@ function readGitSubmodulePaths(repoRoot) {
   return parseGitSubmodulePaths(fs.readFileSync(gitmodulesPath, 'utf8'));
 }
 
+function resolveGitDirectoryFromCheckoutRoot(checkoutRoot) {
+  const gitEntryPath = path.join(checkoutRoot, '.git');
+  if (!fs.existsSync(gitEntryPath)) {
+    return '';
+  }
+
+  const gitEntryStat = fs.lstatSync(gitEntryPath);
+  if (gitEntryStat.isDirectory()) {
+    return gitEntryPath;
+  }
+
+  if (!gitEntryStat.isFile()) {
+    return '';
+  }
+
+  const pointerSource = fs.readFileSync(gitEntryPath, 'utf8');
+  const pointerMatch = pointerSource.match(/^\s*gitdir:\s*(.+)\s*$/m);
+  if (!pointerMatch?.[1]) {
+    return '';
+  }
+
+  return path.resolve(checkoutRoot, pointerMatch[1].trim());
+}
+
+function findGitCheckoutInfo(startPath) {
+  let currentPath = path.resolve(startPath);
+
+  while (true) {
+    const gitDirectory = resolveGitDirectoryFromCheckoutRoot(currentPath);
+    if (gitDirectory) {
+      return {
+        checkoutRoot: currentPath,
+        gitDirectory,
+      };
+    }
+
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      return null;
+    }
+
+    currentPath = parentPath;
+  }
+}
+
+function readGitConfigSource(startPath) {
+  const checkoutInfo = findGitCheckoutInfo(startPath);
+  if (!checkoutInfo) {
+    return '';
+  }
+
+  const configPath = path.join(checkoutInfo.gitDirectory, 'config');
+  if (!fs.existsSync(configPath)) {
+    return '';
+  }
+
+  return fs.readFileSync(configPath, 'utf8');
+}
+
 function ensureDirectoryLink(linkPath, targetPath) {
   const normalizedTargetPath = path.resolve(targetPath);
 
@@ -205,23 +264,20 @@ export function materializePackageRootFromMonorepo(spec) {
 }
 
 export function isGitCheckout(repoRoot) {
-  if (!fs.existsSync(repoRoot)) {
-    return false;
-  }
-
-  try {
-    const output = run('git', ['-C', repoRoot, 'rev-parse', '--is-inside-work-tree'], {
-      captureStdout: true,
-    });
-    return output.trim() === 'true';
-  } catch {
-    return false;
-  }
+  return Boolean(findGitCheckoutInfo(repoRoot));
 }
 
 export function detectExistingOriginUrl(repoRoot) {
   if (!isGitCheckout(repoRoot)) {
     return '';
+  }
+
+  const gitConfigSource = readGitConfigSource(repoRoot);
+  const remoteOriginMatch = gitConfigSource.match(
+    /\[remote\s+"origin"\][\s\S]*?^\s*url\s*=\s*(.+)\s*$/m,
+  );
+  if (remoteOriginMatch?.[1]) {
+    return remoteOriginMatch[1].trim();
   }
 
   try {

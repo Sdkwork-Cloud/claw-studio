@@ -1,0 +1,16 @@
+services:
+  claw-server:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: claw-studio-server:local
+    restart: unless-stopped
+    env_file:
+      - deploy/profiles/default.env
+    ports:
+      - "18797:18797"
+    volumes:
+      - claw-server-data:/var/lib/claw-server
+
+volumes:
+  claw-server-data:

@@ -40,6 +40,14 @@ runTest('overlay surface height matches the header-safe viewport', () => {
 runTest('overlay container alignment supports top-aligned large modals without affecting defaults', () => {
   assert.equal(getOverlayContainerClassName('drawer'), 'items-stretch justify-end');
   assert.equal(
+    getOverlayContainerClassName('drawer', 'center', 'left'),
+    'items-stretch justify-start',
+  );
+  assert.equal(
+    getOverlayContainerClassName('drawer', 'center', 'right'),
+    'items-stretch justify-end',
+  );
+  assert.equal(
     getOverlayContainerClassName('modal'),
     'items-start justify-center lg:items-center',
   );

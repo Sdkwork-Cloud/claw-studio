@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { DEFAULT_BUNDLED_OPENCLAW_VERSION } from '../../../sdkwork-claw-types/src/openclawRelease.ts';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
@@ -54,7 +55,7 @@ await runTest('openclaw gateway instances prefer the native websocket route even
 
   assert.equal(route.mode, 'instanceOpenClawGatewayWs');
   assert.equal(route.websocketUrl, 'ws://127.0.0.1:18789');
-  assert.equal(route.endpoint, 'http://127.0.0.1:18789/v1/chat/completions');
+  assert.equal(route.endpoint, undefined);
 });
 
 await runTest(
@@ -100,7 +101,7 @@ await runTest(
 
     assert.equal(route.mode, 'instanceOpenClawGatewayWs');
     assert.equal(route.websocketUrl, 'ws://127.0.0.1:18795');
-    assert.equal(route.endpoint, 'http://127.0.0.1:18795/v1/chat/completions');
+    assert.equal(route.endpoint, undefined);
   },
 );
 
@@ -233,5 +234,52 @@ await runTest(
     assert.equal(route.mode, 'instanceOpenClawGatewayWs');
     assert.equal(route.websocketUrl, 'ws://127.0.0.1:18801');
     assert.equal(route.endpoint, 'http://127.0.0.1:18801/v1/chat/completions');
+  },
+);
+
+await runTest(
+  'openclaw runtime instances preserve an explicit responses endpoint while still deriving the gateway websocket root',
+  () => {
+    const route = resolveInstanceChatRoute({
+      id: 'openclaw-responses',
+      name: 'OpenClaw Responses',
+      runtimeKind: 'openclaw',
+      deploymentMode: 'local-external',
+      transportKind: 'openclawGatewayWs',
+      status: 'online',
+      isBuiltIn: false,
+      isDefault: false,
+      iconType: 'server',
+      version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      typeLabel: 'OpenClaw Responses',
+      host: '127.0.0.1',
+      port: 18802,
+      baseUrl: 'http://127.0.0.1:18802/v1/responses',
+      websocketUrl: null,
+      cpu: 0,
+      memory: 0,
+      totalMemory: 'Unknown',
+      uptime: '-',
+      capabilities: ['chat', 'health'],
+      storage: {
+        provider: 'localFile',
+        namespace: 'claw-studio',
+      },
+      config: {
+        port: '18802',
+        sandbox: true,
+        autoUpdate: false,
+        logLevel: 'info',
+        corsOrigins: '*',
+        baseUrl: 'http://127.0.0.1:18802/v1/responses',
+        websocketUrl: null,
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    assert.equal(route.mode, 'instanceOpenClawGatewayWs');
+    assert.equal(route.websocketUrl, 'ws://127.0.0.1:18802');
+    assert.equal(route.endpoint, 'http://127.0.0.1:18802/v1/responses');
   },
 );

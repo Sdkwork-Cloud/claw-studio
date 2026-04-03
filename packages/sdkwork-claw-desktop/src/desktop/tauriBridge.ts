@@ -1,17 +1,25 @@
 import {
-  WebKernelPlatform,
   WebPlatform,
-  WebStoragePlatform,
-  WebStudioPlatform,
   configurePlatformBridge,
 } from '@sdkwork/claw-infrastructure';
 import type {
-  ApiRouterClientInstallRequest,
-  ApiRouterClientInstallResult,
+  HostPlatformStatusRecord,
   HubInstallCatalogEntry,
   HubInstallCatalogQuery,
   HubInstallDependencyRequest,
   HubInstallDependencyResult,
+  InternalNodeSessionRecord,
+  LocalAiProxyMessageCaptureSettings,
+  LocalAiProxyMessageLogRecord,
+  LocalAiProxyMessageLogsQuery,
+  LocalAiProxyRequestLogRecord,
+  LocalAiProxyRequestLogsQuery,
+  LocalAiProxyRouteTestRecord,
+  ManageRolloutListResult,
+  ManageRolloutPreview,
+  ManageRolloutRecord,
+  PaginatedResult,
+  PreviewRolloutRequest,
   HubInstallAssessmentResult,
   HubInstallProgressEvent,
   HubInstallRequest,
@@ -24,8 +32,6 @@ import type {
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
-  RuntimeApiRouterAdminBootstrapSession,
-  RuntimeApiRouterRuntimeStatus,
   RuntimeAppInfo,
   RuntimeConfigInfo,
   RuntimeDesktopKernelHostInfo,
@@ -72,6 +78,7 @@ import {
   invokeDesktopCommand,
   isTauriRuntime,
   listenDesktopEvent,
+  runDesktopOnly,
   runDesktopOrFallback,
 } from './runtime';
 
@@ -84,9 +91,6 @@ export {
 } from './componentsBridge';
 
 const webPlatform = new WebPlatform();
-const webKernelPlatform = new WebKernelPlatform();
-const webStoragePlatform = new WebStoragePlatform();
-const webStudioPlatform = new WebStudioPlatform();
 
 export interface DesktopAppInfo extends RuntimeAppInfo {}
 export interface DesktopAppPaths extends RuntimePathsInfo {}
@@ -107,9 +111,6 @@ export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
 export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo {}
 export interface DesktopKernelStatus extends RuntimeDesktopKernelHostInfo {}
 export interface DesktopStorageInfo extends RuntimeStorageInfo {}
-export interface DesktopApiRouterAdminBootstrapSession
-  extends RuntimeApiRouterAdminBootstrapSession {}
-export interface DesktopApiRouterRuntimeStatus extends RuntimeApiRouterRuntimeStatus {}
 
 const noopUnsubscribe: RuntimeEventUnsubscribe = () => {};
 
@@ -171,18 +172,17 @@ export async function getSystemInfo(): Promise<DesktopSystemInfo | null> {
 }
 
 export async function getDesktopKernelInfo(): Promise<DesktopKernelInfo | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'kernel.getInfo',
     () =>
       invokeDesktopCommand<DesktopKernelInfo>(DESKTOP_COMMANDS.desktopKernelInfo, undefined, {
         operation: 'kernel.getInfo',
       }),
-    async () => null,
   );
 }
 
 export async function getDesktopKernelStatus(): Promise<DesktopKernelStatus | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'kernel.getStatus',
     () =>
       invokeDesktopCommand<DesktopKernelStatus>(
@@ -192,12 +192,11 @@ export async function getDesktopKernelStatus(): Promise<DesktopKernelStatus | nu
           operation: 'kernel.getStatus',
         },
       ),
-    async () => null,
   );
 }
 
 export async function ensureDesktopKernelRunning(): Promise<DesktopKernelStatus | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'kernel.ensureRunning',
     () =>
       invokeDesktopCommand<DesktopKernelStatus>(
@@ -207,12 +206,11 @@ export async function ensureDesktopKernelRunning(): Promise<DesktopKernelStatus 
           operation: 'kernel.ensureRunning',
         },
       ),
-    () => webKernelPlatform.ensureRunning(),
   );
 }
 
 export async function restartDesktopKernel(): Promise<DesktopKernelStatus | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'kernel.restart',
     () =>
       invokeDesktopCommand<DesktopKernelStatus>(
@@ -222,23 +220,85 @@ export async function restartDesktopKernel(): Promise<DesktopKernelStatus | null
           operation: 'kernel.restart',
         },
       ),
-    () => webKernelPlatform.restart(),
+  );
+}
+
+export async function testLocalAiProxyRoute(
+  routeId: string,
+): Promise<LocalAiProxyRouteTestRecord | null> {
+  return runDesktopOnly(
+    'kernel.testLocalAiProxyRoute',
+    () =>
+      invokeDesktopCommand<LocalAiProxyRouteTestRecord | null>(
+        DESKTOP_COMMANDS.testLocalAiProxyRoute,
+        { routeId },
+        {
+          operation: 'kernel.testLocalAiProxyRoute',
+        },
+      ),
+  );
+}
+
+export async function listLocalAiProxyRequestLogs(
+  query: LocalAiProxyRequestLogsQuery,
+): Promise<PaginatedResult<LocalAiProxyRequestLogRecord>> {
+  return runDesktopOnly(
+    'kernel.listLocalAiProxyRequestLogs',
+    () =>
+      invokeDesktopCommand<PaginatedResult<LocalAiProxyRequestLogRecord>>(
+        DESKTOP_COMMANDS.listLocalAiProxyRequestLogs,
+        { query },
+        {
+          operation: 'kernel.listLocalAiProxyRequestLogs',
+        },
+      ),
+  );
+}
+
+export async function listLocalAiProxyMessageLogs(
+  query: LocalAiProxyMessageLogsQuery,
+): Promise<PaginatedResult<LocalAiProxyMessageLogRecord>> {
+  return runDesktopOnly(
+    'kernel.listLocalAiProxyMessageLogs',
+    () =>
+      invokeDesktopCommand<PaginatedResult<LocalAiProxyMessageLogRecord>>(
+        DESKTOP_COMMANDS.listLocalAiProxyMessageLogs,
+        { query },
+        {
+          operation: 'kernel.listLocalAiProxyMessageLogs',
+        },
+      ),
+  );
+}
+
+export async function updateLocalAiProxyMessageCapture(
+  enabled: boolean,
+): Promise<LocalAiProxyMessageCaptureSettings> {
+  return runDesktopOnly(
+    'kernel.updateLocalAiProxyMessageCapture',
+    () =>
+      invokeDesktopCommand<LocalAiProxyMessageCaptureSettings>(
+        DESKTOP_COMMANDS.updateLocalAiProxyMessageCapture,
+        { enabled },
+        {
+          operation: 'kernel.updateLocalAiProxyMessageCapture',
+        },
+      ),
   );
 }
 
 export async function getDesktopStorageInfo(): Promise<DesktopStorageInfo | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'storage.getInfo',
     () =>
       invokeDesktopCommand<DesktopStorageInfo>(DESKTOP_COMMANDS.desktopStorageInfo, undefined, {
         operation: 'storage.getInfo',
       }),
-    async () => null,
   );
 }
 
 export async function studioListInstances(): Promise<StudioInstanceRecord[]> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.listInstances',
     () =>
       invokeDesktopCommand<StudioInstanceRecord[]>(
@@ -246,12 +306,11 @@ export async function studioListInstances(): Promise<StudioInstanceRecord[]> {
         undefined,
         { operation: 'studio.listInstances' },
       ),
-    () => webStudioPlatform.listInstances(),
   );
 }
 
 export async function studioGetInstance(id: string): Promise<StudioInstanceRecord | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.getInstance',
     () =>
       invokeDesktopCommand<StudioInstanceRecord | null>(
@@ -259,14 +318,13 @@ export async function studioGetInstance(id: string): Promise<StudioInstanceRecor
         { id },
         { operation: 'studio.getInstance' },
       ),
-    () => webStudioPlatform.getInstance(id),
   );
 }
 
 export async function studioGetInstanceDetail(
   id: string,
 ): Promise<StudioInstanceDetailRecord | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.getInstanceDetail',
     () =>
       invokeDesktopCommand<StudioInstanceDetailRecord | null>(
@@ -274,7 +332,6 @@ export async function studioGetInstanceDetail(
         { id },
         { operation: 'studio.getInstanceDetail' },
       ),
-    () => webStudioPlatform.getInstanceDetail(id),
   );
 }
 
@@ -293,7 +350,7 @@ export async function invokeOpenClawGateway(
 export async function studioCreateInstance(
   input: StudioCreateInstanceInput,
 ): Promise<StudioInstanceRecord> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.createInstance',
     () =>
       invokeDesktopCommand<StudioInstanceRecord>(
@@ -301,7 +358,6 @@ export async function studioCreateInstance(
         { input },
         { operation: 'studio.createInstance' },
       ),
-    () => webStudioPlatform.createInstance(input),
   );
 }
 
@@ -309,7 +365,7 @@ export async function studioUpdateInstance(
   id: string,
   input: StudioUpdateInstanceInput,
 ): Promise<StudioInstanceRecord> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.updateInstance',
     () =>
       invokeDesktopCommand<StudioInstanceRecord>(
@@ -317,25 +373,23 @@ export async function studioUpdateInstance(
         { id, input },
         { operation: 'studio.updateInstance' },
       ),
-    () => webStudioPlatform.updateInstance(id, input),
   );
 }
 
 export async function studioDeleteInstance(id: string): Promise<boolean> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.deleteInstance',
     () =>
       invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.studioDeleteInstance, { id }, {
         operation: 'studio.deleteInstance',
       }),
-    () => webStudioPlatform.deleteInstance(id),
   );
 }
 
 export async function studioStartInstance(
   id: string,
 ): Promise<StudioInstanceRecord | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.startInstance',
     () =>
       invokeDesktopCommand<StudioInstanceRecord | null>(
@@ -343,14 +397,13 @@ export async function studioStartInstance(
         { id },
         { operation: 'studio.startInstance' },
       ),
-    () => webStudioPlatform.startInstance(id),
   );
 }
 
 export async function studioStopInstance(
   id: string,
 ): Promise<StudioInstanceRecord | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.stopInstance',
     () =>
       invokeDesktopCommand<StudioInstanceRecord | null>(
@@ -358,14 +411,13 @@ export async function studioStopInstance(
         { id },
         { operation: 'studio.stopInstance' },
       ),
-    () => webStudioPlatform.stopInstance(id),
   );
 }
 
 export async function studioRestartInstance(
   id: string,
 ): Promise<StudioInstanceRecord | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.restartInstance',
     () =>
       invokeDesktopCommand<StudioInstanceRecord | null>(
@@ -373,14 +425,13 @@ export async function studioRestartInstance(
         { id },
         { operation: 'studio.restartInstance' },
       ),
-    () => webStudioPlatform.restartInstance(id),
   );
 }
 
 export async function studioGetInstanceConfig(
   id: string,
 ): Promise<StudioInstanceConfig | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.getInstanceConfig',
     () =>
       invokeDesktopCommand<StudioInstanceConfig | null>(
@@ -388,7 +439,6 @@ export async function studioGetInstanceConfig(
         { id },
         { operation: 'studio.getInstanceConfig' },
       ),
-    () => webStudioPlatform.getInstanceConfig(id),
   );
 }
 
@@ -396,7 +446,7 @@ export async function studioUpdateInstanceConfig(
   id: string,
   config: StudioInstanceConfig,
 ): Promise<StudioInstanceConfig | null> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.updateInstanceConfig',
     () =>
       invokeDesktopCommand<StudioInstanceConfig | null>(
@@ -404,18 +454,16 @@ export async function studioUpdateInstanceConfig(
         { id, config },
         { operation: 'studio.updateInstanceConfig' },
       ),
-    () => webStudioPlatform.updateInstanceConfig(id, config),
   );
 }
 
 export async function studioGetInstanceLogs(id: string): Promise<string> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.getInstanceLogs',
     () =>
       invokeDesktopCommand<string>(DESKTOP_COMMANDS.studioGetInstanceLogs, { id }, {
         operation: 'studio.getInstanceLogs',
       }),
-    () => webStudioPlatform.getInstanceLogs(id),
   );
 }
 
@@ -423,7 +471,7 @@ export async function studioCreateInstanceTask(
   instanceId: string,
   payload: StudioInstanceTaskMutationPayload,
 ): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'studio.createInstanceTask',
     () =>
       invokeDesktopCommand<void>(
@@ -431,7 +479,6 @@ export async function studioCreateInstanceTask(
         { instanceId, payload },
         { operation: 'studio.createInstanceTask' },
       ),
-    () => webStudioPlatform.createInstanceTask(instanceId, payload),
   );
 }
 
@@ -440,7 +487,7 @@ export async function studioUpdateInstanceTask(
   taskId: string,
   payload: StudioInstanceTaskMutationPayload,
 ): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'studio.updateInstanceTask',
     () =>
       invokeDesktopCommand<void>(
@@ -448,7 +495,6 @@ export async function studioUpdateInstanceTask(
         { instanceId, taskId, payload },
         { operation: 'studio.updateInstanceTask' },
       ),
-    () => webStudioPlatform.updateInstanceTask(instanceId, taskId, payload),
   );
 }
 
@@ -457,7 +503,7 @@ export async function studioUpdateInstanceFileContent(
   fileId: string,
   content: string,
 ): Promise<boolean> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.updateInstanceFileContent',
     () =>
       invokeDesktopCommand<boolean>(
@@ -465,7 +511,6 @@ export async function studioUpdateInstanceFileContent(
         { instanceId, fileId, content },
         { operation: 'studio.updateInstanceFileContent' },
       ),
-    () => webStudioPlatform.updateInstanceFileContent(instanceId, fileId, content),
   );
 }
 
@@ -474,7 +519,7 @@ export async function studioUpdateInstanceLlmProviderConfig(
   providerId: string,
   update: StudioUpdateInstanceLlmProviderConfigInput,
 ): Promise<boolean> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.updateInstanceLlmProviderConfig',
     () =>
       invokeDesktopCommand<boolean>(
@@ -482,7 +527,6 @@ export async function studioUpdateInstanceLlmProviderConfig(
         { instanceId, providerId, update },
         { operation: 'studio.updateInstanceLlmProviderConfig' },
       ),
-    () => webStudioPlatform.updateInstanceLlmProviderConfig(instanceId, providerId, update),
   );
 }
 
@@ -491,7 +535,7 @@ export async function studioCloneInstanceTask(
   taskId: string,
   name?: string,
 ): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'studio.cloneInstanceTask',
     () =>
       invokeDesktopCommand<void>(
@@ -499,7 +543,6 @@ export async function studioCloneInstanceTask(
         { instanceId, taskId, name },
         { operation: 'studio.cloneInstanceTask' },
       ),
-    () => webStudioPlatform.cloneInstanceTask(instanceId, taskId, name),
   );
 }
 
@@ -507,7 +550,7 @@ export async function studioRunInstanceTaskNow(
   instanceId: string,
   taskId: string,
 ): Promise<StudioWorkbenchTaskExecutionRecord> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.runInstanceTaskNow',
     () =>
       invokeDesktopCommand<StudioWorkbenchTaskExecutionRecord>(
@@ -515,7 +558,6 @@ export async function studioRunInstanceTaskNow(
         { instanceId, taskId },
         { operation: 'studio.runInstanceTaskNow' },
       ),
-    () => webStudioPlatform.runInstanceTaskNow(instanceId, taskId),
   );
 }
 
@@ -523,7 +565,7 @@ export async function studioListInstanceTaskExecutions(
   instanceId: string,
   taskId: string,
 ): Promise<StudioWorkbenchTaskExecutionRecord[]> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.listInstanceTaskExecutions',
     () =>
       invokeDesktopCommand<StudioWorkbenchTaskExecutionRecord[]>(
@@ -531,7 +573,6 @@ export async function studioListInstanceTaskExecutions(
         { instanceId, taskId },
         { operation: 'studio.listInstanceTaskExecutions' },
       ),
-    () => webStudioPlatform.listInstanceTaskExecutions(instanceId, taskId),
   );
 }
 
@@ -540,7 +581,7 @@ export async function studioUpdateInstanceTaskStatus(
   taskId: string,
   status: 'active' | 'paused',
 ): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'studio.updateInstanceTaskStatus',
     () =>
       invokeDesktopCommand<void>(
@@ -548,7 +589,6 @@ export async function studioUpdateInstanceTaskStatus(
         { instanceId, taskId, status },
         { operation: 'studio.updateInstanceTaskStatus' },
       ),
-    () => webStudioPlatform.updateInstanceTaskStatus(instanceId, taskId, status),
   );
 }
 
@@ -556,7 +596,7 @@ export async function studioDeleteInstanceTask(
   instanceId: string,
   taskId: string,
 ): Promise<boolean> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.deleteInstanceTask',
     () =>
       invokeDesktopCommand<boolean>(
@@ -564,14 +604,13 @@ export async function studioDeleteInstanceTask(
         { instanceId, taskId },
         { operation: 'studio.deleteInstanceTask' },
       ),
-    () => webStudioPlatform.deleteInstanceTask(instanceId, taskId),
   );
 }
 
 export async function studioListConversations(
   instanceId: string,
 ): Promise<StudioConversationRecord[]> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.listConversations',
     () =>
       invokeDesktopCommand<StudioConversationRecord[]>(
@@ -579,14 +618,13 @@ export async function studioListConversations(
         { instanceId },
         { operation: 'studio.listConversations' },
       ),
-    () => webStudioPlatform.listConversations(instanceId),
   );
 }
 
 export async function studioPutConversation(
   record: StudioConversationRecord,
 ): Promise<StudioConversationRecord> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.putConversation',
     () =>
       invokeDesktopCommand<StudioConversationRecord>(
@@ -594,25 +632,85 @@ export async function studioPutConversation(
         { record },
         { operation: 'studio.putConversation' },
       ),
-    () => webStudioPlatform.putConversation(record),
   );
 }
 
 export async function studioDeleteConversation(id: string): Promise<boolean> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'studio.deleteConversation',
     () =>
       invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.studioDeleteConversation, { id }, {
         operation: 'studio.deleteConversation',
       }),
-    () => webStudioPlatform.deleteConversation(id),
+  );
+}
+
+export async function listRollouts(): Promise<ManageRolloutListResult> {
+  return runDesktopOnly(
+    'manage.listRollouts',
+    () =>
+      invokeDesktopCommand<ManageRolloutListResult>(
+        DESKTOP_COMMANDS.listRollouts,
+        undefined,
+        { operation: 'manage.listRollouts' },
+      ),
+  );
+}
+
+export async function previewRollout(
+  input: PreviewRolloutRequest,
+): Promise<ManageRolloutPreview> {
+  return runDesktopOnly(
+    'manage.previewRollout',
+    () =>
+      invokeDesktopCommand<ManageRolloutPreview>(
+        DESKTOP_COMMANDS.previewRollout,
+        { input },
+        { operation: 'manage.previewRollout' },
+      ),
+  );
+}
+
+export async function startRollout(rolloutId: string): Promise<ManageRolloutRecord> {
+  return runDesktopOnly(
+    'manage.startRollout',
+    () =>
+      invokeDesktopCommand<ManageRolloutRecord>(
+        DESKTOP_COMMANDS.startRollout,
+        { rolloutId },
+        { operation: 'manage.startRollout' },
+      ),
+  );
+}
+
+export async function getHostPlatformStatus(): Promise<HostPlatformStatusRecord> {
+  return runDesktopOnly(
+    'internal.getHostPlatformStatus',
+    () =>
+      invokeDesktopCommand<HostPlatformStatusRecord>(
+        DESKTOP_COMMANDS.getHostPlatformStatus,
+        undefined,
+        { operation: 'internal.getHostPlatformStatus' },
+      ),
+  );
+}
+
+export async function listNodeSessions(): Promise<InternalNodeSessionRecord[]> {
+  return runDesktopOnly(
+    'internal.listNodeSessions',
+    () =>
+      invokeDesktopCommand<InternalNodeSessionRecord[]>(
+        DESKTOP_COMMANDS.listNodeSessions,
+        undefined,
+        { operation: 'internal.listNodeSessions' },
+      ),
   );
 }
 
 export async function storageGetText(
   request: StorageGetTextRequest,
 ): Promise<StorageGetTextResult> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'storage.getText',
     () =>
       invokeDesktopCommand<StorageGetTextResult>(
@@ -620,14 +718,13 @@ export async function storageGetText(
         { request },
         { operation: 'storage.getText' },
       ),
-    () => webStoragePlatform.getText(request),
   );
 }
 
 export async function storagePutText(
   request: StoragePutTextRequest,
 ): Promise<StoragePutTextResult> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'storage.putText',
     () =>
       invokeDesktopCommand<StoragePutTextResult>(
@@ -635,14 +732,13 @@ export async function storagePutText(
         { request },
         { operation: 'storage.putText' },
       ),
-    () => webStoragePlatform.putText(request),
   );
 }
 
 export async function storageDelete(
   request: StorageDeleteRequest,
 ): Promise<StorageDeleteResult> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'storage.delete',
     () =>
       invokeDesktopCommand<StorageDeleteResult>(
@@ -650,14 +746,13 @@ export async function storageDelete(
         { request },
         { operation: 'storage.delete' },
       ),
-    () => webStoragePlatform.delete(request),
   );
 }
 
 export async function storageListKeys(
   request: StorageListKeysRequest = {},
 ): Promise<StorageListKeysResult> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'storage.listKeys',
     () =>
       invokeDesktopCommand<StorageListKeysResult>(
@@ -665,12 +760,11 @@ export async function storageListKeys(
         { request },
         { operation: 'storage.listKeys' },
       ),
-    () => webStoragePlatform.listKeys(request),
   );
 }
 
 export async function listDirectory(path = ''): Promise<DesktopFileEntry[]> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'filesystem.listDirectory',
     () =>
       invokeDesktopCommand<DesktopFileEntry[]>(
@@ -678,51 +772,56 @@ export async function listDirectory(path = ''): Promise<DesktopFileEntry[]> {
         { path },
         { operation: 'filesystem.listDirectory' },
       ),
-    () => webPlatform.listDirectory(path),
   );
 }
 
 export async function pathExists(path: string): Promise<boolean> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'filesystem.pathExists',
     () =>
       invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.pathExists, { path }, {
         operation: 'filesystem.pathExists',
       }),
-    () => webPlatform.pathExists(path),
+  );
+}
+
+export async function pathExistsForUserTooling(path: string): Promise<boolean> {
+  return runDesktopOnly(
+    'filesystem.pathExistsForUserTooling',
+    () =>
+      invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.pathExistsForUserTooling, { path }, {
+        operation: 'filesystem.pathExistsForUserTooling',
+      }),
   );
 }
 
 export async function getPathInfo(path: string): Promise<DesktopPathInfo> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'filesystem.getPathInfo',
     () =>
       invokeDesktopCommand<DesktopPathInfo>(DESKTOP_COMMANDS.getPathInfo, { path }, {
         operation: 'filesystem.getPathInfo',
       }),
-    () => webPlatform.getPathInfo(path),
   );
 }
 
 export async function createDirectory(path: string): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'filesystem.createDirectory',
     () =>
       invokeDesktopCommand<void>(DESKTOP_COMMANDS.createDirectory, { path }, {
         operation: 'filesystem.createDirectory',
       }),
-    () => webPlatform.createDirectory(path),
   );
 }
 
 export async function removePath(path: string): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'filesystem.removePath',
     () =>
       invokeDesktopCommand<void>(DESKTOP_COMMANDS.removePath, { path }, {
         operation: 'filesystem.removePath',
       }),
-    () => webPlatform.removePath(path),
   );
 }
 
@@ -730,7 +829,7 @@ export async function copyPath(
   sourcePath: string,
   destinationPath: string,
 ): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'filesystem.copyPath',
     () =>
       invokeDesktopCommand<void>(
@@ -738,7 +837,6 @@ export async function copyPath(
         { sourcePath, destinationPath },
         { operation: 'filesystem.copyPath' },
       ),
-    () => webPlatform.copyPath(sourcePath, destinationPath),
   );
 }
 
@@ -746,7 +844,7 @@ export async function movePath(
   sourcePath: string,
   destinationPath: string,
 ): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'filesystem.movePath',
     () =>
       invokeDesktopCommand<void>(
@@ -754,12 +852,11 @@ export async function movePath(
         { sourcePath, destinationPath },
         { operation: 'filesystem.movePath' },
       ),
-    () => webPlatform.movePath(sourcePath, destinationPath),
   );
 }
 
 export async function readBinaryFile(path: string): Promise<Uint8Array> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'filesystem.readBinaryFile',
     async () => {
       const bytes = await invokeDesktopCommand<number[]>(
@@ -769,7 +866,6 @@ export async function readBinaryFile(path: string): Promise<Uint8Array> {
       );
       return Uint8Array.from(bytes);
     },
-    () => webPlatform.readBinaryFile(path),
   );
 }
 
@@ -778,7 +874,7 @@ export async function writeBinaryFile(
   content: Uint8Array | number[],
 ): Promise<void> {
   const bytes = content instanceof Uint8Array ? Array.from(content) : content;
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'filesystem.writeBinaryFile',
     () =>
       invokeDesktopCommand<void>(
@@ -786,40 +882,46 @@ export async function writeBinaryFile(
         { path, content: bytes },
         { operation: 'filesystem.writeBinaryFile' },
       ),
-    () => webPlatform.writeBinaryFile(path, content),
   );
 }
 
 export async function readTextFile(path: string): Promise<string> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'filesystem.readTextFile',
     () =>
       invokeDesktopCommand<string>(DESKTOP_COMMANDS.readTextFile, { path }, {
         operation: 'filesystem.readTextFile',
       }),
-    () => webPlatform.readFile(path),
+  );
+}
+
+export async function readTextFileForUserTooling(path: string): Promise<string> {
+  return runDesktopOnly(
+    'filesystem.readTextFileForUserTooling',
+    () =>
+      invokeDesktopCommand<string>(DESKTOP_COMMANDS.readTextFileForUserTooling, { path }, {
+        operation: 'filesystem.readTextFileForUserTooling',
+      }),
   );
 }
 
 export async function writeTextFile(path: string, content: string): Promise<void> {
-  await runDesktopOrFallback(
+  await runDesktopOnly(
     'filesystem.writeTextFile',
     () =>
       invokeDesktopCommand<void>(DESKTOP_COMMANDS.writeTextFile, { path, content }, {
         operation: 'filesystem.writeTextFile',
       }),
-    () => webPlatform.writeFile(path, content),
   );
 }
 
 export async function getDeviceId(): Promise<string> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'app.getDeviceId',
     () =>
       invokeDesktopCommand<string>(DESKTOP_COMMANDS.getDeviceId, undefined, {
         operation: 'app.getDeviceId',
       }),
-    () => webPlatform.getDeviceId(),
   );
 }
 
@@ -1160,55 +1262,6 @@ export async function runHubUninstall(
   );
 }
 
-export async function installApiRouterClientSetup(
-  request: ApiRouterClientInstallRequest,
-): Promise<ApiRouterClientInstallResult> {
-  return invokeDesktopCommand<ApiRouterClientInstallResult>(
-    DESKTOP_COMMANDS.installApiRouterClientSetup,
-    { request },
-    { operation: 'installer.installApiRouterClientSetup' },
-  );
-}
-
-export async function getApiRouterRuntimeStatus(): Promise<DesktopApiRouterRuntimeStatus | null> {
-  return runDesktopOrFallback(
-    'runtime.getApiRouterRuntimeStatus',
-    () =>
-      invokeDesktopCommand<DesktopApiRouterRuntimeStatus>(
-        DESKTOP_COMMANDS.getApiRouterRuntimeStatus,
-        undefined,
-        { operation: 'runtime.getApiRouterRuntimeStatus' },
-      ),
-    async () => null,
-  );
-}
-
-export async function ensureApiRouterRuntimeStarted(): Promise<DesktopApiRouterRuntimeStatus | null> {
-  return runDesktopOrFallback(
-    'runtime.ensureApiRouterRuntimeStarted',
-    () =>
-      invokeDesktopCommand<DesktopApiRouterRuntimeStatus>(
-        DESKTOP_COMMANDS.ensureApiRouterRuntimeStarted,
-        undefined,
-        { operation: 'runtime.ensureApiRouterRuntimeStarted' },
-      ),
-    async () => null,
-  );
-}
-
-export async function getApiRouterAdminBootstrapSession(): Promise<DesktopApiRouterAdminBootstrapSession | null> {
-  return runDesktopOrFallback(
-    'runtime.getApiRouterAdminBootstrapSession',
-    () =>
-      invokeDesktopCommand<DesktopApiRouterAdminBootstrapSession>(
-        DESKTOP_COMMANDS.getApiRouterAdminBootstrapSession,
-        undefined,
-        { operation: 'runtime.getApiRouterAdminBootstrapSession' },
-      ),
-    async () => null,
-  );
-}
-
 export async function getRuntimeInfo(): Promise<RuntimeInfo> {
   const [app, paths, config, system] = await Promise.all([
     getAppInfo(),
@@ -1248,6 +1301,10 @@ export const desktopTemplateApi = {
     getStatus: getDesktopKernelStatus,
     ensureRunning: ensureDesktopKernelRunning,
     restart: restartDesktopKernel,
+    testLocalAiProxyRoute,
+    listLocalAiProxyRequestLogs,
+    listLocalAiProxyMessageLogs,
+    updateLocalAiProxyMessageCapture,
     getStorageInfo: getDesktopStorageInfo,
   },
   storage: {
@@ -1326,13 +1383,18 @@ export const desktopTemplateApi = {
     runHubInstall,
     runHubUninstall,
     subscribeHubInstallProgress,
-    installApiRouterClientSetup,
+  },
+  manage: {
+    listRollouts: () => listRollouts(),
+    previewRollout: (input) => previewRollout(input),
+    startRollout: (rolloutId) => startRollout(rolloutId),
+  },
+  internal: {
+    getHostPlatformStatus: () => getHostPlatformStatus(),
+    listNodeSessions: () => listNodeSessions(),
   },
   runtime: {
     getInfo: getRuntimeInfo,
-    ensureApiRouterRuntimeStarted,
-    getApiRouterAdminBootstrapSession,
-    getApiRouterRuntimeStatus,
     setAppLanguage,
   },
 };
@@ -1361,6 +1423,7 @@ export function configureDesktopPlatformBridge() {
       closeWindow: () => closeWindow(),
       listDirectory: (path) => listDirectory(path),
       pathExists: (path) => pathExists(path),
+      pathExistsForUserTooling: (path) => pathExistsForUserTooling(path),
       getPathInfo: (path) => getPathInfo(path),
       createDirectory: (path) => createDirectory(path),
       removePath: (path) => removePath(path),
@@ -1369,20 +1432,19 @@ export function configureDesktopPlatformBridge() {
       readBinaryFile: (path) => readBinaryFile(path),
       writeBinaryFile: (path, content) => writeBinaryFile(path, content),
       readFile: (path) => readTextFile(path),
+      readFileForUserTooling: (path) => readTextFileForUserTooling(path),
       writeFile: (path, content) => writeTextFile(path, content),
     },
     kernel: {
-      async getInfo() {
-        const info = await getDesktopKernelInfo();
-        return info ?? (await webKernelPlatform.getInfo());
-      },
-      async getStorageInfo() {
-        const info = await getDesktopStorageInfo();
-        return info ?? (await webKernelPlatform.getStorageInfo());
-      },
+      getInfo: () => getDesktopKernelInfo(),
+      getStorageInfo: () => getDesktopStorageInfo(),
       getStatus: () => getDesktopKernelStatus(),
       ensureRunning: () => ensureDesktopKernelRunning(),
       restart: () => restartDesktopKernel(),
+      testLocalAiProxyRoute: (routeId) => testLocalAiProxyRoute(routeId),
+      listLocalAiProxyRequestLogs: (query) => listLocalAiProxyRequestLogs(query),
+      listLocalAiProxyMessageLogs: (query) => listLocalAiProxyMessageLogs(query),
+      updateLocalAiProxyMessageCapture: (enabled) => updateLocalAiProxyMessageCapture(enabled),
     },
     installer: {
       listHubInstallCatalog: (query) => listHubInstallCatalog(query),
@@ -1391,17 +1453,22 @@ export function configureDesktopPlatformBridge() {
       runHubInstall: (request) => runHubInstall(request),
       runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
-      installApiRouterClientSetup: (request) => installApiRouterClientSetup(request),
+    },
+    manage: {
+      listRollouts: () => listRollouts(),
+      previewRollout: (input) => previewRollout(input),
+      startRollout: (rolloutId) => startRollout(rolloutId),
+    },
+    internal: {
+      getHostPlatformStatus: () => getHostPlatformStatus(),
+      listNodeSessions: () => listNodeSessions(),
     },
     components: {
       listComponents: () => desktopComponentsApi.list(),
       controlComponent: (request) => desktopComponentsApi.control(request.componentId, request.action),
     },
     storage: {
-      async getStorageInfo() {
-        const info = await getDesktopStorageInfo();
-        return info ?? webStoragePlatform.getStorageInfo();
-      },
+      getStorageInfo: () => getDesktopStorageInfo(),
       getText: (request) => storageGetText(request),
       putText: (request) => storagePutText(request),
       delete: (request) => storageDelete(request),
@@ -1457,9 +1524,6 @@ export function configureDesktopPlatformBridge() {
     },
     runtime: {
       getRuntimeInfo: () => getRuntimeInfo(),
-      ensureApiRouterRuntimeStarted: () => ensureApiRouterRuntimeStarted(),
-      getApiRouterAdminBootstrapSession: () => getApiRouterAdminBootstrapSession(),
-      getApiRouterRuntimeStatus: () => getApiRouterRuntimeStatus(),
       setAppLanguage: (language) => setAppLanguage(language),
       submitProcessJob: (profileId) => submitProcessJob(profileId),
       getJob: (id) => getJob(id),

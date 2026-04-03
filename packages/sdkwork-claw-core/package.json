@@ -3,9 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
-    "@google/genai": "^1.30.0",
     "@sdkwork/app-sdk": "^1.0.34",
+    "@sdkwork/core-pc-react": "workspace:*",
     "@sdkwork/claw-i18n": "workspace:*",
     "@sdkwork/claw-infrastructure": "workspace:*",
     "fuse.js": "^7.1.0",
@@ -16,6 +19,9 @@
     "react-i18next": "^15.7.3",
     "react-router-dom": "^7.13.1",
     "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   },
   "exports": {
     ".": "./src/index.ts",

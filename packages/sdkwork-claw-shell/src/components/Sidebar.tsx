@@ -22,7 +22,6 @@ import {
   PanelLeftOpen,
   PlugZap,
   type LucideIcon,
-  Router,
   Server,
   Settings2,
   Store,
@@ -31,7 +30,11 @@ import {
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore, useAuthStore } from '@sdkwork/claw-core';
-import { prefetchSidebarRoute } from '../application/router/routePrefetch';
+import {
+  cancelSidebarRoutePrefetch,
+  prefetchSidebarRoute,
+  scheduleSidebarRoutePrefetch,
+} from '../application/router/routePrefetch';
 
 const COLLAPSED_SIDEBAR_WIDTH = 72;
 const MIN_SIDEBAR_WIDTH = 220;
@@ -203,7 +206,6 @@ export function Sidebar() {
         { id: 'kernel', to: '/kernel', icon: Cpu, label: t('sidebar.kernelCenter') },
         { id: 'nodes', to: '/nodes', icon: Waypoints, label: t('sidebar.nodes') },
         { id: 'instances', to: '/instances', icon: Server, label: t('sidebar.instances') },
-        { id: 'api-router', to: '/api-router', icon: Router, label: t('sidebar.apiRouter') },
       ],
     },
   ]
@@ -232,6 +234,7 @@ export function Sidebar() {
 
   const handleOpenAccountSettings = () => {
     setIsUserMenuOpen(false);
+    prefetchSidebarRoute(accountSettingsTarget);
     navigate(accountSettingsTarget);
   };
 
@@ -279,9 +282,11 @@ export function Sidebar() {
                     key={item.to}
                     to={item.to}
                     title={isSidebarCollapsed ? item.label : undefined}
-                    onMouseEnter={() => prefetchSidebarRoute(item.to)}
-                    onFocus={() => prefetchSidebarRoute(item.to)}
                     onPointerDown={() => prefetchSidebarRoute(item.to)}
+                    onMouseEnter={() => scheduleSidebarRoutePrefetch(item.to)}
+                    onMouseLeave={() => cancelSidebarRoutePrefetch(item.to)}
+                    onFocus={() => scheduleSidebarRoutePrefetch(item.to)}
+                    onBlur={() => cancelSidebarRoutePrefetch(item.to)}
                     className={({ isActive }) =>
                       `group relative flex items-center rounded-2xl transition-all duration-200 ${
                         isSidebarCollapsed
@@ -330,6 +335,11 @@ export function Sidebar() {
           <NavLink
             to="/docs"
             title={isSidebarCollapsed ? t('sidebar.documentation') : undefined}
+            onPointerDown={() => prefetchSidebarRoute('/docs')}
+            onMouseEnter={() => scheduleSidebarRoutePrefetch('/docs')}
+            onMouseLeave={() => cancelSidebarRoutePrefetch('/docs')}
+            onFocus={() => scheduleSidebarRoutePrefetch('/docs')}
+            onBlur={() => cancelSidebarRoutePrefetch('/docs')}
             className={({ isActive }) =>
               `group relative flex items-center rounded-2xl transition-all duration-200 ${
                 isSidebarCollapsed ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 px-3 py-2.5'
@@ -393,6 +403,11 @@ export function Sidebar() {
 
                 <button
                   type="button"
+                  onPointerDown={() => prefetchSidebarRoute(accountSettingsTarget)}
+                  onMouseEnter={() => scheduleSidebarRoutePrefetch(accountSettingsTarget)}
+                  onMouseLeave={() => cancelSidebarRoutePrefetch(accountSettingsTarget)}
+                  onFocus={() => scheduleSidebarRoutePrefetch(accountSettingsTarget)}
+                  onBlur={() => cancelSidebarRoutePrefetch(accountSettingsTarget)}
                   onClick={handleOpenAccountSettings}
                   className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-zinc-300 transition-colors hover:bg-white/[0.06] hover:text-white"
                 >
@@ -470,7 +485,7 @@ export function Sidebar() {
         data-slot="sidebar-edge-control"
         title={isSidebarCollapsed ? t('common.expandSidebar') : t('common.collapseSidebar')}
         onClick={toggleSidebar}
-        className={`absolute right-1 top-5 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-zinc-950 text-zinc-200 shadow-[0_10px_24px_rgba(9,9,11,0.26)] transition-all duration-200 dark:bg-zinc-900 ${
+        className={`absolute right-0 top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/8 bg-zinc-950 text-zinc-200 shadow-[0_10px_24px_rgba(9,9,11,0.26)] transition-all duration-200 dark:bg-zinc-900 ${
           showEdgeAffordances
             ? 'opacity-100 hover:scale-105 hover:bg-zinc-900'
             : 'pointer-events-none opacity-0'

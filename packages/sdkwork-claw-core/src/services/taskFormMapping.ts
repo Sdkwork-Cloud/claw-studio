@@ -1,11 +1,64 @@
 import type { Task } from './taskService.ts';
 import {
   createDefaultTaskFormValues,
+  formatTaskToolAllowlist,
   type TaskFormValues,
 } from './taskSchedule.ts';
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function readSessionSelectionFromRawDefinition(task: Task) {
+  const rawDefinition = asRecord(task.rawDefinition);
+  const sessionTarget = typeof rawDefinition?.sessionTarget === 'string'
+    ? rawDefinition.sessionTarget.trim()
+    : '';
+
+  if (sessionTarget === 'main') {
+    return {
+      sessionMode: 'main' as const,
+      customSessionId: '',
+    };
+  }
+
+  if (sessionTarget === 'current') {
+    return {
+      sessionMode: 'current' as const,
+      customSessionId: '',
+    };
+  }
+
+  if (sessionTarget.startsWith('session:')) {
+    return {
+      sessionMode: 'custom' as const,
+      customSessionId: sessionTarget.slice('session:'.length),
+    };
+  }
+
+  return {
+    sessionMode: task.sessionMode,
+    customSessionId: task.customSessionId || '',
+  };
+}
+
+function readToolAllowlistFromRawDefinition(task: Task) {
+  const rawDefinition = asRecord(task.rawDefinition);
+  const payload = asRecord(rawDefinition?.payload);
+  const toolAllowlist = Array.isArray(payload?.tools)
+    ? payload.tools.filter((value): value is string => typeof value === 'string')
+    : task.toolAllowlist;
+
+  return formatTaskToolAllowlist(toolAllowlist);
+}
+
 export function buildTaskFormValuesFromTask(task: Task): TaskFormValues {
   const defaults = createDefaultTaskFormValues();
+  const sessionSelection = readSessionSelectionFromRawDefinition(task);
 
   return {
     ...defaults,
@@ -25,8 +78,8 @@ export function buildTaskFormValuesFromTask(task: Task): TaskFormValues {
     cronTimezone: task.scheduleConfig.cronTimezone || '',
     staggerMs:
       typeof task.scheduleConfig.staggerMs === 'number' ? String(task.scheduleConfig.staggerMs) : '',
-    sessionMode: task.sessionMode,
-    customSessionId: task.customSessionId || '',
+    sessionMode: sessionSelection.sessionMode,
+    customSessionId: sessionSelection.customSessionId,
     wakeUpMode: task.wakeUpMode,
     executionContent: task.executionContent,
     timeoutSeconds: task.timeoutSeconds ? String(task.timeoutSeconds) : '',
@@ -38,6 +91,7 @@ export function buildTaskFormValuesFromTask(task: Task): TaskFormValues {
     model: task.model || '',
     thinking: task.thinking || '',
     lightContext: Boolean(task.lightContext),
+    toolAllowlist: readToolAllowlistFromRawDefinition(task),
     deliveryMode: task.deliveryMode,
     deliveryBestEffort: Boolean(task.deliveryBestEffort),
     deliveryChannel: task.deliveryChannel || '',

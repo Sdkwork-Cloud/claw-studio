@@ -590,6 +590,10 @@ await runTest(
       [buildOpenClawAgentFileId('research', 'AGENTS.md')],
     );
     assert.deepEqual(
+      snapshot.files.map((file) => file.path),
+      ['AGENTS.md'],
+    );
+    assert.deepEqual(
       snapshot.skills.map((skill) => skill.id),
       ['research-skill'],
     );
@@ -626,5 +630,253 @@ await runTest(
     );
     assert.equal(snapshot.channels.find((channel) => channel.id === 'discord')?.routeStatus, 'bound');
     assert.equal(snapshot.channels.find((channel) => channel.id === 'sdkworkchat')?.routeStatus, 'available');
+  },
+);
+
+await runTest(
+  'agentWorkbenchService keeps agent file explorer paths workspace-relative for nested files',
+  async () => {
+    const service = createAgentWorkbenchService({
+      readOpenClawConfigSnapshot: async () => null as any,
+      openClawGatewayClient: {
+        getSkillsStatus: async () => ({ skills: [] }),
+        getToolsCatalog: async () => ({ profiles: [], groups: [] }),
+      } as any,
+    });
+
+    const nestedWorkbench = createWorkbench();
+    nestedWorkbench.files = [
+      {
+        id: buildOpenClawAgentFileId('research', 'prompts/README.md'),
+        name: 'README.md',
+        path: 'C:/OpenClaw/.openclaw/workspace-research/prompts/README.md',
+        category: 'prompt',
+        language: 'markdown',
+        size: '1 KB',
+        updatedAt: '2026-03-23T00:00:00.000Z',
+        status: 'synced',
+        description: 'Nested prompt',
+        content: '# Nested',
+        isReadonly: false,
+      },
+      {
+        id: buildOpenClawAgentFileId('research', 'runbooks/README.md'),
+        name: 'README.md',
+        path: 'C:/OpenClaw/.openclaw/workspace-research/runbooks/README.md',
+        category: 'artifact',
+        language: 'markdown',
+        size: '1 KB',
+        updatedAt: '2026-03-23T00:00:00.000Z',
+        status: 'synced',
+        description: 'Nested runbook',
+        content: '# Runbook',
+        isReadonly: false,
+      },
+    ];
+
+    const snapshot = await service.getAgentWorkbench({
+      instanceId: 'instance-openclaw',
+      workbench: nestedWorkbench,
+      agentId: 'research',
+    });
+
+    assert.deepEqual(
+      snapshot.files.map((file) => file.path),
+      ['prompts/README.md', 'runbooks/README.md'],
+    );
+    assert.deepEqual(
+      snapshot.files.map((file) => file.name),
+      ['README.md', 'README.md'],
+    );
+  },
+);
+
+await runTest(
+  'agentWorkbenchService normalizes raw OpenClaw agent ids when loading detail snapshots',
+  async () => {
+    const service = createAgentWorkbenchService({
+      readOpenClawConfigSnapshot: async () =>
+        ({
+          root: {
+            agents: {
+              list: [
+                {
+                  id: 'Research Team',
+                  name: 'Research Team',
+                  default: true,
+                  model: {
+                    primary: 'anthropic/claude-3-7-sonnet',
+                    fallbacks: ['openai/gpt-4.1'],
+                  },
+                },
+              ],
+            },
+            channels: {
+              telegram: {
+                accounts: {
+                  default: {
+                    botToken: 'telegram-default',
+                  },
+                  research: {
+                    botToken: 'telegram-research',
+                  },
+                },
+              },
+            },
+            bindings: [
+              {
+                agentId: 'Research Team',
+                match: {
+                  channel: 'telegram',
+                  accountId: 'research',
+                },
+              },
+            ],
+          },
+          agentSnapshots: [],
+          providerSnapshots: [],
+          channelSnapshots: [],
+        }) as any,
+      openClawGatewayClient: {
+        getSkillsStatus: async (_instanceId, args = {}) => {
+          assert.equal(args.agentId, 'research-team');
+          return {
+            agentId: 'research-team',
+            workspace: 'C:/OpenClaw/.openclaw/workspace-research',
+            skills: [],
+          };
+        },
+        getToolsCatalog: async (_instanceId, args = {}) => {
+          assert.equal(args.agentId, 'research-team');
+          return {
+            agentId: 'research-team',
+            profiles: [],
+            groups: [],
+          };
+        },
+      },
+    });
+
+    const rawWorkbench = createWorkbench();
+    rawWorkbench.tasks = [
+      {
+        id: 'task-research',
+        name: 'Research Digest',
+        prompt: 'Digest',
+        schedule: '0 9 * * *',
+        scheduleMode: 'cron',
+        scheduleConfig: {
+          cronExpression: '0 9 * * *',
+        },
+        actionType: 'skill',
+        status: 'active',
+        sessionMode: 'isolated',
+        wakeUpMode: 'immediate',
+        executionContent: 'runAssistantTask',
+        deliveryMode: 'publishSummary',
+        agentId: 'Research Team',
+      },
+    ];
+    rawWorkbench.agents = [
+      {
+        agent: {
+          id: 'Research Team',
+          name: 'Research Team',
+          description: 'Research agent',
+          avatar: 'R',
+          systemPrompt: 'Research',
+          creator: 'OpenClaw',
+        },
+        focusAreas: ['Analytics'],
+        automationFitScore: 88,
+        workspace: 'C:/OpenClaw/.openclaw/workspace-research',
+        agentDir: 'C:/OpenClaw/.openclaw/agents/research-team/agent',
+        isDefault: true,
+      },
+    ];
+    rawWorkbench.files = [
+      {
+        id: buildOpenClawAgentFileId('Research Team', 'AGENTS.md'),
+        name: 'AGENTS.md',
+        path: 'C:/OpenClaw/.openclaw/workspace-research/AGENTS.md',
+        category: 'prompt',
+        language: 'markdown',
+        size: '1 KB',
+        updatedAt: '2026-03-23T00:00:00.000Z',
+        status: 'synced',
+        description: 'Research agent prompt',
+        content: '# Research agent',
+        isReadonly: false,
+      },
+    ];
+
+    const snapshot = await service.getAgentWorkbench({
+      instanceId: 'instance-openclaw',
+      workbench: rawWorkbench,
+      agentId: 'Research Team',
+    });
+
+    assert.equal(snapshot.model.source, 'agent');
+    assert.equal(snapshot.model.primary, 'anthropic/claude-3-7-sonnet');
+    assert.deepEqual(snapshot.model.fallbacks, ['openai/gpt-4.1']);
+    assert.deepEqual(
+      snapshot.tasks.map((task) => task.id),
+      ['task-research'],
+    );
+    assert.deepEqual(
+      snapshot.files.map((file) => file.path),
+      ['AGENTS.md'],
+    );
+    assert.deepEqual(
+      snapshot.channels.find((channel) => channel.id === 'telegram')?.accountIds,
+      ['research'],
+    );
+  },
+);
+
+await runTest(
+  'agentWorkbenchService keeps the detail panel renderable when a non-critical agent surface fails',
+  async () => {
+    const service = createAgentWorkbenchService({
+      readOpenClawConfigSnapshot: async () => {
+        throw new Error('managed config unavailable');
+      },
+      openClawGatewayClient: {
+        getSkillsStatus: async () => {
+          throw new Error('skills endpoint unavailable');
+        },
+        getToolsCatalog: async (_instanceId, args = {}) => ({
+          agentId: args.agentId,
+          profiles: [],
+          groups: [
+            {
+              id: 'group:reasoning',
+              label: 'Reasoning',
+              tools: [
+                {
+                  id: 'web.search',
+                  label: 'Web Search',
+                  description: 'Search the web',
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+
+    const snapshot = await service.getAgentWorkbench({
+      instanceId: 'instance-openclaw',
+      workbench: createWorkbench(),
+      agentId: 'research',
+    });
+
+    assert.equal(snapshot.agent.agent.id, 'research');
+    assert.deepEqual(snapshot.skills, []);
+    assert.deepEqual(
+      snapshot.tools.map((tool) => tool.id),
+      ['web.search'],
+    );
+    assert.equal(snapshot.model.source, 'runtime');
   },
 );

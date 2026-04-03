@@ -1,6 +1,7 @@
-import type { PaginatedResult } from './service.ts';
+import type { PaginatedResult, PaginationParams } from './service.ts';
 
 export * from './service.ts';
+export * from './openclawRelease.ts';
 
 export interface Agent {
   id: string;
@@ -95,6 +96,157 @@ export interface ProxyProviderModel {
   name: string;
 }
 
+export type LocalAiProxyClientProtocol =
+  | 'openai-compatible'
+  | 'anthropic'
+  | 'gemini';
+
+export type LocalAiProxyUpstreamProtocol =
+  | LocalAiProxyClientProtocol
+  | 'azure-openai'
+  | 'openrouter'
+  | 'sdkwork';
+
+export type LocalAiProxyRouteManagedBy = 'system-default' | 'user';
+
+export interface LocalAiProxyRouteModelRecord {
+  id: string;
+  name: string;
+}
+
+export interface LocalAiProxyRouteRecord {
+  id: string;
+  schemaVersion: 1;
+  name: string;
+  enabled: boolean;
+  isDefault: boolean;
+  managedBy: LocalAiProxyRouteManagedBy;
+  clientProtocol: LocalAiProxyClientProtocol;
+  upstreamProtocol: LocalAiProxyUpstreamProtocol;
+  providerId: string;
+  upstreamBaseUrl: string;
+  apiKey: string;
+  defaultModelId: string;
+  reasoningModelId?: string;
+  embeddingModelId?: string;
+  models: LocalAiProxyRouteModelRecord[];
+  notes?: string;
+  exposeTo: string[];
+}
+
+export type LocalAiProxyRouteHealth = 'healthy' | 'degraded' | 'failed' | 'disabled';
+
+export interface LocalAiProxyRouteRuntimeMetrics {
+  routeId: string;
+  clientProtocol: LocalAiProxyClientProtocol;
+  upstreamProtocol: LocalAiProxyUpstreamProtocol;
+  health: LocalAiProxyRouteHealth;
+  requestCount: number;
+  successCount: number;
+  failureCount: number;
+  rpm: number;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheTokens: number;
+  averageLatencyMs: number;
+  lastLatencyMs?: number | null;
+  lastUsedAt?: number | null;
+  lastError?: string | null;
+}
+
+export type LocalAiProxyRouteTestStatus = 'passed' | 'failed';
+export type LocalAiProxyRouteTestCapability =
+  | 'chat'
+  | 'responses'
+  | 'embeddings'
+  | 'messages'
+  | 'generateContent';
+
+export interface LocalAiProxyRouteTestRecord {
+  routeId: string;
+  status: LocalAiProxyRouteTestStatus;
+  testedAt: number;
+  latencyMs?: number | null;
+  checkedCapability: LocalAiProxyRouteTestCapability;
+  modelId?: string | null;
+  error?: string | null;
+}
+
+export type LocalAiProxyRequestLogStatus = 'succeeded' | 'failed';
+
+export interface LocalAiProxyLoggedMessage {
+  index: number;
+  role: string;
+  content: string;
+  name?: string | null;
+  kind?: string | null;
+}
+
+export interface LocalAiProxyRequestLogsQuery extends PaginationParams {
+  search?: string;
+  providerId?: string;
+  modelId?: string;
+  routeId?: string;
+  status?: LocalAiProxyRequestLogStatus | 'all';
+}
+
+export interface LocalAiProxyMessageLogsQuery extends PaginationParams {
+  search?: string;
+  providerId?: string;
+  modelId?: string;
+  routeId?: string;
+}
+
+export interface LocalAiProxyRequestLogRecord {
+  id: string;
+  createdAt: number;
+  routeId: string;
+  routeName: string;
+  providerId: string;
+  clientProtocol: LocalAiProxyClientProtocol;
+  upstreamProtocol: LocalAiProxyUpstreamProtocol;
+  endpoint: string;
+  status: LocalAiProxyRequestLogStatus;
+  modelId?: string | null;
+  baseUrl: string;
+  ttftMs?: number | null;
+  totalDurationMs: number;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheTokens: number;
+  requestMessageCount: number;
+  responseStatus?: number | null;
+  requestPreview?: string | null;
+  responsePreview?: string | null;
+  error?: string | null;
+  requestBody?: string | null;
+  responseBody?: string | null;
+}
+
+export interface LocalAiProxyMessageLogRecord {
+  id: string;
+  requestLogId?: string | null;
+  createdAt: number;
+  routeId: string;
+  routeName: string;
+  providerId: string;
+  clientProtocol: LocalAiProxyClientProtocol;
+  upstreamProtocol: LocalAiProxyUpstreamProtocol;
+  modelId?: string | null;
+  baseUrl: string;
+  messageCount: number;
+  preview?: string | null;
+  responsePreview?: string | null;
+  messages: LocalAiProxyLoggedMessage[];
+}
+
+export interface LocalAiProxyMessageCaptureSettings {
+  enabled: boolean;
+  updatedAt?: number | null;
+}
+
 export interface ProxyProvider {
   id: string;
   channelId: string;
@@ -111,6 +263,12 @@ export interface ProxyProvider {
   canCopyApiKey?: boolean;
   credentialReference?: string;
   tenantId?: string;
+  clientProtocol?: LocalAiProxyClientProtocol;
+  upstreamProtocol?: LocalAiProxyUpstreamProtocol;
+  managedBy?: LocalAiProxyRouteManagedBy;
+  enabled?: boolean;
+  isDefault?: boolean;
+  defaultModelId?: string;
 }
 
 export interface ProxyProviderCreate {
@@ -242,7 +400,7 @@ export interface ModelMappingCatalogChannel {
   models: ModelMappingCatalogModel[];
 }
 
-export interface ApiRouterChannel {
+export interface ProviderChannel {
   id: string;
   name: string;
   vendor: string;
@@ -254,25 +412,25 @@ export interface ApiRouterChannel {
   disabledProviderCount: number;
 }
 
-export type ApiRouterUsageRecordSortField = 'model' | 'time';
+export type ProviderUsageRecordSortField = 'model' | 'time';
 
-export type ApiRouterUsageTimeRangePreset = '24h' | '7d' | '30d' | 'custom';
+export type ProviderUsageTimeRangePreset = '24h' | '7d' | '30d' | 'custom';
 
-export type ApiRouterUsageRecordType = 'streaming' | 'standard';
+export type ProviderUsageRecordType = 'streaming' | 'standard';
 
-export interface ApiRouterUsageRecordApiKeyOption {
+export interface ProviderUsageRecordApiKeyOption {
   id: string;
   label: string;
 }
 
-export interface ApiRouterUsageRecord {
+export interface ProviderUsageRecord {
   id: string;
   apiKeyId: string;
   apiKeyName: string;
   model: string;
   reasoningEffort: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   endpoint: string;
-  type: ApiRouterUsageRecordType;
+  type: ProviderUsageRecordType;
   promptTokens: number;
   completionTokens: number;
   cachedTokens: number;
@@ -283,7 +441,7 @@ export interface ApiRouterUsageRecord {
   userAgent: string;
 }
 
-export interface ApiRouterUsageRecordSummary {
+export interface ProviderUsageRecordSummary {
   totalRequests: number;
   totalTokens: number;
   promptTokens: number;
@@ -293,18 +451,18 @@ export interface ApiRouterUsageRecordSummary {
   averageDurationMs: number;
 }
 
-export interface ApiRouterUsageRecordsQuery {
+export interface ProviderUsageRecordsQuery {
   apiKeyId?: string;
-  timeRange?: ApiRouterUsageTimeRangePreset;
+  timeRange?: ProviderUsageTimeRangePreset;
   startDate?: string;
   endDate?: string;
-  sortBy?: ApiRouterUsageRecordSortField;
+  sortBy?: ProviderUsageRecordSortField;
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
 
-export type ApiRouterUsageRecordsResult = PaginatedResult<ApiRouterUsageRecord>;
+export type ProviderUsageRecordsResult = PaginatedResult<ProviderUsageRecord>;
 
 export type StudioRuntimeKind = 'openclaw' | 'zeroclaw' | 'ironclaw' | 'custom';
 
@@ -694,6 +852,16 @@ export interface StudioWorkbenchChannelRecord {
   fieldCount: number;
   configuredFieldCount: number;
   setupSteps: string[];
+  accounts?: StudioWorkbenchChannelAccountRecord[];
+}
+
+export interface StudioWorkbenchChannelAccountRecord {
+  id: string;
+  name: string;
+  status: 'connected' | 'disconnected' | 'not_configured';
+  enabled: boolean;
+  configured: boolean;
+  detail?: string;
 }
 
 export interface StudioWorkbenchTaskScheduleConfig {
@@ -851,6 +1019,8 @@ export interface StudioWorkbenchToolRecord {
   access: 'read' | 'write' | 'execute';
   command: string;
   lastUsedAt?: string;
+  agentIds?: string[];
+  agentNames?: string[];
 }
 
 export interface StudioWorkbenchSnapshot {

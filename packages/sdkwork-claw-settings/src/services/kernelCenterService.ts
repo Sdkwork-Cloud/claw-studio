@@ -1,8 +1,16 @@
 import {
+  hostPlatformService,
   kernelPlatformService,
+  rolloutService,
+  type HostPlatformSnapshot,
   type KernelPlatformSnapshot,
+  type RolloutPhaseCounts,
 } from '@sdkwork/claw-core';
-import type { RuntimeDesktopKernelInfo } from '@sdkwork/claw-infrastructure';
+import type {
+  ManageRolloutListResult,
+  ManageRolloutRecord,
+  RuntimeDesktopKernelInfo,
+} from '@sdkwork/claw-infrastructure';
 
 export type KernelCenterStatusTone = 'healthy' | 'degraded' | 'warning';
 
@@ -12,6 +20,26 @@ export interface KernelCenterDashboard {
   statusTone: KernelCenterStatusTone;
   statusTitle: string;
   statusSummary: string;
+  hostPlatform: {
+    status: HostPlatformSnapshot | null;
+    modeLabel: string;
+    lifecycleLabel: string;
+    hostId: string | null;
+    displayName: string | null;
+    version: string | null;
+    desiredStateProjectionVersion: string | null;
+    rolloutEngineVersion: string | null;
+    manageBasePath: string | null;
+    internalBasePath: string | null;
+    capabilityKeys: string[];
+    capabilityCount: number;
+  };
+  rollouts: {
+    items: ManageRolloutRecord[];
+    total: number;
+    phaseCounts: RolloutPhaseCounts;
+    latestUpdatedAt: number | null;
+  };
   host: {
     serviceManagerLabel: string;
     ownershipLabel: string;
@@ -26,6 +54,32 @@ export interface KernelCenterDashboard {
     baseUrl: string | null;
     websocketUrl: string | null;
     usesDynamicPort: boolean;
+  };
+  localAiProxy: {
+    lifecycle: string;
+    baseUrl: string | null;
+    rootBaseUrl: string | null;
+    openaiCompatibleBaseUrl: string | null;
+    anthropicBaseUrl: string | null;
+    geminiBaseUrl: string | null;
+    activePort: number | null;
+    loopbackOnly: boolean;
+    defaultRouteName: string | null;
+    defaultRoutes: Array<{
+      clientProtocol: string;
+      id: string;
+      name: string;
+      managedBy: string;
+      upstreamProtocol: string;
+      upstreamBaseUrl: string;
+      modelCount: number;
+    }>;
+    upstreamBaseUrl: string | null;
+    modelCount: number;
+    configPath: string | null;
+    snapshotPath: string | null;
+    logPath: string | null;
+    lastError: string | null;
   };
   storage: {
     activeProfileId: string | null;
@@ -53,13 +107,19 @@ type KernelCenterPlatformService = Pick<
   typeof kernelPlatformService,
   'getInfo' | 'getStatus' | 'ensureRunning' | 'restart'
 >;
+type KernelCenterHostPlatformService = Pick<typeof hostPlatformService, 'getStatus'>;
+type KernelCenterRolloutService = Pick<typeof rolloutService, 'list' | 'summarizePhases'>;
 
 export interface KernelCenterServiceOverrides {
   kernelPlatformService?: Partial<KernelCenterPlatformService>;
+  hostPlatformService?: Partial<KernelCenterHostPlatformService>;
+  rolloutService?: Partial<KernelCenterRolloutService>;
 }
 
 interface KernelCenterServiceDependencies {
   kernelPlatformService: KernelCenterPlatformService;
+  hostPlatformService: KernelCenterHostPlatformService;
+  rolloutService: KernelCenterRolloutService;
 }
 
 function formatRuntimeState(state?: string | null) {
@@ -130,13 +190,65 @@ function formatInstallSource(source?: string | null) {
   }
 }
 
+function formatLocalAiProxyLifecycle(lifecycle?: string | null) {
+  switch (lifecycle) {
+    case 'running':
+      return 'Running';
+    case 'failed':
+      return 'Failed';
+    case 'stopped':
+      return 'Stopped';
+    default:
+      return 'Unavailable';
+  }
+}
+
 function formatPlatformLabel(platform?: string | null, arch?: string | null) {
   const normalizedPlatform = platform?.trim() || 'unknown';
   const normalizedArch = arch?.trim() || 'unknown';
   return `${normalizedPlatform}/${normalizedArch}`;
 }
 
-function resolveStatusTone(snapshot: KernelPlatformSnapshot | null): KernelCenterStatusTone {
+function formatHostPlatformMode(mode?: string | null) {
+  switch (mode) {
+    case 'desktopCombined':
+      return 'Desktop Combined';
+    case 'server':
+      return 'Server';
+    case 'web':
+      return 'Web Preview';
+    default:
+      return 'Unknown';
+  }
+}
+
+function formatHostPlatformLifecycle(lifecycle?: string | null) {
+  switch (lifecycle) {
+    case 'ready':
+      return 'Ready';
+    case 'starting':
+      return 'Starting';
+    case 'degraded':
+      return 'Degraded';
+    case 'stopping':
+      return 'Stopping';
+    case 'stopped':
+      return 'Stopped';
+    case 'inactive':
+      return 'Inactive';
+    default:
+      return 'Unavailable';
+  }
+}
+
+function resolveStatusTone(
+  snapshot: KernelPlatformSnapshot | null,
+  hostPlatformStatus: HostPlatformSnapshot | null,
+): KernelCenterStatusTone {
+  if (hostPlatformStatus?.lifecycle === 'degraded') {
+    return 'degraded';
+  }
+
   if (!snapshot) {
     return 'warning';
   }
@@ -163,12 +275,23 @@ function createDependencies(
         overrides.kernelPlatformService?.ensureRunning ?? kernelPlatformService.ensureRunning,
       restart: overrides.kernelPlatformService?.restart ?? kernelPlatformService.restart,
     },
+    hostPlatformService: {
+      getStatus: overrides.hostPlatformService?.getStatus ?? hostPlatformService.getStatus,
+    },
+    rolloutService: {
+      list: overrides.rolloutService?.list ?? rolloutService.list,
+      summarizePhases:
+        overrides.rolloutService?.summarizePhases ?? rolloutService.summarizePhases,
+    },
   };
 }
 
 function mapDashboard(
   snapshot: KernelPlatformSnapshot | null,
   info: RuntimeDesktopKernelInfo | null,
+  hostPlatformStatus: HostPlatformSnapshot | null,
+  rolloutResult: ManageRolloutListResult,
+  rolloutPhaseCounts: RolloutPhaseCounts,
 ): KernelCenterDashboard {
   const activeProfile = info?.storage.profiles.find((profile) => profile.active) ?? null;
   const controlSocket = snapshot?.raw.host.controlSocket ?? info?.host.host.controlSocket ?? null;
@@ -184,9 +307,32 @@ function mapDashboard(
   return {
     snapshot,
     info,
-    statusTone: resolveStatusTone(snapshot),
+    statusTone: resolveStatusTone(snapshot, hostPlatformStatus),
     statusTitle: formatRuntimeState(snapshot?.runtimeState),
     statusSummary: snapshot?.raw.runtime.reason ?? 'Kernel host status is currently unavailable.',
+    hostPlatform: {
+      status: hostPlatformStatus,
+      modeLabel: formatHostPlatformMode(hostPlatformStatus?.mode),
+      lifecycleLabel: formatHostPlatformLifecycle(hostPlatformStatus?.lifecycle),
+      hostId: hostPlatformStatus?.hostId ?? null,
+      displayName: hostPlatformStatus?.displayName ?? null,
+      version: hostPlatformStatus?.version ?? null,
+      desiredStateProjectionVersion:
+        hostPlatformStatus?.desiredStateProjectionVersion ?? null,
+      rolloutEngineVersion: hostPlatformStatus?.rolloutEngineVersion ?? null,
+      manageBasePath: hostPlatformStatus?.manageBasePath ?? null,
+      internalBasePath: hostPlatformStatus?.internalBasePath ?? null,
+      capabilityKeys: hostPlatformStatus?.capabilityKeys ?? [],
+      capabilityCount: hostPlatformStatus?.capabilityCount ?? 0,
+    },
+    rollouts: {
+      items: rolloutResult.items,
+      total: rolloutResult.total,
+      phaseCounts: rolloutPhaseCounts,
+      latestUpdatedAt: rolloutResult.items.reduce<number | null>((latest, item) => (
+        latest === null || item.updatedAt > latest ? item.updatedAt : latest
+      ), null),
+    },
     host: {
       serviceManagerLabel: formatServiceManager(snapshot?.hostManager),
       ownershipLabel: formatOwnership(snapshot?.raw.host.ownership),
@@ -203,6 +349,24 @@ function mapDashboard(
       baseUrl: snapshot?.baseUrl ?? null,
       websocketUrl: snapshot?.websocketUrl ?? null,
       usesDynamicPort: Boolean(snapshot?.usesDynamicPort),
+    },
+    localAiProxy: {
+      lifecycle: formatLocalAiProxyLifecycle(info?.localAiProxy?.lifecycle),
+      baseUrl: info?.localAiProxy?.baseUrl ?? null,
+      rootBaseUrl: info?.localAiProxy?.rootBaseUrl ?? null,
+      openaiCompatibleBaseUrl: info?.localAiProxy?.openaiCompatibleBaseUrl ?? null,
+      anthropicBaseUrl: info?.localAiProxy?.anthropicBaseUrl ?? null,
+      geminiBaseUrl: info?.localAiProxy?.geminiBaseUrl ?? null,
+      activePort: info?.localAiProxy?.activePort ?? null,
+      loopbackOnly: info?.localAiProxy?.loopbackOnly ?? true,
+      defaultRouteName: info?.localAiProxy?.defaultRouteName ?? null,
+      defaultRoutes: info?.localAiProxy?.defaultRoutes ?? [],
+      upstreamBaseUrl: info?.localAiProxy?.upstreamBaseUrl ?? null,
+      modelCount: info?.localAiProxy?.modelCount ?? 0,
+      configPath: info?.localAiProxy?.configPath ?? null,
+      snapshotPath: info?.localAiProxy?.snapshotPath ?? null,
+      logPath: info?.localAiProxy?.logPath ?? null,
+      lastError: info?.localAiProxy?.lastError ?? null,
     },
     storage: {
       activeProfileId: activeProfile?.id ?? info?.storage.activeProfileId ?? null,
@@ -238,11 +402,19 @@ export function createKernelCenterService(
   const buildDashboard = async (
     snapshotPromise: Promise<KernelPlatformSnapshot | null>,
   ): Promise<KernelCenterDashboard> => {
-    const [snapshot, info] = await Promise.all([
+    const [snapshot, info, hostPlatformStatus, rolloutResult] = await Promise.all([
       snapshotPromise,
       dependencies.kernelPlatformService.getInfo(),
+      dependencies.hostPlatformService.getStatus(),
+      dependencies.rolloutService.list(),
     ]);
-    return mapDashboard(snapshot, info);
+    return mapDashboard(
+      snapshot,
+      info,
+      hostPlatformStatus,
+      rolloutResult,
+      dependencies.rolloutService.summarizePhases(rolloutResult),
+    );
   };
 
   return {

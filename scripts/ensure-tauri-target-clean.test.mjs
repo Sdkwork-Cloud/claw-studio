@@ -2,8 +2,21 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 
 import { ensureTauriTargetClean } from './ensure-tauri-target-clean.mjs';
+import {
+  DEFAULT_NODE_VERSION,
+  DEFAULT_OPENCLAW_VERSION,
+} from './openclaw-release.mjs';
+
+const modulePath = path.resolve(import.meta.dirname, 'ensure-tauri-target-clean.mjs');
+
+assert.match(
+  readFileSync(modulePath, 'utf8'),
+  /if \(invokedScriptPath && invokedScriptPath === currentModulePath\) \{\s*try \{\s*runCli\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s,
+  'ensure-tauri-target-clean must wrap the CLI entrypoint with a top-level error handler',
+);
 
 function withTempDir(callback) {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'tauri-target-clean-'));
@@ -19,6 +32,11 @@ function writePermissionManifest(srcTauriDir, manifestName, permissionEntries) {
   const manifestDir = path.join(srcTauriDir, 'target', 'debug', 'build', 'tauri-test', 'out');
   mkdirSync(manifestDir, { recursive: true });
   writeFileSync(path.join(manifestDir, manifestName), JSON.stringify(permissionEntries), 'utf8');
+}
+
+function writeJson(filePath, value) {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
 withTempDir((tempDir) => {
@@ -71,6 +89,111 @@ withTempDir((tempDir) => {
 
   assert.equal(result.removedTarget, true, 'stale permission manifests must trigger cleanup');
   assert.equal(existsSync(targetDir), false, 'stale target directory must be removed');
+});
+
+withTempDir((tempDir) => {
+  const srcTauriDir = path.join(tempDir, 'src-tauri');
+  const targetDir = path.join(srcTauriDir, 'target');
+  writeJson(path.join(srcTauriDir, 'resources', 'openclaw', 'manifest.json'), {
+    schemaVersion: 1,
+    runtimeId: 'openclaw',
+    openclawVersion: DEFAULT_OPENCLAW_VERSION,
+    nodeVersion: DEFAULT_NODE_VERSION,
+    platform: 'windows',
+    arch: 'x64',
+    nodeRelativePath: 'runtime/node/node.exe',
+    cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+  });
+  writeJson(path.join(targetDir, 'dev', 'debug', 'resources', 'openclaw-runtime', 'manifest.json'), {
+    schemaVersion: 1,
+    runtimeId: 'openclaw',
+    openclawVersion: '2026.3.24',
+    nodeVersion: '22.16.0',
+    platform: 'windows',
+    arch: 'x64',
+    nodeRelativePath: 'runtime/node/node.exe',
+    cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+  });
+
+  const result = ensureTauriTargetClean(srcTauriDir);
+
+  assert.equal(
+    result.removedTarget,
+    true,
+    'legacy openclaw-runtime resource directories must trigger stale target cleanup',
+  );
+  assert.equal(existsSync(targetDir), false, 'legacy bundled runtime target resources must be removed');
+});
+
+withTempDir((tempDir) => {
+  const srcTauriDir = path.join(tempDir, 'src-tauri');
+  const targetDir = path.join(srcTauriDir, 'target');
+  const sourceManifest = {
+    schemaVersion: 1,
+    runtimeId: 'openclaw',
+    openclawVersion: DEFAULT_OPENCLAW_VERSION,
+    nodeVersion: DEFAULT_NODE_VERSION,
+    platform: 'windows',
+    arch: 'x64',
+    nodeRelativePath: 'runtime/node/node.exe',
+    cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+  };
+  writeJson(path.join(srcTauriDir, 'resources', 'openclaw', 'manifest.json'), sourceManifest);
+  writeJson(path.join(targetDir, 'dev', 'debug', 'resources', 'openclaw', 'manifest.json'), {
+    ...sourceManifest,
+    openclawVersion: '2026.3.24',
+  });
+
+  const result = ensureTauriTargetClean(srcTauriDir);
+
+  assert.equal(
+    result.removedTarget,
+    true,
+    'mismatched bundled openclaw target manifests must trigger stale target cleanup',
+  );
+  assert.equal(existsSync(targetDir), false, 'mismatched bundled runtime target manifests must be removed');
+});
+
+withTempDir((tempDir) => {
+  const desktopPackageDir = path.join(tempDir, 'sdkwork-claw-desktop');
+  const srcTauriDir = path.join(desktopPackageDir, 'src-tauri');
+  const packageTargetDir = path.join(desktopPackageDir, '.tauri-target');
+  writeJson(path.join(srcTauriDir, 'resources', 'openclaw', 'manifest.json'), {
+    schemaVersion: 1,
+    runtimeId: 'openclaw',
+    openclawVersion: DEFAULT_OPENCLAW_VERSION,
+    nodeVersion: DEFAULT_NODE_VERSION,
+    platform: 'windows',
+    arch: 'x64',
+    nodeRelativePath: 'runtime/node/node.exe',
+    cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+  });
+  writeJson(
+    path.join(packageTargetDir, 'dev', 'debug', 'resources', 'openclaw-runtime', 'manifest.json'),
+    {
+      schemaVersion: 1,
+      runtimeId: 'openclaw',
+      openclawVersion: '2026.3.24',
+      nodeVersion: DEFAULT_NODE_VERSION,
+      platform: 'windows',
+      arch: 'x64',
+      nodeRelativePath: 'runtime/node/node.exe',
+      cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+    },
+  );
+
+  const result = ensureTauriTargetClean(srcTauriDir);
+
+  assert.equal(
+    result.removedTarget,
+    true,
+    'legacy desktop .tauri-target OpenClaw resources must trigger stale target cleanup',
+  );
+  assert.equal(
+    existsSync(packageTargetDir),
+    false,
+    'legacy desktop .tauri-target resources must be removed alongside src-tauri target cleanup',
+  );
 });
 
 console.log('ok - stale Tauri target cleanup only removes invalid permission caches');

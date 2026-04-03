@@ -1,391 +1,553 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Activity,
-  Battery,
-  Cpu,
-  DownloadCloud,
-  HardDrive,
-  MemoryStick,
-  MoreVertical,
-  Plus,
-  Settings,
+  CheckCircle2,
+  CircleAlert,
+  Copy,
+  KeyRound,
+  RefreshCcw,
+  Server,
+  ShieldCheck,
+  ShieldX,
+  Smartphone,
   Trash2,
   Wifi,
 } from 'lucide-react';
-import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Label, Modal } from '@sdkwork/claw-ui';
-import type { Device, InstalledSkill } from '@sdkwork/claw-types';
-import { deviceService } from '../../services';
+import {
+  deviceService,
+  type DeviceWorkspaceSnapshot,
+  type PairedDeviceRecord,
+  type RotateDeviceTokenResult,
+} from '../../services';
+import { Input } from '@sdkwork/claw-ui';
 
-function formatVersionLabel(version: string, t: (key: string, options?: Record<string, unknown>) => string) {
-  return t('devices.page.skillVersion', { version });
+type AsyncStatus = 'idle' | 'loading' | 'error';
+
+function formatDateTime(value?: number) {
+  if (!value) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value);
+}
+
+function renderScopes(scopes: string[]) {
+  if (!scopes.length) {
+    return '—';
+  }
+
+  return scopes.join(', ');
 }
 
 export function Devices() {
   const { t } = useTranslation();
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
-  const [newDeviceName, setNewDeviceName] = useState('');
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [deviceSkills, setDeviceSkills] = useState<InstalledSkill[]>([]);
+  const [workspace, setWorkspace] = useState<DeviceWorkspaceSnapshot | null>(null);
+  const [status, setStatus] = useState<AsyncStatus>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [lastRotatedToken, setLastRotatedToken] = useState<RotateDeviceTokenResult | null>(null);
+  const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
+
+  const pendingRequests = workspace?.pending || [];
+  const pairedDevices = workspace?.paired || [];
+  const selectedDevice =
+    pairedDevices.find((device) => device.id === selectedDeviceId) || pairedDevices[0] || null;
+  const tokenList = selectedDevice?.tokenList || [];
+  const pairingGuide = [
+    t('devices.page.pairingGuide.steps.open'),
+    t('devices.page.pairingGuide.steps.connect'),
+    t('devices.page.pairingGuide.steps.approve'),
+  ];
+
+  async function loadWorkspaceSnapshot() {
+    setStatus('loading');
+    setError(null);
+
+    try {
+      const nextWorkspace = await deviceService.getWorkspaceSnapshot();
+      setWorkspace(nextWorkspace);
+      setSelectedDeviceId((current) => {
+        if (current && nextWorkspace.paired.some((device) => device.id === current)) {
+          return current;
+        }
+
+        return nextWorkspace.paired[0]?.id || null;
+      });
+      setStatus('idle');
+    } catch (nextError) {
+      setStatus('error');
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    }
+  }
 
   useEffect(() => {
-    const fetchDevices = async () => {
-      const data = await deviceService.getDevices();
-      setDevices(data);
-    };
-
-    fetchDevices();
+    void loadWorkspaceSnapshot();
   }, []);
 
-  const handleRegister = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!newDeviceName.trim()) {
+  async function runAction(actionKey: string, callback: () => Promise<void>) {
+    setActiveActionKey(actionKey);
+    setError(null);
+
+    try {
+      await callback();
+      await loadWorkspaceSnapshot();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setActiveActionKey(null);
+    }
+  }
+
+  async function approvePairing(requestId: string) {
+    await runAction(`approve:${requestId}`, () => deviceService.approvePairing(requestId));
+  }
+
+  async function rejectPairing(requestId: string) {
+    if (!window.confirm(t('devices.page.confirmRejectPairing'))) {
       return;
     }
 
-    const newDevice = await deviceService.registerDevice(newDeviceName);
-    setDevices((previous) => [...previous, newDevice]);
-    setNewDeviceName('');
-    setIsRegisterModalOpen(false);
-  };
+    await runAction(`reject:${requestId}`, () => deviceService.rejectPairing(requestId));
+  }
 
-  const handleDelete = async (id: string) => {
-    if (
-      !confirm(t('devices.page.confirmUnregister'))
-    ) {
+  async function removeDevice(deviceId: string) {
+    if (!window.confirm(t('devices.page.confirmRemoveDevice'))) {
       return;
     }
 
-    await deviceService.deleteDevice(id);
-    setDevices((previous) => previous.filter((device) => device.id !== id));
-    if (selectedDevice?.id === id) {
-      setSelectedDevice(null);
+    await runAction(`remove:${deviceId}`, async () => {
+      await deviceService.removeDevice(deviceId);
+      if (selectedDeviceId === deviceId) {
+        setSelectedDeviceId(null);
+      }
+      if (lastRotatedToken?.deviceId === deviceId) {
+        setLastRotatedToken(null);
+      }
+    });
+  }
+
+  async function rotateToken(device: PairedDeviceRecord, role: string, scopes: string[]) {
+    setActiveActionKey(`rotate:${device.id}:${role}`);
+    setError(null);
+
+    try {
+      const result = await deviceService.rotateToken({
+        deviceId: device.id,
+        role,
+        scopes,
+      });
+      setLastRotatedToken(result);
+      await loadWorkspaceSnapshot();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setActiveActionKey(null);
     }
-  };
+  }
 
-  const viewDeviceDetails = async (device: Device) => {
-    setSelectedDevice(device);
-    const skills = await deviceService.getDeviceSkills(device.id);
-    setDeviceSkills(skills);
-  };
-
-  const handleUninstall = async (skillId: string) => {
-    if (
-      !selectedDevice ||
-      !confirm(t('devices.page.confirmUninstallSkill'))
-    ) {
+  async function revokeToken(deviceId: string, role: string) {
+    if (!window.confirm(t('devices.page.confirmRevokeToken', { role }))) {
       return;
     }
 
-    await deviceService.uninstallSkill(selectedDevice.id, skillId);
-    setDeviceSkills((previous) => previous.filter((skill) => skill.id !== skillId));
-  };
+    await runAction(`revoke:${deviceId}:${role}`, async () => {
+      await deviceService.revokeToken({ deviceId, role });
+      if (lastRotatedToken?.deviceId === deviceId && lastRotatedToken.role === role) {
+        setLastRotatedToken(null);
+      }
+    });
+  }
+
+  async function copyToken(token: string) {
+    if (!navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(token);
+  }
 
   return (
-    <div className="mx-auto h-full max-w-7xl overflow-y-auto p-6 scrollbar-hide md:p-10">
-      <div className="relative mb-10 flex flex-col items-center justify-between gap-6 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-xl dark:border-zinc-800/50 dark:bg-zinc-900/50 sm:flex-row sm:p-8">
-        <div className="absolute right-0 top-0 h-64 w-64 translate-x-1/3 -translate-y-1/2 rounded-full bg-primary-500/10 blur-3xl" />
-        <div className="relative z-10 flex items-start gap-5">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-primary-500 dark:border-zinc-800/50 dark:bg-zinc-950">
-            <DownloadCloud className="h-7 w-7" />
-          </div>
-          <div>
-            <h2 className="mb-1 text-xl font-bold text-white">
-              {t('devices.page.banner.title')}
-            </h2>
-            <p className="max-w-xl text-sm leading-relaxed text-zinc-400">
-              {t('devices.page.banner.description')}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setIsRegisterModalOpen(true)}
-          className="relative z-10 flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary-900/20 transition-colors hover:bg-primary-700 sm:w-auto"
-        >
-          <Plus className="h-4 w-4" />
-          {t('devices.page.actions.registerDevice')}
-        </button>
-      </div>
-
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {t('devices.page.title')}
-          </h1>
-          <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-            {t('devices.page.subtitle')}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          {devices.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-zinc-200 bg-white p-12 text-center dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800">
-                <Cpu className="h-8 w-8 text-zinc-400 dark:text-zinc-500" />
-              </div>
-              <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                {t('devices.page.empty.title')}
-              </h3>
-              <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
-                {t('devices.page.empty.description')}
+    <div className="mx-auto h-full max-w-7xl overflow-y-auto p-6 md:p-10">
+      <div className="mb-8 rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+              <Wifi className="h-3.5 w-3.5" />
+              {t('devices.page.banner.eyebrow')}
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+                {t('devices.page.title')}
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {t('devices.page.subtitle')}
               </p>
+            </div>
+            {workspace?.instance ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('devices.page.instanceCard.instance')}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {workspace.instance.name}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('devices.page.instanceCard.runtime')}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {workspace.instance.typeLabel || workspace.instance.runtimeKind}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('devices.page.instanceCard.version')}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {workspace.instance.version || t('devices.page.values.notAvailable')}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadWorkspaceSnapshot()}
+            disabled={status === 'loading' || Boolean(activeActionKey)}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+          >
+            <RefreshCcw className={`h-4 w-4 ${status === 'loading' ? 'animate-spin' : ''}`} />
+            {t('devices.page.actions.refresh')}
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      {lastRotatedToken ? (
+        <div className="mb-6 rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                <CheckCircle2 className="h-4 w-4" />
+                {t('devices.page.tokenReveal.title')}
+              </div>
+              <div className="text-xs text-emerald-700 dark:text-emerald-300">
+                {t('devices.page.tokenReveal.description', {
+                  device: lastRotatedToken.deviceId,
+                  role: lastRotatedToken.role,
+                })}
+              </div>
+            </div>
+            <div className="flex flex-1 items-center gap-3 lg:max-w-2xl">
+              <Input
+                readOnly
+                value={lastRotatedToken.token}
+                className="h-11 flex-1 rounded-2xl border-emerald-300 bg-white px-4 text-sm text-zinc-900 dark:border-emerald-500/30 dark:bg-zinc-950 dark:text-zinc-100"
+              />
               <button
-                onClick={() => setIsRegisterModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                type="button"
+                onClick={() => void copyToken(lastRotatedToken.token)}
+                className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 px-4 py-3 text-sm font-semibold text-emerald-800 transition-colors hover:bg-emerald-100 dark:border-emerald-500/30 dark:text-emerald-200 dark:hover:bg-emerald-500/10"
               >
-                <Plus className="h-4 w-4" />
-                {t('devices.page.actions.registerDevice')}
+                <Copy className="h-4 w-4" />
+                {t('devices.page.actions.copyToken')}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_1.2fr_1fr]">
+        <section className="space-y-4 rounded-[1.75rem] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                {t('devices.page.pendingRequests.title')}
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('devices.page.pendingRequests.description')}
+              </p>
+            </div>
+            <div className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              {pendingRequests.length}
+            </div>
+          </div>
+
+          {pendingRequests.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+              {t('devices.page.pendingRequests.empty')}
+            </div>
           ) : (
-            devices.map((device, index) => (
-              <motion.div
-                key={device.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
-                onClick={() => viewDeviceDetails(device)}
-                className={`group cursor-pointer rounded-2xl border bg-white p-5 transition-all dark:bg-zinc-900 ${
-                  selectedDevice?.id === device.id
-                    ? 'border-primary-500 ring-1 ring-primary-500 shadow-md dark:border-primary-500/50 dark:ring-primary-500/50'
-                    : 'border-zinc-200 hover:border-zinc-300 hover:shadow-sm dark:border-zinc-800 dark:hover:border-zinc-700'
-                }`}
+            pendingRequests.map((request) => (
+              <div
+                key={request.requestId}
+                className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-inner ${
-                        selectedDevice?.id === device.id
-                          ? 'bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400'
-                          : 'border border-zinc-100 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400'
-                      }`}
-                    >
-                      <Cpu className="h-6 w-6" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-zinc-700 shadow-sm dark:bg-zinc-950 dark:text-zinc-200">
+                        <Smartphone className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                          {request.name}
+                        </div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {request.deviceId}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="flex items-center gap-2 text-base font-bold text-zinc-900 dark:text-zinc-100">
-                        {device.name}
-                        {device.battery > 0 && (
-                          <span className="relative flex h-2 w-2">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                          </span>
-                        )}
-                      </h3>
-                      <div className="mt-1 flex items-center gap-3">
-                        <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                          {device.id}
-                        </span>
-                        <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-                        <span className="flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                          <Wifi className="h-3 w-3" />
-                          {device.ip_address}
-                        </span>
+                    <div className="grid grid-cols-1 gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      <div>
+                        {t('devices.page.pendingRequests.fields.roles')}: {renderScopes(request.roles)}
+                      </div>
+                      <div>
+                        {t('devices.page.pendingRequests.fields.scopes')}: {renderScopes(request.scopes)}
+                      </div>
+                      <div>
+                        {t('devices.page.pendingRequests.fields.ip')}: {request.remoteIp || '—'}
+                      </div>
+                      <div>
+                        {t('devices.page.pendingRequests.fields.requestedAt')}: {formatDateTime(request.requestedAtMs)}
                       </div>
                     </div>
                   </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void approvePairing(request.requestId)}
+                    disabled={Boolean(activeActionKey)}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-zinc-400"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    {t('devices.page.actions.approve')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void rejectPairing(request.requestId)}
+                    disabled={Boolean(activeActionKey)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    <ShieldX className="h-4 w-4" />
+                    {t('devices.page.actions.reject')}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
 
-                  <div className="flex items-center gap-4">
-                    <div className="flex flex-col items-end">
-                      <div className="flex items-center gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        {device.battery}%
-                        <Battery
-                          className={`h-4 w-4 ${
-                            device.battery > 20 ? 'text-emerald-500' : 'text-red-500'
-                          }`}
-                        />
+        <section className="space-y-4 rounded-[1.75rem] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                {t('devices.page.pairedDevices.title')}
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('devices.page.pairedDevices.description')}
+              </p>
+            </div>
+            <div className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              {pairedDevices.length}
+            </div>
+          </div>
+
+          {pairedDevices.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+              {t('devices.page.pairedDevices.empty')}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pairedDevices.map((device) => (
+                <button
+                  key={device.id}
+                  type="button"
+                  onClick={() => setSelectedDeviceId(device.id)}
+                  className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                    selectedDevice?.id === device.id
+                      ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
+                      : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-zinc-700 shadow-sm dark:bg-zinc-950 dark:text-zinc-200">
+                          <Server className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                            {device.name}
+                          </div>
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {device.id}
+                          </div>
+                        </div>
                       </div>
-                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                        {t('devices.page.powerLabel')}
-                      </span>
+                      <div className="grid grid-cols-1 gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        <div>
+                          {t('devices.page.pairedDevices.fields.roles')}: {renderScopes(device.roles)}
+                        </div>
+                        <div>
+                          {t('devices.page.pairedDevices.fields.scopes')}: {renderScopes(device.scopes)}
+                        </div>
+                        <div>
+                          {t('devices.page.pairedDevices.fields.ip')}: {device.remoteIp || '—'}
+                        </div>
+                        <div>
+                          {t('devices.page.pairedDevices.fields.approvedAt')}: {formatDateTime(device.approvedAtMs)}
+                        </div>
+                      </div>
                     </div>
-
                     <button
+                      type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        void handleDelete(device.id);
+                        void removeDevice(device.id);
                       }}
-                      aria-label={t('devices.page.actions.remove')}
-                      className="rounded-lg p-2 text-zinc-400 opacity-0 transition-colors group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 dark:text-zinc-500 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                      disabled={Boolean(activeActionKey)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-300 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                      aria-label={t('devices.page.actions.removeDevice')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-
-        <div>
-          {selectedDevice ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="sticky top-8 rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl shadow-zinc-200/20 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-none"
-            >
-              <div className="mb-6 flex items-center justify-between border-b border-zinc-100 pb-6 dark:border-zinc-800">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
-                    <Settings className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">
-                      {selectedDevice.name}
-                    </h3>
-                    <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                      {selectedDevice.ip_address}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  aria-label={t('devices.page.moreActions')}
-                  className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                >
-                  <MoreVertical className="h-5 w-5" />
                 </button>
-              </div>
-
-              {selectedDevice.hardwareSpecs && (
-                <div className="mb-8 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-800/50">
-                    <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      <Cpu className="h-3.5 w-3.5" />
-                      {t('devices.page.specs.soc')}
-                    </div>
-                    <div className="text-sm font-mono text-zinc-900 dark:text-zinc-100">
-                      {selectedDevice.hardwareSpecs.soc}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-800/50">
-                    <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      <MemoryStick className="h-3.5 w-3.5" />
-                      {t('devices.page.specs.ram')}
-                    </div>
-                    <div className="text-sm font-mono text-zinc-900 dark:text-zinc-100">
-                      {selectedDevice.hardwareSpecs.ram}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-800/50">
-                    <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      <HardDrive className="h-3.5 w-3.5" />
-                      {t('devices.page.specs.storage')}
-                    </div>
-                    <div className="text-sm font-mono text-zinc-900 dark:text-zinc-100">
-                      {selectedDevice.hardwareSpecs.storage}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-800/50">
-                    <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      <Activity className="h-3.5 w-3.5" />
-                      {t('devices.page.specs.latency')}
-                    </div>
-                    <div
-                      className={`text-sm font-mono ${
-                        selectedDevice.hardwareSpecs.latency !== '-'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-zinc-500 dark:text-zinc-400'
-                      }`}
-                    >
-                      {selectedDevice.hardwareSpecs.latency}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <h4 className="mb-4 flex items-center justify-between text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  {t('devices.page.installedSkills')}
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                    {deviceSkills.length}
-                  </span>
-                </h4>
-
-                {deviceSkills.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-zinc-100 bg-zinc-50 py-8 text-center dark:border-zinc-800 dark:bg-zinc-800/50">
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {t('devices.page.noSkillsInstalled')}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {deviceSkills.map((skill) => (
-                      <div
-                        key={skill.id}
-                        className="group flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 p-3 transition-colors hover:border-zinc-200 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:hover:border-zinc-700"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-xs font-bold uppercase text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                            {skill.name.substring(0, 2)}
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                              {skill.name}
-                            </p>
-                            <p className="mt-0.5 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                              {formatVersionLabel(skill.version, t)}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => void handleUninstall(skill.id)}
-                          className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 opacity-0 transition-opacity hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 group-hover:opacity-100"
-                        >
-                          {t('devices.page.actions.remove')}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ) : (
-            <div className="sticky top-8 flex h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-500">
-              <Cpu className="mb-4 h-10 w-10 opacity-20" />
-              <p className="text-sm font-medium">
-                {t('devices.page.selectDeviceHint')}
-              </p>
+              ))}
             </div>
           )}
-        </div>
-      </div>
+        </section>
 
-      <Modal
-        isOpen={isRegisterModalOpen}
-        onClose={() => setIsRegisterModalOpen(false)}
-        title={t('devices.page.modal.title')}
-      >
-        <form onSubmit={handleRegister} className="space-y-5">
-          <div>
-            <Label className="mb-1.5 block">
-              {t('devices.page.modal.deviceName')}
-            </Label>
-            <Input
-              type="text"
-              value={newDeviceName}
-              onChange={(event) => setNewDeviceName(event.target.value)}
-              placeholder={t('devices.page.modal.deviceNamePlaceholder')}
-              autoFocus
-            />
-            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              {t('devices.page.modal.deviceNameDescription')}
+        <section className="space-y-4">
+          <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              {t('devices.page.pairingGuide.title')}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              {t('devices.page.pairingGuide.description')}
             </p>
+            <div className="mt-4 space-y-3">
+              {pairingGuide.map((step, index) => (
+                <div
+                  key={step}
+                  className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+                    {index + 1}
+                  </div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-300">{step}</div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="pt-2">
-            <Button
-              type="submit"
-              disabled={!newDeviceName.trim()}
-              className="h-auto w-full py-3 text-sm font-bold"
-            >
-              {t('devices.page.actions.registerDevice')}
-            </Button>
+
+          <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  {t('devices.page.tokenList.title')}
+                </h2>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  {selectedDevice
+                    ? t('devices.page.tokenList.description', { device: selectedDevice.name })
+                    : t('devices.page.tokenList.noSelection')}
+                </p>
+              </div>
+            </div>
+
+            {!selectedDevice ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                {t('devices.page.tokenList.selectDevice')}
+              </div>
+            ) : tokenList.length === 0 ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                  {t('devices.page.tokenList.empty')}
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void rotateToken(
+                      selectedDevice,
+                      selectedDevice.roles[0] || 'operator',
+                      selectedDevice.scopes,
+                    )
+                  }
+                  disabled={Boolean(activeActionKey)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+                >
+                  <KeyRound className="h-4 w-4" />
+                  {t('devices.page.actions.rotateToken')}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {tokenList.map((token) => (
+                  <div
+                    key={`${selectedDevice.id}:${token.role}`}
+                    className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2">
+                        <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                          {token.role}
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                          <div>
+                            {t('devices.page.tokenList.fields.scopes')}: {renderScopes(token.scopes)}
+                          </div>
+                          <div>
+                            {t('devices.page.tokenList.fields.rotatedAt')}: {formatDateTime(token.rotatedAtMs)}
+                          </div>
+                          <div>
+                            {t('devices.page.tokenList.fields.lastUsedAt')}: {formatDateTime(token.lastUsedAtMs)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void rotateToken(selectedDevice, token.role, token.scopes)}
+                          disabled={Boolean(activeActionKey)}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+                        >
+                          <RefreshCcw className="h-4 w-4" />
+                          {t('devices.page.actions.rotateToken')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void revokeToken(selectedDevice.id, token.role)}
+                          disabled={Boolean(activeActionKey)}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {t('devices.page.actions.revokeToken')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </form>
-      </Modal>
+        </section>
+      </div>
     </div>
   );
 }

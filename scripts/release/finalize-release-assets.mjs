@@ -20,6 +20,17 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 
+function readOptionValue(argv, index, flag) {
+  const next = argv[index + 1];
+  const normalizedNext = String(next ?? '').trim();
+
+  if (!normalizedNext || normalizedNext.startsWith('--')) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  return normalizedNext;
+}
+
 function listFilesRecursively(sourceDir, relativePrefix = '') {
   const entries = readdirSync(sourceDir, { withFileTypes: true });
   const files = [];
@@ -48,7 +59,7 @@ function computeSha256(filePath) {
   return createHash('sha256').update(readFileSync(filePath)).digest('hex');
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {
     profileId: DEFAULT_RELEASE_PROFILE_ID,
     releaseTag: '',
@@ -58,28 +69,29 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    const next = argv[index + 1];
 
     if (token === '--profile') {
-      options.profileId = next ?? DEFAULT_RELEASE_PROFILE_ID;
+      options.profileId = readOptionValue(argv, index, '--profile');
       index += 1;
       continue;
     }
 
     if (token === '--release-tag') {
-      options.releaseTag = next ?? '';
+      options.releaseTag = readOptionValue(argv, index, '--release-tag');
       index += 1;
       continue;
     }
 
     if (token === '--repository') {
-      options.repository = next ?? '';
+      options.repository = readOptionValue(argv, index, '--repository');
       index += 1;
       continue;
     }
 
     if (token === '--release-assets-dir') {
-      options.releaseAssetsDir = path.resolve(next ?? 'release-assets');
+      options.releaseAssetsDir = path.resolve(
+        readOptionValue(argv, index, '--release-assets-dir'),
+      );
       index += 1;
     }
   }
@@ -116,35 +128,84 @@ function buildArtifactIndex(releaseAssetsDir, partialManifestFileName) {
       }
 
       const assetStat = statSync(assetFile.absolutePath);
-      artifacts.push({
+      artifacts.push(normalizeArtifactRecord({
         ...artifact,
-        relativePath: assetFile.relativePath,
         sha256: computeSha256(assetFile.absolutePath),
         size: assetStat.size,
-      });
+      }, assetFile.relativePath));
       assetFilesByRelativePath.delete(assetFile.relativePath);
     }
   }
 
   for (const remainingAssetFile of assetFilesByRelativePath.values()) {
     const assetStat = statSync(remainingAssetFile.absolutePath);
-    artifacts.push({
+    artifacts.push(normalizeArtifactRecord({
       name: path.posix.basename(remainingAssetFile.relativePath),
-      relativePath: remainingAssetFile.relativePath,
-      platform: inferPlatformId(remainingAssetFile.relativePath),
-      arch: inferArchId(remainingAssetFile.relativePath),
-      kind: inferArtifactKind(remainingAssetFile.relativePath),
       sha256: computeSha256(remainingAssetFile.absolutePath),
       size: assetStat.size,
-    });
+    }, remainingAssetFile.relativePath));
   }
 
   return artifacts.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
+function normalizeArtifactRecord(artifact, relativePath) {
+  const inferredMetadata = inferArtifactMetadata(relativePath);
+
+  return {
+    ...artifact,
+    relativePath,
+    family: artifact.family ?? inferredMetadata.family,
+    platform: resolveArtifactPlatform(artifact.platform, inferredMetadata.platform),
+    arch: resolveArtifactArch(artifact.arch, inferredMetadata.arch),
+    accelerator: artifact.accelerator ?? inferredMetadata.accelerator,
+    kind: artifact.kind ?? inferArtifactKind(relativePath),
+  };
+}
+
+function inferArtifactMetadata(relativePath) {
+  return {
+    family: inferFamily(relativePath),
+    platform: inferPlatformId(relativePath),
+    arch: inferArchId(relativePath),
+    accelerator: inferAccelerator(relativePath),
+  };
+}
+
+function resolveArtifactPlatform(platform, inferredPlatform) {
+  if (platform === undefined || platform === null || platform === '' || platform === 'unknown') {
+    return inferredPlatform;
+  }
+  return platform;
+}
+
+function resolveArtifactArch(arch, inferredArch) {
+  if (arch === undefined || arch === null || arch === '') {
+    return inferredArch;
+  }
+  if (arch === 'any' && inferredArch !== 'any') {
+    return inferredArch;
+  }
+  return arch;
+}
+
+function inferFamily(relativePath) {
+  const [family] = relativePath.split('/');
+  if (family === 'desktop' || family === 'web' || family === 'server' || family === 'container' || family === 'kubernetes') {
+    return family;
+  }
+  return undefined;
+}
+
 function inferPlatformId(relativePath) {
   const segments = relativePath.split('/');
   if (segments[0] === 'desktop' && segments.length >= 3) {
+    return segments[1];
+  }
+  if (segments[0] === 'server' && segments.length >= 3) {
+    return segments[1];
+  }
+  if ((segments[0] === 'container' || segments[0] === 'kubernetes') && segments.length >= 4) {
     return segments[1];
   }
   if (segments[0] === 'web') {
@@ -158,7 +219,21 @@ function inferArchId(relativePath) {
   if (segments[0] === 'desktop' && segments.length >= 3) {
     return segments[2];
   }
+  if (segments[0] === 'server' && segments.length >= 3) {
+    return segments[2];
+  }
+  if ((segments[0] === 'container' || segments[0] === 'kubernetes') && segments.length >= 4) {
+    return segments[2];
+  }
   return 'any';
+}
+
+function inferAccelerator(relativePath) {
+  const segments = relativePath.split('/');
+  if ((segments[0] === 'container' || segments[0] === 'kubernetes') && segments.length >= 5) {
+    return segments[3];
+  }
+  return undefined;
 }
 
 function inferArtifactKind(relativePath) {

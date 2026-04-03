@@ -291,9 +291,7 @@ fn run_shell_command(command: &KernelHostShellCommand) -> Result<()> {
     })
 }
 
-fn run_shell_command_capture(
-    command: &KernelHostShellCommand,
-) -> Result<std::process::Output> {
+fn run_shell_command_capture(command: &KernelHostShellCommand) -> Result<std::process::Output> {
     let mut process = Command::new(&command.program);
     process.args(&command.args);
     process.stdin(Stdio::null());
@@ -353,7 +351,9 @@ fn install_or_update_windows_service(spec: &KernelPlatformServiceSpec) -> Result
                 .map_err(map_windows_service_error)?;
             service
         }
-        Err(error) if windows_service_error_code(&error) == Some(WINDOWS_SERVICE_DOES_NOT_EXIST) => {
+        Err(error)
+            if windows_service_error_code(&error) == Some(WINDOWS_SERVICE_DOES_NOT_EXIST) =>
+        {
             manager
                 .create_service(&desired, service_access)
                 .map_err(map_windows_service_error)?
@@ -385,11 +385,8 @@ fn install_or_update_windows_service(_spec: &KernelPlatformServiceSpec) -> Resul
 
 #[cfg(windows)]
 fn start_windows_service(spec: &KernelPlatformServiceSpec) -> Result<()> {
-    let manager = ServiceManager::local_computer(
-        None::<&str>,
-        ServiceManagerAccess::CONNECT,
-    )
-    .map_err(map_windows_service_error)?;
+    let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+        .map_err(map_windows_service_error)?;
     let service = manager
         .open_service(
             &spec.service_name,
@@ -397,13 +394,18 @@ fn start_windows_service(spec: &KernelPlatformServiceSpec) -> Result<()> {
         )
         .map_err(map_windows_service_error)?;
     let status = service.query_status().map_err(map_windows_service_error)?;
-    if matches!(status.current_state, ServiceState::Running | ServiceState::StartPending) {
+    if matches!(
+        status.current_state,
+        ServiceState::Running | ServiceState::StartPending
+    ) {
         return Ok(());
     }
 
     match service.start(&[] as &[OsString]) {
         Ok(()) => {}
-        Err(error) if windows_service_error_code(&error) == Some(WINDOWS_SERVICE_ALREADY_RUNNING) => {
+        Err(error)
+            if windows_service_error_code(&error) == Some(WINDOWS_SERVICE_ALREADY_RUNNING) =>
+        {
             return Ok(());
         }
         Err(error) => return Err(map_windows_service_error(error)),
@@ -426,11 +428,8 @@ fn start_windows_service(_spec: &KernelPlatformServiceSpec) -> Result<()> {
 
 #[cfg(windows)]
 fn stop_windows_service(spec: &KernelPlatformServiceSpec) -> Result<()> {
-    let manager = ServiceManager::local_computer(
-        None::<&str>,
-        ServiceManagerAccess::CONNECT,
-    )
-    .map_err(map_windows_service_error)?;
+    let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+        .map_err(map_windows_service_error)?;
     let service = manager
         .open_service(
             &spec.service_name,
@@ -474,11 +473,7 @@ fn build_windows_service_info(spec: &KernelPlatformServiceSpec) -> ServiceInfo {
         start_type: ServiceStartType::AutoStart,
         error_control: ServiceErrorControl::Normal,
         executable_path: spec.launch_target.clone(),
-        launch_arguments: spec
-            .launch_arguments
-            .iter()
-            .map(OsString::from)
-            .collect(),
+        launch_arguments: spec.launch_arguments.iter().map(OsString::from).collect(),
         dependencies: Vec::new(),
         account_name: None,
         account_password: None,
@@ -599,7 +594,13 @@ mod tests {
                 spec.service_config_path.to_string_lossy().into_owned(),
             ]
         );
-        assert_eq!(commands[1].args, vec!["enable".to_string(), format!("gui/501/{}", spec.service_name)]);
+        assert_eq!(
+            commands[1].args,
+            vec![
+                "enable".to_string(),
+                format!("gui/501/{}", spec.service_name)
+            ]
+        );
         assert_eq!(
             commands[2].args,
             vec![
@@ -652,12 +653,18 @@ mod tests {
         let info = super::build_windows_service_info(&spec);
         let failure_actions = super::windows_service_failure_actions();
 
-        assert_eq!(info.service_type, windows_service::service::ServiceType::OWN_PROCESS);
+        assert_eq!(
+            info.service_type,
+            windows_service::service::ServiceType::OWN_PROCESS
+        );
         assert_eq!(
             info.start_type,
             windows_service::service::ServiceStartType::AutoStart
         );
-        assert_eq!(info.display_name, std::ffi::OsString::from("Claw Studio OpenClaw Kernel"));
+        assert_eq!(
+            info.display_name,
+            std::ffi::OsString::from("Claw Studio OpenClaw Kernel")
+        );
         assert!(info
             .launch_arguments
             .iter()
@@ -678,7 +685,10 @@ mod tests {
             .expect("ensure running");
 
         assert!(attached);
-        assert_eq!(backend.events(), vec!["install".to_string(), "start".to_string()]);
+        assert_eq!(
+            backend.events(),
+            vec!["install".to_string(), "start".to_string()]
+        );
     }
 
     #[test]
@@ -714,7 +724,10 @@ mod tests {
         ActivatedOpenClawRuntime {
             install_key: "test-runtime".to_string(),
             install_dir: paths.openclaw_runtime_dir.join("test-runtime"),
-            runtime_dir: paths.openclaw_runtime_dir.join("test-runtime").join("runtime"),
+            runtime_dir: paths
+                .openclaw_runtime_dir
+                .join("test-runtime")
+                .join("runtime"),
             node_path: PathBuf::from("node"),
             cli_path: paths
                 .openclaw_runtime_dir
@@ -768,7 +781,10 @@ mod tests {
             &self,
             _spec: &crate::framework::kernel_host::types::KernelPlatformServiceSpec,
         ) -> crate::framework::Result<()> {
-            self.events.lock().expect("events").push("install".to_string());
+            self.events
+                .lock()
+                .expect("events")
+                .push("install".to_string());
             Ok(())
         }
 
@@ -776,7 +792,10 @@ mod tests {
             &self,
             spec: &crate::framework::kernel_host::types::KernelPlatformServiceSpec,
         ) -> crate::framework::Result<()> {
-            self.events.lock().expect("events").push("start".to_string());
+            self.events
+                .lock()
+                .expect("events")
+                .push("start".to_string());
             let listener =
                 TcpListener::bind(("127.0.0.1", self.gateway_port)).expect("gateway listener");
             *self.listener.lock().expect("listener") = Some(listener);

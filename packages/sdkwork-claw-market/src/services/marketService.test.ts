@@ -154,3 +154,58 @@ await runTest(
     });
   },
 );
+
+await runTest(
+  'marketService exports catalog items through the live download helper without simulated progress timers',
+  async () => {
+    const downloadCalls: Array<{
+      filename: string;
+      payloadId: string;
+      progressValues: number[];
+    }> = [];
+
+    const service = createMarketService({
+      clawHubService: {
+        listCategories: async () => [],
+        listSkills: async () => [],
+        getSkill: async () => createSkill(),
+        listReviews: async () => [],
+        listPackages: async () => [],
+        getPackage: async () => createPack(),
+      },
+      downloadCatalogAsset: async (filename, payload, onProgress) => {
+        onProgress(100);
+        downloadCalls.push({
+          filename,
+          payloadId: (payload as Skill | SkillPack).id,
+          progressValues: [100],
+        });
+      },
+    });
+
+    const skillProgress: number[] = [];
+    const packProgress: number[] = [];
+
+    await service.downloadSkillLocal(createSkill({ id: 'skill-42' }), (progress) => {
+      skillProgress.push(progress);
+    });
+    await service.downloadPackLocal(createPack({ id: 'pack-9' }), (progress) => {
+      packProgress.push(progress);
+    });
+
+    assert.deepEqual(downloadCalls, [
+      {
+        filename: 'skill-42-skill.json',
+        payloadId: 'skill-42',
+        progressValues: [100],
+      },
+      {
+        filename: 'pack-9-pack.json',
+        payloadId: 'pack-9',
+        progressValues: [100],
+      },
+    ]);
+    assert.deepEqual(skillProgress, [100]);
+    assert.deepEqual(packProgress, [100]);
+  },
+);

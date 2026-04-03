@@ -4,16 +4,21 @@ export {
 export {
   OpenClawGatewayClient,
   type OpenClawGatewayConnectionEvent,
+  type OpenClawGatewayGapEvent,
 } from '../openclaw/openClawGatewayClient.ts';
 export type {
   OpenClawGatewayChatEvent,
   OpenClawGatewayChatHistoryResult,
   OpenClawGatewayHelloOk,
   OpenClawGatewayModelsListResult,
+  OpenClawGatewaySessionMessageEvent,
   OpenClawGatewaySessionsPatchResult,
   OpenClawGatewaySessionsListResult,
 } from '../openclaw/gatewayProtocol.ts';
 export {
+  OpenClawGatewayRequestError,
+  resolveGatewayErrorDetailCode,
+  resolveGatewayEventSupport,
   isGatewayMethodUnavailableError,
   resolveGatewayMethodSupport,
 } from '../openclaw/gatewayProtocol.ts';
@@ -36,4 +41,11 @@ export {
 } from '../chatSessionTitlePresentation.ts';
 export {
   buildOpenClawMainSessionKey,
+  buildOpenClawThreadSessionKey,
+  filterOpenClawSessionsByAgent,
+  filterUserFacingOpenClawSessionsByAgent,
+  isAnyOpenClawMainSession,
+  isOpenClawMainSession,
+  isOpenClawSessionInAgentScope,
+  resolveOpenClawVisibleActiveSessionId,
 } from '../chatSessionBootstrap.ts';

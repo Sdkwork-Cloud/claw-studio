@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import {
   buildOpenClawMainSessionKey,
+  buildOpenClawThreadSessionKey,
+  filterOpenClawSessionsByAgent,
+  filterUserFacingOpenClawSessionsByAgent,
+  isOpenClawMainSession,
+  isOpenClawSessionInAgentScope,
+  resolveOpenClawVisibleActiveSessionId,
   resolveChatBootstrapAction,
-  resolveOpenClawCreateSessionTarget,
 } from './chatSessionBootstrap.ts';
 
 function runTest(name: string, callback: () => void | Promise<void>) {
@@ -60,6 +65,18 @@ await runTest('chat bootstrap auto-creates only for ready non-gateway instance r
 await runTest('chat bootstrap selects the first session when the active session is missing', () => {
   assert.deepEqual(
     resolveChatBootstrapAction({
+      activeInstanceId: 'instance-http',
+      routeMode: 'instanceOpenAiHttp',
+      syncState: 'idle',
+      hasActiveModel: true,
+      activeSessionId: 'missing-session',
+      sessionIds: ['session-a', 'session-b'],
+    }),
+    { type: 'select', sessionId: 'session-a' },
+  );
+
+  assert.deepEqual(
+    resolveChatBootstrapAction({
       activeInstanceId: 'instance-openclaw',
       routeMode: 'instanceOpenClawGatewayWs',
       syncState: 'idle',
@@ -67,7 +84,19 @@ await runTest('chat bootstrap selects the first session when the active session 
       activeSessionId: 'missing-session',
       sessionIds: ['session-a', 'session-b'],
     }),
-    { type: 'select', sessionId: 'session-a' },
+    { type: 'idle' },
+  );
+
+  assert.deepEqual(
+    resolveChatBootstrapAction({
+      activeInstanceId: 'instance-openclaw',
+      routeMode: 'instanceOpenClawGatewayWs',
+      syncState: 'idle',
+      hasActiveModel: true,
+      activeSessionId: null,
+      sessionIds: ['session-a', 'session-b'],
+    }),
+    { type: 'idle' },
   );
 });
 
@@ -76,31 +105,73 @@ await runTest('openclaw chat bootstrap resolves upstream agent main session keys
   assert.equal(buildOpenClawMainSessionKey(), 'agent:main:main');
 });
 
-await runTest('openclaw explicit create-session targets the selected agent main session before creating a new draft', () => {
-  assert.deepEqual(
-    resolveOpenClawCreateSessionTarget({
-      agentId: 'research',
-      activeSessionId: 'remote-session',
-      sessions: [{ id: 'remote-session' }, { id: 'agent:research:main' }],
-    }),
-    { type: 'select', sessionId: 'agent:research:main' },
+await runTest('openclaw thread session keys anchor user threads beneath the agent main session', () => {
+  assert.equal(
+    buildOpenClawThreadSessionKey('research', 'claw-studio:session-123'),
+    'agent:research:main:thread:claw-studio:session-123',
   );
-
-  assert.deepEqual(
-    resolveOpenClawCreateSessionTarget({
-      agentId: 'research',
-      activeSessionId: null,
-      sessions: [{ id: 'remote-session' }],
-    }),
-    { type: 'draft', sessionId: 'agent:research:main' },
+  assert.equal(
+    buildOpenClawThreadSessionKey(null, 'claw-studio:session-456'),
+    'agent:main:main:thread:claw-studio:session-456',
   );
+});
 
+await runTest('openclaw agent scope matching only keeps sessions for the selected agent', () => {
+  const sessions = [
+    { id: 'agent:research:main' },
+    { id: 'agent:research:main:thread:claw-studio:session-1' },
+    { id: 'agent:ops:main' },
+    { id: 'thread:claw-studio:legacy-session' },
+  ];
+
+  assert.equal(
+    isOpenClawSessionInAgentScope('agent:research:main:thread:claw-studio:session-1', 'research'),
+    true,
+  );
+  assert.equal(isOpenClawSessionInAgentScope('agent:ops:main', 'research'), false);
+  assert.equal(isOpenClawSessionInAgentScope('thread:claw-studio:legacy-session', 'research'), false);
   assert.deepEqual(
-    resolveOpenClawCreateSessionTarget({
-      agentId: null,
-      activeSessionId: null,
-      sessions: [],
-    }),
-    { type: 'draft', sessionId: 'agent:main:main' },
+    filterOpenClawSessionsByAgent(sessions, 'research').map((session) => session.id),
+    ['agent:research:main', 'agent:research:main:thread:claw-studio:session-1'],
+  );
+  assert.equal(isOpenClawMainSession('agent:research:main', 'research'), true);
+  assert.equal(
+    isOpenClawMainSession('agent:research:main:thread:claw-studio:session-1', 'research'),
+    false,
+  );
+  assert.deepEqual(
+    filterUserFacingOpenClawSessionsByAgent(sessions, 'research').map((session) => session.id),
+    [
+      'agent:research:main',
+      'agent:research:main:thread:claw-studio:session-1',
+      'thread:claw-studio:legacy-session',
+    ],
+  );
+  assert.equal(
+    resolveOpenClawVisibleActiveSessionId('agent:research:main', [
+      'agent:research:main',
+      'agent:research:main:thread:claw-studio:session-1',
+    ]),
+    'agent:research:main',
+  );
+  assert.equal(
+    resolveOpenClawVisibleActiveSessionId('agent:ops:main', [
+      'agent:research:main',
+      'agent:research:main:thread:claw-studio:session-1',
+    ]),
+    'agent:research:main',
+  );
+  assert.equal(
+    resolveOpenClawVisibleActiveSessionId('agent:research:main', [
+      'agent:research:main:thread:claw-studio:session-1',
+    ]),
+    'agent:research:main:thread:claw-studio:session-1',
+  );
+  assert.equal(
+    resolveOpenClawVisibleActiveSessionId('agent:research:main:thread:claw-studio:session-1', [
+      'agent:research:main',
+      'agent:research:main:thread:claw-studio:session-1',
+    ]),
+    'agent:research:main:thread:claw-studio:session-1',
   );
 });

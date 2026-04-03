@@ -1,6 +1,6 @@
 import React from 'react';
 import { openClawConfigService } from '@sdkwork/claw-core';
-import { studio, studioMockService } from '@sdkwork/claw-infrastructure';
+import { getPlatformBridge } from '@sdkwork/claw-infrastructure';
 import {
   Building2,
   Hash,
@@ -11,7 +11,11 @@ import {
   Webhook,
   Zap,
 } from 'lucide-react';
-import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
+import type {
+  ListParams,
+  PaginatedResult,
+  StudioInstanceDetailRecord,
+} from '@sdkwork/claw-types';
 
 export interface ChannelField {
   key: string;
@@ -65,6 +69,28 @@ export interface IChannelService {
   deleteChannelConfig(instanceId: string, channelId: string): Promise<Channel[]>;
 }
 
+interface WorkbenchChannelWriteBridge {
+  setInstanceChannelEnabled?: (
+    instanceId: string,
+    channelId: string,
+    enabled: boolean,
+  ) => Promise<boolean>;
+  saveInstanceChannelConfig?: (
+    instanceId: string,
+    channelId: string,
+    values: Record<string, string>,
+  ) => Promise<boolean>;
+  deleteInstanceChannelConfig?: (instanceId: string, channelId: string) => Promise<boolean>;
+}
+
+type OpenClawChannelDefinition = ReturnType<typeof openClawConfigService.getChannelDefinitions>[number];
+type WorkbenchChannelRecord = NonNullable<StudioInstanceDetailRecord['workbench']>['channels'][number] & {
+  values?: Record<string, string>;
+};
+
+const CHANNEL_WRITE_UNAVAILABLE_ERROR =
+  'Channel configuration is not writable for this instance.';
+
 const channelIconNameMap: Record<string, string> = {
   sdkworkchat: 'MessageSquare',
   wehcat: 'Send',
@@ -105,61 +131,184 @@ function resolveChannelIcon(channelId: string, iconName?: string) {
   return getIconComponent(iconName || channelIconNameMap[channelId] || 'MessageCircle');
 }
 
-type OpenClawChannelSnapshot = Awaited<
-  ReturnType<typeof openClawConfigService.readConfigSnapshot>
->['channelSnapshots'][number];
+function normalizeChannelValues(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {} as Record<string, string>;
+  }
 
-type MockChannelRecord = Awaited<ReturnType<typeof studioMockService.listChannels>>[number];
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, candidate]) => typeof candidate === 'string')
+      .map(([key, candidate]) => [key, candidate as string]),
+  );
+}
+
+function countConfiguredValues(values: Record<string, string>) {
+  return Object.values(values).filter((value) => value.trim().length > 0).length;
+}
+
+function mapField(
+  field: OpenClawChannelDefinition['fields'][number],
+  values: Record<string, string>,
+): ChannelField {
+  return {
+    key: field.key,
+    label: field.label,
+    type: field.sensitive
+      ? 'password'
+      : field.inputMode === 'numeric'
+        ? 'number'
+        : field.inputMode === 'url'
+          ? 'url'
+          : 'text',
+    placeholder: field.placeholder,
+    value: values[field.key],
+    helpText: field.helpText,
+    required: field.required,
+    multiline: field.multiline,
+    sensitive: field.sensitive,
+    inputMode: field.inputMode,
+  };
+}
+
+function mapManagedChannel(
+  channel: Awaited<ReturnType<typeof openClawConfigService.readConfigSnapshot>>['channelSnapshots'][number],
+): Channel {
+  return {
+    id: channel.id,
+    name: channel.name,
+    description: channel.description,
+    icon: resolveChannelIcon(channel.id),
+    status: channel.status,
+    enabled: channel.enabled,
+    configurationMode: channel.configurationMode,
+    fieldCount: channel.fieldCount,
+    configuredFieldCount: channel.configuredFieldCount,
+    setupGuide: [...channel.setupSteps],
+    fields: channel.fields.map((field) => mapField(field, channel.values)),
+  };
+}
+
+function mapWorkbenchChannel(
+  definition: OpenClawChannelDefinition,
+  current?: WorkbenchChannelRecord,
+): Channel {
+  const values = normalizeChannelValues(current?.values);
+  const configuredFieldCount =
+    typeof current?.configuredFieldCount === 'number'
+      ? current.configuredFieldCount
+      : countConfiguredValues(values);
+  const configurationMode =
+    current?.configurationMode || definition.configurationMode || 'required';
+  const enabled =
+    typeof current?.enabled === 'boolean' ? current.enabled : configurationMode === 'none';
+  const status =
+    current?.status ||
+    (configurationMode === 'none'
+      ? enabled
+        ? 'connected'
+        : 'disconnected'
+      : configuredFieldCount > 0
+        ? enabled
+          ? 'connected'
+          : 'disconnected'
+        : 'not_configured');
+
+  return {
+    id: definition.id,
+    name: current?.name || definition.name,
+    description: current?.description || definition.description,
+    icon: resolveChannelIcon(definition.id),
+    status,
+    enabled,
+    configurationMode,
+    fieldCount: definition.fields.length,
+    configuredFieldCount,
+    setupGuide:
+      current?.setupSteps && current.setupSteps.length > 0
+        ? [...current.setupSteps]
+        : [...definition.setupSteps],
+    fields: definition.fields.map((field) => mapField(field, values)),
+  };
+}
+
+function mapUnknownWorkbenchChannel(current: WorkbenchChannelRecord): Channel {
+  const values = normalizeChannelValues(current.values);
+
+  return {
+    id: current.id,
+    name: current.name,
+    description: current.description,
+    icon: resolveChannelIcon(current.id),
+    status: current.status,
+    enabled: current.enabled,
+    configurationMode: current.configurationMode || 'required',
+    fieldCount: current.fieldCount,
+    configuredFieldCount:
+      typeof current.configuredFieldCount === 'number'
+        ? current.configuredFieldCount
+        : countConfiguredValues(values),
+    setupGuide: [...current.setupSteps],
+    fields: [],
+  };
+}
 
 class ChannelService implements IChannelService {
-  private async resolveManagedConfigPath(instanceId: string) {
-    const detail = await studio.getInstanceDetail(instanceId);
+  private getStudioApi() {
+    return getPlatformBridge().studio as ReturnType<typeof getPlatformBridge>['studio'] &
+      WorkbenchChannelWriteBridge;
+  }
+
+  private async getInstanceDetail(instanceId: string) {
+    return this.getStudioApi().getInstanceDetail(instanceId);
+  }
+
+  private resolveManagedConfigPath(detail: StudioInstanceDetailRecord | null | undefined) {
     return openClawConfigService.resolveInstanceConfigPath(detail);
   }
 
-  private mapManagedChannel(channel: OpenClawChannelSnapshot): Channel {
-    return {
-      id: channel.id,
-      name: channel.name,
-      description: channel.description,
-      icon: resolveChannelIcon(channel.id),
-      status: channel.status,
-      enabled: channel.enabled,
-      configurationMode: channel.configurationMode,
-      fieldCount: channel.fieldCount,
-      configuredFieldCount: channel.configuredFieldCount,
-      setupGuide: [...channel.setupSteps],
-      fields: channel.fields.map((field) => ({
-        key: field.key,
-        label: field.label,
-        type: field.sensitive
-          ? 'password'
-          : field.inputMode === 'numeric'
-            ? 'number'
-            : field.inputMode === 'url'
-              ? 'url'
-              : 'text',
-        placeholder: field.placeholder,
-        value: channel.values[field.key],
-        helpText: field.helpText,
-        required: field.required,
-        multiline: field.multiline,
-        sensitive: field.sensitive,
-        inputMode: field.inputMode,
-      })),
-    };
+  private mapWorkbenchChannels(detail: StudioInstanceDetailRecord): Channel[] {
+    const definitions = openClawConfigService.getChannelDefinitions();
+    const definitionById = new Map(definitions.map((definition) => [definition.id, definition] as const));
+    const workbenchChannels = detail.workbench?.channels || [];
+    const workbenchById = new Map(
+      workbenchChannels.map((channel) => [channel.id, channel as WorkbenchChannelRecord] as const),
+    );
+
+    const orderedIds = Array.from(
+      new Set([
+        ...definitions.map((definition) => definition.id),
+        ...workbenchChannels.map((channel) => channel.id),
+      ]),
+    );
+
+    return orderedIds.map((channelId) => {
+      const definition = definitionById.get(channelId);
+      const workbenchChannel = workbenchById.get(channelId);
+
+      if (definition) {
+        return mapWorkbenchChannel(definition, workbenchChannel);
+      }
+
+      if (!workbenchChannel) {
+        throw new Error(`Missing workbench channel mapping for "${channelId}"`);
+      }
+
+      return mapUnknownWorkbenchChannel(workbenchChannel);
+    });
   }
 
-  private mapMockChannel(channel: MockChannelRecord): Channel {
-    const configuredFieldCount = channel.fields.filter((field) => Boolean(field.value?.trim())).length;
+  private requireWorkbenchBridge() {
+    const studioApi = this.getStudioApi();
+    if (
+      typeof studioApi.setInstanceChannelEnabled !== 'function' ||
+      typeof studioApi.saveInstanceChannelConfig !== 'function' ||
+      typeof studioApi.deleteInstanceChannelConfig !== 'function'
+    ) {
+      throw new Error(CHANNEL_WRITE_UNAVAILABLE_ERROR);
+    }
 
-    return {
-      ...channel,
-      icon: resolveChannelIcon(channel.id, channel.icon),
-      configurationMode: channel.configurationMode || 'required',
-      fieldCount: channel.fields.length,
-      configuredFieldCount,
-    };
+    return studioApi;
   }
 
   async getList(instanceId: string, params: ListParams = {}): Promise<PaginatedResult<Channel>> {
@@ -208,14 +357,18 @@ class ChannelService implements IChannelService {
   }
 
   async getChannels(instanceId: string): Promise<Channel[]> {
-    const configPath = await this.resolveManagedConfigPath(instanceId);
+    const detail = await this.getInstanceDetail(instanceId);
+    const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
       const snapshot = await openClawConfigService.readConfigSnapshot(configPath);
-      return snapshot.channelSnapshots.map((channel) => this.mapManagedChannel(channel));
+      return snapshot.channelSnapshots.map((channel) => mapManagedChannel(channel));
     }
 
-    const channels = await studioMockService.listChannels(instanceId);
-    return channels.map((channel) => this.mapMockChannel(channel));
+    if (detail?.workbench) {
+      return this.mapWorkbenchChannels(detail);
+    }
+
+    return [];
   }
 
   async updateChannelStatus(
@@ -223,7 +376,8 @@ class ChannelService implements IChannelService {
     channelId: string,
     enabled: boolean,
   ): Promise<Channel[]> {
-    const configPath = await this.resolveManagedConfigPath(instanceId);
+    const detail = await this.getInstanceDetail(instanceId);
+    const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
       await openClawConfigService.setChannelEnabled({
         configPath,
@@ -233,11 +387,16 @@ class ChannelService implements IChannelService {
       return this.getChannels(instanceId);
     }
 
-    const updated = await studioMockService.updateChannelStatus(channelId, enabled);
-    if (!updated) {
-      throw new Error('Failed to update channel status');
+    if (detail?.workbench) {
+      const bridge = this.requireWorkbenchBridge();
+      const updated = await bridge.setInstanceChannelEnabled!(instanceId, channelId, enabled);
+      if (!updated) {
+        throw new Error('Failed to update channel status');
+      }
+      return this.getChannels(instanceId);
     }
-    return this.getChannels(instanceId);
+
+    throw new Error(CHANNEL_WRITE_UNAVAILABLE_ERROR);
   }
 
   async saveChannelConfig(
@@ -245,7 +404,8 @@ class ChannelService implements IChannelService {
     channelId: string,
     configData: Record<string, string>,
   ): Promise<Channel[]> {
-    const configPath = await this.resolveManagedConfigPath(instanceId);
+    const detail = await this.getInstanceDetail(instanceId);
+    const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
       await openClawConfigService.saveChannelConfiguration({
         configPath,
@@ -256,15 +416,25 @@ class ChannelService implements IChannelService {
       return this.getChannels(instanceId);
     }
 
-    const updated = await studioMockService.saveChannelConfig(channelId, configData);
-    if (!updated) {
-      throw new Error('Failed to save channel config');
+    if (detail?.workbench) {
+      const bridge = this.requireWorkbenchBridge();
+      const updated = await bridge.saveInstanceChannelConfig!(
+        instanceId,
+        channelId,
+        configData,
+      );
+      if (!updated) {
+        throw new Error('Failed to save channel config');
+      }
+      return this.getChannels(instanceId);
     }
-    return this.getChannels(instanceId);
+
+    throw new Error(CHANNEL_WRITE_UNAVAILABLE_ERROR);
   }
 
   async deleteChannelConfig(instanceId: string, channelId: string): Promise<Channel[]> {
-    const configPath = await this.resolveManagedConfigPath(instanceId);
+    const detail = await this.getInstanceDetail(instanceId);
+    const configPath = this.resolveManagedConfigPath(detail);
     if (configPath) {
       await openClawConfigService.saveChannelConfiguration({
         configPath,
@@ -275,11 +445,16 @@ class ChannelService implements IChannelService {
       return this.getChannels(instanceId);
     }
 
-    const updated = await studioMockService.deleteChannelConfig(channelId);
-    if (!updated) {
-      throw new Error('Failed to delete channel config');
+    if (detail?.workbench) {
+      const bridge = this.requireWorkbenchBridge();
+      const updated = await bridge.deleteInstanceChannelConfig!(instanceId, channelId);
+      if (!updated) {
+        throw new Error('Failed to delete channel config');
+      }
+      return this.getChannels(instanceId);
     }
-    return this.getChannels(instanceId);
+
+    throw new Error(CHANNEL_WRITE_UNAVAILABLE_ERROR);
   }
 }
 

@@ -75,10 +75,84 @@ await runTest('getChatSessionDisplayTitle falls back to preview content when the
   );
 });
 
+await runTest('getChatSessionDisplayTitle prefixes explicit subagent labels to match openclaw naming', () => {
+  assert.equal(
+    getChatSessionDisplayTitle({
+      id: 'agent:main:subagent:abc-123',
+      title: 'Task Runner',
+      titleSource: 'explicit',
+      messages: [],
+      lastMessagePreview: undefined,
+    }),
+    'Subagent: Task Runner',
+  );
+});
+
+await runTest('getChatSessionDisplayTitle prefixes explicit cron labels to match openclaw naming', () => {
+  assert.equal(
+    getChatSessionDisplayTitle({
+      id: 'agent:main:cron:abc-123',
+      title: 'Nightly Sync',
+      titleSource: 'explicit',
+      messages: [],
+      lastMessagePreview: undefined,
+    }),
+    'Cron: Nightly Sync',
+  );
+});
+
+await runTest('getChatSessionDisplayTitle does not double-prefix typed session labels', () => {
+  assert.equal(
+    getChatSessionDisplayTitle({
+      id: 'agent:main:subagent:abc-123',
+      title: 'Subagent: Runner',
+      titleSource: 'explicit',
+      messages: [],
+      lastMessagePreview: undefined,
+    }),
+    'Subagent: Runner',
+  );
+});
+
+await runTest('getChatSessionDisplayTitle falls back to openclaw typed defaults when no readable content exists', () => {
+  assert.equal(
+    getChatSessionDisplayTitle({
+      id: 'agent:main:subagent:abc-123',
+      title: 'agent:main:subagent:abc-123',
+      titleSource: 'default',
+      messages: [],
+      lastMessagePreview: undefined,
+    }),
+    'Subagent:',
+  );
+
+  assert.equal(
+    getChatSessionDisplayTitle({
+      id: 'agent:main:cron:abc-123',
+      title: 'agent:main:cron:abc-123',
+      titleSource: 'default',
+      messages: [],
+      lastMessagePreview: undefined,
+    }),
+    'Cron Job:',
+  );
+});
+
 await runTest('getChatSessionDisplayTitle hides machine session ids when no readable content exists', () => {
   assert.equal(
     getChatSessionDisplayTitle({
       title: 'agent:research:main',
+      messages: [],
+      lastMessagePreview: undefined,
+    }),
+    'New Conversation',
+  );
+});
+
+await runTest('getChatSessionDisplayTitle hides agent thread session ids when no readable content exists', () => {
+  assert.equal(
+    getChatSessionDisplayTitle({
+      title: 'agent:research:main:thread:claw-studio:session-1',
       messages: [],
       lastMessagePreview: undefined,
     }),

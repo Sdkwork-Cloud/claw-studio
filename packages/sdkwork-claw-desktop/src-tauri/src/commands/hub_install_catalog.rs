@@ -3,7 +3,7 @@ use crate::{
         resolve_bundled_registry_path, resolve_registry_source, vendor_registry_source,
         HubInstallAssessmentInstallationMethod, RunHubInstallRequest,
     },
-    framework::{FrameworkError, Result as FrameworkResult},
+    framework::{runtime, FrameworkError, Result as FrameworkResult},
 };
 use hub_installer_rs::{
     manifest::load_manifest,
@@ -220,11 +220,15 @@ const CATALOG_SEEDS: &[CatalogSeed] = &[
 ];
 
 #[tauri::command]
-pub fn list_hub_install_catalog<R: Runtime>(
+pub async fn list_hub_install_catalog<R: Runtime>(
     query: Option<HubInstallCatalogQuery>,
     app: AppHandle<R>,
 ) -> Result<Vec<HubInstallCatalogEntry>, String> {
-    list_hub_install_catalog_at(query, &app).map_err(|error| error.to_string())
+    runtime::run_blocking_async("installer.list_hub_install_catalog", move || {
+        list_hub_install_catalog_at(query, &app)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 pub fn list_hub_install_catalog_at<R: Runtime>(

@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict';
+
+import {
+  DESKTOP_DEDUPE_PACKAGES,
+  createDesktopManualChunks,
+  resolveDesktopModulePreloadDependencies,
+} from './viteBuildOptimization.ts';
+
+function runTest(name: string, fn: () => void) {
+  try {
+    fn();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}
+
+runTest('desktop build optimization keeps core shared runtime in stable chunks', () => {
+  const manualChunks = createDesktopManualChunks('C:/repo/shared-sdk/index.ts');
+
+  assert.equal(
+    manualChunks(
+      'C:/repo/apps/claw-studio/packages/sdkwork-claw-infrastructure/src/platform/registry.ts',
+    ),
+    'claw-infrastructure',
+  );
+  assert.equal(
+    manualChunks('C:/repo/shared-sdk/index.ts'),
+    'sdkwork-app-sdk',
+  );
+  assert.equal(
+    manualChunks('C:/repo/shared-sdk/api/client.ts'),
+    'sdkwork-app-sdk',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/react-dom/client.js'),
+    'react-vendor',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/react-router-dom/dist/index.js'),
+    'app-router',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/@tanstack/react-query/build/modern/index.js'),
+    'app-state',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/@radix-ui/react-dialog/dist/index.js'),
+    'app-ui',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/@tiptap/core/dist/index.js'),
+    'community-editor',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/react-markdown/index.js'),
+    'markdown-runtime',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/react-syntax-highlighter/dist/esm/prism-light.js'),
+    'markdown-runtime',
+  );
+  assert.equal(
+    manualChunks('C:/repo/node_modules/lodash-es/lodash.js'),
+    undefined,
+  );
+});
+
+runTest('desktop build optimization filters heavy optional chunks from html module preload', () => {
+  const resolved = resolveDesktopModulePreloadDependencies(
+    [
+      'assets/react-vendor.js',
+      'assets/app-router.js',
+      'assets/community-editor.js',
+      'assets/markdown-runtime.js',
+      'assets/feature-chat.js',
+    ],
+    { hostType: 'html' },
+  );
+
+  assert.deepEqual(
+    resolved,
+    ['assets/react-vendor.js', 'assets/app-router.js', 'assets/feature-chat.js'],
+  );
+  assert.deepEqual(
+    resolveDesktopModulePreloadDependencies(['assets/community-editor.js'], {
+      hostType: 'js',
+    }),
+    ['assets/community-editor.js'],
+  );
+});
+
+runTest('desktop build optimization exposes dedupe packages for shared singleton dependencies', () => {
+  assert.deepEqual(DESKTOP_DEDUPE_PACKAGES, [
+    'react',
+    'react-dom',
+    '@sdkwork/claw-infrastructure',
+    '@sdkwork/claw-i18n',
+    '@sdkwork/sdk-common',
+  ]);
+});

@@ -7,6 +7,11 @@ import {
   resolvePnpmPackageDistEntry,
 } from '../../scripts/shared-sdk-mode.mjs';
 import {
+  CLAW_VITE_DEDUPE_PACKAGES,
+  createClawManualChunks,
+  resolveClawModulePreloadDependencies,
+} from '../../scripts/viteBuildOptimization.ts';
+import {
   remapWorktreeWorkspaceImport,
   resolveWorkspacePackageEntry,
 } from './viteWorkspaceResolver.ts';
@@ -21,56 +26,6 @@ function workspacePackageResolver(packagesRootDir: string) {
         remapWorktreeWorkspaceImport(source, importer, packagesRootDir)
       );
     },
-  };
-}
-
-function normalizePath(filePath: string) {
-  return filePath.replace(/\\/g, '/');
-}
-
-function createManualChunks(sharedAppSdkEntry: string) {
-  const normalizedSharedAppSdkEntry = normalizePath(sharedAppSdkEntry);
-
-  return function manualChunks(id: string) {
-    const normalizedId = normalizePath(id);
-
-    if (
-      normalizedId.includes('/packages/sdkwork-claw-infrastructure/src/services/studioMockService.ts')
-    ) {
-      return 'claw-studio-mock';
-    }
-
-    if (
-      normalizedId === normalizedSharedAppSdkEntry ||
-      normalizedId.includes('/packages/sdkwork-claw-infrastructure/src/')
-    ) {
-      return 'claw-infrastructure';
-    }
-
-    if (
-      // Keep the app vendor chunk stable for react-router-dom and @tanstack/react-query.
-      /\/node_modules\/(?:react(?:-dom)?(?:\/|$)|scheduler(?:\/|$)|react-router-dom(?:\/|$)|react-router(?:\/|$)|@tanstack\/react-query(?:\/|$)|@tanstack\/query-core(?:\/|$)|i18next(?:\/|$)|react-i18next(?:\/|$)|sonner(?:\/|$)|motion(?:\/|$)|zustand(?:\/|$)|@radix-ui\/react-[^/]+(?:\/|$))/.test(
-        normalizedId,
-      )
-    ) {
-      return 'app-vendor';
-    }
-
-    if (/\/node_modules\/(?:@tiptap|prosemirror-|prosemirror\/|lowlight|highlight\.js)/.test(
-      normalizedId,
-    )) {
-      return 'community-editor';
-    }
-
-    if (
-      /\/node_modules\/(?:react-markdown|remark-gfm|remark-parse|remark-rehype|rehype-raw|unified|mdast-util-|micromark|hast-util-|parse5|property-information|space-separated-tokens|comma-separated-tokens|web-namespaces|react-syntax-highlighter|refractor|prismjs)/.test(
-        normalizedId,
-      )
-    ) {
-      return 'markdown-runtime';
-    }
-
-    return undefined;
   };
 }
 
@@ -105,17 +60,10 @@ export default defineConfig(({ mode }) => {
     envDir: workspaceRootDir,
     plugins: [workspacePackageResolver(packagesRootDir), react(), tailwindcss()],
     define: {
-      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),
       'import.meta.env.VITE_ACCESS_TOKEN': JSON.stringify(env.VITE_ACCESS_TOKEN || ''),
     },
     resolve: {
-      dedupe: [
-        'react',
-        'react-dom',
-        '@sdkwork/claw-infrastructure',
-        '@sdkwork/claw-i18n',
-        '@sdkwork/sdk-common',
-      ],
+      dedupe: [...CLAW_VITE_DEDUPE_PACKAGES],
       alias: [
         { find: '@', replacement: path.resolve(__dirname, '.') },
         ...(useSharedSdkSourceMode
@@ -137,21 +85,12 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       modulePreload: {
-        resolveDependencies: (_filename, deps, context) => {
-          if (context.hostType !== 'html') {
-            return deps;
-          }
-
-          return deps.filter((dependency) => (
-            !dependency.includes('community-editor') &&
-            !dependency.includes('markdown-runtime') &&
-            !dependency.includes('claw-studio-mock')
-          ));
-        },
+        resolveDependencies: (_filename, deps, context) =>
+          resolveClawModulePreloadDependencies(deps, context),
       },
       rollupOptions: {
         output: {
-          manualChunks: createManualChunks(sharedAppSdkChunkEntry),
+          manualChunks: createClawManualChunks(sharedAppSdkChunkEntry),
         },
       },
     },

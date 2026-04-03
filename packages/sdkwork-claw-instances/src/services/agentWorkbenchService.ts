@@ -20,9 +20,10 @@ import {
   getArrayValue,
   getObjectValue,
   getStringValue,
-  parseOpenClawAgentFileId,
+  normalizeOpenClawAgentId,
   titleCaseIdentifier,
 } from './openClawSupport.ts';
+import { getAgentScopedWorkbenchFiles } from './instanceFileWorkbench.ts';
 
 type ManagedOpenClawConfigSnapshot = Awaited<
   ReturnType<typeof openClawConfigService.readConfigSnapshot>
@@ -199,7 +200,7 @@ function resolveDefaultAgentId(
     : [];
   const snapshotDefaultAgentId = agentSnapshots.find((agent) => agent.isDefault)?.id;
   if (snapshotDefaultAgentId) {
-    return snapshotDefaultAgentId;
+    return normalizeOpenClawAgentId(snapshotDefaultAgentId);
   }
 
   const rootAgentEntries = getArrayValue(configSnapshot?.root, ['agents', 'list']) || [];
@@ -212,7 +213,7 @@ function resolveDefaultAgentId(
   );
   const rootDefaultAgent = getStringValue(rootDefaultAgentId, ['id']);
   if (rootDefaultAgent) {
-    return rootDefaultAgent;
+    return normalizeOpenClawAgentId(rootDefaultAgent);
   }
 
   return workbench.agents.find((agent) => agent.isDefault)?.agent.id || workbench.agents[0]?.agent.id || null;
@@ -222,9 +223,10 @@ function resolveAgentModel(
   agent: InstanceWorkbenchAgent,
   configSnapshot: ManagedOpenClawConfigSnapshot | null,
 ) {
+  const normalizedAgentId = normalizeOpenClawAgentId(agent.agent.id);
   const rootAgentEntries = getArrayValue(configSnapshot?.root, ['agents', 'list']) || [];
   const rootAgentEntry = rootAgentEntries.find(
-    (entry) => getStringValue(entry, ['id']) === agent.agent.id,
+    (entry) => normalizeOpenClawAgentId(getStringValue(entry, ['id'])) === normalizedAgentId,
   );
   const agentModel = readModelSelection(getObjectValue(rootAgentEntry, ['model']));
   if (hasModelSelection(agentModel)) {
@@ -270,25 +272,10 @@ function buildAgentPaths(agent: InstanceWorkbenchAgent): AgentWorkbenchPaths {
 function taskBelongsToAgent(task: InstanceWorkbenchTask, agentId: string, isDefault: boolean) {
   const taskAgentId = task.agentId?.trim();
   if (taskAgentId) {
-    return taskAgentId === agentId;
+    return normalizeOpenClawAgentId(taskAgentId) === normalizeOpenClawAgentId(agentId);
   }
 
   return isDefault;
-}
-
-function fileBelongsToAgent(file: InstanceWorkbenchFile, agent: InstanceWorkbenchAgent) {
-  const parsed = parseOpenClawAgentFileId(file.id);
-  if (parsed) {
-    return parsed.agentId === agent.agent.id;
-  }
-
-  const workspacePath = normalizePath(agent.workspace);
-  const filePath = normalizePath(file.path);
-  if (!workspacePath || !filePath) {
-    return false;
-  }
-
-  return filePath === workspacePath || filePath.startsWith(`${workspacePath}/`);
 }
 
 function buildSkillEntry(entry: OpenClawSkillStatusRecord, fallbackCategory = 'Automation'): Skill {
@@ -516,7 +503,10 @@ function resolveBoundChannelAccountIds(
 
   return toUniqueStringList(
     bindings.flatMap((binding) => {
-      if (getStringValue(binding, ['agentId']) !== agentId) {
+      if (
+        normalizeOpenClawAgentId(getStringValue(binding, ['agentId'])) !==
+        normalizeOpenClawAgentId(agentId)
+      ) {
         return [];
       }
       if (getStringValue(binding, ['match', 'channel']) !== channelId) {
@@ -597,6 +587,7 @@ function cloneAgent(agent: InstanceWorkbenchAgent): InstanceWorkbenchAgent {
         }
       : undefined,
     params: agent.params ? { ...agent.params } : undefined,
+    paramSources: agent.paramSources ? { ...agent.paramSources } : undefined,
   };
 }
 
@@ -608,22 +599,27 @@ class DefaultAgentWorkbenchService implements AgentWorkbenchService {
   }
 
   async getAgentWorkbench(input: AgentWorkbenchRequest): Promise<AgentWorkbenchSnapshot> {
-    const agent = input.workbench.agents.find((entry) => entry.agent.id === input.agentId);
+    const requestedAgentId = normalizeOpenClawAgentId(input.agentId);
+    const agent = input.workbench.agents.find(
+      (entry) => normalizeOpenClawAgentId(entry.agent.id) === requestedAgentId,
+    );
     if (!agent) {
       throw new Error(`Agent "${input.agentId}" was not found in the instance workbench.`);
     }
 
     const configSnapshot = input.workbench.managedConfigPath
-      ? await this.dependencies.readOpenClawConfigSnapshot(input.workbench.managedConfigPath)
+      ? await this.dependencies
+          .readOpenClawConfigSnapshot(input.workbench.managedConfigPath)
+          .catch(() => null)
       : null;
     const defaultAgentId = resolveDefaultAgentId(configSnapshot, input.workbench);
     const effectiveModel = resolveAgentModel(agent, configSnapshot);
-    const [skillsResult, toolsResult] = await Promise.all([
+    const [skillsResult, toolsResult] = await Promise.allSettled([
       this.dependencies.openClawGatewayClient.getSkillsStatus(input.instanceId, {
-        agentId: input.agentId,
+        agentId: requestedAgentId,
       }),
       this.dependencies.openClawGatewayClient.getToolsCatalog(input.instanceId, {
-        agentId: input.agentId,
+        agentId: requestedAgentId,
       }),
     ]);
 
@@ -632,11 +628,13 @@ class DefaultAgentWorkbenchService implements AgentWorkbenchService {
       model: effectiveModel,
       paths: buildAgentPaths(agent),
       tasks: input.workbench.tasks.filter((task) =>
-        taskBelongsToAgent(task, input.agentId, defaultAgentId === input.agentId),
+        taskBelongsToAgent(task, requestedAgentId, defaultAgentId === requestedAgentId),
       ),
-      files: input.workbench.files.filter((file) => fileBelongsToAgent(file, agent)),
-      skills: mapSkillStatusToSkills(skillsResult, agent.workspace),
-      tools: mapToolsCatalogToTools(toolsResult),
+      files: getAgentScopedWorkbenchFiles(input.workbench.files, agent),
+      skills: skillsResult.status === 'fulfilled'
+        ? mapSkillStatusToSkills(skillsResult.value, agent.workspace)
+        : [],
+      tools: toolsResult.status === 'fulfilled' ? mapToolsCatalogToTools(toolsResult.value) : [],
       modelProviders: buildPreferredProviderIds(effectiveModel)
         .map((providerId) =>
           input.workbench.llmProviders.find((provider) => provider.id === providerId),
@@ -645,7 +643,7 @@ class DefaultAgentWorkbenchService implements AgentWorkbenchService {
       channels: mapAgentChannels({
         channels: input.workbench.channels,
         configSnapshot,
-        agentId: input.agentId,
+        agentId: requestedAgentId,
       }),
     };
   }

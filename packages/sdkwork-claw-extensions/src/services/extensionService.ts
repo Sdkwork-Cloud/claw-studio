@@ -1,11 +1,12 @@
-import { getI18n } from 'react-i18next';
 import {
-  localizedText,
-  normalizeLanguage,
-  resolveLocalizedText,
-  type LocalizedText,
-} from '@sdkwork/claw-i18n';
+  kernelPlatformService,
+  platform,
+  type PlatformAPI,
+} from '@sdkwork/claw-core';
 import type { ListParams, PaginatedResult } from './serviceTypes.ts';
+
+export type ExtensionSource = 'bundled' | 'local';
+export type ExtensionCategory = 'provider' | 'channel' | 'plugin';
 
 export interface Extension {
   id: string;
@@ -13,181 +14,371 @@ export interface Extension {
   description: string;
   author: string;
   version: string;
-  rating: number;
-  downloads: number;
-  icon: string;
   installed: boolean;
+  source: ExtensionSource;
+  category: ExtensionCategory;
 }
 
 export interface ExtensionService {
   getExtensions(params?: ListParams): Promise<PaginatedResult<Extension>>;
-  installExtension(id: string, instanceId?: string): Promise<void>;
+  installExtension(id: string): Promise<void>;
   uninstallExtension(id: string): Promise<void>;
 }
 
-type ExtensionSeed = Omit<Extension, 'description'> & {
-  description: LocalizedText;
-};
-
-function resolveCurrentLanguage() {
-  return normalizeLanguage(getI18n()?.resolvedLanguage ?? getI18n()?.language);
-}
-
-function materializeExtension(extension: ExtensionSeed): Extension {
-  return {
-    ...extension,
-    description: resolveLocalizedText(extension.description, resolveCurrentLanguage()),
+interface ExtensionManifest {
+  name?: string;
+  version?: string;
+  description?: string;
+  author?: string | { name?: string };
+  openclaw?: {
+    channel?: {
+      id?: string;
+      label?: string;
+    };
   };
 }
 
-const MOCK_EXTENSIONS: ExtensionSeed[] = [
-  {
-    id: 'ext-1',
-    name: 'VS Code Integration',
-    description: localizedText(
-      'Connect your local VS Code editor directly to Claw instances for seamless remote development.',
-      '\u5c06\u672c\u5730 VS Code \u7f16\u8f91\u5668\u76f4\u63a5\u8fde\u63a5\u5230 Claw \u5b9e\u4f8b\uff0c\u5b9e\u73b0\u65e0\u7f1d\u8fdc\u7a0b\u5f00\u53d1\u3002',
-    ),
-    author: 'ClawOfficial',
-    version: '1.2.4',
-    rating: 4.9,
-    downloads: 45200,
-    icon: 'https://picsum.photos/seed/vscode/100/100',
-    installed: true,
-  },
-  {
-    id: 'ext-2',
-    name: 'Docker Manager',
-    description: localizedText(
-      'Visual interface for managing Docker containers, images, and volumes on your instances.',
-      '\u901a\u8fc7\u53ef\u89c6\u5316\u754c\u9762\u7ba1\u7406\u5b9e\u4f8b\u4e0a\u7684 Docker \u5bb9\u5668\u3001\u955c\u50cf\u548c\u5377\u3002',
-    ),
-    author: 'DevTools',
-    version: '2.0.1',
-    rating: 4.7,
-    downloads: 32100,
-    icon: 'https://picsum.photos/seed/docker/100/100',
-    installed: false,
-  },
-  {
-    id: 'ext-3',
-    name: 'GitOps Sync',
-    description: localizedText(
-      'Automatically sync your instance state with a Git repository for infrastructure as code.',
-      '\u5c06\u5b9e\u4f8b\u72b6\u6001\u81ea\u52a8\u540c\u6b65\u5230 Git \u4ed3\u5e93\uff0c\u652f\u6301\u57fa\u7840\u8bbe\u65bd\u5373\u4ee3\u7801\u3002',
-    ),
-    author: 'CloudNative',
-    version: '0.9.5',
-    rating: 4.5,
-    downloads: 12800,
-    icon: 'https://picsum.photos/seed/gitops/100/100',
-    installed: false,
-  },
-  {
-    id: 'ext-4',
-    name: 'Performance Profiler',
-    description: localizedText(
-      'Advanced CPU and memory profiling tools to identify bottlenecks in your applications.',
-      '\u4f7f\u7528\u9ad8\u7ea7 CPU \u548c\u5185\u5b58\u5206\u6790\u5de5\u5177\u627e\u51fa\u5e94\u7528\u4e2d\u7684\u6027\u80fd\u74f6\u9888\u3002',
-    ),
-    author: 'SysAdminPro',
-    version: '3.1.0',
-    rating: 4.8,
-    downloads: 28400,
-    icon: 'https://picsum.photos/seed/profiler/100/100',
-    installed: true,
-  },
-  {
-    id: 'ext-5',
-    name: 'Database Explorer',
-    description: localizedText(
-      'Universal database client supporting PostgreSQL, MySQL, Redis, and MongoDB.',
-      '\u901a\u7528\u6570\u636e\u5e93\u5ba2\u6237\u7aef\uff0c\u652f\u6301 PostgreSQL\u3001MySQL\u3001Redis \u548c MongoDB\u3002',
-    ),
-    author: 'DataTools',
-    version: '1.5.2',
-    rating: 4.6,
-    downloads: 56000,
-    icon: 'https://picsum.photos/seed/db/100/100',
-    installed: false,
-  },
-  {
-    id: 'ext-6',
-    name: 'Log Viewer Plus',
-    description: localizedText(
-      'Enhanced log viewer with syntax highlighting, advanced filtering, and alert triggers.',
-      '\u589e\u5f3a\u578b\u65e5\u5fd7\u67e5\u770b\u5668\uff0c\u652f\u6301\u8bed\u6cd5\u9ad8\u4eae\u3001\u9ad8\u7ea7\u7b5b\u9009\u548c\u544a\u8b66\u89e6\u53d1\u3002',
-    ),
-    author: 'LogMaster',
-    version: '2.2.0',
-    rating: 4.4,
-    downloads: 19500,
-    icon: 'https://picsum.photos/seed/logs/100/100',
-    installed: false,
-  },
-];
+interface ExtensionDescriptor {
+  id: string;
+  directoryPath: string;
+  manifest: ExtensionManifest;
+}
 
-export function createExtensionService(seedExtensions: ExtensionSeed[] = MOCK_EXTENSIONS): ExtensionService {
-  const extensions = [...seedExtensions];
+interface ExtensionRuntimePaths {
+  bundledExtensionsDir: string;
+  pluginsDir: string;
+}
+
+type ExtensionPlatform = Pick<
+  PlatformAPI,
+  'listDirectory' | 'readFile' | 'pathExists' | 'createDirectory' | 'copyPath' | 'removePath'
+>;
+
+interface KernelPlatformInfoLike {
+  directories?: {
+    pluginsDir?: string | null;
+  };
+}
+
+interface KernelPlatformStatusLike {
+  raw?: {
+    provenance?: {
+      runtimeInstallDir?: string | null;
+    };
+  };
+  provenance?: {
+    runtimeInstallDir?: string | null;
+  };
+}
+
+interface KernelPlatformServiceLike {
+  getInfo(): Promise<KernelPlatformInfoLike | null>;
+  getStatus(): Promise<KernelPlatformStatusLike | null>;
+}
+
+export interface CreateExtensionServiceOptions {
+  getKernelPlatformService?: () => KernelPlatformServiceLike;
+  getPlatform?: () => ExtensionPlatform;
+}
+
+const SOURCE_SORT_ORDER: Record<ExtensionSource, number> = {
+  bundled: 0,
+  local: 1,
+};
+
+const TITLE_CASE_OVERRIDES: Record<string, string> = {
+  ai: 'AI',
+  api: 'API',
+  github: 'GitHub',
+  llm: 'LLM',
+  line: 'LINE',
+  mcp: 'MCP',
+  openai: 'OpenAI',
+  sdk: 'SDK',
+  sql: 'SQL',
+  ui: 'UI',
+  ux: 'UX',
+};
+
+function joinPath(basePath: string, ...segments: string[]) {
+  const separator = basePath.includes('\\') ? '\\' : '/';
+  const normalizedBase = basePath.replace(/[\\/]+$/, '');
+  const normalizedSegments = segments
+    .map((segment) => segment.replace(/^[\\/]+/, '').replace(/[\\/]+$/, ''))
+    .filter(Boolean);
+
+  if (normalizedSegments.length === 0) {
+    return normalizedBase;
+  }
+
+  return [normalizedBase, ...normalizedSegments].join(separator);
+}
+
+function resolveRuntimeInstallDir(status: KernelPlatformStatusLike | null) {
+  return status?.raw?.provenance?.runtimeInstallDir ?? status?.provenance?.runtimeInstallDir ?? null;
+}
+
+function normalizeDisplaySegment(segment: string) {
+  const override = TITLE_CASE_OVERRIDES[segment.toLowerCase()];
+  if (override) {
+    return override;
+  }
+
+  return segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase();
+}
+
+function toDisplayName(value: string) {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(normalizeDisplaySegment)
+    .join(' ');
+}
+
+function deriveExtensionName(id: string, manifest: ExtensionManifest) {
+  const channelLabel = manifest.openclaw?.channel?.label?.trim();
+  if (channelLabel) {
+    return channelLabel;
+  }
+
+  const packageLabel = manifest.name?.split('/').pop()?.trim();
+  if (packageLabel) {
+    return toDisplayName(packageLabel);
+  }
+
+  return toDisplayName(id);
+}
+
+function deriveExtensionAuthor(manifest: ExtensionManifest) {
+  if (typeof manifest.author === 'string' && manifest.author.trim()) {
+    return manifest.author.trim();
+  }
+
+  if (
+    typeof manifest.author === 'object' &&
+    manifest.author &&
+    typeof manifest.author.name === 'string' &&
+    manifest.author.name.trim()
+  ) {
+    return manifest.author.name.trim();
+  }
+
+  if (manifest.name?.startsWith('@openclaw/')) {
+    return 'OpenClaw';
+  }
+
+  return 'Unknown';
+}
+
+function deriveExtensionCategory(
+  id: string,
+  manifest: ExtensionManifest,
+): ExtensionCategory {
+  if (manifest.openclaw?.channel) {
+    return 'channel';
+  }
+
+  const packageName = manifest.name?.toLowerCase() ?? '';
+  if (packageName.includes('provider') || id.toLowerCase().includes('provider')) {
+    return 'provider';
+  }
+
+  return 'plugin';
+}
+
+function materializeExtension(
+  descriptor: ExtensionDescriptor,
+  installed: boolean,
+  source: ExtensionSource,
+): Extension {
+  return {
+    id: descriptor.id,
+    name: deriveExtensionName(descriptor.id, descriptor.manifest),
+    description: descriptor.manifest.description?.trim() || 'No description available.',
+    author: deriveExtensionAuthor(descriptor.manifest),
+    version: descriptor.manifest.version?.trim() || 'unknown',
+    installed,
+    source,
+    category: deriveExtensionCategory(descriptor.id, descriptor.manifest),
+  };
+}
+
+function matchesKeyword(extension: Extension, keyword: string) {
+  const normalizedKeyword = keyword.toLowerCase();
+  return [
+    extension.id,
+    extension.name,
+    extension.description,
+    extension.author,
+    extension.version,
+  ].some((value) => value.toLowerCase().includes(normalizedKeyword));
+}
+
+async function readExtensionDescriptor(
+  filesystem: ExtensionPlatform,
+  directoryPath: string,
+  id: string,
+): Promise<ExtensionDescriptor | null> {
+  const manifestPath = joinPath(directoryPath, 'package.json');
+  if (!(await filesystem.pathExists(manifestPath))) {
+    return null;
+  }
+
+  const manifest = JSON.parse(await filesystem.readFile(manifestPath)) as ExtensionManifest;
+  return {
+    id,
+    directoryPath,
+    manifest,
+  };
+}
+
+async function listExtensionDescriptors(
+  filesystem: ExtensionPlatform,
+  rootPath: string,
+): Promise<ExtensionDescriptor[]> {
+  if (!(await filesystem.pathExists(rootPath))) {
+    return [];
+  }
+
+  const entries = await filesystem.listDirectory(rootPath);
+  const directories = entries
+    .filter((entry) => entry.kind === 'directory')
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  const descriptors = await Promise.all(
+    directories.map((entry) => readExtensionDescriptor(filesystem, entry.path, entry.name)),
+  );
+
+  return descriptors.filter((descriptor): descriptor is ExtensionDescriptor => descriptor !== null);
+}
+
+async function resolveRuntimePaths(
+  kernelService: KernelPlatformServiceLike,
+): Promise<ExtensionRuntimePaths> {
+  const [info, status] = await Promise.all([
+    kernelService.getInfo(),
+    kernelService.getStatus(),
+  ]);
+
+  const pluginsDir = info?.directories?.pluginsDir?.trim();
+  const runtimeInstallDir = resolveRuntimeInstallDir(status)?.trim();
+  if (!pluginsDir || !runtimeInstallDir) {
+    throw new Error('OpenClaw runtime directories unavailable');
+  }
 
   return {
-    async getExtensions(params: ListParams = {}) {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          let filtered = extensions.map(materializeExtension);
+    bundledExtensionsDir: joinPath(runtimeInstallDir, 'dist', 'extensions'),
+    pluginsDir,
+  };
+}
 
-          if (params.keyword) {
-            const keyword = params.keyword.toLowerCase();
-            filtered = filtered.filter((extension) =>
-              extension.name.toLowerCase().includes(keyword) ||
-              extension.description.toLowerCase().includes(keyword),
-            );
-          }
+function paginateExtensions(
+  items: Extension[],
+  params: ListParams = {},
+): PaginatedResult<Extension> {
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 10;
+  const startIndex = (page - 1) * pageSize;
 
-          const page = params.page || 1;
-          const pageSize = params.pageSize || 10;
-          const total = filtered.length;
-          const start = (page - 1) * pageSize;
+  return {
+    items: items.slice(startIndex, startIndex + pageSize),
+    total: items.length,
+    page,
+    pageSize,
+    hasMore: startIndex + pageSize < items.length,
+  };
+}
 
-          resolve({
-            items: filtered.slice(start, start + pageSize),
-            total,
-            page,
-            pageSize,
-            hasMore: start + pageSize < total,
-          });
-        }, 300);
+export function createExtensionService(
+  options: CreateExtensionServiceOptions = {},
+): ExtensionService {
+  const getKernelService = options.getKernelPlatformService ?? (() => kernelPlatformService);
+  const getFilesystem = options.getPlatform ?? (() => platform);
+
+  return {
+    async getExtensions(params = {}) {
+      const kernelService = getKernelService();
+      const filesystem = getFilesystem();
+      const runtimePaths = await resolveRuntimePaths(kernelService);
+      const [bundledDescriptors, localDescriptors] = await Promise.all([
+        listExtensionDescriptors(filesystem, runtimePaths.bundledExtensionsDir),
+        listExtensionDescriptors(filesystem, runtimePaths.pluginsDir),
+      ]);
+
+      const localDescriptorsById = new Map(
+        localDescriptors.map((descriptor) => [descriptor.id, descriptor]),
+      );
+      const merged = new Map<string, Extension>();
+
+      for (const descriptor of bundledDescriptors) {
+        merged.set(
+          descriptor.id,
+          materializeExtension(
+            descriptor,
+            localDescriptorsById.has(descriptor.id),
+            'bundled',
+          ),
+        );
+      }
+
+      for (const descriptor of localDescriptors) {
+        if (merged.has(descriptor.id)) {
+          continue;
+        }
+
+        merged.set(descriptor.id, materializeExtension(descriptor, true, 'local'));
+      }
+
+      let items = [...merged.values()].sort((left, right) => {
+        const sourceOrderDifference =
+          SOURCE_SORT_ORDER[left.source] - SOURCE_SORT_ORDER[right.source];
+        if (sourceOrderDifference !== 0) {
+          return sourceOrderDifference;
+        }
+
+        return left.id.localeCompare(right.id);
       });
+
+      if (params.keyword?.trim()) {
+        items = items.filter((extension) => matchesKeyword(extension, params.keyword!.trim()));
+      }
+
+      return paginateExtensions(items, params);
     },
 
-    async installExtension(id: string, instanceId?: string) {
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          const index = extensions.findIndex((extension) => extension.id === id);
-          if (index === -1) {
-            reject(new Error('Extension not found'));
-            return;
-          }
+    async installExtension(id) {
+      const kernelService = getKernelService();
+      const filesystem = getFilesystem();
+      const runtimePaths = await resolveRuntimePaths(kernelService);
+      const sourcePath = joinPath(runtimePaths.bundledExtensionsDir, id);
+      const destinationPath = joinPath(runtimePaths.pluginsDir, id);
 
-          extensions[index] = { ...extensions[index], installed: true };
-          resolve();
-        }, 500);
-      });
+      if (!(await filesystem.pathExists(sourcePath))) {
+        throw new Error('Extension not found');
+      }
+
+      if (!(await filesystem.pathExists(runtimePaths.pluginsDir))) {
+        await filesystem.createDirectory(runtimePaths.pluginsDir);
+      }
+
+      if (await filesystem.pathExists(destinationPath)) {
+        await filesystem.removePath(destinationPath);
+      }
+
+      await filesystem.copyPath(sourcePath, destinationPath);
     },
 
     async uninstallExtension(id) {
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          const index = extensions.findIndex((extension) => extension.id === id);
-          if (index === -1) {
-            reject(new Error('Extension not found'));
-            return;
-          }
+      const kernelService = getKernelService();
+      const filesystem = getFilesystem();
+      const runtimePaths = await resolveRuntimePaths(kernelService);
+      const destinationPath = joinPath(runtimePaths.pluginsDir, id);
 
-          extensions[index] = { ...extensions[index], installed: false };
-          resolve();
-        }, 500);
-      });
+      if (!(await filesystem.pathExists(destinationPath))) {
+        throw new Error('Extension not found');
+      }
+
+      await filesystem.removePath(destinationPath);
     },
   };
 }

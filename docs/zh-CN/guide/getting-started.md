@@ -56,7 +56,7 @@ pnpm docs:build
 
 重点变量包括：
 
-- `GEMINI_API_KEY`：AI 能力必需
+- AI 生成功能需要一个已启动的 OpenClaw 兼容实例，以及通过 Provider Center 应用的真实配置
 - `VITE_API_BASE_URL`：后端 API 地址
 - `VITE_ACCESS_TOKEN`：可选的后端访问令牌
 - `VITE_APP_ID`、`VITE_RELEASE_CHANNEL` 等桌面更新配置

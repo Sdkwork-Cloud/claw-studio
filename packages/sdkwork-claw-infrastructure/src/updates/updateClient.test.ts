@@ -74,9 +74,9 @@ await runTest('checkAppUpdate posts to the backend update endpoint with bearer a
 
     const result = await checkAppUpdate(sampleRequest, { env });
 
-    assert.equal(requestUrl, 'http://localhost:8080/app/v3/api/update/check');
+    assert.equal(requestUrl, 'http://localhost:8080/app/v3/api/app/update/check');
     assert.equal(requestInit?.method, 'POST');
-    assert.equal((requestInit?.headers as Record<string, string>).Authorization, 'Bearer desktop-token');
+    assert.equal(new Headers(requestInit?.headers).get('Authorization'), 'Bearer desktop-token');
     assert.equal(result.hasUpdate, true);
     assert.equal(result.targetVersion, '0.2.0');
     assert.equal(result.resolvedPackage?.url, 'https://downloads.sdkwork.com/claw-studio-0.2.0.exe');
@@ -115,7 +115,7 @@ await runTest('checkAppUpdate omits Authorization when no access token is config
 
     await checkAppUpdate(sampleRequest, { env });
 
-    assert.equal('Authorization' in ((requestInit?.headers as Record<string, string>) ?? {}), false);
+    assert.equal(new Headers(requestInit?.headers).has('Authorization'), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

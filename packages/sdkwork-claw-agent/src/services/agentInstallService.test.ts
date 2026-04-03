@@ -51,6 +51,10 @@ function createPlatformStub(
       const normalizedPath = normalizePath(path);
       return directories.has(normalizedPath) || fileSystem[normalizedPath] !== undefined;
     },
+    pathExistsForUserTooling: async (path) => {
+      const normalizedPath = normalizePath(path);
+      return directories.has(normalizedPath) || fileSystem[normalizedPath] !== undefined;
+    },
     getPathInfo: async (path) => {
       const normalizedPath = normalizePath(path);
       const fileContent = fileSystem[normalizedPath];
@@ -75,6 +79,15 @@ function createPlatformStub(
     readBinaryFile: async () => new Uint8Array(),
     writeBinaryFile: async () => {},
     readFile: async (path) => {
+      const normalizedPath = normalizePath(path);
+      const content = fileSystem[normalizedPath];
+      if (content === undefined) {
+        throw new Error(`Missing file: ${normalizedPath}`);
+      }
+
+      return content;
+    },
+    readFileForUserTooling: async (path) => {
       const normalizedPath = normalizePath(path);
       const content = fileSystem[normalizedPath];
       if (content === undefined) {

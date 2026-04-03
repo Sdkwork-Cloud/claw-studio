@@ -4,21 +4,40 @@ import { toast } from 'sonner';
 import { Section, ToggleRow } from './Shared';
 import { settingsService, type UserPreferences } from './services';
 
+const DEFAULT_NOTIFICATION_PREFERENCES: UserPreferences['notifications'] = {
+  systemUpdates: false,
+  taskFailures: false,
+  securityAlerts: false,
+  taskCompletions: false,
+  newMessages: false,
+};
+
 export function NotificationSettings() {
-  const [prefs, setPrefs] = useState<UserPreferences['notifications'] | null>(null);
+  const [prefs, setPrefs] = useState<UserPreferences['notifications']>(DEFAULT_NOTIFICATION_PREFERENCES);
   const { t } = useTranslation();
 
   useEffect(() => {
+    let cancelled = false;
+
     void settingsService
       .getPreferences()
-      .then((preferences) => setPrefs(preferences.notifications));
-  }, []);
+      .then((preferences) => {
+        if (!cancelled) {
+          setPrefs(preferences.notifications);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error(t('settings.notifications.loadPreferenceFailed'));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   const handleToggle = async (key: keyof UserPreferences['notifications']) => {
-    if (!prefs) {
-      return;
-    }
-
     const nextPrefs = { ...prefs, [key]: !prefs[key] };
     setPrefs(nextPrefs);
 
@@ -29,10 +48,6 @@ export function NotificationSettings() {
       toast.error(t('settings.notifications.updatePreferenceFailed'));
     }
   };
-
-  if (!prefs) {
-    return null;
-  }
 
   return (
     <div className="space-y-8">
@@ -45,7 +60,7 @@ export function NotificationSettings() {
         </p>
       </div>
 
-      <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-2">
         <Section title={t('settings.notifications.emailTitle')}>
           <div className="space-y-4">
             <ToggleRow
@@ -68,7 +83,6 @@ export function NotificationSettings() {
             />
           </div>
         </Section>
-
         <Section title={t('settings.notifications.desktopTitle')}>
           <div className="space-y-4">
             <ToggleRow

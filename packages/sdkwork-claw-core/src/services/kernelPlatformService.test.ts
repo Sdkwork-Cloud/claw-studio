@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import {
+  DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
+  DEFAULT_BUNDLED_OPENCLAW_VERSION,
+} from '../../../sdkwork-claw-types/src/openclawRelease.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -57,16 +61,16 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
         },
         provenance: {
           runtimeId: 'openclaw',
-          installKey: '2026.3.28-windows-x64',
-          openclawVersion: '2026.3.28',
-          nodeVersion: '22.14.0',
+          installKey: `${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+          openclawVersion: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+          nodeVersion: DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
           platform: 'windows',
           arch: 'x64',
           installSource: 'bundled',
           configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
           runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
           runtimeInstallDir:
-            'C:/ProgramData/SdkWork/CrawStudio/machine/runtime/runtimes/openclaw/2026.3.28-windows-x64',
+            `C:/ProgramData/SdkWork/CrawStudio/machine/runtime/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         },
       }),
       ensureRunning: async () => {
@@ -75,6 +79,7 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
       restart: async () => {
         throw new Error('not needed');
       },
+      testLocalAiProxyRoute: async () => null,
     }),
   });
 
@@ -86,8 +91,8 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
   assert.equal(snapshot.controlMode, 'supervisedFallback');
   assert.equal(snapshot.baseUrl, 'http://127.0.0.1:18845');
   assert.equal(snapshot.usesDynamicPort, true);
-  assert.equal(snapshot.openclawVersion, '2026.3.28');
-  assert.equal(snapshot.nodeVersion, '22.14.0');
+  assert.equal(snapshot.openclawVersion, DEFAULT_BUNDLED_OPENCLAW_VERSION);
+  assert.equal(snapshot.nodeVersion, DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION);
   assert.equal(snapshot.serviceConfigPath.endsWith('windows-service.json'), true);
 });
 
@@ -134,15 +139,15 @@ await runTest('kernelPlatformService delegates ensureRunning and restart to the 
     },
     provenance: {
       runtimeId: 'openclaw',
-      installKey: '2026.3.28-linux-x64',
-      openclawVersion: '2026.3.28',
-      nodeVersion: '22.14.0',
+      installKey: `${DEFAULT_BUNDLED_OPENCLAW_VERSION}-linux-x64`,
+      openclawVersion: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      nodeVersion: DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
       platform: 'linux',
       arch: 'x64',
       installSource: 'bundled',
       configPath: '/home/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
       runtimeHomeDir: '/home/admin/.sdkwork/crawstudio/openclaw-home',
-      runtimeInstallDir: '/var/lib/claw-studio/openclaw/2026.3.28-linux-x64',
+      runtimeInstallDir: `/var/lib/claw-studio/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-linux-x64`,
     },
   } as const;
 
@@ -159,6 +164,7 @@ await runTest('kernelPlatformService delegates ensureRunning and restart to the 
         calls.push('restart');
         return response;
       },
+      testLocalAiProxyRoute: async () => null,
     }),
   });
 
@@ -168,4 +174,111 @@ await runTest('kernelPlatformService delegates ensureRunning and restart to the 
   assert.deepEqual(calls, ['ensureRunning', 'restart']);
   assert.equal(ensured.controlMode, 'nativeService');
   assert.equal(restarted.hostManager, 'systemdUser');
+});
+
+await runTest('kernelPlatformService exposes local ai proxy request logs, message logs, and message capture updates', async () => {
+  const { createKernelPlatformService } = await import('./kernelPlatformService.ts');
+
+  const calls: string[] = [];
+  const service = createKernelPlatformService({
+    getKernelPlatform: () => ({
+      getInfo: async () => null,
+      getStorageInfo: async () => null,
+      getStatus: async () => null,
+      ensureRunning: async () => null,
+      restart: async () => null,
+      testLocalAiProxyRoute: async () => null,
+      listLocalAiProxyRequestLogs: async (query) => {
+        calls.push(`requestLogs:${query.page}:${query.pageSize}:${query.search || ''}`);
+        return {
+          items: [
+            {
+              id: 'req_1',
+              createdAt: 1743510000000,
+              routeId: 'provider-config-openai',
+              routeName: 'OpenAI',
+              providerId: 'openai',
+              clientProtocol: 'openai-compatible',
+              upstreamProtocol: 'openai-compatible',
+              endpoint: '/v1/chat/completions',
+              status: 'succeeded',
+              modelId: 'gpt-5.4',
+              baseUrl: 'https://api.openai.com/v1',
+              ttftMs: 220,
+              totalDurationMs: 810,
+              totalTokens: 1800,
+              inputTokens: 900,
+              outputTokens: 850,
+              cacheTokens: 50,
+              responseStatus: 200,
+            },
+          ],
+          total: 1,
+          page: query.page || 1,
+          pageSize: query.pageSize || 20,
+          hasMore: false,
+        };
+      },
+      listLocalAiProxyMessageLogs: async (query) => {
+        calls.push(`messageLogs:${query.page}:${query.pageSize}:${query.search || ''}`);
+        return {
+          items: [
+            {
+              id: 'msg_1',
+              requestLogId: 'req_1',
+              createdAt: 1743510000000,
+              routeId: 'provider-config-openai',
+              routeName: 'OpenAI',
+              providerId: 'openai',
+              clientProtocol: 'openai-compatible',
+              upstreamProtocol: 'openai-compatible',
+              modelId: 'gpt-5.4',
+              baseUrl: 'https://api.openai.com/v1',
+              messageCount: 2,
+              preview: 'Summarize this design.',
+              messages: [
+                { index: 0, role: 'system', content: 'You are helpful.' },
+                { index: 1, role: 'user', content: 'Summarize this design.' },
+              ],
+            },
+          ],
+          total: 1,
+          page: query.page || 1,
+          pageSize: query.pageSize || 20,
+          hasMore: false,
+        };
+      },
+      updateLocalAiProxyMessageCapture: async (enabled) => {
+        calls.push(`capture:${enabled}`);
+        return {
+          enabled,
+          updatedAt: 1743510001234,
+        };
+      },
+    }),
+  });
+
+  const requestLogs = await service.listLocalAiProxyRequestLogs({
+    page: 2,
+    pageSize: 10,
+    search: 'openai',
+  });
+  const messageLogs = await service.listLocalAiProxyMessageLogs({
+    page: 1,
+    pageSize: 5,
+    search: 'summarize',
+  });
+  const capture = await service.updateLocalAiProxyMessageCapture(true);
+
+  assert.deepEqual(calls, [
+    'requestLogs:2:10:openai',
+    'messageLogs:1:5:summarize',
+    'capture:true',
+  ]);
+  assert.equal(requestLogs.items[0]?.id, 'req_1');
+  assert.equal(messageLogs.items[0]?.messages.length, 2);
+  assert.deepEqual(capture, {
+    enabled: true,
+    updatedAt: 1743510001234,
+  });
 });

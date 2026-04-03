@@ -173,11 +173,6 @@ const Settings = lazy(() =>
     default: module.Settings,
   })),
 );
-const ProviderConfigCenter = lazy(() =>
-  import('@sdkwork/claw-settings').then((module) => ({
-    default: module.ProviderConfigCenter,
-  })),
-);
 const KernelCenter = lazy(() =>
   import('@sdkwork/claw-settings').then((module) => ({
     default: module.KernelCenter,
@@ -224,7 +219,7 @@ export function AppRoutes() {
   const { t } = useTranslation();
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence initial={false}>
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} />
@@ -583,16 +578,6 @@ export function AppRoutes() {
         <Route
           path="/codebox"
           element={<ComingSoonRoute message={t('routes.codeboxComingSoon')} />}
-        />
-        <Route
-          path="/api-router"
-          element={
-            <PageWrapper>
-              <Suspense fallback={<RouteFallback />}>
-                <ProviderConfigCenter />
-              </Suspense>
-            </PageWrapper>
-          }
         />
         <Route
           path="/model-purchase"

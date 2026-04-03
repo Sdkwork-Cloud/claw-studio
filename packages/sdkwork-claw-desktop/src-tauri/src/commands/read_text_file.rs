@@ -1,4 +1,7 @@
-use crate::{framework::Result as FrameworkResult, state::AppState};
+use crate::{
+    framework::{runtime, Result as FrameworkResult},
+    state::AppState,
+};
 
 pub fn read_text_file_at(state: &AppState, path: &str) -> FrameworkResult<String> {
     state
@@ -9,8 +12,16 @@ pub fn read_text_file_at(state: &AppState, path: &str) -> FrameworkResult<String
 }
 
 #[tauri::command]
-pub fn read_text_file(path: String, state: tauri::State<'_, AppState>) -> Result<String, String> {
-    read_text_file_at(&state, &path).map_err(|error| error.to_string())
+pub async fn read_text_file(
+    path: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    runtime::run_blocking_async("filesystem.read_text_file", move || {
+        read_text_file_at(&state, &path)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

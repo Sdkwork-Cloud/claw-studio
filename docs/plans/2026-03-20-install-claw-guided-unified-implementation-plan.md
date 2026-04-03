@@ -64,7 +64,7 @@ Cover:
 - 5-step guided wizard metadata order
 - adaptive grid class decisions
 - product runtime mapping for configuration
-- unified bootstrap loading for instances, API Router channels/providers, IM channels, packs, and skills
+- unified bootstrap loading for instances, provider channels/providers, IM channels, packs, and skills
 - configuration applying provider + instance + channel changes
 - initialization deduping pack-included skills
 
@@ -93,7 +93,7 @@ Add:
 - generic 5-step metadata
 - product-to-runtime mapping helpers
 - install bootstrap loading
-- provider draft derivation from API Router-backed data
+- provider draft derivation from provider-catalog data
 - configuration apply logic
 - initialization apply logic
 

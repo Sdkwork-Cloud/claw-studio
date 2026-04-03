@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
+  BrainCircuit,
   Camera,
   Check,
   ChevronDown,
@@ -21,9 +22,12 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { chatUploadService } from '@sdkwork/claw-core';
+import {
+  chatUploadService,
+  type LLMChannel,
+  type LLMModel,
+} from '@sdkwork/claw-core';
 import { platform } from '@sdkwork/claw-infrastructure';
-import { type LLMChannel, type LLMModel } from '@sdkwork/claw-settings';
 import type {
   StudioConversationAttachment,
   StudioConversationAttachmentKind,
@@ -33,8 +37,10 @@ import type { ChatComposerSubmitPayload } from '../types/index.ts';
 import {
   canImportChatComposerRemoteUrl,
   canSendChatComposerPayload,
+  resolveChatComposerStatusState,
   resolveRecorderStartErrorKey,
   shouldPersistChatComposerRecording,
+  shouldShowModelChannelRail,
   shouldConfirmChatComposerFieldOnEnter,
   shouldSendChatComposerMessageOnEnter,
   startNativeScreenshotSupportProbe,
@@ -90,6 +96,7 @@ interface ChatInputProps {
   onChannelChange: (channelId: string) => void;
   onModelChange: (channelId: string, modelId: string) => void;
   onOpenModelConfig?: () => void;
+  compactModelSelector?: boolean;
 }
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
@@ -419,6 +426,7 @@ export function ChatInput({
   onChannelChange,
   onModelChange,
   onOpenModelConfig,
+  compactModelSelector = true,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -442,21 +450,27 @@ export function ChatInput({
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelTriggerRef = useRef<HTMLButtonElement>(null);
+  const activeChannelOptionRef = useRef<HTMLButtonElement>(null);
+  const activeModelOptionRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
   const urlInputRef = useRef<HTMLInputElement>(null);
   const draftsRef = useRef<ComposerDraftAttachment[]>([]);
   const activeRecorderRef = useRef<ActiveRecorder | null>(null);
   const isUnmountingRef = useRef(false);
+  const modelDropdownId = useId();
   const { t } = useTranslation();
+  const modelTriggerLabel = activeModel?.name || t('chat.page.selectModel');
   const modelTriggerClassName = cn(
-    'inline-flex min-w-0 max-w-full items-center gap-1 rounded-full px-1.5 py-1 text-xs font-medium transition-colors sm:px-2',
+    'inline-flex h-8 max-w-[11.5rem] items-center gap-1.5 rounded-full border border-transparent px-2.5 text-xs font-medium transition-colors sm:h-9 sm:max-w-[13.5rem] lg:max-w-[15.5rem]',
     showModelDropdown
-      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800/90 dark:text-zinc-100'
-      : 'text-zinc-500 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100',
+      ? 'border-zinc-200/80 bg-white text-zinc-900 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+      : 'text-zinc-500 hover:border-zinc-200/80 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100',
   );
   const actionButtonClassName =
     'flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100 sm:h-9 sm:w-9';
+  const sendSideActionButtonClassName =
+    'flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-500 transition-colors hover:bg-zinc-100/80 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100';
   const isDesktopPlatform = platform.getPlatform() === 'desktop';
   const supportsScreenRecording =
     typeof navigator !== 'undefined' &&
@@ -486,6 +500,10 @@ export function ChatInput({
     isRecording,
     isRecordingFinalizing,
     hasReadyContent,
+  });
+  const showModelChannelRail = shouldShowModelChannelRail({
+    channelCount: channels.length,
+    compactModelSelector,
   });
   const showElevatedSurface =
     isFocused ||
@@ -1286,6 +1304,30 @@ export function ChatInput({
   }, [showModelDropdown, activeChannel?.id]);
 
   useEffect(() => {
+    if (!showModelDropdown) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      if (showModelChannelRail) {
+        activeChannelOptionRef.current?.scrollIntoView({
+          block: 'nearest',
+          inline: 'nearest',
+        });
+      }
+
+      activeModelOptionRef.current?.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [showModelChannelRail, showModelDropdown, activeChannel?.id, activeModel?.id]);
+
+  useEffect(() => {
     if (!showUrlImport) {
       return;
     }
@@ -1363,19 +1405,26 @@ export function ChatInput({
     );
   };
 
-  const statusLabel = composerError
-    ? composerError
-    : activeRecorder
-      ? `${t(
-          activeRecorder.kind === 'audio'
-            ? 'chat.input.recordingVoice'
-            : 'chat.input.recordingScreen',
-        )} / ${formatRecorderDuration(recorderElapsedMs)}`
-      : isRecordingFinalizing
-        ? t('chat.input.preparingRecording')
-      : hasUploadingDrafts
-        ? t('chat.input.uploading')
-        : activeModel?.name || t('chat.page.selectModel');
+  const statusState = resolveChatComposerStatusState({
+    composerError,
+    activeRecorderKind: activeRecorder?.kind ?? null,
+    isRecordingFinalizing,
+    hasUploadingDrafts,
+  });
+  const statusLabel =
+    statusState === 'error'
+      ? composerError
+      : statusState === 'recording-audio' || statusState === 'recording-screen'
+        ? `${t(
+            statusState === 'recording-audio'
+              ? 'chat.input.recordingVoice'
+              : 'chat.input.recordingScreen',
+          )} / ${formatRecorderDuration(recorderElapsedMs)}`
+        : statusState === 'finalizing'
+          ? t('chat.input.preparingRecording')
+          : statusState === 'uploading'
+            ? t('chat.input.uploading')
+            : null;
 
   return (
     <div className="relative w-full px-0 sm:px-2 lg:px-4">
@@ -1683,31 +1732,6 @@ export function ChatInput({
                 </button>
               ) : null}
 
-              {supportsVoiceRecording ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleToggleVoiceRecording();
-                  }}
-                  className={cn(
-                    actionButtonClassName,
-                    activeRecorder?.kind === 'audio' &&
-                      'bg-rose-500/10 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300',
-                  )}
-                  title={
-                    activeRecorder?.kind === 'audio'
-                      ? t('chat.input.stopRecording')
-                      : t('chat.input.voiceInput')
-                  }
-                >
-                  {activeRecorder?.kind === 'audio' ? (
-                    <StopCircle className="h-4 w-4" />
-                  ) : (
-                    <Mic className="h-4 w-4" />
-                  )}
-                </button>
-              ) : null}
-
               {supportsScreenRecording ? (
                 <button
                   type="button"
@@ -1739,9 +1763,15 @@ export function ChatInput({
                   type="button"
                   onClick={() => setShowModelDropdown((current) => !current)}
                   className={modelTriggerClassName}
+                  title={modelTriggerLabel}
+                  aria-label={modelTriggerLabel}
+                  aria-expanded={showModelDropdown}
+                  aria-haspopup="dialog"
+                  aria-controls={showModelDropdown ? modelDropdownId : undefined}
                 >
-                  <span className="truncate max-w-[8.5rem] sm:max-w-[12rem] lg:max-w-[16rem]">
-                    {activeModel?.name || t('chat.page.selectModel')}
+                  <BrainCircuit className="h-4 w-4 shrink-0 text-primary-600 dark:text-primary-300" />
+                  <span className="min-w-0 flex-1 truncate max-w-[8.5rem] sm:max-w-[12rem] lg:max-w-[16rem] text-left text-xs font-medium">
+                    {modelTriggerLabel}
                   </span>
                   <ChevronDown
                     className={cn(
@@ -1753,19 +1783,51 @@ export function ChatInput({
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 sm:justify-end">
-              <div
-                className={cn(
-                  'min-w-0 text-xs font-medium',
-                  composerError
-                    ? 'text-rose-600 dark:text-rose-300'
-                    : activeRecorder
+            <div
+              className={cn(
+                'flex items-center gap-3 sm:justify-end',
+                statusLabel ? 'justify-between' : 'justify-end',
+              )}
+            >
+              {statusLabel ? (
+                <div
+                  className={cn(
+                    'min-w-0 text-xs font-medium',
+                    composerError
                       ? 'text-rose-600 dark:text-rose-300'
-                      : 'text-zinc-500 dark:text-zinc-400',
-                )}
-              >
-                <span className="line-clamp-2">{statusLabel}</span>
-              </div>
+                      : activeRecorder
+                        ? 'text-rose-600 dark:text-rose-300'
+                        : 'text-zinc-500 dark:text-zinc-400',
+                  )}
+                >
+                  <span className="line-clamp-2">{statusLabel}</span>
+                </div>
+              ) : null}
+
+              {supportsVoiceRecording ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleToggleVoiceRecording();
+                  }}
+                  className={cn(
+                    sendSideActionButtonClassName,
+                    activeRecorder?.kind === 'audio' &&
+                      'border-rose-200 bg-rose-500/10 text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300',
+                  )}
+                  title={
+                    activeRecorder?.kind === 'audio'
+                      ? t('chat.input.stopRecording')
+                      : t('chat.input.voiceInput')
+                  }
+                >
+                  {activeRecorder?.kind === 'audio' ? (
+                    <StopCircle className="h-[18px] w-[18px]" />
+                  ) : (
+                    <Mic className="h-[18px] w-[18px]" />
+                  )}
+                </button>
+              ) : null}
 
               <AnimatePresence mode="wait">
                 {isLoading ? (
@@ -1820,6 +1882,9 @@ export function ChatInput({
                 }}
               />
               <motion.div
+                id={modelDropdownId}
+                role="dialog"
+                aria-label={t('chat.page.selectModel')}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 12 }}
@@ -1827,38 +1892,41 @@ export function ChatInput({
                 style={modelDropdownStyle}
                 className="fixed z-[80] flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-[0_24px_70px_rgba(0,0,0,0.42)] sm:flex-row"
               >
-                <div className="overflow-y-auto border-b border-zinc-100 bg-zinc-50/80 p-2 dark:border-zinc-800 dark:bg-zinc-900/70 sm:w-[220px] sm:border-b-0 sm:border-r">
-                  <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                    {t('chat.page.channels')}
-                  </div>
-                  <div className="mt-1 space-y-1">
-                    {channels.map((channel) => (
-                      <button
-                        key={channel.id}
-                        type="button"
-                        onClick={() => onChannelChange(channel.id)}
-                        className={cn(
-                          'flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
-                          activeChannel?.id === channel.id
-                            ? 'border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800'
-                            : 'border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800/60',
-                        )}
-                      >
-                        <span className="text-lg">{channel.icon}</span>
-                        <span
+                {showModelChannelRail ? (
+                  <div className="overflow-y-auto border-b border-zinc-100 bg-zinc-50/80 p-2 dark:border-zinc-800 dark:bg-zinc-900/70 sm:w-[220px] sm:border-b-0 sm:border-r">
+                    <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                      {t('chat.page.channels')}
+                    </div>
+                    <div className="mt-1 space-y-1">
+                      {channels.map((channel) => (
+                        <button
+                          key={channel.id}
+                          ref={activeChannel?.id === channel.id ? activeChannelOptionRef : null}
+                          type="button"
+                          onClick={() => onChannelChange(channel.id)}
                           className={cn(
-                            'truncate text-sm font-medium',
+                            'flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
                             activeChannel?.id === channel.id
-                              ? 'text-zinc-900 dark:text-zinc-100'
-                              : 'text-zinc-600 dark:text-zinc-400',
+                              ? 'border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800'
+                              : 'border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800/60',
                           )}
                         >
-                          {channel.name}
-                        </span>
-                      </button>
-                    ))}
+                          <span className="text-lg">{channel.icon}</span>
+                          <span
+                            className={cn(
+                              'truncate text-sm font-medium',
+                              activeChannel?.id === channel.id
+                                ? 'text-zinc-900 dark:text-zinc-100'
+                                : 'text-zinc-600 dark:text-zinc-400',
+                            )}
+                          >
+                            {channel.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 <div className="min-w-0 flex-1 overflow-y-auto bg-white p-2 dark:bg-zinc-900">
                   <div className="flex items-center justify-between px-3 py-2">
@@ -1881,6 +1949,7 @@ export function ChatInput({
                     {activeChannel?.models.map((model) => (
                       <button
                         key={model.id}
+                        ref={activeModel?.id === model.id ? activeModelOptionRef : null}
                         type="button"
                         onClick={() => {
                           if (!activeChannel) {
@@ -1916,12 +1985,6 @@ export function ChatInput({
             document.body,
           )
         : null}
-
-      <div className="mt-2 text-center dark:text-zinc-500 sm:mt-3">
-        <p className="text-[10px] font-medium tracking-wide text-zinc-500 sm:text-[11px] dark:text-zinc-500">
-          {t('chat.input.disclaimer')}
-        </p>
-      </div>
     </div>
   );
 }

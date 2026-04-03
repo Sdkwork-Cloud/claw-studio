@@ -12,7 +12,12 @@ test('release asset finalizer writes a global checksum manifest and release mani
   assert.equal(existsSync(finalizerPath), true, 'missing scripts/release/finalize-release-assets.mjs');
 
   const finalizer = await import(pathToFileURL(finalizerPath).href);
+  assert.equal(typeof finalizer.parseArgs, 'function');
   assert.equal(typeof finalizer.finalizeReleaseAssets, 'function');
+  assert.throws(
+    () => finalizer.parseArgs(['--release-tag']),
+    /Missing value for --release-tag/,
+  );
 
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-'));
   const releaseAssetsDir = path.join(tempRoot, 'release-assets');
@@ -87,8 +92,116 @@ test('release asset finalizer writes a global checksum manifest and release mani
     assert.equal(manifest.releaseTag, 'release-2026-03-31-03');
     assert.equal(manifest.repository, 'Sdkwork-Cloud/claw-studio');
     assert.equal(manifest.artifacts.length, 2);
+    assert.deepEqual(
+      manifest.artifacts.map((artifact) => ({
+        relativePath: artifact.relativePath,
+        family: artifact.family,
+        platform: artifact.platform,
+        arch: artifact.arch,
+        kind: artifact.kind,
+      })),
+      [
+        {
+          relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+        },
+        {
+          relativePath: 'web/claw-studio-web-assets-release-2026-03-31-03.tar.gz',
+          family: 'web',
+          platform: 'web',
+          arch: 'any',
+          kind: 'archive',
+        },
+      ],
+    );
     assert.match(checksums, /desktop\/windows\/x64\/Claw\.Studio_0\.1\.0_x64-setup\.exe/);
     assert.match(checksums, /web\/claw-studio-web-assets-release-2026-03-31-03\.tar\.gz/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer infers multi-family metadata when fallback assets do not have partial manifests', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-fallback-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const serverDir = path.join(releaseAssetsDir, 'server', 'linux', 'x64');
+  const containerDir = path.join(releaseAssetsDir, 'container', 'linux', 'arm64', 'cpu');
+  const kubernetesDir = path.join(releaseAssetsDir, 'kubernetes', 'linux', 'x64', 'nvidia-cuda');
+
+  try {
+    mkdirSync(serverDir, { recursive: true });
+    mkdirSync(containerDir, { recursive: true });
+    mkdirSync(kubernetesDir, { recursive: true });
+
+    writeFileSync(
+      path.join(serverDir, 'claw-studio-server-release-2026-04-03-05-linux-x64.tar.gz'),
+      'server-asset',
+      'utf8',
+    );
+    writeFileSync(
+      path.join(containerDir, 'claw-studio-container-bundle-release-2026-04-03-05-linux-arm64-cpu.tar.gz'),
+      'container-asset',
+      'utf8',
+    );
+    writeFileSync(
+      path.join(kubernetesDir, 'claw-studio-kubernetes-bundle-release-2026-04-03-05-linux-x64-nvidia-cuda.tar.gz'),
+      'kubernetes-asset',
+      'utf8',
+    );
+
+    finalizer.finalizeReleaseAssets({
+      profileId: 'claw-studio',
+      releaseTag: 'release-2026-04-03-05',
+      repository: 'Sdkwork-Cloud/claw-studio',
+      releaseAssetsDir,
+    });
+
+    const manifest = JSON.parse(
+      readFileSync(path.join(releaseAssetsDir, 'release-manifest.json'), 'utf8'),
+    );
+
+    assert.deepEqual(
+      manifest.artifacts.map((artifact) => ({
+        relativePath: artifact.relativePath,
+        family: artifact.family,
+        platform: artifact.platform,
+        arch: artifact.arch,
+        accelerator: artifact.accelerator,
+        kind: artifact.kind,
+      })),
+      [
+        {
+          relativePath: 'container/linux/arm64/cpu/claw-studio-container-bundle-release-2026-04-03-05-linux-arm64-cpu.tar.gz',
+          family: 'container',
+          platform: 'linux',
+          arch: 'arm64',
+          accelerator: 'cpu',
+          kind: 'archive',
+        },
+        {
+          relativePath: 'kubernetes/linux/x64/nvidia-cuda/claw-studio-kubernetes-bundle-release-2026-04-03-05-linux-x64-nvidia-cuda.tar.gz',
+          family: 'kubernetes',
+          platform: 'linux',
+          arch: 'x64',
+          accelerator: 'nvidia-cuda',
+          kind: 'archive',
+        },
+        {
+          relativePath: 'server/linux/x64/claw-studio-server-release-2026-04-03-05-linux-x64.tar.gz',
+          family: 'server',
+          platform: 'linux',
+          arch: 'x64',
+          accelerator: undefined,
+          kind: 'archive',
+        },
+      ],
+    );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

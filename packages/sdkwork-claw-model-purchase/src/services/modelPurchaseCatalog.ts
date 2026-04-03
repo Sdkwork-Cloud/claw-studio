@@ -1,6 +1,6 @@
 import { i18n, normalizeLanguage } from '@sdkwork/claw-i18n';
-import { studioMockService } from '@sdkwork/claw-infrastructure';
-import type { ApiRouterChannel } from '@sdkwork/claw-types';
+import { providerRoutingCatalogService } from '@sdkwork/claw-core';
+import type { ProviderChannel } from '@sdkwork/claw-types';
 
 export type ModelPurchaseVendorGroup = 'default' | 'us-top10' | 'china-top10';
 export type ModelPurchaseRegion = 'global' | 'us' | 'china';
@@ -460,7 +460,7 @@ function formatTokenAllowance(language: string | undefined, tokensInMillions: nu
 function buildVendorMetrics(
   language: string | undefined,
   profile: VendorProfile,
-  channel: ApiRouterChannel | null,
+  channel: ProviderChannel | null,
 ): ModelPurchaseVendorMetric[] {
   if (!channel) {
     return [
@@ -512,7 +512,7 @@ function buildBenefits(
   language: string | undefined,
   profile: VendorProfile,
   tierIndex: number,
-  channel: ApiRouterChannel | null,
+  channel: ProviderChannel | null,
 ) {
   const modelLine =
     tierIndex === 0
@@ -550,7 +550,7 @@ function buildBenefits(
 function buildCycle(
   language: string | undefined,
   profile: VendorProfile,
-  channel: ApiRouterChannel | null,
+  channel: ProviderChannel | null,
   cycleId: ModelPurchaseBillingCycleId,
 ): ModelPurchaseBillingCycle {
   const config = cycleConfigs[cycleId];
@@ -601,7 +601,7 @@ function buildCycle(
 function buildVendor(
   language: string | undefined,
   profile: VendorProfile,
-  channels: ApiRouterChannel[],
+  channels: ProviderChannel[],
 ): ModelPurchaseVendor {
   const channel = profile.channelId
     ? channels.find((item) => item.id === profile.channelId) ?? null
@@ -640,7 +640,7 @@ function buildVendor(
 
 export const modelPurchaseCatalogService = {
   async listVendors(language?: string): Promise<ModelPurchaseVendor[]> {
-    const channels = await studioMockService.listApiRouterChannels();
+    const channels = await providerRoutingCatalogService.listProviderChannels();
     return vendorProfiles.map((profile) => buildVendor(language, profile, channels));
   },
 };

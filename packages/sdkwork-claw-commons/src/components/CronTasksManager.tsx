@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { startTransition, type ReactNode, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -33,6 +33,7 @@ import {
   openClawAgentCatalogService,
   type OpenClawAgentCatalog,
   serializeTaskSchedule,
+  supportsTaskToolAllowlistConfig,
   taskService,
   taskThinkingLevels,
   type Task,
@@ -71,6 +72,7 @@ import {
   cn,
 } from '@sdkwork/claw-ui';
 import { toast } from 'sonner';
+import { loadTaskStudioSnapshot } from './cronTasksManagerData.ts';
 
 type TaskRouteIntent =
   | { mode: 'create' }
@@ -265,6 +267,7 @@ export function CronTasksManager({
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isEditorResourcesLoading, setIsEditorResourcesLoading] = useState(false);
   const [isSavingEditor, setIsSavingEditor] = useState(false);
   const [cloningTaskIds, setCloningTaskIds] = useState<string[]>([]);
   const [runningTaskIds, setRunningTaskIds] = useState<string[]>([]);
@@ -274,6 +277,9 @@ export function CronTasksManager({
   const [activeCreateSection, setActiveCreateSection] = useState<TaskCreateSectionId>('basicInfo');
   const [attemptedSave, setAttemptedSave] = useState(false);
   const [hasConsumedRouteIntent, setHasConsumedRouteIntent] = useState(false);
+  const [editorResourcesInstanceId, setEditorResourcesInstanceId] = useState<string | null>(null);
+  const editorResourcesRequestRef = useRef<Promise<void> | null>(null);
+  const activeInstanceIdRef = useRef(activeInstanceId);
 
   const editorErrors = collectTaskFormErrors(taskForm);
   const workspaceState = buildTaskCreateWorkspaceState(taskForm, editorErrors);
@@ -294,9 +300,18 @@ export function CronTasksManager({
     agentCatalog.agents.find((agent) => agent.isDefault) ||
     agentCatalog.agents.find((agent) => agent.id === agentCatalog.defaultAgentId) ||
     null;
-  const supportsAgentCatalogSelection = agentCatalog.defaultAgentId !== null;
+  const supportsAgentCatalogSelection =
+    isEditorResourcesLoading || agentCatalog.defaultAgentId !== null;
   const defaultTaskAgentId = agentCatalog.defaultAgentId || defaultTaskAgent?.id || 'main';
   const defaultTaskAgentName = defaultTaskAgent?.name || defaultTaskAgentId;
+  const supportsToolAllowlist = supportsTaskToolAllowlistConfig(
+    taskForm.sessionMode,
+    taskForm.executionContent,
+  );
+
+  useEffect(() => {
+    activeInstanceIdRef.current = activeInstanceId;
+  }, [activeInstanceId]);
 
   const stats = {
     total: tasks.length,
@@ -313,13 +328,21 @@ export function CronTasksManager({
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
     setHasConsumedRouteIntent(false);
+    setIsEditorResourcesLoading(false);
+    setEditorResourcesInstanceId(null);
+    editorResourcesRequestRef.current = null;
     setAgentCatalog({
       agents: [],
       defaultAgentId: null,
     });
   }, [activeInstanceId]);
 
-  async function refreshTaskStudio(mode: 'initial' | 'refresh' = 'refresh') {
+  async function refreshTaskStudio(
+    mode: 'initial' | 'refresh' = 'refresh',
+    options: {
+      includeEditorResources?: boolean;
+    } = {},
+  ) {
     if (!activeInstanceId) {
       setTasks([]);
       setExecutionsByTaskId({});
@@ -340,37 +363,53 @@ export function CronTasksManager({
     }
 
     try {
-      const [nextTasks, nextChannels, nextAgentCatalog] = await Promise.all([
-        taskService.getTasks(activeInstanceId),
-        taskService.listDeliveryChannels(activeInstanceId).catch(() => {
-          toast.error(t('tasks.page.toasts.failedToLoadChannels'));
-          return [];
-        }),
-        openClawAgentCatalogService.getCatalog(activeInstanceId).catch(() => ({
-          agents: [],
-          defaultAgentId: null,
-        })),
-      ]);
-      const executionEntries = await Promise.all(
-        nextTasks.map(async (task) => {
+      const snapshot = await loadTaskStudioSnapshot({
+        instanceId: activeInstanceId,
+        includeEditorResources: options.includeEditorResources,
+        historyTaskIds: historyTaskId ? [historyTaskId] : [],
+        getTasks: (instanceId) => taskService.getTasks(instanceId),
+        listDeliveryChannels: (instanceId) =>
+          taskService.listDeliveryChannels(instanceId).catch(() => {
+            toast.error(t('tasks.page.toasts.failedToLoadChannels'));
+            return [];
+          }),
+        getAgentCatalog: (instanceId) =>
+          openClawAgentCatalogService.getCatalog(instanceId).catch(() => ({
+            agents: [],
+            defaultAgentId: null,
+          })),
+        listTaskExecutions: async (taskId) => {
           try {
-            return [task.id, await taskService.listTaskExecutions(task.id)] as const;
+            return await taskService.listTaskExecutions(taskId);
           } catch {
-            return [task.id, [] as TaskExecutionHistoryEntry[]] as const;
+            return [] as TaskExecutionHistoryEntry[];
           }
-        }),
-      );
+        },
+      });
+      const nextTaskIds = new Set(snapshot.tasks.map((task) => task.id));
 
-      setTasks(nextTasks);
-      setDeliveryChannels(nextChannels);
-      setAgentCatalog(nextAgentCatalog);
-      setExecutionsByTaskId(
-        Object.fromEntries(executionEntries) as Record<string, TaskExecutionHistoryEntry[]>,
-      );
+      startTransition(() => {
+        setTasks(snapshot.tasks);
+        if (options.includeEditorResources) {
+          setDeliveryChannels(snapshot.deliveryChannels);
+          setAgentCatalog(snapshot.agentCatalog);
+          setEditorResourcesInstanceId(activeInstanceId);
+        }
+        setExecutionsByTaskId((current) => {
+          const preservedEntries = Object.fromEntries(
+            Object.entries(current).filter(([taskId]) => nextTaskIds.has(taskId)),
+          ) as Record<string, TaskExecutionHistoryEntry[]>;
 
-      if (historyTaskId && !nextTasks.some((task) => task.id === historyTaskId)) {
-        setHistoryTaskId(null);
-      }
+          return {
+            ...preservedEntries,
+            ...snapshot.executionsByTaskId,
+          };
+        });
+
+        if (historyTaskId && !snapshot.tasks.some((task) => task.id === historyTaskId)) {
+          setHistoryTaskId(null);
+        }
+      });
     } catch {
       toast.error(t('tasks.page.toasts.failedToLoad'));
     } finally {
@@ -380,8 +419,59 @@ export function CronTasksManager({
   }
 
   useEffect(() => {
-    void refreshTaskStudio('initial');
+    void refreshTaskStudio('initial', { includeEditorResources: false });
   }, [activeInstanceId]);
+
+  async function ensureEditorResources() {
+    if (!activeInstanceId) {
+      return;
+    }
+
+    if (editorResourcesInstanceId === activeInstanceId) {
+      return;
+    }
+
+    if (editorResourcesRequestRef.current) {
+      return editorResourcesRequestRef.current;
+    }
+
+    const requestedInstanceId = activeInstanceId;
+    setIsEditorResourcesLoading(true);
+
+    const request = Promise.all([
+      taskService.listDeliveryChannels(requestedInstanceId).catch(() => {
+        toast.error(t('tasks.page.toasts.failedToLoadChannels'));
+        return [] as TaskDeliveryChannelOption[];
+      }),
+      openClawAgentCatalogService.getCatalog(requestedInstanceId).catch(() => ({
+        agents: [],
+        defaultAgentId: null,
+      })),
+    ])
+      .then(([nextDeliveryChannels, nextAgentCatalog]) => {
+        if (activeInstanceIdRef.current !== requestedInstanceId) {
+          return;
+        }
+
+        startTransition(() => {
+          setDeliveryChannels(nextDeliveryChannels);
+          setAgentCatalog(nextAgentCatalog);
+          setEditorResourcesInstanceId(requestedInstanceId);
+        });
+      })
+      .finally(() => {
+        if (editorResourcesRequestRef.current === request) {
+          editorResourcesRequestRef.current = null;
+        }
+
+        if (activeInstanceIdRef.current === requestedInstanceId) {
+          setIsEditorResourcesLoading(false);
+        }
+      });
+
+    editorResourcesRequestRef.current = request;
+    return request;
+  }
 
   useEffect(() => {
     if (embedded || isLoading || !activeInstanceId || hasConsumedRouteIntent) {
@@ -484,6 +574,7 @@ export function CronTasksManager({
     setTaskForm(createDefaultTaskFormValues());
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
+    void ensureEditorResources();
   }
 
   function openEditEditor(task: Task) {
@@ -492,6 +583,7 @@ export function CronTasksManager({
     setTaskForm(buildTaskFormValuesFromTask(task));
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
+    void ensureEditorResources();
   }
 
   function closeEditor() {
@@ -1093,13 +1185,16 @@ export function CronTasksManager({
                     label: t('tasks.page.fields.deliveryChannel'),
                     meta: (
                       <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                        {deliveryChannels.length > 0
+                        {isEditorResourcesLoading
+                          ? t('common.loading')
+                          : deliveryChannels.length > 0
                           ? t('tasks.page.fields.deliveryChannelHelp')
                           : t('tasks.page.fields.noConnectedChannels')}
                       </p>
                     ),
                     children: (
                       <Select
+                        disabled={isEditorResourcesLoading || deliveryChannels.length === 0}
                         value={taskForm.deliveryChannel || undefined}
                         onValueChange={(value) => updateTaskFormField('deliveryChannel', value)}
                       >
@@ -1257,11 +1352,38 @@ export function CronTasksManager({
                   </div>
                 </>
               ) : null}
+              {supportsToolAllowlist
+                ? renderCompactField({
+                    label: t('tasks.page.fields.toolAllowlist'),
+                    meta: (
+                      <div className="space-y-2">
+                        <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                          {t('tasks.page.fields.toolAllowlistHelp')}
+                        </p>
+                        <p className="text-[11px] leading-5 text-zinc-400 dark:text-zinc-500">
+                          {t('tasks.page.fields.toolAllowlistTokensHelp')}
+                        </p>
+                      </div>
+                    ),
+                    bodyClassName: 'space-y-3',
+                    children: (
+                      <Textarea
+                        value={taskForm.toolAllowlist}
+                        onChange={(event) => updateTaskFormField('toolAllowlist', event.target.value)}
+                        placeholder={t('tasks.page.fields.toolAllowlistPlaceholder')}
+                        rows={6}
+                        className="font-mono text-xs leading-6"
+                      />
+                    ),
+                  })
+                : null}
               {renderCompactField({
                 label: t('tasks.page.fields.agentId'),
                 meta: (
                   <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                    {supportsAgentCatalogSelection
+                    {isEditorResourcesLoading
+                      ? t('common.loading')
+                      : supportsAgentCatalogSelection
                       ? selectedTaskAgentOption?.defaultRoute
                         ? t('tasks.page.fields.agentIdDefaultHelp', {
                             name: defaultTaskAgentName,
@@ -1277,6 +1399,7 @@ export function CronTasksManager({
                 ),
                 children: supportsAgentCatalogSelection ? (
                   <Select
+                    disabled={isEditorResourcesLoading}
                     value={taskAgentSelectState.value}
                     onValueChange={(value) =>
                       updateTaskFormField(

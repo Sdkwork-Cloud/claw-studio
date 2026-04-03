@@ -1,8 +1,8 @@
 use crate::framework::{FrameworkError, Result};
 use std::{fs, path::PathBuf};
-use tauri::{AppHandle, Runtime};
 #[cfg(not(windows))]
 use tauri::Manager;
+use tauri::{AppHandle, Runtime};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +32,11 @@ pub struct AppPaths {
     pub openclaw_state_dir: PathBuf,
     pub openclaw_workspace_dir: PathBuf,
     pub openclaw_config_file: PathBuf,
+    pub local_ai_proxy_config_file: PathBuf,
+    pub local_ai_proxy_snapshot_file: PathBuf,
+    pub local_ai_proxy_token_file: PathBuf,
+    pub local_ai_proxy_observability_db_file: PathBuf,
+    pub local_ai_proxy_log_file: PathBuf,
     pub user_dir: PathBuf,
     pub user_auth_dir: PathBuf,
     pub user_storage_dir: PathBuf,
@@ -197,6 +202,12 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let cache_dir = machine_staging_dir.clone();
     let logs_dir = machine_logs_dir.join("app");
     let state_dir = machine_runtime_dir.join("state");
+    let local_ai_proxy_config_file = machine_state_dir.join("local-ai-proxy.json");
+    let local_ai_proxy_snapshot_file = state_dir.join("local-ai-proxy.snapshot.json");
+    let local_ai_proxy_token_file = state_dir.join("local-ai-proxy.token");
+    let local_ai_proxy_observability_db_file =
+        machine_store_dir.join("local-ai-proxy-observability.sqlite3");
+    let local_ai_proxy_log_file = logs_dir.join("local-ai-proxy.log");
     let storage_dir = user_storage_dir.clone();
     let integrations_dir = user_integrations_dir.clone();
     let backups_dir = studio_backups_dir.clone();
@@ -244,6 +255,11 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
         openclaw_state_dir,
         openclaw_workspace_dir,
         openclaw_config_file,
+        local_ai_proxy_config_file,
+        local_ai_proxy_snapshot_file,
+        local_ai_proxy_token_file,
+        local_ai_proxy_observability_db_file,
+        local_ai_proxy_log_file,
         user_dir,
         user_auth_dir,
         user_storage_dir,
@@ -454,6 +470,14 @@ mod tests {
             .ends_with("user-home/openclaw-home/.openclaw/workspace"));
         assert!(normalize(&paths.openclaw_config_file)
             .ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
+        assert!(normalize(&paths.local_ai_proxy_config_file)
+            .ends_with("machine/state/local-ai-proxy.json"));
+        assert!(normalize(&paths.local_ai_proxy_snapshot_file)
+            .ends_with("machine/runtime/state/local-ai-proxy.snapshot.json"));
+        assert!(normalize(&paths.local_ai_proxy_token_file)
+            .ends_with("machine/runtime/state/local-ai-proxy.token"));
+        assert!(normalize(&paths.local_ai_proxy_log_file)
+            .ends_with("machine/logs/app/local-ai-proxy.log"));
         assert!(paths.managed_runtimes_dir.exists());
         assert!(paths.openclaw_runtime_dir.exists());
         assert!(paths.user_bin_dir.exists());

@@ -1,4 +1,3 @@
-import { CheckCircle2 } from 'lucide-react';
 import { startTransition, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -28,12 +27,6 @@ export function ModelPurchase() {
     null,
   );
   const [paymentMethod, setPaymentMethod] = useState<ModelPurchasePaymentMethod>('wechat');
-  const [lastCompletedPurchase, setLastCompletedPurchase] = useState<{
-    vendorName: string;
-    planName: string;
-    cycleLabel: string;
-    priceCny: number;
-  } | null>(null);
   const {
     data: vendors = [],
     isLoading,
@@ -158,19 +151,8 @@ export function ModelPurchase() {
   };
 
   const handleConfirmPayment = () => {
-    if (!checkoutVendor || !checkoutCycle || !checkoutPlan) {
-      return;
-    }
-
-    startTransition(() => {
-      setLastCompletedPurchase({
-        vendorName: checkoutVendor.name,
-        planName: checkoutPlan.name,
-        cycleLabel: checkoutCycle.label,
-        priceCny: checkoutPlan.priceCny,
-      });
-      setView('plans');
-    });
+    // Order submission is intentionally disabled until this workspace
+    // is connected to a live commercial checkout contract.
   };
 
   const paymentViewModel =
@@ -181,7 +163,6 @@ export function ModelPurchase() {
           plan: checkoutPlan,
         }
       : null;
-  const priceFormatter = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language);
 
   return (
     <div
@@ -189,30 +170,6 @@ export function ModelPurchase() {
       className="h-full min-h-0 px-4 py-4 sm:px-4 sm:py-5 xl:overflow-hidden"
     >
       <div className="flex h-full min-h-0 flex-col gap-4">
-        {lastCompletedPurchase ? (
-          <div className="rounded-[28px] border border-emerald-200/80 bg-emerald-50/85 px-5 py-4 text-sm text-emerald-700 shadow-[0_18px_48px_rgba(16,185,129,0.12)] dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
-            <div className="flex flex-wrap items-start gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/90 text-emerald-600 dark:bg-zinc-950/80 dark:text-emerald-300">
-                <CheckCircle2 className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold">
-                  {t('modelPurchase.payment.successBanner', {
-                    vendor: lastCompletedPurchase.vendorName,
-                    plan: lastCompletedPurchase.planName,
-                    cycle: lastCompletedPurchase.cycleLabel,
-                  })}
-                </div>
-                <div className="mt-1 text-emerald-700/80 dark:text-emerald-300/80">
-                  {t('modelPurchase.payment.successDescription', {
-                    price: `${t('modelPurchase.currency.cny')} ${priceFormatter.format(lastCompletedPurchase.priceCny)}`,
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {paymentViewModel ? (
           <section
             data-slot="model-purchase-main-panel"
@@ -230,6 +187,8 @@ export function ModelPurchase() {
               }
               onBack={handleBackToPlans}
               onConfirmPayment={handleConfirmPayment}
+              checkoutEnabled={false}
+              checkoutUnavailableMessage={t('modelPurchase.payment.unavailableMessage')}
             />
           </section>
         ) : (

@@ -143,6 +143,10 @@ export class WebPlatform implements PlatformAPI {
     throw new Error('pathExists not supported in web');
   }
 
+  async pathExistsForUserTooling(_path: string): Promise<boolean> {
+    throw new Error('pathExistsForUserTooling not supported in web');
+  }
+
   async getPathInfo(_path: string): Promise<PlatformPathInfo> {
     throw new Error('getPathInfo not supported in web');
   }
@@ -173,6 +177,10 @@ export class WebPlatform implements PlatformAPI {
 
   async readFile(_path: string): Promise<string> {
     throw new Error('readFile not supported in web');
+  }
+
+  async readFileForUserTooling(_path: string): Promise<string> {
+    throw new Error('readFileForUserTooling not supported in web');
   }
 
   async writeFile(_path: string, _content: string): Promise<void> {

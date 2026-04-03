@@ -1,25 +1,8 @@
-import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
-import { useInstanceStore } from '@sdkwork/claw-core';
+import { useInstanceStore, useLLMStore } from '@sdkwork/claw-core';
 import { studio } from '@sdkwork/claw-infrastructure';
-import { useLLMStore } from '@sdkwork/claw-settings';
 import type { Agent, Skill, StudioInstanceRecord } from '@sdkwork/claw-types';
 import { resolveInstanceChatRoute } from './instanceChatRouteService.ts';
-import { openClawConversationGateway } from './openClawConversationGateway.ts';
-import type { ChatSession } from '../store/useChatStore.ts';
 import type { ChatModel } from '../types/index.ts';
-
-const VITE_ENV = ((import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ??
-  {}) as Record<string, string | undefined>;
-
-const API_KEY_MAP: Record<string, string> = {
-  anthropic: VITE_ENV.VITE_ANTHROPIC_API_KEY || '',
-  azure: VITE_ENV.VITE_AZURE_API_KEY || '',
-  deepseek: VITE_ENV.VITE_DEEPSEEK_API_KEY || '',
-  google: VITE_ENV.VITE_GEMINI_API_KEY || '',
-  moonshot: VITE_ENV.VITE_MOONSHOT_API_KEY || '',
-  openai: VITE_ENV.VITE_OPENAI_API_KEY || '',
-  qwen: VITE_ENV.VITE_QWEN_API_KEY || '',
-};
 
 const DEFAULT_SYSTEM_INSTRUCTION =
   'You are Claw Studio AI assistant. You help users manage devices, write automation scripts, and answer questions about the ClawHub ecosystem. Keep your answers concise and helpful.';
@@ -30,11 +13,6 @@ const DEFAULT_LLM_CONFIG = {
   topP: 1,
 };
 
-export interface ChatServiceRequestContext {
-  instanceId?: string | null;
-  session?: ChatSession | null;
-}
-
 export interface IChatService {
   createChatSession(modelId: string, skill?: Skill, agent?: Agent): any;
   sendMessageStream(
@@ -44,7 +22,6 @@ export interface IChatService {
     skill?: Skill,
     agent?: Agent,
     abortSignal?: AbortSignal,
-    context?: ChatServiceRequestContext,
   ): AsyncGenerator<string, void, unknown>;
 }
 
@@ -52,7 +29,7 @@ export function buildSystemInstruction(skill?: Skill, agent?: Agent) {
   let systemInstruction = agent?.systemPrompt ?? DEFAULT_SYSTEM_INSTRUCTION;
 
   if (skill) {
-    systemInstruction += `\n\nYou are currently equipped with the "${skill.name}" skill.\nSkill Description: ${skill.description}\nSkill Category: ${skill.category}\n\nPlease use this skill's context to assist the user. If the user asks you to perform an action related to this skill, simulate the execution and provide a helpful response based on the skill's capabilities.`;
+    systemInstruction += `\n\nYou are currently equipped with the "${skill.name}" skill.\nSkill Description: ${skill.description}\nSkill Category: ${skill.category}\n\nUse this skill context when it is relevant. Do not claim an action was executed unless the live runtime or an actual tool invocation completed it.`;
   }
 
   return systemInstruction;
@@ -258,7 +235,6 @@ async function resolveActiveInstanceRoute() {
   const { activeInstanceId } = useInstanceStore.getState();
   if (!activeInstanceId) {
     return {
-      activeInstanceId: null,
       activeInstance: null,
       route: resolveInstanceChatRoute(null),
     };
@@ -266,82 +242,43 @@ async function resolveActiveInstanceRoute() {
 
   const activeInstance = await studio.getInstance(activeInstanceId);
   return {
-    activeInstanceId,
     activeInstance,
     route: resolveInstanceChatRoute(activeInstance),
   };
 }
 
 class ChatService implements IChatService {
-  private ai: GoogleGenAI | null = null;
-
-  private getClient() {
-    if (!this.ai) {
-      this.ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
-    }
-
-    return this.ai;
-  }
-
-  createChatSession(modelId: string, skill?: Skill, agent?: Agent) {
-    return this.getClient().chats.create({
-      model: modelId,
-      config: {
-        systemInstruction: buildSystemInstruction(skill, agent),
-      },
-    });
+  createChatSession(_modelId: string, _skill?: Skill, _agent?: Agent) {
+    return null;
   }
 
   async *sendMessageStream(
-    chatSession: any,
+    _chatSession: any,
     message: string,
     model: ChatModel,
     skill?: Skill,
     agent?: Agent,
     abortSignal?: AbortSignal,
-    context?: ChatServiceRequestContext,
   ): AsyncGenerator<string, void, unknown> {
-    const { channels, getInstanceConfig } = useLLMStore.getState();
     const { activeInstanceId } = useInstanceStore.getState();
-    const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
+    const instanceConfig = activeInstanceId
+      ? useLLMStore.getState().getInstanceConfig(activeInstanceId)
+      : null;
     const config = instanceConfig?.config ?? DEFAULT_LLM_CONFIG;
-    const channel =
-      (instanceConfig &&
-        channels.find((item) => item.id === instanceConfig.activeChannelId)) ||
-      channels.find((item) => item.provider === model.provider);
-
-    const finalMessage =
-      model.provider === 'google' ? message : buildContextualMessage(message, skill, agent);
-
+    const finalMessage = buildContextualMessage(message, skill, agent);
     const { activeInstance, route } = await resolveActiveInstanceRoute();
-    const openClawMessage = buildContextualMessage(message, skill, agent);
 
-    if (activeInstance?.runtimeKind === 'openclaw' && context?.session) {
-      try {
-        yield* openClawConversationGateway.sendMessageStream({
-          instanceId: context.instanceId || activeInstance.id,
-          session: context.session,
-          message: openClawMessage,
-          model,
-          abortSignal,
-        });
-        return;
-      } catch (error: any) {
-        if (error?.name === 'AbortError') {
-          throw error;
-        }
-
-        yield `\n\n**Error connecting to ${activeInstance.name}:** ${error.message}`;
-        return;
-      }
+    if (!activeInstance) {
+      yield 'Error: Select or start an OpenClaw-compatible instance to chat.';
+      return;
     }
 
-    if (activeInstance && route.mode === 'instanceOpenClawGatewayWs') {
+    if (route.mode === 'instanceOpenClawGatewayWs') {
       yield `\n\n**${activeInstance.name}** uses the native OpenClaw Gateway WebSocket flow. Claw Studio now drives that route through the chat session store instead of the generic HTTP stream service.`;
       return;
     }
 
-    if (activeInstance && route.endpoint) {
+    if (route.endpoint) {
       try {
         yield* streamOpenAiCompatibleRequest(
           route.endpoint,
@@ -382,77 +319,17 @@ class ChatService implements IChatService {
       }
     }
 
-    if (activeInstance && route.mode === 'instanceWebSocket') {
+    if (route.mode === 'instanceWebSocket') {
       yield `\n\n**${activeInstance.name}** currently only publishes a WebSocket chat route (${route.websocketUrl}). Configure an HTTP endpoint to enable Claw Studio chat streaming.`;
       return;
     }
 
-    if (activeInstance && route.mode === 'unsupported') {
+    if (route.mode === 'unsupported') {
       yield `\n\n**${activeInstance.name}** is not chat-ready yet: ${route.reason}`;
       return;
     }
 
-    if (model.provider === 'google' && chatSession) {
-      const responseStream = await chatSession.sendMessageStream({ message: finalMessage });
-      for await (const chunk of responseStream) {
-        if (abortSignal?.aborted) {
-          break;
-        }
-
-        const responseChunk = chunk as GenerateContentResponse;
-        if (responseChunk.text) {
-          yield responseChunk.text;
-        }
-      }
-      return;
-    }
-
-    if (channel && channel.provider !== 'google') {
-      const apiKey = channel.apiKey || API_KEY_MAP[channel.provider];
-
-      if (!apiKey) {
-        yield `Error: No API key configured for ${channel.name}. Please set it in the Settings.`;
-        return;
-      }
-
-      try {
-        yield* streamOpenAiCompatibleRequest(
-          `${channel.baseUrl}/chat/completions`,
-          {
-            model: model.id,
-            messages: [{ role: 'user', content: finalMessage }],
-            temperature: config.temperature,
-            max_tokens: config.maxTokens,
-            top_p: config.topP,
-            stream: true,
-          },
-          {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          abortSignal,
-        );
-        return;
-      } catch (error: any) {
-        if (error?.name === 'AbortError') {
-          throw error;
-        }
-
-        yield `\n\n**Error connecting to ${channel.name}:** ${error.message}\n\nThis is a simulated response since the API call failed.`;
-        return;
-      }
-    }
-
-    const responseText = `Here is a simulated response from **${model.name}**.\n\nI can format text with markdown, like **bold**, *italics*, and \`inline code\`.\n\nI can also write code blocks:\n\n\`\`\`javascript\nfunction greet(name) {\n  console.log(\`Hello, \${name}!\`);\n}\ngreet('Claw Studio User');\n\`\`\`\n\nHow else can I assist you today?`;
-
-    for (let index = 0; index < responseText.length; index += 1) {
-      if (abortSignal?.aborted) {
-        break;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      yield responseText.charAt(index);
-    }
+    yield `\n\n**${activeInstance.name}** does not currently expose a compatible streaming chat endpoint.`;
   }
 }
 

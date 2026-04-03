@@ -1,6 +1,8 @@
 import type { ComponentPlatformAPI } from './contracts/components.ts';
+import type { InternalPlatformAPI } from './contracts/internal.ts';
 import type { InstallerPlatformAPI } from './contracts/installer.ts';
 import type { KernelPlatformAPI } from './contracts/kernel.ts';
+import type { ManagePlatformAPI } from './contracts/manage.ts';
 import type { StoragePlatformAPI } from './contracts/storage.ts';
 import type { StudioPlatformAPI } from './contracts/studio.ts';
 import type { RuntimePlatformAPI } from './contracts/runtime.ts';
@@ -12,12 +14,15 @@ import { WebPlatform } from './web.ts';
 import { WebRuntimePlatform } from './webRuntime.ts';
 import { WebStoragePlatform } from './webStorage.ts';
 import { WebStudioPlatform } from './webStudio.ts';
+import type { StudioInstanceDetailRecord, StudioInstanceRecord } from '@sdkwork/claw-types';
 
 export interface PlatformBridge {
   platform: PlatformAPI;
   kernel: KernelPlatformAPI;
   components: ComponentPlatformAPI;
   installer: InstallerPlatformAPI;
+  manage: ManagePlatformAPI;
+  internal: InternalPlatformAPI;
   runtime: RuntimePlatformAPI;
   storage: StoragePlatformAPI;
   studio: StudioPlatformAPI;
@@ -29,12 +34,58 @@ type GlobalPlatformBridgeState = typeof globalThis & {
   [PLATFORM_BRIDGE_GLOBAL_KEY]?: PlatformBridge;
 };
 
+function createDefaultManagePlatform(): ManagePlatformAPI {
+  return {
+    async listRollouts() {
+      return {
+        items: [],
+        total: 0,
+      };
+    },
+    async previewRollout(input) {
+      throw new Error(
+        `Manage rollout preview is not available for the active platform bridge: ${input.rolloutId}`,
+      );
+    },
+    async startRollout(rolloutId) {
+      throw new Error(
+        `Manage rollout start is not available for the active platform bridge: ${rolloutId}`,
+      );
+    },
+  };
+}
+
+function createDefaultInternalPlatform(): InternalPlatformAPI {
+  return {
+    async getHostPlatformStatus() {
+      return {
+        mode: 'web',
+        lifecycle: 'inactive',
+        hostId: 'web-preview',
+        displayName: 'Web Preview',
+        version: 'web-preview',
+        desiredStateProjectionVersion: 'phase1',
+        rolloutEngineVersion: 'phase1',
+        manageBasePath: '/claw/manage/v1',
+        internalBasePath: '/claw/internal/v1',
+        capabilityKeys: [],
+        updatedAt: Date.now(),
+      };
+    },
+    async listNodeSessions() {
+      return [];
+    },
+  };
+}
+
 function createDefaultPlatformBridge(): PlatformBridge {
   return {
     platform: new WebPlatform(),
     kernel: new WebKernelPlatform(),
     components: new WebComponentPlatform(),
     installer: new WebInstallerPlatform(),
+    manage: createDefaultManagePlatform(),
+    internal: createDefaultInternalPlatform(),
     runtime: new WebRuntimePlatform(),
     storage: new WebStoragePlatform(),
     studio: new WebStudioPlatform(),
@@ -66,11 +117,163 @@ function syncPlatformBridge() {
 let platformBridge: PlatformBridge =
   readGlobalPlatformBridge() ?? writeGlobalPlatformBridge(createDefaultPlatformBridge());
 
+type TimedPromiseCacheEntry<T> = {
+  expiresAt: number;
+  promise: Promise<T>;
+};
+
+type KernelInfoCacheValue = Awaited<ReturnType<KernelPlatformAPI['getInfo']>>;
+type KernelStatusCacheValue = Awaited<ReturnType<KernelPlatformAPI['getStatus']>>;
+type RuntimeInfoCacheValue = Awaited<ReturnType<RuntimePlatformAPI['getRuntimeInfo']>>;
+type InstallerCatalogCacheValue = Awaited<ReturnType<InstallerPlatformAPI['listHubInstallCatalog']>>;
+type InstallerInspectCacheValue = Awaited<ReturnType<InstallerPlatformAPI['inspectHubInstall']>>;
+
+const STUDIO_LIST_CACHE_KEY = '__all__';
+const STUDIO_LIST_CACHE_TTL_MS = 1_500;
+export const STUDIO_DETAIL_CACHE_TTL_MS = 2_000;
+const KERNEL_INFO_CACHE_KEY = '__kernel_info__';
+const KERNEL_STATUS_CACHE_KEY = '__kernel_status__';
+const RUNTIME_INFO_CACHE_KEY = '__runtime_info__';
+const KERNEL_CACHE_TTL_MS = 1_500;
+const RUNTIME_INFO_CACHE_TTL_MS = 1_500;
+const INSTALLER_INSPECT_CACHE_TTL_MS = 1_500;
+
+const studioListCache = new Map<string, TimedPromiseCacheEntry<StudioInstanceRecord[]>>();
+const studioDetailCache = new Map<
+  string,
+  TimedPromiseCacheEntry<StudioInstanceDetailRecord | null>
+>();
+const kernelInfoCache = new Map<string, TimedPromiseCacheEntry<KernelInfoCacheValue>>();
+const kernelStatusCache = new Map<string, TimedPromiseCacheEntry<KernelStatusCacheValue>>();
+const runtimeInfoCache = new Map<string, TimedPromiseCacheEntry<RuntimeInfoCacheValue>>();
+const installerCatalogCache = new Map<string, TimedPromiseCacheEntry<InstallerCatalogCacheValue>>();
+const installerInspectCache = new Map<string, TimedPromiseCacheEntry<InstallerInspectCacheValue>>();
+
+function withTimedPromiseCache<T>(
+  cache: Map<string, TimedPromiseCacheEntry<T>>,
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+
+  const nextPromise = Promise.resolve()
+    .then(loader)
+    .catch((error) => {
+      const current = cache.get(key);
+      if (current?.promise === nextPromise) {
+        cache.delete(key);
+      }
+      throw error;
+    });
+
+  cache.set(key, {
+    expiresAt: now + ttlMs,
+    promise: nextPromise,
+  });
+
+  return nextPromise;
+}
+
+function invalidateStudioCaches(instanceId?: string) {
+  studioListCache.clear();
+  if (instanceId) {
+    studioDetailCache.delete(instanceId);
+    return;
+  }
+
+  studioDetailCache.clear();
+}
+
+function invalidateKernelCaches() {
+  kernelInfoCache.clear();
+  kernelStatusCache.clear();
+}
+
+function invalidateRuntimeCaches() {
+  runtimeInfoCache.clear();
+}
+
+function invalidateInstallerCaches() {
+  installerCatalogCache.clear();
+  installerInspectCache.clear();
+}
+
+function createInstallerCatalogCacheKey(
+  query?: Parameters<InstallerPlatformAPI['listHubInstallCatalog']>[0],
+) {
+  return JSON.stringify({
+    hostPlatform: query?.hostPlatform ?? null,
+  });
+}
+
+function normalizeInstallerVariables(variables?: Record<string, string>) {
+  if (!variables) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(variables).sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey)),
+  );
+}
+
+function createInstallerInspectCacheKey(
+  request: Parameters<InstallerPlatformAPI['inspectHubInstall']>[0],
+) {
+  return JSON.stringify({
+    softwareName: request.softwareName,
+    requestId: request.requestId ?? null,
+    registrySource: request.registrySource ?? null,
+    installScope: request.installScope ?? null,
+    effectiveRuntimePlatform: request.effectiveRuntimePlatform ?? null,
+    containerRuntimePreference: request.containerRuntimePreference ?? null,
+    wslDistribution: request.wslDistribution ?? null,
+    dockerContext: request.dockerContext ?? null,
+    dockerHost: request.dockerHost ?? null,
+    dryRun: request.dryRun ?? null,
+    verbose: request.verbose ?? null,
+    sudo: request.sudo ?? null,
+    timeoutMs: request.timeoutMs ?? null,
+    installerHome: request.installerHome ?? null,
+    installRoot: request.installRoot ?? null,
+    workRoot: request.workRoot ?? null,
+    binDir: request.binDir ?? null,
+    dataRoot: request.dataRoot ?? null,
+    variables: normalizeInstallerVariables(request.variables),
+  });
+}
+
+async function invalidateAfter<T>(instanceId: string | undefined, loader: () => Promise<T>) {
+  const result = await loader();
+  invalidateStudioCaches(instanceId);
+  return result;
+}
+
+async function invalidateKernelAfter<T>(loader: () => Promise<T>) {
+  const result = await loader();
+  invalidateKernelCaches();
+  return result;
+}
+
+async function invalidateInstallerAfter<T>(loader: () => Promise<T>) {
+  const result = await loader();
+  invalidateInstallerCaches();
+  return result;
+}
+
 export function configurePlatformBridge(nextBridge: Partial<PlatformBridge>) {
   platformBridge = writeGlobalPlatformBridge({
     ...syncPlatformBridge(),
     ...nextBridge,
   });
+  invalidateStudioCaches();
+  invalidateKernelCaches();
+  invalidateRuntimeCaches();
+  invalidateInstallerCaches();
 }
 
 export function getPlatformBridge(): PlatformBridge {
@@ -79,6 +282,14 @@ export function getPlatformBridge(): PlatformBridge {
 
 export function getInstallerPlatform(): InstallerPlatformAPI {
   return getPlatformBridge().installer;
+}
+
+export function getManagePlatform(): ManagePlatformAPI {
+  return getPlatformBridge().manage;
+}
+
+export function getInternalPlatform(): InternalPlatformAPI {
+  return getPlatformBridge().internal;
 }
 
 export function getComponentPlatform(): ComponentPlatformAPI {
@@ -122,6 +333,7 @@ export const platform: PlatformAPI = {
   closeWindow: () => getPlatformBridge().platform.closeWindow(),
   listDirectory: (path) => getPlatformBridge().platform.listDirectory(path),
   pathExists: (path) => getPlatformBridge().platform.pathExists(path),
+  pathExistsForUserTooling: (path) => getPlatformBridge().platform.pathExistsForUserTooling(path),
   getPathInfo: (path) => getPlatformBridge().platform.getPathInfo(path),
   createDirectory: (path) => getPlatformBridge().platform.createDirectory(path),
   removePath: (path) => getPlatformBridge().platform.removePath(path),
@@ -130,6 +342,7 @@ export const platform: PlatformAPI = {
   readBinaryFile: (path) => getPlatformBridge().platform.readBinaryFile(path),
   writeBinaryFile: (path, content) => getPlatformBridge().platform.writeBinaryFile(path, content),
   readFile: (path) => getPlatformBridge().platform.readFile(path),
+  readFileForUserTooling: (path) => getPlatformBridge().platform.readFileForUserTooling(path),
   writeFile: (path, content) => getPlatformBridge().platform.writeFile(path, content),
 };
 
@@ -142,47 +355,152 @@ export const storage: StoragePlatformAPI = {
 };
 
 export const kernel: KernelPlatformAPI = {
-  getInfo: () => getPlatformBridge().kernel.getInfo(),
+  getInfo: () =>
+    withTimedPromiseCache(kernelInfoCache, KERNEL_INFO_CACHE_KEY, KERNEL_CACHE_TTL_MS, () =>
+      getPlatformBridge().kernel.getInfo(),
+    ),
   getStorageInfo: () => getPlatformBridge().kernel.getStorageInfo(),
-  getStatus: () => getPlatformBridge().kernel.getStatus(),
-  ensureRunning: () => getPlatformBridge().kernel.ensureRunning(),
-  restart: () => getPlatformBridge().kernel.restart(),
+  getStatus: () =>
+    withTimedPromiseCache(kernelStatusCache, KERNEL_STATUS_CACHE_KEY, KERNEL_CACHE_TTL_MS, () =>
+      getPlatformBridge().kernel.getStatus(),
+    ),
+  ensureRunning: () => invalidateKernelAfter(() => getPlatformBridge().kernel.ensureRunning()),
+  restart: () => invalidateKernelAfter(() => getPlatformBridge().kernel.restart()),
+  testLocalAiProxyRoute: (routeId) =>
+    invalidateKernelAfter(() => getPlatformBridge().kernel.testLocalAiProxyRoute(routeId)),
+  listLocalAiProxyRequestLogs: (query) =>
+    getPlatformBridge().kernel.listLocalAiProxyRequestLogs(query),
+  listLocalAiProxyMessageLogs: (query) =>
+    getPlatformBridge().kernel.listLocalAiProxyMessageLogs(query),
+  updateLocalAiProxyMessageCapture: (enabled) =>
+    invalidateKernelAfter(() => getPlatformBridge().kernel.updateLocalAiProxyMessageCapture(enabled)),
+};
+
+export const runtime: RuntimePlatformAPI = {
+  getRuntimeInfo: () =>
+    withTimedPromiseCache(
+      runtimeInfoCache,
+      RUNTIME_INFO_CACHE_KEY,
+      RUNTIME_INFO_CACHE_TTL_MS,
+      () => getPlatformBridge().runtime.getRuntimeInfo(),
+    ),
+  setAppLanguage: async (language) => {
+    const result = await getPlatformBridge().runtime.setAppLanguage(language);
+    invalidateRuntimeCaches();
+    return result;
+  },
+  submitProcessJob: (profileId) => getPlatformBridge().runtime.submitProcessJob(profileId),
+  getJob: (id) => getPlatformBridge().runtime.getJob(id),
+  listJobs: () => getPlatformBridge().runtime.listJobs(),
+  cancelJob: (id) => getPlatformBridge().runtime.cancelJob(id),
+  subscribeJobUpdates: (listener) => getPlatformBridge().runtime.subscribeJobUpdates(listener),
+  subscribeProcessOutput: (listener) =>
+    getPlatformBridge().runtime.subscribeProcessOutput(listener),
+};
+
+export const manage: ManagePlatformAPI = {
+  listRollouts: () => getPlatformBridge().manage.listRollouts(),
+  previewRollout: (input) => getPlatformBridge().manage.previewRollout(input),
+  startRollout: (rolloutId) => getPlatformBridge().manage.startRollout(rolloutId),
+};
+
+export const internal: InternalPlatformAPI = {
+  getHostPlatformStatus: () => getPlatformBridge().internal.getHostPlatformStatus(),
+  listNodeSessions: () => getPlatformBridge().internal.listNodeSessions(),
+};
+
+export const installer: InstallerPlatformAPI = {
+  listHubInstallCatalog: (query) =>
+    withTimedPromiseCache(
+      installerCatalogCache,
+      createInstallerCatalogCacheKey(query),
+      INSTALLER_INSPECT_CACHE_TTL_MS,
+      () => getPlatformBridge().installer.listHubInstallCatalog(query),
+    ),
+  inspectHubInstall: (request) =>
+    withTimedPromiseCache(
+      installerInspectCache,
+      createInstallerInspectCacheKey(request),
+      INSTALLER_INSPECT_CACHE_TTL_MS,
+      () => getPlatformBridge().installer.inspectHubInstall(request),
+    ),
+  runHubDependencyInstall: (request) =>
+    invalidateInstallerAfter(() => getPlatformBridge().installer.runHubDependencyInstall(request)),
+  runHubInstall: (request) =>
+    invalidateInstallerAfter(() => getPlatformBridge().installer.runHubInstall(request)),
+  runHubUninstall: (request) =>
+    invalidateInstallerAfter(() => getPlatformBridge().installer.runHubUninstall(request)),
+  subscribeHubInstallProgress: (listener) =>
+    getPlatformBridge().installer.subscribeHubInstallProgress(listener),
 };
 
 export const studio: StudioPlatformAPI = {
-  listInstances: () => getPlatformBridge().studio.listInstances(),
+  listInstances: () =>
+    withTimedPromiseCache(studioListCache, STUDIO_LIST_CACHE_KEY, STUDIO_LIST_CACHE_TTL_MS, () =>
+      getPlatformBridge().studio.listInstances(),
+    ),
   getInstance: (id) => getPlatformBridge().studio.getInstance(id),
-  getInstanceDetail: (id) => getPlatformBridge().studio.getInstanceDetail(id),
+  getInstanceDetail: (id) =>
+    withTimedPromiseCache(studioDetailCache, id, STUDIO_DETAIL_CACHE_TTL_MS, () =>
+      getPlatformBridge().studio.getInstanceDetail(id),
+    ),
   invokeOpenClawGateway: (instanceId, request, options) =>
     getPlatformBridge().studio.invokeOpenClawGateway?.(instanceId, request, options),
-  createInstance: (input) => getPlatformBridge().studio.createInstance(input),
-  updateInstance: (id, input) => getPlatformBridge().studio.updateInstance(id, input),
-  deleteInstance: (id) => getPlatformBridge().studio.deleteInstance(id),
-  startInstance: (id) => getPlatformBridge().studio.startInstance(id),
-  stopInstance: (id) => getPlatformBridge().studio.stopInstance(id),
-  restartInstance: (id) => getPlatformBridge().studio.restartInstance(id),
-  setInstanceStatus: (id, status) => getPlatformBridge().studio.setInstanceStatus(id, status),
+  createInstance: async (input) => {
+    const instance = await getPlatformBridge().studio.createInstance(input);
+    invalidateStudioCaches(instance.id);
+    return instance;
+  },
+  updateInstance: (id, input) =>
+    invalidateAfter(id, () => getPlatformBridge().studio.updateInstance(id, input)),
+  deleteInstance: (id) =>
+    invalidateAfter(id, () => getPlatformBridge().studio.deleteInstance(id)),
+  startInstance: (id) =>
+    invalidateAfter(id, () => getPlatformBridge().studio.startInstance(id)),
+  stopInstance: (id) =>
+    invalidateAfter(id, () => getPlatformBridge().studio.stopInstance(id)),
+  restartInstance: (id) =>
+    invalidateAfter(id, () => getPlatformBridge().studio.restartInstance(id)),
+  setInstanceStatus: (id, status) =>
+    invalidateAfter(id, () => getPlatformBridge().studio.setInstanceStatus(id, status)),
   getInstanceConfig: (id) => getPlatformBridge().studio.getInstanceConfig(id),
-  updateInstanceConfig: (id, config) => getPlatformBridge().studio.updateInstanceConfig(id, config),
+  updateInstanceConfig: (id, config) =>
+    invalidateAfter(id, () => getPlatformBridge().studio.updateInstanceConfig(id, config)),
   getInstanceLogs: (id) => getPlatformBridge().studio.getInstanceLogs(id),
   createInstanceTask: (instanceId, payload) =>
-    getPlatformBridge().studio.createInstanceTask(instanceId, payload),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.createInstanceTask(instanceId, payload),
+    ),
   updateInstanceTask: (instanceId, taskId, payload) =>
-    getPlatformBridge().studio.updateInstanceTask(instanceId, taskId, payload),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.updateInstanceTask(instanceId, taskId, payload),
+    ),
   updateInstanceFileContent: (instanceId, fileId, content) =>
-    getPlatformBridge().studio.updateInstanceFileContent(instanceId, fileId, content),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.updateInstanceFileContent(instanceId, fileId, content),
+    ),
   updateInstanceLlmProviderConfig: (instanceId, providerId, update) =>
-    getPlatformBridge().studio.updateInstanceLlmProviderConfig(instanceId, providerId, update),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.updateInstanceLlmProviderConfig(instanceId, providerId, update),
+    ),
   cloneInstanceTask: (instanceId, taskId, name) =>
-    getPlatformBridge().studio.cloneInstanceTask(instanceId, taskId, name),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.cloneInstanceTask(instanceId, taskId, name),
+    ),
   runInstanceTaskNow: (instanceId, taskId) =>
-    getPlatformBridge().studio.runInstanceTaskNow(instanceId, taskId),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.runInstanceTaskNow(instanceId, taskId),
+    ),
   listInstanceTaskExecutions: (instanceId, taskId) =>
     getPlatformBridge().studio.listInstanceTaskExecutions(instanceId, taskId),
   updateInstanceTaskStatus: (instanceId, taskId, status) =>
-    getPlatformBridge().studio.updateInstanceTaskStatus(instanceId, taskId, status),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.updateInstanceTaskStatus(instanceId, taskId, status),
+    ),
   deleteInstanceTask: (instanceId, taskId) =>
-    getPlatformBridge().studio.deleteInstanceTask(instanceId, taskId),
+    invalidateAfter(instanceId, () =>
+      getPlatformBridge().studio.deleteInstanceTask(instanceId, taskId),
+    ),
   listConversations: (instanceId) => getPlatformBridge().studio.listConversations(instanceId),
   putConversation: (record) => getPlatformBridge().studio.putConversation(record),
   deleteConversation: (id) => getPlatformBridge().studio.deleteConversation(id),

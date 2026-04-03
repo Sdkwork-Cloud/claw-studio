@@ -137,8 +137,8 @@ export function Account() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-zinc-50 p-6 dark:bg-zinc-950 md:p-8">
-      <div className="mx-auto max-w-5xl space-y-8">
+    <div className="w-full">
+      <div className="space-y-8">
         <div>
           <h1 className="flex items-center gap-3 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
             <Wallet className="h-8 w-8 text-primary-500" />

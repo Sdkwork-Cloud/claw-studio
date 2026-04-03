@@ -1,5 +1,10 @@
-import { getApiUrl, readAccessToken, type AppEnvConfig, APP_ENV } from '../config/env.ts';
-import { postJson } from '../http/httpClient.ts';
+import {
+  createClient,
+  type AppUpdateCheckForm,
+  type AppUpdateCheckVO,
+  type PlusApiResultAppUpdateCheckVO,
+} from '@sdkwork/app-sdk';
+import { readAccessToken, type AppEnvConfig, APP_ENV } from '../config/env.ts';
 import type {
   AppInstallPackage,
   AppUpdateCheckRequest,
@@ -7,16 +12,66 @@ import type {
   AppUpdateClientOptions,
 } from './contracts.ts';
 
-interface ApiResult<T> {
-  code?: number;
+interface AppSdkResult<T> {
+  code?: number | string;
   message?: string;
+  msg?: string;
   data?: T | null;
 }
 
-const APP_UPDATE_CHECK_PATH = '/app/v3/api/update/check';
+const APP_UPDATE_CHECK_PATH = '/app/v3/api/app/update/check';
 
 function resolveEnv(options?: AppUpdateClientOptions): AppEnvConfig {
   return (options?.env as AppEnvConfig | undefined) ?? APP_ENV;
+}
+
+function isSuccessCode(code: number | string | undefined): boolean {
+  if (code === undefined || code === null) {
+    return true;
+  }
+
+  const normalized = String(code).trim();
+  return normalized === '0' || normalized === '200' || normalized === '2000';
+}
+
+function getEnvelopeMessage<T>(payload: AppSdkResult<T>): string {
+  return String(payload.message || payload.msg || 'App update check failed.').trim();
+}
+
+function unwrapAppSdkResponse<T>(payload: AppSdkResult<T> | T | null | undefined): T {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('App update check failed because the backend returned an invalid response.');
+  }
+
+  if (!('code' in payload) && !('data' in payload)) {
+    return payload as T;
+  }
+
+  const envelope = payload as AppSdkResult<T>;
+  if (!isSuccessCode(envelope.code)) {
+    throw new Error(getEnvelopeMessage(envelope));
+  }
+
+  return (envelope.data ?? null) as T;
+}
+
+function createUpdateSdkRequest(request: AppUpdateCheckRequest): AppUpdateCheckForm {
+  return {
+    appId: request.appId,
+    runtime: request.runtime,
+    platform: request.platform,
+    architecture: request.architecture,
+    currentVersion: request.currentVersion,
+    buildNumber: request.buildNumber,
+    releaseChannel: request.releaseChannel,
+    packageName: request.packageName,
+    bundleId: request.bundleId,
+    deviceId: request.deviceId,
+    osVersion: request.osVersion,
+    locale: request.locale,
+    capabilities: request.capabilities,
+    metadata: request.metadata,
+  };
 }
 
 function mapInstallPackage(value: unknown): AppInstallPackage | null {
@@ -28,7 +83,8 @@ function mapInstallPackage(value: unknown): AppInstallPackage | null {
 }
 
 function mapUpdateCheckResult(value: unknown): AppUpdateCheckResult {
-  const payload = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const payload = (value && typeof value === 'object' ? value : {}) as AppUpdateCheckVO &
+    Record<string, unknown>;
 
   return {
     hasUpdate: payload.hasUpdate === true,
@@ -63,32 +119,28 @@ export async function checkAppUpdate(
   options?: AppUpdateClientOptions,
 ): Promise<AppUpdateCheckResult> {
   const env = resolveEnv(options);
-  const url = getApiUrl(APP_UPDATE_CHECK_PATH, env);
   const accessToken = readAccessToken(env);
-  const headers: Record<string, string> = {};
 
-  if (!url || url === APP_UPDATE_CHECK_PATH) {
+  if (!env.api.baseUrl) {
     throw new Error('App update check is unavailable because VITE_API_BASE_URL is not configured.');
   }
 
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-
-  const response = await postJson<ApiResult<unknown>>(url, request, {
-    headers,
-    signal: AbortSignal.timeout(env.api.timeout),
+  const client = createClient({
+    baseUrl: env.api.baseUrl,
+    timeout: env.api.timeout,
   });
 
-  if (!response || typeof response !== 'object') {
-    throw new Error('App update check failed because the backend returned an invalid response.');
+  if (accessToken) {
+    client.setApiKey(accessToken);
   }
 
-  if (response.code !== undefined && response.code !== 0) {
-    throw new Error(response.message || 'App update check failed.');
-  }
+  const response = await client.app.checkAppUpdate(
+    createUpdateSdkRequest(request),
+  ) as PlusApiResultAppUpdateCheckVO;
 
-  return mapUpdateCheckResult(response.data);
+  return mapUpdateCheckResult(
+    unwrapAppSdkResponse<AppUpdateCheckVO>(response),
+  );
 }
 
 export { APP_UPDATE_CHECK_PATH };

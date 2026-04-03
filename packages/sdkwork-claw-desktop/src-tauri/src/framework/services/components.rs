@@ -8,10 +8,7 @@ use crate::framework::{
     FrameworkError, Result,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
 const COMPONENT_REGISTRY_FILE_NAME: &str = "component-registry.json";
 const SERVICE_DEFAULTS_FILE_NAME: &str = "service-defaults.json";
@@ -77,20 +74,14 @@ impl ComponentRegistryService {
     }
 
     pub fn load_resources_from_dir(&self, directory: &Path) -> Result<BundledComponentResources> {
-        let active_directory = if directory.join(COMPONENT_REGISTRY_FILE_NAME).exists() {
-            directory.to_path_buf()
-        } else {
-            source_component_resource_dir()
-        };
-
-        if !active_directory.join(COMPONENT_REGISTRY_FILE_NAME).exists() {
+        if !directory.join(COMPONENT_REGISTRY_FILE_NAME).exists() {
             return Ok(BundledComponentResources::from_defaults());
         }
 
         Ok(BundledComponentResources {
-            registry: read_json_file(&active_directory.join(COMPONENT_REGISTRY_FILE_NAME))?,
-            service_defaults: read_json_file(&active_directory.join(SERVICE_DEFAULTS_FILE_NAME))?,
-            upgrade_policy: read_json_file(&active_directory.join(UPGRADE_POLICY_FILE_NAME))?,
+            registry: read_json_file(&directory.join(COMPONENT_REGISTRY_FILE_NAME))?,
+            service_defaults: read_json_file(&directory.join(SERVICE_DEFAULTS_FILE_NAME))?,
+            upgrade_policy: read_json_file(&directory.join(UPGRADE_POLICY_FILE_NAME))?,
         })
     }
 
@@ -136,12 +127,6 @@ impl BundledComponentResources {
             .filter(|definition| definition.startup_mode == PackagedComponentStartupMode::Embedded)
             .map(|definition| definition.id.clone())
             .collect::<Vec<_>>();
-        let router_service_ids = definitions
-            .iter()
-            .find(|definition| definition.id == "sdkwork-api-router")
-            .map(|definition| definition.service_ids.clone())
-            .unwrap_or_default();
-
         Self {
             registry: PackagedComponentRegistry {
                 version: 1,
@@ -152,7 +137,7 @@ impl BundledComponentResources {
                 auto_start_component_ids,
                 manual_component_ids,
                 embedded_component_ids,
-                router_service_ids,
+                router_service_ids: Vec::new(),
             },
             upgrade_policy: BundledUpgradePolicy::default(),
         }
@@ -170,12 +155,6 @@ where
         ))
     })?;
     Ok(serde_json::from_str::<T>(&content)?)
-}
-
-fn source_component_resource_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("foundation")
-        .join("components")
 }
 
 fn component_kind_label(kind: &crate::framework::components::PackagedComponentKind) -> String {
@@ -220,7 +199,7 @@ mod tests {
 
         assert_eq!(
             resources.service_defaults.auto_start_component_ids,
-            vec!["openclaw".to_string(), "sdkwork-api-router".to_string()]
+            vec!["openclaw".to_string()]
         );
         assert_eq!(
             resources.service_defaults.manual_component_ids,

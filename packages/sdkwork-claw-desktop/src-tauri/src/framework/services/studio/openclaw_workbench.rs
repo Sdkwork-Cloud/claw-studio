@@ -1,9 +1,10 @@
 use super::{
-    read_json5_object, StudioInstanceDeploymentMode, StudioInstanceRecord, StudioRuntimeKind,
-    StudioWorkbenchAgentProfile, StudioWorkbenchAgentRecord, StudioWorkbenchChannelRecord,
-    StudioWorkbenchCronTasksSnapshot, StudioWorkbenchFileRecord,
-    StudioWorkbenchLLMProviderConfigRecord, StudioWorkbenchLLMProviderModelRecord,
-    StudioWorkbenchLLMProviderRecord, StudioWorkbenchMemoryEntryRecord, StudioWorkbenchSkillRecord,
+    read_json5_object, read_openclaw_provider_runtime_config, StudioInstanceDeploymentMode,
+    StudioInstanceRecord, StudioRuntimeKind, StudioWorkbenchAgentProfile,
+    StudioWorkbenchAgentRecord, StudioWorkbenchChannelRecord, StudioWorkbenchCronTasksSnapshot,
+    StudioWorkbenchFileRecord,
+    StudioWorkbenchLLMProviderModelRecord, StudioWorkbenchLLMProviderRecord,
+    StudioWorkbenchMemoryEntryRecord, StudioWorkbenchSkillRecord,
     StudioWorkbenchSnapshot, StudioWorkbenchTaskExecutionRecord, StudioWorkbenchTaskRecord,
     StudioWorkbenchTaskScheduleConfig, StudioWorkbenchToolRecord, DEFAULT_INSTANCE_ID,
 };
@@ -139,21 +140,54 @@ fn build_openclaw_llm_providers(
                 .cloned()
                 .unwrap_or_default();
             let model_records = build_openclaw_provider_models(&models);
+            let primary_ref = string_at_path(config, &["agents", "defaults", "model", "primary"])
+                .and_then(|entry| parse_openclaw_model_ref(&entry));
+            let fallback_refs = array_at_path(config, &["agents", "defaults", "model", "fallbacks"])
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|entry| entry.as_str().and_then(parse_openclaw_model_ref))
+                .collect::<Vec<_>>();
             let default_model_id = model_records
                 .iter()
-                .find(|model| model.role == "primary")
-                .map(|model| model.id.clone())
+                .find_map(|model| {
+                    primary_ref
+                        .as_ref()
+                        .filter(|(current_provider_id, _)| current_provider_id == provider_id)
+                        .map(|(_, model_id)| model_id.clone())
+                        .filter(|model_id| model_id == &model.id)
+                })
+                .or_else(|| {
+                    model_records
+                        .iter()
+                        .find(|model| model.role == "primary")
+                        .map(|model| model.id.clone())
+                })
                 .or_else(|| model_records.first().map(|model| model.id.clone()))
                 .unwrap_or_default();
             let reasoning_model_id = model_records
                 .iter()
-                .find(|model| model.role == "reasoning")
-                .map(|model| model.id.clone());
+                .find_map(|model| {
+                    fallback_refs
+                        .iter()
+                        .find(|(current_provider_id, model_id)| {
+                            current_provider_id == provider_id && model_id == &model.id
+                        })
+                        .map(|(_, model_id)| model_id.clone())
+                })
+                .or_else(|| {
+                    model_records
+                        .iter()
+                        .find(|model| model.role == "reasoning")
+                        .map(|model| model.id.clone())
+                });
             let embedding_model_id = model_records
                 .iter()
                 .find(|model| model.role == "embedding")
                 .map(|model| model.id.clone());
             let api_key_source = describe_secret_source(value_at_path(provider_value, &["apiKey"]));
+            let provider_runtime_config =
+                read_openclaw_provider_runtime_config(config, provider_id, &default_model_id);
 
             Some(StudioWorkbenchLLMProviderRecord {
                 id: provider_id.to_string(),
@@ -181,23 +215,28 @@ fn build_openclaw_llm_providers(
                 last_checked_at: last_checked_at.clone(),
                 capabilities: infer_provider_capabilities(&models),
                 models: model_records,
-                config: StudioWorkbenchLLMProviderConfigRecord {
-                    temperature: f64_at_path(provider_value, &["temperature"]).unwrap_or(0.2),
-                    top_p: f64_at_path(provider_value, &["topP"]).unwrap_or(1.0),
-                    max_tokens: u64_at_path(provider_value, &["maxTokens"])
-                        .and_then(|value| u32::try_from(value).ok())
-                        .unwrap_or(4096),
-                    timeout_ms: u64_at_path(provider_value, &["timeoutMs"])
-                        .and_then(|value| u32::try_from(value).ok())
-                        .unwrap_or(60_000),
-                    streaming: bool_at_path(provider_value, &["streaming"]).unwrap_or(true),
-                },
+                config: provider_runtime_config,
             })
         })
         .collect::<Vec<_>>();
 
     records.sort_by(|left, right| left.name.cmp(&right.name));
     records
+}
+
+fn parse_openclaw_model_ref(value: &str) -> Option<(String, String)> {
+    let trimmed = value.trim();
+    let (provider_id, model_id) = trimmed.split_once('/')?;
+    let normalized_provider_id = provider_id.trim();
+    let normalized_model_id = model_id.trim();
+    if normalized_provider_id.is_empty() || normalized_model_id.is_empty() {
+        return None;
+    }
+
+    Some((
+        normalized_provider_id.to_string(),
+        normalized_model_id.to_string(),
+    ))
 }
 
 fn collect_openclaw_agent_contexts(paths: &AppPaths, config: &Value) -> Vec<OpenClawAgentContext> {
@@ -1655,10 +1694,6 @@ fn u64_at_path(value: &Value, path: &[&str]) -> Option<u64> {
     value_at_path(value, path)?.as_u64()
 }
 
-fn f64_at_path(value: &Value, path: &[&str]) -> Option<f64> {
-    value_at_path(value, path)?.as_f64()
-}
-
 fn is_configured_value(value: &Value) -> bool {
     match value {
         Value::Null => false,
@@ -1916,9 +1951,78 @@ fn tool_token_matches(
 
 #[cfg(test)]
 mod tests {
-    use super::map_openclaw_cron_task;
+    use super::{build_openclaw_llm_providers, map_openclaw_cron_task};
+    use crate::framework::services::studio::StudioWorkbenchLLMProviderConfigRecord;
     use serde_json::json;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn build_openclaw_llm_providers_reads_runtime_params_from_defaults_model_catalog() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let config_path = temp_dir.path().join("openclaw.json");
+        std::fs::write(&config_path, "{}").expect("seed config path");
+
+        let providers = build_openclaw_llm_providers(
+            &json!({
+                "models": {
+                    "providers": {
+                        "openai": {
+                            "baseUrl": "https://api.openai.com/v1",
+                            "apiKey": "${OPENAI_API_KEY}",
+                            "temperature": 0.05,
+                            "topP": 0.1,
+                            "maxTokens": 256,
+                            "timeoutMs": 1000,
+                            "streaming": false,
+                            "models": [
+                                { "id": "gpt-5.4", "name": "GPT-5.4" },
+                                { "id": "o4-mini", "name": "o4-mini", "reasoning": true },
+                                {
+                                    "id": "text-embedding-3-large",
+                                    "name": "text-embedding-3-large",
+                                    "api": "embedding"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "agents": {
+                    "defaults": {
+                        "model": {
+                            "primary": "openai/gpt-5.4",
+                            "fallbacks": ["openai/o4-mini"]
+                        },
+                        "models": {
+                            "openai/gpt-5.4": {
+                                "params": {
+                                    "temperature": 0.3,
+                                    "topP": 0.95,
+                                    "maxTokens": 12000,
+                                    "timeoutMs": 120000,
+                                    "streaming": true
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+            &config_path,
+        );
+
+        assert_eq!(providers.len(), 1);
+        assert_eq!(providers[0].default_model_id, "gpt-5.4");
+        assert_eq!(providers[0].reasoning_model_id.as_deref(), Some("o4-mini"));
+        assert_eq!(
+            providers[0].config,
+            StudioWorkbenchLLMProviderConfigRecord {
+                temperature: 0.3,
+                top_p: 0.95,
+                max_tokens: 12000,
+                timeout_ms: 120000,
+                streaming: true,
+            }
+        );
+    }
 
     #[test]
     fn map_openclaw_cron_task_surfaces_advanced_openclaw_fields() {

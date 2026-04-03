@@ -26,6 +26,8 @@ interface ModelPurchasePaymentViewProps {
   onPaymentMethodChange: (method: ModelPurchasePaymentMethod) => void;
   onBack: () => void;
   onConfirmPayment: () => void;
+  checkoutEnabled?: boolean;
+  checkoutUnavailableMessage?: string | null;
 }
 
 interface PaymentMethodMeta {
@@ -67,6 +69,8 @@ export function ModelPurchasePaymentView({
   onPaymentMethodChange,
   onBack,
   onConfirmPayment,
+  checkoutEnabled = true,
+  checkoutUnavailableMessage = null,
 }: ModelPurchasePaymentViewProps) {
   const { t, i18n } = useTranslation();
   const numberFormatter = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language);
@@ -253,7 +257,7 @@ export function ModelPurchasePaymentView({
                 </div>
               </div>
               <span className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-zinc-950 dark:text-zinc-300">
-                {t('modelPurchase.payment.mockTag')}
+                {t('modelPurchase.payment.availabilityTag')}
               </span>
             </div>
 
@@ -301,8 +305,21 @@ export function ModelPurchasePaymentView({
               </div>
             </div>
 
-            <Button type="button" className="mt-5 w-full" onClick={onConfirmPayment}>
-              {t('modelPurchase.payment.confirmPayment')}
+            {!checkoutEnabled && checkoutUnavailableMessage ? (
+              <div className="mt-5 rounded-[22px] border border-amber-200/80 bg-amber-50/85 px-4 py-3 text-sm leading-6 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+                {checkoutUnavailableMessage}
+              </div>
+            ) : null}
+
+            <Button
+              type="button"
+              className="mt-5 w-full"
+              onClick={onConfirmPayment}
+              disabled={!checkoutEnabled}
+            >
+              {checkoutEnabled
+                ? t('modelPurchase.payment.confirmPayment')
+                : t('modelPurchase.payment.checkoutUnavailable')}
             </Button>
           </div>
         </div>

@@ -434,6 +434,19 @@ export interface OpenClawAgentFileResult {
 
 export type OpenClawGatewayMethodArgs = Record<string, unknown>;
 export type OpenClawGatewayMethodResult = Record<string, unknown>;
+export type OpenClawExecApprovalDecision = 'allow-once' | 'allow-always' | 'deny';
+export type OpenClawExecApprovalDecisionInput =
+  | OpenClawExecApprovalDecision
+  | 'allow'
+  | 'once'
+  | 'always'
+  | 'allowonce'
+  | 'allowalways';
+
+export interface OpenClawResolveExecApprovalArgs extends OpenClawGatewayMethodArgs {
+  id: string;
+  decision: OpenClawExecApprovalDecisionInput;
+}
 
 export const OPENCLAW_GATEWAY_OFFICIAL_METHODS = [
   'health',
@@ -633,9 +646,10 @@ export interface OpenClawCronAgentTurnPayload {
   kind: 'agentTurn';
   message: string;
   model?: string;
-  thinking?: string;
+  thinking?: StudioWorkbenchTaskRecord['thinking'];
   timeoutSeconds?: number;
   lightContext?: boolean;
+  tools?: string[];
 }
 
 export interface OpenClawCronSystemEventPayload {
@@ -681,11 +695,12 @@ export interface OpenClawCronJob {
   createdAtMs: number;
   updatedAtMs: number;
   schedule: OpenClawCronSchedule;
-  sessionTarget: 'main' | 'isolated';
+  sessionTarget: 'main' | 'isolated' | 'current' | `session:${string}`;
   wakeMode: 'now' | 'next-heartbeat';
   payload: OpenClawCronPayload;
   delivery?: OpenClawCronDelivery;
   state: OpenClawCronJobState;
+  rawDefinition?: Record<string, unknown>;
 }
 
 export interface OpenClawCronJobCreateInput {
@@ -696,7 +711,7 @@ export interface OpenClawCronJobCreateInput {
   agentId?: string;
   sessionKey?: string;
   schedule: OpenClawCronSchedule;
-  sessionTarget: 'main' | 'isolated';
+  sessionTarget: 'main' | 'isolated' | 'current' | `session:${string}`;
   wakeMode: 'now' | 'next-heartbeat';
   payload: OpenClawCronPayload;
   delivery?: OpenClawCronDelivery;
@@ -710,7 +725,7 @@ export interface OpenClawCronJobUpdatePatch {
   agentId?: string | null;
   sessionKey?: string;
   schedule?: OpenClawCronSchedule;
-  sessionTarget?: 'main' | 'isolated';
+  sessionTarget?: 'main' | 'isolated' | 'current' | `session:${string}`;
   wakeMode?: 'now' | 'next-heartbeat';
   payload?: Partial<OpenClawCronPayload>;
   delivery?: Partial<OpenClawCronDelivery>;
@@ -789,6 +804,10 @@ function toIsoString(value?: number | null) {
 
 function trimTrailingSlashes(value: string) {
   return value.replace(/\/+$/, '');
+}
+
+function cloneJsonRecord(value: Record<string, unknown>) {
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
 }
 
 function normalizeEndpoint(detail: StudioInstanceDetailRecord | null): string | null {
@@ -1023,6 +1042,8 @@ function mapOpenClawJobToWorkbenchTask(job: OpenClawCronJob): StudioWorkbenchTas
     scheduleMode = 'cron';
     scheduleConfig = {
       cronExpression: job.schedule.expr,
+      cronTimezone: job.schedule.tz,
+      staggerMs: job.schedule.staggerMs,
     };
     cronExpression = job.schedule.expr;
   } else if (job.schedule.kind === 'every') {
@@ -1047,6 +1068,16 @@ function mapOpenClawJobToWorkbenchTask(job: OpenClawCronJob): StudioWorkbenchTas
   const actionType = job.payload.kind === 'systemEvent' ? 'message' : 'skill';
   const executionContent =
     job.payload.kind === 'systemEvent' ? 'sendPromptMessage' : 'runAssistantTask';
+  const sessionMode =
+    job.sessionTarget === 'main'
+      ? 'main'
+      : job.sessionTarget === 'current'
+        ? 'current'
+        : job.sessionTarget.startsWith('session:')
+          ? 'custom'
+          : 'isolated';
+  const customSessionId =
+    sessionMode === 'custom' ? job.sessionTarget.slice('session:'.length) : undefined;
   const status =
     !job.enabled
       ? 'paused'
@@ -1100,16 +1131,36 @@ function mapOpenClawJobToWorkbenchTask(job: OpenClawCronJob): StudioWorkbenchTas
     cronExpression,
     actionType,
     status,
-    sessionMode: job.sessionTarget === 'main' ? 'main' : 'isolated',
+    sessionMode,
+    customSessionId,
     wakeUpMode: job.wakeMode === 'next-heartbeat' ? 'nextCycle' : 'immediate',
     executionContent,
-    deliveryMode: job.delivery?.mode === 'none' ? 'none' : 'publishSummary',
-    deliveryChannel: job.delivery?.channel,
-    deliveryLabel: job.delivery?.channel,
+    timeoutSeconds: job.payload.kind === 'agentTurn' ? job.payload.timeoutSeconds : undefined,
+    deleteAfterRun: job.deleteAfterRun,
+    agentId: job.agentId,
+    model: job.payload.kind === 'agentTurn' ? job.payload.model : undefined,
+    thinking: job.payload.kind === 'agentTurn' ? job.payload.thinking : undefined,
+    lightContext: job.payload.kind === 'agentTurn' ? job.payload.lightContext : undefined,
+    deliveryMode:
+      job.delivery?.mode === 'webhook'
+        ? 'webhook'
+        : job.delivery?.mode === 'none'
+          ? 'none'
+          : job.sessionTarget === 'main'
+            ? 'none'
+            : 'publishSummary',
+    deliveryBestEffort: job.delivery?.bestEffort,
+    ...(job.delivery?.channel
+      ? {
+          deliveryChannel: job.delivery.channel,
+          deliveryLabel: job.delivery.channel,
+        }
+      : {}),
     recipient: job.delivery?.to,
     lastRun,
     nextRun,
     latestExecution,
+    rawDefinition: job.rawDefinition ? cloneJsonRecord(job.rawDefinition) : undefined,
   };
 }
 
@@ -1129,13 +1180,20 @@ function normalizeCronJob(value: unknown): OpenClawCronJob | null {
     createdAtMs: typeof value.createdAtMs === 'number' ? value.createdAtMs : 0,
     updatedAtMs: typeof value.updatedAtMs === 'number' ? value.updatedAtMs : 0,
     schedule: value.schedule as OpenClawCronSchedule,
-    sessionTarget: value.sessionTarget === 'main' ? 'main' : 'isolated',
+    sessionTarget:
+      value.sessionTarget === 'main' ||
+      value.sessionTarget === 'isolated' ||
+      value.sessionTarget === 'current' ||
+      (isNonEmptyString(value.sessionTarget) && value.sessionTarget.startsWith('session:'))
+        ? (value.sessionTarget as OpenClawCronJob['sessionTarget'])
+        : 'isolated',
     wakeMode: value.wakeMode === 'now' ? 'now' : 'next-heartbeat',
     payload: value.payload as OpenClawCronPayload,
     delivery: isRecord(value.delivery)
       ? (value.delivery as unknown as OpenClawCronDelivery)
       : undefined,
     state: isRecord(value.state) ? (value.state as OpenClawCronJobState) : {},
+    rawDefinition: cloneJsonRecord(value),
   };
 }
 
@@ -1252,6 +1310,44 @@ function normalizeToolsCatalogResult(result: unknown): OpenClawToolsCatalogResul
     agentId: isRecord(result) && isNonEmptyString(result.agentId) ? result.agentId : undefined,
     profiles,
     groups,
+  };
+}
+
+function normalizeExecApprovalDecision(
+  value: unknown,
+): OpenClawExecApprovalDecision | null {
+  if (!isNonEmptyString(value)) {
+    return null;
+  }
+
+  switch (value.trim().toLowerCase()) {
+    case 'allow':
+    case 'once':
+    case 'allow-once':
+    case 'allowonce':
+      return 'allow-once';
+    case 'always':
+    case 'allow-always':
+    case 'allowalways':
+      return 'allow-always';
+    case 'deny':
+      return 'deny';
+    default:
+      return null;
+  }
+}
+
+function normalizeResolveExecApprovalArgs(
+  args: OpenClawResolveExecApprovalArgs | OpenClawGatewayMethodArgs = {},
+) {
+  const decision = normalizeExecApprovalDecision(args.decision);
+  if (!decision) {
+    return args;
+  }
+
+  return {
+    ...args,
+    decision,
   };
 }
 
@@ -1893,9 +1989,13 @@ export function createOpenClawGatewayClient(
 
   async function resolveExecApproval(
     instanceId: string,
-    args: OpenClawGatewayMethodArgs = {},
+    args: OpenClawResolveExecApprovalArgs | OpenClawGatewayMethodArgs = {},
   ) {
-    return invokeOfficialMethod(instanceId, 'exec.approval.resolve', args);
+    return invokeOfficialMethod(
+      instanceId,
+      'exec.approval.resolve',
+      normalizeResolveExecApprovalArgs(args),
+    );
   }
 
   async function startWizard(instanceId: string, args: OpenClawGatewayMethodArgs = {}) {

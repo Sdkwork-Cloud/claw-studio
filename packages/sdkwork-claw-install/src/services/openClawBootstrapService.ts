@@ -1,14 +1,22 @@
 import {
-  getRuntimePlatform,
   openClawGatewayClient,
+  runtime,
   studio,
-  studioMockService,
   type HubInstallAssessmentResult,
   type HubInstallResult,
   type OpenClawGatewayValidationStatus,
+  type OpenClawSkillsStatusResult,
+  type RuntimeDesktopKernelInfo,
 } from '@sdkwork/claw-infrastructure';
 import {
+  clawHubService,
+  createOpenClawLocalProxyProjection,
+  kernelPlatformService,
+  OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
   openClawConfigService,
+  providerRoutingCatalogService,
+  resolveOpenClawLocalProxyBaseUrl,
+  type ProviderRoutingRecord,
   type OpenClawChannelSnapshot,
 } from '@sdkwork/claw-core';
 import type { ProxyProvider, Skill, SkillPack } from '@sdkwork/claw-types';
@@ -84,6 +92,64 @@ function normalizePath(path?: string | null) {
   return path?.replace(/\\/g, '/');
 }
 
+function buildBootstrapProviderStatus(route: ProviderRoutingRecord): ProxyProvider['status'] {
+  if (!route.enabled) {
+    return 'disabled';
+  }
+
+  return route.apiKey || route.managedBy === 'system-default' ? 'active' : 'warning';
+}
+
+function projectProviderRouteForOpenClawBootstrap(
+  route: ProviderRoutingRecord,
+  kernelInfo: RuntimeDesktopKernelInfo | null,
+): ProxyProvider {
+  const proxyBaseUrl = resolveOpenClawLocalProxyBaseUrl(kernelInfo, route.clientProtocol);
+
+  return {
+    id: route.id,
+    channelId: route.providerId,
+    name: route.name,
+    apiKey: proxyBaseUrl ? OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY : route.apiKey,
+    groupId: 'provider-config-center',
+    usage: {
+      requestCount: 0,
+      tokenCount: 0,
+      spendUsd: 0,
+      period: '30d',
+    },
+    expiresAt: null,
+    status: buildBootstrapProviderStatus(route),
+    createdAt:
+      typeof route.createdAt === 'number' ? new Date(route.createdAt).toISOString() : null,
+    baseUrl: proxyBaseUrl || route.upstreamBaseUrl,
+    models: route.models.map((model) => ({
+      id: model.id,
+      name: model.name,
+    })),
+    notes: proxyBaseUrl
+      ? `Managed local proxy projection for route "${route.name}".`
+      : route.notes,
+    credentialReference: proxyBaseUrl ? 'local-ai-proxy' : 'provider-config-center',
+    canCopyApiKey: false,
+    clientProtocol: route.clientProtocol,
+    upstreamProtocol: route.upstreamProtocol,
+    managedBy: route.managedBy,
+    enabled: route.enabled,
+    isDefault: route.isDefault,
+    defaultModelId: route.defaultModelId,
+  };
+}
+
+async function listConfiguredProviders() {
+  const routes = await providerRoutingCatalogService.listProviderRoutingRecords();
+
+  await kernelPlatformService.ensureRunning().catch(() => null);
+  const kernelInfo = await kernelPlatformService.getInfo().catch(() => null);
+
+  return routes.map((route) => projectProviderRouteForOpenClawBootstrap(route, kernelInfo));
+}
+
 function parsePort(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -116,7 +182,7 @@ async function resolveHomeRoots(assessment?: HubInstallAssessmentResult | null) 
   }
 
   try {
-    const runtimeInfo = await getRuntimePlatform().getRuntimeInfo();
+    const runtimeInfo = await runtime.getRuntimeInfo();
     const userRoot = normalizePath(runtimeInfo.paths?.userRoot);
     const userDir = normalizePath(runtimeInfo.paths?.userDir);
 
@@ -240,24 +306,53 @@ async function syncLocalExternalInstance(input: {
   };
 }
 
-async function resolveSelectedSkillIds(packIds: string[], skillIds: string[]) {
-  const allPacks = await studioMockService.listPacks();
-  const allSkills = await studioMockService.listSkills();
-  const selectedIds = new Set<string>();
+async function resolveSelectedSkills(packIds: string[], skillIds: string[]) {
+  const [allPacks, allSkills] = await Promise.all([
+    clawHubService.listPackages(),
+    clawHubService.listSkills(),
+  ]);
+  const selectedSkills = new Map<string, Skill>();
 
   for (const packId of packIds) {
     const pack = allPacks.find((item) => item.id === packId);
-    pack?.skills.forEach((skill) => selectedIds.add(skill.id));
+    pack?.skills.forEach((skill) => {
+      const key = skill.skillKey?.trim() || skill.id;
+      if (key) {
+        selectedSkills.set(key, skill);
+      }
+    });
   }
 
-  const validSkillIds = new Set(allSkills.map((skill) => skill.id));
+  const validSkillsById = new Map(
+    allSkills.map((skill) => [skill.id, skill] as const),
+  );
   for (const skillId of skillIds) {
-    if (validSkillIds.has(skillId)) {
-      selectedIds.add(skillId);
+    const skill = validSkillsById.get(skillId);
+    const key = skill?.skillKey?.trim() || skill?.id;
+    if (skill && key) {
+      selectedSkills.set(key, skill);
     }
   }
 
-  return [...selectedIds];
+  return [...selectedSkills.values()];
+}
+
+function getSelectedSkillSlug(skill: Skill) {
+  return skill.skillKey?.trim() || skill.id.trim();
+}
+
+function isSelectedSkillInitialized(skill: Skill, initializedSkills: Array<Record<string, unknown>>) {
+  const selectedSkillId = skill.id.trim();
+  const selectedSkillKey = skill.skillKey?.trim();
+
+  return initializedSkills.some((entry) => {
+    const entryId = typeof entry.id === 'string' ? entry.id.trim() : '';
+    const entrySkillKey = typeof entry.skillKey === 'string' ? entry.skillKey.trim() : '';
+    return (
+      (selectedSkillKey && entrySkillKey === selectedSkillKey) ||
+      entryId === selectedSkillId
+    );
+  });
 }
 
 const saveManagedChannelConfiguration =
@@ -276,9 +371,9 @@ class OpenClawBootstrapService {
 
     const [configSnapshot, allProviders, packs, skills] = await Promise.all([
       openClawConfigService.readConfigSnapshot(configPath),
-      studioMockService.listProxyProviders(),
-      studioMockService.listPacks(),
-      studioMockService.listSkills(),
+      listConfiguredProviders(),
+      clawHubService.listPackages(),
+      clawHubService.listSkills(),
     ]);
     const syncedInstance = await syncLocalExternalInstance({
       configPath,
@@ -305,17 +400,32 @@ class OpenClawBootstrapService {
   async applyConfiguration(
     input: ApplyOpenClawConfigurationInput,
   ): Promise<ApplyOpenClawConfigurationResult> {
-    const providers = await studioMockService.listProxyProviders();
-    const provider = providers.find((item) => item.id === input.providerId);
+    const routes = await providerRoutingCatalogService.listProviderRoutingRecords();
+    const route = routes.find((item) => item.id === input.providerId);
 
-    if (!provider) {
-      throw new Error('Selected provider was not found.');
+    if (!route) {
+      throw new Error('Selected provider route was not found.');
     }
 
-    await openClawConfigService.saveProviderSelection({
+    await kernelPlatformService.ensureRunning();
+    const kernelInfo = await kernelPlatformService.getInfo();
+    const proxyBaseUrl = resolveOpenClawLocalProxyBaseUrl(kernelInfo, route.clientProtocol);
+    if (!proxyBaseUrl) {
+      throw new Error('The local AI proxy is not available for OpenClaw bootstrap apply.');
+    }
+
+    const projection = createOpenClawLocalProxyProjection({
+      routes: [route],
+      preferredClientProtocol: route.clientProtocol,
+      proxyBaseUrl,
+      proxyApiKey: OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+      runtimeConfig: route.config,
+      selectionOverride: input.modelSelection,
+    });
+
+    await openClawConfigService.saveManagedLocalProxyProjection({
       configPath: input.configPath,
-      provider,
-      selection: input.modelSelection,
+      projection,
     });
 
     for (const channel of input.channels) {
@@ -345,7 +455,7 @@ class OpenClawBootstrapService {
 
     return {
       configPath: input.configPath,
-      providerId: provider.id,
+      providerId: route.id,
       syncedInstanceId: input.syncedInstanceId || syncedInstance.instanceId,
       configuredChannelIds: input.channels.map((channel) => channel.channelId),
     };
@@ -354,20 +464,28 @@ class OpenClawBootstrapService {
   async initializeOpenClawInstance(
     input: InitializeOpenClawInstanceInput,
   ): Promise<InitializeOpenClawInstanceResult> {
+    const selectedSkills = await resolveSelectedSkills(input.packIds, input.skillIds);
     const installedSkillIds = new Set<string>();
 
-    for (const packId of input.packIds) {
-      await studioMockService.installPack(input.instanceId, packId);
-      const packs = await studioMockService.listPacks();
-      const pack = packs.find((item) => item.id === packId);
-      pack?.skills.forEach((skill) => installedSkillIds.add(skill.id));
-    }
-
-    for (const skillId of input.skillIds) {
-      if (!installedSkillIds.has(skillId)) {
-        await studioMockService.installSkill(input.instanceId, skillId);
-        installedSkillIds.add(skillId);
+    for (const skill of selectedSkills) {
+      const slug = getSelectedSkillSlug(skill);
+      if (installedSkillIds.has(skill.id) || !slug) {
+        continue;
       }
+
+      const result = await openClawGatewayClient.installSkill(input.instanceId, {
+        source: 'clawhub',
+        slug,
+      });
+      if (result.ok === false) {
+        throw new Error(
+          typeof result.error === 'string'
+            ? result.error
+            : `Failed to install OpenClaw skill "${skill.name}".`,
+        );
+      }
+
+      installedSkillIds.add(skill.id);
     }
 
     return {
@@ -384,9 +502,11 @@ class OpenClawBootstrapService {
     packIds: string[];
     skillIds: string[];
   }): Promise<OpenClawVerificationSnapshot> {
-    const [configSnapshot, installedSkills, gatewayValidation] = await Promise.all([
+    const [configSnapshot, installedSkillsStatus, gatewayValidation] = await Promise.all([
       openClawConfigService.readConfigSnapshot(input.configPath),
-      studioMockService.listInstalledSkills(input.instanceId),
+      openClawGatewayClient
+        .getSkillsStatus(input.instanceId, {})
+        .catch((): OpenClawSkillsStatusResult => ({ skills: [] })),
       openClawGatewayClient.validateAccess(input.instanceId).catch(() => ({
         status: 'unreachable' as const,
         message: 'Unable to reach the OpenClaw Gateway.',
@@ -394,8 +514,9 @@ class OpenClawBootstrapService {
       })),
     ]);
 
-    const selectedSkillIds = await resolveSelectedSkillIds(input.packIds, input.skillIds);
-    const installedSkillIdSet = new Set(installedSkills.map((skill) => skill.id));
+    const selectedSkills = await resolveSelectedSkills(input.packIds, input.skillIds);
+    const installedSkills = (installedSkillsStatus.skills || installedSkillsStatus.entries || [])
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry));
 
     return {
       instanceId: input.instanceId,
@@ -410,9 +531,10 @@ class OpenClawBootstrapService {
           channel.status === 'connected' &&
           channel.enabled,
       ).length,
-      selectedSkillCount: selectedSkillIds.length,
-      initializedSkillCount: selectedSkillIds.filter((skillId) => installedSkillIdSet.has(skillId))
-        .length,
+      selectedSkillCount: selectedSkills.length,
+      initializedSkillCount: selectedSkills.filter((skill) =>
+        isSelectedSkillInitialized(skill, installedSkills),
+      ).length,
     };
   }
 

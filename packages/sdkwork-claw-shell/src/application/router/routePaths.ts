@@ -39,7 +39,6 @@ export const ROUTE_PATHS = {
   SETTINGS: '/settings',
   DOCS: '/docs',
   CODEBOX: '/codebox',
-  API_ROUTER: '/api-router',
   MODEL_PURCHASE: '/model-purchase',
   POINTS: '/points',
 } as const;

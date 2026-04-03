@@ -1,6 +1,11 @@
 import type { StudioWorkbenchLLMProviderModelRecord } from '@sdkwork/claw-types';
 
 const OPENCLAW_AGENT_FILE_ID_PREFIX = 'openclaw-agent-file:';
+const OPENCLAW_DEFAULT_AGENT_ID = 'main';
+const OPENCLAW_VALID_AGENT_ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const OPENCLAW_INVALID_AGENT_ID_CHARS_RE = /[^a-z0-9._-]+/gi;
+const OPENCLAW_LEADING_DASH_RE = /^-+/;
+const OPENCLAW_TRAILING_DASH_RE = /-+$/;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -72,6 +77,26 @@ export function titleCaseIdentifier(value: string) {
     .filter(Boolean)
     .map((segment) => segment[0]!.toUpperCase() + segment.slice(1).toLowerCase())
     .join(' ');
+}
+
+export function normalizeOpenClawAgentId(value: string | undefined | null) {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) {
+    return OPENCLAW_DEFAULT_AGENT_ID;
+  }
+
+  if (OPENCLAW_VALID_AGENT_ID_RE.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  return (
+    trimmed
+      .toLowerCase()
+      .replace(OPENCLAW_INVALID_AGENT_ID_CHARS_RE, '-')
+      .replace(OPENCLAW_LEADING_DASH_RE, '')
+      .replace(OPENCLAW_TRAILING_DASH_RE, '')
+      .slice(0, 64) || OPENCLAW_DEFAULT_AGENT_ID
+  );
 }
 
 export function toIsoStringFromMs(value?: number | null) {

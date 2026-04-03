@@ -1,14 +1,21 @@
-use crate::{framework::filesystem::ManagedFileEntry, state::AppState};
+use crate::{
+    framework::{filesystem::ManagedFileEntry, runtime},
+    state::AppState,
+};
 
 #[tauri::command]
-pub fn list_directory(
+pub async fn list_directory(
     path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<ManagedFileEntry>, String> {
-    state
-        .context
-        .services
-        .filesystem
-        .list_directory(&state.context.paths, &path)
-        .map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("filesystem.list_directory", move || {
+        state
+            .context
+            .services
+            .filesystem
+            .list_directory(&state.context.paths, &path)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }

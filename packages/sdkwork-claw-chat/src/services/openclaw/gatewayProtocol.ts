@@ -26,7 +26,10 @@ export type OpenClawGatewayEventFrame = {
   event: string;
   payload?: unknown;
   seq?: number;
-  stateVersion?: unknown;
+  stateVersion?: {
+    presence?: number;
+    health?: number;
+  };
 };
 
 export type OpenClawGatewayHelloOk = {
@@ -40,6 +43,7 @@ export type OpenClawGatewayHelloOk = {
     methods?: string[];
     events?: string[];
   };
+  canvasHostUrl?: string;
   auth?: {
     deviceToken?: string;
     role?: string;
@@ -47,6 +51,8 @@ export type OpenClawGatewayHelloOk = {
     issuedAtMs?: number;
   };
   policy?: {
+    maxPayload?: number;
+    maxBufferedBytes?: number;
     tickIntervalMs?: number;
   };
   snapshot?: unknown;
@@ -55,9 +61,29 @@ export type OpenClawGatewayHelloOk = {
 export type OpenClawGatewayChatEvent = {
   runId?: string;
   sessionKey: string;
+  seq?: number;
   state: 'delta' | 'final' | 'aborted' | 'error';
   message?: unknown;
   errorMessage?: string;
+  usage?: unknown;
+  stopReason?: string;
+};
+
+export type OpenClawGatewaySessionMessageEvent = {
+  sessionKey: string;
+  message?: unknown;
+  messageId?: string;
+  messageSeq?: number;
+  modelProvider?: string | null;
+  model?: string | null;
+  thinkingLevel?: string | null;
+  parentSessionKey?: string | null;
+  spawnedBy?: unknown;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  responseUsage?: unknown;
+  [key: string]: unknown;
 };
 
 export type OpenClawGatewaySessionsDefaults = {
@@ -225,6 +251,18 @@ export function resolveGatewayMethodSupport(
   }
 
   return methods.includes(method);
+}
+
+export function resolveGatewayEventSupport(
+  hello: Pick<OpenClawGatewayHelloOk, 'features'> | null | undefined,
+  event: string,
+): boolean | null {
+  const events = hello?.features?.events;
+  if (!Array.isArray(events)) {
+    return null;
+  }
+
+  return events.includes(event);
 }
 
 export function isGatewayMethodUnavailableError(error: unknown, method: string) {

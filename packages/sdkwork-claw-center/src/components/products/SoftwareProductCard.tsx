@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Code, Server, Play, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
+import React from 'react';
+import { ArrowRight, CheckCircle2, Code, Server } from 'lucide-react';
 import { SoftwareProduct } from '../../types';
 import { ProductCardWrapper } from './ProductCardWrapper';
 import { useTranslation } from 'react-i18next';
@@ -11,27 +11,6 @@ interface SoftwareProductCardProps {
 
 export function SoftwareProductCard({ product, onRequest }: SoftwareProductCardProps) {
   const { t } = useTranslation();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'generating' | 'generated' | 'deploying' | 'deployed'>('idle');
-
-  const handleGenerate = () => {
-    setIsGenerating(true);
-    setStatus('generating');
-    setTimeout(() => {
-      setIsGenerating(false);
-      setStatus('generated');
-    }, 3000); // Mock generation time
-  };
-
-  const handleDeploy = () => {
-    setIsDeploying(true);
-    setStatus('deploying');
-    setTimeout(() => {
-      setIsDeploying(false);
-      setStatus('deployed');
-    }, 3000); // Mock deployment time
-  };
 
   return (
     <ProductCardWrapper 
@@ -70,54 +49,18 @@ export function SoftwareProductCard({ product, onRequest }: SoftwareProductCardP
           </div>
 
           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex flex-col gap-3">
-            {status === 'idle' && (
-              <button 
-                onClick={handleGenerate}
-                className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
-              >
-                <Play className="w-4 h-4" /> {t('products.software.generate')}
-              </button>
-            )}
-            
-            {status === 'generating' && (
-              <div className="w-full py-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> {t('products.software.generating')}
-              </div>
-            )}
-
-            {status === 'generated' && (
-              <div className="flex gap-2">
-                <div className="flex-1 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> {t('products.software.generated')}
-                </div>
-                <button 
-                  onClick={handleDeploy}
-                  className="flex-1 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
-                >
-                  <Server className="w-4 h-4" /> {t('products.software.deployNow')}
-                </button>
-              </div>
-            )}
-
-            {status === 'deploying' && (
-              <div className="w-full py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> {t('products.software.deploying')}
-              </div>
-            )}
-
-            {status === 'deployed' && (
-              <div className="flex gap-2">
-                <div className="flex-1 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> {t('products.software.deployed')}
-                </div>
-                <button 
-                  onClick={() => window.open('https://example.com', '_blank')}
-                  className="flex-1 py-2 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
-                >
-                  <ExternalLink className="w-4 h-4" /> {t('products.software.visitSite')}
-                </button>
-              </div>
-            )}
+            <div className="rounded-2xl border border-dashed border-zinc-200/90 bg-zinc-50/90 px-4 py-3 text-sm leading-6 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-400">
+              {t('products.software.deliveryNotice')}
+            </div>
+            <button
+              type="button"
+              onClick={() => onRequest(product.name)}
+              className="w-full rounded-xl bg-zinc-950 py-2 text-sm font-bold text-white transition-colors hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
+            >
+              <span className="inline-flex items-center justify-center gap-2">
+                <ArrowRight className="w-4 h-4" /> {t('products.software.requestBuild')}
+              </span>
+            </button>
           </div>
         </div>
       }

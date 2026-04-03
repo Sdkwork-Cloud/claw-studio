@@ -9,6 +9,12 @@ function normalizeMessageStatus(_message: Message): StudioConversationMessage['s
   return 'complete';
 }
 
+function normalizeStudioConversationRole(
+  role: Message['role'],
+): StudioConversationMessage['role'] {
+  return role === 'tool' ? 'assistant' : role;
+}
+
 export function mapStudioMessage(message: StudioConversationMessage): Message {
   return {
     id: message.id,
@@ -40,19 +46,19 @@ export function mapChatSession(session: ChatSession): StudioConversationRecord {
   const messages = session.messages.map((message) => ({
     id: message.id,
     conversationId: session.id,
-    role: message.role,
-      content: message.content,
-      createdAt: message.timestamp,
-      updatedAt: message.timestamp,
-      model: message.model,
-      senderInstanceId: session.instanceId || null,
-      status: normalizeMessageStatus(message),
-      attachments: message.attachments?.map(
-        (attachment): StudioConversationAttachment => ({
-          ...attachment,
-        }),
-      ),
-    }));
+    role: normalizeStudioConversationRole(message.role),
+    content: message.content,
+    createdAt: message.timestamp,
+    updatedAt: message.timestamp,
+    model: message.model,
+    senderInstanceId: session.instanceId || null,
+    status: normalizeMessageStatus(message),
+    attachments: message.attachments?.map(
+      (attachment): StudioConversationAttachment => ({
+        ...attachment,
+      }),
+    ),
+  }));
 
   return {
     id: session.id,

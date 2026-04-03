@@ -205,8 +205,8 @@ export function BillingSettings() {
             <Section
               title={t('settings.billing.costBreakdownTitle')}
             >
-              <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                <table className="w-full text-left text-sm">
+              <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <table className="min-w-[760px] w-full text-left text-sm">
                   <thead className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                     <tr>
                       <th className="px-6 py-4 font-medium">
@@ -284,8 +284,8 @@ export function BillingSettings() {
           </div>
         ) : (
           <Section title={t('settings.billing.historyTitle')}>
-            <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <table className="min-w-[760px] w-full text-left text-sm">
                 <thead className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                   <tr>
                     <th className="px-6 py-4 font-medium">

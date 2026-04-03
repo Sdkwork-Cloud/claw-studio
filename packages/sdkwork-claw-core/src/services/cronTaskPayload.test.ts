@@ -172,6 +172,38 @@ runTest('buildOpenClawCronTaskPayload maps advanced OpenClaw cron capabilities f
   );
 });
 
+runTest('buildOpenClawCronTaskPayload writes explicit agent-turn tool allowlists into the native payload', () => {
+  assert.deepEqual(
+    buildOpenClawCronTaskPayload(
+      createInput({
+        toolAllowlist: ['exec', 'group:filesystem', 'read'],
+      }),
+    ),
+    {
+      name: 'Morning brief',
+      description: 'Summarize overnight updates.',
+      enabled: true,
+      schedule: {
+        kind: 'cron',
+        expr: '0 7 * * *',
+      },
+      sessionTarget: 'isolated',
+      wakeMode: 'now',
+      payload: {
+        kind: 'agentTurn',
+        message: 'Summarize overnight updates.',
+        timeoutSeconds: 600,
+        tools: ['exec', 'group:filesystem', 'read'],
+      },
+      delivery: {
+        mode: 'announce',
+        channel: 'telegram',
+        to: 'channel:daily-brief',
+      },
+    },
+  );
+});
+
 runTest('buildOpenClawCronTaskPayload preserves advanced nested OpenClaw fields when editing simplified fields', () => {
   const originalDefinition = {
     id: 'job-1',
@@ -193,6 +225,7 @@ runTest('buildOpenClawCronTaskPayload preserves advanced nested OpenClaw fields 
       thinking: 'medium',
       timeoutSeconds: 600,
       lightContext: true,
+      tools: ['exec', 'group:filesystem'],
       fallbacks: ['openai/gpt-5.3'],
     },
     delivery: {
@@ -239,6 +272,7 @@ runTest('buildOpenClawCronTaskPayload preserves advanced nested OpenClaw fields 
         thinking: 'medium',
         timeoutSeconds: 600,
         lightContext: true,
+        tools: ['exec', 'group:filesystem'],
         fallbacks: ['openai/gpt-5.3'],
       },
       delivery: {

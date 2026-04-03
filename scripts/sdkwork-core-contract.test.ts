@@ -39,6 +39,7 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.ok(exists('packages/sdkwork-claw-core/src/stores/useUpdateStore.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/store/index.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/store/useAppStore.ts'));
+  assert.ok(exists('packages/sdkwork-claw-core/src/sdk/index.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/hooks/useKeyboardShortcuts.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/lib/llmService.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/platform/index.ts'));
@@ -52,18 +53,19 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.ok(exists('packages/sdkwork-claw-core/src/services/settingsService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-business']);
+  assert.ok(!pkg.dependencies?.['@google/genai']);
   assert.equal(pkg.dependencies?.['@sdkwork/app-sdk'], '^1.0.34');
   assert.ok(pkg.dependencies?.json5);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-business/);
   assert.match(indexSource, /\.\/platform/);
   assert.match(indexSource, /\.\/platform-impl/);
   assert.match(indexSource, /\.\/store/);
-  assert.match(indexSource, /\.\/sdk\/useAppSdkClient/);
+  assert.doesNotMatch(indexSource, /\.\/sdk\/useAppSdkClient/);
+  assert.doesNotMatch(indexSource, /\.\/sdk\/appSdkResult/);
   assert.doesNotMatch(indexSource, /\.\/components\/CommandPalette\.tsx/);
   assert.doesNotMatch(indexSource, /\.\/components\/Sidebar\.tsx/);
   assert.match(indexSource, /\.\/lib\/llmService/);
   assert.match(indexSource, /openClawConfigService/);
-  assert.match(indexSource, /useAppSdkClient/);
   assert.match(indexSource, /useAppStore/);
   assert.match(indexSource, /useKeyboardShortcuts/);
 });
@@ -84,6 +86,7 @@ runTest('sdkwork-claw-core owns the shared community wrapper for remote feed sdk
   assert.match(communityServiceSource, /client\.comment\.getComments/);
   assert.match(communityServiceSource, /client\.comment\.createComment/);
   assert.match(communityServiceSource, /client\.category\.listCategories/);
+  assert.doesNotMatch(communityServiceSource, /await import\('\.\.\/sdk\/useAppSdkClient\.ts'\)/);
 });
 
 runTest('sdkwork-claw-core owns shared account and settings wrappers for remote app sdk access', () => {
@@ -102,6 +105,38 @@ runTest('sdkwork-claw-core owns shared account and settings wrappers for remote 
   assert.match(settingsServiceSource, /unwrapAppSdkResponse/);
   assert.match(settingsServiceSource, /client\.user\.getUserProfile/);
   assert.match(settingsServiceSource, /client\.notification\.getNotificationSettings/);
+});
+
+runTest('sdkwork-claw-core avoids ineffective lazy-loading for shared app sdk client helpers', () => {
+  const appStoreCatalogServiceSource = read(
+    'packages/sdkwork-claw-core/src/services/appStoreCatalogService.ts',
+  );
+  const clawHubServiceSource = read(
+    'packages/sdkwork-claw-core/src/services/clawHubService.ts',
+  );
+  const clawMallServiceSource = read(
+    'packages/sdkwork-claw-core/src/services/clawMallService.ts',
+  );
+  const communityServiceSource = read(
+    'packages/sdkwork-claw-core/src/services/communityService.ts',
+  );
+  const dashboardCommerceServiceSource = read(
+    'packages/sdkwork-claw-core/src/services/dashboardCommerceService.ts',
+  );
+  const feedbackCenterServiceSource = read(
+    'packages/sdkwork-claw-core/src/services/feedbackCenterService.ts',
+  );
+
+  for (const source of [
+    appStoreCatalogServiceSource,
+    clawHubServiceSource,
+    clawMallServiceSource,
+    communityServiceSource,
+    dashboardCommerceServiceSource,
+    feedbackCenterServiceSource,
+  ]) {
+    assert.doesNotMatch(source, /await import\('\.\.\/sdk\/useAppSdkClient\.ts'\)/);
+  }
 });
 
 runTest('sdkwork-claw-core app store persists sidebar width for shell chrome resizing', () => {
@@ -129,11 +164,11 @@ runTest('sdkwork-claw-core app store tracks one-time mobile guide exposure separ
   );
 });
 
-runTest('sdkwork-claw-core sidebar removes codebox while keeping api-router available', () => {
+runTest('sdkwork-claw-core sidebar removes legacy codebox and api-router entries', () => {
   const sidebarSource = read('packages/sdkwork-claw-core/src/components/Sidebar.tsx');
 
   assert.doesNotMatch(sidebarSource, /id: 'codebox'/);
-  assert.match(sidebarSource, /id: 'api-router'/);
+  assert.doesNotMatch(sidebarSource, /id: 'api-router'/);
 });
 
 runTest('sdkwork-claw-core exports shared desktop window controls for shell and auth surfaces', () => {
@@ -193,24 +228,24 @@ runTest('claw workspace defines tracked Vite env files for development, test, an
   assert.match(gitignoreSource, /!\.env\.test/);
   assert.match(gitignoreSource, /!\.env\.production/);
 
-  assert.match(envExampleSource, /VITE_APP_ENV="development"/);
+  assert.match(envExampleSource, /VITE_APP_ENV=development/);
   assert.match(
     envExampleSource,
     /Keep real secrets in \.env\.development\.local or another ignored local env file\./,
   );
-  assert.match(envDevelopmentSource, /VITE_APP_ENV="development"/);
-  assert.match(envDevelopmentSource, /VITE_API_BASE_URL="https:\/\/api-dev\.sdkwork\.com"/);
-  assert.match(envDevelopmentSource, /VITE_ACCESS_TOKEN=""/);
+  assert.match(envDevelopmentSource, /VITE_APP_ENV=development/);
+  assert.match(envDevelopmentSource, /VITE_API_BASE_URL=https:\/\/api-dev\.sdkwork\.com/);
+  assert.match(envDevelopmentSource, /VITE_ACCESS_TOKEN=/);
   assert.match(
     envDevelopmentSource,
     /Use \.env\.development\.local for a real token when needed\./,
   );
-  assert.match(envTestSource, /VITE_APP_ENV="test"/);
-  assert.match(envTestSource, /VITE_API_BASE_URL="https:\/\/api-test\.sdkwork\.com"/);
-  assert.match(envTestSource, /VITE_ACCESS_TOKEN=""/);
-  assert.match(envProductionSource, /VITE_APP_ENV="production"/);
-  assert.match(envProductionSource, /VITE_API_BASE_URL="https:\/\/api\.sdkwork\.com"/);
-  assert.match(envProductionSource, /VITE_ACCESS_TOKEN=""/);
+  assert.match(envTestSource, /VITE_APP_ENV=test/);
+  assert.match(envTestSource, /VITE_API_BASE_URL=https:\/\/api-test\.sdkwork\.com/);
+  assert.match(envTestSource, /VITE_ACCESS_TOKEN=/);
+  assert.match(envProductionSource, /VITE_APP_ENV=production/);
+  assert.match(envProductionSource, /VITE_API_BASE_URL=https:\/\/api\.sdkwork\.com/);
+  assert.match(envProductionSource, /VITE_ACCESS_TOKEN=/);
   assert.doesNotMatch(envProductionSource, /api-dev\.sdkwork\.com/);
   assert.doesNotMatch(envProductionSource, /api-test\.sdkwork\.com/);
 
@@ -218,10 +253,10 @@ runTest('claw workspace defines tracked Vite env files for development, test, an
   assert.match(workspacePackageJson, /"build:test"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web run build:test"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
   assert.match(workspacePackageJson, /"build:prod"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web run build:prod"/);
-  assert.match(workspacePackageJson, /"tauri:dev:test"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:dev:test"/);
-  assert.match(workspacePackageJson, /"tauri:build"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:build"/);
-  assert.match(workspacePackageJson, /"tauri:build:test"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:build:test"/);
-  assert.match(workspacePackageJson, /"tauri:build:prod"\s*:\s*"pnpm --filter @sdkwork\/claw-desktop run tauri:build:prod"/);
+  assert.match(workspacePackageJson, /"tauri:dev:test"\s*:\s*"pnpm --dir packages\/sdkwork-claw-desktop tauri:dev:test"/);
+  assert.match(workspacePackageJson, /"tauri:build"\s*:\s*"pnpm --dir packages\/sdkwork-claw-desktop tauri:build"/);
+  assert.match(workspacePackageJson, /"tauri:build:test"\s*:\s*"pnpm --dir packages\/sdkwork-claw-desktop tauri:build:test"/);
+  assert.match(workspacePackageJson, /"tauri:build:prod"\s*:\s*"pnpm --dir packages\/sdkwork-claw-desktop tauri:build:prod"/);
 
   assert.match(webPackageJson, /"dev:test"\s*:\s*"node \.\.\/\.\.\/scripts\/run-vite-host\.mjs serve --host 0\.0\.0\.0 --port 3001 --mode test"/);
   assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
@@ -291,7 +326,7 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(coreCheckRunner, /communityService\.test\.ts/);
   assert.match(coreCheckRunner, /openClawAgentCatalogService\.test\.ts/);
   assert.match(coreCheckRunner, /settingsService\.test\.ts/);
-  assert.match(workspacePackageJson, /"check:sdkwork-auth"\s*:\s*"pnpm prepare:shared-sdk && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/services\/appAuthService\.test\.ts && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/stores\/useAuthStore\.test\.ts && node --experimental-strip-types scripts\/sdkwork-auth-contract\.test\.ts"/);
+  assert.match(workspacePackageJson, /"check:sdkwork-auth"\s*:\s*"pnpm prepare:shared-sdk && node --experimental-strip-types packages\/sdkwork-claw-auth\/src\/components\/auth\/authConfig\.test\.ts && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/services\/appAuthService\.test\.ts && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/stores\/useAuthStore\.test\.ts && node --experimental-strip-types scripts\/sdkwork-auth-contract\.test\.ts"/);
 });
 
 runTest('claw workspace tsconfig no longer hard-pins @sdkwork/app-sdk to an external source path', () => {
@@ -299,4 +334,35 @@ runTest('claw workspace tsconfig no longer hard-pins @sdkwork/app-sdk to an exte
 
   assert.match(tsconfigBase, /"baseUrl"\s*:\s*"\."/);
   assert.doesNotMatch(tsconfigBase, /"@sdkwork\/app-sdk"/);
+});
+
+runTest('claw core runtime wrapper delegates desktop env and session handling to @sdkwork/core-pc-react', () => {
+  const workspaceManifest = read('pnpm-workspace.yaml');
+  const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-core/package.json');
+  const appSdkSource = read('packages/sdkwork-claw-core/src/sdk/useAppSdkClient.ts');
+
+  assert.match(workspaceManifest, /\.\.\/sdkwork-core\/sdkwork-core-pc-react/);
+  assert.equal(pkg.dependencies?.['@sdkwork/core-pc-react'], 'workspace:*');
+  assert.match(appSdkSource, /@sdkwork\/core-pc-react\/app/);
+  assert.match(appSdkSource, /@sdkwork\/core-pc-react\/runtime/);
+  assert.match(appSdkSource, /configurePcReactRuntime/);
+  assert.match(appSdkSource, /persistPcReactRuntimeSession/);
+  assert.match(appSdkSource, /readPcReactRuntimeSession/);
+  assert.match(appSdkSource, /clearPcReactRuntimeSession/);
+  assert.match(appSdkSource, /createAppClientConfigFromEnv/);
+  assert.doesNotMatch(appSdkSource, /createClient\(/);
+  assert.doesNotMatch(appSdkSource, /localStorage/);
+  assert.doesNotMatch(appSdkSource, /memoryStorage/);
+});
+
+runTest('sdkwork-claw-core llm service routes generation through the active instance instead of direct Gemini keys', () => {
+  const llmServiceSource = read('packages/sdkwork-claw-core/src/lib/llmService.ts');
+
+  assert.match(llmServiceSource, /useInstanceStore/);
+  assert.match(llmServiceSource, /studio\.getInstance/);
+  assert.match(llmServiceSource, /fetch\(/);
+  assert.doesNotMatch(llmServiceSource, /@google\/genai/);
+  assert.doesNotMatch(llmServiceSource, /GoogleGenAI/);
+  assert.doesNotMatch(llmServiceSource, /process\.env\.GEMINI_API_KEY/);
+  assert.match(llmServiceSource, /Select or start an OpenClaw-compatible instance/);
 });

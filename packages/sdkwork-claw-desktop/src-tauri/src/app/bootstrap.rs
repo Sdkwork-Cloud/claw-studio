@@ -7,12 +7,10 @@ use crate::{
         },
         context::FrameworkContext,
         events,
-        services::api_router_runtime::ApiRouterRuntimeMode,
+        services::local_ai_proxy::SERVICE_ID_LOCAL_AI_PROXY,
         services::openclaw_runtime::ActivatedOpenClawRuntime,
         services::studio::StudioInstanceStatus,
-        services::supervisor::{
-            SERVICE_ID_API_ROUTER, SERVICE_ID_OPENCLAW_GATEWAY, SERVICE_ID_WEB_SERVER,
-        },
+        services::supervisor::SERVICE_ID_OPENCLAW_GATEWAY,
         FrameworkError, Result as FrameworkResult,
     },
     plugins,
@@ -33,7 +31,6 @@ const ROUTE_INSTALL: &str = "/install";
 const ROUTE_APPS: &str = "/apps";
 const ROUTE_INSTANCES: &str = "/instances";
 const ROUTE_TASKS: &str = "/tasks";
-const ROUTE_API_ROUTER: &str = "/api-router";
 const ROUTE_SETTINGS: &str = "/settings";
 
 pub(crate) const TRAY_MENU_ID_SHOW_WINDOW: &str = "show_window";
@@ -42,11 +39,8 @@ pub(crate) const TRAY_MENU_ID_OPEN_INSTALL: &str = "open_install";
 pub(crate) const TRAY_MENU_ID_OPEN_APPS: &str = "open_apps";
 pub(crate) const TRAY_MENU_ID_OPEN_INSTANCES: &str = "open_instances";
 pub(crate) const TRAY_MENU_ID_OPEN_TASKS: &str = "open_tasks";
-pub(crate) const TRAY_MENU_ID_OPEN_API_ROUTER: &str = "open_api_router";
 pub(crate) const TRAY_MENU_ID_OPEN_SETTINGS: &str = "open_settings";
 pub(crate) const TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY: &str = "restart_openclaw_gateway";
-pub(crate) const TRAY_MENU_ID_RESTART_WEB_SERVER: &str = "restart_web_server";
-pub(crate) const TRAY_MENU_ID_RESTART_API_ROUTER: &str = "restart_api_router";
 pub(crate) const TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES: &str = "restart_background_services";
 pub(crate) const TRAY_MENU_ID_OPEN_LOGS_DIRECTORY: &str = "open_logs_directory";
 pub(crate) const TRAY_MENU_ID_REVEAL_MAIN_LOG: &str = "reveal_main_log";
@@ -102,12 +96,9 @@ struct TrayLabels {
     apps: &'static str,
     instances: &'static str,
     tasks: &'static str,
-    api_router: &'static str,
     settings: &'static str,
     services: &'static str,
     restart_openclaw_gateway: &'static str,
-    restart_web_server: &'static str,
-    restart_api_router: &'static str,
     restart_all_background_services: &'static str,
     diagnostics: &'static str,
     open_logs_directory: &'static str,
@@ -122,8 +113,6 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
         .setup(|app| {
             let app_handle = app.handle().clone();
             let context = Arc::new(FrameworkContext::bootstrap(&app_handle)?);
-            activate_bundled_openclaw(&app_handle, context.as_ref())?;
-            inspect_api_router_runtime_on_startup(&app_handle, context.as_ref())?;
             context.logger.info("managed desktop state initialized")?;
             let package_info = app.package_info();
             let metadata = AppMetadata::new(
@@ -132,9 +121,14 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
                 crate::platform::current_target().to_string(),
             );
 
-            let state = AppState::from_metadata(metadata, context);
+            let state = AppState::from_metadata(metadata, context.clone());
             app.manage(state);
-            create_tray(&app_handle)?;
+            ensure_tray(&app_handle)?;
+            if let Err(error) = activate_bundled_openclaw(&app_handle, context.as_ref()) {
+                let _ = context.logger.error(&format!(
+                    "bundled openclaw activation failed during setup: {error}"
+                ));
+            }
             app.emit(events::APP_READY, ())?;
 
             Ok(())
@@ -148,6 +142,10 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::desktop_kernel::desktop_kernel_status,
             commands::desktop_kernel::ensure_desktop_kernel_running,
             commands::desktop_kernel::restart_desktop_kernel,
+            commands::desktop_kernel::test_local_ai_proxy_route,
+            commands::desktop_kernel::list_local_ai_proxy_request_logs,
+            commands::desktop_kernel::list_local_ai_proxy_message_logs,
+            commands::desktop_kernel::update_local_ai_proxy_message_capture,
             commands::desktop_kernel::desktop_storage_info,
             commands::get_app_paths::get_app_paths,
             commands::get_app_config::get_app_config,
@@ -183,6 +181,11 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::studio_commands::studio_list_conversations,
             commands::studio_commands::studio_put_conversation,
             commands::studio_commands::studio_delete_conversation,
+            commands::studio_commands::get_host_platform_status,
+            commands::studio_commands::list_rollouts,
+            commands::studio_commands::preview_rollout,
+            commands::studio_commands::start_rollout,
+            commands::studio_commands::list_node_sessions,
             commands::job_commands::job_submit,
             commands::job_commands::job_submit_process,
             commands::job_commands::job_get,
@@ -194,16 +197,13 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::copy_path::copy_path,
             commands::move_path::move_path,
             commands::path_exists::path_exists,
+            commands::path_exists_for_user_tooling::path_exists_for_user_tooling,
             commands::get_path_info::get_path_info,
             commands::hub_install_catalog::list_hub_install_catalog,
             commands::run_hub_install::inspect_hub_install,
             commands::run_hub_install::run_hub_dependency_install,
             commands::run_hub_install::run_hub_install,
             commands::run_hub_uninstall::run_hub_uninstall,
-            commands::install_api_router_client_setup::install_api_router_client_setup,
-            commands::api_router_runtime::get_api_router_admin_bootstrap_session,
-            commands::api_router_runtime::get_api_router_runtime_status,
-            commands::api_router_runtime::ensure_api_router_runtime_started,
             commands::read_binary_file::read_binary_file,
             commands::write_binary_file::write_binary_file,
             commands::open_external::open_external,
@@ -213,6 +213,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::fetch_remote_url::fetch_remote_url,
             commands::capture_screenshot::capture_screenshot,
             commands::read_text_file::read_text_file,
+            commands::read_text_file_for_user_tooling::read_text_file_for_user_tooling,
             commands::write_text_file::write_text_file,
         ])
 }
@@ -240,17 +241,10 @@ pub(crate) fn tray_action_for_menu_id(id: &str) -> Option<TrayAction> {
         TRAY_MENU_ID_OPEN_APPS => Some(TrayAction::OpenRoute(ROUTE_APPS)),
         TRAY_MENU_ID_OPEN_INSTANCES => Some(TrayAction::OpenRoute(ROUTE_INSTANCES)),
         TRAY_MENU_ID_OPEN_TASKS => Some(TrayAction::OpenRoute(ROUTE_TASKS)),
-        TRAY_MENU_ID_OPEN_API_ROUTER => Some(TrayAction::OpenRoute(ROUTE_API_ROUTER)),
         TRAY_MENU_ID_OPEN_SETTINGS => Some(TrayAction::OpenRoute(ROUTE_SETTINGS)),
         TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY => Some(TrayAction::RestartManagedService(
             SERVICE_ID_OPENCLAW_GATEWAY,
         )),
-        TRAY_MENU_ID_RESTART_WEB_SERVER => {
-            Some(TrayAction::RestartManagedService(SERVICE_ID_WEB_SERVER))
-        }
-        TRAY_MENU_ID_RESTART_API_ROUTER => {
-            Some(TrayAction::RestartManagedService(SERVICE_ID_API_ROUTER))
-        }
         TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES => Some(TrayAction::RestartBackgroundServices),
         TRAY_MENU_ID_OPEN_LOGS_DIRECTORY => Some(TrayAction::OpenLogsDirectory),
         TRAY_MENU_ID_REVEAL_MAIN_LOG => Some(TrayAction::RevealMainLog),
@@ -306,10 +300,6 @@ pub(crate) fn build_tray_menu_spec(language: TrayLanguage) -> Vec<TrayMenuEntry>
                     label: labels.tasks.to_string(),
                 },
                 TrayMenuEntry::Item {
-                    id: TRAY_MENU_ID_OPEN_API_ROUTER,
-                    label: labels.api_router.to_string(),
-                },
-                TrayMenuEntry::Item {
                     id: TRAY_MENU_ID_OPEN_SETTINGS,
                     label: labels.settings.to_string(),
                 },
@@ -321,14 +311,6 @@ pub(crate) fn build_tray_menu_spec(language: TrayLanguage) -> Vec<TrayMenuEntry>
                 TrayMenuEntry::Item {
                     id: TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY,
                     label: labels.restart_openclaw_gateway.to_string(),
-                },
-                TrayMenuEntry::Item {
-                    id: TRAY_MENU_ID_RESTART_WEB_SERVER,
-                    label: labels.restart_web_server.to_string(),
-                },
-                TrayMenuEntry::Item {
-                    id: TRAY_MENU_ID_RESTART_API_ROUTER,
-                    label: labels.restart_api_router.to_string(),
                 },
                 TrayMenuEntry::Separator,
                 TrayMenuEntry::Item {
@@ -384,7 +366,16 @@ fn create_tray<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
     Ok(())
 }
 
+fn ensure_tray<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
+    if app.tray_by_id(TRAY_ICON_ID).is_some() {
+        return Ok(());
+    }
+
+    create_tray(app)
+}
+
 pub fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
+    ensure_tray(app)?;
     let tray = app
         .tray_by_id(TRAY_ICON_ID)
         .ok_or_else(|| FrameworkError::NotFound("main tray".to_string()))?;
@@ -406,6 +397,15 @@ fn handle_window_event<R: Runtime>(window: &Window<R>, event: &WindowEvent) {
 
         if should_prevent_main_window_close(state.shutdown_intent.is_requested()) {
             api.prevent_close();
+            if let Err(error) = ensure_tray(&app) {
+                log_runtime_error(
+                    &app,
+                    &format!(
+                        "refusing to hide main window because the tray is unavailable: {error}"
+                    ),
+                );
+                return;
+            }
             if let Err(error) = window.hide() {
                 log_runtime_error(&app, &format!("failed to hide main window: {error}"));
             }
@@ -504,29 +504,16 @@ fn restart_background_services<R: Runtime>(app: &AppHandle<R>) -> FrameworkResul
     state
         .context
         .services
-        .supervisor
-        .restart_openclaw_gateway(&state.paths)?;
-    let mut planned_services = vec![SERVICE_ID_OPENCLAW_GATEWAY.to_string()];
-    planned_services.push(SERVICE_ID_WEB_SERVER.to_string());
+        .ensure_local_ai_proxy_ready(&state.paths, &state.config_snapshot())?;
     state
         .context
         .services
         .supervisor
-        .restart_web_server(&state.paths)?;
-    if state
-        .context
-        .services
-        .supervisor
-        .configured_api_router_runtime()?
-        .is_some()
-    {
-        state
-            .context
-            .services
-            .supervisor
-            .restart_api_router(&state.paths)?;
-        planned_services.push(SERVICE_ID_API_ROUTER.to_string());
-    }
+        .restart_openclaw_gateway(&state.paths)?;
+    let planned_services = vec![
+        SERVICE_ID_LOCAL_AI_PROXY.to_string(),
+        SERVICE_ID_OPENCLAW_GATEWAY.to_string(),
+    ];
     state.context.logger.info(&format!(
         "tray requested background service restart plan: {}",
         planned_services.join(", ")
@@ -551,18 +538,6 @@ fn restart_managed_service<R: Runtime>(
             .services
             .supervisor
             .restart_openclaw_gateway(&state.paths)?;
-    } else if service_id == SERVICE_ID_WEB_SERVER {
-        state
-            .context
-            .services
-            .supervisor
-            .restart_web_server(&state.paths)?;
-    } else if service_id == SERVICE_ID_API_ROUTER {
-        state
-            .context
-            .services
-            .supervisor
-            .restart_api_router(&state.paths)?;
     } else {
         state
             .context
@@ -683,7 +658,17 @@ fn finalize_openclaw_activation(
             sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
             error
         })?;
-    if let Err(error) = context.services.ensure_desktop_kernel_running(&context.paths) {
+    context
+        .services
+        .ensure_local_ai_proxy_ready(&context.paths, &context.config)
+        .map_err(|error| {
+            sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
+            error
+        })?;
+    if let Err(error) = context
+        .services
+        .ensure_desktop_kernel_running(&context.paths, &context.config)
+    {
         sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
         return Err(error);
     }
@@ -705,111 +690,6 @@ fn sync_built_in_openclaw_status(context: &FrameworkContext, status: StudioInsta
     }
 }
 
-fn activate_bundled_api_router<R: Runtime>(
-    app: &AppHandle<R>,
-    context: &FrameworkContext,
-) -> FrameworkResult<bool> {
-    let runtime = match context
-        .services
-        .api_router_managed_runtime
-        .ensure_bundled_runtime(app, &context.paths)
-    {
-        Ok(runtime) => runtime,
-        Err(FrameworkError::NotFound(_)) => return Ok(false),
-        Err(error) => return Err(error),
-    };
-
-    context
-        .services
-        .supervisor
-        .configure_api_router_runtime(&runtime)?;
-    context
-        .services
-        .supervisor
-        .start_api_router(&context.paths)?;
-    Ok(true)
-}
-
-fn resolve_api_router_runtime_status(
-    context: &FrameworkContext,
-) -> FrameworkResult<crate::framework::services::api_router_runtime::ApiRouterRuntimeStatus> {
-    let managed_active = context
-        .services
-        .supervisor
-        .is_service_running(SERVICE_ID_API_ROUTER)?;
-
-    context
-        .services
-        .api_router_runtime
-        .inspect(&context.paths)
-        .map(|status| status.with_managed_active(managed_active))
-}
-
-fn inspect_api_router_runtime_on_startup<R: Runtime>(
-    app: &AppHandle<R>,
-    context: &FrameworkContext,
-) -> FrameworkResult<()> {
-    let status = resolve_api_router_runtime_status(context)?;
-    let message = format!(
-        "api router startup inspection: mode={} configSource={} adminBind={} gatewayBind={} reason={}",
-        api_router_runtime_mode_label(&status.mode),
-        api_router_config_source_label(&status.config_source),
-        status.admin.bind_addr,
-        status.gateway.bind_addr,
-        status.reason,
-    );
-    let web_server_ready = if status.mode != ApiRouterRuntimeMode::Conflicted {
-        if let Err(error) = context.services.supervisor.start_web_server(&context.paths) {
-            context.logger.warn(&format!(
-                "{message}; attempted built-in sdkwork-api-router web server start but it failed: {error}"
-            ))?;
-            false
-        } else {
-            true
-        }
-    } else {
-        false
-    };
-
-    match status.mode {
-        ApiRouterRuntimeMode::AttachedExternal => {
-            context.logger.info(&message)?;
-            if web_server_ready {
-                log_api_router_public_endpoints(context, &status)?;
-            }
-        }
-        ApiRouterRuntimeMode::ManagedActive => {
-            context.logger.info(&message)?;
-            if web_server_ready {
-                log_api_router_public_endpoints(context, &status)?;
-            }
-        }
-        ApiRouterRuntimeMode::NeedsManagedStart => match activate_bundled_api_router(app, context) {
-            Ok(true) => {
-                let managed_status = resolve_api_router_runtime_status(context)?;
-                context.logger.info(&format!(
-                    "api router managed startup activated: mode={} configSource={} adminBind={} gatewayBind={} reason={}",
-                    api_router_runtime_mode_label(&managed_status.mode),
-                    api_router_config_source_label(&managed_status.config_source),
-                    managed_status.admin.bind_addr,
-                    managed_status.gateway.bind_addr,
-                    managed_status.reason,
-                ))?;
-                log_api_router_public_endpoints(context, &managed_status)?;
-            }
-            Ok(false) => context.logger.warn(&format!(
-                "{message}; independent sdkwork-api-router was not detected, and no bundled managed runtime is available yet."
-            ))?,
-            Err(error) => context.logger.warn(&format!(
-                "{message}; attempted bundled managed startup but it failed: {error}"
-            ))?,
-        },
-        ApiRouterRuntimeMode::Conflicted => context.logger.warn(&message)?,
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 fn activate_bundled_openclaw_from_resource_root(
     context: &FrameworkContext,
@@ -820,26 +700,6 @@ fn activate_bundled_openclaw_from_resource_root(
         .openclaw_runtime
         .ensure_bundled_runtime_from_root(&context.paths, resource_root)?;
     finalize_openclaw_activation(context, runtime)
-}
-
-#[cfg(test)]
-fn activate_bundled_api_router_from_resource_root(
-    context: &FrameworkContext,
-    resource_root: &std::path::Path,
-) -> FrameworkResult<()> {
-    let runtime = context
-        .services
-        .api_router_managed_runtime
-        .ensure_bundled_runtime_from_root(&context.paths, resource_root)?;
-    context
-        .services
-        .supervisor
-        .configure_api_router_runtime(&runtime)?;
-    context
-        .services
-        .supervisor
-        .start_api_router(&context.paths)?;
-    Ok(())
 }
 
 fn perform_explicit_shutdown<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
@@ -863,6 +723,11 @@ fn perform_explicit_shutdown<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<
     if let Err(error) = state.context.services.supervisor.complete_shutdown() {
         let _ = state.context.logger.warn(&format!(
             "failed to finalize supervisor shutdown state: {error}"
+        ));
+    }
+    if let Err(error) = state.context.services.local_ai_proxy.stop() {
+        let _ = state.context.logger.warn(&format!(
+            "failed to stop local ai proxy during shutdown: {error}"
         ));
     }
 
@@ -900,69 +765,6 @@ fn system_locale_to_tray_language(locale: Option<&str>) -> TrayLanguage {
     TrayLanguage::En
 }
 
-fn api_router_runtime_mode_label(mode: &ApiRouterRuntimeMode) -> &'static str {
-    match mode {
-        ApiRouterRuntimeMode::AttachedExternal => "attached_external",
-        ApiRouterRuntimeMode::ManagedActive => "managed_active",
-        ApiRouterRuntimeMode::NeedsManagedStart => "needs_managed_start",
-        ApiRouterRuntimeMode::Conflicted => "conflicted",
-    }
-}
-
-fn api_router_config_source_label(
-    source: &crate::framework::services::api_router_runtime::ApiRouterConfigSource,
-) -> &'static str {
-    match source {
-        crate::framework::services::api_router_runtime::ApiRouterConfigSource::Defaults => {
-            "defaults"
-        }
-        crate::framework::services::api_router_runtime::ApiRouterConfigSource::File => "file",
-        crate::framework::services::api_router_runtime::ApiRouterConfigSource::Env => "env",
-    }
-}
-
-fn api_router_public_endpoint_lines(
-    status: &crate::framework::services::api_router_runtime::ApiRouterRuntimeStatus,
-) -> Vec<String> {
-    let mut lines = Vec::new();
-
-    if let Some(gateway_base_url) = status.gateway.public_base_url.as_deref() {
-        lines.push(format!(
-            "sdkwork-api-router gateway API: {gateway_base_url}/v1/*"
-        ));
-    }
-
-    if let Some(admin_api_url) = status.admin.public_base_url.as_deref() {
-        lines.push(format!("sdkwork-api-router admin API: {admin_api_url}"));
-    }
-
-    if let Some(portal_api_url) = status.portal.public_base_url.as_deref() {
-        lines.push(format!("sdkwork-api-router portal API: {portal_api_url}"));
-    }
-
-    if let Some(admin_site_url) = status.admin_site_base_url.as_deref() {
-        lines.push(format!("sdkwork-api-router admin UI: {admin_site_url}"));
-    }
-
-    if let Some(portal_site_url) = status.portal_site_base_url.as_deref() {
-        lines.push(format!("sdkwork-api-router portal UI: {portal_site_url}"));
-    }
-
-    lines
-}
-
-fn log_api_router_public_endpoints(
-    context: &FrameworkContext,
-    status: &crate::framework::services::api_router_runtime::ApiRouterRuntimeStatus,
-) -> FrameworkResult<()> {
-    for line in api_router_public_endpoint_lines(status) {
-        println!("{line}");
-        context.logger.info(&line)?;
-    }
-
-    Ok(())
-}
-
 fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
     match language {
         TrayLanguage::En => TrayLabels {
@@ -973,12 +775,9 @@ fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
             apps: "Apps",
             instances: "Instances",
             tasks: "Tasks",
-            api_router: "API-Router",
             settings: "Settings",
             services: "Services",
             restart_openclaw_gateway: "Restart OpenClaw Gateway",
-            restart_web_server: "Restart Web Server",
-            restart_api_router: "Restart API-Router",
             restart_all_background_services: "Restart All Background Services",
             diagnostics: "Diagnostics",
             open_logs_directory: "Open Logs Directory",
@@ -995,12 +794,9 @@ fn tray_labels_for(language: TrayLanguage) -> TrayLabels {
             apps: "\u{5e94}\u{7528}",
             instances: "\u{5b9e}\u{4f8b}",
             tasks: "\u{4efb}\u{52a1}",
-            api_router: "API \u{8def}\u{7531}",
             settings: "\u{8bbe}\u{7f6e}",
             services: "\u{670d}\u{52a1}",
             restart_openclaw_gateway: "\u{91cd}\u{542f} OpenClaw Gateway",
-            restart_web_server: "\u{91cd}\u{542f} Web Server",
-            restart_api_router: "\u{91cd}\u{542f} API-Router",
             restart_all_background_services:
                 "\u{91cd}\u{542f}\u{5168}\u{90e8}\u{540e}\u{53f0}\u{670d}\u{52a1}",
             diagnostics: "\u{8bca}\u{65ad}",
@@ -1024,7 +820,6 @@ fn build_tray_menu<R: Runtime>(
         .text(TRAY_MENU_ID_OPEN_APPS, labels.apps)
         .text(TRAY_MENU_ID_OPEN_INSTANCES, labels.instances)
         .text(TRAY_MENU_ID_OPEN_TASKS, labels.tasks)
-        .text(TRAY_MENU_ID_OPEN_API_ROUTER, labels.api_router)
         .text(TRAY_MENU_ID_OPEN_SETTINGS, labels.settings)
         .build()?;
     let services_menu = SubmenuBuilder::new(app, labels.services)
@@ -1032,8 +827,6 @@ fn build_tray_menu<R: Runtime>(
             TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY,
             labels.restart_openclaw_gateway,
         )
-        .text(TRAY_MENU_ID_RESTART_WEB_SERVER, labels.restart_web_server)
-        .text(TRAY_MENU_ID_RESTART_API_ROUTER, labels.restart_api_router)
         .separator()
         .text(
             TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES,
@@ -1068,50 +861,27 @@ fn build_tray_menu<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::{
-        activate_bundled_api_router_from_resource_root,
-        activate_bundled_openclaw_from_resource_root, api_router_public_endpoint_lines,
-        build_tray_menu_spec, resolve_api_router_runtime_status, resolve_tray_language,
+        activate_bundled_openclaw_from_resource_root, build_tray_menu_spec, resolve_tray_language,
         should_prevent_main_window_close, tray_action_for_menu_id, TrayAction, TrayLanguage,
-        TrayMenuEntry, TRAY_MENU_ID_QUIT_APP, TRAY_MENU_ID_RESTART_API_ROUTER,
-        TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES, TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY,
-        TRAY_MENU_ID_RESTART_WEB_SERVER, TRAY_MENU_ID_SHOW_WINDOW,
+        TrayMenuEntry, TRAY_MENU_ID_QUIT_APP, TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES,
+        TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY, TRAY_MENU_ID_SHOW_WINDOW,
     };
     use crate::framework::{
         config::AppConfig,
         context::FrameworkContext,
         layout::ActiveState,
         logging::init_logger,
+        openclaw_release::bundled_openclaw_version,
         paths::resolve_paths_for_root,
         services::{
-            api_router_managed_runtime::BundledApiRouterManifest,
-            api_router_runtime::ApiRouterRuntimeMode,
+            local_ai_proxy::default_local_ai_proxy_public_host,
             openclaw_runtime::BundledOpenClawManifest,
             studio::StudioInstanceStatus,
-            supervisor::{
-                ManagedServiceLifecycle, SERVICE_ID_API_ROUTER, SERVICE_ID_OPENCLAW_GATEWAY,
-            },
+            supervisor::{ManagedServiceLifecycle, SERVICE_ID_OPENCLAW_GATEWAY},
         },
     };
+    use serde_json::Value;
     use std::fs;
-
-    #[test]
-    fn invoke_handler_registers_api_router_runtime_bootstrap_commands_only() {
-        let source = include_str!("bootstrap.rs");
-        let production_source = source
-            .split("mod tests {")
-            .next()
-            .expect("production bootstrap source");
-
-        assert!(production_source
-            .contains("commands::api_router_runtime::get_api_router_admin_bootstrap_session"));
-        assert!(production_source
-            .contains("commands::api_router_runtime::get_api_router_runtime_status"));
-        assert!(!production_source.contains("commands::api_router_auth::sync_auth_session"));
-        assert!(!production_source.contains("commands::api_router_auth::clear_auth_session"));
-        assert!(
-            !production_source.contains("commands::api_router_auth::get_api_router_admin_token")
-        );
-    }
 
     #[test]
     fn invoke_handler_registers_studio_openclaw_gateway_proxy_command() {
@@ -1121,8 +891,82 @@ mod tests {
             .next()
             .expect("production bootstrap source");
 
-        assert!(production_source
-            .contains("commands::studio_commands::studio_invoke_openclaw_gateway"));
+        assert!(
+            production_source.contains("commands::studio_commands::studio_invoke_openclaw_gateway")
+        );
+    }
+
+    #[test]
+    fn setup_ensures_tray_before_starting_bundled_background_runtime() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+
+        let ensure_tray_index = production_source
+            .find("ensure_tray(&app_handle)?;")
+            .expect("tray setup should ensure the tray exists");
+        let activate_runtime_index = production_source
+            .find("activate_bundled_openclaw(&app_handle, context.as_ref())")
+            .expect("tray setup should still start the bundled runtime");
+
+        assert!(
+            ensure_tray_index < activate_runtime_index,
+            "tray readiness should happen before bundled runtime activation so the app remains reachable while background startup is slow"
+        );
+    }
+
+    #[test]
+    fn refresh_tray_menu_recreates_the_main_tray_when_it_is_missing() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+        let refresh_tray_menu_source = production_source
+            .split("pub fn refresh_tray_menu")
+            .nth(1)
+            .and_then(|tail| tail.split("fn handle_window_event").next())
+            .expect("refresh tray menu source");
+
+        let ensure_tray_index = refresh_tray_menu_source
+            .find("ensure_tray(app)?;")
+            .expect("tray refresh should recreate the tray before reconfiguring the menu");
+        let lookup_index = refresh_tray_menu_source
+            .find(".tray_by_id(TRAY_ICON_ID)")
+            .expect("tray refresh should retrieve the ensured tray handle");
+
+        assert!(
+            ensure_tray_index < lookup_index,
+            "tray refresh should recreate the tray before looking up the tray handle"
+        );
+    }
+
+    #[test]
+    fn close_request_keeps_the_window_visible_when_the_tray_is_unavailable() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+        let handle_window_event_source = production_source
+            .split("fn handle_window_event")
+            .nth(1)
+            .and_then(|tail| tail.split("fn handle_tray_menu_event").next())
+            .expect("handle window event source");
+
+        let ensure_tray_index = handle_window_event_source
+            .find("if let Err(error) = ensure_tray(&app)")
+            .expect("close-to-tray flow should verify the tray remains reachable");
+        let hide_window_index = handle_window_event_source
+            .find("if let Err(error) = window.hide()")
+            .expect("close-to-tray flow should still hide the window after the guard");
+
+        assert!(
+            ensure_tray_index < hide_window_index,
+            "close-to-tray should only hide the window after the tray is confirmed reachable"
+        );
     }
 
     #[test]
@@ -1158,18 +1002,6 @@ mod tests {
                             TrayMenuEntry::Item { id, label }
                                 if *id == TRAY_MENU_ID_RESTART_OPENCLAW_GATEWAY
                                     && label == "Restart OpenClaw Gateway"
-                        ))
-                        && items.iter().any(|item| matches!(
-                            item,
-                            TrayMenuEntry::Item { id, label }
-                                if *id == TRAY_MENU_ID_RESTART_WEB_SERVER
-                                    && label == "Restart Web Server"
-                        ))
-                        && items.iter().any(|item| matches!(
-                            item,
-                            TrayMenuEntry::Item { id, label }
-                                if *id == TRAY_MENU_ID_RESTART_API_ROUTER
-                                    && label == "Restart API-Router"
                         ))
                         && items.iter().any(|item| matches!(
                             item,
@@ -1221,18 +1053,6 @@ mod tests {
                         && items.iter().any(|item| matches!(
                             item,
                             TrayMenuEntry::Item { id, label }
-                                if *id == TRAY_MENU_ID_RESTART_WEB_SERVER
-                                    && label == "\u{91cd}\u{542f} Web Server"
-                        ))
-                        && items.iter().any(|item| matches!(
-                            item,
-                            TrayMenuEntry::Item { id, label }
-                                if *id == TRAY_MENU_ID_RESTART_API_ROUTER
-                                    && label == "\u{91cd}\u{542f} API-Router"
-                        ))
-                        && items.iter().any(|item| matches!(
-                            item,
-                            TrayMenuEntry::Item { id, label }
                                 if *id == TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES
                                     && label
                                         == "\u{91cd}\u{542f}\u{5168}\u{90e8}\u{540e}\u{53f0}\u{670d}\u{52a1}"
@@ -1276,24 +1096,12 @@ mod tests {
             Some(TrayAction::OpenRoute("/tasks"))
         );
         assert_eq!(
-            tray_action_for_menu_id("open_api_router"),
-            Some(TrayAction::OpenRoute("/api-router"))
-        );
-        assert_eq!(
             tray_action_for_menu_id("open_settings"),
             Some(TrayAction::OpenRoute("/settings"))
         );
         assert_eq!(
             tray_action_for_menu_id("restart_openclaw_gateway"),
             Some(TrayAction::RestartManagedService("openclaw_gateway"))
-        );
-        assert_eq!(
-            tray_action_for_menu_id("restart_web_server"),
-            Some(TrayAction::RestartManagedService("web_server"))
-        );
-        assert_eq!(
-            tray_action_for_menu_id("restart_api_router"),
-            Some(TrayAction::RestartManagedService("api_router"))
         );
         assert_eq!(
             tray_action_for_menu_id(TRAY_MENU_ID_RESTART_BACKGROUND_SERVICES),
@@ -1342,6 +1150,10 @@ mod tests {
             &fs::read_to_string(&paths.active_file).expect("active file"),
         )
         .expect("active json");
+        let openclaw_config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("openclaw config file"),
+        )
+        .expect("openclaw config json");
         assert_eq!(
             active
                 .runtimes
@@ -1349,12 +1161,27 @@ mod tests {
                 .and_then(|entry| entry.active_version.as_deref()),
             Some(
                 format!(
-                    "2026.3.23-2-{}-{}",
+                    "{}-{}-{}",
+                    bundled_openclaw_version(),
                     normalized_openclaw_platform(),
                     normalized_openclaw_arch()
                 )
                 .as_str()
             )
+        );
+        assert_eq!(
+            openclaw_config["models"]["providers"]["sdkwork-local-proxy"]["apiKey"],
+            "sk_sdkwork_api_key"
+        );
+        assert!(
+            openclaw_config["models"]["providers"]["sdkwork-local-proxy"]["baseUrl"]
+                .as_str()
+                .expect("local proxy base url")
+                .starts_with(&format!("http://{}:", default_local_ai_proxy_public_host()))
+        );
+        assert_eq!(
+            openclaw_config["agents"]["defaults"]["model"]["primary"],
+            "sdkwork-local-proxy/sdkwork-chat"
         );
 
         let snapshot = context.services.supervisor.snapshot().expect("snapshot");
@@ -1378,6 +1205,11 @@ mod tests {
             .expect("built-in instance");
         assert_eq!(built_in.status, StudioInstanceStatus::Online);
 
+        context
+            .services
+            .local_ai_proxy
+            .stop()
+            .expect("stop local ai proxy");
         context
             .services
             .supervisor
@@ -1416,6 +1248,11 @@ mod tests {
             .expect("get built-in instance")
             .expect("built-in instance");
         assert_eq!(built_in.status, StudioInstanceStatus::Error);
+        context
+            .services
+            .local_ai_proxy
+            .stop()
+            .expect("stop local ai proxy");
     }
 
     #[test]
@@ -1442,41 +1279,9 @@ mod tests {
 
         context
             .services
-            .supervisor
-            .begin_shutdown()
-            .expect("shutdown");
-        context
-            .services
-            .supervisor
-            .complete_shutdown()
-            .expect("complete shutdown");
-    }
-
-    #[test]
-    fn bundled_api_router_activation_starts_managed_process_group_and_reports_managed_active() {
-        let root = tempfile::tempdir().expect("temp dir");
-        let paths = resolve_paths_for_root(root.path()).expect("paths");
-        let logger = init_logger(&paths).expect("logger");
-        let context = FrameworkContext::from_parts(paths.clone(), AppConfig::default(), logger);
-        let resource_root = create_bundled_api_router_fixture(root.path());
-
-        activate_bundled_api_router_from_resource_root(&context, &resource_root)
-            .expect("activate bundled api router");
-
-        let snapshot = context.services.supervisor.snapshot().expect("snapshot");
-        let api_router = snapshot
-            .services
-            .into_iter()
-            .find(|managed_service| managed_service.id == SERVICE_ID_API_ROUTER)
-            .expect("api router service");
-        assert_eq!(api_router.lifecycle, ManagedServiceLifecycle::Running);
-        assert!(api_router.pid.is_some());
-
-        let status = resolve_api_router_runtime_status(&context).expect("runtime status");
-        assert_eq!(status.mode, ApiRouterRuntimeMode::ManagedActive);
-        assert!(status.admin.healthy);
-        assert!(status.gateway.healthy);
-
+            .local_ai_proxy
+            .stop()
+            .expect("stop local ai proxy");
         context
             .services
             .supervisor
@@ -1487,67 +1292,6 @@ mod tests {
             .supervisor
             .complete_shutdown()
             .expect("complete shutdown");
-    }
-
-    #[test]
-    fn api_router_public_endpoint_lines_surface_single_port_admin_portal_and_api_urls() {
-        let status = crate::framework::services::api_router_runtime::ApiRouterRuntimeStatus {
-            mode: ApiRouterRuntimeMode::ManagedActive,
-            recommended_managed_mode: None,
-            shared_root_dir: "C:/Users/admin/.sdkwork/router".to_string(),
-            config_dir: "C:/Users/admin/.sdkwork/router".to_string(),
-            config_source:
-                crate::framework::services::api_router_runtime::ApiRouterConfigSource::Defaults,
-            resolved_config_file: Some("C:/Users/admin/.sdkwork/router/config.json".to_string()),
-            admin: crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
-                bind_addr: "127.0.0.1:12101".to_string(),
-                health_url: "http://127.0.0.1:12101/admin/health".to_string(),
-                enabled: true,
-                public_base_url: Some("http://127.0.0.1:12103/api/admin".to_string()),
-                healthy: true,
-                port_available: false,
-            },
-            portal:
-                crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
-                    bind_addr: "127.0.0.1:12102".to_string(),
-                    health_url: "http://127.0.0.1:12102/portal/health".to_string(),
-                    enabled: true,
-                    public_base_url: Some("http://127.0.0.1:12103/api/portal".to_string()),
-                    healthy: true,
-                    port_available: false,
-                },
-            gateway:
-                crate::framework::services::api_router_runtime::ApiRouterEndpointRuntimeStatus {
-                    bind_addr: "127.0.0.1:12100".to_string(),
-                    health_url: "http://127.0.0.1:12100/health".to_string(),
-                    enabled: true,
-                    public_base_url: Some("http://127.0.0.1:12103/api".to_string()),
-                    healthy: true,
-                    port_available: false,
-                },
-            admin_site_base_url: Some("http://127.0.0.1:12103/admin".to_string()),
-            portal_site_base_url: Some("http://127.0.0.1:12103/portal".to_string()),
-            reason: "Claw Studio is managing the sdkwork-api-router runtime for this session."
-                .to_string(),
-        };
-
-        let lines = api_router_public_endpoint_lines(&status);
-
-        assert!(lines
-            .iter()
-            .any(|line| line.contains("http://127.0.0.1:12103/api/v1/*")));
-        assert!(lines
-            .iter()
-            .any(|line| line.contains("http://127.0.0.1:12103/api/admin")));
-        assert!(lines
-            .iter()
-            .any(|line| line.contains("http://127.0.0.1:12103/api/portal")));
-        assert!(lines
-            .iter()
-            .any(|line| line.contains("http://127.0.0.1:12103/admin")));
-        assert!(lines
-            .iter()
-            .any(|line| line.contains("http://127.0.0.1:12103/portal")));
     }
 
     #[cfg(windows)]
@@ -1600,7 +1344,7 @@ mod tests {
         let manifest = BundledOpenClawManifest {
             schema_version: 1,
             runtime_id: "openclaw".to_string(),
-            openclaw_version: "2026.3.23-2".to_string(),
+            openclaw_version: bundled_openclaw_version().to_string(),
             node_version: "22.16.0".to_string(),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
@@ -1647,7 +1391,7 @@ mod tests {
         let manifest = BundledOpenClawManifest {
             schema_version: 1,
             runtime_id: "openclaw".to_string(),
-            openclaw_version: "2026.3.23-2".to_string(),
+            openclaw_version: bundled_openclaw_version().to_string(),
             node_version: "22.16.0".to_string(),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
@@ -1681,7 +1425,7 @@ mod tests {
         let manifest = BundledOpenClawManifest {
             schema_version: 1,
             runtime_id: "openclaw".to_string(),
-            openclaw_version: "2026.3.23-2".to_string(),
+            openclaw_version: bundled_openclaw_version().to_string(),
             node_version: "22.16.0".to_string(),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
@@ -1724,7 +1468,7 @@ mod tests {
         let manifest = BundledOpenClawManifest {
             schema_version: 1,
             runtime_id: "openclaw".to_string(),
-            openclaw_version: "2026.3.23-2".to_string(),
+            openclaw_version: bundled_openclaw_version().to_string(),
             node_version: "22.16.0".to_string(),
             platform: normalized_openclaw_platform().to_string(),
             arch: normalized_openclaw_arch().to_string(),
@@ -1737,195 +1481,6 @@ mod tests {
             serde_json::to_string_pretty(&manifest).expect("manifest json"),
         )
         .expect("manifest file");
-
-        resource_root
-    }
-
-    #[cfg(windows)]
-    fn create_bundled_api_router_fixture(root: &std::path::Path) -> std::path::PathBuf {
-        let resource_root = root.join("bundled-api-router");
-        let runtime_root = resource_root.join("runtime");
-        let gateway_cmd_path = runtime_root.join("gateway-service.cmd");
-        let admin_cmd_path = runtime_root.join("admin-api-service.cmd");
-        let portal_cmd_path = runtime_root.join("portal-api-service.cmd");
-        let gateway_script_path = runtime_root.join("gateway-service.mjs");
-        let admin_script_path = runtime_root.join("admin-api-service.mjs");
-        let portal_script_path = runtime_root.join("portal-api-service.mjs");
-        let admin_site_index_path = runtime_root.join("sites").join("admin").join("index.html");
-        let portal_site_index_path = runtime_root.join("sites").join("portal").join("index.html");
-        let router_root = root.join("router");
-
-        fs::create_dir_all(gateway_cmd_path.parent().expect("gateway parent"))
-            .expect("gateway dir");
-        fs::create_dir_all(admin_cmd_path.parent().expect("admin parent")).expect("admin dir");
-        fs::create_dir_all(portal_cmd_path.parent().expect("portal parent")).expect("portal dir");
-        fs::create_dir_all(admin_site_index_path.parent().expect("admin site parent"))
-            .expect("admin site dir");
-        fs::create_dir_all(portal_site_index_path.parent().expect("portal site parent"))
-            .expect("portal site dir");
-        fs::create_dir_all(&router_root).expect("router root");
-        fs::write(
-            &gateway_script_path,
-            "import net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst fs = await import('node:fs');\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.gateway_bind ?? '127.0.0.1:12100';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
-        )
-        .expect("gateway script");
-        fs::write(
-            &admin_script_path,
-            "import net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst fs = await import('node:fs');\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.admin_bind ?? '127.0.0.1:12101';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
-        )
-        .expect("admin script");
-        fs::write(
-            &portal_script_path,
-            "import net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst fs = await import('node:fs');\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.portal_bind ?? '127.0.0.1:12102';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
-        )
-        .expect("portal script");
-        fs::write(
-            &gateway_cmd_path,
-            "@echo off\r\nnode \"%~dp0gateway-service.mjs\"\r\n",
-        )
-        .expect("gateway cmd");
-        fs::write(
-            &admin_cmd_path,
-            "@echo off\r\nnode \"%~dp0admin-api-service.mjs\"\r\n",
-        )
-        .expect("admin cmd");
-        fs::write(
-            &portal_cmd_path,
-            "@echo off\r\nnode \"%~dp0portal-api-service.mjs\"\r\n",
-        )
-        .expect("portal cmd");
-        fs::write(
-            &admin_site_index_path,
-            "<!doctype html><title>admin</title>",
-        )
-        .expect("admin site");
-        fs::write(
-            &portal_site_index_path,
-            "<!doctype html><title>portal</title>",
-        )
-        .expect("portal site");
-        fs::write(
-            router_root.join("config.json"),
-            "{\"gateway_bind\":\"127.0.0.1:29080\",\"admin_bind\":\"127.0.0.1:29081\",\"portal_bind\":\"127.0.0.1:29082\",\"web_bind\":\"127.0.0.1:29083\"}\n",
-        )
-        .expect("router config");
-
-        let manifest = BundledApiRouterManifest {
-            schema_version: 1,
-            runtime_id: "sdkwork-api-router".to_string(),
-            router_version: "2026.3.20".to_string(),
-            platform: normalized_openclaw_platform().to_string(),
-            arch: normalized_openclaw_arch().to_string(),
-            gateway_relative_path: "runtime/gateway-service.cmd".to_string(),
-            admin_relative_path: "runtime/admin-api-service.cmd".to_string(),
-            portal_relative_path: "runtime/portal-api-service.cmd".to_string(),
-        };
-        fs::write(
-            resource_root.join("manifest.json"),
-            serde_json::to_string_pretty(&manifest).expect("manifest json"),
-        )
-        .expect("manifest");
-        resource_root
-    }
-
-    #[cfg(not(windows))]
-    fn create_bundled_api_router_fixture(root: &std::path::Path) -> std::path::PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-
-        let resource_root = root.join("bundled-api-router");
-        let runtime_root = resource_root.join("runtime");
-        let gateway_path = runtime_root.join("gateway-service");
-        let admin_path = runtime_root.join("admin-api-service");
-        let portal_path = runtime_root.join("portal-api-service");
-        let admin_site_index_path = runtime_root.join("sites").join("admin").join("index.html");
-        let portal_site_index_path = runtime_root.join("sites").join("portal").join("index.html");
-        let router_root = root.join("router");
-
-        fs::create_dir_all(gateway_path.parent().expect("gateway parent")).expect("gateway dir");
-        fs::create_dir_all(admin_path.parent().expect("admin parent")).expect("admin dir");
-        fs::create_dir_all(portal_path.parent().expect("portal parent")).expect("portal dir");
-        fs::create_dir_all(admin_site_index_path.parent().expect("admin site parent"))
-            .expect("admin site dir");
-        fs::create_dir_all(portal_site_index_path.parent().expect("portal site parent"))
-            .expect("portal site dir");
-        fs::create_dir_all(&router_root).expect("router root");
-        fs::write(
-            &gateway_path,
-            "#!/bin/sh\nexec node \"$(dirname \"$0\")/gateway-service.mjs\"\n",
-        )
-        .expect("gateway shim");
-        fs::write(
-            &admin_path,
-            "#!/bin/sh\nexec node \"$(dirname \"$0\")/admin-api-service.mjs\"\n",
-        )
-        .expect("admin shim");
-        fs::write(
-            &portal_path,
-            "#!/bin/sh\nexec node \"$(dirname \"$0\")/portal-api-service.mjs\"\n",
-        )
-        .expect("portal shim");
-        let mut gateway_permissions = fs::metadata(&gateway_path)
-            .expect("gateway metadata")
-            .permissions();
-        gateway_permissions.set_mode(0o755);
-        fs::set_permissions(&gateway_path, gateway_permissions).expect("gateway permissions");
-        let mut admin_permissions = fs::metadata(&admin_path)
-            .expect("admin metadata")
-            .permissions();
-        admin_permissions.set_mode(0o755);
-        fs::set_permissions(&admin_path, admin_permissions).expect("admin permissions");
-        let mut portal_permissions = fs::metadata(&portal_path)
-            .expect("portal metadata")
-            .permissions();
-        portal_permissions.set_mode(0o755);
-        fs::set_permissions(&portal_path, portal_permissions).expect("portal permissions");
-        fs::write(
-            runtime_root.join("gateway-service.mjs"),
-            "import fs from 'node:fs';\nimport net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.gateway_bind ?? '127.0.0.1:12100';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
-        )
-        .expect("gateway script");
-        fs::write(
-            runtime_root.join("admin-api-service.mjs"),
-            "import fs from 'node:fs';\nimport net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.admin_bind ?? '127.0.0.1:12101';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /admin/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
-        )
-        .expect("admin script");
-        fs::write(
-            runtime_root.join("portal-api-service.mjs"),
-            "import fs from 'node:fs';\nimport net from 'node:net';\nconst root = process.env.SDKWORK_CONFIG_DIR;\nconst config = JSON.parse(fs.readFileSync(`${root}/config.json`, 'utf8'));\nconst bind = config.portal_bind ?? '127.0.0.1:12102';\nconst [host, port] = bind.split(':');\nconst server = net.createServer((socket) => {\n  socket.once('data', (chunk) => {\n    const request = chunk.toString();\n    const ok = request.startsWith('GET /portal/health ');\n    const body = ok ? 'ok' : 'missing';\n    const status = ok ? '200 OK' : '404 Not Found';\n    socket.end(`HTTP/1.1 ${status}\\r\\nContent-Length: ${body.length}\\r\\nConnection: close\\r\\n\\r\\n${body}`);\n  });\n});\nserver.listen(Number(port), host);\nsetInterval(() => {}, 1000);\n",
-        )
-        .expect("portal script");
-        fs::write(
-            &admin_site_index_path,
-            "<!doctype html><title>admin</title>",
-        )
-        .expect("admin site");
-        fs::write(
-            &portal_site_index_path,
-            "<!doctype html><title>portal</title>",
-        )
-        .expect("portal site");
-
-        let manifest = BundledApiRouterManifest {
-            schema_version: 1,
-            runtime_id: "sdkwork-api-router".to_string(),
-            router_version: "2026.3.20".to_string(),
-            platform: normalized_openclaw_platform().to_string(),
-            arch: normalized_openclaw_arch().to_string(),
-            gateway_relative_path: "runtime/gateway-service".to_string(),
-            admin_relative_path: "runtime/admin-api-service".to_string(),
-            portal_relative_path: "runtime/portal-api-service".to_string(),
-        };
-        fs::write(
-            router_root.join("config.json"),
-            "{\"gateway_bind\":\"127.0.0.1:29080\",\"admin_bind\":\"127.0.0.1:29081\",\"portal_bind\":\"127.0.0.1:29082\",\"web_bind\":\"127.0.0.1:29083\"}\n",
-        )
-        .expect("router config");
-
-        fs::write(
-            resource_root.join("manifest.json"),
-            serde_json::to_string_pretty(&manifest).expect("manifest json"),
-        )
-        .expect("manifest");
 
         resource_root
     }

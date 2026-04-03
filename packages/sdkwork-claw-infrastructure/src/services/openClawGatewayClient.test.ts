@@ -1662,6 +1662,134 @@ await runTest('remaining uncovered gateway wrappers map the official session, pu
   );
 });
 
+await runTest(
+  'exec approval wrappers keep gateway and node approval methods official while normalizing persistent approval decisions',
+  async () => {
+    const expectedRequests = [
+      {
+        tool: 'exec.approvals',
+        action: 'get',
+        args: {
+          scope: 'gateway',
+        },
+      },
+      {
+        tool: 'exec.approvals',
+        action: 'set',
+        args: {
+          file: {
+            ask: 'always',
+          },
+        },
+      },
+      {
+        tool: 'exec.approvals.node',
+        action: 'get',
+        args: {
+          nodeId: 'node-alpha',
+        },
+      },
+      {
+        tool: 'exec.approvals.node',
+        action: 'set',
+        args: {
+          nodeId: 'node-alpha',
+          file: {
+            ask: 'always',
+          },
+        },
+      },
+      {
+        tool: 'exec.approval',
+        action: 'resolve',
+        args: {
+          id: 'approval-1',
+          decision: 'allow-always',
+        },
+      },
+      {
+        tool: 'exec.approval',
+        action: 'resolve',
+        args: {
+          id: 'approval-2',
+          decision: 'allow-once',
+        },
+      },
+    ];
+    let requestIndex = 0;
+
+    const client = createOpenClawGatewayClient({
+      getInstanceDetail: async () => createInstanceDetail(),
+      fetchImpl: async (_input, init) => {
+        assert.deepEqual(parseInvokeRequest(init), expectedRequests[requestIndex]);
+        requestIndex += 1;
+        return createJsonResponse({
+          ok: true,
+          result: {
+            requestIndex,
+          },
+        });
+      },
+    });
+
+    assert.deepEqual(
+      await client.getExecApprovals('openclaw-prod', {
+        scope: 'gateway',
+      }),
+      {
+        requestIndex: 1,
+      },
+    );
+    assert.deepEqual(
+      await client.setExecApprovals('openclaw-prod', {
+        file: {
+          ask: 'always',
+        },
+      }),
+      {
+        requestIndex: 2,
+      },
+    );
+    assert.deepEqual(
+      await client.getNodeExecApprovals('openclaw-prod', {
+        nodeId: 'node-alpha',
+      }),
+      {
+        requestIndex: 3,
+      },
+    );
+    assert.deepEqual(
+      await client.setNodeExecApprovals('openclaw-prod', {
+        nodeId: 'node-alpha',
+        file: {
+          ask: 'always',
+        },
+      }),
+      {
+        requestIndex: 4,
+      },
+    );
+    assert.deepEqual(
+      await client.resolveExecApproval('openclaw-prod', {
+        id: 'approval-1',
+        decision: 'always',
+      } as any),
+      {
+        requestIndex: 5,
+      },
+    );
+    assert.deepEqual(
+      await client.resolveExecApproval('openclaw-prod', {
+        id: 'approval-2',
+        decision: 'allow',
+      } as any),
+      {
+        requestIndex: 6,
+      },
+    );
+  },
+);
+
 await runTest('getStatus uses the official status tool', async () => {
   const client = createOpenClawGatewayClient({
     getInstanceDetail: async () => createInstanceDetail(),
@@ -1716,6 +1844,43 @@ await runTest('logoutChannel uses the official channels.logout method bridge', a
 });
 
 await runTest('listWorkbenchCronJobs maps cron jobs into Studio workbench tasks', async () => {
+  const rawJob = {
+    id: 'job-ops-daily',
+    name: 'Ops Daily Brief',
+    description: 'Morning operations summary',
+    enabled: true,
+    deleteAfterRun: true,
+    agentId: 'ops',
+    createdAtMs: 100,
+    updatedAtMs: 200,
+    schedule: {
+      kind: 'cron',
+      expr: '0 9 * * *',
+      tz: 'Asia/Shanghai',
+      staggerMs: 30000,
+    },
+    sessionTarget: 'session:project-alpha-monitor',
+    wakeMode: 'next-heartbeat',
+    payload: {
+      kind: 'agentTurn',
+      message: 'Summarize operations updates.',
+      model: 'openai/gpt-5.4',
+      thinking: 'high',
+      timeoutSeconds: 120,
+      lightContext: true,
+      tools: ['exec', 'group:filesystem'],
+    },
+    delivery: {
+      mode: 'webhook',
+      to: 'https://hooks.example.com/openclaw/cron',
+      bestEffort: true,
+    },
+    state: {
+      nextRunAtMs: 1742432400000,
+      lastRunAtMs: 1742346000000,
+      lastRunStatus: 'ok',
+    },
+  };
   const client = createOpenClawGatewayClient({
     getInstanceDetail: async () => createInstanceDetail(),
     fetchImpl: async (_input, init) => {
@@ -1726,38 +1891,7 @@ await runTest('listWorkbenchCronJobs maps cron jobs into Studio workbench tasks'
       return createJsonResponse({
         ok: true,
         result: {
-          items: [
-            {
-              id: 'job-ops-daily',
-              name: 'Ops Daily Brief',
-              description: 'Morning operations summary',
-              enabled: true,
-              createdAtMs: 100,
-              updatedAtMs: 200,
-              schedule: {
-                kind: 'cron',
-                expr: '0 9 * * *',
-                tz: 'Asia/Shanghai',
-              },
-              sessionTarget: 'isolated',
-              wakeMode: 'next-heartbeat',
-              payload: {
-                kind: 'agentTurn',
-                message: 'Summarize operations updates.',
-                timeoutSeconds: 120,
-              },
-              delivery: {
-                mode: 'announce',
-                channel: 'slack',
-                to: 'channel:C001',
-              },
-              state: {
-                nextRunAtMs: 1742432400000,
-                lastRunAtMs: 1742346000000,
-                lastRunStatus: 'ok',
-              },
-            },
-          ],
+          items: [rawJob],
         },
       });
     },
@@ -1775,17 +1909,25 @@ await runTest('listWorkbenchCronJobs maps cron jobs into Studio workbench tasks'
     scheduleMode: 'cron',
     scheduleConfig: {
       cronExpression: '0 9 * * *',
+      cronTimezone: 'Asia/Shanghai',
+      staggerMs: 30000,
     },
     cronExpression: '0 9 * * *',
     actionType: 'skill',
     status: 'active',
-    sessionMode: 'isolated',
+    sessionMode: 'custom',
+    customSessionId: 'project-alpha-monitor',
     wakeUpMode: 'nextCycle',
     executionContent: 'runAssistantTask',
-    deliveryMode: 'publishSummary',
-    deliveryChannel: 'slack',
-    deliveryLabel: 'slack',
-    recipient: 'channel:C001',
+    timeoutSeconds: 120,
+    deleteAfterRun: true,
+    agentId: 'ops',
+    model: 'openai/gpt-5.4',
+    thinking: 'high',
+    lightContext: true,
+    deliveryMode: 'webhook',
+    deliveryBestEffort: true,
+    recipient: 'https://hooks.example.com/openclaw/cron',
     lastRun: '2025-03-19T01:00:00.000Z',
     nextRun: '2025-03-20T01:00:00.000Z',
     latestExecution: {
@@ -1798,6 +1940,7 @@ await runTest('listWorkbenchCronJobs maps cron jobs into Studio workbench tasks'
       summary: 'Cron job completed successfully.',
       details: undefined,
     },
+    rawDefinition: rawJob,
   });
 });
 

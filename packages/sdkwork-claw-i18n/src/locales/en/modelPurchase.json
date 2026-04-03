@@ -1,0 +1,382 @@
+{
+  "eyebrow": "Model Commerce",
+  "title": "Model Purchase",
+  "description": "Browse curated default, ChatGPT, MiniMax, and top US-China model packages with billing-ready monthly, quarterly, and yearly plans.",
+  "loading": "Loading model purchase catalog...",
+  "empty": {
+    "title": "No model packages available",
+    "description": "The purchase catalog returned no vendor packages. Refresh and try again."
+  },
+  "error": {
+    "title": "Unable to load the model purchase catalog",
+    "description": "We could not fetch vendor packages right now. Please retry."
+  },
+  "actions": {
+    "retry": "Retry"
+  },
+  "currency": {
+    "cny": "CNY"
+  },
+  "regions": {
+    "global": "Global",
+    "us": "US",
+    "china": "China"
+  },
+  "billingCycle": {
+    "title": "Billing cycle"
+  },
+  "badges": {
+    "mostPopular": "Most Popular",
+    "bestValue": "Best Value",
+    "enterprise": "Enterprise"
+  },
+  "cycles": {
+    "monthly": {
+      "label": "Monthly",
+      "description": "Flexible monthly procurement for launch and testing.",
+      "savingsHint": "Best for fast iteration."
+    },
+    "quarterly": {
+      "label": "Quarterly",
+      "description": "A steadier package for teams with predictable growth.",
+      "savingsHint": "Save 8% versus monthly."
+    },
+    "yearly": {
+      "label": "Yearly",
+      "description": "The strongest quota, support, and cost envelope.",
+      "savingsHint": "Save 23% versus monthly."
+    }
+  },
+  "sidebar": {
+    "defaultGroup": "Default Package",
+    "usTop10": "US Top 10",
+    "chinaTop10": "China Top 10",
+    "catalogTitle": "Purchase Catalog",
+    "spotlight": "Hot"
+  },
+  "summary": {
+    "region": "Coverage",
+    "globalBlend": "Global blended package",
+    "usTop10Value": "US top-model lineup",
+    "chinaTop10Value": "China top-model lineup",
+    "highlightModels": "Highlight models",
+    "activeCycle": "Active cycle"
+  },
+  "hero": {
+    "defaultBundle": "Default Router Bundle",
+    "topModelPackage": "{{region}} Top Model Package",
+    "procurementWindow": "{{cycle}} procurement window",
+    "savings": "Savings",
+    "fit": "Fit"
+  },
+  "planGrid": {
+    "period": {
+      "month": "month",
+      "quarter": "quarter",
+      "year": "year"
+    },
+    "quota": "Quota",
+    "support": "Support",
+    "seats": "Seats",
+    "concurrency": "Concurrency",
+    "includedModels": "Included models",
+    "startPlan": "Start {{planName}}"
+  },
+  "payment": {
+    "eyebrow": "Payment View",
+    "title": "Review and pay for the selected package",
+    "description": "This step locks the selected vendor package and billing cycle. Use the back action if you need to make changes.",
+    "backToPlans": "Back to plans",
+    "lockedBadge": "Locked package",
+    "packageDetailsTitle": "Selected package details",
+    "packageDetailsDescription": "Confirm the chosen vendor package and payment method here. Package switching is intentionally disabled in this step.",
+    "lockedHint": "Need a different package or billing cycle? Return to the previous step and choose again before paying.",
+    "vendorLabel": "Vendor",
+    "planLabel": "Package",
+    "cycleLabel": "Billing cycle",
+    "quotaLabel": "Quota",
+    "supportLabel": "Support",
+    "priceLabel": "Total due",
+    "benefitsLabel": "Included highlights",
+    "methodTitle": "Choose a payment method",
+    "methodDescription": "Review the preferred payment method for this package. Order submission stays disabled until a live billing contract is connected for curated vendor packages.",
+    "methodSelected": "Currently selected",
+    "methodTapToUse": "Tap to pay with this method",
+    "scanTitle": "Scan or continue with the selected method",
+    "scanDescription": "{{method}} will be used once commercial checkout is enabled for this workspace.",
+    "summaryTitle": "Payment summary",
+    "summaryDescription": "This screen acts as a commercial quote preview. The order button remains disabled until a live order service is available.",
+    "summaryLocked": "Package changes require going back first.",
+    "availabilityTag": "Order service unavailable",
+    "confirmPayment": "Confirm payment",
+    "checkoutUnavailable": "Order service unavailable",
+    "unavailableMessage": "Curated vendor packages are not connected to a live order and payment API in this workspace yet. Use this page as a pricing preview only.",
+    "successBanner": "Order submitted for {{vendor}} · {{plan}} ({{cycle}}).",
+    "successDescription": "Total due: {{price}}.",
+    "methods": {
+      "wechat": "WeChat Pay",
+      "alipay": "Alipay",
+      "bankcard": "Bank Card"
+    }
+  },
+  "freeMembership": {
+    "badge": "Free",
+    "title": "Free Membership",
+    "tagline": "See the package structure first and upgrade only when you are ready to buy.",
+    "audienceLabel": "Best for",
+    "audience": "First-time visitors and light evaluation users",
+    "note": "No purchase needed. Basic member rights are available after sign-in.",
+    "benefits": {
+      "previewVendorPlans": "Preview {{vendor}} package differences",
+      "savePreferences": "Save your preferred vendor and billing cycle",
+      "memberUpdates": "Receive package updates and member notices",
+      "upgradeAnytime": "Upgrade to a paid package at any time"
+    }
+  },
+  "metrics": {
+    "curatedRoutes": {
+      "label": "Curated routes",
+      "value": "20 premium vendor lanes"
+    },
+    "packagingMode": {
+      "label": "Packaging mode",
+      "value": "Hybrid blended procurement"
+    },
+    "routedProviders": {
+      "label": "Routed providers",
+      "value": "{{active}}/{{total}} active"
+    },
+    "modelFamily": {
+      "label": "Model family"
+    },
+    "bestFor": {
+      "label": "Best for"
+    }
+  },
+  "plans": {
+    "tokens": "{{value}}M tokens",
+    "taglines": {
+      "launch": "Fast-start package for {{vendor}}.",
+      "pro": "Most adopted package for {{vendor}}.",
+      "enterprise": "Full enterprise package for {{vendor}}."
+    },
+    "seats": {
+      "starter": "1 seat",
+      "growth": "5 seats",
+      "enterprise": "20 seats"
+    },
+    "concurrency": {
+      "starter": "3 concurrent tasks",
+      "growth": "8 concurrent tasks",
+      "enterprise": "24 concurrent tasks"
+    },
+    "support": {
+      "starter": "Business hours",
+      "growth": "Priority support",
+      "enterprise": "SLA + dedicated TAM"
+    },
+    "benefits": {
+      "usageOverview": "Usage overview",
+      "keyRotationReminders": "Key rotation reminders",
+      "priorityProcurement": "Priority procurement",
+      "routeHealthDigest": "Route health digest",
+      "dedicatedOnboarding": "Dedicated onboarding",
+      "privateRoutingAdvisory": "Private routing advisory",
+      "includesModels": "Includes {{models}}",
+      "channelNamed": "Channel: {{name}}",
+      "channelDefault": "Channel: Hybrid Default routing"
+    }
+  },
+  "vendors": {
+    "default": {
+      "tagline": "Balanced routing for teams that want one commercial lane.",
+      "heroDescription": "Blend US and China routes into one shared quota pool.",
+      "audience": "Cross-border product teams",
+      "modelHighlights": [
+        "Smart routing",
+        "Unified quota",
+        "Fallback ready"
+      ]
+    },
+    "openai": {
+      "tagline": "Premium GPT packages for agents, chat, and reasoning.",
+      "heroDescription": "Ideal for premium assistants and operator copilots.",
+      "audience": "Product + agent teams",
+      "modelHighlights": [
+        "GPT-4.1",
+        "o4-mini",
+        "Realtime"
+      ]
+    },
+    "anthropic": {
+      "tagline": "Long-context procurement for writing and knowledge work.",
+      "heroDescription": "Designed for review, policy, and document-heavy use cases.",
+      "audience": "Research and writing workflows",
+      "modelHighlights": [
+        "Claude Sonnet",
+        "Claude Opus",
+        "Long context"
+      ]
+    },
+    "google": {
+      "tagline": "Multimodal packages for search, docs, and workspace AI.",
+      "heroDescription": "Great for image, document, and multimodal product flows.",
+      "audience": "Multimodal product teams",
+      "modelHighlights": [
+        "Gemini 2.5 Pro",
+        "Gemini Flash",
+        "Workspace"
+      ]
+    },
+    "xai": {
+      "tagline": "Fresh-response packages for trend-sensitive products.",
+      "heroDescription": "For media, social, and real-time assistant experiences.",
+      "audience": "Media and social apps",
+      "modelHighlights": [
+        "Grok reasoning",
+        "Freshness bias",
+        "Fast iteration"
+      ]
+    },
+    "meta": {
+      "tagline": "Open-weight aligned packages with routed governance.",
+      "heroDescription": "Good for builders mixing open-weight flexibility with managed routing.",
+      "audience": "Open model platform teams",
+      "modelHighlights": [
+        "Llama",
+        "Fine-tune ready",
+        "Self-host fit"
+      ]
+    },
+    "mistral": {
+      "tagline": "Efficient European packages for cost-aware copilots.",
+      "heroDescription": "Strong for automation and productivity without premium spend.",
+      "audience": "Automation teams",
+      "modelHighlights": [
+        "Mistral Large",
+        "Low latency",
+        "Cost efficient"
+      ]
+    },
+    "cohere": {
+      "tagline": "Search and RAG procurement with enterprise posture.",
+      "heroDescription": "Built for retrieval, embeddings, and business copilots.",
+      "audience": "Search and RAG platforms",
+      "modelHighlights": [
+        "Command",
+        "RAG",
+        "Search quality"
+      ]
+    },
+    "microsoft": {
+      "tagline": "Enterprise-oriented packages for Microsoft-heavy stacks.",
+      "heroDescription": "Best for workflow automation and corporate procurement.",
+      "audience": "Enterprise IT teams",
+      "modelHighlights": [
+        "Copilot",
+        "Workflow AI",
+        "Governance"
+      ]
+    },
+    "amazon-nova": {
+      "tagline": "AWS-centered packages for scalable routed procurement.",
+      "heroDescription": "A clean buying lane for AWS-native product teams.",
+      "audience": "AWS-native application teams",
+      "modelHighlights": [
+        "Nova",
+        "AWS alignment",
+        "Scalable throughput"
+      ]
+    },
+    "nvidia": {
+      "tagline": "Inference-heavy packages for GPU-first platform teams.",
+      "heroDescription": "Optimized for teams that care about throughput and hybrid deployment.",
+      "audience": "Inference platform teams",
+      "modelHighlights": [
+        "NIM",
+        "GPU throughput",
+        "Hybrid deploy"
+      ]
+    },
+    "deepseek": {
+      "tagline": "High value reasoning and coding packages.",
+      "heroDescription": "Excellent for engineering, analysis, and price-performance routing.",
+      "audience": "Engineering and reasoning workloads",
+      "modelHighlights": [
+        "DeepSeek reasoning",
+        "Coding",
+        "Value per token"
+      ]
+    },
+    "qwen": {
+      "tagline": "Balanced domestic packages for multilingual enterprise AI.",
+      "heroDescription": "A versatile lane for general domestic business applications.",
+      "audience": "General enterprise applications",
+      "modelHighlights": [
+        "Qwen reasoning",
+        "Multilingual",
+        "Enterprise ready"
+      ]
+    },
+    "zhipu": {
+      "tagline": "Domestic GLM packages with clean procurement structure.",
+      "heroDescription": "Well suited for enterprise deployments and regulated buyers.",
+      "audience": "Domestic enterprise teams",
+      "modelHighlights": [
+        "GLM",
+        "Domestic compliance",
+        "Developer flows"
+      ]
+    },
+    "baidu": {
+      "tagline": "Enterprise-friendly packages for search and knowledge systems.",
+      "heroDescription": "A practical buy for assistants, search, and knowledge workflows.",
+      "audience": "Search and knowledge teams",
+      "modelHighlights": [
+        "ERNIE",
+        "Search native",
+        "Enterprise support"
+      ]
+    },
+    "tencent-hunyuan": {
+      "tagline": "Tencent ecosystem packages for consumer-scale AI products.",
+      "heroDescription": "Best for broad service platforms and high-volume assistants.",
+      "audience": "Consumer and service platforms",
+      "modelHighlights": [
+        "Hunyuan",
+        "Tencent ecosystem",
+        "Large traffic"
+      ]
+    },
+    "doubao": {
+      "tagline": "Fast-growing consumer packages for creator-scale AI.",
+      "heroDescription": "Suited for high-volume user products and creator tooling.",
+      "audience": "Consumer AI teams",
+      "modelHighlights": [
+        "Doubao",
+        "Consumer scale",
+        "Creator workflows"
+      ]
+    },
+    "moonshot": {
+      "tagline": "Long-context packages for research and document copilots.",
+      "heroDescription": "Excellent when long documents are central to the user journey.",
+      "audience": "Research and document-heavy teams",
+      "modelHighlights": [
+        "Long context",
+        "Research",
+        "Document copilots"
+      ]
+    },
+    "minimax": {
+      "tagline": "Multimodal packages for expressive AI product experiences.",
+      "heroDescription": "Great for long sessions, multimodal apps, and media-rich use cases.",
+      "audience": "Multimodal product teams",
+      "modelHighlights": [
+        "Multimodal",
+        "Long context",
+        "Media generation"
+      ]
+    }
+  }
+}

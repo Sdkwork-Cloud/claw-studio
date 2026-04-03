@@ -165,7 +165,7 @@ function buildManagementScopeEntry(
     return {
       id: 'managementScope',
       labelKey: 'instances.detail.instanceWorkbench.overview.management.labels.managementScope',
-      value: 'Full config-backed control',
+      value: 'Provider Center + config workspace',
       detailKey: 'instances.detail.instanceWorkbench.overview.management.details.scopeFull',
       tone: 'success',
     };

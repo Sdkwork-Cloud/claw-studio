@@ -1,19 +1,9 @@
-import type {
-  DashboardCommerceBusinessSummaryVO,
-  DashboardCommerceCustomRangeVO,
-  DashboardCommerceProductBreakdownVO,
-  DashboardCommerceProductPerformanceVO,
-  DashboardCommerceRevenueAnalyticsVO,
-  DashboardCommerceRevenueRecordVO,
-  DashboardCommerceRevenueTrendPointVO,
-  DashboardCommerceStatisticsVO,
-  OrderVO,
-  PageOrderVO,
-  PageProductVO,
-  ProductVO,
-  SdkworkAppClient,
-} from '@sdkwork/app-sdk';
+import type { OrderVO, PageOrderVO, PageProductVO, ProductVO, SdkworkAppClient } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import {
+  getAppSdkClientWithSession,
+  readAppSdkSessionTokens,
+} from '../sdk/useAppSdkClient.ts';
 
 export type DashboardCommerceGranularity = 'day' | 'hour';
 export type DashboardCommerceRangeMode = 'seven_days' | 'month' | 'custom';
@@ -113,46 +103,50 @@ export interface DashboardCommerceSnapshot {
   productPerformance: DashboardCommerceProductPerformance[];
 }
 
-type DashboardCommerceClient = Pick<SdkworkAppClient, 'dashboard' | 'order' | 'product'>;
-type DashboardCommerceSessionTokens = {
-  authToken?: string | null;
-};
+type DashboardCommerceClient = Pick<SdkworkAppClient, 'order' | 'product'>;
+type DashboardCommerceSessionTokens = { authToken?: string | null };
 
 export interface CreateDashboardCommerceServiceOptions {
   getClient?: () => DashboardCommerceClient;
   getSessionTokens?: () => DashboardCommerceSessionTokens;
+  getNow?: () => Date;
 }
 
 export interface DashboardCommerceService {
   getCommerceSnapshot(query?: DashboardCommerceQuery): Promise<DashboardCommerceSnapshot>;
 }
 
-async function getDefaultClient(): Promise<DashboardCommerceClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+const ORDER_PAGE_SIZE = 100;
+const PRODUCT_PAGE_SIZE = 50;
+const MAX_PAGES = 25;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getDefaultClient(): DashboardCommerceClient {
   return getAppSdkClientWithSession();
 }
 
-async function getDefaultSessionTokens(): Promise<DashboardCommerceSessionTokens> {
-  const { readAppSdkSessionTokens } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultSessionTokens(): DashboardCommerceSessionTokens {
   return readAppSdkSessionTokens();
 }
 
-function toOptionalString(value: string | undefined | null): string | undefined {
+function toOptionalString(value: string | undefined | null) {
   const normalized = (value || '').trim();
   return normalized || undefined;
 }
 
-function toNumber(value: number | string | undefined | null, fallback = 0): number {
+function toNumber(value: number | string | undefined | null, fallback = 0) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
-
   if (typeof value === 'string' && value.trim()) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   }
-
   return fallback;
+}
+
+function roundMetric(value: number, digits = 2) {
+  return Number(value.toFixed(digits));
 }
 
 function normalizeGranularity(value: string | undefined): DashboardCommerceGranularity {
@@ -160,10 +154,7 @@ function normalizeGranularity(value: string | undefined): DashboardCommerceGranu
 }
 
 function normalizeRangeMode(value: string | undefined): DashboardCommerceRangeMode {
-  if (value === 'month' || value === 'custom') {
-    return value;
-  }
-  return 'seven_days';
+  return value === 'month' || value === 'custom' ? value : 'seven_days';
 }
 
 function normalizeRecordStatus(value: string | undefined): DashboardCommerceRecordStatus {
@@ -185,144 +176,282 @@ function normalizeRecordStatus(value: string | undefined): DashboardCommerceReco
   }
 }
 
-function resolveCustomRange(
-  value: DashboardCommerceCustomRangeVO | null | undefined,
-  query: DashboardCommerceQuery,
-): DashboardCommerceCustomRange | undefined {
-  const start = toOptionalString(value?.start) || toOptionalString(query.customStart);
-  const end = toOptionalString(value?.end) || toOptionalString(query.customEnd);
-
-  if (!start || !end) {
-    return undefined;
-  }
-
-  return { start, end };
-}
-
-function buildQueryParams(query: DashboardCommerceQuery): Record<string, string> {
-  const rangeMode = normalizeRangeMode(query.rangeMode);
-  const params: Record<string, string> = {
-    granularity: normalizeGranularity(query.granularity),
-    rangeMode,
-  };
-
-  const monthKey = toOptionalString(query.monthKey);
-  if (rangeMode === 'month' && monthKey) {
-    params.monthKey = monthKey;
-  }
-
-  const customStart = toOptionalString(query.customStart);
-  if (rangeMode === 'custom' && customStart) {
-    params.customStart = customStart;
-  }
-
-  const customEnd = toOptionalString(query.customEnd);
-  if (rangeMode === 'custom' && customEnd) {
-    params.customEnd = customEnd;
-  }
-
-  return params;
-}
-
-function parseDayValue(value: string | undefined): Date | undefined {
-  const normalized = toOptionalString(value);
-  if (!normalized) {
-    return undefined;
-  }
-
-  const parsed = new Date(`${normalized}T00:00:00.000Z`);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-}
-
-function startOfUtcDay(date: Date): Date {
+function startOfUtcDay(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-function endOfUtcDay(date: Date): Date {
+function endOfUtcDay(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
 }
 
-function addUtcDays(date: Date, days: number): Date {
+function startOfUtcMonth(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function startOfUtcYear(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+}
+
+function addUtcDays(date: Date, days: number) {
   const next = new Date(date.getTime());
   next.setUTCDate(next.getUTCDate() + days);
   return next;
 }
 
-function resolveOrderTimeRange(query: DashboardCommerceQuery): { startTime: string; endTime: string } | undefined {
-  const rangeMode = normalizeRangeMode(query.rangeMode);
+function addUtcHours(date: Date, hours: number) {
+  const next = new Date(date.getTime());
+  next.setUTCHours(next.getUTCHours() + hours);
+  return next;
+}
 
-  if (rangeMode === 'custom') {
-    const customStart = parseDayValue(query.customStart);
-    const customEnd = parseDayValue(query.customEnd);
-    if (customStart && customEnd) {
-      const [start, end] = customStart <= customEnd ? [customStart, customEnd] : [customEnd, customStart];
-      return {
-        startTime: startOfUtcDay(start).toISOString(),
-        endTime: endOfUtcDay(end).toISOString(),
-      };
-    }
+function formatDayKey(date: Date) {
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getUTCDate()}`.padStart(2, '0');
+  return `${date.getUTCFullYear()}-${month}-${day}`;
+}
+
+function formatHourKey(date: Date) {
+  return `${formatDayKey(date)}T${`${date.getUTCHours()}`.padStart(2, '0')}:00`;
+}
+
+function formatBucketLabel(date: Date, granularity: DashboardCommerceGranularity) {
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getUTCDate()}`.padStart(2, '0');
+  return granularity === 'day' ? `${month}-${day}` : `${month}-${day} ${`${date.getUTCHours()}`.padStart(2, '0')}:00`;
+}
+
+function parseDay(value: string | undefined) {
+  const normalized = toOptionalString(value);
+  if (!normalized) {
     return undefined;
   }
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function resolveWindow(query: DashboardCommerceQuery, now: Date) {
+  const granularity = normalizeGranularity(query.granularity);
+  const rangeMode = normalizeRangeMode(query.rangeMode);
 
   if (rangeMode === 'month') {
-    const monthKey = toOptionalString(query.monthKey);
-    if (!monthKey) {
-      return undefined;
-    }
-
+    const monthKey = toOptionalString(query.monthKey) || `${now.getUTCFullYear()}-${`${now.getUTCMonth() + 1}`.padStart(2, '0')}`;
     const [yearText, monthText] = monthKey.split('-');
     const year = Number(yearText);
     const month = Number(monthText);
-    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
-      return undefined;
-    }
+    const start = new Date(Date.UTC(Number.isFinite(year) ? year : now.getUTCFullYear(), (Number.isFinite(month) ? month : now.getUTCMonth() + 1) - 1, 1));
+    const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    return { granularity, rangeMode, start, end, selectedMonthKey: `${start.getUTCFullYear()}-${`${start.getUTCMonth() + 1}`.padStart(2, '0')}` };
+  }
 
-    const start = new Date(Date.UTC(year, month - 1, 1));
-    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  if (rangeMode === 'custom') {
+    const rawStart = parseDay(query.customStart) || addUtcDays(startOfUtcDay(now), -6);
+    const rawEnd = parseDay(query.customEnd) || startOfUtcDay(now);
+    const start = rawStart.getTime() <= rawEnd.getTime() ? rawStart : rawEnd;
+    const endDay = rawStart.getTime() <= rawEnd.getTime() ? rawEnd : rawStart;
     return {
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      granularity,
+      rangeMode,
+      start,
+      end: endOfUtcDay(endDay),
+      customRange: { start: formatDayKey(start), end: formatDayKey(endDay) },
     };
   }
 
-  const today = startOfUtcDay(new Date());
   return {
-    startTime: addUtcDays(today, -6).toISOString(),
-    endTime: endOfUtcDay(today).toISOString(),
+    granularity,
+    rangeMode: 'seven_days' as const,
+    start: granularity === 'day' ? addUtcDays(startOfUtcDay(now), -6) : addUtcHours(endOfUtcDay(now), -(7 * 24) + 1),
+    end: endOfUtcDay(now),
   };
 }
 
-function buildOrderQueryParams(query: DashboardCommerceQuery): Record<string, string> {
-  const params: Record<string, string> = {
-    page: '1',
-    size: '10',
-  };
-  const timeRange = resolveOrderTimeRange(query);
-  if (timeRange) {
-    params.startTime = timeRange.startTime;
-    params.endTime = timeRange.endTime;
+function buildBuckets(start: Date, end: Date, granularity: DashboardCommerceGranularity) {
+  const buckets: Date[] = [];
+  const cursor = new Date(start.getTime());
+  while (cursor.getTime() <= end.getTime() && buckets.length < 24 * 400) {
+    buckets.push(new Date(cursor.getTime()));
+    if (granularity === 'day') {
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+      cursor.setUTCHours(0, 0, 0, 0);
+    } else {
+      cursor.setUTCHours(cursor.getUTCHours() + 1, 0, 0, 0);
+    }
   }
-  return params;
+  return buckets;
 }
 
-function buildProductQueryParams(): Record<string, string> {
+function getOrderTimestamp(order: OrderVO) {
+  return order.payTime || order.createdAt || order.updatedAt || new Date(0).toISOString();
+}
+
+function getOrderAmount(order: OrderVO) {
+  return toNumber(order.paidAmount ?? order.totalAmount);
+}
+
+function filterOrders(orders: OrderVO[], start: Date, end: Date) {
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  return orders.filter((order) => {
+    const timestamp = new Date(getOrderTimestamp(order)).getTime();
+    return Number.isFinite(timestamp) && timestamp >= startMs && timestamp <= endMs;
+  });
+}
+
+function summarizeOrders(orders: OrderVO[]) {
+  const revenue = roundMetric(orders.reduce((sum, order) => sum + getOrderAmount(order), 0));
+  const count = orders.length;
+  const successCount = orders.filter((order) => {
+    const status = normalizeRecordStatus(order.status || order.statusName);
+    return status === 'paid' || status === 'completed' || status === 'delivered';
+  }).length;
   return {
-    page: '1',
-    size: '20',
+    revenue,
+    count,
+    averageOrderValue: count > 0 ? roundMetric(revenue / count) : 0,
+    conversionRate: count > 0 ? roundMetric((successCount / count) * 100, 1) : 0,
   };
 }
 
-export function createEmptyDashboardCommerceSnapshot(
-  query: DashboardCommerceQuery = {},
-): DashboardCommerceSnapshot {
-  const granularity = normalizeGranularity(query.granularity);
-  const rangeMode = normalizeRangeMode(query.rangeMode);
-  const selectedMonthKey = rangeMode === 'month' ? toOptionalString(query.monthKey) : undefined;
-  const customRange =
-    rangeMode === 'custom'
-      ? resolveCustomRange(undefined, query)
-      : undefined;
+function calculateDelta(currentValue: number, previousValue: number) {
+  if (previousValue <= 0) {
+    return 0;
+  }
+  return roundMetric(((currentValue - previousValue) / previousValue) * 100, 1);
+}
 
+function buildRecentRevenueRecords(orders: OrderVO[]): DashboardCommerceRevenueRecord[] {
+  return [...orders]
+    .sort((left, right) => getOrderTimestamp(right).localeCompare(getOrderTimestamp(left)))
+    .slice(0, 10)
+    .map((order, index) => ({
+      id: order.orderId || order.orderSn || `order-${index}`,
+      timestamp: getOrderTimestamp(order),
+      productName: order.subject || order.orderSn || `Order ${index + 1}`,
+      orderNo: order.orderSn || order.orderId || '',
+      revenueAmount: getOrderAmount(order),
+      channel: (order.paymentProvider || order.paymentMethod || 'app').trim().toLowerCase(),
+      status: normalizeRecordStatus(order.status || order.statusName),
+    }));
+}
+
+function normalizeLookupKey(value: string | undefined) {
+  return (value || '').trim().toLowerCase();
+}
+
+function buildProductMetrics(orders: OrderVO[], previousOrders: OrderVO[], products: ProductVO[], bucketCount: number) {
+  const productIds = new Map(
+    products
+      .map((product) => {
+        const title = toOptionalString(product.title);
+        return title ? ([normalizeLookupKey(title), product.id || title] as const) : null;
+      })
+      .filter((entry): entry is readonly [string, string] => Boolean(entry)),
+  );
+  const collect = (source: OrderVO[]) => {
+    const rows = new Map<string, { id: string; productName: string; orders: number; revenue: number }>();
+    source.forEach((order, index) => {
+      const productName = toOptionalString(order.subject) || toOptionalString(order.orderSn) || `Product ${index + 1}`;
+      const key = normalizeLookupKey(productName) || `product-${index}`;
+      const row = rows.get(key) || { id: productIds.get(key) || key, productName, orders: 0, revenue: 0 };
+      row.orders += 1;
+      row.revenue += getOrderAmount(order);
+      rows.set(key, row);
+    });
+    return rows;
+  };
+
+  const currentRows = collect(orders);
+  const previousRows = collect(previousOrders);
+  const totalRevenue = [...currentRows.values()].reduce((sum, row) => sum + row.revenue, 0);
+  const breakdown = [...currentRows.values()]
+    .sort((left, right) => right.revenue - left.revenue || right.orders - left.orders)
+    .map((row) => ({
+      id: row.id,
+      productName: row.productName,
+      orders: row.orders,
+      revenue: roundMetric(row.revenue),
+      share: totalRevenue > 0 ? roundMetric((row.revenue / totalRevenue) * 100, 1) : 0,
+      dailyRevenue: bucketCount > 0 ? roundMetric(row.revenue / bucketCount) : roundMetric(row.revenue),
+    }));
+  const fallback = breakdown.map((row) => ({
+    id: row.id,
+    productName: row.productName,
+    revenue: row.revenue,
+    orders: row.orders,
+    share: row.share,
+    trendDelta: calculateDelta(row.revenue, previousRows.get(normalizeLookupKey(row.productName))?.revenue || 0),
+  }));
+
+  const fallbackById = new Map(fallback.map((row) => [row.id, row] as const));
+  const fallbackByName = new Map(fallback.map((row) => [normalizeLookupKey(row.productName), row] as const));
+  const merged = products.map((product, index) => {
+    const id = product.id || product.title || `product-${index}`;
+    const productName = product.title || id;
+    return fallbackById.get(id) || fallbackByName.get(normalizeLookupKey(productName)) || {
+      id,
+      productName,
+      revenue: 0,
+      orders: 0,
+      share: 0,
+      trendDelta: 0,
+    };
+  });
+  const mergedIds = new Set(merged.map((row) => row.id));
+  const combined = [...merged, ...fallback.filter((row) => !mergedIds.has(row.id))]
+    .sort((left, right) => right.revenue - left.revenue || right.orders - left.orders);
+  const combinedRevenue = combined.reduce((sum, row) => sum + row.revenue, 0);
+
+  return {
+    breakdown,
+    performance: combined.map((row) => ({
+      ...row,
+      share: combinedRevenue > 0 ? roundMetric((row.revenue / combinedRevenue) * 100, 1) : row.share,
+    })),
+  };
+}
+
+async function loadAllOrders(client: DashboardCommerceClient, start: Date, end: Date) {
+  const collected: OrderVO[] = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const payload = unwrapAppSdkResponse<PageOrderVO>(
+      await client.order.listOrders({
+        page: String(page),
+        size: String(ORDER_PAGE_SIZE),
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      }),
+      'Failed to load order list.',
+    );
+    const content = payload.content || [];
+    collected.push(...content);
+    if (payload.last === true || content.length === 0 || (toNumber(payload.totalPages) > 0 && page >= toNumber(payload.totalPages)) || content.length < ORDER_PAGE_SIZE) {
+      break;
+    }
+  }
+  return [...new Map(collected.map((order, index) => [order.orderId || order.orderSn || `${getOrderTimestamp(order)}-${index}`, order] as const)).values()];
+}
+
+async function loadAllProducts(client: DashboardCommerceClient) {
+  const collected: ProductVO[] = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const payload = unwrapAppSdkResponse<PageProductVO>(
+      await client.product.getProducts({
+        page: String(page),
+        size: String(PRODUCT_PAGE_SIZE),
+      }),
+      'Failed to load product list.',
+    );
+    const content = payload.content || [];
+    collected.push(...content);
+    if (payload.last === true || content.length === 0 || (toNumber(payload.totalPages) > 0 && page >= toNumber(payload.totalPages)) || content.length < PRODUCT_PAGE_SIZE) {
+      break;
+    }
+  }
+  return [...new Map(collected.map((product, index) => [product.id || product.title || `product-${index}`, product] as const)).values()];
+}
+
+export function createEmptyDashboardCommerceSnapshot(query: DashboardCommerceQuery = {}): DashboardCommerceSnapshot {
+  const rangeMode = normalizeRangeMode(query.rangeMode);
   return {
     businessSummary: {
       todayRevenue: 0,
@@ -338,10 +467,10 @@ export function createEmptyDashboardCommerceSnapshot(
       revenueDelta: 0,
     },
     revenueAnalytics: {
-      granularity,
+      granularity: normalizeGranularity(query.granularity),
       rangeMode,
-      selectedMonthKey,
-      customRange,
+      selectedMonthKey: rangeMode === 'month' ? toOptionalString(query.monthKey) : undefined,
+      customRange: rangeMode === 'custom' ? { start: query.customStart || '', end: query.customEnd || '' } : undefined,
       totalRevenue: 0,
       dailyRevenue: 0,
       projectedMonthlyRevenue: 0,
@@ -358,263 +487,106 @@ export function createEmptyDashboardCommerceSnapshot(
   };
 }
 
-function mapBusinessSummary(
-  value: DashboardCommerceBusinessSummaryVO | null | undefined,
-): DashboardCommerceBusinessSummary {
-  return {
-    todayRevenue: toNumber(value?.todayRevenue),
-    weekRevenue: toNumber(value?.weekRevenue),
-    monthRevenue: toNumber(value?.monthRevenue),
-    yearRevenue: toNumber(value?.yearRevenue),
-    todayOrders: toNumber(value?.todayOrders),
-    weekOrders: toNumber(value?.weekOrders),
-    monthOrders: toNumber(value?.monthOrders),
-    yearOrders: toNumber(value?.yearOrders),
-    averageOrderValue: toNumber(value?.averageOrderValue),
-    conversionRate: toNumber(value?.conversionRate),
-    revenueDelta: toNumber(value?.revenueDelta),
-  };
-}
-
-function mapRevenueTrendPoint(
-  value: DashboardCommerceRevenueTrendPointVO,
-): DashboardCommerceRevenueTrendPoint {
-  return {
-    label: value.label || '',
-    bucketKey: value.bucketKey || '',
-    revenue: toNumber(value.revenue),
-    orders: toNumber(value.orders),
-    averageOrderValue: toNumber(value.averageOrderValue),
-  };
-}
-
-function mapProductBreakdown(
-  value: DashboardCommerceProductBreakdownVO,
-): DashboardCommerceProductBreakdown {
-  return {
-    id: value.id || '',
-    productName: value.productName || value.id || 'Unknown Product',
-    orders: toNumber(value.orders),
-    revenue: toNumber(value.revenue),
-    share: toNumber(value.share),
-    dailyRevenue: toNumber(value.dailyRevenue),
-  };
-}
-
-function mapRevenueAnalytics(
-  value: DashboardCommerceRevenueAnalyticsVO | null | undefined,
-  query: DashboardCommerceQuery,
-): DashboardCommerceRevenueAnalytics {
-  return {
-    granularity: normalizeGranularity(value?.granularity),
-    rangeMode: normalizeRangeMode(value?.rangeMode),
-    selectedMonthKey: toOptionalString(value?.selectedMonthKey) || toOptionalString(query.monthKey),
-    customRange: resolveCustomRange(value?.customRange, query),
-    totalRevenue: toNumber(value?.totalRevenue),
-    dailyRevenue: toNumber(value?.dailyRevenue),
-    projectedMonthlyRevenue: toNumber(value?.projectedMonthlyRevenue),
-    totalOrders: toNumber(value?.totalOrders),
-    averageOrderValue: toNumber(value?.averageOrderValue),
-    peakRevenueLabel: value?.peakRevenueLabel || '',
-    peakRevenueValue: toNumber(value?.peakRevenueValue),
-    deltaPercentage: toNumber(value?.deltaPercentage),
-    revenueTrend: (value?.revenueTrend || []).map(mapRevenueTrendPoint),
-    productBreakdown: (value?.productBreakdown || []).map(mapProductBreakdown),
-  };
-}
-
-function mapRevenueRecord(
-  value: DashboardCommerceRevenueRecordVO,
-): DashboardCommerceRevenueRecord {
-  return {
-    id: value.id || '',
-    timestamp: value.timestamp || new Date(0).toISOString(),
-    productName: value.productName || value.id || 'Unknown Product',
-    orderNo: value.orderNo || '',
-    revenueAmount: toNumber(value.revenueAmount),
-    channel: (value.channel || 'app').trim().toLowerCase(),
-    status: normalizeRecordStatus(value.status),
-  };
-}
-
-function mapProductPerformance(
-  value: DashboardCommerceProductPerformanceVO,
-): DashboardCommerceProductPerformance {
-  return {
-    id: value.id || '',
-    productName: value.productName || value.id || 'Unknown Product',
-    revenue: toNumber(value.revenue),
-    orders: toNumber(value.orders),
-    share: toNumber(value.share),
-    trendDelta: toNumber(value.trendDelta),
-  };
-}
-
-function mapCommerceSnapshot(
-  value: DashboardCommerceStatisticsVO | null | undefined,
-  query: DashboardCommerceQuery,
-): DashboardCommerceSnapshot {
-  return {
-    businessSummary: mapBusinessSummary(value?.businessSummary),
-    revenueAnalytics: mapRevenueAnalytics(value?.revenueAnalytics, query),
-    recentRevenueRecords: (value?.recentRevenueRecords || []).map(mapRevenueRecord),
-    productPerformance: (value?.productPerformance || []).map(mapProductPerformance),
-  };
-}
-
-function normalizeLookupKey(value: string | undefined): string {
-  return (value || '').trim().toLowerCase();
-}
-
-function mapRecentRevenueRecordFromOrder(
-  value: OrderVO,
-  index: number,
-): DashboardCommerceRevenueRecord {
-  return {
-    id: value.orderId || value.orderSn || `order-${index}`,
-    timestamp: value.payTime || value.createdAt || new Date(0).toISOString(),
-    productName: value.subject || value.orderSn || `Order ${index + 1}`,
-    orderNo: value.orderSn || value.orderId || '',
-    revenueAmount: toNumber(value.paidAmount ?? value.totalAmount),
-    channel: (value.paymentProvider || value.paymentMethod || 'app').trim().toLowerCase(),
-    status: normalizeRecordStatus(value.status || value.statusName),
-  };
-}
-
-function mapRecentRevenueRecords(
-  value: PageOrderVO | null | undefined,
-): DashboardCommerceRevenueRecord[] {
-  return (value?.content || [])
-    .map(mapRecentRevenueRecordFromOrder)
-    .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
-}
-
-function mergeProductPerformance(
-  products: PageProductVO | null | undefined,
-  fallback: DashboardCommerceProductPerformance[],
-): DashboardCommerceProductPerformance[] {
-  const productRows = products?.content || [];
-  if (productRows.length === 0) {
-    return fallback;
-  }
-
-  const fallbackByKey = new Map<string, DashboardCommerceProductPerformance>();
-  fallback.forEach((row) => {
-    fallbackByKey.set(row.id, row);
-    fallbackByKey.set(normalizeLookupKey(row.productName), row);
-  });
-
-  const matchedKeys = new Set<string>();
-  const mergedRows = productRows.map((product, index) => {
-    const id = product.id || product.title || `product-${index}`;
-    const productName = product.title || id;
-    const fallbackRow =
-      fallbackByKey.get(id) || fallbackByKey.get(normalizeLookupKey(productName));
-
-    if (fallbackRow) {
-      matchedKeys.add(fallbackRow.id);
-    }
-
-    const orders = fallbackRow?.orders ?? Math.max(0, Math.round(toNumber(product.sales)));
-    const revenue =
-      fallbackRow?.revenue ?? toNumber(product.price) * Math.max(orders, 0);
-
-    return {
-      id,
-      productName,
-      revenue: toNumber(revenue),
-      orders,
-      share: fallbackRow?.share ?? 0,
-      trendDelta: fallbackRow?.trendDelta ?? 0,
-    } satisfies DashboardCommerceProductPerformance;
-  });
-
-  const appendedFallbackRows = fallback.filter((row) => !matchedKeys.has(row.id));
-  const combinedRows = [...mergedRows, ...appendedFallbackRows].sort((left, right) => {
-    if (right.revenue !== left.revenue) {
-      return right.revenue - left.revenue;
-    }
-    return right.orders - left.orders;
-  });
-  const totalRevenue = combinedRows.reduce((sum, row) => sum + row.revenue, 0);
-
-  return combinedRows.map((row) => ({
-    ...row,
-    share: totalRevenue > 0 ? toNumber(((row.revenue / totalRevenue) * 100).toFixed(1)) : row.share,
-  }));
-}
-
-async function loadOptional<T>(loader: () => Promise<T>): Promise<{ data?: T; error?: unknown }> {
-  try {
-    return { data: await loader() };
-  } catch (error) {
-    return { error };
-  }
-}
-
-export function createDashboardCommerceService(
-  options: CreateDashboardCommerceServiceOptions = {},
-): DashboardCommerceService {
+export function createDashboardCommerceService(options: CreateDashboardCommerceServiceOptions = {}): DashboardCommerceService {
   const getClient = options.getClient;
   const getSessionTokens = options.getSessionTokens;
+  const getNow = options.getNow;
 
   return {
     async getCommerceSnapshot(query: DashboardCommerceQuery = {}) {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : await getDefaultSessionTokens();
+      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
       if (!toOptionalString(sessionTokens.authToken)) {
         return createEmptyDashboardCommerceSnapshot(query);
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
-      const [dashboardResult, orderResult, productResult] = await Promise.all([
-        loadOptional(() =>
-          client.dashboard.getCommerceStatistics(buildQueryParams(query)),
-        ),
-        loadOptional(() =>
-          client.order.listOrders(buildOrderQueryParams(query)),
-        ),
-        loadOptional(() =>
-          client.product.getProducts(buildProductQueryParams()),
-        ),
+      const now = getNow ? getNow() : new Date();
+      const window = resolveWindow(query, now);
+      const previousStart = new Date(window.start.getTime() - (window.end.getTime() - window.start.getTime() + 1));
+      const collectionStart = previousStart.getTime() < startOfUtcYear(now).getTime() ? previousStart : startOfUtcYear(now);
+      const collectionEnd = endOfUtcDay(now).getTime() > window.end.getTime() ? endOfUtcDay(now) : window.end;
+      const buckets = buildBuckets(window.start, window.end, window.granularity);
+      const daySpan = window.granularity === 'hour' ? Math.max(1, Math.ceil(buckets.length / 24)) : Math.max(1, buckets.length);
+      const targetMonthDate = window.selectedMonthKey ? new Date(`${window.selectedMonthKey}-01T00:00:00.000Z`) : now;
+      const projectedDays = new Date(Date.UTC(targetMonthDate.getUTCFullYear(), targetMonthDate.getUTCMonth() + 1, 0)).getUTCDate();
+
+      const client = getClient ? getClient() : getDefaultClient();
+      const [orders, products] = await Promise.all([
+        loadAllOrders(client, collectionStart, collectionEnd),
+        loadAllProducts(client),
       ]);
 
-      const errors = [dashboardResult.error, orderResult.error, productResult.error].filter(Boolean);
-      const snapshot = dashboardResult.data
-        ? mapCommerceSnapshot(
-            unwrapAppSdkResponse<DashboardCommerceStatisticsVO>(
-              dashboardResult.data,
-              'Failed to load dashboard commerce statistics.',
-            ),
-            query,
-          )
-        : createEmptyDashboardCommerceSnapshot(query);
+      const analyticsOrders = filterOrders(orders, window.start, window.end);
+      const previousOrders = filterOrders(orders, previousStart, new Date(window.start.getTime() - 1));
+      const todayOrders = filterOrders(orders, startOfUtcDay(now), endOfUtcDay(now));
+      const weekOrders = filterOrders(orders, addUtcDays(startOfUtcDay(now), -6), endOfUtcDay(now));
+      const monthOrders = filterOrders(orders, startOfUtcMonth(now), endOfUtcDay(now));
+      const yearOrders = filterOrders(orders, startOfUtcYear(now), endOfUtcDay(now));
 
-      const recentRevenueRecords = orderResult.data
-        ? mapRecentRevenueRecords(
-            unwrapAppSdkResponse<PageOrderVO>(
-              orderResult.data,
-              'Failed to load order list.',
-            ),
-          )
-        : snapshot.recentRevenueRecords;
-      const productPerformance = productResult.data
-        ? mergeProductPerformance(
-            unwrapAppSdkResponse<PageProductVO>(
-              productResult.data,
-              'Failed to load product list.',
-            ),
-            snapshot.productPerformance,
-          )
-        : snapshot.productPerformance;
-
-      if (!dashboardResult.data && !orderResult.data && !productResult.data && errors[0]) {
-        throw errors[0];
-      }
+      const analyticsSummary = summarizeOrders(analyticsOrders);
+      const previousSummary = summarizeOrders(previousOrders);
+      const peakMap = new Map<string, { revenue: number; orders: number }>();
+      analyticsOrders.forEach((order) => {
+        const timestamp = new Date(getOrderTimestamp(order));
+        const key = window.granularity === 'day' ? formatDayKey(timestamp) : formatHourKey(timestamp);
+        const row = peakMap.get(key) || { revenue: 0, orders: 0 };
+        row.revenue += getOrderAmount(order);
+        row.orders += 1;
+        peakMap.set(key, row);
+      });
+      const revenueTrend = buckets.map((date) => {
+        const key = window.granularity === 'day' ? formatDayKey(date) : formatHourKey(date);
+        const row = peakMap.get(key);
+        const revenue = roundMetric(row?.revenue || 0);
+        const orderCount = row?.orders || 0;
+        return {
+          label: formatBucketLabel(date, window.granularity),
+          bucketKey: key,
+          revenue,
+          orders: orderCount,
+          averageOrderValue: orderCount > 0 ? roundMetric(revenue / orderCount) : 0,
+        };
+      });
+      const peakPoint = revenueTrend.reduce((currentPeak, point) => point.revenue > currentPeak.revenue ? point : currentPeak, revenueTrend[0] || {
+        label: '',
+        bucketKey: '',
+        revenue: 0,
+        orders: 0,
+        averageOrderValue: 0,
+      });
+      const productMetrics = buildProductMetrics(analyticsOrders, previousOrders, products, daySpan);
 
       return {
-        ...snapshot,
-        recentRevenueRecords,
-        productPerformance,
+        businessSummary: {
+          todayRevenue: summarizeOrders(todayOrders).revenue,
+          weekRevenue: summarizeOrders(weekOrders).revenue,
+          monthRevenue: summarizeOrders(monthOrders).revenue,
+          yearRevenue: summarizeOrders(yearOrders).revenue,
+          todayOrders: todayOrders.length,
+          weekOrders: weekOrders.length,
+          monthOrders: monthOrders.length,
+          yearOrders: yearOrders.length,
+          averageOrderValue: analyticsSummary.averageOrderValue,
+          conversionRate: analyticsSummary.conversionRate,
+          revenueDelta: calculateDelta(analyticsSummary.revenue, previousSummary.revenue),
+        },
+        revenueAnalytics: {
+          granularity: window.granularity,
+          rangeMode: window.rangeMode,
+          selectedMonthKey: window.selectedMonthKey,
+          customRange: window.customRange,
+          totalRevenue: analyticsSummary.revenue,
+          dailyRevenue: daySpan > 0 ? roundMetric(analyticsSummary.revenue / daySpan) : analyticsSummary.revenue,
+          projectedMonthlyRevenue: window.rangeMode === 'month' ? analyticsSummary.revenue : roundMetric((daySpan > 0 ? analyticsSummary.revenue / daySpan : analyticsSummary.revenue) * projectedDays),
+          totalOrders: analyticsSummary.count,
+          averageOrderValue: analyticsSummary.averageOrderValue,
+          peakRevenueLabel: peakPoint.label,
+          peakRevenueValue: peakPoint.revenue,
+          deltaPercentage: calculateDelta(analyticsSummary.revenue, previousSummary.revenue),
+          revenueTrend,
+          productBreakdown: productMetrics.breakdown,
+        },
+        recentRevenueRecords: buildRecentRevenueRecords(yearOrders.length > 0 ? yearOrders : orders),
+        productPerformance: productMetrics.performance,
       };
     },
   };

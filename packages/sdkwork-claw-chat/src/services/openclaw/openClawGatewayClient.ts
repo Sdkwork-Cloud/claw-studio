@@ -14,6 +14,7 @@ import {
   type OpenClawGatewayModelsListResult,
   type OpenClawGatewayRequestFrame,
   type OpenClawGatewayResponseFrame,
+  type OpenClawGatewaySessionMessageEvent,
   type OpenClawGatewaySessionsPatchResult,
   type OpenClawGatewaySessionsListResult,
 } from './gatewayProtocol.ts';
@@ -35,6 +36,8 @@ type ConnectionWaiter = {
 type ListenerMap = {
   connection: (event: OpenClawGatewayConnectionEvent) => void;
   chat: (event: OpenClawGatewayChatEvent) => void;
+  gap: (event: OpenClawGatewayGapEvent) => void;
+  'session.message': (payload: OpenClawGatewaySessionMessageEvent) => void;
   'sessions.changed': (payload: unknown) => void;
 };
 
@@ -116,6 +119,11 @@ export type OpenClawGatewayConnectionEvent =
       delayMs: number;
     };
 
+export type OpenClawGatewayGapEvent = {
+  expected: number;
+  received: number;
+};
+
 const DEFAULT_CLIENT_ID = 'openclaw-control-ui';
 const DEFAULT_CLIENT_MODE = 'webchat';
 const DEFAULT_ROLE: OpenClawGatewayAuthRole = 'operator';
@@ -131,6 +139,7 @@ const CONNECT_FAILED_CLOSE_CODE = 4008;
 const SOCKET_OPEN = 1;
 const DEVICE_IDENTITY_STORAGE_KEY = 'claw-studio.openclaw.device-identity.v1';
 const DEVICE_TOKEN_STORAGE_KEY = 'claw-studio.openclaw.device-token.v1';
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 function resolveStorage(override: StorageLike | null | undefined) {
   if (override !== undefined) {
@@ -154,8 +163,7 @@ function base64UrlEncode(bytes: Uint8Array) {
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   }
 
-  return Buffer.from(bytes)
-    .toString('base64')
+  return encodeBase64(bytes)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/g, '');
@@ -174,7 +182,63 @@ function base64UrlDecode(value: string) {
     return output;
   }
 
-  return new Uint8Array(Buffer.from(padded, 'base64'));
+  return decodeBase64(padded);
+}
+
+function encodeBase64(bytes: Uint8Array) {
+  let output = '';
+
+  for (let index = 0; index < bytes.length; index += 3) {
+    const chunk =
+      (bytes[index] << 16) |
+      ((bytes[index + 1] ?? 0) << 8) |
+      (bytes[index + 2] ?? 0);
+
+    output += BASE64_ALPHABET[(chunk >> 18) & 63];
+    output += BASE64_ALPHABET[(chunk >> 12) & 63];
+    output += index + 1 < bytes.length ? BASE64_ALPHABET[(chunk >> 6) & 63] : '=';
+    output += index + 2 < bytes.length ? BASE64_ALPHABET[chunk & 63] : '=';
+  }
+
+  return output;
+}
+
+function decodeBase64(value: string) {
+  const normalized = value.replace(/\s+/g, '');
+  const bytes: number[] = [];
+
+  for (let index = 0; index < normalized.length; index += 4) {
+    const chunk =
+      (decodeBase64Character(normalized[index]) << 18) |
+      (decodeBase64Character(normalized[index + 1]) << 12) |
+      (decodeBase64Character(normalized[index + 2]) << 6) |
+      decodeBase64Character(normalized[index + 3]);
+
+    bytes.push((chunk >> 16) & 255);
+
+    if (normalized[index + 2] !== '=') {
+      bytes.push((chunk >> 8) & 255);
+    }
+
+    if (normalized[index + 3] !== '=') {
+      bytes.push(chunk & 255);
+    }
+  }
+
+  return new Uint8Array(bytes);
+}
+
+function decodeBase64Character(character: string | undefined) {
+  if (character === '=') {
+    return 0;
+  }
+
+  const index = character ? BASE64_ALPHABET.indexOf(character) : -1;
+  if (index >= 0) {
+    return index;
+  }
+
+  throw new Error('Invalid base64 payload.');
 }
 
 function bytesToHex(bytes: Uint8Array) {
@@ -415,6 +479,8 @@ export class OpenClawGatewayClient {
   } = {
     connection: new Set(),
     chat: new Set(),
+    gap: new Set(),
+    'session.message': new Set(),
     'sessions.changed': new Set(),
   };
 
@@ -422,6 +488,7 @@ export class OpenClawGatewayClient {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly connectWaiters = new Set<ConnectionWaiter>();
   private hello: OpenClawGatewayHelloOk | null = null;
+  private lastSeq: number | null = null;
   private connectNonce: string | null = null;
   private connectSent = false;
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -511,6 +578,9 @@ export class OpenClawGatewayClient {
     includeUnknown?: boolean;
     activeMinutes?: number;
     limit?: number;
+    includeDerivedTitles?: boolean;
+    includeLastMessage?: boolean;
+    agentId?: string;
   }) {
     return this.request<OpenClawGatewaySessionsListResult>('sessions.list', params);
   }
@@ -519,10 +589,25 @@ export class OpenClawGatewayClient {
     return this.request('sessions.subscribe', {});
   }
 
-  getChatHistory(params: { sessionKey: string; limit?: number }) {
+  subscribeSessionMessages(params: { key: string }) {
+    return this.request<{ subscribed?: boolean; key?: string }>(
+      'sessions.messages.subscribe',
+      params,
+    );
+  }
+
+  unsubscribeSessionMessages(params: { key: string }) {
+    return this.request<{ subscribed?: boolean; key?: string }>(
+      'sessions.messages.unsubscribe',
+      params,
+    );
+  }
+
+  getChatHistory(params: { sessionKey: string; limit?: number; maxChars?: number }) {
     return this.request<OpenClawGatewayChatHistoryResult>('chat.history', {
       sessionKey: params.sessionKey,
       limit: params.limit ?? 200,
+      ...(params.maxChars !== undefined ? { maxChars: params.maxChars } : {}),
     });
   }
 
@@ -574,7 +659,7 @@ export class OpenClawGatewayClient {
     return this.request('chat.inject', params);
   }
 
-  resetSession(params: { key: string }) {
+  resetSession(params: { key: string; reason?: 'new' | 'reset' }) {
     return this.request('sessions.reset', params);
   }
 
@@ -587,6 +672,8 @@ export class OpenClawGatewayClient {
 
   private emit(event: 'connection', payload: OpenClawGatewayConnectionEvent): void;
   private emit(event: 'chat', payload: OpenClawGatewayChatEvent): void;
+  private emit(event: 'gap', payload: OpenClawGatewayGapEvent): void;
+  private emit(event: 'session.message', payload: OpenClawGatewaySessionMessageEvent): void;
   private emit(event: 'sessions.changed', payload: unknown): void;
   private emit(event: ListenerKey, payload: unknown) {
     if (event === 'connection') {
@@ -599,6 +686,20 @@ export class OpenClawGatewayClient {
     if (event === 'chat') {
       for (const listener of this.listeners.chat) {
         listener(payload as OpenClawGatewayChatEvent);
+      }
+      return;
+    }
+
+    if (event === 'gap') {
+      for (const listener of this.listeners.gap) {
+        listener(payload as OpenClawGatewayGapEvent);
+      }
+      return;
+    }
+
+    if (event === 'session.message') {
+      for (const listener of this.listeners['session.message']) {
+        listener(payload as OpenClawGatewaySessionMessageEvent);
       }
       return;
     }
@@ -846,8 +947,23 @@ export class OpenClawGatewayClient {
         return;
       }
 
+      const seq = typeof eventFrame.seq === 'number' ? eventFrame.seq : null;
+      if (seq !== null) {
+        if (this.lastSeq !== null && seq > this.lastSeq + 1) {
+          this.emit('gap', {
+            expected: this.lastSeq + 1,
+            received: seq,
+          });
+        }
+        this.lastSeq = seq;
+      }
+
       if (eventFrame.event === 'chat') {
         this.emit('chat', eventFrame.payload as OpenClawGatewayChatEvent);
+      }
+
+      if (eventFrame.event === 'session.message') {
+        this.emit('session.message', eventFrame.payload as OpenClawGatewaySessionMessageEvent);
       }
 
       if (eventFrame.event === 'sessions.changed') {

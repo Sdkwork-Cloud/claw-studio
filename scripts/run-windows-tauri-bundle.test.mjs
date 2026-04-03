@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -31,6 +32,36 @@ assert.equal(
   typeof bundleModule.buildWindowsTauriBundleCommand,
   'function',
   'run-windows-tauri-bundle must export buildWindowsTauriBundleCommand',
+);
+assert.equal(
+  typeof bundleModule.parseArgs,
+  'function',
+  'run-windows-tauri-bundle must export parseArgs',
+);
+assert.throws(
+  () => bundleModule.parseArgs(['--profile']),
+  /Missing value for --profile/,
+  'run-windows-tauri-bundle must reject a missing --profile value',
+);
+assert.throws(
+  () => bundleModule.parseArgs(['--config']),
+  /Missing value for --config/,
+  'run-windows-tauri-bundle must reject a missing --config value',
+);
+assert.throws(
+  () => bundleModule.parseArgs(['--target']),
+  /Missing value for --target/,
+  'run-windows-tauri-bundle must reject a missing --target value',
+);
+assert.throws(
+  () => bundleModule.parseArgs(['--bundles']),
+  /Missing value for --bundles/,
+  'run-windows-tauri-bundle must reject a missing --bundles value',
+);
+assert.match(
+  readFileSync(bundleModulePath, 'utf8'),
+  /if \(path\.resolve\(process\.argv\[1\] \?\? ''\) === __filename\) \{\s*try \{\s*main\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s,
+  'run-windows-tauri-bundle must wrap the CLI entrypoint with a top-level error handler',
 );
 
 const windowsBundleCommand = bundleModule.buildWindowsTauriBundleCommand();
@@ -69,7 +100,7 @@ assert.deepEqual(
 
 const replacements = bundleModule.createWindowsNsisSourceReplacements(syntheticWorkspaceRoot);
 
-assert.equal(replacements.length, 6);
+assert.equal(replacements.length, 4);
 assert.deepEqual(replacements.slice(0, 3), [
   {
     from:
@@ -83,35 +114,23 @@ assert.deepEqual(replacements.slice(0, 3), [
   },
   {
     from:
-      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw-runtime\\',
-    to: 'D:\\.sdkwork-bc\\claw-studio\\openclaw-runtime\\',
+      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw\\',
+    to: 'D:\\.sdkwork-bc\\claw-studio\\openclaw\\',
   },
 ]);
 assert.deepEqual(replacements.slice(3), [
   {
     from:
       'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\o\\',
-    to: 'D:\\.sdkwork-bc\\claw-studio\\openclaw-runtime\\',
-  },
-  {
-    from:
-      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\sdkwork-api-router-runtime\\',
-    to: 'D:\\.sdkwork-bc\\claw-studio\\sdkwork-api-router-runtime\\',
-  },
-  {
-    from:
-      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\a\\',
-    to: 'D:\\.sdkwork-bc\\claw-studio\\sdkwork-api-router-runtime\\',
+    to: 'D:\\.sdkwork-bc\\claw-studio\\openclaw\\',
   },
 ]);
 
 const sampleInstaller = [
   'File /a "/oname=generated\\\\bundled\\\\bundle-manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\bundled\\foundation\\components\\bundle-manifest.json"',
   'File /a "/oname=generated\\\\bundled\\\\bundle-manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\b\\foundation\\components\\bundle-manifest.json"',
-  'File /a "/oname=resources\\\\openclaw-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw-runtime\\manifest.json"',
-  'File /a "/oname=resources\\\\openclaw-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\o\\manifest.json"',
-  'File /a "/oname=resources\\\\sdkwork-api-router-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\sdkwork-api-router-runtime\\manifest.json"',
-  'File /a "/oname=resources\\\\sdkwork-api-router-runtime\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\a\\manifest.json"',
+  'File /a "/oname=resources\\\\openclaw\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw\\manifest.json"',
+  'File /a "/oname=resources\\\\openclaw\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\o\\manifest.json"',
 ].join('\n');
 
 const rewrittenInstaller = bundleModule.rewriteNsisSourcePaths(sampleInstaller, replacements);
@@ -122,12 +141,10 @@ const preparedInstaller = bundleModule.prepareWindowsNsisRetryScript({
 });
 
 assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\bundled\\/);
-assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\openclaw-runtime\\/);
-assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\sdkwork-api-router-runtime\\/);
+assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\openclaw\\/);
 assert.doesNotMatch(rewrittenInstaller, /generated\\bundled\\\\/);
-assert.doesNotMatch(rewrittenInstaller, /generated\\br\\[boa]\\\\/);
-assert.doesNotMatch(rewrittenInstaller, /resources\\openclaw-runtime\\\\/);
-assert.doesNotMatch(rewrittenInstaller, /resources\\sdkwork-api-router-runtime\\\\/);
+assert.doesNotMatch(rewrittenInstaller, /generated\\br\\[bo]\\\\/);
+assert.doesNotMatch(rewrittenInstaller, /resources\\openclaw\\\\/);
 assert.match(
   preparedInstaller,
   /!define OUTFILE "D:\\release\\Claw Studio_0\.1\.0_x64-setup\.exe"/,

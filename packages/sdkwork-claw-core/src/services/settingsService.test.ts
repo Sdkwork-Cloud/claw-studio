@@ -122,20 +122,24 @@ async function runTest(name: string, fn: () => Promise<void> | void) {
 await runTest('settingsService persists general preferences across reads', async () => {
   const initial = await settingsService.getPreferences();
   assert.equal(initial.general.launchOnStartup, false);
+  assert.equal(initial.general.compactModelSelector, true);
 
   const updated = await settingsService.updatePreferences({
     general: {
       launchOnStartup: true,
       startMinimized: true,
+      compactModelSelector: false,
     },
   });
 
   assert.equal(updated.general.launchOnStartup, true);
   assert.equal(updated.general.startMinimized, true);
+  assert.equal(updated.general.compactModelSelector, false);
 
   const reloaded = await settingsService.getPreferences();
   assert.equal(reloaded.general.launchOnStartup, true);
   assert.equal(reloaded.general.startMinimized, true);
+  assert.equal(reloaded.general.compactModelSelector, false);
 });
 
 await runTest('settingsService keeps security and privacy overlays when notification settings reload', async () => {
@@ -155,6 +159,64 @@ await runTest('settingsService keeps security and privacy overlays when notifica
   assert.equal(reloaded.privacy.personalizedRecommendations, true);
   assert.equal(reloaded.security.twoFactorAuth, true);
   assert.equal(reloaded.security.loginAlerts, false);
+});
+
+await runTest('settingsService falls back to local overlay preferences when notification settings authentication expires', async () => {
+  await settingsService.updatePreferences({
+    general: {
+      launchOnStartup: true,
+      startMinimized: true,
+      compactModelSelector: false,
+    },
+    privacy: {
+      shareUsageData: true,
+      personalizedRecommendations: true,
+    },
+    security: {
+      twoFactorAuth: true,
+      loginAlerts: false,
+    },
+  });
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+
+    if (url.endsWith('/app/v3/api/notification/settings') && method === 'GET') {
+      return jsonResponse(
+        {
+          code: '4010',
+          msg: '访问令牌无效。',
+        },
+        401,
+      );
+    }
+
+    return jsonResponse({ code: 404, message: 'Not found' }, 404);
+  }) as typeof fetch;
+
+  const preferences = await settingsService.getPreferences();
+
+  assert.deepEqual(preferences.general, {
+    launchOnStartup: true,
+    startMinimized: true,
+    compactModelSelector: false,
+  });
+  assert.deepEqual(preferences.privacy, {
+    shareUsageData: true,
+    personalizedRecommendations: true,
+  });
+  assert.deepEqual(preferences.security, {
+    twoFactorAuth: true,
+    loginAlerts: false,
+  });
+  assert.deepEqual(preferences.notifications, {
+    systemUpdates: true,
+    taskFailures: true,
+    securityAlerts: true,
+    taskCompletions: true,
+    newMessages: true,
+  });
 });
 
 await runTest('settingsService updates notification globals and per-type switches through app sdk routes', async () => {

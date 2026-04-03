@@ -100,8 +100,14 @@ jobs:
             exit $status
           fi
 
+      - name: Run server contract and Rust checks
+        run: pnpm check:server
+
       - name: Build web workspace
         run: pnpm build
+
+      - name: Build server workspace
+        run: pnpm server:build
 
       - name: Build docs site
         run: pnpm docs:build
@@ -155,3 +161,9 @@ jobs:
             echo "::error title=Windows desktop Rust tests failed::$summary"
             exit $status
           fi
+
+      - name: Run Windows server checks
+        run: pnpm check:server
+
+      - name: Run Windows server build
+        run: pnpm server:build

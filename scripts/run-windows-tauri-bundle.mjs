@@ -32,10 +32,8 @@ const commandEnv = withRustToolchainPath(process.env);
 const windowsNsisShortSourceSpecs = [
   ['generated', 'bundled', ['generated', 'bundled']],
   ['bridge-bundled', 'bundled', ['generated', 'br', 'b']],
-  ['openclaw-runtime', 'openclaw-runtime', ['resources', 'openclaw-runtime']],
-  ['bridge-openclaw-runtime', 'openclaw-runtime', ['generated', 'br', 'o']],
-  ['sdkwork-api-router-runtime', 'sdkwork-api-router-runtime', ['resources', 'sdkwork-api-router-runtime']],
-  ['bridge-sdkwork-api-router-runtime', 'sdkwork-api-router-runtime', ['generated', 'br', 'a']],
+  ['openclaw', 'openclaw', ['resources', 'openclaw']],
+  ['bridge-openclaw', 'openclaw', ['generated', 'br', 'o']],
 ];
 
 export function buildWindowsTauriBundleCommand({
@@ -122,7 +120,18 @@ export function prepareWindowsNsisRetryScript({
   return nextContent;
 }
 
-function parseCliArgs(argv) {
+function readOptionValue(argv, index, flag) {
+  const next = argv[index + 1];
+  const normalizedNext = String(next ?? '').trim();
+
+  if (!normalizedNext || normalizedNext.startsWith('--')) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  return normalizedNext;
+}
+
+export function parseArgs(argv) {
   const options = {
     profileId: DEFAULT_RELEASE_PROFILE_ID,
     configPath: defaultBundleOverlayConfig,
@@ -132,28 +141,27 @@ function parseCliArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    const next = argv[index + 1];
 
     if (token === '--profile') {
-      options.profileId = next ?? DEFAULT_RELEASE_PROFILE_ID;
+      options.profileId = readOptionValue(argv, index, '--profile');
       index += 1;
       continue;
     }
 
     if (token === '--config') {
-      options.configPath = next ?? defaultBundleOverlayConfig;
+      options.configPath = readOptionValue(argv, index, '--config');
       index += 1;
       continue;
     }
 
     if (token === '--target') {
-      options.targetTriple = next ?? '';
+      options.targetTriple = readOptionValue(argv, index, '--target');
       index += 1;
       continue;
     }
 
     if (token === '--bundles') {
-      options.bundleTargets = String(next ?? '')
+      options.bundleTargets = readOptionValue(argv, index, '--bundles')
         .split(',')
         .map((entry) => entry.trim())
         .filter(Boolean);
@@ -331,7 +339,7 @@ function main() {
     throw new Error('run-windows-tauri-bundle.mjs only supports Windows hosts');
   }
 
-  const options = parseCliArgs(process.argv.slice(2));
+  const options = parseArgs(process.argv.slice(2));
   const buildPlan = buildWindowsTauriBundleCommand({
     profileId: options.profileId,
     configPath: options.configPath,
@@ -369,5 +377,10 @@ function main() {
 }
 
 if (path.resolve(process.argv[1] ?? '') === __filename) {
-  main();
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }

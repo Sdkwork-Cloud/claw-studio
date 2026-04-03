@@ -1,0 +1,382 @@
+{
+  "eyebrow": "模型商业区",
+  "title": "模型购买",
+  "description": "集中浏览默认套餐、ChatGPT、MiniMax 以及中美头部模型套餐，并按月、按季度、按年切换采购方案。",
+  "loading": "正在加载模型购买目录...",
+  "empty": {
+    "title": "暂无可用模型套餐",
+    "description": "当前采购目录未返回任何厂商套餐，请刷新后重试。"
+  },
+  "error": {
+    "title": "模型购买目录加载失败",
+    "description": "暂时无法获取厂商套餐，请稍后重试。"
+  },
+  "actions": {
+    "retry": "重试"
+  },
+  "currency": {
+    "cny": "CNY"
+  },
+  "regions": {
+    "global": "全球",
+    "us": "美国",
+    "china": "中国"
+  },
+  "billingCycle": {
+    "title": "计费周期"
+  },
+  "badges": {
+    "mostPopular": "最受欢迎",
+    "bestValue": "最佳价值",
+    "enterprise": "企业级"
+  },
+  "cycles": {
+    "monthly": {
+      "label": "按月",
+      "description": "适合启动与验证阶段的灵活月度采购。",
+      "savingsHint": "适合快速迭代。"
+    },
+    "quarterly": {
+      "label": "按季度",
+      "description": "适合增长节奏稳定团队的季度方案。",
+      "savingsHint": "相比按月节省 8%。"
+    },
+    "yearly": {
+      "label": "按年",
+      "description": "提供最强额度、支持与成本效率的年度方案。",
+      "savingsHint": "相比按月节省 23%。"
+    }
+  },
+  "sidebar": {
+    "defaultGroup": "默认套餐",
+    "usTop10": "美国 Top 10",
+    "chinaTop10": "中国 Top 10",
+    "catalogTitle": "采购目录",
+    "spotlight": "热门"
+  },
+  "summary": {
+    "region": "覆盖范围",
+    "globalBlend": "全球混合套餐",
+    "usTop10Value": "美国头部模型阵容",
+    "chinaTop10Value": "中国头部模型阵容",
+    "highlightModels": "重点模型",
+    "activeCycle": "当前周期"
+  },
+  "hero": {
+    "defaultBundle": "默认路由组合",
+    "topModelPackage": "{{region}}头部模型套餐",
+    "procurementWindow": "{{cycle}}采购窗口",
+    "savings": "优惠",
+    "fit": "适配团队"
+  },
+  "planGrid": {
+    "period": {
+      "month": "月",
+      "quarter": "季度",
+      "year": "年"
+    },
+    "quota": "额度",
+    "support": "支持",
+    "seats": "席位",
+    "concurrency": "并发",
+    "includedModels": "包含模型",
+    "startPlan": "开通 {{planName}}"
+  },
+  "payment": {
+    "eyebrow": "支付视图",
+    "title": "确认并支付已选订阅套餐",
+    "description": "当前步骤会锁定你刚刚选择的供应商套餐和购买周期，如需修改请先返回上一步重新选择。",
+    "backToPlans": "返回套餐选择",
+    "lockedBadge": "已锁定套餐",
+    "packageDetailsTitle": "已选套餐详情",
+    "packageDetailsDescription": "这里仅用于确认当前套餐信息和支付方式，支付步骤内不再提供套餐或周期切换。",
+    "lockedHint": "如果你想改套餐或改购买周期，请点击左上角返回，回到上一页重新选择后再支付。",
+    "vendorLabel": "供应商",
+    "planLabel": "套餐",
+    "cycleLabel": "购买周期",
+    "quotaLabel": "额度",
+    "supportLabel": "支持",
+    "priceLabel": "应付金额",
+    "benefitsLabel": "套餐亮点",
+    "methodTitle": "选择支付方式",
+    "methodDescription": "这里用于确认当前套餐的预期支付方式。对于精选供应商套餐，只有接入真实计费契约后才会开放订单提交。",
+    "methodSelected": "当前已选",
+    "methodTapToUse": "点击切换为该支付方式",
+    "scanTitle": "使用当前方式继续支付",
+    "scanDescription": "待当前工作区接入真实商业结算能力后，将使用{{method}}完成支付。",
+    "summaryTitle": "支付摘要",
+    "summaryDescription": "当前页面仅作为商业报价预览。只有接入真实订单服务后，底部按钮才会开放提交。",
+    "summaryLocked": "要改套餐，需要先返回上一页。",
+    "availabilityTag": "订单服务未接入",
+    "confirmPayment": "确认支付",
+    "checkoutUnavailable": "订单服务未接入",
+    "unavailableMessage": "当前工作区尚未为精选供应商套餐接入真实下单与支付 API。此页面仅可用于查看报价和套餐摘要。",
+    "successBanner": "{{vendor}} · {{plan}}（{{cycle}}）订单已提交。",
+    "successDescription": "订单金额：{{price}}。",
+    "methods": {
+      "wechat": "微信支付",
+      "alipay": "支付宝",
+      "bankcard": "银行卡"
+    }
+  },
+  "freeMembership": {
+    "badge": "免费",
+    "title": "免费会员",
+    "tagline": "先看清套餐结构和权益差异，准备好后再升级付费方案。",
+    "audienceLabel": "适合",
+    "audience": "首次体验用户与轻度评估用户",
+    "note": "无需购买，登录后即可享有基础会员权益。",
+    "benefits": {
+      "previewVendorPlans": "预览 {{vendor}} 套餐差异",
+      "savePreferences": "保存偏好的厂商与计费周期",
+      "memberUpdates": "接收套餐更新与会员通知",
+      "upgradeAnytime": "随时升级到付费套餐"
+    }
+  },
+  "metrics": {
+    "curatedRoutes": {
+      "label": "精选路由",
+      "value": "20 条高价值厂商通道"
+    },
+    "packagingMode": {
+      "label": "打包方式",
+      "value": "中美混合采购"
+    },
+    "routedProviders": {
+      "label": "已接入提供方",
+      "value": "{{active}}/{{total}} 已启用"
+    },
+    "modelFamily": {
+      "label": "模型家族"
+    },
+    "bestFor": {
+      "label": "适合"
+    }
+  },
+  "plans": {
+    "tokens": "{{value}}M Tokens",
+    "taglines": {
+      "launch": "适合快速启动 {{vendor}} 的入门方案。",
+      "pro": "最常被采用的 {{vendor}} 主力方案。",
+      "enterprise": "面向企业级部署的 {{vendor}} 完整方案。"
+    },
+    "seats": {
+      "starter": "1 个席位",
+      "growth": "5 个席位",
+      "enterprise": "20 个席位"
+    },
+    "concurrency": {
+      "starter": "3 个并发任务",
+      "growth": "8 个并发任务",
+      "enterprise": "24 个并发任务"
+    },
+    "support": {
+      "starter": "工作时间支持",
+      "growth": "优先支持",
+      "enterprise": "SLA + 专属 TAM"
+    },
+    "benefits": {
+      "usageOverview": "用量概览",
+      "keyRotationReminders": "密钥轮换提醒",
+      "priorityProcurement": "优先采购通道",
+      "routeHealthDigest": "路由健康摘要",
+      "dedicatedOnboarding": "专属上线辅导",
+      "privateRoutingAdvisory": "私有路由咨询",
+      "includesModels": "包含 {{models}}",
+      "channelNamed": "通道：{{name}}",
+      "channelDefault": "通道：默认混合路由"
+    }
+  },
+  "vendors": {
+    "default": {
+      "tagline": "为希望统一商业通道的团队提供均衡路由套餐。",
+      "heroDescription": "将中美模型通道整合进同一个共享额度池。",
+      "audience": "跨境产品团队",
+      "modelHighlights": [
+        "智能路由",
+        "统一额度",
+        "故障切换就绪"
+      ]
+    },
+    "openai": {
+      "tagline": "面向智能体、对话与推理场景的高阶 GPT 套餐。",
+      "heroDescription": "适合打造高端助手与运营副驾驶体验。",
+      "audience": "产品与智能体团队",
+      "modelHighlights": [
+        "GPT-4.1",
+        "o4-mini",
+        "实时能力"
+      ]
+    },
+    "anthropic": {
+      "tagline": "面向长上下文写作与知识工作的采购套餐。",
+      "heroDescription": "适合评审、政策与文档密集型业务场景。",
+      "audience": "研究与写作工作流",
+      "modelHighlights": [
+        "Claude Sonnet",
+        "Claude Opus",
+        "长上下文"
+      ]
+    },
+    "google": {
+      "tagline": "适合搜索、文档与工作空间 AI 的多模态套餐。",
+      "heroDescription": "非常适合图像、文档与多模态产品流程。",
+      "audience": "多模态产品团队",
+      "modelHighlights": [
+        "Gemini 2.5 Pro",
+        "Gemini Flash",
+        "Workspace"
+      ]
+    },
+    "xai": {
+      "tagline": "面向热点敏感产品的高时效响应套餐。",
+      "heroDescription": "适合媒体、社交与实时助手体验。",
+      "audience": "媒体与社交应用",
+      "modelHighlights": [
+        "Grok 推理",
+        "时效优先",
+        "快速迭代"
+      ]
+    },
+    "meta": {
+      "tagline": "结合开放权重与受管路由治理的采购套餐。",
+      "heroDescription": "适合希望兼顾开源灵活性与托管路由的构建者。",
+      "audience": "开放模型平台团队",
+      "modelHighlights": [
+        "Llama",
+        "可微调",
+        "适合自托管"
+      ]
+    },
+    "mistral": {
+      "tagline": "面向成本敏感副驾驶产品的高效欧洲套餐。",
+      "heroDescription": "适合自动化与生产力场景，同时控制高级模型支出。",
+      "audience": "自动化团队",
+      "modelHighlights": [
+        "Mistral Large",
+        "低延迟",
+        "高性价比"
+      ]
+    },
+    "cohere": {
+      "tagline": "具备企业姿态的搜索与 RAG 采购套餐。",
+      "heroDescription": "面向检索、Embedding 与企业副驾驶构建。",
+      "audience": "搜索与 RAG 平台",
+      "modelHighlights": [
+        "Command",
+        "RAG",
+        "搜索质量"
+      ]
+    },
+    "microsoft": {
+      "tagline": "适合微软技术栈的企业级采购套餐。",
+      "heroDescription": "非常适合工作流自动化与企业采购体系。",
+      "audience": "企业 IT 团队",
+      "modelHighlights": [
+        "Copilot",
+        "工作流 AI",
+        "治理能力"
+      ]
+    },
+    "amazon-nova": {
+      "tagline": "面向 AWS 原生团队的可扩展采购套餐。",
+      "heroDescription": "为 AWS 原生产品团队提供干净直接的购买路径。",
+      "audience": "AWS 原生应用团队",
+      "modelHighlights": [
+        "Nova",
+        "AWS 对齐",
+        "可扩展吞吐"
+      ]
+    },
+    "nvidia": {
+      "tagline": "面向 GPU 优先平台团队的推理型套餐。",
+      "heroDescription": "适合关注吞吐率与混合部署能力的团队。",
+      "audience": "推理平台团队",
+      "modelHighlights": [
+        "NIM",
+        "GPU 吞吐",
+        "混合部署"
+      ]
+    },
+    "deepseek": {
+      "tagline": "高性价比推理与代码场景采购套餐。",
+      "heroDescription": "非常适合工程、分析与高价格效率路由场景。",
+      "audience": "工程与推理负载",
+      "modelHighlights": [
+        "DeepSeek 推理",
+        "编码能力",
+        "Token 性价比"
+      ]
+    },
+    "qwen": {
+      "tagline": "适合多语言企业 AI 的均衡型国产套餐。",
+      "heroDescription": "是国内通用业务应用的稳妥选择。",
+      "audience": "通用企业应用",
+      "modelHighlights": [
+        "Qwen 推理",
+        "多语言",
+        "企业就绪"
+      ]
+    },
+    "zhipu": {
+      "tagline": "结构清晰的国产 GLM 采购套餐。",
+      "heroDescription": "适合企业部署与合规要求较高的采购方。",
+      "audience": "国内企业团队",
+      "modelHighlights": [
+        "GLM",
+        "国内合规",
+        "开发者流程"
+      ]
+    },
+    "baidu": {
+      "tagline": "适合搜索与知识系统的企业友好型套餐。",
+      "heroDescription": "非常适合助手、搜索与知识工作流采购。",
+      "audience": "搜索与知识团队",
+      "modelHighlights": [
+        "ERNIE",
+        "搜索原生",
+        "企业支持"
+      ]
+    },
+    "tencent-hunyuan": {
+      "tagline": "面向消费级规模 AI 产品的腾讯生态套餐。",
+      "heroDescription": "适合大型服务平台与高流量助手产品。",
+      "audience": "消费与服务平台",
+      "modelHighlights": [
+        "混元",
+        "腾讯生态",
+        "大流量场景"
+      ]
+    },
+    "doubao": {
+      "tagline": "面向创作者规模 AI 的高速成长型套餐。",
+      "heroDescription": "适合高用户量产品与创作工具场景。",
+      "audience": "消费级 AI 团队",
+      "modelHighlights": [
+        "豆包",
+        "消费级规模",
+        "创作者工作流"
+      ]
+    },
+    "moonshot": {
+      "tagline": "适合研究与文档副驾驶的长上下文套餐。",
+      "heroDescription": "当长文档处理是核心路径时表现尤佳。",
+      "audience": "研究与重文档团队",
+      "modelHighlights": [
+        "长上下文",
+        "研究能力",
+        "文档副驾驶"
+      ]
+    },
+    "minimax": {
+      "tagline": "面向表达型 AI 产品体验的多模态套餐。",
+      "heroDescription": "适合长会话、多模态应用与富媒体场景。",
+      "audience": "多模态产品团队",
+      "modelHighlights": [
+        "多模态",
+        "长上下文",
+        "媒体生成"
+      ]
+    }
+  }
+}

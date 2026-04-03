@@ -56,7 +56,7 @@
     "ecosystem": "Ecosystem",
     "setup": "Setup",
     "codebox": "CodeBox",
-    "apiRouter": "Provider Center",
+    "providerCenter": "Provider Center",
     "modelPurchase": "Model Purchase",
     "clawUpload": "Claw Networking",
     "systemResources": "System Resources",
@@ -82,15 +82,18 @@
     }
   },
   "auth": {
+    "account": "Account",
+    "phone": "Phone",
+    "verificationCode": "Verification Code",
     "qrLogin": "Scan to Login",
-    "qrDesc": "Scan with WeChat or another supported client to complete sign-in instantly.",
-    "openApp": "Open WeChat",
+    "qrDesc": "Scan with a supported app to complete sign-in instantly.",
+    "openApp": "Open the linked app to scan and approve sign-in.",
     "welcomeBack": "Welcome back",
     "createAccount": "Create an account",
     "resetPassword": "Reset password",
-    "loginDesc": "Enter your details to access your account.",
-    "registerDesc": "Join us to start building amazing things.",
-    "resetDesc": "Enter your email to receive a reset link.",
+    "loginDesc": "Choose the sign-in method that matches your account policy and continue securely.",
+    "registerDesc": "Create a secure workspace account with verified email or phone ownership.",
+    "resetDesc": "Use your email or phone to request a reset code and set a new password.",
     "name": "Full Name",
     "email": "Email Address",
     "password": "Password",
@@ -102,10 +105,58 @@
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",
     "backToLogin": "Back to login",
+    "loginMethods": {
+      "password": "Password",
+      "phoneCode": "Phone Code",
+      "emailCode": "Email Code"
+    },
+    "registerMethods": {
+      "email": "Email Registration",
+      "phone": "Phone Registration"
+    },
+    "registerHighlights": {
+      "email": "Verify ownership with a work email address.",
+      "phone": "Use a phone code when mobile-first onboarding is preferred.",
+      "password": "Set a strong password for everyday sign-in."
+    },
+    "registerFields": {
+      "username": "Username",
+      "email": "Email Address",
+      "phone": "Phone Number",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "verificationCode": "Verification Code"
+    },
+    "forgotPasswordFields": {
+      "account": "Account",
+      "code": "Verification Code",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password"
+    },
+    "resetHighlights": {
+      "email": "Send a reset code through the verified email channel.",
+      "phone": "Use SMS recovery when the account is linked to a phone number.",
+      "password": "Finish the reset by confirming a brand-new password."
+    },
+    "actions": {
+      "sendCode": "Send Code",
+      "resendCode": "Resend Code",
+      "usePassword": "Use Password",
+      "usePhoneCode": "Use Phone Code",
+      "useEmailCode": "Use Email Code",
+      "startReset": "Send Reset Code",
+      "completeReset": "Reset Password"
+    },
     "placeholders": {
       "name": "John Doe",
+      "account": "Username, phone, or email",
       "email": "you@example.com",
-      "password": "Enter your password"
+      "phone": "Enter your phone number",
+      "password": "Enter your password",
+      "verificationCode": "Enter verification code",
+      "username": "Choose a username",
+      "confirmPassword": "Confirm your password",
+      "newPassword": "Enter your new password"
     },
     "providers": {
       "wechat": "WeChat",
@@ -115,8 +166,11 @@
     },
     "qrAlt": "Login QR code",
     "qrRefresh": "Refresh QR code",
-    "qrScannedHint": "QR scanned. Confirm the login in WeChat to continue.",
-    "qrWeChatHint": "Supports WeChat official account QR sign-in from the backend.",
+    "qrScannedHint": "QR scanned. Confirm the login in the linked app to continue.",
+    "qrTypeHints": {
+      "default": "Supports backend-issued QR sign-in and approval flows.",
+      "wechatOfficialAccount": "Supports WeChat official account QR sign-in from the backend."
+    },
     "qrStatus": {
       "loading": "Preparing QR code...",
       "pending": "Scan the QR code to continue",
@@ -125,16 +179,35 @@
       "expired": "QR code expired",
       "error": "QR status unavailable"
     },
+    "toasts": {
+      "codeSent": "Verification code sent.",
+      "resetCodeSent": "Password reset code sent.",
+      "registerSuccess": "Registration successful.",
+      "passwordResetSuccess": "Password reset successful."
+    },
     "errors": {
       "signInFailed": "Failed to sign in.",
       "passwordResetFailed": "Failed to send the password reset request.",
+      "sendCodeFailed": "Failed to send verification code.",
+      "passwordMismatch": "Passwords do not match.",
+      "registrationFailed": "Failed to complete registration.",
+      "resetPasswordFailed": "Failed to reset password.",
       "oauthStartFailed": "Failed to start social sign-in.",
       "qrGenerateFailed": "Failed to load the login QR code.",
       "qrStatusFailed": "Failed to refresh QR login status.",
-      "invalidQrPayload": "The backend returned an invalid QR code payload."
+      "invalidQrPayload": "The backend returned an invalid QR code payload.",
+      "invalidEmail": "Enter a valid email address.",
+      "invalidPhone": "Enter a valid phone number."
     },
     "oauth": {
       "badge": "OAuth Sign-In",
+      "helper": "Use a trusted identity provider configured for this workspace.",
+      "providerHints": {
+        "wechat": "Scan or authorize through the WeChat identity flow.",
+        "douyin": "Continue with Douyin for creator and mobile-first sign-in.",
+        "github": "Use your GitHub identity for engineering-oriented workspaces.",
+        "google": "Continue with your Google workspace identity."
+      },
       "processingTitle": "Completing sign-in",
       "processingDesc": "The provider has returned to Claw Studio. We are verifying your authorization and creating the session.",
       "processingHint": "Keep this page open until the redirect finishes.",
@@ -161,6 +234,9 @@
       "launchOnStartupDescription": "Automatically start Claw Studio when you log in to your computer.",
       "startMinimized": "Start minimized",
       "startMinimizedDescription": "Open the application in the system tray instead of a window.",
+      "chatComposer": "Chat composer",
+      "compactModelSelector": "Compact model selector",
+      "compactModelSelectorDescription": "Hide the channel column in the model selector when only one channel is available.",
       "updatePreferenceFailed": "Failed to update preference",
       "themeModes": {
         "light": "Light",
@@ -269,7 +345,8 @@
         "provenance": "Provenance",
         "capabilityRollup": "Capability Rollup",
         "managedDirectories": "Managed Directories",
-        "supervisorAndBundles": "Supervisor And Bundles"
+        "supervisorAndBundles": "Supervisor And Bundles",
+        "localAiProxy": "Local AI Proxy"
       },
       "fields": {
         "serviceManager": "Service Manager",
@@ -279,6 +356,10 @@
         "controlSocketAvailable": "Control Socket Available",
         "serviceConfigPath": "Service Config Path",
         "baseUrl": "Base URL",
+        "localAiProxyRootBaseUrl": "Local Proxy Root URL",
+        "openaiCompatibleBaseUrl": "OpenAI-Compatible Base URL",
+        "anthropicBaseUrl": "Anthropic Base URL",
+        "geminiBaseUrl": "Gemini Base URL",
         "websocketUrl": "WebSocket URL",
         "preferredPort": "Preferred Port",
         "activePort": "Active Port",
@@ -298,7 +379,15 @@
         "userRoot": "User Root",
         "studioDir": "Studio Dir",
         "storageDir": "Storage Dir",
-        "backupsDir": "Backups Dir"
+        "backupsDir": "Backups Dir",
+        "localAiProxyLifecycle": "Proxy Lifecycle",
+        "defaultRoute": "Default Route",
+        "upstreamBaseUrl": "Upstream Base URL",
+        "loopbackOnly": "Loopback Only",
+        "snapshotPath": "Snapshot Path",
+        "logPath": "Log Path",
+        "modelCount": "Model Count",
+        "lastError": "Last Error"
       },
       "values": {
         "notAvailable": "Not available",
@@ -329,6 +418,12 @@
         "inactive": "Inactive",
         "stopping": "Stopping",
         "unknown": "Unknown"
+      },
+      "localAiProxyLifecycle": {
+        "running": "Running",
+        "failed": "Failed",
+        "stopped": "Stopped",
+        "unavailable": "Unavailable"
       }
     },
     "account": {
@@ -620,6 +715,7 @@
     "dataPrivacy": {
       "title": "Data & Privacy",
       "description": "Control your data, telemetry, and account deletion.",
+      "loadPreferenceFailed": "Failed to load privacy preferences",
       "updatePreferenceFailed": "Failed to update preference",
       "telemetry": {
         "title": "Telemetry & Analytics",
@@ -658,6 +754,7 @@
       "taskCompletionsDescription": "Show a desktop notification when a task finishes successfully.",
       "newMessages": "New Messages",
       "newMessagesDescription": "Notify me when I receive a new message in channels.",
+      "loadPreferenceFailed": "Failed to load notification preferences",
       "updatePreferenceFailed": "Failed to update preference"
     },
     "security": {
@@ -818,7 +915,7 @@
         "title": "Go to CodeBox",
         "subtitle": "Open the staged CodeBox integration route"
       },
-      "apiRouter": {
+      "providerCenter": {
         "title": "Go to Provider Center",
         "subtitle": "Manage LLM, embedding, and route configs"
       },
@@ -949,673 +1046,7 @@
     "failedTryAgain": "Task failed. Please try again."
   },
   "routes": {
-    "codeboxComingSoon": "CodeBox integration coming soon.",
-    "apiRouterComingSoon": "API Router integration coming soon."
-  },
-  "apiRouterPage": {
-    "page": {
-      "eyebrow": "Routing Control Plane",
-      "title": "API Router",
-      "description": "Manage model vendors, proxy providers, and key lifecycle from one operational surface.",
-      "descriptionWithChannel": "Operate {{channel}} routes and monitor the active {{modelFamily}} provider pool from one control plane."
-    },
-    "runtime": {
-      "title": "Local Router Runtime",
-      "description": "Inspect the active local API Router binding, health, shared ownership mode, and desktop login bridge before distributing client access.",
-      "ownership": {
-        "values": {
-          "managed": "Managed by Claw Studio",
-          "attached": "Attached to shared router",
-          "uninitialized": "Waiting for startup",
-          "stopped": "Stopped"
-        },
-        "descriptions": {
-          "managed": "Claw Studio started this local router runtime and will stop only the child processes it owns when the app exits.",
-          "attached": "A healthy shared router was already running, so Claw Studio attached to it and will not stop that external process on exit.",
-          "uninitialized": "The local router control plane is still initializing and has not published a healthy gateway and admin surface yet.",
-          "stopped": "The managed router is not serving traffic right now. Restart the runtime to restore local API access."
-        }
-      },
-      "signals": {
-        "gateway": "Gateway",
-        "admin": "Admin API",
-        "authSession": "App Session",
-        "adminAuth": "Admin Token Bridge",
-        "ready": "Ready",
-        "notReady": "Not Ready"
-      },
-      "endpoints": {
-        "gateway": "Gateway Base URL",
-        "admin": "Admin Base URL",
-        "binding": "Bound Address",
-        "path": "Path"
-      },
-      "processes": {
-        "title": "Managed Processes",
-        "gatewayPid": "Gateway PID",
-        "adminPid": "Admin PID",
-        "unavailable": "Not managed"
-      },
-      "paths": {
-        "title": "Shared Storage",
-        "routerHomeDir": "Router Home",
-        "metadataDir": "Claw Metadata",
-        "databasePath": "Database",
-        "extractionDir": "Prebuilt Runtime"
-      },
-      "values": {
-        "unavailable": "Unavailable"
-      },
-      "emptyStateTitle": "Router catalog not ready yet",
-      "emptyStateDescription": "Wait for the local gateway and admin endpoints to become healthy, or refresh after Claw Studio attaches to the shared router."
-    },
-    "pageTabs": {
-      "unifiedApiKey": "Unified API Key",
-      "routeConfig": "Route Config",
-      "modelMapping": "Model Mapping",
-      "usageRecords": "Usage Records"
-    },
-    "routeConfig": {
-      "emptyTitle": "No routed channels are available yet",
-      "emptyDescription": "Keep the API Router control plane open while you connect router data or create upstream providers. Route configuration will appear here as soon as channels exist."
-    },
-    "admin": {
-      "title": "Admin Control Plane",
-      "heading": "sdkwork-api-router Admin",
-      "state": {
-        "authenticated": "Connected",
-        "needsLogin": "Sign-in required",
-        "needsConfiguration": "Configuration required",
-        "unavailable": "Unavailable"
-      },
-      "authSource": {
-        "session": "Operator session",
-        "managedBootstrap": "Managed local bootstrap",
-        "configuredToken": "Configured token",
-        "none": "No credentials"
-      },
-      "fields": {
-        "authSource": "Auth Source",
-        "adminBaseUrl": "Admin Base URL",
-        "gatewayBaseUrl": "Gateway Base URL",
-        "operator": "Active Operator",
-        "email": "Admin Email",
-        "password": "Password"
-      },
-      "placeholders": {
-        "email": "admin@example.com",
-        "password": "Enter the admin password"
-      },
-      "actions": {
-        "refresh": "Refresh",
-        "signIn": "Sign In",
-        "disconnect": "Disconnect"
-      },
-      "values": {
-        "autoResolved": "Auto-resolved from runtime",
-        "unknown": "Unknown"
-      },
-      "messages": {
-        "sessionConnected": "The API Router control plane is authenticated with the current operator session and can call router-native admin APIs directly.",
-        "managedBootstrapConnected": "Claw Studio silently authenticated the local managed sdkwork-api-router runtime and can call router-native admin APIs directly.",
-        "configuredTokenConnected": "The API Router control plane is authenticated with the configured admin token and can call router-native admin APIs directly.",
-        "configuredTokenConfigurationRequired": "The configured sdkwork-api-router admin token was rejected. Update or remove VITE_API_ROUTER_ADMIN_TOKEN before retrying. Manual sign-in is disabled while that token is configured.",
-        "signInRequired": "Sign in to the sdkwork-api-router admin API to use router-backed control-plane features instead of mock fallbacks.",
-        "reauthenticateRequired": "The saved router admin credentials are no longer valid. Sign in again to restore router-backed control-plane access."
-      },
-      "loginHint": "Use the router admin account for standalone deployments or for the local managed runtime you attached to.",
-      "toast": {
-        "connected": "Connected to sdkwork-api-router as {{email}}",
-        "connectionFailed": "Unable to connect to sdkwork-api-router admin",
-        "disconnected": "Router admin session cleared",
-        "disconnectFailed": "Unable to clear the router admin session"
-      }
-    },
-    "runtime": {
-      "title": "Router Runtime",
-      "reason": "Runtime decision",
-      "recommendation": "Recommended managed mode",
-      "conflictHint": "The configured router ports are already occupied, but the running process did not pass the router health check. Resolve the conflict before starting a managed runtime.",
-      "sharedRoot": "Shared Router Root",
-      "configFile": "Resolved Config File",
-      "bind": "Bind Address",
-      "mode": {
-        "attachedExternal": "Attached to external router",
-        "managedActive": "Managed by Claw Studio",
-        "needsManagedStart": "Managed startup is required",
-        "conflicted": "Router startup is blocked"
-      },
-      "summary": {
-        "attachedExternal": "External instance active",
-        "managedActive": "Managed instance active",
-        "needsManagedStart": "Ready to launch",
-        "conflicted": "Operator action required"
-      },
-      "managedMode": {
-        "inProcess": "Start sdkwork-api-router with the Claw app lifecycle in-process once the managed launcher is wired."
-      },
-      "configSource": {
-        "defaults": "Using default bind addresses because no shared router config file was found.",
-        "file": "Loaded from shared router config."
-      },
-      "endpoint": {
-        "admin": "Admin Endpoint",
-        "gateway": "Gateway Endpoint"
-      },
-      "health": {
-        "healthy": "Healthy",
-        "unhealthy": "Unhealthy"
-      },
-      "port": {
-        "available": "Port available",
-        "occupied": "Port occupied"
-      }
-    },
-    "unifiedApiKey": {
-      "filters": {
-        "searchPlaceholder": "Search key name, note, or API key",
-        "allGroups": "All groups",
-        "modelMappingSearchPlaceholder": "Search mapping name, description, or mapped models",
-        "routeConfigSearchPlaceholder": "Search route config name, group, channel, or model"
-      },
-      "table": {
-        "name": "Name",
-        "apiKey": "API Key",
-        "source": "Source",
-        "group": "Group",
-        "usage": "Usage",
-        "expiresAt": "Expires",
-        "status": "Status",
-        "createdAt": "Created",
-        "actions": "Actions",
-        "emptyTitle": "No unified API keys match the current filters",
-        "emptyDescription": "Create a new global API key or relax the current search conditions."
-      },
-      "actions": {
-        "createKey": "New Key",
-        "refresh": "Refresh",
-        "copyKey": "Copy Key",
-        "copySnippet": "Copy Snippet",
-        "usageMethod": "Usage",
-        "routeConfig": "Route Config",
-        "associateModelMapping": "Associate Mapping",
-        "clearModelMapping": "Clear Mapping",
-        "enable": "Enable",
-        "disable": "Disable",
-        "edit": "Edit",
-        "delete": "Delete",
-        "confirmDelete": "Delete {{name}}?"
-      },
-      "sources": {
-        "system-generated": "System Generated",
-        "custom": "Custom"
-      },
-      "dialogs": {
-        "usageTitle": "Usage Method",
-        "createTitle": "New Unified API Key",
-        "editTitle": "Edit Unified API Key",
-        "routeConfigTitle": "Route Config",
-        "associateModelMappingTitle": "Associate Model Mapping",
-        "exampleRequest": "Example Request",
-        "create": "Create Key",
-        "save": "Save Changes"
-      },
-      "detail": {
-        "openaiBaseUrl": "OpenAI Base URL",
-        "anthropicBaseUrl": "Anthropic Base URL",
-        "baseUrl": "Base URL",
-        "authHeader": "Authorization Header",
-        "gatewayHint": "One-click setup maps each client to the matching unified gateway protocol. OpenAI-compatible clients use /v1, while Claude Code uses /anthropic.",
-        "geminiGatewayHint": "Unified API Key now supports Gemini CLI through the routed Gemini gateway. When environment setup is enabled, the installer writes GEMINI_API_KEY, GOOGLE_GEMINI_BASE_URL, and the matching auth mechanism.",
-        "secretRevealHint": "This device does not currently have a managed plaintext copy of the key. Recreate or rotate it here to restore copy, local use, and one-click setup."
-      },
-      "fields": {
-        "name": "Name",
-        "nameHint": "Use a business-facing key name that operators and customer teams can recognize immediately.",
-        "apiKey": "API Key",
-        "apiKeyHint": "Manual mode expects the full router key in `sk-...` format. Managed mode generates and stores a masked `sk-ar-v1-...` key for local use.",
-        "group": "Group",
-        "groupHint": "Group unified keys by tenant, traffic tier, customer segment, or operating boundary.",
-        "groupName": "First group name",
-        "groupNameHint": "No router tenants exist yet. Enter the name for the first tenant group and Claw Studio will create it before creating this key.",
-        "keyMode": "Key Mode",
-        "generateKey": "System generated",
-        "generateKeyHint": "Recommended. The platform creates and manages a brand new outward-facing API key for this router.",
-        "customKey": "Manual input",
-        "customKeyHint": "Use a manually supplied API key when you need to preserve an existing external credential.",
-        "systemGeneratedTitle": "Managed unified key",
-        "systemGeneratedCreateHint": "A new key in the format `sk-ar-v1-...` will be generated automatically after creation.",
-        "systemGeneratedExistingHint": "This key is managed by the platform. Editing metadata keeps the existing generated credential, and the local plaintext copy stays available on this device for copy and quick setup.",
-        "systemGeneratedPreview": "The system will create a fresh outward-facing API key for you after saving.",
-        "keyModeLockedTitle": "Secret rotation is handled separately",
-        "keyModeLockedHint": "This router-backed key can still update its tenant, name, expiry, and notes here, but the plaintext secret is intentionally hidden after creation.",
-        "expiresAt": "Expires",
-        "expiresAtHint": "Track planned rotation or contract deadlines with a date picker.",
-        "notes": "Notes"
-      },
-      "placeholders": {
-        "name": "Global Production Key",
-        "groupName": "Acme Workspace",
-        "apiKey": "sk-ar-v1-...",
-        "notes": "Describe the tenant, purpose, quota policy, or rotation context."
-      },
-      "toast": {
-        "copySuccess": "Unified API key copied",
-        "copyFailed": "Failed to copy unified API key",
-        "copyUnavailable": "This device does not have a managed plaintext copy of the key yet. Recreate or rotate it here before copying or using local quick setup.",
-        "accessConfigCopied": "Usage snippet copied",
-        "accessConfigCopyFailed": "Failed to copy usage snippet",
-        "validationFailed": "Please complete the name and choose or enter a group. Custom mode also requires an API key value.",
-        "keyCreated": "Unified API key created",
-        "groupUpdated": "Key group updated",
-        "statusUpdated": "Key status updated",
-        "routeConfigUpdated": "Route config updated",
-        "routeConfigValidationFailed": "Choose a route config before saving a custom route.",
-        "modelMappingUpdated": "Model mapping association updated",
-        "keyUpdated": "Unified API key updated",
-        "keyDeleted": "Unified API key deleted"
-      },
-      "values": {
-        "never": "Never",
-        "mappedTo": "Mapped to {{name}}",
-        "mappingUnavailable": "Unavailable mapping",
-        "sdkworkRemoteRoute": "SDKWORK remote default route",
-        "customRouteTo": "Custom route to {{name}}",
-        "routeConfigUnavailable": "Unavailable route config",
-        "modelMappingOptional": "Model mapping optional",
-        "routeConfigMeta": "{{channel}} · {{group}}",
-        "associationHint": "Choose one model mapping for this key. Clearing the selection removes the current association.",
-        "noRouteConfigs": "No route configs match the current search.",
-        "noModelMappings": "No model mappings match the current search.",
-        "hiddenAfterCreation": "Masked key",
-        "oneTimeSecretUnavailable": "This device does not have a managed plaintext copy of the key"
-      },
-      "routeConfig": {
-        "sidebar": {
-          "sdkworkRemote": {
-            "title": "SDKWORK Remote Route",
-            "description": "Default route. Requests without custom overrides continue through the remote SDKWORK API Router service."
-          },
-          "custom": {
-            "title": "Custom Route Config",
-            "description": "Select a local route config overlay to override routing for this unified key."
-          },
-          "modelMapping": {
-            "title": "Model Mapping Config",
-            "description": "Optionally attach a model mapping to this unified key. Leave empty to keep original model routing."
-          }
-        },
-        "sdkworkRemote": {
-          "title": "Keep SDKWORK remote routing",
-          "description": "Use the remote SDKWORK route as the default fallback. Local settings stay additive while the remote service remains the standardized router."
-        },
-        "custom": {
-          "title": "Choose a custom route",
-          "description": "These options come from the route config list. The selected route config becomes the local override for this unified key."
-        }
-      }
-    },
-    "modelMapping": {
-      "filters": {
-        "searchPlaceholder": "Search mapping name, description, channel, or model"
-      },
-      "table": {
-        "name": "Name",
-        "description": "Description",
-        "status": "Status",
-        "effectiveTime": "Effective Time",
-        "createdAt": "Created",
-        "actions": "Actions",
-        "emptyTitle": "No model mappings match the current filters",
-        "emptyDescription": "Create a mapping to route one source model into another target model."
-      },
-      "actions": {
-        "create": "New Model Mapping",
-        "refresh": "Refresh",
-        "viewDetail": "View Details",
-        "edit": "Edit",
-        "delete": "Delete",
-        "enable": "Enable",
-        "disable": "Disable",
-        "addRule": "Add Rule",
-        "selectSourceModel": "Select source model",
-        "selectTargetModel": "Select target model",
-        "confirmDelete": "Delete {{name}}?"
-      },
-      "dialogs": {
-        "createTitle": "New Model Mapping",
-        "editTitle": "Edit Model Mapping",
-        "detailTitle": "Model Mapping Details",
-        "modelSelectorTitle": "Select Model",
-        "create": "Create Mapping",
-        "save": "Save Changes"
-      },
-      "fields": {
-        "name": "Name",
-        "description": "Description",
-        "effectiveFrom": "Effective From",
-        "effectiveTo": "Effective To",
-        "rules": "Mapping Rules",
-        "rulesHint": "Each rule maps one source model to one target model. One source model can appear only once within a mapping.",
-        "sourceModel": "Source Model",
-        "targetModel": "Target Model"
-      },
-      "placeholders": {
-        "name": "Global Assistant Mapping",
-        "description": "Describe who should use this mapping and what routing intent it captures.",
-        "searchModel": "Search model name or model ID"
-      },
-      "toast": {
-        "validationFailed": "Complete the name, effective range, and at least one full source-to-target mapping rule. End date must be after the start date, and source models cannot repeat.",
-        "created": "Model mapping created",
-        "updated": "Model mapping updated",
-        "statusUpdated": "Model mapping status updated",
-        "deleted": "Model mapping deleted"
-      },
-      "values": {
-        "ruleCount": "{{count}} rules",
-        "ruleIndex": "Rule {{index}}",
-        "until": "until",
-        "noDescription": "No description provided.",
-        "modelCatalogEmpty": "No channel models are available yet. Create or update a proxy provider first.",
-        "modelSelectionEmpty": "No models are available for the selected channel."
-      }
-    },
-    "usageRecords": {
-      "summary": {
-        "totalRequests": "Total Requests",
-        "totalTokens": "Total Tokens",
-        "promptTokens": "Prompt",
-        "completionTokens": "Completion",
-        "cachedTokens": "Cached",
-        "totalSpend": "Total Spend",
-        "averageDuration": "Average Duration"
-      },
-      "filters": {
-        "apiKey": "API Key",
-        "allApiKeys": "All API Keys",
-        "timeRange": "Time Range",
-        "startDate": "Start Date",
-        "endDate": "End Date",
-        "invalidDateRange": "End date must be on or after the start date."
-      },
-      "timeRanges": {
-        "last24Hours": "Last 24 Hours",
-        "last7Days": "Last 7 Days",
-        "last30Days": "Last 30 Days",
-        "custom": "Custom Range"
-      },
-      "actions": {
-        "refresh": "Refresh",
-        "reset": "Reset",
-        "exportCsv": "Export CSV"
-      },
-      "table": {
-        "apiKey": "API Key",
-        "model": "Model",
-        "reasoningEffort": "Reasoning",
-        "endpoint": "Endpoint",
-        "type": "Type",
-        "tokenDetail": "Token Detail",
-        "cost": "Cost",
-        "ttft": "First Token (TTFT)",
-        "duration": "Duration",
-        "time": "Time",
-        "userAgent": "User-Agent",
-        "streaming": "Streaming",
-        "standard": "Standard",
-        "emptyTitle": "No usage records matched the current filters",
-        "emptyDescription": "Try another API key or adjust the selected time range."
-      },
-      "pagination": {
-        "totalResults": "{{count}} results",
-        "showingRange": "Showing {{start}} to {{end}}",
-        "previous": "Previous",
-        "next": "Next",
-        "pageSize": "Rows per page"
-      },
-      "toast": {
-        "exported": "CSV exported",
-        "exportFailed": "Failed to export CSV"
-      },
-      "values": {
-        "milliseconds": "{{value}} ms"
-      }
-    },
-    "summary": {
-      "providers": "Providers",
-      "healthy": "Healthy",
-      "attention": "Attention",
-      "groups": "Groups"
-    },
-    "sidebar": {
-      "title": "Model Channels",
-      "heading": "Channel Directory",
-      "description": "Select a base model vendor to inspect its routed proxy provider inventory and operational posture.",
-      "providers": "{{count}} providers"
-    },
-    "filters": {
-      "searchPlaceholder": "Search provider name, model, or endpoint",
-      "allGroups": "All groups",
-      "allChannels": "All channels",
-      "channelPlaceholder": "Filter channel"
-    },
-    "table": {
-      "name": "Name",
-      "channel": "Channel",
-      "apiKey": "API KEY",
-      "group": "Group",
-      "usage": "Usage",
-      "expiresAt": "Expires",
-      "status": "Status",
-      "createdAt": "Created",
-      "actions": "Actions",
-      "oneTimeSecretHidden": "One-time secret hidden",
-      "groupLockedHint": "Re-enter the API key in Edit before moving this provider to another group.",
-      "statusManagedHint": "Status is derived from router health snapshots and cannot be toggled manually.",
-      "emptyTitle": "No proxy providers matched this view",
-      "emptyDescription": "Try another channel or relax the current filters."
-    },
-    "actions": {
-      "createKey": "New Key",
-      "refresh": "Refresh",
-      "copyKey": "Copy Key",
-      "usageMethod": "Usage Method",
-      "addModel": "Add model",
-      "removeModel": "Remove",
-      "enable": "Enable",
-      "disable": "Disable",
-      "edit": "Edit",
-      "delete": "Delete",
-      "confirmDelete": "Delete {{name}}?"
-    },
-    "status": {
-      "active": "Active",
-      "warning": "Warning",
-      "disabled": "Disabled",
-      "expired": "Expired"
-    },
-    "dialogs": {
-      "usageTitle": "Usage Method",
-      "createTitle": "Create Key",
-      "editTitle": "Edit Provider",
-      "instanceSelectorTitle": "Choose OpenClaw instances",
-      "instanceSelectorDescription": "Select the OpenClaw instances that should receive {{provider}} as a managed API Router provider.",
-      "exampleRequest": "Example Request",
-      "create": "Create Key",
-      "save": "Save changes"
-    },
-    "quickSetup": {
-      "title": "One-click setup",
-      "description": "Choose between one-click local file setup and one-click environment variable setup for Codex, Claude Code, OpenCode, OpenClaw, and Gemini CLI, while keeping manual snippets available as a fallback.",
-      "primaryAction": "One-click setup",
-      "configureLocalFiles": "Configure local files",
-      "configureEnvironment": "Configure environment",
-      "selectInstances": "Choose instances",
-      "applyToInstances": "Apply to instances",
-      "processing": "Configuring...",
-      "available": "Ready to install",
-      "unavailable": "Not supported for this route",
-      "copyAll": "Copy setup",
-      "copySnippet": "Copy snippet",
-      "installMode": {
-        "title": "Install mode",
-        "options": {
-          "standard": "Standard config",
-          "env": "Environment only",
-          "both": "Config + environment"
-        }
-      },
-      "envScope": {
-        "title": "Environment scope",
-        "options": {
-          "user": "Current user",
-          "system": "System-wide"
-        }
-      },
-      "environmentPreview": {
-        "title": "Environment variables",
-        "description": "These variables are persisted only when you use the environment setup action."
-      },
-      "selectionCount": "{{count}} selected",
-      "selectionHint": "Select one or more instances to inject this API Router provider into OpenClaw.",
-      "selectAll": "Select all",
-      "clearSelection": "Clear",
-      "loadingInstances": "Loading instances...",
-      "emptyInstancesTitle": "No OpenClaw instances available",
-      "emptyInstancesDescription": "Create or connect an instance before applying one-click setup.",
-      "openclawSummary": "One-click setup writes this provider into the selected OpenClaw instances while keeping the manual command below as a fallback.",
-      "openclawApiKeyStrategy": {
-        "title": "OpenClaw API key strategy",
-        "description": "Choose whether selected OpenClaw instances share one router-managed API key or receive their own dedicated key and project binding.",
-        "options": {
-          "shared": "Shared key",
-          "per-instance": "Per-instance key"
-        }
-      },
-      "modelMapping": {
-        "title": "Model routing mapping",
-        "description": "Optionally pin these OpenClaw instances to a saved model mapping when the router writes their managed provider manifest.",
-        "none": "No model mapping",
-        "empty": "No saved model mappings are available yet. Continue without one, or create a mapping first."
-      },
-      "tabs": {
-        "default": "Default",
-        "codex": "Codex",
-        "claude-code": "Claude Code",
-        "opencode": "OpenCode",
-        "openclaw": "OpenClaw",
-        "gemini": "Gemini CLI"
-      },
-      "kinds": {
-        "env": "Environment",
-        "file": "Config file",
-        "command": "Command"
-      },
-      "instanceStatus": {
-        "online": "Online",
-        "offline": "Offline",
-        "starting": "Starting",
-        "error": "Error"
-      },
-      "clients": {
-        "codex": {
-          "title": "Codex",
-          "description": "Install ~/.codex/config.toml and ~/.codex/auth.json with the API Router model provider, OpenAI base URL, and routed default model."
-        },
-        "claude-code": {
-          "title": "Claude Code",
-          "description": "Install ~/.claude/settings.json with the Anthropic gateway token, base URL, and default model."
-        },
-        "opencode": {
-          "title": "OpenCode",
-          "description": "Install the global OpenCode config with the provider route, credentials, and default model selection."
-        },
-        "openclaw": {
-          "title": "OpenClaw",
-          "description": "Write managed provider manifests for the selected OpenClaw instances and keep the runtime view in sync."
-        },
-        "gemini": {
-          "title": "Gemini CLI",
-          "description": "Install ~/.gemini/settings.json and ~/.gemini/.env using Gemini API key authentication with the selected default model."
-        }
-      },
-      "reasons": {
-        "requiresOpenAICompatible": "Codex one-click setup requires an OpenAI-compatible route.",
-        "requiresAnthropicCompatible": "Claude Code one-click setup requires an Anthropic-compatible route.",
-        "requiresOpenAIOrAnthropicCompatible": "This client currently supports OpenAI-compatible or Anthropic-compatible routes only.",
-        "requiresGeminiCompatible": "Gemini CLI one-click setup currently requires a Gemini-compatible Google route.",
-        "requiresGoogleIssuedGeminiKey": "Gemini CLI currently requires a direct Google-issued Gemini API key, so it cannot be installed from a unified API gateway key.",
-        "requiresOneTimeKeyReveal": "This device does not have a managed plaintext copy of the key yet. Recreate or rotate it here before using one-click setup."
-      }
-    },
-    "detail": {
-      "baseUrl": "Base URL",
-      "authHeader": "Auth Header",
-      "models": "Models",
-      "notes": "Notes",
-      "secretUnavailable": "The plaintext secret is no longer available in Claw Studio. Re-enter or rotate the provider key before copying manual headers again."
-    },
-    "fields": {
-      "name": "Name",
-      "nameHint": "Use an operationally recognizable provider name for your team.",
-      "apiKey": "API KEY",
-      "apiKeyHint": "Paste the upstream key exactly as issued by the proxy provider.",
-      "apiKeyEditHint": "Leave this blank to keep the current router credential. Enter a new key to rotate it or move the provider to another group.",
-      "group": "Group",
-      "groupHint": "Use groups to separate traffic domains such as production, sandbox, or shared routing.",
-      "baseUrl": "Base URL",
-      "baseUrlHint": "Enter the provider endpoint root. This URL is reused for client one-click setup.",
-      "models": "Models",
-      "modelsHint": "Add one or more models. Each row needs a model ID and a display name.",
-      "modelId": "Model ID",
-      "modelDisplayName": "Display Name",
-      "expiresAt": "Expires At",
-      "expiresAtHint": "Use the date control to track key rotation or contract expiry.",
-      "notes": "Notes"
-    },
-    "placeholders": {
-      "providerName": "OpenAI Production Router",
-      "apiKey": "sk-router-live-...",
-      "baseUrl": "https://api.example.com/v1",
-      "modelId": "gpt-4.1-mini",
-      "modelDisplayName": "GPT-4.1 Mini",
-      "notes": "Add routing notes, quota policy, or rotation context."
-    },
-    "toast": {
-      "copySuccess": "API key copied",
-      "copyFailed": "Unable to copy API key",
-      "copyUnavailable": "The plaintext provider key is no longer available. Re-enter or rotate it before copying again.",
-      "accessConfigCopied": "Access configuration copied",
-      "accessConfigCopyFailed": "Unable to copy access configuration",
-      "instanceLoadFailed": "Unable to load instances",
-      "clientSetupInstalled": "{{client}} configured. Wrote {{count}} file(s).",
-      "clientSetupInstalledWithEnv": "{{client}} configured. Wrote {{files}} file(s) and updated {{envs}} environment target(s).",
-      "clientSetupEnvUpdated": "{{client}} configured. Updated {{count}} environment target(s).",
-      "clientSetupComplete": "{{client}} configured.",
-      "clientSetupFailed": "Unable to configure {{client}}",
-      "openClawNoInstanceSelected": "Select at least one OpenClaw instance",
-      "openClawSetupApplied": "Applied to {{count}} instance(s)",
-      "openClawSetupFailed": "Unable to configure the selected OpenClaw instances",
-      "validationFailed": "Complete the name, API key, group, base URL, and every model row with both ID and display name.",
-      "validationFailedEdit": "Complete the name, group, base URL, and every model row with both ID and display name. Re-enter the API key only when rotating the credential or moving groups.",
-      "providerCreated": "Provider created",
-      "providerCreateFailed": "Unable to create provider",
-      "groupUpdated": "Group updated",
-      "groupUpdateFailed": "Unable to update group",
-      "statusUpdated": "Provider status updated",
-      "statusUpdateFailed": "Unable to update provider status",
-      "providerUpdated": "Provider updated",
-      "providerUpdateFailed": "Unable to update provider",
-      "providerDeleted": "Provider deleted",
-      "providerDeleteFailed": "Unable to delete provider"
-    },
-    "values": {
-      "never": "Never",
-      "modelIndex": "Model {{index}}",
-      "requestCountShort": "{{value}} req",
-      "tokenCountShort": "{{value}} tokens"
-    }
+    "codeboxComingSoon": "CodeBox integration coming soon."
   },
   "dashboard": {
     "page": {
@@ -2089,7 +1520,15 @@
       "emptyWithSkill": "I have the \"{{skill}}\" skill ready and can help with {{category}} tasks in {{appName}}.",
       "emptyDefault": "I can help you write code, answer questions, draft emails, or brainstorm ideas in {{appName}}.",
       "selectedModelFallback": "the selected model",
+      "jumpToLatest": "Jump to latest",
       "errorResponse": "Sorry, I encountered an error while processing your request. Please check your API key or internet connection.",
+      "headerStatus": {
+        "ready": "Ready",
+        "responding": "Responding",
+        "connected": "Connected",
+        "reconnecting": "Reconnecting",
+        "disconnected": "Disconnected"
+      },
       "suggestions": {
         "quantum": "Explain quantum computing in simple terms",
         "python": "Write a Python script to scrape a website",
@@ -2151,6 +1590,17 @@
       "copyCode": "Copy code",
       "copied": "Copied!",
       "assistant": "Assistant",
+      "toolOutput": "Tool output",
+      "toolSingle": "1 tool",
+      "toolsMultiple": "{{count}} tools",
+      "toolsMore": "+{{count}} more",
+      "toolCall": "Tool call",
+      "toolResult": "Tool result",
+      "completed": "Completed",
+      "reasoning": "Reasoning",
+      "json": "JSON",
+      "jsonArray": "Array ({{count}} items)",
+      "jsonObjectCount": "Object ({{count}} keys)",
       "regenerateResponse": "Regenerate response",
       "attachmentKinds": {
         "file": "File",
@@ -2512,20 +1962,20 @@
         "share": "Share"
       },
       "assistantCta": {
-      "title": "OpenClaw can take the next step",
-      "description": "Use the assistant to optimize this entry, prepare repost variants, or organize the next follow-up action.",
-      "primaryAction": "Ask OpenClaw to continue"
-    },
-    "overviewEyebrow": "Entry detail",
-    "overviewTitle": "Listing overview",
-    "publisherPanelEyebrow": "Publisher",
-    "publisherPanelTitle": "Publisher profile",
-    "backToCommunity": "Back to classifieds",
-    "commentPlaceholder": "Add a follow-up note or question...",
-    "commentsTitle": "Comments ({{count, number}})",
-    "currentUserInitials": "ME",
-    "emptyComments": "No follow-up comments yet. Start the thread with the first question.",
-    "featuredBadge": "Featured",
+        "title": "OpenClaw can take the next step",
+        "description": "Use the assistant to optimize this entry, prepare repost variants, or organize the next follow-up action.",
+        "primaryAction": "Ask OpenClaw to continue"
+      },
+      "overviewEyebrow": "Entry detail",
+      "overviewTitle": "Listing overview",
+      "publisherPanelEyebrow": "Publisher",
+      "publisherPanelTitle": "Publisher profile",
+      "backToCommunity": "Back to classifieds",
+      "commentPlaceholder": "Add a follow-up note or question...",
+      "commentsTitle": "Comments ({{count, number}})",
+      "currentUserInitials": "ME",
+      "emptyComments": "No follow-up comments yet. Start the thread with the first question.",
+      "featuredBadge": "Featured",
       "listingMeta": {
         "title": "Listing metadata",
         "location": "Location",
@@ -2562,51 +2012,51 @@
           "onsite": "On-site delivery"
         }
       },
-    "meta": {
-      "views": "{{count, number}} views"
-    },
-    "newsPanelTitle": "Platform news",
-    "newsPanelDescription": "This is an official news entry, so it stays readable as a retained news module inside the broader classifieds entrance.",
-    "recommendations": {
-      "relatedServicesEyebrow": "Related services",
-      "relatedServicesTitle": "Services worth contacting",
-      "relatedServicesDescription": "Prioritized using the current listing's service demand, tags, and delivery context.",
-      "relatedServicesEmpty": "No closely related services are available right now.",
-      "relatedCompaniesEyebrow": "Related companies",
-      "relatedCompaniesTitle": "Companies worth matching",
-      "relatedCompaniesDescription": "Grouped from active classifieds so you can keep browsing nearby suppliers, operators, and company demand.",
-      "relatedCompaniesEmpty": "No closely related companies are available right now.",
-      "openService": "Open service",
-      "openCompany": "Representative listing",
-      "activeListings": "{{count, number}} active listings",
-      "reasonLabels": {
-        "featured": "featured",
-        "intentServiceLine": "matched demand",
-        "matchedServiceLine": "matched service",
-        "multiListing": "multi listing",
-        "onlineDelivery": "online delivery",
-        "officialPresence": "official presence",
-        "sameCompany": "same company",
-        "sameServiceLine": "same service line",
-        "sharedCategory": "shared category",
-        "sharedLocation": "shared location",
-        "sharedTag": "shared tag"
+      "meta": {
+        "views": "{{count, number}} views"
+      },
+      "newsPanelTitle": "Platform news",
+      "newsPanelDescription": "This is an official news entry, so it stays readable as a retained news module inside the broader classifieds entrance.",
+      "recommendations": {
+        "relatedServicesEyebrow": "Related services",
+        "relatedServicesTitle": "Services worth contacting",
+        "relatedServicesDescription": "Prioritized using the current listing's service demand, tags, and delivery context.",
+        "relatedServicesEmpty": "No closely related services are available right now.",
+        "relatedCompaniesEyebrow": "Related companies",
+        "relatedCompaniesTitle": "Companies worth matching",
+        "relatedCompaniesDescription": "Grouped from active classifieds so you can keep browsing nearby suppliers, operators, and company demand.",
+        "relatedCompaniesEmpty": "No closely related companies are available right now.",
+        "openService": "Open service",
+        "openCompany": "Representative listing",
+        "activeListings": "{{count, number}} active listings",
+        "reasonLabels": {
+          "featured": "featured",
+          "intentServiceLine": "matched demand",
+          "matchedServiceLine": "matched service",
+          "multiListing": "multi listing",
+          "onlineDelivery": "online delivery",
+          "officialPresence": "official presence",
+          "sameCompany": "same company",
+          "sameServiceLine": "same service line",
+          "sharedCategory": "shared category",
+          "sharedLocation": "shared location",
+          "sharedTag": "shared tag"
+        }
+      },
+      "notFoundTitle": "Entry not found",
+      "toasts": {
+        "bookmarkAdded": "Saved to your classifieds shortlist.",
+        "bookmarkFailed": "Failed to update the saved state.",
+        "bookmarkRemoved": "Removed from your classifieds shortlist.",
+        "commentFailed": "Failed to send the comment.",
+        "shareCopied": "Share details copied to the clipboard.",
+        "shareFailed": "Failed to prepare the share action.",
+        "shareReady": "Share sheet is ready."
+      },
+      "roles": {
+        "official": "Official",
+        "coreContributor": "Core Contributor"
       }
-    },
-    "notFoundTitle": "Entry not found",
-    "toasts": {
-      "bookmarkAdded": "Saved to your classifieds shortlist.",
-      "bookmarkFailed": "Failed to update the saved state.",
-      "bookmarkRemoved": "Removed from your classifieds shortlist.",
-      "commentFailed": "Failed to send the comment.",
-      "shareCopied": "Share details copied to the clipboard.",
-      "shareFailed": "Failed to prepare the share action.",
-      "shareReady": "Share sheet is ready."
-    },
-    "roles": {
-      "official": "Official",
-      "coreContributor": "Core Contributor"
-    }
     }
   },
   "clawUpload": {
@@ -2615,7 +2065,6 @@
     "subtitle": "Read OpenClaw instances from the registry and keep gateway connectivity visible in one place.",
     "description": "This registry-backed view surfaces the OpenClaw runtimes already registered inside Claw Studio so you can verify networking posture, gateway exposure, and routing readiness before agents go online.",
     "refresh": "Refresh Registry",
-    "openApiRouter": "Open API Router",
     "loadFailed": "Failed to load registry connectivity",
     "loadFailedDescription": "We could not read the OpenClaw registry snapshot right now.",
     "emptyTitle": "No OpenClaw instances are registered yet",
@@ -2764,41 +2213,41 @@
       "errorDescription": "Please retry after the shared app SDK becomes available again.",
       "retry": "Retry"
     },
-  "rechargeDialog": {
-    "eyebrow": "Points Recharge",
-    "title": "Recharge Points",
-    "description": "Choose a preset or custom amount, review the backend exchange rate, and submit the recharge through the real app SDK.",
-    "payable": "Payable now",
-    "commonAmounts": "Common point amounts",
-    "configureTitle": "Configure this recharge",
-    "configureDescription": "Preset values stay as quick actions, but the payable amount always comes from the backend-configured points-to-cash rate.",
-    "customAmount": "Custom points",
-    "customPlaceholder": "Enter a whole-number point value",
-    "backToForm": "Back to recharge setup",
-    "summaryEyebrow": "Recharge information",
-    "summaryTitle": "Review this points recharge",
-    "summaryDescription": "The live rate, chosen payment method, and payable amount all come from the real points recharge contract.",
-    "summaryMeta": "Buy {{points}} points for {{amount}}",
-    "rechargeDetailsTitle": "Points package",
-    "rechargeDetailsDescription": "Review the points quantity, original price, and actual payment here, then complete payment from the QR code on the right.",
-    "selectedPointsLabel": "Points to buy",
-    "purchaseTypeLabel": "Recharge type",
-    "originalPriceLabel": "Original price",
-    "actualPriceLabel": "Actual payment",
-    "exchangeRateLabel": "Exchange rate",
-    "exchangeRateValue": "{{rate}} pts / CNY 1",
-    "rateUnavailable": "The backend has not returned a valid exchange rate yet.",
-    "presetMeta": "Pay {{amount}}",
-    "presetPurchase": "Preset amount",
-    "customPurchase": "Custom amount",
-    "paymentEyebrow": "Scan to pay",
+    "rechargeDialog": {
+      "eyebrow": "Points Recharge",
+      "title": "Recharge Points",
+      "description": "Choose a preset or custom amount, review the backend exchange rate, and submit the recharge through the real app SDK.",
+      "payable": "Payable now",
+      "commonAmounts": "Common point amounts",
+      "configureTitle": "Configure this recharge",
+      "configureDescription": "Preset values stay as quick actions, but the payable amount always comes from the backend-configured points-to-cash rate.",
+      "customAmount": "Custom points",
+      "customPlaceholder": "Enter a whole-number point value",
+      "backToForm": "Back to recharge setup",
+      "summaryEyebrow": "Recharge information",
+      "summaryTitle": "Review this points recharge",
+      "summaryDescription": "The live rate, chosen payment method, and payable amount all come from the real points recharge contract.",
+      "summaryMeta": "Buy {{points}} points for {{amount}}",
+      "rechargeDetailsTitle": "Points package",
+      "rechargeDetailsDescription": "Review the points quantity, original price, and actual payment here, then complete payment from the QR code on the right.",
+      "selectedPointsLabel": "Points to buy",
+      "purchaseTypeLabel": "Recharge type",
+      "originalPriceLabel": "Original price",
+      "actualPriceLabel": "Actual payment",
+      "exchangeRateLabel": "Exchange rate",
+      "exchangeRateValue": "{{rate}} pts / CNY 1",
+      "rateUnavailable": "The backend has not returned a valid exchange rate yet.",
+      "presetMeta": "Pay {{amount}}",
+      "presetPurchase": "Preset amount",
+      "customPurchase": "Custom amount",
+      "paymentEyebrow": "Scan to pay",
       "paymentTitle": "Scan to complete the recharge",
       "paymentDescription": "The QR code on the right updates with the selected payment method.",
       "qrAlt": "{{method}} recharge QR code",
       "scanHint": "Use {{method}} to scan the QR code above",
-      "paymentTip": "This is still a simulated payment flow. Confirming will immediately add {{points}} points and append a new record.",
+      "paymentTip": "Confirming sends a live recharge request for {{points}} points and refreshes the wallet after the payment result returns.",
       "paymentMethod": "Payment Method",
-      "tip": "Recharge is simulated in this build, but the balance, records, and quick panel all update immediately.",
+      "tip": "Recharge uses the live account wallet service. Balance, history, and the quick panel refresh after the backend confirms the payment result.",
       "continueToPayment": "Continue to payment",
       "confirm": "Confirm Recharge",
       "confirmPayment": "I've completed the recharge"
@@ -2808,45 +2257,45 @@
       "title": "Upgrade your subscription plan",
       "description": "Choose from the live VIP packs exposed by the app SDK and submit the purchase with the real membership contract.",
       "save20": "Save 20%",
-    "pointsGrant": "Instant bundled grant",
-    "pointsGrantValue": "{{points}} points",
-    "noGrant": "No included points",
-    "includedBenefits": "Included benefits",
-    "backToPlans": "Back to plans",
-    "summaryEyebrow": "Package information",
-    "summaryTitle": "Confirm the selected package",
-    "summaryDescription": "Review the current membership, selected package, duration, and bundled points before submitting the VIP purchase.",
-    "currentMembership": "Current membership",
-    "defaultPlanDescription": "This VIP pack is available through the shared app SDK and can be activated immediately after purchase.",
-    "noPlans": "No VIP packs are available right now.",
-    "summaryMeta": "{{cycle}} cycle with an instant grant of {{points}} points",
-    "paymentLockedHint": "The payment page is read-only. Use the back action in the top-left corner if you need to change the plan or monthly/yearly cycle.",
-    "paymentSummaryHint": "Need a different package or cycle? Use the back action in the top-left corner first.",
-    "currentPlanHint": "This selection matches your current active plan cycle, so there is nothing new to activate.",
+      "pointsGrant": "Instant bundled grant",
+      "pointsGrantValue": "{{points}} points",
+      "noGrant": "No included points",
+      "includedBenefits": "Included benefits",
+      "backToPlans": "Back to plans",
+      "summaryEyebrow": "Package information",
+      "summaryTitle": "Confirm the selected package",
+      "summaryDescription": "Review the current membership, selected package, duration, and bundled points before submitting the VIP purchase.",
+      "currentMembership": "Current membership",
+      "defaultPlanDescription": "This VIP pack is available through the shared app SDK and can be activated immediately after purchase.",
+      "noPlans": "No VIP packs are available right now.",
+      "summaryMeta": "{{cycle}} cycle with an instant grant of {{points}} points",
+      "paymentLockedHint": "The payment page is read-only. Use the back action in the top-left corner if you need to change the plan or monthly/yearly cycle.",
+      "paymentSummaryHint": "Need a different package or cycle? Use the back action in the top-left corner first.",
+      "currentPlanHint": "This selection matches your current active plan cycle, so there is nothing new to activate.",
       "paymentEyebrow": "Scan to pay",
       "paymentTitle": "Scan to complete payment",
       "paymentDescription": "The right side keeps the active QR code and payment summary in sync with your selected method.",
       "qrAlt": "{{method}} payment QR code",
       "scanHint": "Use {{method}} to scan the QR code above",
-      "paymentTip": "This build simulates payment. Confirming will instantly grant {{points}} points and append a new record.",
+      "paymentTip": "Confirming submits a live membership purchase for {{points}} points and refreshes the plan summary after the backend responds.",
       "confirmPayment": "I've completed payment",
       "agreementPrefix": "By paying, you acknowledge and agree to",
       "membershipAgreement": "Membership Benefits Notice",
       "agreementJoiner": "and",
       "serviceAgreement": "Subscription Service Agreement",
       "packageDetailsTitle": "Package information",
-    "packageDetailsDescription": "Check the package, cycle, bundled points, and price before continuing to pay.",
-    "lockedBadge": "Locked",
-    "packageNameLabel": "Plan",
-    "durationLabel": "Duration",
-    "durationValue": "{{days}} days",
-    "durationUnknown": "Duration unavailable",
-    "billingCycleLabel": "Billing cycle",
-    "grantPointsLabel": "Bundled points",
-    "originalPriceLabel": "Original price",
-    "actualPriceLabel": "Actual payment",
-    "totalPriceLabel": "Amount due"
-  },
+      "packageDetailsDescription": "Check the package, cycle, bundled points, and price before continuing to pay.",
+      "lockedBadge": "Locked",
+      "packageNameLabel": "Plan",
+      "durationLabel": "Duration",
+      "durationValue": "{{days}} days",
+      "durationUnknown": "Duration unavailable",
+      "billingCycleLabel": "Billing cycle",
+      "grantPointsLabel": "Bundled points",
+      "originalPriceLabel": "Original price",
+      "actualPriceLabel": "Actual payment",
+      "totalPriceLabel": "Amount due"
+    },
     "auth": {
       "signInRequired": "Sign in to read, recharge, or upgrade your live points balance."
     },
@@ -3183,10 +2632,12 @@
       "deployNow": "Deploy Now",
       "deployed": "Deployed",
       "deploying": "Deploying...",
+      "deliveryNotice": "Build and deployment for software products run through the real delivery workflow. Submit a request to start the commercial handoff.",
       "features": "Features",
       "generate": "Generate",
       "generated": "Generated",
       "generating": "Generating...",
+      "requestBuild": "Request build",
       "visitSite": "Visit Site"
     },
     "validUntil": "Valid until"
@@ -3401,6 +2852,10 @@
         "thinkingHelp": "Override the reasoning depth for supported GPT-5 and Codex models.",
         "lightContext": "Use light context",
         "lightContextHelp": "Skip heavyweight workspace bootstrap when the task only needs lightweight context.",
+        "toolAllowlist": "Tool allowlist",
+        "toolAllowlistPlaceholder": "exec\ngroup:filesystem\nread",
+        "toolAllowlistHelp": "Enter one tool or group token per line. Leave blank to keep the upstream default tool policy.",
+        "toolAllowlistTokensHelp": "Accepts tool ids like exec or read, plus group:* shorthands such as group:filesystem.",
         "deliveryBestEffort": "Best-effort delivery",
         "deliveryBestEffortHelp": "Avoid failing the whole cron run when downstream delivery has a transient issue."
       },
@@ -3927,6 +3382,83 @@
             "description": "Inspect callable tools, execution privileges, and high-impact runtime controls."
           }
         },
+        "webSearch": {
+          "badge": "Managed Web Search",
+          "title": "Web Search Configuration",
+          "description": "Manage the shared OpenClaw web-search runtime settings and the provider-specific plugin config that powers search results.",
+          "enabledDescription": "Toggle the shared web-search capability for this instance.",
+          "providerPanel": "Provider Config",
+          "advancedDescription": "Advanced JSON is merged under the selected provider's plugins.entries.<provider>.config.webSearch object.",
+          "fields": {
+            "enabled": "Enabled",
+            "provider": "Active Provider",
+            "providerEditor": "Provider To Edit",
+            "maxResults": "Max Results",
+            "timeoutSeconds": "Timeout (s)",
+            "cacheTtlMinutes": "Cache TTL (min)",
+            "apiKeySource": "API Key",
+            "baseUrl": "Base URL",
+            "model": "Model",
+            "advancedConfig": "Advanced JSON"
+          },
+          "metrics": {
+            "activeProvider": "Active Provider",
+            "managedProviders": "Managed Providers"
+          },
+          "placeholders": {
+            "provider": "Choose a provider",
+            "apiKeySource": "sk-...",
+            "baseUrl": "https://search.example.com",
+            "model": "sonar-pro",
+            "advancedConfig": "{\n  \"language\": \"en\"\n}"
+          },
+          "errors": {
+            "providerRequired": "Choose an active web-search provider.",
+            "maxResultsInvalid": "Max results must be a positive number.",
+            "timeoutInvalid": "Timeout must be a positive number.",
+            "cacheTtlInvalid": "Cache TTL must be a positive number."
+          },
+          "toasts": {
+            "saved": "Web search configuration saved.",
+            "saveFailed": "Failed to save web search configuration."
+          }
+        },
+        "authCooldowns": {
+          "badge": "Managed Auth Cooldowns",
+          "title": "Auth Cooldown Controls",
+          "description": "Inspect and adjust the OpenClaw auth cooldown settings used for rate limits, overload backoff, and billing retries.",
+          "note": "Leave a field blank to keep the upstream OpenClaw default for that cooldown.",
+          "fields": {
+            "rateLimitedProfileRotations": "Rate-Limited Profile Rotations",
+            "overloadedProfileRotations": "Overloaded Profile Rotations",
+            "overloadedBackoffMs": "Overload Backoff (ms)",
+            "billingBackoffHours": "Billing Backoff (hours)",
+            "billingMaxHours": "Billing Max Wait (hours)",
+            "failureWindowHours": "Failure Window (hours)"
+          },
+          "placeholders": {
+            "defaultValue": "Use upstream default"
+          },
+          "metrics": {
+            "overloadedBackoff": "Overload Backoff",
+            "failureWindow": "Failure Window"
+          },
+          "values": {
+            "upstreamDefault": "Upstream default"
+          },
+          "errors": {
+            "rateLimitedProfileRotationsInvalid": "Rate-limited profile rotations must be a non-negative whole number.",
+            "overloadedProfileRotationsInvalid": "Overloaded profile rotations must be a non-negative whole number.",
+            "overloadedBackoffMsInvalid": "Overload backoff must be a non-negative whole number.",
+            "billingBackoffHoursInvalid": "Billing backoff must be a non-negative whole number.",
+            "billingMaxHoursInvalid": "Billing max wait must be a non-negative whole number.",
+            "failureWindowHoursInvalid": "Failure window must be a non-negative whole number."
+          },
+          "toasts": {
+            "saved": "Auth cooldown settings saved.",
+            "saveFailed": "Failed to save auth cooldown settings."
+          }
+        },
         "summary": {
           "healthScore": "Health Score",
           "connectedChannels": "Connected Channels",
@@ -3991,7 +3523,7 @@
               "workspaceAgent": "This workspace comes from the current default agent and is the primary filesystem scope for prompts, skills, and agent files.",
               "workspaceArtifact": "This workspace path was discovered from the instance artifact map rather than the agent registry.",
               "workspaceNamespace": "No concrete workspace path is attached, so the storage namespace is shown as the fallback scope.",
-              "scopeFull": "Agent CRUD, channel config, provider config, and file editing can all route through the discovered OpenClaw config surface.",
+              "scopeFull": "Provider routes stay read-only here and are managed through Provider Center, while agent CRUD, channel config, and file editing still route through the discovered OpenClaw config surface.",
               "scopePartial": "Chat, file, or model operations may still work, but full agent and channel management is not available without a writable config attachment.",
               "scopeReadonly": "This instance is currently discoverable, but Claw Studio should treat it as read-only until a writable management path is attached."
             }
@@ -4059,7 +3591,7 @@
           "saveConfig": "Save Provider",
           "saving": "Saving...",
           "revertConfig": "Revert Config",
-          "readonlyNotice": "This provider configuration is currently exposed as a read-only OpenClaw snapshot. Editing will be enabled after native provider write support is wired.",
+          "readonlyNotice": "Provider routes for this OpenClaw instance are managed through Provider Center. Use Provider Center to change the projected base URL, API key, or model routing.",
           "saved": "LLM provider saved",
           "saveFailed": "Failed to save LLM provider",
           "selectProvider": "Select an LLM provider to inspect or edit its runtime configuration.",
@@ -4193,6 +3725,7 @@
             "sharedSkillsDefaultPath": "~/.openclaw/skills",
             "source": "Source",
             "primaryEnv": "Primary Env",
+            "effectiveParams": "Effective Params",
             "missingPrefix": "Missing",
             "filePreview": "File Preview",
             "enableSkill": "Enable Skill",
@@ -4322,35 +3855,42 @@
     "page": {
       "title": "Extensions",
       "tabs": {
-        "discover": "Discover",
+        "discover": "Catalog",
         "installed": "Installed"
       },
-      "searchPlaceholder": "Search extensions...",
-      "featured": {
-        "badge": "Featured",
-        "title": "Supercharge Your Workflow",
-        "description": "Discover powerful extensions to customize your Claw environment. Add new tools, integrations, and capabilities with just one click.",
-        "browse": "Browse Top Extensions"
+      "searchPlaceholder": "Search bundled or local extensions...",
+      "summary": {
+        "eyebrow": "Built-in OpenClaw Runtime",
+        "title": "Manage bundled plugins inside your local runtime",
+        "description": "Review the bundled OpenClaw extension catalog, install plugins into the local kernel plugins directory, and remove installed plugins without leaving Claw Studio.",
+        "metrics": {
+          "bundled": "Bundled",
+          "installed": "Installed",
+          "local": "Local only"
+        }
       },
       "empty": {
         "title": "No extensions found",
-        "description": "Try adjusting your search terms or filters."
+        "description": "Try a broader keyword or switch tabs to inspect the full local plugin catalog."
       },
-      "status": {
-        "online": "Online",
-        "offline": "Offline"
+      "labels": {
+        "bundled": "Bundled",
+        "local": "Local",
+        "installed": "Installed",
+        "notInstalled": "Not installed",
+        "category": "Category",
+        "version": "Version",
+        "origin": "Origin",
+        "provider": "Provider",
+        "channel": "Channel",
+        "plugin": "Plugin"
       },
       "actions": {
+        "refresh": "Refresh",
         "uninstall": "Uninstall"
       },
-      "modal": {
-        "title": "Install Extension",
-        "byAuthor": "by {{author}}",
-        "noInstancesTitle": "No instances available",
-        "noInstancesDescription": "Please create an instance first.",
-        "selectTargetInstances": "Select Target Instances",
-        "installing": "Installing...",
-        "installToInstance": "Install to Instance"
+      "errors": {
+        "runtimeUnavailable": "The bundled OpenClaw runtime is unavailable in the current host."
       },
       "toasts": {
         "installSuccess": "Extension installed successfully",
@@ -4358,7 +3898,7 @@
         "uninstallSuccess": "Extension uninstalled successfully",
         "uninstallFailed": "Failed to uninstall extension"
       },
-      "confirmUninstall": "Are you sure you want to uninstall this extension?"
+      "confirmUninstall": "Are you sure you want to uninstall {{name}}?"
     }
   },
   "repositoryCard": {
@@ -4374,39 +3914,79 @@
   },
   "devices": {
     "page": {
-      "actions": {
-        "registerDevice": "Register device",
-        "remove": "Remove"
-      },
       "banner": {
-        "description": "Connect hardware so you can monitor it through Claw Studio.",
-        "title": "Register a device"
+        "eyebrow": "OpenClaw Gateway",
+        "description": "Manage device pairing requests, review paired nodes, and rotate or revoke device tokens from the real OpenClaw workspace.",
+        "title": "Devices"
       },
-      "confirmUninstallSkill": "Uninstall this skill?",
-      "confirmUnregister": "Unregister this device?",
-      "empty": {
-        "description": "Register a device to start monitoring it.",
-        "title": "No devices found"
+      "instanceCard": {
+        "instance": "Workspace instance",
+        "runtime": "Runtime",
+        "version": "Bundled version"
       },
-      "installedSkills": "Installed skills",
-      "modal": {
-        "deviceName": "Device name",
-        "deviceNameDescription": "Give your device a descriptive name so you can find it later.",
-        "deviceNamePlaceholder": "My Device",
-        "title": "Register new device"
+      "values": {
+        "notAvailable": "Not available"
       },
-      "moreActions": "More actions",
-      "noSkillsInstalled": "No skills installed",
-      "powerLabel": "Power",
-      "selectDeviceHint": "Select a device to view its details.",
-      "skillVersion": "v{{version}}",
-      "specs": {
-        "latency": "Latency",
-        "ram": "RAM",
-        "soc": "SoC",
-        "storage": "Storage"
+      "actions": {
+        "refresh": "Refresh",
+        "copyToken": "Copy token",
+        "approve": "Approve",
+        "reject": "Reject",
+        "rotateToken": "Rotate token",
+        "revokeToken": "Revoke token",
+        "removeDevice": "Remove device"
       },
-      "subtitle": "Monitor your registered hardware",
+      "confirmRejectPairing": "Reject this device pairing request?",
+      "confirmRemoveDevice": "Remove this paired device from the workspace?",
+      "confirmRevokeToken": "Revoke the {{role}} token for this device?",
+      "pendingRequests": {
+        "title": "Pending requests",
+        "description": "Approve or reject devices that are asking to join the current OpenClaw workspace.",
+        "empty": "There are no pending pairing requests.",
+        "fields": {
+          "roles": "Requested roles",
+          "scopes": "Requested scopes",
+          "ip": "Remote IP",
+          "requestedAt": "Requested at"
+        }
+      },
+      "pairedDevices": {
+        "title": "Paired devices",
+        "description": "Review the devices that already hold an approved pairing with this workspace.",
+        "empty": "No paired devices are currently registered.",
+        "fields": {
+          "roles": "Assigned roles",
+          "scopes": "Approved scopes",
+          "ip": "Remote IP",
+          "approvedAt": "Approved at"
+        }
+      },
+      "pairingGuide": {
+        "title": "Pairing guide",
+        "description": "Use the official OpenClaw device pairing flow so tokens and approvals stay aligned with the active built-in runtime.",
+        "steps": {
+          "open": "Open the OpenClaw device or node client and start a pairing request against the built-in gateway.",
+          "connect": "Wait for the request to appear here with its requested roles, scopes, and source address.",
+          "approve": "Approve the request, then rotate or revoke device tokens here whenever the device credentials change."
+        }
+      },
+      "tokenList": {
+        "title": "Token list",
+        "description": "Manage issued device tokens for {{device}}.",
+        "noSelection": "Select a paired device to inspect its tokens.",
+        "selectDevice": "Choose a paired device to inspect issued tokens and rotate credentials.",
+        "empty": "No device token has been issued yet for the selected device.",
+        "fields": {
+          "scopes": "Scopes",
+          "rotatedAt": "Rotated at",
+          "lastUsedAt": "Last used at"
+        }
+      },
+      "tokenReveal": {
+        "title": "New device token generated",
+        "description": "Copy the new token for {{device}} (role: {{role}}) and store it securely."
+      },
+      "subtitle": "Operate the real OpenClaw pairing workspace instead of simulated device telemetry.",
       "title": "Devices"
     }
   },
@@ -5503,7 +5083,7 @@
           "note": "Use this path for iPhone and iPad installs."
         },
         "harmony": {
-          "title": "HarmonyOS / 鸿蒙",
+          "title": "HarmonyOS / 楦胯挋",
           "description": "Open the HarmonyOS download page directly for Huawei and other Harmony devices.",
           "note": "Use this path for Harmony-based mobile environments."
         }
@@ -5680,14 +5260,14 @@
     }
   },
   "market": {
-  "actions": {
-    "installPack": "Install pack",
-    "publishSkill": "New skill",
-    "createSkillWithChat": "Create with chat",
-    "uploadLocalSkill": "Upload local skill",
-    "confirmUninstallSkill": "Uninstall this skill?",
-    "uninstall": "Uninstall"
-  },
+    "actions": {
+      "installPack": "Install pack",
+      "publishSkill": "New skill",
+      "createSkillWithChat": "Create with chat",
+      "uploadLocalSkill": "Upload local skill",
+      "confirmUninstallSkill": "Uninstall this skill?",
+      "uninstall": "Uninstall"
+    },
     "badges": {
       "curated": "Curated"
     },
@@ -5782,18 +5362,18 @@
       "subtitle": "A calmer way to discover, install, and manage the skills that shape your workspace.",
       "title": "Claw Hub"
     },
-  "search": {
-    "placeholders": {
-      "discover": "Search skills, packs, authors, or categories...",
-      "installed": "Search installed skills...",
-      "packages": "Search skill packs, authors, or categories...",
-      "skills": "Search skills, authors, or categories...",
-      "mySkills": "Search my skills..."
-    }
-  },
-  "sections": {
-    "allSkills": "Skill library",
-    "allSkillsDescription": "Browse focused skills with less noise and clearer install intent.",
+    "search": {
+      "placeholders": {
+        "discover": "Search skills, packs, authors, or categories...",
+        "installed": "Search installed skills...",
+        "packages": "Search skill packs, authors, or categories...",
+        "skills": "Search skills, authors, or categories...",
+        "mySkills": "Search my skills..."
+      }
+    },
+    "sections": {
+      "allSkills": "Skill library",
+      "allSkillsDescription": "Browse focused skills with less noise and clearer install intent.",
       "featuredPacks": "Featured packs",
       "featuredPacksDescription": "Curated shortcuts for getting a full workflow online quickly.",
       "featuredPacksEyebrow": "Quick setup",
@@ -5801,13 +5381,13 @@
       "installedSkills": "Installed skills",
       "installedSkillsDescription": "Skills currently available on {{name}}.",
       "libraryEyebrow": "Browse",
-    "matchingPacks": "Matching packs",
-    "myInstalledSkills": "My installed skills",
-    "searchResults": "Search results",
-    "skillPacksDescription": "Browse ready-to-install groups of skills in one place.",
-    "sdkworkOfficialSkills": "SDKWork official skills",
-    "spotlightEyebrow": "Recommended",
-    "spotlightSkills": "Recommended skills",
+      "matchingPacks": "Matching packs",
+      "myInstalledSkills": "My installed skills",
+      "searchResults": "Search results",
+      "skillPacksDescription": "Browse ready-to-install groups of skills in one place.",
+      "sdkworkOfficialSkills": "SDKWork official skills",
+      "spotlightEyebrow": "Recommended",
+      "spotlightSkills": "Recommended skills",
       "spotlightSkillsDescription": "High-signal skills worth trying first when you want the cleanest starting point.",
       "topFreeSkills": "Top free skills",
       "trendingBundles": "Trending bundles"
@@ -5816,12 +5396,12 @@
       "offline": "Offline",
       "online": "Online"
     },
-  "tabs": {
-    "mySkills": "My Skills",
-    "packages": "Skill Packs",
-    "sdkwork": "SDKWork",
-    "skills": "Skills"
-  },
+    "tabs": {
+      "mySkills": "My Skills",
+      "packages": "Skill Packs",
+      "sdkwork": "SDKWork",
+      "skills": "Skills"
+    },
     "views": {
       "discover": "Skill library",
       "discoverDescription": "Default to discovery, keep packs nearby, and make the main catalog easier to scan.",
@@ -5958,7 +5538,7 @@
       "installedInCount": "Installed in {{count, number}} instances",
       "installed": "Installed",
       "builtIn": "Built-In",
-      "instanceStatus": "{{type}} · {{host}} · {{status}}",
+      "instanceStatus": "{{type}} 路 {{host}} 路 {{status}}",
       "instanceAgentCount": "{{count, number}} agents installed"
     },
     "error": {
@@ -6056,15 +5636,6 @@
           "2": "Resolution routing"
         }
       }
-    }
-  },
-  "apiRouterWorkspace": {
-    "eyebrow": "Commercial Routing",
-    "title": "API Router Workspace",
-    "description": "Switch between operational route management and model package procurement without leaving the existing API Router surface.",
-    "tabs": {
-      "routerConsole": "Router Console",
-      "modelPurchase": "Model Purchase"
     }
   },
   "modelPurchase": {
@@ -6168,18 +5739,20 @@
       "priceLabel": "Total due",
       "benefitsLabel": "Included highlights",
       "methodTitle": "Choose a payment method",
-      "methodDescription": "This is a simulated payment flow for interaction polishing and package confirmation.",
+      "methodDescription": "Review the preferred payment method for this package. Order submission stays disabled until a live billing contract is connected for curated vendor packages.",
       "methodSelected": "Currently selected",
       "methodTapToUse": "Tap to pay with this method",
       "scanTitle": "Scan or continue with the selected method",
-      "scanDescription": "Use {{method}} to complete this mock payment.",
+      "scanDescription": "{{method}} will be used once commercial checkout is enabled for this workspace.",
       "summaryTitle": "Payment summary",
-      "summaryDescription": "After this simulated payment succeeds, you will return to the package list.",
+      "summaryDescription": "This screen acts as a commercial quote preview. The order button remains disabled until a live order service is available.",
       "summaryLocked": "Package changes require going back first.",
-      "mockTag": "Simulated",
+      "availabilityTag": "Order service unavailable",
       "confirmPayment": "Confirm payment",
-      "successBanner": "{{vendor}} · {{plan}} ({{cycle}}) payment simulated successfully.",
-      "successDescription": "The interaction flow is complete. Mock payment amount: {{price}}.",
+      "checkoutUnavailable": "Order service unavailable",
+      "unavailableMessage": "Curated vendor packages are not connected to a live order and payment API in this workspace yet. Use this page as a pricing preview only.",
+      "successBanner": "Order submitted for {{vendor}} · {{plan}} ({{cycle}}).",
+      "successDescription": "Total due: {{price}}.",
       "methods": {
         "wechat": "WeChat Pay",
         "alipay": "Alipay",
@@ -6447,22 +6020,115 @@
       }
     }
   },
+  "apiLogs": {
+    "title": "API Workspace",
+    "description": "Manage provider routes and inspect the local proxy traffic recorded on this device.",
+    "tabs": {
+      "providers": "Provider Center",
+      "requests": "Request Logs",
+      "messages": "Message Records"
+    },
+    "sections": {
+      "providers": "Provider Center",
+      "logs": "Request Logs",
+      "providersDescription": "Configure provider routes, models, and default bindings for the local proxy.",
+      "logsDescription": "Review persisted request traces, timings, and captured message snapshots."
+    },
+    "logs": {
+      "description": "Inspect local AI proxy traffic with service-side pagination and expandable request detail.",
+      "refresh": "Refresh",
+      "requests": "Request Logs",
+      "messages": "Message Records",
+      "searchPlaceholder": "Search provider, model, preview, or base URL",
+      "messageCaptureTitle": "Record messages",
+      "messageCaptureDescription": "When enabled, request message snapshots are persisted locally for debugging. Disabled by default.",
+      "messageCaptureUpdatedAt": "Updated {{value}}",
+      "messageCaptureDisabled": "Message capture is off. Request rows are still stored, but message snapshots are not recorded.",
+      "status": {
+        "succeeded": "Succeeded",
+        "failed": "Failed"
+      },
+      "states": {
+        "loadingRequests": "Loading request logs...",
+        "loadingMessages": "Loading message logs...",
+        "emptyRequests": "No request logs recorded yet.",
+        "emptyMessages": "No message logs recorded yet.",
+        "loadRequestsFailed": "Failed to load request logs.",
+        "loadMessagesFailed": "Failed to load message logs.",
+        "loadCaptureFailed": "Failed to load message capture settings.",
+        "toggleCaptureFailed": "Failed to update message capture."
+      },
+      "labels": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "clickToExpand": "Click row for details",
+        "ttft": "TTFT",
+        "totalDuration": "Total",
+        "total": "Total",
+        "input": "In",
+        "output": "Out",
+        "cache": "Cache"
+      },
+      "pagination": {
+        "summary": "Page {{page}} · {{start}}-{{end}} of {{total}}",
+        "previous": "Previous",
+        "next": "Next",
+        "pageSize": "Rows"
+      },
+      "requestTable": {
+        "time": "Time",
+        "provider": "Provider",
+        "model": "Model",
+        "duration": "Latency",
+        "tokens": "Usage",
+        "baseUrl": "Base URL",
+        "details": "Details",
+        "route": "Route",
+        "protocols": "Protocols",
+        "endpoint": "Endpoint",
+        "responseStatus": "Response Status",
+        "requestMessages": "Request Messages",
+        "requestPreview": "Request Preview",
+        "responsePreview": "Response Preview",
+        "requestBody": "Request Body",
+        "responseBody": "Response Body"
+      },
+      "messageTable": {
+        "time": "Time",
+        "provider": "Provider",
+        "model": "Model",
+        "messageCount": "Messages",
+        "baseUrl": "Base URL",
+        "details": "Details",
+        "requestLogId": "Request Log ID",
+        "preview": "Request Preview",
+        "responsePreview": "Response Preview",
+        "messages": "Captured Messages"
+      }
+    }
+  },
   "providerCenter": {
     "page": {
-      "eyebrow": "Provider Config Center",
+      "eyebrow": "Local Proxy Route Center",
       "title": "Provider Center",
-      "description": "Manage built-in provider presets, default model lists, API keys, and base URLs without coupling the app to sdkwork-api-router.",
-      "storageHint": "Provider configs are persisted to a writable SQLite storage profile when one is available."
+      "description": "Manage local proxy routes, upstream protocols, model defaults, and credentials before they are projected into bundled runtime consumers.",
+      "storageHint": "Route records are persisted to a writable SQLite storage profile when one is available."
     },
     "summary": {
       "routeConfigs": "Route Configs",
-      "llmReady": "LLM Ready",
-      "embeddingReady": "Embedding Ready"
+      "llmReady": "Enabled Routes",
+      "embeddingReady": "Default Routes"
     },
     "table": {
       "name": "Name",
-      "provider": "Provider",
-      "endpoint": "Base URL",
+      "provider": "Route",
+      "endpoint": "Upstream Base URL",
+      "health": "Health",
+      "usage": "Usage",
+      "avgLatency": "Avg Latency",
+      "rpm": "RPM",
+      "lastTest": "Last Test",
+      "status": "Status",
       "selection": "Model Selection",
       "apiKey": "API Key",
       "updatedAt": "Updated",
@@ -6470,21 +6136,37 @@
       "models": "models",
       "llmDefault": "LLM",
       "reasoning": "Reasoning",
-      "embedding": "Embedding"
+      "embedding": "Embedding",
+      "totalTokensShort": "Total",
+      "inputTokensShort": "In",
+      "outputTokensShort": "Out",
+      "cacheTokensShort": "Cache",
+      "defaultRoute": "Default",
+      "systemDefault": "System Default",
+      "enabled": "Enabled",
+      "exposeTo": "Expose To"
     },
     "states": {
-      "loading": "Loading provider configs...",
+      "loading": "Loading proxy routes...",
       "emptyTitle": "No route config yet",
-      "emptyDescription": "Add a route config to store your provider presets, model list, API key, and base URL in the built-in config center.",
+      "emptyDescription": "Add a route config to store upstream protocol, model catalog, API key, and fallback base URL in the built-in local proxy control plane.",
       "noNotes": "No notes",
       "notSet": "Not set",
+      "notTested": "Not tested",
+      "noIncidents": "No recent incidents",
       "noInstances": "No writable OpenClaw instance is available.",
       "selectInstance": "Select an instance to preview agent targets.",
-      "noAgents": "No agents are available for the selected instance."
+      "noAgents": "No agents are available for the selected instance.",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     },
     "actions": {
       "refresh": "Refresh",
+      "import": "Import",
+      "importing": "Importing...",
       "addRouteConfig": "Add Route Config",
+      "test": "Test",
+      "testing": "Testing...",
       "quickApply": "Quick Apply",
       "edit": "Edit",
       "delete": "Delete",
@@ -6495,35 +6177,84 @@
       "clearAgentSelection": "Clear",
       "applyConfig": "Apply Config"
     },
+    "import": {
+      "sources": {
+        "codex": {
+          "label": "Codex",
+          "description": "Reuse ~/.codex/config.toml plus auth.json provider credentials."
+        },
+        "claudeCode": {
+          "label": "Claude Code",
+          "description": "Import ~/.claude/settings.json when it contains a static Anthropic API key."
+        },
+        "openCode": {
+          "label": "OpenCode",
+          "description": "Reuse the global OpenCode provider config and auth records."
+        }
+      }
+    },
     "dialogs": {
       "editor": {
         "createTitle": "Create Route Config",
         "editTitle": "Edit Route Config",
-        "description": "Define provider metadata, default models, embedding models, and runtime parameters for OpenClaw-compatible instances.",
+        "description": "Define a local proxy route, choose the exposed client protocol, point it at an upstream protocol, and keep the projected model defaults together with runtime parameters.",
+        "sidebarTitle": "Provider Directory",
+        "sidebarDescription": "Pick a provider on the left to load its preset and recommended model pack.",
+        "sidebarSearchPlaceholder": "Search provider, vendor, or model family",
         "preset": "Preset",
         "presetPlaceholder": "Choose a built-in preset",
         "customPreset": "Custom",
+        "customRoute": "Custom Route",
+        "customRouteHint": "Keep the form fully manual when you need your own provider id or upstream target.",
+        "emptyProviderSearch": "No provider matches the current search.",
+        "selectedProvider": "Selected Provider",
+        "selectedProviderHint": "Manual routes stay flexible. Fill in the provider id, upstream, and model catalog exactly the way you want.",
+        "accessTitle": "Access & Routing",
+        "accessDescription": "Define the route name, credentials, endpoint, and protocol mapping together.",
         "name": "Config Name",
+        "knownProvider": "Known Provider",
+        "knownProviderPlaceholder": "Choose a known provider",
+        "customProvider": "Custom Provider ID",
         "providerId": "Provider ID",
+        "providerIdHint": "Known provider selections fill the canonical provider id here. Override it only when you need a custom route id.",
+        "providerVendor": "Vendor",
+        "modelFamily": "Model Family",
         "baseUrl": "Base URL",
+        "clientProtocol": "Client Protocol",
+        "upstreamProtocol": "Upstream Protocol",
         "apiKey": "API Key",
         "defaultModel": "Default LLM",
         "reasoningModel": "Reasoning Model",
         "embeddingModel": "Embedding Model",
         "models": "Model List",
-        "modelsHint": "One model per line. Use `model-id=Display Name`.",
+        "modelsSectionDescription": "Append models one row at a time, reorder them, and keep route roles aligned with the list.",
+        "addModel": "Add Model",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "e.g. gpt-5.4",
+        "modelName": "Display Name",
+        "modelNamePlaceholder": "Shown in the route catalog",
+        "modelListEmptyTitle": "No models added yet",
+        "modelListEmptyDescription": "Start with one model row, then assign default, reasoning, and embedding roles from the right.",
+        "selectionTitle": "Route Roles",
+        "selectionDescription": "Choose which model the route uses for default chat, reasoning, and embedding tasks.",
+        "modelsHint": "One model per line. Use `model-id=Display Name`. If this list is empty, the default/reasoning/embedding model ids above will be added automatically.",
         "notes": "Notes",
+        "enabled": "Route Enabled",
+        "enabledHint": "Disabled routes stay in storage but are not projected into active runtime use.",
+        "defaultRoute": "Default Route",
+        "defaultRouteHint": "Only one route per client protocol can remain the default active route.",
         "runtimeTitle": "Runtime Config",
+        "runtimeDescription": "Tune the projected runtime behavior without leaving the provider editor.",
         "temperature": "Temperature",
         "topP": "Top P",
         "maxTokens": "Max Tokens",
         "timeoutMs": "Timeout (ms)",
         "streaming": "Streaming",
-        "streamingHint": "Enable streaming responses for the provider route."
+        "streamingHint": "Enable streaming responses for the projected route runtime."
       },
       "apply": {
-        "title": "Quick Apply Provider Config",
-        "description": "Apply the selected route config to an OpenClaw instance default provider selection and optionally update agent model bindings.",
+        "title": "Quick Apply Route Config",
+        "description": "Apply the selected route config to an OpenClaw instance default provider selection and optionally update agent model bindings while the full local-proxy projection rolls out.",
         "instance": "Instance",
         "instancePlaceholder": "Choose an instance",
         "configPath": "Config Path",
@@ -6538,16 +6269,32 @@
         "description": "Delete `{{name}}` from the local provider config center? This does not change any instance until you apply another config."
       }
     },
+    "health": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "failed": "Failed",
+      "disabled": "Disabled"
+    },
+    "testStatus": {
+      "passed": "Passed",
+      "failed": "Failed"
+    },
     "toasts": {
-      "loadFailed": "Unable to load provider configs.",
+      "loadFailed": "Unable to load route configs.",
       "loadInstancesFailed": "Unable to load apply targets.",
       "loadInstanceTargetFailed": "Unable to load the selected instance target.",
-      "saveFailed": "Unable to save the provider config.",
-      "deleteFailed": "Unable to delete the provider config.",
-      "applyFailed": "Unable to apply the provider config.",
-      "saved": "Provider config saved.",
-      "deleted": "Provider config deleted.",
-      "applied": "Provider config applied."
+      "importFailed": "Unable to import provider config from {{source}}.",
+      "importEmpty": "No importable provider config was found for {{source}}.",
+      "importedSingle": "Imported {{name}} from {{source}}.",
+      "importedMultiple": "Imported {{count}} routes from {{source}}.",
+      "saveFailed": "Unable to save the route config.",
+      "deleteFailed": "Unable to delete the route config.",
+      "testFailed": "Route test failed.",
+      "applyFailed": "Unable to apply the route config.",
+      "saved": "Route config saved.",
+      "deleted": "Route config deleted.",
+      "testPassed": "Route test passed.",
+      "applied": "Route config applied."
     }
   }
 }

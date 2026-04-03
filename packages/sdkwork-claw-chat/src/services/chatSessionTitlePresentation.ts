@@ -12,8 +12,12 @@ type ChatSessionTitleMessageLike = {
   attachments?: StudioConversationAttachment[];
 };
 
+type ChatSessionTitleSource = 'default' | 'preview' | 'explicit' | 'firstUser';
+
 type ChatSessionTitleSessionLike = {
+  id?: string;
   title?: string;
+  titleSource?: ChatSessionTitleSource;
   messages?: ChatSessionTitleMessageLike[];
   lastMessagePreview?: string;
 };
@@ -36,6 +40,56 @@ function truncateChatSessionTitle(value: string, maxLength = DEFAULT_MAX_TITLE_L
 
 function isGenericChatSessionTitle(value: string) {
   return GENERIC_CHAT_SESSION_TITLE_PATTERN.test(value);
+}
+
+function escapeChatSessionTitleRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseTypedChatSessionTitleSessionKey(value: string | null | undefined) {
+  const normalized = collapseChatSessionTitleWhitespace(value).toLowerCase();
+  if (!normalized) {
+    return {
+      prefix: '',
+      fallbackTitle: '',
+    };
+  }
+
+  if (normalized === 'main' || normalized === 'agent:main:main') {
+    return {
+      prefix: '',
+      fallbackTitle: 'Main Session',
+    };
+  }
+
+  if (normalized.includes(':subagent:')) {
+    return {
+      prefix: 'Subagent:',
+      fallbackTitle: 'Subagent:',
+    };
+  }
+
+  if (normalized.startsWith('cron:') || normalized.includes(':cron:')) {
+    return {
+      prefix: 'Cron:',
+      fallbackTitle: 'Cron Job:',
+    };
+  }
+
+  return {
+    prefix: '',
+    fallbackTitle: '',
+  };
+}
+
+function applyTypedChatSessionTitlePrefix(title: string, sessionId: string | null | undefined) {
+  const { prefix } = parseTypedChatSessionTitleSessionKey(sessionId);
+  if (!prefix) {
+    return title;
+  }
+
+  const prefixPattern = new RegExp(`^${escapeChatSessionTitleRegex(prefix)}\\s*`, 'i');
+  return prefixPattern.test(title) ? title : `${prefix} ${title}`;
 }
 
 export function normalizeChatSessionTitle(
@@ -61,6 +115,7 @@ export function isOpaqueChatSessionTitle(value: string | null | undefined) {
     /^claw-studio:/i.test(normalized) ||
     /^thread:/i.test(normalized) ||
     /^agent:[a-z0-9._-]+:[a-z0-9._-]+$/i.test(normalized) ||
+    /^agent:[a-z0-9._-]+:(?:[a-z0-9._-]+:)*thread:[a-z0-9._:-]+$/i.test(normalized) ||
     /^[0-9a-f]{16,}$/i.test(normalized) ||
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)
   );
@@ -138,7 +193,18 @@ export function resolveInitialChatSessionTitle(params: {
 
 export function getChatSessionDisplayTitle(session: ChatSessionTitleSessionLike) {
   const explicitTitle = normalizeChatSessionTitle(session.title);
-  if (isReadableChatSessionTitle(explicitTitle)) {
+  const typedSessionKey = parseTypedChatSessionTitleSessionKey(session.id);
+  const normalizedSessionId = normalizeChatSessionTitle(session.id);
+  const explicitTitleMatchesTypedSessionKey =
+    Boolean(typedSessionKey.fallbackTitle) &&
+    Boolean(normalizedSessionId) &&
+    explicitTitle.toLowerCase() === normalizedSessionId.toLowerCase();
+
+  if (isReadableChatSessionTitle(explicitTitle) && !explicitTitleMatchesTypedSessionKey) {
+    if (session.titleSource === 'explicit') {
+      return applyTypedChatSessionTitlePrefix(explicitTitle, session.id);
+    }
+
     return explicitTitle;
   }
 
@@ -160,8 +226,8 @@ export function getChatSessionDisplayTitle(session: ChatSessionTitleSessionLike)
     return previewTitle;
   }
 
-  if (isReadableChatSessionTitle(explicitTitle)) {
-    return explicitTitle;
+  if (typedSessionKey.fallbackTitle) {
+    return typedSessionKey.fallbackTitle;
   }
 
   return DEFAULT_CHAT_SESSION_TITLE;

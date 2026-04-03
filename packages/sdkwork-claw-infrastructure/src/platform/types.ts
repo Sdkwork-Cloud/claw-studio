@@ -81,6 +81,7 @@ export interface PlatformAPI {
 
   listDirectory(path?: string): Promise<PlatformFileEntry[]>;
   pathExists(path: string): Promise<boolean>;
+  pathExistsForUserTooling(path: string): Promise<boolean>;
   getPathInfo(path: string): Promise<PlatformPathInfo>;
   createDirectory(path: string): Promise<void>;
   removePath(path: string): Promise<void>;
@@ -90,5 +91,6 @@ export interface PlatformAPI {
   readBinaryFile(path: string): Promise<Uint8Array>;
   writeBinaryFile(path: string, content: Uint8Array | number[]): Promise<void>;
   readFile(path: string): Promise<string>;
+  readFileForUserTooling(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
 }

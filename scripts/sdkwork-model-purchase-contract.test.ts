@@ -113,4 +113,7 @@ runTest('sdkwork-claw-model-purchase renders a sidebar-driven billing experience
   assert.match(serviceSource, /openai/);
   assert.match(serviceSource, /minimax/);
   assert.match(serviceSource, /deepseek/);
+  assert.doesNotMatch(serviceSource, /studioMockService/);
+  assert.match(serviceSource, /providerRoutingCatalogService/);
+  assert.match(serviceSource, /from '@sdkwork\/claw-core'/);
 });

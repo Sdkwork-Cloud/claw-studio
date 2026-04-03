@@ -1,11 +1,11 @@
 use crate::framework::{
-    kernel_host::types::DesktopKernelHostInfo,
     kernel::{
         DesktopBundledComponentsInfo, DesktopCapabilityInfo, DesktopCapabilityStatus,
         DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
-        DesktopNotificationInfo, DesktopPaymentInfo, DesktopPermissionsInfo, DesktopProcessInfo,
-        DesktopSecurityInfo, DesktopSupervisorInfo,
+        DesktopLocalAiProxyInfo, DesktopNotificationInfo, DesktopPaymentInfo,
+        DesktopPermissionsInfo, DesktopProcessInfo, DesktopSecurityInfo, DesktopSupervisorInfo,
     },
+    kernel_host::types::DesktopKernelHostInfo,
     paths::AppPaths,
     storage::StorageInfo,
 };
@@ -22,6 +22,7 @@ pub struct KernelDomainSnapshots {
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
+    pub local_ai_proxy: DesktopLocalAiProxyInfo,
     pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
     pub host: DesktopKernelHostInfo,
@@ -135,6 +136,20 @@ impl KernelService {
                 ),
             },
             DesktopCapabilityInfo {
+                key: "local-ai-proxy".to_string(),
+                status: DesktopCapabilityStatus::Ready,
+                detail: format!(
+                    "Local AI proxy lifecycle is \"{}\" with {} projected models and base URL {}.",
+                    domains.local_ai_proxy.lifecycle,
+                    domains.local_ai_proxy.model_count,
+                    domains
+                        .local_ai_proxy
+                        .base_url
+                        .clone()
+                        .unwrap_or_else(|| "unavailable".to_string())
+                ),
+            },
+            DesktopCapabilityInfo {
                 key: "bundled-components".to_string(),
                 status: DesktopCapabilityStatus::Ready,
                 detail: format!(
@@ -170,6 +185,7 @@ impl KernelService {
             payments: domains.payments,
             integrations: domains.integrations,
             supervisor: domains.supervisor,
+            local_ai_proxy: domains.local_ai_proxy,
             bundled_components: domains.bundled_components,
             storage: domains.storage,
             host: domains.host,

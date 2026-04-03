@@ -129,7 +129,10 @@ impl StorageConfig {
         if !profiles.iter().any(|profile| profile.id == "default-local") {
             profiles.push(StorageProfileConfig::local_default());
         }
-        if !profiles.iter().any(|profile| profile.id == "default-sqlite") {
+        if !profiles
+            .iter()
+            .any(|profile| profile.id == "default-sqlite")
+        {
             profiles.push(StorageProfileConfig::sqlite_default());
         }
 

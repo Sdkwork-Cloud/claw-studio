@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 
 export type OverlayVariant = 'modal' | 'drawer';
 export type OverlayModalAlignment = 'top' | 'center';
+export type OverlayDrawerSide = 'left' | 'right';
 
 export const APP_HEADER_HEIGHT_PX = 48;
 export const OVERLAY_FRAME_GAP_PX = 16;
@@ -11,9 +12,10 @@ export const OVERLAY_SAFE_BOTTOM_PX = OVERLAY_FRAME_GAP_PX;
 export function getOverlayContainerClassName(
   variant: OverlayVariant,
   modalAlignment: OverlayModalAlignment = 'center',
+  drawerSide: OverlayDrawerSide = 'right',
 ) {
   if (variant === 'drawer') {
-    return 'items-stretch justify-end';
+    return drawerSide === 'left' ? 'items-stretch justify-start' : 'items-stretch justify-end';
   }
 
   return modalAlignment === 'top'

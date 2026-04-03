@@ -4,12 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
-    "@google/genai": "^1.44.0",
     "@sdkwork/claw-core": "workspace:*",
     "@sdkwork/claw-infrastructure": "workspace:*",
     "@sdkwork/claw-i18n": "workspace:*",
-    "@sdkwork/claw-market": "workspace:*",
-    "@sdkwork/claw-settings": "workspace:*",
     "@sdkwork/claw-types": "workspace:*",
     "@sdkwork/claw-ui": "workspace:*",
     "@tanstack/react-query": "^5.90.21",

@@ -10,6 +10,7 @@ export type {
 } from '@sdkwork/claw-infrastructure';
 export {
   WebPlatform,
+  configureServerBrowserPlatformBridge,
   configurePlatformBridge,
   getInstallerPlatform,
   getPlatformBridge,

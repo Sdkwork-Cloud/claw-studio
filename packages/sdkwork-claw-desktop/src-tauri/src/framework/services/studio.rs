@@ -1,8 +1,14 @@
 use super::{storage::StorageService, supervisor::SupervisorService};
 use crate::framework::{
-    config::AppConfig,
+    components::{bundled_component_defaults, has_packaged_component},
+    config::{
+        AppConfig, HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION,
+        HOST_PLATFORM_ROLLOUT_ENGINE_VERSION,
+    },
     layout::ActiveState,
+    openclaw_release::bundled_openclaw_version,
     paths::AppPaths,
+    services::openclaw_runtime::load_manifest,
     storage::{
         StorageDeleteRequest, StorageGetTextRequest, StorageListKeysRequest, StorageProviderKind,
         StoragePutTextRequest,
@@ -10,6 +16,11 @@ use crate::framework::{
     FrameworkError, Result,
 };
 use hub_installer_rs::{InstallRecord, InstallRecordStatus};
+use sdkwork_claw_host_core::{
+    host_core_metadata,
+    projection::compiler::{DesiredStateInput, ProjectionCompiler},
+    rollout::engine::{preflight_target, PreflightOutcome, RolloutPolicy, RolloutPreflightTarget},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value};
 use std::{
@@ -35,6 +46,10 @@ const CHAT_NAMESPACE: &str = "studio.chat";
 const CONVERSATION_KEY_PREFIX: &str = "conversation:";
 const DEFAULT_INSTANCE_ID: &str = "local-built-in";
 const OPENCLAW_INSTALLER_SOFTWARE_NAME: &str = "openclaw";
+const OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TEMPERATURE: f64 = 0.2;
+const OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TOP_P: f64 = 1.0;
+const OPENCLAW_PROVIDER_RUNTIME_DEFAULT_MAX_TOKENS: u32 = 8192;
+const OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TIMEOUT_MS: u32 = 60_000;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -994,6 +1009,111 @@ impl Default for InstanceRegistryDocument {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostPlatformStatusRecord {
+    pub mode: String,
+    pub lifecycle: String,
+    pub host_id: String,
+    pub display_name: String,
+    pub version: String,
+    pub desired_state_projection_version: String,
+    pub rollout_engine_version: String,
+    pub manage_base_path: String,
+    pub internal_base_path: String,
+    pub capability_keys: Vec<String>,
+    pub updated_at: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewRolloutInput {
+    pub rollout_id: String,
+    #[serde(default)]
+    pub force_recompute: bool,
+    #[serde(default)]
+    pub include_targets: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManageRolloutRecord {
+    pub id: String,
+    pub phase: String,
+    pub attempt: u32,
+    pub target_count: u32,
+    pub updated_at: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManageRolloutListResult {
+    pub items: Vec<ManageRolloutRecord>,
+    pub total: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManageRolloutTargetPreviewRecord {
+    pub node_id: String,
+    pub preflight_outcome: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub desired_state_revision: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub desired_state_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wave_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManageRolloutPreviewSummary {
+    pub total_targets: u32,
+    pub admissible_targets: u32,
+    pub degraded_targets: u32,
+    pub blocked_targets: u32,
+    pub predicted_wave_count: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManageRolloutCandidateRevisionSummary {
+    pub total_targets: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_desired_state_revision: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_desired_state_revision: Option<u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManageRolloutPreview {
+    pub rollout_id: String,
+    pub phase: String,
+    pub attempt: u32,
+    pub summary: ManageRolloutPreviewSummary,
+    pub targets: Vec<ManageRolloutTargetPreviewRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_revision_summary: Option<ManageRolloutCandidateRevisionSummary>,
+    pub generated_at: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InternalNodeSessionRecord {
+    pub session_id: String,
+    pub node_id: String,
+    pub state: String,
+    pub compatibility_state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub desired_state_revision: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub desired_state_hash: Option<String>,
+    pub last_seen_at: u64,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct StudioService;
 
@@ -1025,6 +1145,200 @@ impl StudioService {
             .instances
             .into_iter()
             .find(|instance| instance.id == id))
+    }
+
+    pub fn get_host_platform_status(
+        &self,
+        _paths: &AppPaths,
+        _config: &AppConfig,
+        _storage: &StorageService,
+        supervisor: &SupervisorService,
+    ) -> Result<HostPlatformStatusRecord> {
+        let metadata = host_core_metadata();
+        let bundled_components = bundled_component_defaults();
+        let gateway_running = supervisor.is_openclaw_gateway_running()?;
+        let mut capability_keys = vec![
+            "internal.node-sessions.hello".to_string(),
+            "internal.node-sessions.heartbeat".to_string(),
+        ];
+
+        if has_packaged_component(&bundled_components, "openclaw") {
+            capability_keys.push("manage.rollouts.preview".to_string());
+            capability_keys.push("manage.rollouts.start".to_string());
+        }
+
+        capability_keys.sort();
+        capability_keys.dedup();
+
+        Ok(HostPlatformStatusRecord {
+            mode: "desktopCombined".to_string(),
+            lifecycle: if gateway_running {
+                "ready".to_string()
+            } else {
+                "degraded".to_string()
+            },
+            host_id: "desktop-local".to_string(),
+            display_name: "Desktop Combined Host".to_string(),
+            version: format!("{}@{}", bundled_openclaw_version(), metadata.package_name),
+            desired_state_projection_version:
+                HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION.to_string(),
+            rollout_engine_version: HOST_PLATFORM_ROLLOUT_ENGINE_VERSION.to_string(),
+            manage_base_path: "/claw/manage/v1".to_string(),
+            internal_base_path: "/claw/internal/v1".to_string(),
+            capability_keys,
+            updated_at: unix_timestamp_ms()?,
+        })
+    }
+
+    pub fn list_rollouts(
+        &self,
+        _paths: &AppPaths,
+        _config: &AppConfig,
+        _storage: &StorageService,
+        _supervisor: &SupervisorService,
+    ) -> Result<ManageRolloutListResult> {
+        Ok(ManageRolloutListResult {
+            items: vec![ManageRolloutRecord {
+                id: "desktop-combined-rollout".to_string(),
+                phase: "draft".to_string(),
+                attempt: 0,
+                target_count: 1,
+                updated_at: unix_timestamp_ms()?,
+            }],
+            total: 1,
+        })
+    }
+
+    pub fn preview_rollout(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        _supervisor: &SupervisorService,
+        input: PreviewRolloutInput,
+    ) -> Result<ManageRolloutPreview> {
+        let instance = self
+            .get_instance(paths, config, storage, DEFAULT_INSTANCE_ID)?
+            .ok_or_else(|| FrameworkError::NotFound("built-in combined node".to_string()))?;
+        let compiler = ProjectionCompiler::new();
+        let projection = compiler.compile(&DesiredStateInput {
+            node_id: instance.id.clone(),
+            config_projection_version: HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION.to_string(),
+            semantic_payload: format!(
+                "rollout={};runtime={:?};status={:?};forceRecompute={}",
+                input.rollout_id, instance.runtime_kind, instance.status, input.force_recompute
+            ),
+        });
+        let target = RolloutPreflightTarget {
+            node_id: instance.id.clone(),
+            capabilities: vec![
+                "desired-state.pull".to_string(),
+                "internal.node-sessions.hello".to_string(),
+                "internal.node-sessions.heartbeat".to_string(),
+            ],
+            trusted: true,
+            compatible: true,
+        };
+        let policy = RolloutPolicy {
+            required_capabilities: vec!["desired-state.pull".to_string()],
+            allow_degraded_targets: false,
+        };
+        let outcome = preflight_target(&target, &policy);
+        let target_record = ManageRolloutTargetPreviewRecord {
+            node_id: instance.id,
+            preflight_outcome: preflight_outcome_label(outcome).to_string(),
+            blocked_reason: blocked_reason_for_outcome(outcome),
+            desired_state_revision: Some(projection.desired_state_revision),
+            desired_state_hash: Some(projection.desired_state_hash),
+            wave_id: Some("wave-1".to_string()),
+        };
+
+        Ok(ManageRolloutPreview {
+            rollout_id: input.rollout_id,
+            phase: "ready".to_string(),
+            attempt: 1,
+            summary: build_rollout_preview_summary(outcome),
+            targets: if input.include_targets {
+                vec![target_record]
+            } else {
+                Vec::new()
+            },
+            candidate_revision_summary: Some(ManageRolloutCandidateRevisionSummary {
+                total_targets: 1,
+                min_desired_state_revision: Some(projection.desired_state_revision),
+                max_desired_state_revision: Some(projection.desired_state_revision),
+            }),
+            generated_at: unix_timestamp_ms()?,
+        })
+    }
+
+    pub fn start_rollout(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        supervisor: &SupervisorService,
+        rollout_id: &str,
+    ) -> Result<ManageRolloutRecord> {
+        let preview = self.preview_rollout(
+            paths,
+            config,
+            storage,
+            supervisor,
+            PreviewRolloutInput {
+                rollout_id: rollout_id.to_string(),
+                force_recompute: false,
+                include_targets: true,
+            },
+        )?;
+
+        Ok(ManageRolloutRecord {
+            id: preview.rollout_id,
+            phase: "ready".to_string(),
+            attempt: preview.attempt,
+            target_count: preview.summary.total_targets,
+            updated_at: preview.generated_at,
+        })
+    }
+
+    pub fn list_node_sessions(
+        &self,
+        paths: &AppPaths,
+        config: &AppConfig,
+        storage: &StorageService,
+        supervisor: &SupervisorService,
+    ) -> Result<Vec<InternalNodeSessionRecord>> {
+        let status = self.get_host_platform_status(paths, config, storage, supervisor)?;
+        let preview = self.preview_rollout(
+            paths,
+            config,
+            storage,
+            supervisor,
+            PreviewRolloutInput {
+                rollout_id: "desktop-combined-bootstrap".to_string(),
+                force_recompute: false,
+                include_targets: true,
+            },
+        )?;
+        let target = preview.targets.into_iter().next();
+
+        Ok(vec![InternalNodeSessionRecord {
+            session_id: "desktop-combined-local-built-in".to_string(),
+            node_id: DEFAULT_INSTANCE_ID.to_string(),
+            state: if status.lifecycle == "ready" {
+                "admitted".to_string()
+            } else {
+                "degraded".to_string()
+            },
+            compatibility_state: match target.as_ref().map(|record| record.preflight_outcome.as_str())
+            {
+                Some("admissible") | Some("admissibleDegraded") => "compatible".to_string(),
+                _ => "blocked".to_string(),
+            },
+            desired_state_revision: target.as_ref().and_then(|record| record.desired_state_revision),
+            desired_state_hash: target.and_then(|record| record.desired_state_hash),
+            last_seen_at: unix_timestamp_ms()?,
+        }])
     }
 
     pub fn create_instance(
@@ -1544,35 +1858,11 @@ impl StudioService {
                 Value::String(update.api_key_source.trim().to_string())
             },
         );
-        set_nested_value(
-            &mut root,
-            &["models", "providers", provider_id, "temperature"],
-            Number::from_f64(update.config.temperature)
-                .map(Value::Number)
-                .unwrap_or(Value::Number(Number::from(0))),
-        );
-        set_nested_value(
-            &mut root,
-            &["models", "providers", provider_id, "topP"],
-            Number::from_f64(update.config.top_p)
-                .map(Value::Number)
-                .unwrap_or(Value::Number(Number::from(1))),
-        );
-        set_nested_value(
-            &mut root,
-            &["models", "providers", provider_id, "maxTokens"],
-            Value::Number(Number::from(update.config.max_tokens)),
-        );
-        set_nested_value(
-            &mut root,
-            &["models", "providers", provider_id, "timeoutMs"],
-            Value::Number(Number::from(update.config.timeout_ms)),
-        );
-        set_nested_bool(
-            &mut root,
-            &["models", "providers", provider_id, "streaming"],
-            update.config.streaming,
-        );
+        remove_nested_value(&mut root, &["models", "providers", provider_id, "temperature"]);
+        remove_nested_value(&mut root, &["models", "providers", provider_id, "topP"]);
+        remove_nested_value(&mut root, &["models", "providers", provider_id, "maxTokens"]);
+        remove_nested_value(&mut root, &["models", "providers", provider_id, "timeoutMs"]);
+        remove_nested_value(&mut root, &["models", "providers", provider_id, "streaming"]);
 
         let existing_models = get_nested_value(
             &root,
@@ -1596,6 +1886,23 @@ impl StudioService {
             &mut root,
             &["models", "providers", provider_id, "models"],
             Value::Array(next_models),
+        );
+        let next_models = get_nested_value(&root, &["models", "providers", provider_id, "models"])
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        sync_openclaw_defaults_model_selection(
+            &mut root,
+            provider_id,
+            &update.default_model_id,
+            update.reasoning_model_id.as_deref(),
+        );
+        sync_openclaw_provider_model_catalog(
+            &mut root,
+            provider_id,
+            &next_models,
+            &update.default_model_id,
+            &update.config,
         );
 
         write_openclaw_config_file(paths, &root)?;
@@ -2010,11 +2317,6 @@ impl StudioService {
         );
         set_nested_bool(&mut root, &["studio", "sandbox"], config.sandbox);
         set_nested_bool(&mut root, &["studio", "autoUpdate"], config.auto_update);
-        set_nested_bool(
-            &mut root,
-            &["gateway", "http", "endpoints", "chatCompletions", "enabled"],
-            true,
-        );
         set_nested_string(&mut root, &["gateway", "auth", "mode"], "token");
         if let Some(auth_token) = config.auth_token.as_deref() {
             set_nested_string(&mut root, &["gateway", "auth", "token"], auth_token);
@@ -2304,26 +2606,36 @@ fn build_connectivity_snapshot(
     if let Some(base_url) = instance.base_url.as_deref() {
         match instance.runtime_kind {
             StudioRuntimeKind::Openclaw => {
-                endpoints.push(connectivity_endpoint(
-                    instance,
-                    "openai-http-chat",
-                    "OpenAI Chat Completions",
-                    StudioInstanceEndpointKind::OpenaiChatCompletions,
-                    Some(format!(
-                        "{}/v1/chat/completions",
-                        base_url.trim_end_matches('/')
-                    )),
-                    StudioInstanceEndpointSource::Derived,
-                ));
-                if root
+                let chat_completions_enabled = root
+                    .and_then(|value| {
+                        get_nested_bool(
+                            value,
+                            &["gateway", "http", "endpoints", "chatCompletions", "enabled"],
+                        )
+                    })
+                    .unwrap_or(root.is_none());
+                if chat_completions_enabled {
+                    endpoints.push(connectivity_endpoint(
+                        instance,
+                        "openai-http-chat",
+                        "OpenAI Chat Completions",
+                        StudioInstanceEndpointKind::OpenaiChatCompletions,
+                        Some(format!(
+                            "{}/v1/chat/completions",
+                            base_url.trim_end_matches('/')
+                        )),
+                        StudioInstanceEndpointSource::Derived,
+                    ));
+                }
+                let responses_enabled = root
                     .and_then(|value| {
                         get_nested_bool(
                             value,
                             &["gateway", "http", "endpoints", "responses", "enabled"],
                         )
                     })
-                    .unwrap_or(false)
-                {
+                    .unwrap_or(false);
+                if responses_enabled {
                     endpoints.push(connectivity_endpoint(
                         instance,
                         "openai-http-responses",
@@ -2389,7 +2701,7 @@ fn endpoint_exposure_for_instance(instance: &StudioInstanceRecord) -> StudioInst
         return StudioInstanceExposure::Remote;
     }
 
-    if instance.host == "127.0.0.1" || instance.host.eq_ignore_ascii_case("localhost") {
+    if is_loopback_host(&instance.host) {
         StudioInstanceExposure::Loopback
     } else {
         StudioInstanceExposure::Private
@@ -2640,10 +2952,7 @@ fn build_openclaw_control_ui_url(
     instance: &StudioInstanceRecord,
     root: Option<&Value>,
 ) -> Option<String> {
-    let base_path = normalize_control_ui_base_path(
-        root.and_then(|value| get_nested_string(value, &["gateway", "controlUi", "basePath"]))
-            .as_deref(),
-    );
+    let base_path = resolved_openclaw_control_ui_base_path(instance, root);
 
     if let Some(base_url) = instance.base_url.as_deref() {
         if let Some(origin) = url_origin(base_url) {
@@ -2664,16 +2973,19 @@ fn build_openclaw_gateway_ws_url(
     instance: &StudioInstanceRecord,
     root: Option<&Value>,
 ) -> Option<String> {
+    let base_path = resolved_openclaw_control_ui_base_path(instance, root);
+    let gateway_path = normalize_control_ui_gateway_path(&base_path);
+
     if let Some(websocket_url) = instance.websocket_url.as_deref() {
         if let Some(origin) = url_origin(websocket_url) {
-            return Some(origin);
+            return Some(format!("{origin}{gateway_path}"));
         }
         return Some(websocket_url.trim_end_matches('/').to_string());
     }
 
     if let Some(base_url) = instance.base_url.as_deref() {
         if let Some(origin) = url_origin(base_url) {
-            return Some(http_origin_to_ws_origin(&origin));
+            return Some(format!("{}{}", http_origin_to_ws_origin(&origin), gateway_path));
         }
     }
 
@@ -2709,6 +3021,26 @@ fn normalize_control_ui_base_path(value: Option<&str>) -> String {
     format!("/{}/", trimmed.trim_matches('/'))
 }
 
+fn resolved_openclaw_control_ui_base_path(
+    instance: &StudioInstanceRecord,
+    root: Option<&Value>,
+) -> String {
+    let configured_or_inferred = root
+        .and_then(|value| get_nested_string(value, &["gateway", "controlUi", "basePath"]))
+        .or_else(|| instance.base_url.as_deref().and_then(url_path))
+        .or_else(|| instance.websocket_url.as_deref().and_then(url_path));
+
+    normalize_control_ui_base_path(configured_or_inferred.as_deref())
+}
+
+fn normalize_control_ui_gateway_path(base_path: &str) -> String {
+    if base_path == "/" {
+        String::new()
+    } else {
+        base_path.trim_end_matches('/').to_string()
+    }
+}
+
 fn normalized_instance_host(instance: &StudioInstanceRecord) -> &str {
     let trimmed = instance.host.trim();
     if trimmed.is_empty() {
@@ -2737,6 +3069,17 @@ fn url_origin(value: &str) -> Option<String> {
     Some(format!("{scheme}://{authority}"))
 }
 
+fn url_path(value: &str) -> Option<String> {
+    let (_, rest) = value.split_once("://")?;
+    let (_, path_and_more) = rest.split_once('/')?;
+    let path = format!("/{}", path_and_more.split(['?', '#']).next().unwrap_or_default());
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
 fn url_host(value: &str) -> Option<String> {
     let authority = value.split_once("://")?.1.split('/').next()?.trim();
     let host_port = authority.rsplit('@').next().unwrap_or(authority);
@@ -2748,10 +3091,11 @@ fn url_host(value: &str) -> Option<String> {
 }
 
 fn is_loopback_host(value: &str) -> bool {
-    matches!(
-        value.trim().trim_matches(['[', ']']),
-        "127.0.0.1" | "localhost" | "::1"
-    )
+    let normalized = value.trim().trim_matches(['[', ']']).to_ascii_lowercase();
+    normalized == "127.0.0.1"
+        || normalized == "::1"
+        || normalized == "localhost"
+        || normalized.ends_with(".localhost")
 }
 
 fn percent_encode_url_component(value: &str) -> String {
@@ -3720,7 +4064,7 @@ fn build_official_runtime_notes(instance: &StudioInstanceRecord) -> Vec<StudioIn
     match instance.runtime_kind {
         StudioRuntimeKind::Openclaw => vec![StudioInstanceRuntimeNote {
             title: "Gateway-first transport".to_string(),
-            content: "OpenClaw centers its runtime around the Gateway WebSocket and can also expose an OpenAI-compatible HTTP chat endpoint on the same gateway port.".to_string(),
+            content: "OpenClaw centers its runtime around the Gateway WebSocket and can optionally expose OpenAI-compatible HTTP endpoints when enabled.".to_string(),
             source_url: Some("https://docs.openclaw.ai/gateway/openai-http-api".to_string()),
         }],
         StudioRuntimeKind::Zeroclaw => vec![StudioInstanceRuntimeNote {
@@ -3776,13 +4120,127 @@ fn default_capabilities_for_runtime(
     }
 }
 
-fn build_built_in_instance(paths: &AppPaths, config: &AppConfig) -> Result<StudioInstanceRecord> {
-    let active_version = fs::read_to_string(&paths.active_file)
+fn read_active_openclaw_install_key(paths: &AppPaths) -> Option<String> {
+    fs::read_to_string(&paths.active_file)
         .ok()
         .and_then(|content| serde_json::from_str::<ActiveState>(&content).ok())
         .and_then(|active| active.runtimes.get("openclaw").cloned())
         .and_then(|entry| entry.active_version)
-        .unwrap_or_else(|| "bundled".to_string());
+}
+
+fn parse_openclaw_version_from_install_key(install_key: &str) -> Option<&str> {
+    let trimmed = install_key.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut segments = trimmed.rsplitn(3, '-');
+    let arch = segments.next()?;
+    let platform = segments.next()?;
+    let version = segments.next()?;
+
+    if arch.is_empty() || platform.is_empty() || version.is_empty() {
+        return Some(trimmed);
+    }
+
+    Some(version)
+}
+
+fn compare_version_like(left: &str, right: &str) -> std::cmp::Ordering {
+    let left_parts = left
+        .split(|character: char| !character.is_ascii_digit())
+        .filter(|segment| !segment.is_empty())
+        .filter_map(|segment| segment.parse::<u64>().ok())
+        .collect::<Vec<_>>();
+    let right_parts = right
+        .split(|character: char| !character.is_ascii_digit())
+        .filter(|segment| !segment.is_empty())
+        .filter_map(|segment| segment.parse::<u64>().ok())
+        .collect::<Vec<_>>();
+
+    for (left_part, right_part) in left_parts.iter().zip(right_parts.iter()) {
+        match left_part.cmp(right_part) {
+            std::cmp::Ordering::Equal => continue,
+            ordering => return ordering,
+        }
+    }
+
+    match left_parts.len().cmp(&right_parts.len()) {
+        std::cmp::Ordering::Equal => left.cmp(right),
+        ordering => ordering,
+    }
+}
+
+fn resolve_latest_installed_openclaw_version(paths: &AppPaths) -> Option<String> {
+    fs::read_dir(&paths.openclaw_runtime_dir)
+        .ok()?
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            if !path.is_dir() {
+                return None;
+            }
+
+            load_manifest(&path.join("manifest.json"))
+                .ok()
+                .map(|manifest| manifest.openclaw_version)
+        })
+        .max_by(|left, right| compare_version_like(left, right))
+}
+
+fn select_latest_openclaw_version(
+    current: Option<String>,
+    candidate: Option<String>,
+) -> Option<String> {
+    match (current, candidate) {
+        (Some(current), Some(candidate)) => {
+            if compare_version_like(&candidate, &current) == std::cmp::Ordering::Greater {
+                Some(candidate)
+            } else {
+                Some(current)
+            }
+        }
+        (Some(current), None) => Some(current),
+        (None, Some(candidate)) => Some(candidate),
+        (None, None) => None,
+    }
+}
+
+fn resolve_built_in_openclaw_display_version(paths: &AppPaths) -> String {
+    let active_install_key = read_active_openclaw_install_key(paths);
+    let active_manifest_version = active_install_key
+        .as_deref()
+        .and_then(|install_key| {
+            load_manifest(
+                &paths
+                    .openclaw_runtime_dir
+                    .join(install_key)
+                    .join("manifest.json"),
+            )
+            .ok()
+        })
+        .map(|manifest| manifest.openclaw_version);
+    let latest_installed_version = resolve_latest_installed_openclaw_version(paths);
+    let latest_visible_version = select_latest_openclaw_version(
+        select_latest_openclaw_version(active_manifest_version, latest_installed_version),
+        Some(bundled_openclaw_version().to_string()),
+    );
+
+    if let Some(version) = latest_visible_version {
+        return version;
+    }
+
+    if let Some(version) = active_install_key
+        .as_deref()
+        .and_then(parse_openclaw_version_from_install_key)
+    {
+        return version.to_string();
+    }
+
+    bundled_openclaw_version().to_string()
+}
+
+fn build_built_in_instance(paths: &AppPaths, config: &AppConfig) -> Result<StudioInstanceRecord> {
+    let active_version = resolve_built_in_openclaw_display_version(paths);
     let root = read_json5_object(&paths.openclaw_config_file)?;
     let port = get_nested_u16(&root, &["gateway", "port"]).unwrap_or(18_789);
     let workspace_path = get_nested_string(&root, &["agents", "defaults", "workspace"]);
@@ -3996,6 +4454,56 @@ fn conversation_storage_key(id: &str) -> String {
     format!("{CONVERSATION_KEY_PREFIX}{id}")
 }
 
+fn build_rollout_preview_summary(outcome: PreflightOutcome) -> ManageRolloutPreviewSummary {
+    match outcome {
+        PreflightOutcome::Admissible => ManageRolloutPreviewSummary {
+            total_targets: 1,
+            admissible_targets: 1,
+            degraded_targets: 0,
+            blocked_targets: 0,
+            predicted_wave_count: 1,
+        },
+        PreflightOutcome::AdmissibleDegraded => ManageRolloutPreviewSummary {
+            total_targets: 1,
+            admissible_targets: 0,
+            degraded_targets: 1,
+            blocked_targets: 0,
+            predicted_wave_count: 1,
+        },
+        PreflightOutcome::BlockedByVersion
+        | PreflightOutcome::BlockedByCapability
+        | PreflightOutcome::BlockedByTrust
+        | PreflightOutcome::BlockedByPolicy => ManageRolloutPreviewSummary {
+            total_targets: 1,
+            admissible_targets: 0,
+            degraded_targets: 0,
+            blocked_targets: 1,
+            predicted_wave_count: 0,
+        },
+    }
+}
+
+fn preflight_outcome_label(outcome: PreflightOutcome) -> &'static str {
+    match outcome {
+        PreflightOutcome::Admissible => "admissible",
+        PreflightOutcome::AdmissibleDegraded => "admissibleDegraded",
+        PreflightOutcome::BlockedByVersion => "blockedByVersion",
+        PreflightOutcome::BlockedByCapability => "blockedByCapability",
+        PreflightOutcome::BlockedByTrust => "blockedByTrust",
+        PreflightOutcome::BlockedByPolicy => "blockedByPolicy",
+    }
+}
+
+fn blocked_reason_for_outcome(outcome: PreflightOutcome) -> Option<String> {
+    match outcome {
+        PreflightOutcome::BlockedByVersion => Some("node-version-mismatch".to_string()),
+        PreflightOutcome::BlockedByCapability => Some("missing-required-capability".to_string()),
+        PreflightOutcome::BlockedByTrust => Some("node-trust-blocked".to_string()),
+        PreflightOutcome::BlockedByPolicy => Some("rollout-policy-blocked".to_string()),
+        _ => None,
+    }
+}
+
 fn unix_timestamp_ms() -> Result<u64> {
     Ok(SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -4056,6 +4564,218 @@ fn set_nested_value(value: &mut Value, path: &[&str], next: Value) {
         .as_object_mut()
         .expect("nested objects")
         .insert(path[path.len() - 1].to_string(), next);
+}
+
+fn remove_nested_value(value: &mut Value, path: &[&str]) -> bool {
+    if path.is_empty() {
+        return false;
+    }
+
+    let mut current = value;
+    for segment in &path[..path.len() - 1] {
+        let Some(object) = current.as_object_mut() else {
+            return false;
+        };
+        let Some(next) = object.get_mut(*segment) else {
+            return false;
+        };
+        current = next;
+    }
+
+    current
+        .as_object_mut()
+        .and_then(|object| object.remove(path[path.len() - 1]))
+        .is_some()
+}
+
+fn build_openclaw_model_ref(provider_id: &str, model_id: &str) -> Option<String> {
+    let normalized_provider_id = provider_id.trim();
+    let normalized_model_id = model_id.trim();
+    if normalized_provider_id.is_empty() || normalized_model_id.is_empty() {
+        return None;
+    }
+
+    Some(format!("{normalized_provider_id}/{normalized_model_id}"))
+}
+
+fn infer_openclaw_model_catalog_streaming(model: &Value) -> bool {
+    if get_nested_string(model, &["role"]).as_deref() == Some("embedding") {
+        return false;
+    }
+
+    let id = get_nested_string(model, &["id"])
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let name = get_nested_string(model, &["name"])
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let api = get_nested_string(model, &["api"])
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    !(id.contains("embed") || name.contains("embed") || api.contains("embedding"))
+}
+
+fn build_openclaw_provider_runtime_params_value(
+    config: &StudioWorkbenchLLMProviderConfigRecord,
+) -> Value {
+    let mut params = Map::new();
+    params.insert(
+        "temperature".to_string(),
+        Number::from_f64(config.temperature)
+            .map(Value::Number)
+            .unwrap_or_else(|| {
+                Value::Number(
+                    Number::from_f64(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TEMPERATURE)
+                        .expect("default temperature"),
+                )
+            }),
+    );
+    params.insert(
+        "topP".to_string(),
+        Number::from_f64(config.top_p)
+            .map(Value::Number)
+            .unwrap_or_else(|| {
+                Value::Number(
+                    Number::from_f64(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TOP_P)
+                        .expect("default top_p"),
+                )
+            }),
+    );
+    params.insert(
+        "maxTokens".to_string(),
+        Value::Number(Number::from(config.max_tokens)),
+    );
+    params.insert(
+        "timeoutMs".to_string(),
+        Value::Number(Number::from(config.timeout_ms)),
+    );
+    params.insert("streaming".to_string(), Value::Bool(config.streaming));
+    Value::Object(params)
+}
+
+fn sync_openclaw_defaults_model_selection(
+    root: &mut Value,
+    provider_id: &str,
+    default_model_id: &str,
+    reasoning_model_id: Option<&str>,
+) {
+    let Some(primary_model_ref) = build_openclaw_model_ref(provider_id, default_model_id) else {
+        return;
+    };
+
+    set_nested_string(root, &["agents", "defaults", "model", "primary"], &primary_model_ref);
+    match reasoning_model_id.and_then(|value| build_openclaw_model_ref(provider_id, value)) {
+        Some(reasoning_model_ref) => set_nested_value(
+            root,
+            &["agents", "defaults", "model", "fallbacks"],
+            Value::Array(vec![Value::String(reasoning_model_ref)]),
+        ),
+        None => {
+            remove_nested_value(root, &["agents", "defaults", "model", "fallbacks"]);
+        }
+    }
+}
+
+fn sync_openclaw_provider_model_catalog(
+    root: &mut Value,
+    provider_id: &str,
+    models: &[Value],
+    default_model_id: &str,
+    config: &StudioWorkbenchLLMProviderConfigRecord,
+) {
+    let normalized_default_model_id = default_model_id.trim();
+
+    for model in models {
+        let Some(model_id) = get_nested_string(model, &["id"]) else {
+            continue;
+        };
+        let Some(model_ref) = build_openclaw_model_ref(provider_id, &model_id) else {
+            continue;
+        };
+        let alias = get_nested_string(model, &["name"]).unwrap_or_else(|| model_id.clone());
+
+        set_nested_string(
+            root,
+            &["agents", "defaults", "models", model_ref.as_str(), "alias"],
+            &alias,
+        );
+        set_nested_bool(
+            root,
+            &["agents", "defaults", "models", model_ref.as_str(), "streaming"],
+            infer_openclaw_model_catalog_streaming(model),
+        );
+
+        if model_id == normalized_default_model_id {
+            set_nested_value(
+                root,
+                &["agents", "defaults", "models", model_ref.as_str(), "params"],
+                build_openclaw_provider_runtime_params_value(config),
+            );
+        }
+    }
+}
+
+pub(super) fn read_openclaw_provider_runtime_config(
+    root: &Value,
+    provider_id: &str,
+    model_id: &str,
+) -> StudioWorkbenchLLMProviderConfigRecord {
+    let Some(model_ref) = build_openclaw_model_ref(provider_id, model_id) else {
+        return StudioWorkbenchLLMProviderConfigRecord {
+            temperature: OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TEMPERATURE,
+            top_p: OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TOP_P,
+            max_tokens: OPENCLAW_PROVIDER_RUNTIME_DEFAULT_MAX_TOKENS,
+            timeout_ms: OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TIMEOUT_MS,
+            streaming: true,
+        };
+    };
+
+    let temperature_path = [
+        "agents",
+        "defaults",
+        "models",
+        model_ref.as_str(),
+        "params",
+        "temperature",
+    ];
+    let top_p_path = ["agents", "defaults", "models", model_ref.as_str(), "params", "topP"];
+    let max_tokens_path = [
+        "agents",
+        "defaults",
+        "models",
+        model_ref.as_str(),
+        "params",
+        "maxTokens",
+    ];
+    let timeout_ms_path = [
+        "agents",
+        "defaults",
+        "models",
+        model_ref.as_str(),
+        "params",
+        "timeoutMs",
+    ];
+    let streaming_path = [
+        "agents",
+        "defaults",
+        "models",
+        model_ref.as_str(),
+        "params",
+        "streaming",
+    ];
+
+    StudioWorkbenchLLMProviderConfigRecord {
+        temperature: get_nested_f64(root, &temperature_path)
+            .unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TEMPERATURE),
+        top_p: get_nested_f64(root, &top_p_path)
+            .unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TOP_P),
+        max_tokens: get_nested_u32(root, &max_tokens_path)
+            .unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_MAX_TOKENS),
+        timeout_ms: get_nested_u32(root, &timeout_ms_path)
+            .unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TIMEOUT_MS),
+        streaming: get_nested_bool_value(root, &streaming_path).unwrap_or(true),
+    }
 }
 
 fn write_openclaw_config_file(paths: &AppPaths, root: &Value) -> Result<()> {
@@ -4174,6 +4894,39 @@ fn get_nested_u16(value: &Value, path: &[&str]) -> Option<u16> {
     current.as_u64().and_then(|item| u16::try_from(item).ok())
 }
 
+fn get_nested_f64(value: &Value, path: &[&str]) -> Option<f64> {
+    get_nested_value(value, path).and_then(|current| {
+        current.as_f64().or_else(|| {
+            current
+                .as_str()
+                .and_then(|item| item.trim().parse::<f64>().ok())
+        })
+    })
+}
+
+fn get_nested_u32(value: &Value, path: &[&str]) -> Option<u32> {
+    get_nested_value(value, path).and_then(|current| {
+        current
+            .as_u64()
+            .and_then(|item| u32::try_from(item).ok())
+            .or_else(|| {
+                current
+                    .as_str()
+                    .and_then(|item| item.trim().parse::<u32>().ok())
+            })
+    })
+}
+
+fn get_nested_bool_value(value: &Value, path: &[&str]) -> Option<bool> {
+    get_nested_value(value, path).and_then(|current| {
+        current.as_bool().or_else(|| match current.as_str() {
+            Some("true") => Some(true),
+            Some("false") => Some(false),
+            _ => None,
+        })
+    })
+}
+
 fn get_nested_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
     let mut current = value;
     for segment in path {
@@ -4193,7 +4946,9 @@ mod tests {
         StudioInstanceConsoleInstallMethod, StudioInstanceDataAccessMode,
         StudioInstanceDataAccessScope, StudioInstanceDeploymentMode, StudioInstanceLifecycleOwner,
         StudioInstanceStatus, StudioInstanceStorageStatus, StudioInstanceTransportKind,
-        StudioRuntimeKind, StudioService, DEFAULT_INSTANCE_ID,
+        StudioRuntimeKind, StudioService, StudioUpdateInstanceLlmProviderConfigInput,
+        StudioWorkbenchLLMProviderConfigRecord, DEFAULT_INSTANCE_ID, get_nested_string,
+        get_nested_value, read_json5_object,
     };
     use crate::framework::{
         config::AppConfig,
@@ -4236,6 +4991,120 @@ mod tests {
         let service = StudioService::new();
 
         (root, paths, config, storage, service)
+    }
+
+    #[test]
+    fn built_in_display_version_prefers_latest_installed_runtime_when_active_state_is_stale() {
+        let (_root, paths, _config, _storage, _service) = studio_context();
+        let latest_version = crate::framework::openclaw_release::bundled_openclaw_version();
+        let stale_version = "0.0.1";
+        let old_install_dir = paths
+            .openclaw_runtime_dir
+            .join(format!("{stale_version}-windows-x64"));
+        let latest_install_dir = paths
+            .openclaw_runtime_dir
+            .join(format!("{latest_version}-windows-x64"));
+        fs::create_dir_all(&old_install_dir).expect("create old install dir");
+        fs::create_dir_all(&latest_install_dir).expect("create latest install dir");
+        fs::write(
+            old_install_dir.join("manifest.json"),
+            format!(
+                r#"{{
+  "schemaVersion": 1,
+  "runtimeId": "openclaw",
+  "openclawVersion": "{stale_version}",
+  "nodeVersion": "22.15.1",
+  "platform": "windows",
+  "arch": "x64",
+  "nodeRelativePath": "runtime/node/node.exe",
+  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
+}}"#
+            ),
+        )
+        .expect("write old manifest");
+        fs::write(
+            latest_install_dir.join("manifest.json"),
+            format!(
+                r#"{{
+  "schemaVersion": 1,
+  "runtimeId": "openclaw",
+  "openclawVersion": "{latest_version}",
+  "nodeVersion": "22.15.1",
+  "platform": "windows",
+  "arch": "x64",
+  "nodeRelativePath": "runtime/node/node.exe",
+  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
+}}"#
+            ),
+        )
+        .expect("write latest manifest");
+        fs::write(
+            &paths.active_file,
+            format!(
+                r#"{{
+  "layoutVersion": 1,
+  "modules": {{}},
+  "runtimes": {{
+    "openclaw": {{
+      "activeVersion": "{stale_version}-windows-x64"
+    }}
+  }}
+}}"#
+            ),
+        )
+        .expect("write active file");
+
+        assert_eq!(
+            super::resolve_built_in_openclaw_display_version(&paths),
+            latest_version.to_string()
+        );
+    }
+
+    #[test]
+    fn built_in_display_version_prefers_bundled_release_when_only_stale_runtime_is_installed() {
+        let (_root, paths, _config, _storage, _service) = studio_context();
+        let latest_version = crate::framework::openclaw_release::bundled_openclaw_version();
+        let stale_version = "0.0.1";
+        let old_install_dir = paths
+            .openclaw_runtime_dir
+            .join(format!("{stale_version}-windows-x64"));
+        fs::create_dir_all(&old_install_dir).expect("create old install dir");
+        fs::write(
+            old_install_dir.join("manifest.json"),
+            format!(
+                r#"{{
+  "schemaVersion": 1,
+  "runtimeId": "openclaw",
+  "openclawVersion": "{stale_version}",
+  "nodeVersion": "22.15.1",
+  "platform": "windows",
+  "arch": "x64",
+  "nodeRelativePath": "runtime/node/node.exe",
+  "cliRelativePath": "runtime/package/node_modules/openclaw/openclaw.mjs"
+}}"#
+            ),
+        )
+        .expect("write old manifest");
+        fs::write(
+            &paths.active_file,
+            format!(
+                r#"{{
+  "layoutVersion": 1,
+  "modules": {{}},
+  "runtimes": {{
+    "openclaw": {{
+      "activeVersion": "{stale_version}-windows-x64"
+    }}
+  }}
+}}"#
+            ),
+        )
+        .expect("write active file");
+
+        assert_eq!(
+            super::resolve_built_in_openclaw_display_version(&paths),
+            latest_version.to_string()
+        );
     }
 
     fn write_openclaw_install_record(
@@ -4601,11 +5470,6 @@ mod tests {
       mode: "token",
       token: "studio-token",
     },
-    http: {
-      endpoints: {
-        chatCompletions: { enabled: true },
-      },
-    },
   },
 }
 "#,
@@ -4626,6 +5490,76 @@ mod tests {
             Some("http://127.0.0.1:19876")
         );
         assert_eq!(built_in.config.auth_token.as_deref(), Some("studio-token"));
+    }
+
+    #[test]
+    fn sdkwork_localhost_subdomains_are_treated_as_loopback_hosts() {
+        assert!(super::is_loopback_host("ai.sdkwork.localhost"));
+        assert!(super::is_loopback_host("AI.SDKWORK.LOCALHOST"));
+        assert!(!super::is_loopback_host("ai.sdkwork.com"));
+    }
+
+    #[test]
+    fn updating_built_in_instance_does_not_force_openai_http_endpoints_on() {
+        let (_root, paths, config, storage, service) = studio_context();
+
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  gateway: {
+    port: 19876,
+    auth: {
+      mode: "token",
+      token: "studio-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed managed config");
+
+        service
+            .update_instance(
+                &paths,
+                &config,
+                &storage,
+                DEFAULT_INSTANCE_ID,
+                super::StudioUpdateInstanceInput {
+                    config: Some(super::PartialStudioInstanceConfig {
+                        log_level: Some("debug".to_string()),
+                        cors_origins: Some("http://localhost:3001".to_string()),
+                        sandbox: Some(true),
+                        auto_update: Some(true),
+                        ..super::PartialStudioInstanceConfig::default()
+                    }),
+                    ..super::StudioUpdateInstanceInput::default()
+                },
+            )
+            .expect("update built-in instance");
+
+        let root = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("managed config"),
+        )
+        .expect("managed config json");
+
+        assert_eq!(
+            root.pointer("/studio/logLevel").and_then(Value::as_str),
+            Some("debug")
+        );
+        assert_eq!(
+            root.pointer("/studio/corsOrigins").and_then(Value::as_str),
+            Some("http://localhost:3001")
+        );
+        assert_eq!(
+            root.pointer("/gateway/http/endpoints/chatCompletions/enabled")
+                .and_then(Value::as_bool),
+            None
+        );
+        assert_eq!(
+            root.pointer("/gateway/http/endpoints/responses/enabled")
+                .and_then(Value::as_bool),
+            None
+        );
     }
 
     #[test]
@@ -4931,6 +5865,47 @@ mod tests {
     }
 
     #[test]
+    fn built_in_instance_detail_hides_disabled_openai_http_endpoints() {
+        let (_root, paths, config, storage, service) = studio_context();
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  gateway: {
+    port: 19876,
+    auth: {
+      mode: "token",
+      token: "studio-token",
+    },
+  },
+}
+"#,
+        )
+        .expect("seed managed config");
+
+        let detail = service
+            .get_instance_detail(&paths, &config, &storage, DEFAULT_INSTANCE_ID)
+            .expect("load instance detail")
+            .expect("built-in detail");
+
+        assert!(detail
+            .connectivity
+            .endpoints
+            .iter()
+            .any(|endpoint| endpoint.id == "gateway-http"
+                && endpoint.url.as_deref() == Some("http://127.0.0.1:19876")));
+        assert!(detail
+            .connectivity
+            .endpoints
+            .iter()
+            .all(|endpoint| endpoint.id != "openai-http-chat"));
+        assert!(detail
+            .connectivity
+            .endpoints
+            .iter()
+            .all(|endpoint| endpoint.id != "openai-http-responses"));
+    }
+
+    #[test]
     fn built_in_instance_detail_exposes_console_access_with_auto_login_url() {
         let (_root, paths, config, storage, service) = studio_context();
         fs::write(
@@ -4975,12 +5950,12 @@ mod tests {
         );
         assert_eq!(
             console_access.get("gatewayUrl").and_then(Value::as_str),
-            Some("ws://127.0.0.1:19876")
+            Some("ws://127.0.0.1:19876/openclaw")
         );
         assert_eq!(
             console_access.get("autoLoginUrl").and_then(Value::as_str),
             Some(
-                "http://127.0.0.1:19876/openclaw/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A19876#token=studio-token"
+                "http://127.0.0.1:19876/openclaw/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A19876%2Fopenclaw#token=studio-token"
             )
         );
         assert_eq!(
@@ -5131,12 +6106,12 @@ mod tests {
         );
         assert_eq!(
             console_access.get("gatewayUrl").and_then(Value::as_str),
-            Some("ws://127.0.0.1:28789")
+            Some("ws://127.0.0.1:28789/console")
         );
         assert_eq!(
             console_access.get("autoLoginUrl").and_then(Value::as_str),
             Some(
-                "http://127.0.0.1:28789/console/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A28789#token=external-token"
+                "http://127.0.0.1:28789/console/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A28789%2Fconsole#token=external-token"
             )
         );
         assert_eq!(
@@ -5581,6 +6556,121 @@ mod tests {
                 "expected workbench to include {key}"
             );
         }
+    }
+
+    #[test]
+    fn updating_built_in_openclaw_provider_writes_canonical_defaults_model_params() {
+        let (_root, paths, config, storage, service) = studio_context();
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  models: {
+    providers: {
+      openai: {
+        baseUrl: "https://old.example.com/v1",
+        apiKey: "${OLD_KEY}",
+        temperature: 0.2,
+        topP: 1,
+        maxTokens: 4096,
+        timeoutMs: 60000,
+        streaming: true,
+        models: [
+          { id: "old-default", name: "old-default", role: "primary" },
+          { id: "old-embedding", name: "old-embedding", role: "embedding" },
+        ],
+      },
+    },
+  },
+  agents: {
+    defaults: {
+      model: {
+        primary: "openai/old-default",
+      },
+      models: {
+        "openai/old-default": {
+          alias: "old-default",
+          params: {
+            temperature: 0.2,
+            topP: 1,
+            maxTokens: 4096,
+            timeoutMs: 60000,
+            streaming: true,
+          },
+        },
+      },
+    },
+  },
+}"#,
+        )
+        .expect("seed managed config");
+
+        service
+            .update_instance_llm_provider_config(
+                &paths,
+                &config,
+                &storage,
+                DEFAULT_INSTANCE_ID,
+                "openai",
+                StudioUpdateInstanceLlmProviderConfigInput {
+                    endpoint: "https://api.openai.com/v1".to_string(),
+                    api_key_source: "${OPENAI_API_KEY}".to_string(),
+                    default_model_id: "gpt-5.4".to_string(),
+                    reasoning_model_id: Some("o4-mini".to_string()),
+                    embedding_model_id: Some("text-embedding-3-large".to_string()),
+                    config: StudioWorkbenchLLMProviderConfigRecord {
+                        temperature: 0.3,
+                        top_p: 0.95,
+                        max_tokens: 12000,
+                        timeout_ms: 120000,
+                        streaming: true,
+                    },
+                },
+            )
+            .expect("update managed provider");
+
+        let root = read_json5_object(&paths.openclaw_config_file).expect("read managed config");
+        let provider = get_nested_value(&root, &["models", "providers", "openai"])
+            .and_then(Value::as_object)
+            .expect("provider config");
+
+        assert!(!provider.contains_key("temperature"));
+        assert!(!provider.contains_key("topP"));
+        assert!(!provider.contains_key("maxTokens"));
+        assert!(!provider.contains_key("timeoutMs"));
+        assert!(!provider.contains_key("streaming"));
+        assert_eq!(
+            get_nested_string(&root, &["agents", "defaults", "model", "primary"]).as_deref(),
+            Some("openai/gpt-5.4")
+        );
+        assert_eq!(
+            get_nested_value(&root, &["agents", "defaults", "model", "fallbacks"])
+                .and_then(Value::as_array)
+                .cloned(),
+            Some(vec![Value::String("openai/o4-mini".to_string())])
+        );
+
+        let params = get_nested_value(
+            &root,
+            &["agents", "defaults", "models", "openai/gpt-5.4", "params"],
+        )
+        .and_then(Value::as_object)
+        .expect("default model params");
+        assert_eq!(params.get("temperature").and_then(Value::as_f64), Some(0.3));
+        assert_eq!(params.get("topP").and_then(Value::as_f64), Some(0.95));
+        assert_eq!(params.get("maxTokens").and_then(Value::as_u64), Some(12000));
+        assert_eq!(params.get("timeoutMs").and_then(Value::as_u64), Some(120000));
+        assert_eq!(params.get("streaming").and_then(Value::as_bool), Some(true));
+        assert!(
+            get_nested_value(&root, &["agents", "defaults", "models", "openai/o4-mini"])
+                .is_some()
+        );
+        assert!(
+            get_nested_value(
+                &root,
+                &["agents", "defaults", "models", "openai/text-embedding-3-large"]
+            )
+            .is_some()
+        );
     }
 
     #[test]

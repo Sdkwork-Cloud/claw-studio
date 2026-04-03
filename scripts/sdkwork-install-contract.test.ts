@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -116,27 +115,37 @@ runTest('sdkwork-claw-install keeps guided install configuration and initializat
   const bootstrapSource = read(
     'packages/sdkwork-claw-install/src/services/installBootstrapService.ts',
   );
+  const wizardSource = read('packages/sdkwork-claw-install/src/components/GuidedInstallWizard.tsx');
   const wizardServiceSource = read(
     'packages/sdkwork-claw-install/src/services/installGuidedWizardService.ts',
   );
   const serviceIndexSource = read('packages/sdkwork-claw-install/src/services/index.ts');
 
-  assert.match(bootstrapSource, /studioMockService/);
-  assert.match(bootstrapSource, /listApiRouterChannels/);
-  assert.match(bootstrapSource, /listProxyProviders/);
-  assert.match(bootstrapSource, /createProxyProvider/);
-  assert.match(bootstrapSource, /updateProxyProvider/);
-  assert.match(bootstrapSource, /upsertInstanceLlmProvider/);
-  assert.match(bootstrapSource, /listChannels/);
-  assert.match(bootstrapSource, /saveChannelConfig/);
-  assert.match(bootstrapSource, /updateChannelStatus/);
-  assert.match(bootstrapSource, /listPacks/);
-  assert.match(bootstrapSource, /listSkills/);
-  assert.match(bootstrapSource, /installPack/);
-  assert.match(bootstrapSource, /installSkill/);
+  assert.doesNotMatch(bootstrapSource, /studioMockService/);
+  assert.match(bootstrapSource, /openClawBootstrapService/);
+  assert.match(bootstrapSource, /openClawConfigService/);
+  assert.match(bootstrapSource, /providerRoutingApi/);
+  assert.match(bootstrapSource, /saveProviderRoutingRecord/);
+  assert.match(bootstrapSource, /readConfigSnapshot/);
+  assert.match(bootstrapSource, /inferLocalAiProxyUpstreamProtocol/);
+  assert.match(bootstrapSource, /createDefaultProviderRuntimeConfig/);
+  assert.match(bootstrapSource, /providerChannels:/);
+  assert.match(bootstrapSource, /channelSnapshots|communicationChannels/);
+  assert.match(bootstrapSource, /loadBootstrapData/);
+  assert.match(bootstrapSource, /applyConfiguration/);
+  assert.match(bootstrapSource, /initializeOpenClawInstance/);
+  assert.match(bootstrapSource, /createInstallBootstrapService/);
+  assert.doesNotMatch(bootstrapSource, /import\('\.\/openClawBootstrapService\.ts'\)/);
+  assert.doesNotMatch(bootstrapSource, /saveProviderSelection/);
   assert.doesNotMatch(bootstrapSource, /@sdkwork\/claw-apirouter/);
   assert.doesNotMatch(bootstrapSource, /@sdkwork\/claw-channels/);
   assert.doesNotMatch(bootstrapSource, /@sdkwork\/claw-market/);
+  assert.doesNotMatch(bootstrapSource, /apiRouterChannels/);
+  assert.doesNotMatch(bootstrapSource, /provider-api-router-/);
+  assert.doesNotMatch(bootstrapSource, /provider:\s*'api-router'/);
+  assert.doesNotMatch(bootstrapSource, /capabilities:\s*\[[^\]]*'API Router'/);
+  assert.doesNotMatch(wizardSource, /apiRouterChannels/);
+  assert.match(wizardSource, /providerChannels/);
 
   assert.match(wizardServiceSource, /GUIDED_WIZARD_STEPS/);
   assert.match(wizardServiceSource, /dependencies/);
@@ -170,6 +179,12 @@ runTest('sdkwork-claw-install gives OpenClaw a dedicated file-backed guided wiza
   assert.doesNotMatch(openClawWizardSource, /install\.page\.modal\.actions\.close/);
 
   assert.match(bootstrapSource, /openClawConfigService/);
+  assert.match(bootstrapSource, /providerRoutingCatalogService/);
+  assert.match(bootstrapSource, /kernelPlatformService/);
+  assert.match(bootstrapSource, /createOpenClawLocalProxyProjection/);
+  assert.match(bootstrapSource, /OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY/);
+  assert.match(bootstrapSource, /saveManagedLocalProxyProjection/);
+  assert.match(bootstrapSource, /saveManagedChannelConfiguration/);
   assert.match(bootstrapSource, /resolveSyncedOpenClawAuthToken/);
   assert.match(bootstrapSource, /studio\.(createInstance|updateInstance)/);
   assert.match(bootstrapSource, /configPath/);
@@ -178,6 +193,9 @@ runTest('sdkwork-claw-install gives OpenClaw a dedicated file-backed guided wiza
   assert.doesNotMatch(bootstrapSource, /authToken:\s*null/);
   assert.doesNotMatch(bootstrapSource, /upsertInstanceLlmProvider/);
   assert.doesNotMatch(bootstrapSource, /saveChannelConfig/);
+  assert.doesNotMatch(bootstrapSource, /saveProviderSelection/);
+  assert.doesNotMatch(bootstrapSource, /PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE/);
+  assert.doesNotMatch(bootstrapSource, /storage\.getStorageInfo/);
 });
 
 runTest('sdkwork-claw-install routes installation through the shared hub-installer contract', () => {
@@ -235,24 +253,30 @@ runTest('sdkwork-claw-install routes installation through the shared hub-install
 
 runTest('sdkwork-claw-install keeps hub-installer as an updateable git submodule for the desktop runtime', () => {
   const gitModules = read('.gitmodules');
+  const submoduleGitPointer = read(
+    'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/.git',
+  );
   const registrySource = read(
     'packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/software-registry.yaml',
   );
-  const submoduleStatus = childProcess
-    .execSync('git submodule status -- packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer', {
-      cwd: root,
-      encoding: 'utf8',
-    })
-    .trim();
+  const bundledSyncSource = read('scripts/sync-bundled-components.mjs');
 
   assert.ok(exists('.gitmodules'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer'));
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/.git'));
+  assert.ok(exists('.git/modules/packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer'));
   assert.match(gitModules, /\[submodule "packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer"\]/);
   assert.match(gitModules, /path = packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer/);
   assert.match(gitModules, /url = https:\/\/github\.com\/Sdkwork-Cloud\/hub-installer/);
   assert.match(gitModules, /branch = main/);
-  assert.match(submoduleStatus, /^[ +\-u]?[0-9a-f]{7,40}\s+packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer/);
+  assert.match(
+    submoduleGitPointer,
+    /gitdir:\s+\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/\.git\/modules\/packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer/,
+  );
+  assert.match(
+    bundledSyncSource,
+    /repositoryDir:\s*path\.join\(\s*rootDir,\s*'packages',\s*'sdkwork-claw-desktop',\s*'src-tauri',\s*'vendor',\s*'hub-installer',/s,
+  );
   assert.match(registrySource, /name: "openclaw-wsl"/);
   assert.match(
     read('packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer/registry/manifests/openclaw-pnpm.hub.yaml'),

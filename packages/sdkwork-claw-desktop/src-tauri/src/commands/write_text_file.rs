@@ -1,4 +1,7 @@
-use crate::{framework::Result as FrameworkResult, state::AppState};
+use crate::{
+    framework::{runtime, Result as FrameworkResult},
+    state::AppState,
+};
 
 pub fn write_text_file_at(state: &AppState, path: &str, content: &str) -> FrameworkResult<()> {
     state
@@ -9,12 +12,17 @@ pub fn write_text_file_at(state: &AppState, path: &str, content: &str) -> Framew
 }
 
 #[tauri::command]
-pub fn write_text_file(
+pub async fn write_text_file(
     path: String,
     content: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    write_text_file_at(&state, &path, &content).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("filesystem.write_text_file", move || {
+        write_text_file_at(&state, &path, &content)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

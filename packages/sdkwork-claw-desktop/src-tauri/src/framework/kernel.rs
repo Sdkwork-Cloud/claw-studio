@@ -213,6 +213,94 @@ pub struct DesktopBundledComponentsInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DesktopLocalAiProxyDefaultRouteInfo {
+    pub client_protocol: String,
+    pub id: String,
+    pub name: String,
+    pub managed_by: String,
+    pub upstream_protocol: String,
+    pub upstream_base_url: String,
+    pub model_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopLocalAiProxyRouteRuntimeMetrics {
+    pub route_id: String,
+    pub client_protocol: String,
+    pub upstream_protocol: String,
+    pub health: String,
+    pub request_count: u64,
+    pub success_count: u64,
+    pub failure_count: u64,
+    pub rpm: u64,
+    pub total_tokens: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_tokens: u64,
+    pub average_latency_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_latency_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_used_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopLocalAiProxyRouteTestRecord {
+    pub route_id: String,
+    pub status: String,
+    pub tested_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u64>,
+    pub checked_capability: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopLocalAiProxyInfo {
+    pub lifecycle: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub openai_compatible_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anthropic_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gemini_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_port: Option<u16>,
+    pub loopback_only: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_route_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_route_name: Option<String>,
+    pub default_routes: Vec<DesktopLocalAiProxyDefaultRouteInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upstream_base_url: Option<String>,
+    pub model_count: usize,
+    pub route_metrics: Vec<DesktopLocalAiProxyRouteRuntimeMetrics>,
+    pub route_tests: Vec<DesktopLocalAiProxyRouteTestRecord>,
+    pub message_capture_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observability_db_path: Option<String>,
+    pub config_path: String,
+    pub snapshot_path: String,
+    pub log_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DesktopComponentDocumentationRef {
     pub label: String,
     pub location: String,
@@ -303,6 +391,7 @@ pub struct DesktopKernelInfo {
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
+    pub local_ai_proxy: DesktopLocalAiProxyInfo,
     pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
     pub host: DesktopKernelHostInfo,

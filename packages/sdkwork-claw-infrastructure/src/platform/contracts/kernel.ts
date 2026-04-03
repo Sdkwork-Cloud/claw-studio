@@ -1,4 +1,13 @@
 import type {
+  LocalAiProxyMessageCaptureSettings,
+  LocalAiProxyMessageLogRecord,
+  LocalAiProxyMessageLogsQuery,
+  LocalAiProxyRequestLogRecord,
+  LocalAiProxyRequestLogsQuery,
+  LocalAiProxyRouteTestRecord,
+  PaginatedResult,
+} from '@sdkwork/claw-types';
+import type {
   RuntimeDesktopKernelInfo,
   RuntimeStorageInfo,
 } from './runtime.ts';
@@ -60,6 +69,14 @@ export type RuntimeDesktopKernelInstallSource =
   | 'bundled'
   | 'external'
   | 'remote';
+
+export type RuntimeKernelPreflightOutcome =
+  | 'admissible'
+  | 'admissibleDegraded'
+  | 'blockedByVersion'
+  | 'blockedByCapability'
+  | 'blockedByTrust'
+  | 'blockedByPolicy';
 
 export interface RuntimeDesktopKernelTopologyInfo {
   kind: RuntimeDesktopKernelTopologyKind;
@@ -130,4 +147,14 @@ export interface KernelPlatformAPI {
   getStatus(): Promise<RuntimeDesktopKernelHostInfo | null>;
   ensureRunning(): Promise<RuntimeDesktopKernelHostInfo | null>;
   restart(): Promise<RuntimeDesktopKernelHostInfo | null>;
+  testLocalAiProxyRoute(routeId: string): Promise<LocalAiProxyRouteTestRecord | null>;
+  listLocalAiProxyRequestLogs(
+    query: LocalAiProxyRequestLogsQuery,
+  ): Promise<PaginatedResult<LocalAiProxyRequestLogRecord>>;
+  listLocalAiProxyMessageLogs(
+    query: LocalAiProxyMessageLogsQuery,
+  ): Promise<PaginatedResult<LocalAiProxyMessageLogRecord>>;
+  updateLocalAiProxyMessageCapture(
+    enabled: boolean,
+  ): Promise<LocalAiProxyMessageCaptureSettings>;
 }

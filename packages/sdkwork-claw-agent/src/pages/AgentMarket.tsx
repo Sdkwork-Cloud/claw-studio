@@ -327,11 +327,15 @@ export function AgentMarket() {
     data: targets = [],
     error,
     isError,
+    isFetched,
+    isFetching,
     isLoading,
     refetch,
   } = useQuery({
     queryKey: ['agent-market', 'targets'],
     queryFn: () => agentInstallService.listInstallTargets(),
+    enabled: !!selectedTemplate,
+    staleTime: 30_000,
   });
 
   const installMutation = useMutation({
@@ -403,7 +407,8 @@ export function AgentMarket() {
   const selectedTemplateAlreadyInstalled =
     !!selectedTemplate && !!selectedTarget?.installedTemplateIds.includes(selectedTemplate.id);
   const localizedSelectedTemplate = selectedTemplate ? localizeTemplate(selectedTemplate, t) : null;
-  const installDisabled = targets.length === 0 || isError;
+  const hasResolvedTargets = isFetched;
+  const isTargetsLoading = !!selectedTemplate && !hasResolvedTargets && (isLoading || isFetching);
 
   React.useEffect(() => {
     if (!catalog.categories.includes(activeCategory)) {
@@ -462,7 +467,7 @@ export function AgentMarket() {
           </div>
         </section>
 
-        {isError ? (
+        {selectedTemplate && isError && hasResolvedTargets ? (
           <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/10">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-start gap-3">
@@ -509,16 +514,17 @@ export function AgentMarket() {
           ) : catalog.templates.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {catalog.templates.map((template) => {
-                const installCount = targets.filter((target) =>
-                  target.installedTemplateIds.includes(template.id),
-                ).length;
+                const installCount = hasResolvedTargets
+                  ? targets.filter((target) => target.installedTemplateIds.includes(template.id))
+                      .length
+                  : 0;
                 const localizedTemplate = localizeTemplate(template, t);
                 return (
                   <TemplateCard
                     key={template.id}
                     template={template}
                     installCount={installCount}
-                    disabled={installDisabled || (targets.length > 0 && installCount === targets.length)}
+                    disabled={hasResolvedTargets && targets.length > 0 && installCount === targets.length}
                     onInstall={() => {
                       setSelectedTemplate(template);
                       setSelectedTargetId(
@@ -530,7 +536,7 @@ export function AgentMarket() {
                     })}
                     localizedTemplate={localizedTemplate}
                     actionLabel={
-                      targets.length > 0 && installCount === targets.length
+                      hasResolvedTargets && targets.length > 0 && installCount === targets.length
                         ? t('agentMarket.actions.installed')
                         : t('agentMarket.actions.install')
                     }
@@ -578,7 +584,28 @@ export function AgentMarket() {
               </div>
             </div>
 
-            {targets.length === 0 ? (
+            {isTargetsLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div
+                    key={index}
+                    className="h-28 rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900"
+                  />
+                ))}
+              </div>
+            ) : isError ? (
+              <EmptyState
+                icon={<AlertCircle className="h-6 w-6" />}
+                title={t('agentMarket.error.title')}
+                description={
+                  error instanceof Error ? error.message : t('agentMarket.error.description')
+                }
+                actionLabel={t('agentMarket.error.retry')}
+                onAction={() => {
+                  void refetch();
+                }}
+              />
+            ) : targets.length === 0 ? (
               <EmptyState
                 icon={<AlertCircle className="h-6 w-6" />}
                 title={t('agentMarket.empty.noTargetsTitle')}

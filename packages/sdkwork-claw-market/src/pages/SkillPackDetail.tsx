@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore, useInstanceStore, useTaskStore } from '@sdkwork/claw-core';
 import type { Skill, SkillPack } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
+import { shouldBlockSkillPackDetailForLoading } from './marketHydrationPolicy.ts';
 
 export function SkillPackDetail() {
   const { t, i18n } = useTranslation();
@@ -156,7 +157,12 @@ export function SkillPackDetail() {
     setSelectedSkills(new Set(uninstalledSkills.map((skill) => skill.id)));
   };
 
-  if (isLoadingPack || isLoadingInstances) {
+  if (
+    shouldBlockSkillPackDetailForLoading({
+      isLoadingPack,
+      isLoadingInstances,
+    })
+  ) {
     return (
       <div className="mx-auto max-w-6xl space-y-8 p-8 animate-pulse">
         <div className="h-8 w-24 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
@@ -384,6 +390,12 @@ export function SkillPackDetail() {
                     {t('market.skillPackDetail.targetInstance')}
                   </label>
                   <div className="space-y-2">
+                    {isLoadingInstances ? (
+                      <div className="flex items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 text-sm text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t('common.loading')}
+                      </div>
+                    ) : null}
                     {instances.map((instance) => (
                       <div
                         key={instance.id}
@@ -429,7 +441,7 @@ export function SkillPackDetail() {
                         </div>
                       </div>
                     ))}
-                    {instances.length === 0 && (
+                    {!isLoadingInstances && instances.length === 0 && (
                       <div className="flex flex-col items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 text-center text-sm text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900">
                         <AlertCircle className="h-6 w-6 text-amber-500" />
                         {t('market.modals.noInstances.title')}

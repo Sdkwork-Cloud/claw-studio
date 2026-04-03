@@ -472,7 +472,9 @@ mod tests {
         ActiveState, InventoryState, LayoutState, PinnedState, RetentionState, UpgradesState,
     };
     use crate::framework::{
-        components::{PackagedComponentDefinition, PackagedComponentKind, PackagedComponentStartupMode},
+        components::{
+            PackagedComponentDefinition, PackagedComponentKind, PackagedComponentStartupMode,
+        },
         paths::resolve_paths_for_root,
     };
     use serde_json::Value;
@@ -613,12 +615,6 @@ mod tests {
         );
         assert_eq!(
             components
-                .pointer("/entries/sdkwork-api-router/enabledByDefault")
-                .and_then(Value::as_bool),
-            Some(true)
-        );
-        assert_eq!(
-            components
                 .pointer("/entries/zeroclaw/enabledByDefault")
                 .and_then(Value::as_bool),
             Some(false)
@@ -630,7 +626,6 @@ mod tests {
             Some("embedded")
         );
         assert!(upgrades.components.contains_key("openclaw"));
-        assert!(upgrades.components.contains_key("sdkwork-api-router"));
         assert!(!upgrades.components.contains_key("hub-installer"));
     }
 

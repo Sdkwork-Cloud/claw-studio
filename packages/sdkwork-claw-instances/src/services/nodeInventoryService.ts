@@ -1,5 +1,7 @@
 import {
+  hostPlatformService,
   kernelPlatformService,
+  type HostPlatformSnapshot,
   type KernelPlatformSnapshot,
 } from '@sdkwork/claw-core';
 import { studio } from '@sdkwork/claw-infrastructure';
@@ -27,16 +29,30 @@ export interface NodeInventoryRecord {
   version: string | null;
   source: 'kernel' | 'instance';
   instanceId?: string;
+  hostPlatformMode: HostPlatformSnapshot['mode'] | null;
+  sessionId: string | null;
+  sessionState: string | null;
+  compatibilityState: string | null;
+  desiredStateRevision: number | null;
+  desiredStateHash: string | null;
   detailPath: string;
+}
+
+export interface NodeInventorySnapshot {
+  hostPlatform: HostPlatformSnapshot | null;
+  nodes: NodeInventoryRecord[];
+  sessionCount: number;
 }
 
 type NodeKernelPlatformService = Pick<
   typeof kernelPlatformService,
   'getStatus' | 'ensureRunning' | 'restart'
 >;
+type NodeHostPlatformService = Pick<typeof hostPlatformService, 'getStatus' | 'listNodeSessions'>;
 
 interface NodeInventoryServiceDependencies {
   kernelPlatformService: NodeKernelPlatformService;
+  hostPlatformService: NodeHostPlatformService;
   studioApi: {
     getInstances(): Promise<StudioInstanceRecord[]>;
   };
@@ -44,6 +60,7 @@ interface NodeInventoryServiceDependencies {
 
 export interface NodeInventoryServiceOverrides {
   kernelPlatformService?: Partial<NodeKernelPlatformService>;
+  hostPlatformService?: Partial<NodeHostPlatformService>;
   studioApi?: Partial<NodeInventoryServiceDependencies['studioApi']>;
 }
 
@@ -56,6 +73,11 @@ function createDependencies(
       ensureRunning:
         overrides.kernelPlatformService?.ensureRunning ?? kernelPlatformService.ensureRunning,
       restart: overrides.kernelPlatformService?.restart ?? kernelPlatformService.restart,
+    },
+    hostPlatformService: {
+      getStatus: overrides.hostPlatformService?.getStatus ?? hostPlatformService.getStatus,
+      listNodeSessions:
+        overrides.hostPlatformService?.listNodeSessions ?? hostPlatformService.listNodeSessions,
     },
     studioApi: {
       getInstances: overrides.studioApi?.getInstances ?? (() => studio.listInstances()),
@@ -100,9 +122,63 @@ function isBuiltInLocalInstance(instance: StudioInstanceRecord) {
   );
 }
 
-function mapKernelNode(snapshot: KernelPlatformSnapshot): NodeInventoryRecord {
+function resolveSessionHealth(
+  health: NodeInventoryHealth,
+  compatibilityState?: string | null,
+  sessionState?: string | null,
+): NodeInventoryHealth {
+  if (compatibilityState === 'blocked' || sessionState === 'blocked') {
+    return 'quarantined';
+  }
+
+  if (compatibilityState === 'degraded' || sessionState === 'degraded') {
+    return health === 'quarantined' ? health : 'degraded';
+  }
+
+  return health;
+}
+
+function resolveSessionNodeIds(node: Pick<NodeInventoryRecord, 'id' | 'source' | 'instanceId'>) {
+  if (node.source === 'kernel') {
+    return ['local-built-in', node.id];
+  }
+
+  return [node.id, node.instanceId].filter((value): value is string => Boolean(value));
+}
+
+function findNodeSession(
+  node: Pick<NodeInventoryRecord, 'id' | 'source' | 'instanceId'>,
+  sessions: ReturnType<NodeHostPlatformService['listNodeSessions']> extends Promise<infer T> ? T : never,
+) {
+  const candidateNodeIds = new Set(resolveSessionNodeIds(node));
+  return sessions.find((session) => candidateNodeIds.has(session.nodeId)) ?? null;
+}
+
+function applyNodeSession(
+  node: NodeInventoryRecord,
+  session: ReturnType<typeof findNodeSession>,
+): NodeInventoryRecord {
+  if (!session) {
+    return node;
+  }
+
   return {
-    id: 'local-openclaw',
+    ...node,
+    health: resolveSessionHealth(node.health, session.compatibilityState, session.state),
+    sessionId: session.sessionId,
+    sessionState: session.state,
+    compatibilityState: session.compatibilityState,
+    desiredStateRevision: session.desiredStateRevision ?? null,
+    desiredStateHash: session.desiredStateHash ?? null,
+  };
+}
+
+function mapKernelNode(
+  snapshot: KernelPlatformSnapshot,
+  hostStatus: HostPlatformSnapshot | null,
+): NodeInventoryRecord {
+  return {
+    id: 'local-built-in',
     name: 'Local Built-In Kernel',
     kind: 'localPrimary',
     management: snapshot.controlMode === 'attached' ? 'attached' : 'managed',
@@ -113,11 +189,20 @@ function mapKernelNode(snapshot: KernelPlatformSnapshot): NodeInventoryRecord {
     host: snapshot.raw.provenance.platform,
     version: snapshot.openclawVersion ?? null,
     source: 'kernel',
+    hostPlatformMode: hostStatus?.mode ?? null,
+    sessionId: null,
+    sessionState: null,
+    compatibilityState: null,
+    desiredStateRevision: null,
+    desiredStateHash: null,
     detailPath: '/kernel',
   };
 }
 
-function mapInstanceNode(instance: StudioInstanceRecord): NodeInventoryRecord {
+function mapInstanceNode(
+  instance: StudioInstanceRecord,
+  hostStatus: HostPlatformSnapshot | null,
+): NodeInventoryRecord {
   const localHost = isLoopbackHost(instance.host);
   const attachedRemote = instance.deploymentMode === 'remote';
   const managedRemote = !attachedRemote && !localHost && instance.deploymentMode === 'local-managed';
@@ -151,6 +236,12 @@ function mapInstanceNode(instance: StudioInstanceRecord): NodeInventoryRecord {
     version: instance.version || null,
     source: 'instance',
     instanceId: instance.id,
+    hostPlatformMode: hostStatus?.mode ?? null,
+    sessionId: null,
+    sessionState: null,
+    compatibilityState: null,
+    desiredStateRevision: null,
+    desiredStateHash: null,
     detailPath: `/instances/${instance.id}`,
   };
 }
@@ -182,25 +273,38 @@ export function createNodeInventoryService(
   const dependencies = createDependencies(overrides);
 
   return {
-    async listNodes(): Promise<NodeInventoryRecord[]> {
-      const [snapshot, instances] = await Promise.all([
+    async getInventory(): Promise<NodeInventorySnapshot> {
+      const [snapshot, hostStatus, sessions, instances] = await Promise.all([
         dependencies.kernelPlatformService.getStatus(),
+        dependencies.hostPlatformService.getStatus(),
+        dependencies.hostPlatformService.listNodeSessions(),
         dependencies.studioApi.getInstances(),
       ]);
 
       const nodes: NodeInventoryRecord[] = [];
       if (snapshot) {
-        nodes.push(mapKernelNode(snapshot));
+        nodes.push(mapKernelNode(snapshot, hostStatus));
       }
 
       for (const instance of instances) {
         if (snapshot && isBuiltInLocalInstance(instance)) {
           continue;
         }
-        nodes.push(mapInstanceNode(instance));
+        nodes.push(mapInstanceNode(instance, hostStatus));
       }
 
-      return nodes.sort(sortNodes);
+      return {
+        hostPlatform: hostStatus,
+        nodes: nodes
+          .map((node) => applyNodeSession(node, findNodeSession(node, sessions)))
+          .sort(sortNodes),
+        sessionCount: sessions.length,
+      };
+    },
+
+    async listNodes(): Promise<NodeInventoryRecord[]> {
+      const inventory = await this.getInventory();
+      return inventory.nodes;
     },
 
     async ensureLocalNodeRunning() {

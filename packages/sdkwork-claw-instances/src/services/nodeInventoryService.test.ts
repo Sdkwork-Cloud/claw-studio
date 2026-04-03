@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
+import type {
+  HostPlatformStatusRecord,
+  InternalNodeSessionRecord,
+} from '@sdkwork/claw-infrastructure';
 import type { KernelPlatformSnapshot } from '@sdkwork/claw-core';
+import {
+  DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
+  DEFAULT_BUNDLED_OPENCLAW_VERSION,
+} from '../../../sdkwork-claw-types/src/openclawRelease.ts';
 import type { StudioInstanceRecord } from '@sdkwork/claw-types';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -50,15 +58,15 @@ function createKernelSnapshot(
     },
     provenance: {
       runtimeId: 'openclaw',
-      installKey: '2026.3.28-windows-x64',
-      openclawVersion: '2026.3.28',
-      nodeVersion: '22.14.0',
+      installKey: `${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+      openclawVersion: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      nodeVersion: DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
       configPath: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home/.openclaw/openclaw.json',
       runtimeHomeDir: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home',
-      runtimeInstallDir: 'C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/2026.3.28-windows-x64',
+      runtimeInstallDir: `C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
     },
   };
 
@@ -96,7 +104,7 @@ function createInstance(
     isBuiltIn: true,
     isDefault: true,
     iconType: 'server',
-    version: '2026.3.28',
+    version: DEFAULT_BUNDLED_OPENCLAW_VERSION,
     typeLabel: 'OpenClaw Gateway',
     host: '127.0.0.1',
     port: 18845,
@@ -127,12 +135,64 @@ function createInstance(
   };
 }
 
+function createHostPlatformStatus(
+  overrides: Partial<HostPlatformStatusRecord> = {},
+): HostPlatformStatusRecord {
+  return {
+    mode: 'desktopCombined',
+    lifecycle: 'ready',
+    hostId: 'desktop-combined',
+    displayName: 'Desktop Combined Host',
+    version: '0.1.0',
+    desiredStateProjectionVersion: 'phase1',
+    rolloutEngineVersion: 'phase1',
+    manageBasePath: '/claw/manage/v1',
+    internalBasePath: '/claw/internal/v1',
+    capabilityKeys: ['nodeSessions', 'rollouts'],
+    updatedAt: 1_743_100_500_000,
+    ...overrides,
+  };
+}
+
+function createNodeSession(
+  overrides: Partial<InternalNodeSessionRecord> = {},
+): InternalNodeSessionRecord {
+  return {
+    sessionId: 'desktop-combined-local-built-in',
+    nodeId: 'local-built-in',
+    state: 'admitted',
+    compatibilityState: 'compatible',
+    desiredStateRevision: 6,
+    desiredStateHash: 'rev-6',
+    lastSeenAt: 1_743_100_501_000,
+    ...overrides,
+  };
+}
+
 await runTest('nodeInventoryService separates the local managed kernel node from attached remote nodes', async () => {
   const { createNodeInventoryService } = await import('./nodeInventoryService.ts');
 
   const service = createNodeInventoryService({
     kernelPlatformService: {
       getStatus: async () => createKernelSnapshot(),
+    },
+    hostPlatformService: {
+      getStatus: async () => ({
+        ...createHostPlatformStatus(),
+        capabilityCount: 2,
+        isReady: true,
+      }),
+      listNodeSessions: async () => [
+        createNodeSession(),
+        createNodeSession({
+          sessionId: 'remote-attached-session',
+          nodeId: 'remote-attached',
+          state: 'degraded',
+          compatibilityState: 'degraded',
+          desiredStateRevision: 3,
+          desiredStateHash: 'rev-3',
+        }),
+      ],
     },
     studioApi: {
       getInstances: async () => [
@@ -157,15 +217,19 @@ await runTest('nodeInventoryService separates the local managed kernel node from
 
   assert.deepEqual(
     inventory.map((node) => node.id),
-    ['local-openclaw', 'remote-attached'],
+    ['local-built-in', 'remote-attached'],
   );
   assert.equal(inventory[0]?.kind, 'localPrimary');
   assert.equal(inventory[0]?.management, 'managed');
   assert.equal(inventory[0]?.topologyKind, 'localManagedNative');
   assert.equal(inventory[0]?.health, 'ok');
+  assert.equal(inventory[0]?.sessionState, 'admitted');
+  assert.equal(inventory[0]?.compatibilityState, 'compatible');
+  assert.equal(inventory[0]?.desiredStateRevision, 6);
   assert.equal(inventory[1]?.kind, 'attachedRemote');
   assert.equal(inventory[1]?.management, 'attached');
-  assert.equal(inventory[1]?.health, 'ok');
+  assert.equal(inventory[1]?.health, 'degraded');
+  assert.equal(inventory[1]?.sessionState, 'degraded');
 });
 
 await runTest('nodeInventoryService maps degraded kernel health and managed remote nodes without dropping control metadata', async () => {
@@ -179,6 +243,29 @@ await runTest('nodeInventoryService maps degraded kernel health and managed remo
           runtimeState: 'failedSafe',
           controlMode: 'attached',
         }),
+    },
+    hostPlatformService: {
+      getStatus: async () => ({
+        ...createHostPlatformStatus({ lifecycle: 'degraded' }),
+        capabilityCount: 2,
+        isReady: false,
+      }),
+      listNodeSessions: async () => [
+        createNodeSession({
+          state: 'blocked',
+          compatibilityState: 'blocked',
+          desiredStateRevision: null,
+          desiredStateHash: null,
+        }),
+        createNodeSession({
+          sessionId: 'managed-remote-session',
+          nodeId: 'managed-remote',
+          state: 'blocked',
+          compatibilityState: 'blocked',
+          desiredStateRevision: null,
+          desiredStateHash: null,
+        }),
+      ],
     },
     studioApi: {
       getInstances: async () => [
@@ -202,7 +289,9 @@ await runTest('nodeInventoryService maps degraded kernel health and managed remo
 
   assert.equal(inventory[0]?.health, 'quarantined');
   assert.equal(inventory[0]?.management, 'attached');
+  assert.equal(inventory[0]?.compatibilityState, 'blocked');
   assert.equal(inventory[1]?.kind, 'managedRemote');
   assert.equal(inventory[1]?.management, 'managed');
-  assert.equal(inventory[1]?.health, 'degraded');
+  assert.equal(inventory[1]?.health, 'quarantined');
+  assert.equal(inventory[1]?.sessionState, 'blocked');
 });

@@ -3,11 +3,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
-import {
-  buildNonInteractiveInstallEnv,
-  resolveBundledApiRouterCargoTargetDir,
-  withSupportedWindowsCmakeGenerator,
-} from './prepare-sdkwork-api-router-runtime.mjs';
+import { buildNonInteractiveInstallEnv, shouldUseWindowsCommandShell } from './desktop-build-helpers.mjs';
+import { DEFAULT_OPENCLAW_VERSION } from './openclaw-release.mjs';
+import { DEFAULT_RESOURCE_DIR } from './prepare-openclaw-runtime.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,15 +23,6 @@ const generatedRoot = path.join(
 );
 const bundledLinkRoot = path.join(generatedRoot, 'bundled');
 const bundledRoot = resolveBundledBuildRoot(rootDir, process.platform);
-const preparedApiRouterRuntimeDir = path.join(
-  rootDir,
-  'packages',
-  'sdkwork-claw-desktop',
-  'src-tauri',
-  'resources',
-  'sdkwork-api-router-runtime',
-  'runtime',
-);
 const tauriBundleOverlayConfigPath = path.join(
   rootDir,
   'packages',
@@ -44,12 +33,7 @@ const tauriBundleOverlayConfigPath = path.join(
 );
 const openClawRuntimeBundleSourceRoot = resolveBundledResourceMirrorRoot(
   rootDir,
-  'openclaw-runtime',
-  process.platform,
-);
-const apiRouterRuntimeBundleSourceRoot = resolveBundledResourceMirrorRoot(
-  rootDir,
-  'sdkwork-api-router-runtime',
+  'openclaw',
   process.platform,
 );
 const sourceFoundationDir = path.join(
@@ -68,8 +52,7 @@ const releaseMode = args.has('--release');
 const skipOpenClaw = args.has('--skip-openclaw');
 const windowsTauriBundleBridgeRoots = {
   bundled: ['generated', 'br', 'b'],
-  'openclaw-runtime': ['generated', 'br', 'o'],
-  'sdkwork-api-router-runtime': ['generated', 'br', 'a'],
+  openclaw: ['generated', 'br', 'o'],
 };
 
 const gitCmd = process.platform === 'win32' ? 'git.exe' : 'git';
@@ -78,6 +61,243 @@ const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const nodeExecutableName = process.platform === 'win32' ? 'node.exe' : 'node';
 const commandEnv = createCommandEnv();
+const DEFAULT_DIRECTORY_CLEANUP_RETRY_COUNT = 5;
+const DEFAULT_DIRECTORY_CLEANUP_RETRY_DELAY_MS = 500;
+const MAX_LOCK_REUSE_LOG_LINES = 20;
+let lockedBundledFileReuseLogCount = 0;
+
+export function resolvePinnedOpenClawVersion({ env = process.env } = {}) {
+  const configuredVersion = env.OPENCLAW_VERSION;
+  if (typeof configuredVersion === 'string' && configuredVersion.trim().length > 0) {
+    return configuredVersion.trim();
+  }
+
+  return DEFAULT_OPENCLAW_VERSION;
+}
+
+function sleepSync(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return;
+  }
+
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function shouldRetryDirectoryCleanup(error) {
+  const errorCode = typeof error === 'object' && error !== null ? error.code : undefined;
+  return errorCode === 'EPERM' || errorCode === 'EBUSY' || errorCode === 'ENOTEMPTY';
+}
+
+export function removeDirectoryWithRetriesSync(
+  directoryPath,
+  {
+    removeImpl = (targetPath, options) => fs.rmSync(targetPath, options),
+    retryCount = DEFAULT_DIRECTORY_CLEANUP_RETRY_COUNT,
+    retryDelayMs = DEFAULT_DIRECTORY_CLEANUP_RETRY_DELAY_MS,
+    sleepImpl = sleepSync,
+    logger = console.warn,
+  } = {},
+) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= retryCount; attempt += 1) {
+    try {
+      removeImpl(directoryPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      const canRetry = attempt < retryCount && shouldRetryDirectoryCleanup(error);
+      if (!canRetry) {
+        throw error;
+      }
+
+      if (typeof logger === 'function') {
+        logger(
+          `[bundled-components] Retrying cleanup of ${directoryPath} after transient Windows file lock (${attempt}/${retryCount - 1}).`,
+        );
+      }
+      sleepImpl(retryDelayMs * attempt);
+    }
+  }
+
+  throw lastError;
+}
+
+function resolveComponentDesiredVersion(component, { env = process.env } = {}) {
+  if (component?.id === 'openclaw') {
+    return resolvePinnedOpenClawVersion({ env });
+  }
+
+  return null;
+}
+
+function resolveComponentPinnedRef(component, desiredVersion) {
+  if (component?.id === 'openclaw' && desiredVersion) {
+    return `refs/tags/v${desiredVersion}`;
+  }
+
+  return null;
+}
+
+export function shouldRefreshComponentRepository({
+  componentId,
+  noFetch = false,
+  desiredVersion = null,
+  currentVersion = null,
+  currentTags = [],
+} = {}) {
+  if (componentId === 'openclaw' && desiredVersion) {
+    if (currentVersion !== desiredVersion) {
+      return true;
+    }
+
+    if (noFetch) {
+      return false;
+    }
+
+    const normalizedTags = Array.isArray(currentTags)
+      ? currentTags.map((tag) => String(tag).trim()).filter(Boolean)
+      : [];
+    return !normalizedTags.includes(`v${desiredVersion}`) && !normalizedTags.includes(desiredVersion);
+  }
+
+  return !noFetch;
+}
+
+export function prepareBundledOutputRootSync(
+  bundleRoot,
+  {
+    cleanupImpl = removeDirectoryWithRetriesSync,
+    logger = console.warn,
+  } = {},
+) {
+  try {
+    cleanupImpl(bundleRoot, { logger });
+  } catch (error) {
+    if (!shouldRetryDirectoryCleanup(error)) {
+      throw error;
+    }
+
+    if (typeof logger === 'function') {
+      const message = error instanceof Error ? error.message : String(error);
+      logger(
+        `[bundled-components] continuing with in-place bundle sync after cleanup fallback: ${message}`,
+      );
+    }
+  }
+}
+
+function filesHaveEqualContent(sourcePath, targetPath) {
+  try {
+    return fs.readFileSync(sourcePath).equals(fs.readFileSync(targetPath));
+  } catch {
+    return false;
+  }
+}
+
+function jsonFileMatchesValue(filePath, value) {
+  try {
+    return JSON.stringify(readJson(filePath)) === JSON.stringify(value);
+  } catch {
+    return false;
+  }
+}
+
+function logLockedBundleReuse(message, logger = console.warn) {
+  if (typeof logger !== 'function') {
+    return;
+  }
+
+  if (lockedBundledFileReuseLogCount < MAX_LOCK_REUSE_LOG_LINES) {
+    logger(message);
+    lockedBundledFileReuseLogCount += 1;
+
+    if (lockedBundledFileReuseLogCount === MAX_LOCK_REUSE_LOG_LINES) {
+      logger(
+        '[bundled-components] suppressing additional locked bundled file reuse logs after 20 entries',
+      );
+    }
+  }
+}
+
+export function copyBundledFileSync(
+  sourcePath,
+  targetPath,
+  {
+    copyFileImpl = (fromPath, toPath) => fs.copyFileSync(fromPath, toPath),
+    logger = console.warn,
+    allowEquivalentExistingOnLock = true,
+  } = {},
+) {
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(`missing bundled artifact: ${sourcePath}`);
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+  try {
+    copyFileImpl(sourcePath, targetPath);
+    return { reusedLockedTarget: false };
+  } catch (error) {
+    const canReuseLockedTarget =
+      allowEquivalentExistingOnLock
+      && shouldRetryDirectoryCleanup(error)
+      && fs.existsSync(targetPath)
+      && filesHaveEqualContent(sourcePath, targetPath);
+
+    if (!canReuseLockedTarget) {
+      throw error;
+    }
+
+    logLockedBundleReuse(
+      `[bundled-components] reusing existing locked bundled file ${targetPath} because it already matches the staged source`,
+      logger,
+    );
+
+    return { reusedLockedTarget: true };
+  }
+}
+
+export function writeJsonWithWindowsLockFallback(
+  filePath,
+  value,
+  {
+    writeFileImpl = (targetPath, content) => fs.writeFileSync(targetPath, content, 'utf8'),
+    logger = console.warn,
+    allowEquivalentExistingOnLock = false,
+    allowAnyLock = false,
+  } = {},
+) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const content = JSON.stringify(value, null, 2) + '\n';
+
+  try {
+    writeFileImpl(filePath, content);
+    return { reusedLockedTarget: false };
+  } catch (error) {
+    const canReuseLockedTarget =
+      shouldRetryDirectoryCleanup(error)
+      && fs.existsSync(filePath)
+      && (
+        allowAnyLock
+        || (
+          allowEquivalentExistingOnLock
+          && jsonFileMatchesValue(filePath, value)
+        )
+      );
+
+    if (!canReuseLockedTarget) {
+      throw error;
+    }
+
+    logLockedBundleReuse(
+      `[bundled-components] reusing existing locked bundled json ${filePath} because it already satisfies the staged metadata contract`,
+      logger,
+    );
+
+    return { reusedLockedTarget: true };
+  }
+}
 
 const componentSources = [
   {
@@ -99,6 +319,91 @@ const componentSources = [
     stage(repoDir, version) {
       if (skipOpenClaw) {
         return;
+      }
+
+      const expectedVersion = readJson(path.join(repoDir, 'package.json')).version;
+      const expectedCommit = readGitHeadCommit(repoDir);
+      const preparedPackageRoot = path.join(
+        DEFAULT_RESOURCE_DIR,
+        'runtime',
+        'package',
+        'node_modules',
+        'openclaw',
+      );
+      const preparedModulesDir = path.join(
+        DEFAULT_RESOURCE_DIR,
+        'runtime',
+        'package',
+        'node_modules',
+      );
+      const stageVersionDir = path.join(bundledRoot, 'modules', 'openclaw', version);
+      const stageDir = path.join(bundledRoot, 'modules', 'openclaw', version, 'app');
+
+      if (devMode) {
+        const sourceInspection = inspectOpenClawPackageMetadata({
+          packageRoot: repoDir,
+          expectedVersion,
+          expectedCommit,
+        });
+
+        if (!sourceInspection.fresh) {
+          const preparedInspection = inspectOpenClawPackageMetadata({
+            packageRoot: preparedPackageRoot,
+            expectedVersion,
+            expectedCommit,
+          });
+
+        if (preparedInspection.fresh) {
+          console.log(
+            '[bundled-components] using prepared bundled runtime package as the source of truth for openclaw dev staging',
+          );
+            prepareBundledOutputRootSync(stageVersionDir, { logger: console.warn });
+            fs.mkdirSync(stageDir, { recursive: true });
+            copyDirectoryContents(preparedPackageRoot, stageDir, {
+              allowEquivalentExistingOnLock: true,
+              logger: console.warn,
+            });
+            copyDirectoryEntries(
+              preparedModulesDir,
+              path.join(stageDir, 'node_modules'),
+              new Set(['openclaw']),
+              {
+                allowEquivalentExistingOnLock: true,
+                logger: console.warn,
+              },
+            );
+
+            const stagedPreparedInspection = inspectOpenClawPackageMetadata({
+              packageRoot: stageDir,
+              expectedVersion,
+              expectedCommit,
+            });
+
+            if (!stagedPreparedInspection.fresh) {
+              throw new Error(
+                `staged prepared openclaw package drifted from ${expectedVersion}@${expectedCommit.slice(0, 7)}: ${stagedPreparedInspection.issues.join(', ')}`,
+              );
+            }
+            return;
+          }
+
+          console.log(
+            `[bundled-components] refreshing openclaw dist for dev staging (${sourceInspection.issues.join(', ')})`,
+          );
+          buildComponentWithRetry(this, repoDir);
+
+          const refreshedInspection = inspectOpenClawPackageMetadata({
+            packageRoot: repoDir,
+            expectedVersion,
+            expectedCommit,
+          });
+
+          if (!refreshedInspection.fresh) {
+            throw new Error(
+              `openclaw dist metadata remained stale after rebuild: ${refreshedInspection.issues.join(', ')}`,
+            );
+          }
+        }
       }
 
       const packedDir = path.join(buildRoot, 'openclaw', version, 'pack');
@@ -135,100 +440,53 @@ const componentSources = [
       );
 
       const installedModulesDir = resolveGlobalNodeModulesDir(prefixDir);
-      const stageDir = path.join(bundledRoot, 'modules', 'openclaw', version, 'app');
+      if (devMode) {
+        prepareBundledOutputRootSync(stageVersionDir, { logger: console.warn });
+      } else {
+        removeDirectoryWithRetriesSync(stageVersionDir);
+      }
       fs.mkdirSync(stageDir, { recursive: true });
-      copyDirectoryContents(path.join(installedModulesDir, 'openclaw'), stageDir);
+      copyDirectoryContents(path.join(installedModulesDir, 'openclaw'), stageDir, {
+        allowEquivalentExistingOnLock: devMode,
+        logger: console.warn,
+      });
       copyDirectoryEntries(
         installedModulesDir,
         path.join(stageDir, 'node_modules'),
         new Set(['openclaw']),
-      );
-    },
-  },
-  {
-    id: 'sdkwork-api-router',
-    repoUrl: 'https://github.com/Sdkwork-Cloud/sdkwork-api-router.git',
-    checkoutDir: 'sdkwork-api-router',
-    resolveVersion(repoDir, sha) {
-      const baseVersion = readWorkspaceCargoVersion(path.join(repoDir, 'Cargo.toml')) ?? '0.0.0';
-      return `${baseVersion}+${sha}`;
-    },
-    build(repoDir) {
-      const targetDir = resolveBundledApiRouterCargoTargetDir(rootDir, process.platform);
-      runCommand(
-        cargoCmd,
-        [
-          'build',
-          '--manifest-path',
-          'Cargo.toml',
-          '--release',
-          '-p',
-          'gateway-service',
-          '-p',
-          'admin-api-service',
-          '-p',
-          'portal-api-service',
-        ],
         {
-          cwd: repoDir,
-          env: withSupportedWindowsCmakeGenerator({
-            CARGO_TARGET_DIR: targetDir,
-          }),
+          allowEquivalentExistingOnLock: devMode,
+          logger: console.warn,
         },
       );
-      if (hasPreparedApiRouterSiteBundle('admin') && hasPreparedApiRouterSiteBundle('portal')) {
-        return;
-      }
-      for (const appDir of [
-        path.join(repoDir, 'apps', 'sdkwork-router-admin'),
-        path.join(repoDir, 'apps', 'sdkwork-router-portal'),
-      ]) {
-        installPnpmWorkspace(appDir);
-        runCommand(pnpmCmd, ['build'], { cwd: appDir });
-      }
-    },
-    stage(repoDir, version) {
-      const targetDir = resolveBundledApiRouterCargoTargetDir(rootDir, process.platform);
-      const adminWebSourceDir =
-        resolvePreparedApiRouterSiteBundle('admin')
-        ?? path.join(repoDir, 'apps', 'sdkwork-router-admin', 'dist');
-      const portalWebSourceDir =
-        resolvePreparedApiRouterSiteBundle('portal')
-        ?? path.join(repoDir, 'apps', 'sdkwork-router-portal', 'dist');
-      const binDir = path.join(bundledRoot, 'modules', 'sdkwork-api-router', version, 'bin');
-      const webDir = path.join(bundledRoot, 'modules', 'sdkwork-api-router', version, 'web');
-      fs.mkdirSync(binDir, { recursive: true });
-      fs.mkdirSync(webDir, { recursive: true });
 
-      // Claw Studio serves the bundled admin and portal sites through its own
-      // built-in web host, so the upstream router-web-service binary is not
-      // part of the packaged desktop runtime contract.
-      for (const binaryName of [
-        'gateway-service',
-        'admin-api-service',
-        'portal-api-service',
-      ]) {
-        copyFile(
-          path.join(targetDir, 'release', withExe(binaryName)),
-          path.join(binDir, withExe(binaryName)),
+      const stagedInspection = inspectOpenClawPackageMetadata({
+        packageRoot: stageDir,
+        expectedVersion,
+        expectedCommit,
+      });
+
+      if (!stagedInspection.fresh) {
+        throw new Error(
+          `staged openclaw package metadata drifted from ${expectedVersion}@${expectedCommit.slice(0, 7)}: ${stagedInspection.issues.join(', ')}`,
         );
       }
-
-      copyDirectoryContents(
-        adminWebSourceDir,
-        path.join(webDir, 'admin'),
-      );
-      copyDirectoryContents(
-        portalWebSourceDir,
-        path.join(webDir, 'portal'),
-      );
     },
   },
   {
     id: 'hub-installer',
     repoUrl: 'https://github.com/Sdkwork-Cloud/hub-installer.git',
     checkoutDir: 'hub-installer',
-    localWorkspaceDir: path.resolve(rootDir, '..', 'hub-installer'),
+    // Hub Installer is maintained through the vendored desktop submodule so
+    // runtime, release artifacts, and future updates stay pinned to one source.
+    repositoryDir: path.join(
+      rootDir,
+      'packages',
+      'sdkwork-claw-desktop',
+      'src-tauri',
+      'vendor',
+      'hub-installer',
+    ),
     resolveVersion(repoDir, sha) {
       return `${readCargoPackageVersion(path.join(repoDir, 'rust', 'Cargo.toml')) ?? '0.0.0'}+${sha}`;
     },
@@ -248,15 +506,30 @@ const componentSources = [
         'hub-installer',
         'registry',
       );
+      if (devMode) {
+        prepareBundledOutputRootSync(versionDir, { logger: console.warn });
+      } else {
+        removeDirectoryWithRetriesSync(versionDir);
+      }
       fs.mkdirSync(path.join(versionDir, 'bin'), { recursive: true });
       fs.mkdirSync(path.join(versionDir, 'registry'), { recursive: true });
       fs.mkdirSync(foundationRegistryDir, { recursive: true });
       copyFile(
         path.join(targetDir, 'release', withExe('hub-installer-rs')),
         path.join(versionDir, 'bin', withExe('hub-installer-rs')),
+        {
+          allowEquivalentExistingOnLock: devMode,
+          logger: console.warn,
+        },
       );
-      copyDirectoryContents(path.join(repoDir, 'registry'), path.join(versionDir, 'registry'));
-      copyDirectoryContents(path.join(repoDir, 'registry'), foundationRegistryDir);
+      copyDirectoryContents(path.join(repoDir, 'registry'), path.join(versionDir, 'registry'), {
+        allowEquivalentExistingOnLock: devMode,
+        logger: console.warn,
+      });
+      copyDirectoryContents(path.join(repoDir, 'registry'), foundationRegistryDir, {
+        allowEquivalentExistingOnLock: devMode,
+        logger: console.warn,
+      });
     },
   },
 ];
@@ -265,7 +538,7 @@ function main() {
   fs.mkdirSync(upstreamRoot, { recursive: true });
   fs.mkdirSync(buildRoot, { recursive: true });
   fs.mkdirSync(generatedRoot, { recursive: true });
-  fs.rmSync(bundledRoot, { recursive: true, force: true });
+  prepareBundledOutputRootSync(bundledRoot);
   fs.mkdirSync(path.join(bundledRoot, 'foundation', 'components'), { recursive: true });
   fs.mkdirSync(path.join(bundledRoot, 'modules'), { recursive: true });
   fs.mkdirSync(path.join(bundledRoot, 'runtimes'), { recursive: true });
@@ -280,13 +553,16 @@ function main() {
     runtimeVersions: {},
   };
 
-  const staticRegistry = readJson(path.join(sourceFoundationDir, 'component-registry.json'));
+  const staticRegistry = syncSourceFoundationComponentRegistrySync({
+    foundationDir: sourceFoundationDir,
+    bundledOpenClawVersion: resolvePinnedOpenClawVersion(),
+  });
   const serviceDefaults = readJson(path.join(sourceFoundationDir, 'service-defaults.json'));
   const upgradePolicy = readJson(path.join(sourceFoundationDir, 'upgrade-policy.json'));
 
   for (const component of componentSources) {
     const repoDir = ensureRepository(component);
-    const fullSha = gitOutput(repoDir, ['rev-parse', 'HEAD']).trim();
+    const fullSha = readGitHeadCommit(repoDir);
     const shortSha = fullSha.slice(0, 12);
     const version = component.resolveVersion(repoDir, shortSha);
     const executionPlan = createComponentExecutionPlan({
@@ -346,14 +622,38 @@ function main() {
 
   const nodeVersion = process.versions.node;
   const nodeRuntimeDir = path.join(bundledRoot, 'runtimes', 'node', nodeVersion);
+  const bundledNodeBinaryPath = path.join(nodeRuntimeDir, nodeExecutableName);
   fs.mkdirSync(nodeRuntimeDir, { recursive: true });
-  copyFile(process.execPath, path.join(nodeRuntimeDir, nodeExecutableName));
+  try {
+    copyFile(process.execPath, bundledNodeBinaryPath);
+  } catch (error) {
+    if (!(devMode && shouldRetryDirectoryCleanup(error) && fs.existsSync(bundledNodeBinaryPath))) {
+      throw error;
+    }
+
+    console.warn(
+      `[bundled-components] continuing with existing bundled node runtime ${nodeVersion} after copy fallback: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   bundleManifest.runtimeVersions.node = nodeVersion;
 
-  writeJson(path.join(bundledRoot, 'foundation', 'components', 'component-registry.json'), staticRegistry);
-  writeJson(path.join(bundledRoot, 'foundation', 'components', 'service-defaults.json'), serviceDefaults);
-  writeJson(path.join(bundledRoot, 'foundation', 'components', 'upgrade-policy.json'), upgradePolicy);
-  writeJson(path.join(bundledRoot, 'foundation', 'components', 'bundle-manifest.json'), bundleManifest);
+  writeJson(path.join(bundledRoot, 'foundation', 'components', 'component-registry.json'), staticRegistry, {
+    allowEquivalentExistingOnLock: devMode,
+    logger: console.warn,
+  });
+  writeJson(path.join(bundledRoot, 'foundation', 'components', 'service-defaults.json'), serviceDefaults, {
+    allowEquivalentExistingOnLock: devMode,
+    logger: console.warn,
+  });
+  writeJson(path.join(bundledRoot, 'foundation', 'components', 'upgrade-policy.json'), upgradePolicy, {
+    allowEquivalentExistingOnLock: devMode,
+    logger: console.warn,
+  });
+  writeJson(path.join(bundledRoot, 'foundation', 'components', 'bundle-manifest.json'), bundleManifest, {
+    allowEquivalentExistingOnLock: devMode,
+    allowAnyLock: devMode,
+    logger: console.warn,
+  });
 
   console.log('[bundled-components] generated bundled assets at', path.relative(rootDir, bundledLinkRoot));
 }
@@ -372,7 +672,7 @@ export function createComponentExecutionPlan({
 
   if (
     releaseMode
-    && ['openclaw', 'sdkwork-api-router'].includes(String(componentId ?? '').trim())
+    && String(componentId ?? '').trim() === 'openclaw'
   ) {
     return {
       shouldBuild: false,
@@ -397,7 +697,7 @@ function describeComponentExecutionPlan({
 
   if (
     releaseMode
-    && ['openclaw', 'sdkwork-api-router'].includes(String(componentId ?? '').trim())
+    && String(componentId ?? '').trim() === 'openclaw'
   ) {
     return 'deferred-to-dedicated-release-phase';
   }
@@ -427,40 +727,68 @@ function buildComponentWithRetry(component, repoDir) {
 }
 
 function ensureRepository(component) {
-  const repoDir = resolvePreferredComponentRepositoryDir({
+  const repoDir = resolveComponentRepositoryDir({
     component,
     upstreamRootDir: upstreamRoot,
   });
 
   if (repoDir !== path.join(upstreamRoot, component.checkoutDir)) {
+    if (!fs.existsSync(repoDir)) {
+      throw new Error(`missing managed component repository: ${repoDir}`);
+    }
+    if (!fs.existsSync(path.join(repoDir, '.git'))) {
+      throw new Error(`managed component repository is not a git checkout: ${repoDir}`);
+    }
     return repoDir;
   }
+
+  const desiredVersion = resolveComponentDesiredVersion(component);
+  const desiredRef = resolveComponentPinnedRef(component, desiredVersion);
 
   if (!fs.existsSync(repoDir)) {
-    runCommand(gitCmd, ['clone', '--depth', '1', component.repoUrl, repoDir], { cwd: rootDir });
+    const cloneArgs = desiredVersion
+      ? ['clone', '--branch', `v${desiredVersion}`, '--depth', '1', component.repoUrl, repoDir]
+      : ['clone', '--depth', '1', component.repoUrl, repoDir];
+    runCommand(gitCmd, cloneArgs, { cwd: rootDir });
     return repoDir;
   }
 
-  if (!noFetch) {
-    runCommand(gitCmd, ['-C', repoDir, 'fetch', '--depth', '1', 'origin'], { cwd: rootDir });
+  const currentVersion = readJson(path.join(repoDir, 'package.json')).version;
+  const currentTags = desiredVersion && !noFetch
+    ? gitOutput(repoDir, ['tag', '--points-at', 'HEAD'])
+        .split(/\r?\n/)
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+    : [];
+
+  if (
+    shouldRefreshComponentRepository({
+      componentId: component.id,
+      noFetch,
+      desiredVersion,
+      currentVersion,
+      currentTags,
+    })
+  ) {
+    if (desiredRef) {
+      runCommand(gitCmd, ['-C', repoDir, 'fetch', '--depth', '1', 'origin', desiredRef], {
+        cwd: rootDir,
+      });
+    } else {
+      runCommand(gitCmd, ['-C', repoDir, 'fetch', '--depth', '1', 'origin'], { cwd: rootDir });
+    }
     runCommand(gitCmd, ['-C', repoDir, 'reset', '--hard', 'FETCH_HEAD'], { cwd: rootDir });
   }
 
   return repoDir;
 }
 
-export function resolvePreferredComponentRepositoryDir({
+export function resolveComponentRepositoryDir({
   component,
   upstreamRootDir = upstreamRoot,
-  existsSyncImpl = fs.existsSync,
 } = {}) {
-  const localWorkspaceDir = component?.localWorkspaceDir;
-  if (
-    typeof localWorkspaceDir === 'string' &&
-    localWorkspaceDir.trim().length > 0 &&
-    existsSyncImpl(path.join(localWorkspaceDir, '.git'))
-  ) {
-    return localWorkspaceDir;
+  if (typeof component?.repositoryDir === 'string' && component.repositoryDir.trim().length > 0) {
+    return path.resolve(component.repositoryDir);
   }
 
   return path.join(upstreamRootDir, component.checkoutDir);
@@ -481,9 +809,7 @@ function installPnpmWorkspace(cwd) {
 }
 
 function runCommand(command, commandArgs, options = {}) {
-  const useWindowsShell =
-    process.platform === 'win32' &&
-    ['.cmd', '.bat'].includes(path.extname(command).toLowerCase());
+  const useWindowsShell = shouldUseWindowsCommandShell(command, process.platform);
   const result = spawnSync(command, commandArgs, {
     cwd: options.cwd ?? rootDir,
     encoding: 'utf8',
@@ -521,8 +847,207 @@ function gitOutput(cwd, commandArgs) {
   return runCommand(gitCmd, ['-C', cwd, ...commandArgs], { cwd: rootDir, captureStdout: true });
 }
 
+function readGitHeadCommit(repoDir) {
+  const gitDir = resolveGitDir(repoDir);
+  const headPath = path.join(gitDir, 'HEAD');
+  const headContent = fs.readFileSync(headPath, 'utf8').trim();
+  if (!headContent) {
+    throw new Error(`git HEAD is empty in ${repoDir}`);
+  }
+
+  if (!headContent.startsWith('ref:')) {
+    return headContent;
+  }
+
+  const refName = headContent.slice('ref:'.length).trim();
+  const resolvedRef = readGitRef(gitDir, refName);
+  if (!resolvedRef) {
+    throw new Error(`failed to resolve git ref ${refName} in ${repoDir}`);
+  }
+  return resolvedRef;
+}
+
+function resolveGitDir(repoDir) {
+  const dotGitPath = path.join(repoDir, '.git');
+  const stat = fs.statSync(dotGitPath);
+  if (stat.isDirectory()) {
+    return dotGitPath;
+  }
+
+  const pointer = fs.readFileSync(dotGitPath, 'utf8');
+  const match = pointer.match(/^gitdir:\s*(.+)\s*$/im);
+  if (!match) {
+    throw new Error(`unsupported gitdir pointer format in ${dotGitPath}`);
+  }
+
+  return path.resolve(repoDir, match[1].trim());
+}
+
+function readGitRef(gitDir, refName) {
+  const normalizedRef = String(refName ?? '').trim().replaceAll('/', path.sep);
+  if (!normalizedRef) {
+    return null;
+  }
+
+  const looseRefPath = path.join(gitDir, normalizedRef);
+  if (fs.existsSync(looseRefPath)) {
+    const looseValue = fs.readFileSync(looseRefPath, 'utf8').trim();
+    if (looseValue) {
+      return looseValue;
+    }
+  }
+
+  const packedRefsPath = path.join(gitDir, 'packed-refs');
+  if (!fs.existsSync(packedRefsPath)) {
+    return null;
+  }
+
+  const targetRef = refName.replaceAll('\\', '/');
+  for (const line of fs.readFileSync(packedRefsPath, 'utf8').split(/\r?\n/)) {
+    if (!line || line.startsWith('#') || line.startsWith('^')) {
+      continue;
+    }
+
+    const [value, packedRefName] = line.split(' ');
+    if (packedRefName === targetRef && value) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function tryReadJson(filePath) {
+  try {
+    return readJson(filePath);
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeComponentRegistryOpenClawVersion(
+  componentRegistry,
+  { bundledOpenClawVersion = DEFAULT_OPENCLAW_VERSION } = {},
+) {
+  const sourceRegistry =
+    componentRegistry && typeof componentRegistry === 'object' ? componentRegistry : {};
+  const sourceComponents = Array.isArray(sourceRegistry.components)
+    ? sourceRegistry.components
+    : [];
+  let changed = false;
+
+  const registry = {
+    ...sourceRegistry,
+    components: sourceComponents.map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+
+      if (entry.id !== 'openclaw' || entry.bundledVersion === bundledOpenClawVersion) {
+        return entry;
+      }
+
+      changed = true;
+      return {
+        ...entry,
+        bundledVersion: bundledOpenClawVersion,
+      };
+    }),
+  };
+
+  return {
+    registry,
+    changed,
+  };
+}
+
+export function syncSourceFoundationComponentRegistrySync({
+  foundationDir = sourceFoundationDir,
+  bundledOpenClawVersion = DEFAULT_OPENCLAW_VERSION,
+  readJsonImpl = readJson,
+  writeJsonImpl = (filePath, value) =>
+    writeJson(filePath, value, {
+      allowEquivalentExistingOnLock: true,
+      logger: console.warn,
+    }),
+  logger = console.log,
+} = {}) {
+  const componentRegistryPath = path.join(foundationDir, 'component-registry.json');
+  const { registry, changed } = normalizeComponentRegistryOpenClawVersion(
+    readJsonImpl(componentRegistryPath),
+    { bundledOpenClawVersion },
+  );
+
+  if (changed) {
+    writeJsonImpl(componentRegistryPath, registry);
+    if (typeof logger === 'function') {
+      logger(
+        `[bundled-components] normalized source component registry openclaw version to ${bundledOpenClawVersion}`,
+      );
+    }
+  }
+
+  return registry;
+}
+
+export function inspectOpenClawPackageMetadata({
+  packageRoot,
+  expectedVersion = null,
+  expectedCommit = null,
+} = {}) {
+  const packageJson = tryReadJson(path.join(packageRoot, 'package.json'));
+  const buildInfo = tryReadJson(path.join(packageRoot, 'dist', 'build-info.json'));
+  const cliStartupMetadata = tryReadJson(
+    path.join(packageRoot, 'dist', 'cli-startup-metadata.json'),
+  );
+  const rootHelpText =
+    typeof cliStartupMetadata?.rootHelpText === 'string'
+      ? cliStartupMetadata.rootHelpText
+      : '';
+  const rootHelpMatch = rootHelpText.match(
+    /OpenClaw\s+([0-9A-Za-z.+-]+)\s+\(([0-9a-f]{7,40})\)/i,
+  );
+
+  const observed = {
+    packageVersion:
+      typeof packageJson?.version === 'string' ? packageJson.version.trim() : null,
+    buildInfoVersion:
+      typeof buildInfo?.version === 'string' ? buildInfo.version.trim() : null,
+    buildInfoCommit:
+      typeof buildInfo?.commit === 'string' ? buildInfo.commit.trim() : null,
+    rootHelpVersion: rootHelpMatch?.[1] ?? null,
+    rootHelpCommit: rootHelpMatch?.[2] ?? null,
+  };
+
+  const issues = [];
+  if (expectedVersion && observed.packageVersion !== expectedVersion) {
+    issues.push('package-version-mismatch');
+  }
+  if (expectedVersion && observed.buildInfoVersion !== expectedVersion) {
+    issues.push('build-info-version-mismatch');
+  }
+  if (expectedCommit && observed.buildInfoCommit !== expectedCommit) {
+    issues.push('build-info-commit-mismatch');
+  }
+  if (expectedVersion && observed.rootHelpVersion !== expectedVersion) {
+    issues.push('cli-startup-version-mismatch');
+  }
+  if (
+    expectedCommit
+    && observed.rootHelpCommit !== expectedCommit.slice(0, observed.rootHelpCommit?.length ?? 0)
+  ) {
+    issues.push('cli-startup-commit-mismatch');
+  }
+
+  return {
+    fresh: issues.length === 0,
+    issues,
+    observed,
+  };
 }
 
 function readCargoPackageVersion(manifestPath) {
@@ -535,27 +1060,8 @@ function readCargoPackageVersion(manifestPath) {
   return versionMatch?.[1] ?? null;
 }
 
-function readWorkspaceCargoVersion(manifestPath) {
-  const content = fs.readFileSync(manifestPath, 'utf8');
-  const workspaceBlock = content.match(/\[workspace\.package\][\s\S]*?(?=\n\[|$)/);
-  if (!workspaceBlock) {
-    return null;
-  }
-  const versionMatch = workspaceBlock[0].match(/^\s*version\s*=\s*"([^"]+)"/m);
-  return versionMatch?.[1] ?? null;
-}
-
-function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n', 'utf8');
-}
-
-function resolvePreparedApiRouterSiteBundle(siteLabel) {
-  const siteDir = path.join(preparedApiRouterRuntimeDir, 'sites', siteLabel);
-  if (!fs.existsSync(path.join(siteDir, 'index.html'))) {
-    return null;
-  }
-  return siteDir;
+function writeJson(filePath, value, options = {}) {
+  return writeJsonWithWindowsLockFallback(filePath, value, options);
 }
 
 export function resolveGlobalNodeModulesDir(prefixDir, platform = process.platform) {
@@ -564,10 +1070,6 @@ export function resolveGlobalNodeModulesDir(prefixDir, platform = process.platfo
   }
 
   return path.posix.join(prefixDir, 'lib', 'node_modules');
-}
-
-function hasPreparedApiRouterSiteBundle(siteLabel) {
-  return resolvePreparedApiRouterSiteBundle(siteLabel) !== null;
 }
 
 function resolveBundledBuildRoot(workspaceRootDir, platform = process.platform) {
@@ -671,13 +1173,8 @@ function ensureWindowsTauriBundleBridgeRoots() {
     process.platform,
   );
   ensureDirectoryLinkRoot(
-    resolveWindowsTauriBundleBridgeDir(rootDir, 'openclaw-runtime', process.platform),
+    resolveWindowsTauriBundleBridgeDir(rootDir, 'openclaw', process.platform),
     openClawRuntimeBundleSourceRoot,
-    process.platform,
-  );
-  ensureDirectoryLinkRoot(
-    resolveWindowsTauriBundleBridgeDir(rootDir, 'sdkwork-api-router-runtime', process.platform),
-    apiRouterRuntimeBundleSourceRoot,
     process.platform,
   );
 }
@@ -698,10 +1195,7 @@ export function createTauriBundleOverlayConfig({
         // lost drive prefixes and MAX_PATH expansion through repo-relative roots.
         [resolveWindowsTauriBundleBridgeSource('bundled')]: 'generated/bundled/',
         'vendor/hub-installer/registry/': 'vendor/hub-installer/registry/',
-        [resolveWindowsTauriBundleBridgeSource('openclaw-runtime')]:
-          'resources/openclaw-runtime/',
-        [resolveWindowsTauriBundleBridgeSource('sdkwork-api-router-runtime')]:
-          'resources/sdkwork-api-router-runtime/',
+        [resolveWindowsTauriBundleBridgeSource('openclaw')]: 'resources/openclaw/',
       },
     },
   };
@@ -718,7 +1212,7 @@ function ensureDirectoryLinkRoot(linkRoot, targetRoot, platform = process.platfo
   }
 
   fs.mkdirSync(path.dirname(linkRoot), { recursive: true });
-  fs.rmSync(linkRoot, { recursive: true, force: true });
+  removeDirectoryWithRetriesSync(linkRoot);
   fs.symlinkSync(
     targetRoot,
     linkRoot,
@@ -726,15 +1220,11 @@ function ensureDirectoryLinkRoot(linkRoot, targetRoot, platform = process.platfo
   );
 }
 
-function copyFile(sourcePath, targetPath) {
-  if (!fs.existsSync(sourcePath)) {
-    throw new Error(`missing bundled artifact: ${sourcePath}`);
-  }
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.copyFileSync(sourcePath, targetPath);
+function copyFile(sourcePath, targetPath, options = {}) {
+  copyBundledFileSync(sourcePath, targetPath, options);
 }
 
-function copyDirectoryContents(sourceDir, targetDir) {
+function copyDirectoryContents(sourceDir, targetDir, options = {}) {
   if (!fs.existsSync(sourceDir)) {
     throw new Error(`missing bundled directory: ${sourceDir}`);
   }
@@ -743,14 +1233,14 @@ function copyDirectoryContents(sourceDir, targetDir) {
     const sourcePath = path.join(sourceDir, entry.name);
     const targetPath = path.join(targetDir, entry.name);
     if (entry.isDirectory()) {
-      copyDirectoryContents(sourcePath, targetPath);
+      copyDirectoryContents(sourcePath, targetPath, options);
     } else {
-      copyFile(sourcePath, targetPath);
+      copyFile(sourcePath, targetPath, options);
     }
   }
 }
 
-function copyDirectoryEntries(sourceDir, targetDir, excludedNames = new Set()) {
+function copyDirectoryEntries(sourceDir, targetDir, excludedNames = new Set(), options = {}) {
   if (!fs.existsSync(sourceDir)) {
     throw new Error(`missing bundled directory: ${sourceDir}`);
   }
@@ -762,9 +1252,9 @@ function copyDirectoryEntries(sourceDir, targetDir, excludedNames = new Set()) {
     const sourcePath = path.join(sourceDir, entry.name);
     const targetPath = path.join(targetDir, entry.name);
     if (entry.isDirectory()) {
-      copyDirectoryContents(sourcePath, targetPath);
+      copyDirectoryContents(sourcePath, targetPath, options);
     } else {
-      copyFile(sourcePath, targetPath);
+      copyFile(sourcePath, targetPath, options);
     }
   }
 }
@@ -845,5 +1335,10 @@ function rustTargetDir(componentId) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }

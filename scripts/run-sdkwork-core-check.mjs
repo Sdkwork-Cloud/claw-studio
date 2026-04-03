@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 
 const commands = [
   ['node', ['--experimental-strip-types', 'scripts/sdkwork-core-contract.test.ts']],
+  ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/lib/llmService.test.ts']],
   ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/accountService.test.ts']],
   ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/communityService.test.ts']],
   ['node', ['--experimental-strip-types', 'packages/sdkwork-claw-core/src/services/openClawAgentCatalogService.test.ts']],

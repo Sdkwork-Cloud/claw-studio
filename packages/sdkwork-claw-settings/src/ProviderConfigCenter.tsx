@@ -1,5 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Check, Database, PencilLine, Plus, Rocket, Route, Save, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ArrowDownToLine,
+  Check,
+  ChevronDown,
+  Database,
+  LoaderCircle,
+  PencilLine,
+  Plus,
+  Rocket,
+  Route,
+  Trash2,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
@@ -11,137 +22,94 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
   Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
-  Textarea,
 } from '@sdkwork/claw-ui';
 import {
+  createProviderConfigDraftFromForm,
+  createProviderConfigFormState,
+  listProviderConfigKnownProviderOptions,
   providerConfigCenterService,
-  type ProviderConfigDraft,
+  providerConfigImportService,
+  type ProviderConfigImportSource,
   type ProviderConfigRecord,
+  type ProviderConfigFormState,
 } from './services/index.ts';
+import {
+  formatLatestTestPresentation,
+  formatRouteHealthLabel,
+  formatRouteLatency,
+  formatRouteUpdatedAt,
+  formatRouteUsageSummary,
+  resolveProviderRouteHealth,
+  resolveRouteHealthToneClasses,
+  type ProviderConfigCenterPresentationLabels,
+} from './providerConfigCenterPresentation.ts';
+import { listProviderConfigCenterRowActionIds } from './providerConfigCenterActionPolicy.ts';
+import { ProviderConfigEditorSheet } from './ProviderConfigEditorSheet';
+import { ProviderRouteHealthIndicator } from './ProviderRouteHealthIndicator';
+import { ProviderRouteDetailDialog } from './ProviderRouteDetailDialog';
 
-interface ProviderConfigFormState {
-  id?: string;
-  presetId: string;
-  name: string;
-  providerId: string;
-  baseUrl: string;
-  apiKey: string;
-  defaultModelId: string;
-  reasoningModelId: string;
-  embeddingModelId: string;
-  modelsText: string;
-  notes: string;
-  temperature: string;
-  topP: string;
-  maxTokens: string;
-  timeoutMs: string;
-  streaming: boolean;
-}
+const CUSTOM_PROVIDER_OPTION_VALUE = '__custom__';
+type ProviderConfigEditorMode = 'view' | 'edit';
 
-function formatModelsText(models: ProviderConfigDraft['models']) {
-  return models.map((model) => `${model.id}=${model.name}`).join('\n');
-}
+const IMPORT_SOURCE_ORDER: ProviderConfigImportSource[] = [
+  'codex',
+  'claude-code',
+  'opencode',
+];
 
-function parseModelsText(modelsText: string) {
-  return Array.from(
-    new Map(
-      modelsText
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const separatorIndex = line.indexOf('=');
-          if (separatorIndex <= 0) {
-            return { id: line, name: line };
-          }
-          const id = line.slice(0, separatorIndex).trim();
-          const name = line.slice(separatorIndex + 1).trim();
-          return { id, name: name || id };
-        })
-        .filter((model) => model.id)
-        .map((model) => [model.id, model] as const),
-    ).values(),
-  );
-}
-
-function createFormState(
-  input?: Partial<ProviderConfigDraft> & { id?: string; config?: Partial<ProviderConfigRecord['config']> },
-): ProviderConfigFormState {
-  const runtimeConfig = input?.config || {};
-  return {
-    id: input?.id,
-    presetId: input?.presetId || '',
-    name: input?.name || '',
-    providerId: input?.providerId || '',
-    baseUrl: input?.baseUrl || '',
-    apiKey: input?.apiKey || '',
-    defaultModelId: input?.defaultModelId || '',
-    reasoningModelId: input?.reasoningModelId || '',
-    embeddingModelId: input?.embeddingModelId || '',
-    modelsText: formatModelsText(input?.models || []),
-    notes: input?.notes || '',
-    temperature: String(runtimeConfig.temperature ?? 0.2),
-    topP: String(runtimeConfig.topP ?? 1),
-    maxTokens: String(runtimeConfig.maxTokens ?? 8192),
-    timeoutMs: String(runtimeConfig.timeoutMs ?? 60000),
-    streaming: runtimeConfig.streaming ?? true,
-  };
-}
-
-function createDraftFromForm(form: ProviderConfigFormState): ProviderConfigDraft & { id?: string } {
-  return {
-    id: form.id,
-    presetId: form.presetId || undefined,
-    name: form.name,
-    providerId: form.providerId,
-    baseUrl: form.baseUrl,
-    apiKey: form.apiKey,
-    defaultModelId: form.defaultModelId,
-    reasoningModelId: form.reasoningModelId || undefined,
-    embeddingModelId: form.embeddingModelId || undefined,
-    models: parseModelsText(form.modelsText),
-    notes: form.notes || undefined,
-    config: {
-      temperature: Number.parseFloat(form.temperature) || 0.2,
-      topP: Number.parseFloat(form.topP) || 1,
-      maxTokens: Number.parseInt(form.maxTokens, 10) || 8192,
-      timeoutMs: Number.parseInt(form.timeoutMs, 10) || 60000,
-      streaming: form.streaming,
-    },
-  };
-}
-
-function formatUpdatedAt(updatedAt: number) {
-  return Number.isFinite(updatedAt) && updatedAt > 0 ? new Date(updatedAt).toLocaleString() : '--';
-}
-
-function maskApiKey(apiKey: string) {
-  if (!apiKey) {
+function formatCompactNumber(value?: number | null) {
+  if (!Number.isFinite(value ?? NaN)) {
     return '--';
   }
-  if (apiKey.length <= 8) {
-    return `${apiKey.slice(0, 2)}***`;
+
+  const normalized = Number(value);
+  if (normalized >= 1_000_000) {
+    return `${(normalized / 1_000_000).toFixed(1)}M`;
   }
-  return `${apiKey.slice(0, 4)}***${apiKey.slice(-4)}`;
+  if (normalized >= 1_000) {
+    return `${(normalized / 1_000).toFixed(1)}k`;
+  }
+
+  return `${normalized}`;
+}
+
+function buildRouteModelSummary(record: ProviderConfigRecord, t: (key: string) => string) {
+  return [
+    `${record.models.length} ${t('providerCenter.table.models')}`,
+    record.defaultModelId
+      ? `${t('providerCenter.table.llmDefault')}: ${record.defaultModelId}`
+      : null,
+    record.reasoningModelId
+      ? `${t('providerCenter.table.reasoning')}: ${record.reasoningModelId}`
+      : null,
+    record.embeddingModelId
+      ? `${t('providerCenter.table.embedding')}: ${record.embeddingModelId}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
 }
 
 export function ProviderConfigCenter() {
   const { t } = useTranslation();
   const presets = providerConfigCenterService.listPresets();
+  const knownProviderOptions = listProviderConfigKnownProviderOptions(presets);
   const [records, setRecords] = useState<ProviderConfigRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [editorDraft, setEditorDraft] = useState<ProviderConfigFormState>(createFormState(presets[0]?.draft));
+  const [editorMode, setEditorMode] = useState<ProviderConfigEditorMode>('edit');
+  const [editorDraft, setEditorDraft] = useState<ProviderConfigFormState>(
+    createProviderConfigFormState(presets[0]?.draft),
+  );
+  const [providerSearchQuery, setProviderSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProviderConfigRecord | null>(null);
+  const [detailTarget, setDetailTarget] = useState<ProviderConfigRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [applyTarget, setApplyTarget] = useState<ProviderConfigRecord | null>(null);
   const [applyInstances, setApplyInstances] = useState<Awaited<ReturnType<typeof providerConfigCenterService.listApplyInstances>>>([]);
@@ -150,21 +118,91 @@ export function ProviderConfigCenter() {
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [isApplying, setIsApplying] = useState(false);
   const [isLoadingApplyTargets, setIsLoadingApplyTargets] = useState(false);
+  const [testingRouteId, setTestingRouteId] = useState('');
+  const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
+  const [importingSource, setImportingSource] = useState<ProviderConfigImportSource | null>(null);
+  const importMenuRef = useRef<HTMLDivElement | null>(null);
+  const presentationLabels: ProviderConfigCenterPresentationLabels = {
+    health: {
+      healthy: t('providerCenter.health.healthy'),
+      degraded: t('providerCenter.health.degraded'),
+      failed: t('providerCenter.health.failed'),
+      disabled: t('providerCenter.health.disabled'),
+    },
+    states: {
+      notTested: t('providerCenter.states.notTested'),
+    },
+    table: {
+      totalTokensShort: t('providerCenter.table.totalTokensShort'),
+      inputTokensShort: t('providerCenter.table.inputTokensShort'),
+      outputTokensShort: t('providerCenter.table.outputTokensShort'),
+      cacheTokensShort: t('providerCenter.table.cacheTokensShort'),
+    },
+    testStatus: {
+      passed: t('providerCenter.testStatus.passed'),
+      failed: t('providerCenter.testStatus.failed'),
+    },
+  };
+  const importSources = [
+    {
+      id: 'codex' as const,
+      label: t('providerCenter.import.sources.codex.label'),
+      description: t('providerCenter.import.sources.codex.description'),
+    },
+    {
+      id: 'claude-code' as const,
+      label: t('providerCenter.import.sources.claudeCode.label'),
+      description: t('providerCenter.import.sources.claudeCode.description'),
+    },
+    {
+      id: 'opencode' as const,
+      label: t('providerCenter.import.sources.openCode.label'),
+      description: t('providerCenter.import.sources.openCode.description'),
+    },
+  ];
 
-  const loadRecords = async () => {
-    setIsLoading(true);
+  const loadRecords = async (options?: { background?: boolean }) => {
+    if (options?.background) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     try {
       setRecords(await providerConfigCenterService.listProviderConfigs());
     } catch (error: any) {
       toast.error(error?.message || t('providerCenter.toasts.loadFailed'));
     } finally {
-      setIsLoading(false);
+      if (options?.background) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     void loadRecords();
   }, []);
+
+  useEffect(() => {
+    if (!isImportMenuOpen || typeof document === 'undefined') {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+      if (!importMenuRef.current?.contains(event.target)) {
+        setIsImportMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isImportMenuOpen]);
 
   useEffect(() => {
     if (!applyTarget) {
@@ -243,17 +281,30 @@ export function ProviderConfigCenter() {
   }, [applyTarget, selectedInstanceId, t]);
 
   const openCreateDialog = () => {
-    setEditorDraft(createFormState(presets[0]?.draft));
+    setIsImportMenuOpen(false);
+    setProviderSearchQuery('');
+    setEditorMode('edit');
+    setEditorDraft(createProviderConfigFormState(presets[0]?.draft));
+    setIsEditorOpen(true);
+  };
+
+  const openViewDialog = (record: ProviderConfigRecord) => {
+    setProviderSearchQuery('');
+    setEditorMode('view');
+    setEditorDraft(createProviderConfigFormState(record));
     setIsEditorOpen(true);
   };
 
   const openEditDialog = (record: ProviderConfigRecord) => {
-    setEditorDraft(createFormState(record));
+    setDetailTarget(null);
+    setProviderSearchQuery('');
+    setEditorMode('edit');
+    setEditorDraft(createProviderConfigFormState(record));
     setIsEditorOpen(true);
   };
 
   const handleSelectPreset = (presetId: string) => {
-    if (presetId === '__custom__') {
+    if (presetId === CUSTOM_PROVIDER_OPTION_VALUE) {
       setEditorDraft((current) => ({ ...current, presetId: '' }));
       return;
     }
@@ -261,16 +312,32 @@ export function ProviderConfigCenter() {
     if (!preset) {
       return;
     }
-    setEditorDraft((current) => ({
-      ...createFormState({ ...preset.draft, apiKey: current.apiKey }),
-      id: current.id,
-    }));
+    setEditorDraft((current) => {
+      const nextPresetDraft = createProviderConfigFormState({
+        ...preset.draft,
+        apiKey: current.apiKey,
+      });
+
+      return {
+        ...nextPresetDraft,
+        id: current.id,
+        name: current.id ? current.name : nextPresetDraft.name,
+        notes: current.notes,
+        enabled: current.enabled,
+        isDefault: current.isDefault,
+        temperature: current.temperature,
+        topP: current.topP,
+        maxTokens: current.maxTokens,
+        timeoutMs: current.timeoutMs,
+        streaming: current.streaming,
+      };
+    });
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await providerConfigCenterService.saveProviderConfig(createDraftFromForm(editorDraft));
+      await providerConfigCenterService.saveProviderConfig(createProviderConfigDraftFromForm(editorDraft));
       toast.success(t('providerCenter.toasts.saved'));
       setIsEditorOpen(false);
       await loadRecords();
@@ -295,6 +362,114 @@ export function ProviderConfigCenter() {
       toast.error(error?.message || t('providerCenter.toasts.deleteFailed'));
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSaveRouteDetail = async (draft: ReturnType<typeof createProviderConfigDraftFromForm>) => {
+    const savedRecord = await providerConfigCenterService.saveProviderConfig(draft);
+
+    setRecords((current) =>
+      current.map((record) =>
+        record.id === savedRecord.id
+          ? {
+              ...record,
+              ...savedRecord,
+            }
+          : record,
+      ),
+    );
+    setDetailTarget((current) =>
+      current?.id === savedRecord.id
+        ? {
+            ...current,
+            ...savedRecord,
+          }
+        : current,
+    );
+
+    void loadRecords({ background: true });
+    return savedRecord;
+  };
+
+  const handleImportSource = async (source: ProviderConfigImportSource) => {
+    setIsImportMenuOpen(false);
+    setImportingSource(source);
+    try {
+      const result = await providerConfigImportService.importProviderConfigs(source);
+      if (result.drafts.length === 0) {
+        toast.error(
+          result.warnings[0] ||
+            t('providerCenter.toasts.importEmpty', {
+              source: result.sourceLabel,
+            }),
+        );
+        return;
+      }
+
+      for (const imported of result.drafts) {
+        const existingRecord = records.find(
+          (record) =>
+            record.managedBy === 'user' &&
+            record.name === imported.draft.name,
+        );
+
+        await providerConfigCenterService.saveProviderConfig({
+          ...imported.draft,
+          id: existingRecord?.id,
+        });
+      }
+
+      const description = result.warnings.length > 0
+        ? result.warnings.join(' ')
+        : result.drafts.map((entry) => entry.draft.name).join(' · ');
+
+      toast.success(
+        result.drafts.length === 1
+          ? t('providerCenter.toasts.importedSingle', {
+              source: result.sourceLabel,
+              name: result.drafts[0]?.draft.name,
+            })
+          : t('providerCenter.toasts.importedMultiple', {
+              source: result.sourceLabel,
+              count: result.drafts.length,
+            }),
+        description
+          ? {
+              description,
+            }
+          : undefined,
+      );
+
+      await loadRecords({ background: true });
+    } catch (error: any) {
+      toast.error(
+        error?.message ||
+          t('providerCenter.toasts.importFailed', {
+            source:
+              importSources.find((item) => item.id === source)?.label || source,
+          }),
+      );
+    } finally {
+      setImportingSource(null);
+    }
+  };
+
+  const handleTestRoute = async (routeId: string) => {
+    setTestingRouteId(routeId);
+    try {
+      const result = await providerConfigCenterService.testProviderConfigRoute(routeId);
+      if (!result) {
+        toast.error(t('providerCenter.toasts.testFailed'));
+      } else if (result.status === 'passed') {
+        toast.success(t('providerCenter.toasts.testPassed'));
+      } else {
+        toast.error(result.error || t('providerCenter.toasts.testFailed'));
+      }
+      await loadRecords({ background: true });
+    } catch (error: any) {
+      toast.error(error?.message || t('providerCenter.toasts.testFailed'));
+    } finally {
+      setTestingRouteId('');
     }
   };
 
@@ -325,61 +500,141 @@ export function ProviderConfigCenter() {
   };
 
   return (
-    <div className="h-full overflow-auto bg-zinc-50 dark:bg-zinc-950" data-slot="provider-center-page">
-      <div className="mx-auto flex max-w-[1500px] flex-col gap-6 p-4 md:p-6">
-        <section className="rounded-[28px] border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex flex-col gap-4 border-b border-zinc-200 p-6 dark:border-zinc-800 md:flex-row md:items-start md:justify-between">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
-                <Route className="h-3.5 w-3.5" />
-                {t('providerCenter.page.eyebrow')}
+    <div className="h-full w-full overflow-auto" data-slot="provider-center-page">
+      <div className="flex w-full flex-col gap-6">
+        <section className="rounded-[32px] border border-zinc-200/80 bg-white/95 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.35)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
+          <div
+            data-slot="provider-center-summary"
+            className="grid gap-4 border-b border-zinc-200/80 p-6 dark:border-zinc-800 md:p-7 xl:p-8"
+          >
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
+                  <Route className="h-3.5 w-3.5" />
+                  {t('providerCenter.page.eyebrow')}
+                </div>
+                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50 md:text-[2rem]">
+                  {t('providerCenter.page.title')}
+                </h1>
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                {t('providerCenter.page.title')}
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                {t('providerCenter.page.description')}
-              </p>
-              <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                {t('providerCenter.page.storageHint')}
-              </p>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                {records.length} {t('providerCenter.summary.routeConfigs')}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button variant="outline" onClick={() => void loadRecords()} disabled={isLoading}>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/80">
+                <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                  {t('providerCenter.summary.routeConfigs')}
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                  {records.length}
+                </div>
+              </div>
+              <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/80">
+                <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                  {t('providerCenter.summary.llmReady')}
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                  {records.filter((record) => record.enabled).length}
+                </div>
+              </div>
+              <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-5 dark:border-zinc-800 dark:bg-zinc-950/80">
+                <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                  {t('providerCenter.summary.embeddingReady')}
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+                  {records.filter((record) => record.isDefault).length}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            data-slot="provider-center-table-toolbar"
+            className="flex flex-col gap-4 border-b border-zinc-200/80 px-6 py-5 dark:border-zinc-800 md:px-7 xl:flex-row xl:items-center xl:justify-between xl:px-8"
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                {t('providerCenter.summary.routeConfigs')}
+              </div>
+              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {records.length} {t('providerCenter.summary.routeConfigs')}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-3 xl:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => void loadRecords({ background: true })}
+                disabled={isLoading || isRefreshing}
+              >
                 <Database className="h-4 w-4" />
                 {t('providerCenter.actions.refresh')}
               </Button>
+              <div
+                ref={importMenuRef}
+                className="relative"
+                data-slot="provider-center-import-menu"
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setIsImportMenuOpen((current) => !current)}
+                  disabled={isLoading || isRefreshing || Boolean(importingSource)}
+                >
+                  <ArrowDownToLine className="h-4 w-4" />
+                  {importingSource
+                    ? t('providerCenter.actions.importing')
+                    : t('providerCenter.actions.import')}
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+                {isImportMenuOpen ? (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-[320px] overflow-hidden rounded-[24px] border border-zinc-200 bg-white/98 p-2 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.45)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/98">
+                    <div className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      {t('providerCenter.actions.import')}
+                    </div>
+                    <div className="grid gap-1">
+                      {IMPORT_SOURCE_ORDER.map((sourceId) => {
+                        const source = importSources.find((entry) => entry.id === sourceId);
+                        if (!source) {
+                          return null;
+                        }
+
+                        const isImportingCurrent = importingSource === source.id;
+
+                        return (
+                          <button
+                            key={source.id}
+                            type="button"
+                            className="flex w-full items-start gap-3 rounded-[18px] px-3 py-3 text-left transition-colors hover:bg-zinc-100/80 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-900/80"
+                            onClick={() => void handleImportSource(source.id)}
+                            disabled={Boolean(importingSource)}
+                          >
+                            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                              {isImportingCurrent ? (
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ArrowDownToLine className="h-4 w-4" />
+                              )}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                                {source.label}
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                                {source.description}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <Button onClick={openCreateDialog}>
                 <Plus className="h-4 w-4" />
                 {t('providerCenter.actions.addRouteConfig')}
               </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-3 border-b border-zinc-200 p-6 md:grid-cols-3 dark:border-zinc-800">
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {t('providerCenter.summary.routeConfigs')}
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-                {records.length}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {t('providerCenter.summary.llmReady')}
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-                {records.filter((record) => record.defaultModelId).length}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                {t('providerCenter.summary.embeddingReady')}
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-                {records.filter((record) => record.embeddingModelId).length}
-              </div>
             </div>
           </div>
 
@@ -399,300 +654,260 @@ export function ProviderConfigCenter() {
                     {t('providerCenter.states.emptyDescription')}
                   </p>
                 </div>
-                <Button onClick={openCreateDialog}>
-                  <Plus className="h-4 w-4" />
-                  {t('providerCenter.actions.addRouteConfig')}
-                </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-zinc-50 text-left text-xs uppercase tracking-[0.18em] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">
+              <div>
+                <table className="w-full min-w-[1400px] text-sm">
+                  <thead className="sticky top-0 z-10 bg-zinc-50/95 text-left text-xs uppercase tracking-[0.18em] text-zinc-500 backdrop-blur dark:bg-zinc-950/95 dark:text-zinc-400">
                     <tr>
                       <th className="px-5 py-4">{t('providerCenter.table.name')}</th>
-                      <th className="px-5 py-4">{t('providerCenter.table.provider')}</th>
-                      <th className="px-5 py-4">{t('providerCenter.table.endpoint')}</th>
-                      <th className="px-5 py-4">{t('providerCenter.table.selection')}</th>
-                      <th className="px-5 py-4">{t('providerCenter.table.apiKey')}</th>
+                      <th className="w-[460px] px-5 py-4">{t('providerCenter.table.provider')}</th>
+                      <th className="w-[180px] min-w-[180px] px-5 py-4">{t('providerCenter.table.health')}</th>
+                      <th className="w-[280px] px-5 py-4">{t('providerCenter.table.usage')}</th>
+                      <th className="px-5 py-4">{t('providerCenter.table.avgLatency')}</th>
+                      <th className="px-5 py-4">{t('providerCenter.table.rpm')}</th>
+                      <th className="px-5 py-4">{t('providerCenter.table.status')}</th>
                       <th className="px-5 py-4">{t('providerCenter.table.updatedAt')}</th>
                       <th className="px-5 py-4">{t('providerCenter.table.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                    {records.map((record) => (
-                      <tr key={record.id} className="align-top hover:bg-zinc-50/80 dark:hover:bg-zinc-950/40">
+                    {records.map((record) => {
+                      const resolvedHealth = resolveProviderRouteHealth(record);
+                      const latestTest = formatLatestTestPresentation(record, presentationLabels);
+                      const usageSummary = formatRouteUsageSummary(record, presentationLabels);
+                      const routeModelSummary = buildRouteModelSummary(record, t);
+                      const isTestingRoute = testingRouteId === record.id;
+                      const healthTone = resolveRouteHealthToneClasses(resolvedHealth);
+                      const routeBaseUrl = record.baseUrl || t('providerCenter.states.notSet');
+                      const latestTestDetail = latestTest.detail || t('providerCenter.states.notTested');
+                      const lastErrorMessage = record.runtimeMetrics?.lastError || t('providerCenter.states.noIncidents');
+                      const averageLatencyLabel = formatRouteLatency(record.runtimeMetrics?.averageLatencyMs);
+                      const rpmLabel = record.runtimeMetrics
+                        ? `${formatCompactNumber(record.runtimeMetrics.rpm)} /m`
+                        : '--';
+                      const updatedAtLabel = formatRouteUpdatedAt(record.updatedAt);
+
+                      return (
+                        <tr
+                          key={record.id}
+                          onDoubleClick={() => openViewDialog(record)}
+                          className="cursor-pointer align-top transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-950/40"
+                        >
                         <td className="px-5 py-4">
                           <div className="font-semibold text-zinc-950 dark:text-zinc-50">
                             {record.name}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {record.isDefault ? (
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                                {t('providerCenter.table.defaultRoute')}
+                              </span>
+                            ) : null}
+                            {record.managedBy === 'system-default' ? (
+                              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
+                                {t('providerCenter.table.systemDefault')}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             {record.notes || t('providerCenter.states.noNotes')}
                           </div>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                            {record.providerId}
-                          </div>
-                          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            {record.models.length} {t('providerCenter.table.models')}
+                          <div
+                            className="max-w-[460px] rounded-[22px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/80"
+                            data-slot="provider-center-route-summary-cell"
+                            onDoubleClick={(event) => event.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="w-full text-left transition-colors hover:text-zinc-950 dark:hover:text-zinc-50"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDetailTarget(record);
+                              }}
+                              onDoubleClick={(event) => event.stopPropagation()}
+                            >
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                                {t('providerCenter.table.endpoint')}
+                              </div>
+                              <div
+                                className="mt-2 break-all font-mono text-xs text-zinc-700 dark:text-zinc-200"
+                                title={routeBaseUrl}
+                              >
+                                {routeBaseUrl}
+                              </div>
+                              <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                                {t('providerCenter.dialogs.editor.models')}
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                {routeModelSummary.map((entry) => (
+                                  <span
+                                    key={`${record.id}-${entry}`}
+                                    className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+                                  >
+                                    {entry}
+                                  </span>
+                                ))}
+                              </div>
+                            </button>
+
+                            <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-zinc-200/80 pt-3 dark:border-zinc-800/80">
+                              <div className="min-w-0">
+                                <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                                  {record.providerId}
+                                </div>
+                                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                  {record.clientProtocol}
+                                  {' -> '}
+                                  {record.upstreamProtocol}
+                                </div>
+                              </div>
+                              {record.managedBy === 'user' ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openEditDialog(record);
+                                  }}
+                                  onDoubleClick={(event) => event.stopPropagation()}
+                                >
+                                  {t('providerCenter.actions.edit')}
+                                </Button>
+                              ) : null}
+                            </div>
                           </div>
                         </td>
-                        <td className="max-w-[260px] break-all px-5 py-4 text-zinc-700 dark:text-zinc-300">
-                          {record.baseUrl || t('providerCenter.states.notSet')}
+                        <td className="w-[180px] min-w-[180px] px-5 py-4">
+                          <ProviderRouteHealthIndicator
+                            health={resolvedHealth}
+                            toneClassName={healthTone}
+                            healthLabel={formatRouteHealthLabel(resolvedHealth, presentationLabels.health)}
+                            lastErrorMessage={lastErrorMessage}
+                            averageLatencyLabel={averageLatencyLabel}
+                            rpmLabel={rpmLabel}
+                            latestTestDetail={latestTestDetail}
+                            updatedAtLabel={updatedAtLabel}
+                          />
                         </td>
+                        <td className="w-[280px] px-5 py-4 text-xs text-zinc-600 dark:text-zinc-300">
+                          <div className="grid min-w-[240px] gap-1.5">
+                            {usageSummary.map((entry) => (
+                              <div key={`${record.id}-${entry}`}>{entry}</div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-zinc-600 dark:text-zinc-300">
+                          {formatRouteLatency(record.runtimeMetrics?.averageLatencyMs)}
+                        </td>
+                        <td className="px-5 py-4 text-zinc-600 dark:text-zinc-300">{rpmLabel}</td>
                         <td className="px-5 py-4 text-xs text-zinc-600 dark:text-zinc-300">
                           <div>
-                            <span className="font-semibold">{t('providerCenter.table.llmDefault')}</span>{' '}
-                            {record.defaultModelId}
+                            <span className="font-semibold">{t('providerCenter.table.enabled')}</span>{' '}
+                            {record.enabled ? t('providerCenter.states.enabled') : t('providerCenter.states.disabled')}
                           </div>
                           <div className="mt-1">
-                            <span className="font-semibold">{t('providerCenter.table.reasoning')}</span>{' '}
-                            {record.reasoningModelId || t('providerCenter.states.notSet')}
-                          </div>
-                          <div className="mt-1">
-                            <span className="font-semibold">{t('providerCenter.table.embedding')}</span>{' '}
-                            {record.embeddingModelId || t('providerCenter.states.notSet')}
+                            <span className="font-semibold">{t('providerCenter.table.exposeTo')}</span>{' '}
+                            {record.exposeTo.join(', ') || t('providerCenter.states.notSet')}
                           </div>
                         </td>
-                        <td className="px-5 py-4 text-zinc-600 dark:text-zinc-300">
-                          {maskApiKey(record.apiKey)}
-                        </td>
-                        <td className="px-5 py-4 text-zinc-600 dark:text-zinc-300">
-                          {formatUpdatedAt(record.updatedAt)}
-                        </td>
+                        <td className="px-5 py-4 text-zinc-600 dark:text-zinc-300">{updatedAtLabel}</td>
                         <td className="px-5 py-4">
-                          <div className="flex min-w-[220px] flex-wrap gap-2">
-                            <Button size="sm" variant="outline" onClick={() => setApplyTarget(record)}>
-                              <Rocket className="h-4 w-4" />
-                              {t('providerCenter.actions.quickApply')}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => openEditDialog(record)}>
-                              <PencilLine className="h-4 w-4" />
-                              {t('providerCenter.actions.edit')}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(record)}>
-                              <Trash2 className="h-4 w-4" />
-                              {t('providerCenter.actions.delete')}
-                            </Button>
+                          <div className="flex min-w-[300px] flex-wrap gap-2">
+                            {listProviderConfigCenterRowActionIds(record).map((actionId) => {
+                              switch (actionId) {
+                                case 'quickApply':
+                                  return (
+                                    <Button
+                                      key={`${record.id}-quick-apply`}
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setApplyTarget(record)}
+                                    >
+                                      <Rocket className="h-4 w-4" />
+                                      {t('providerCenter.actions.quickApply')}
+                                    </Button>
+                                  );
+                                case 'edit':
+                                  return (
+                                    <Button
+                                      key={`${record.id}-edit`}
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => openEditDialog(record)}
+                                    >
+                                      <PencilLine className="h-4 w-4" />
+                                      {t('providerCenter.actions.edit')}
+                                    </Button>
+                                  );
+                                case 'delete':
+                                  return (
+                                    <Button
+                                      key={`${record.id}-delete`}
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setDeleteTarget(record)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      {t('providerCenter.actions.delete')}
+                                    </Button>
+                                  );
+                                case 'test':
+                                  return (
+                                    <Button
+                                      key={`${record.id}-test`}
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => void handleTestRoute(record.id)}
+                                      disabled={Boolean(testingRouteId)}
+                                    >
+                                      <Check className="h-4 w-4" />
+                                      {isTestingRoute
+                                        ? t('providerCenter.actions.testing')
+                                        : t('providerCenter.actions.test')}
+                                    </Button>
+                                  );
+                                default:
+                                  return null;
+                              }
+                            })}
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
         </section>
-
-        <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editorDraft.id
-                  ? t('providerCenter.dialogs.editor.editTitle')
-                  : t('providerCenter.dialogs.editor.createTitle')}
-              </DialogTitle>
-              <DialogDescription>{t('providerCenter.dialogs.editor.description')}</DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.preset')}</Label>
-                    <Select value={editorDraft.presetId || '__custom__'} onValueChange={handleSelectPreset}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('providerCenter.dialogs.editor.presetPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {presets.map((preset) => (
-                          <SelectItem key={preset.id} value={preset.id}>
-                            {preset.label}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="__custom__">
-                          {t('providerCenter.dialogs.editor.customPreset')}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.name')}</Label>
-                    <Input
-                      value={editorDraft.name}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, name: event.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.providerId')}</Label>
-                    <Input
-                      value={editorDraft.providerId}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, providerId: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.baseUrl')}</Label>
-                    <Input
-                      value={editorDraft.baseUrl}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, baseUrl: event.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{t('providerCenter.dialogs.editor.apiKey')}</Label>
-                  <Input
-                    type="password"
-                    value={editorDraft.apiKey}
-                    onChange={(event) =>
-                      setEditorDraft((current) => ({ ...current, apiKey: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.defaultModel')}</Label>
-                    <Input
-                      value={editorDraft.defaultModelId}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, defaultModelId: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.reasoningModel')}</Label>
-                    <Input
-                      value={editorDraft.reasoningModelId}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, reasoningModelId: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.embeddingModel')}</Label>
-                    <Input
-                      value={editorDraft.embeddingModelId}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, embeddingModelId: event.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{t('providerCenter.dialogs.editor.models')}</Label>
-                  <Textarea
-                    rows={8}
-                    value={editorDraft.modelsText}
-                    onChange={(event) =>
-                      setEditorDraft((current) => ({ ...current, modelsText: event.target.value }))
-                    }
-                  />
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {t('providerCenter.dialogs.editor.modelsHint')}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{t('providerCenter.dialogs.editor.notes')}</Label>
-                  <Textarea
-                    rows={3}
-                    value={editorDraft.notes}
-                    onChange={(event) =>
-                      setEditorDraft((current) => ({ ...current, notes: event.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
-                <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                  {t('providerCenter.dialogs.editor.runtimeTitle')}
-                </h3>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.temperature')}</Label>
-                    <Input
-                      value={editorDraft.temperature}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, temperature: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.topP')}</Label>
-                    <Input
-                      value={editorDraft.topP}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, topP: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.maxTokens')}</Label>
-                    <Input
-                      value={editorDraft.maxTokens}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, maxTokens: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('providerCenter.dialogs.editor.timeoutMs')}</Label>
-                    <Input
-                      value={editorDraft.timeoutMs}
-                      onChange={(event) =>
-                        setEditorDraft((current) => ({ ...current, timeoutMs: event.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div>
-                    <div className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
-                      {t('providerCenter.dialogs.editor.streaming')}
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                      {t('providerCenter.dialogs.editor.streamingHint')}
-                    </div>
-                  </div>
-                  <Switch
-                    checked={editorDraft.streaming}
-                    onCheckedChange={(checked) =>
-                      setEditorDraft((current) => ({ ...current, streaming: checked === true }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsEditorOpen(false)} disabled={isSaving}>
-                {t('providerCenter.actions.cancel')}
-              </Button>
-              <Button onClick={() => void handleSave()} disabled={isSaving}>
-                <Save className="h-4 w-4" />
-                {editorDraft.id
-                  ? t('providerCenter.actions.saveChanges')
-                  : t('providerCenter.actions.createConfig')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ProviderConfigEditorSheet
+          open={isEditorOpen}
+          mode={editorMode}
+          draft={editorDraft}
+          presets={presets}
+          knownProviderOptions={knownProviderOptions}
+          providerSearchQuery={providerSearchQuery}
+          isSaving={isSaving}
+          onOpenChange={setIsEditorOpen}
+          onEditRequest={() => setEditorMode('edit')}
+          onProviderSearchQueryChange={setProviderSearchQuery}
+          onDraftChange={setEditorDraft}
+          onSelectPreset={handleSelectPreset}
+          onSave={() => void handleSave()}
+        />
+        <ProviderRouteDetailDialog
+          open={Boolean(detailTarget)}
+          record={detailTarget}
+          onOpenChange={(open) => !open && setDetailTarget(null)}
+          onEditRequest={(record) => openEditDialog(record)}
+          onSaveRequest={handleSaveRouteDetail}
+        />
 
         <Dialog open={Boolean(applyTarget)} onOpenChange={(open) => !open && setApplyTarget(null)}>
-          <DialogContent className="max-w-5xl">
+          <DialogContent className="max-h-[85vh] max-w-6xl overflow-y-auto xl:max-w-7xl">
             <DialogHeader>
               <DialogTitle>{t('providerCenter.dialogs.apply.title')}</DialogTitle>
               <DialogDescription>{t('providerCenter.dialogs.apply.description')}</DialogDescription>
@@ -873,3 +1088,4 @@ export function ProviderConfigCenter() {
     </div>
   );
 }
+

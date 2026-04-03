@@ -49,6 +49,7 @@ export interface TaskExecutionConfig {
   model?: string;
   thinking?: TaskThinkingLevel;
   lightContext?: boolean;
+  toolAllowlist?: string[];
   deliveryMode: TaskDeliveryMode;
   deliveryBestEffort?: boolean;
   deliveryChannel?: string;
@@ -79,6 +80,7 @@ export interface TaskFormValues {
   model: string;
   thinking: TaskThinkingLevel | '';
   lightContext: boolean;
+  toolAllowlist: string;
   deliveryMode: TaskDeliveryMode;
   deliveryBestEffort: boolean;
   deliveryChannel: string;
@@ -132,11 +134,51 @@ export function createDefaultTaskFormValues(): TaskFormValues {
     model: '',
     thinking: '',
     lightContext: false,
+    toolAllowlist: '',
     deliveryMode: 'publishSummary',
     deliveryBestEffort: false,
     deliveryChannel: '',
     recipient: '',
   };
+}
+
+function normalizeTaskToolAllowlistEntries(entries: string[]) {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const entry of entries) {
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized;
+}
+
+export function normalizeTaskToolAllowlist(raw: string) {
+  return normalizeTaskToolAllowlistEntries(raw.split(/\r?\n/g));
+}
+
+export function formatTaskToolAllowlist(entries?: readonly string[] | null) {
+  if (!entries?.length) {
+    return '';
+  }
+
+  return normalizeTaskToolAllowlistEntries([...entries]).join('\n');
+}
+
+export function supportsTaskToolAllowlistConfig(
+  sessionMode: TaskSessionMode,
+  executionContent: TaskExecutionContent,
+) {
+  return (
+    executionContent === 'runAssistantTask' &&
+    (sessionMode === 'isolated' || sessionMode === 'custom')
+  );
 }
 
 function parsePositiveInteger(raw: string) {
@@ -335,6 +377,12 @@ export function buildCreateTaskInput(values: TaskFormValues): TaskCreateInput {
   const timeoutSeconds = values.timeoutSeconds.trim()
     ? parsePositiveInteger(values.timeoutSeconds) ?? undefined
     : undefined;
+  const toolAllowlist = supportsTaskToolAllowlistConfig(
+    values.sessionMode,
+    values.executionContent,
+  )
+    ? normalizeTaskToolAllowlist(values.toolAllowlist)
+    : undefined;
 
   return {
     name: values.name.trim(),
@@ -352,6 +400,7 @@ export function buildCreateTaskInput(values: TaskFormValues): TaskCreateInput {
     model: model || undefined,
     thinking: values.thinking || undefined,
     lightContext: values.lightContext,
+    toolAllowlist,
     deliveryMode: values.deliveryMode,
     deliveryBestEffort: values.deliveryBestEffort,
     deliveryChannel: values.deliveryChannel || undefined,

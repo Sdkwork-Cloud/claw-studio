@@ -41,20 +41,24 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-channels/);
 
-  assert.match(serviceSource, /import\s+\{[\s\S]*studio,[\s\S]*studioMockService[\s\S]*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
+  assert.match(serviceSource, /import\s+\{\s*getPlatformBridge\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
   assert.match(serviceSource, /openClawConfigService/);
+  assert.match(serviceSource, /StudioInstanceDetailRecord/);
   assert.match(serviceSource, /resolveInstanceConfigPath/);
+  assert.match(serviceSource, /return getPlatformBridge\(\)\.studio/);
+  assert.match(serviceSource, /getInstanceDetail\(instanceId: string\)/);
   assert.match(serviceSource, /getChannels\(instanceId: string\): Promise<Channel\[]>/);
-  assert.match(serviceSource, /studioMockService\.listChannels\(instanceId\)/);
-  assert.match(serviceSource, /studio\.getInstanceDetail\(instanceId\)/);
+  assert.match(serviceSource, /detail\?\.workbench/);
+  assert.match(serviceSource, /mapWorkbenchChannels\(detail\)/);
   assert.match(serviceSource, /updateChannelStatus\(instanceId: string, channelId: string, enabled: boolean\)/);
-  assert.match(serviceSource, /studioMockService\.updateChannelStatus\(channelId, enabled\)/);
+  assert.match(serviceSource, /setInstanceChannelEnabled/);
   assert.match(serviceSource, /openClawConfigService\.setChannelEnabled/);
   assert.match(serviceSource, /saveChannelConfig\(instanceId: string, channelId: string, configData: Record<string, string>\)/);
-  assert.match(serviceSource, /studioMockService\.saveChannelConfig\(channelId, configData\)/);
+  assert.match(serviceSource, /saveInstanceChannelConfig/);
   assert.match(serviceSource, /openClawConfigService\.saveChannelConfiguration/);
   assert.match(serviceSource, /deleteChannelConfig\(instanceId: string, channelId: string\)/);
-  assert.match(serviceSource, /studioMockService\.deleteChannelConfig\(channelId\)/);
+  assert.match(serviceSource, /deleteInstanceChannelConfig/);
+  assert.doesNotMatch(serviceSource, /studioMockService/);
   assert.doesNotMatch(serviceSource, /fetch\('/);
 
   assert.match(pageSource, /useInstanceStore/);

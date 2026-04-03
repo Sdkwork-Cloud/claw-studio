@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRightLeft,
   Cloud,
@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import {
   fileDialogService,
-  getRuntimePlatform,
   platform,
+  runtime,
   type HubInstallCatalogQuery,
   type HubInstallRequest,
   type HubUninstallRequest,
@@ -60,6 +60,11 @@ import {
   type ProductId,
   type Status,
 } from './installPageModel';
+import {
+  createInitialInstallAssessmentState,
+  hydrateInstallAssessmentBatches,
+  selectInstallAssessmentPriorityIds,
+} from './installAssessmentHydration';
 
 type ActionState =
   | {
@@ -85,6 +90,31 @@ interface InstallSurfaceChoice {
   supportedHosts: HostOs[];
   softwareName: string;
   runtimePlatform: 'host' | 'wsl';
+}
+
+function createIdleInstallAssessmentState(): InstallChoiceAssessmentState {
+  return { status: 'idle' };
+}
+
+function createLoadingInstallAssessmentState(): InstallChoiceAssessmentState {
+  return { status: 'loading' };
+}
+
+async function inspectInstallChoice(
+  choice: InstallSurfaceChoice,
+): Promise<readonly [string, InstallChoiceAssessmentState]> {
+  try {
+    const result = await installerService.inspectHubInstall(choice.request);
+    return [choice.id, { status: 'success', result }];
+  } catch (error: unknown) {
+    return [
+      choice.id,
+      {
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      },
+    ];
+  }
 }
 
 function renderMethodIcon(iconId: IconId) {
@@ -447,6 +477,36 @@ export function Install() {
     () => installChoices.find((choice) => choice.id === installWizardMethodId) ?? null,
     [installChoices, installWizardMethodId],
   );
+  const installChoiceIds = useMemo(
+    () => installChoices.map((choice) => choice.id),
+    [installChoices],
+  );
+  const priorityInstallChoiceIds = useMemo(
+    () =>
+      selectInstallAssessmentPriorityIds({
+        installChoiceIds,
+        recommendedMethodId,
+        detectedInstallChoiceId: detectedInstallChoice?.id ?? null,
+      }),
+    [detectedInstallChoice?.id, installChoiceIds, recommendedMethodId],
+  );
+  const installChoiceById = useMemo(
+    () => new Map(installChoices.map((choice) => [choice.id, choice])),
+    [installChoices],
+  );
+  const priorityInstallChoices = useMemo(
+    () =>
+      priorityInstallChoiceIds.flatMap((choiceId) => {
+        const choice = installChoiceById.get(choiceId);
+        return choice ? [choice] : [];
+      }),
+    [installChoiceById, priorityInstallChoiceIds],
+  );
+  const deferredInstallChoices = useMemo(
+    () =>
+      installChoices.filter((choice) => !priorityInstallChoiceIds.includes(choice.id)),
+    [installChoices, priorityInstallChoiceIds],
+  );
   const installRecommendationSummary = useMemo(
     () =>
       buildInstallRecommendationSummary({
@@ -481,7 +541,7 @@ export function Install() {
 
   useEffect(() => {
     void (async () => {
-      const nextRuntimeInfo = await getRuntimePlatform().getRuntimeInfo();
+      const nextRuntimeInfo = await runtime.getRuntimeInfo();
       setRuntimeInfo(nextRuntimeInfo);
     })();
 
@@ -564,54 +624,67 @@ export function Install() {
   }, [customMigrationSource, hostOs, installRecord, product, runtimeInfo]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    if (!installChoices.length) {
-      setInstallAssessments({});
+    if (pageMode !== 'install' || !installChoices.length) {
+      startTransition(() => {
+        setInstallAssessments({});
+      });
       return;
     }
 
-    setInstallAssessments(
-      installChoices.reduce<AssessmentStateMap>((accumulator, choice) => {
-        accumulator[choice.id] = { status: 'loading' };
-        return accumulator;
-      }, {}),
-    );
+    let cancelled = false;
+    const isCancelled = () => cancelled;
 
-    void (async () => {
-      const results = await Promise.all(
-        installChoices.map(async (choice) => {
-          try {
-            const result = await installerService.inspectHubInstall(choice.request);
-            return [choice.id, { status: 'success', result } satisfies InstallChoiceAssessmentState] as const;
-          } catch (error: unknown) {
-            return [
-              choice.id,
-              {
-                status: 'error',
-                error: error instanceof Error ? error.message : String(error),
-              } satisfies InstallChoiceAssessmentState,
-            ] as const;
-          }
+    startTransition(() => {
+      setInstallAssessments(
+        createInitialInstallAssessmentState<InstallChoiceAssessmentState>({
+          installChoiceIds: installChoices.map((choice) => choice.id),
+          priorityChoiceIds: priorityInstallChoiceIds,
+          createIdleState: createIdleInstallAssessmentState,
+          createLoadingState: createLoadingInstallAssessmentState,
         }),
       );
+    });
 
-      if (cancelled) {
-        return;
+    void (async () => {
+      for await (const patch of hydrateInstallAssessmentBatches<
+        InstallSurfaceChoice,
+        InstallChoiceAssessmentState
+      >({
+        priorityChoices: priorityInstallChoices,
+        deferredChoices: deferredInstallChoices,
+        inspectChoice: inspectInstallChoice,
+        createDeferredLoadingState: createLoadingInstallAssessmentState,
+        waitBeforeDeferredHydration: async () => {
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 350);
+          });
+        },
+        deferredResultBatchSize: 3,
+        isCancelled,
+      })) {
+        if (cancelled) {
+          return;
+        }
+
+        startTransition(() => {
+          setInstallAssessments((previous) => ({
+            ...previous,
+            ...patch,
+          }));
+        });
       }
-
-      setInstallAssessments(
-        results.reduce<AssessmentStateMap>((accumulator, [id, assessment]) => {
-          accumulator[id] = assessment;
-          return accumulator;
-        }, {}),
-      );
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [installChoices]);
+  }, [
+    deferredInstallChoices,
+    installChoices,
+    pageMode,
+    priorityInstallChoiceIds,
+    priorityInstallChoices,
+  ]);
 
   useEffect(() => {
     setInstallWizardMethodId(null);
@@ -631,26 +704,20 @@ export function Install() {
       return;
     }
 
-    setInstallAssessments((previous) => ({
-      ...previous,
-      [choice.id]: { status: 'loading', result: previous[choice.id]?.result },
-    }));
+    startTransition(() => {
+      setInstallAssessments((previous) => ({
+        ...previous,
+        [choice.id]: { status: 'loading', result: previous[choice.id]?.result },
+      }));
+    });
 
-    try {
-      const assessment = await installerService.inspectHubInstall(choice.request);
+    const [id, assessment] = await inspectInstallChoice(choice);
+    startTransition(() => {
       setInstallAssessments((previous) => ({
         ...previous,
-        [choice.id]: { status: 'success', result: assessment },
+        [id]: assessment,
       }));
-    } catch (error: unknown) {
-      setInstallAssessments((previous) => ({
-        ...previous,
-        [choice.id]: {
-          status: 'error',
-          error: error instanceof Error ? error.message : String(error),
-        },
-      }));
-    }
+    });
   }
 
   async function handleInstallFinished(methodId: string) {

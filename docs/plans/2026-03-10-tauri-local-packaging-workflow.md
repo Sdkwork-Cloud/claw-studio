@@ -238,7 +238,7 @@ Expected: FAIL because the ignore patterns are missing.
 
 **Step 3: Write minimal implementation**
 
-```gitignore
+```txt
 .venv/
 venv/
 env/

@@ -109,24 +109,6 @@ function countAssessmentBlockers(assessment?: HubInstallAssessmentResult) {
   return assessment?.issues.filter((item) => item.severity === 'error').length ?? 0;
 }
 
-function sortProviders(providers: ProxyProvider[]) {
-  const statusRank: Record<ProxyProvider['status'], number> = {
-    active: 0,
-    warning: 1,
-    expired: 2,
-    disabled: 3,
-  };
-
-  return [...providers].sort((left, right) => {
-    const rank = statusRank[left.status] - statusRank[right.status];
-    if (rank !== 0) {
-      return rank;
-    }
-
-    return left.name.localeCompare(right.name);
-  });
-}
-
 function buildChannelDrafts(
   channels: NonNullable<BootstrapState['data']>['channels'],
   previous: ChannelDrafts,
@@ -383,7 +365,7 @@ export function OpenClawGuidedInstallWizard({
         assessment: assessmentState.result,
         installResult: nextInstallResult,
       });
-      const providers = sortProviders(data.providers);
+      const providers = openClawInstallWizardService.sortOpenClawBootstrapProviders(data.providers);
       const nextData = {
         ...data,
         providers,

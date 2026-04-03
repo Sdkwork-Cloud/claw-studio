@@ -211,7 +211,7 @@ function createWorkbench(
 }
 
 await runTest(
-  'buildInstanceManagementSummary highlights fully managed OpenClaw instances with config-backed control',
+  'buildInstanceManagementSummary highlights Provider Center managed routing for fully managed OpenClaw instances',
   () => {
     const summary = buildInstanceManagementSummary(createWorkbench());
 
@@ -242,7 +242,7 @@ await runTest(
     );
     assert.equal(
       summary.entries.find((entry) => entry.id === 'managementScope')?.value,
-      'Full config-backed control',
+      'Provider Center + config workspace',
     );
     assert.deepEqual(summary.notes, ['Claw Studio manages the bundled OpenClaw runtime.']);
   },

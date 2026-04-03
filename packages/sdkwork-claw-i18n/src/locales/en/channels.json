@@ -1,0 +1,38 @@
+{
+  "page": {
+    "title": "Channels",
+    "subtitle": "Connect your OpenClaw agents to external messaging platforms and APIs.",
+    "status": {
+      "active": "Active",
+      "disconnected": "Disconnected",
+      "notConfigured": "Not Configured"
+    },
+    "actions": {
+      "connect": "Connect",
+      "configure": "Configure",
+      "downloadApp": "Download App",
+      "enableChannel": "Enable {{name}}",
+      "openOfficialSite": "Open official setup",
+      "saveAndEnable": "Save & Enable Channel",
+      "deleteConfiguration": "Delete Configuration",
+      "saving": "Saving..."
+    },
+    "panel": {
+      "configuration": "Channel Configuration",
+      "setupGuide": "Setup Guide",
+      "openOfficialSite": "Open official setup page",
+      "readFullDocumentation": "Read full documentation",
+      "credentials": "Credentials"
+    },
+    "catalog": {
+      "tabs": {
+        "domestic": "Domestic Messaging Apps",
+        "global": "Global Messaging Apps"
+      },
+      "empty": {
+        "domestic": "No domestic messaging channels are available in this workspace.",
+        "global": "No global messaging channels are available in this workspace."
+      }
+    }
+  }
+}

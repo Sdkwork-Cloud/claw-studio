@@ -38,7 +38,7 @@ Key OpenClaw documentation signals used in this design:
 The current app already exposes a much larger surface than a simple chat shell:
 
 - workbench routes: `chat`, `channels`, `tasks`, `dashboard`, `settings`
-- operations routes: `install`, `instances`, `api-router`
+- operations surfaces: `install`, `instances`, `kernel`, `nodes`
 - ecosystem routes: `market`, `agents`, `apps`, `extensions`, `community`, `github`, `huggingface`
 
 The current instance detail page is already OpenClaw-centric. It exposes:
@@ -207,9 +207,9 @@ Responsibilities:
 - version and drift tracking
 - rollout orchestration
 
-### 6. Shared API Router
+### 6. Shared Provider Control Plane
 
-The local API Router remains the shared provider and credential data plane, not the kernel lifecycle owner.
+The local provider config center remains the shared provider and credential data plane, not the kernel lifecycle owner.
 
 ## Capability Model
 

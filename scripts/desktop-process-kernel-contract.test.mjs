@@ -31,6 +31,15 @@ function assertIncludes(relativePath, expectedText, label) {
   }
 }
 
+function assertMatches(relativePath, expectedPattern, label) {
+  const content = readText(relativePath);
+  if (!expectedPattern.test(content)) {
+    failures.push(
+      `Missing ${label} in ${relativePath}: expected pattern "${expectedPattern.source}"`,
+    );
+  }
+}
+
 assertPath(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/process.rs',
   'desktop process service facade module',
@@ -116,9 +125,9 @@ assertIncludes(
   '.run_capture_and_emit(',
   'process command remains facade-based',
 );
-assertIncludes(
+assertMatches(
   'packages/sdkwork-claw-desktop/src-tauri/src/commands/job_commands.rs',
-  '.submit_process_and_emit(state.context.services.process.clone(), &profile_id, app)',
+  /\.submit_process_and_emit\(\s*state\.context\.services\.process\.clone\(\),\s*&profile_id,\s*app,\s*\)/,
   'job command remains process-service based',
 );
 

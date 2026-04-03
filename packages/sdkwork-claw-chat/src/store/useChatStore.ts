@@ -2,27 +2,37 @@ import { create } from 'zustand';
 import { studio } from '@sdkwork/claw-infrastructure';
 import type { StudioConversationAttachment } from '@sdkwork/claw-types';
 import {
-  buildOpenClawMainSessionKey,
+  buildOpenClawThreadSessionKey,
   DEFAULT_CHAT_SESSION_TITLE,
   getSharedOpenClawGatewayClient,
+  openClawGatewayHistoryConfigService,
+  type OpenClawToolCard,
   resolveInstanceChatRoute,
   resolveInitialChatSessionTitle,
   type InstanceChatRouteMode,
-} from '../services/store/index.ts';
+} from '../services/index.ts';
 import { connectGatewayInstancesBestEffort } from './connectGatewayInstances.ts';
 import { OpenClawGatewaySessionStore } from './openClawGatewaySessionStore.ts';
 
-export type Role = 'user' | 'assistant' | 'system';
+export type Role = 'user' | 'assistant' | 'system' | 'tool';
 export type SyncState = 'idle' | 'loading' | 'error';
+export type GatewayConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected';
 
 export interface Message {
   id: string;
   role: Role;
   content: string;
   timestamp: number;
+  senderLabel?: string | null;
   model?: string;
   runId?: string;
   attachments?: StudioConversationAttachment[];
+  reasoning?: string | null;
+  toolCards?: OpenClawToolCard[];
 }
 
 export interface ChatSession {
@@ -38,8 +48,6 @@ export interface ChatSession {
   isDraft?: boolean;
   runId?: string | null;
   thinkingLevel?: string | null;
-  source?: 'studio' | 'openclaw';
-  messagesHydrated?: boolean;
   lastMessagePreview?: string;
 }
 
@@ -49,11 +57,11 @@ export interface ChatState {
   sessions: ChatSession[];
   activeSessionIdByInstance: ScopeMap<string | null>;
   syncStateByInstance: ScopeMap<SyncState>;
+  gatewayConnectionStatusByInstance: ScopeMap<GatewayConnectionStatus | undefined>;
   lastErrorByInstance: ScopeMap<string | undefined>;
   instanceRouteModeById: Record<string, InstanceChatRouteMode | undefined>;
   hydrateInstance: (instanceId: string | null | undefined) => Promise<void>;
   connectGatewayInstances: (instanceIds: string[]) => Promise<void>;
-  loadSession: (id: string) => Promise<void>;
   createSession: (
     model?: string,
     instanceId?: string,
@@ -62,6 +70,13 @@ export interface ChatState {
       openClawSessionId?: string | null;
     },
   ) => Promise<string>;
+  startNewSession: (
+    model?: string,
+    instanceId?: string,
+    options?: {
+      openClawAgentId?: string | null;
+    },
+  ) => Promise<string | null>;
   deleteSession: (id: string, instanceId?: string) => Promise<void>;
   setActiveSession: (id: string | null, instanceId?: string) => Promise<void>;
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => void;
@@ -181,8 +196,11 @@ async function resolveInstanceRouteMode(instanceId: string | null | undefined) {
 
 const openClawGatewaySessions = new OpenClawGatewaySessionStore({
   getClient: getSharedOpenClawGatewayClient,
-  createSessionKey(instanceId) {
-    return `claw-studio:${instanceId}:${createId('session')}`;
+  createSessionKey(_instanceId, agentId) {
+    return buildOpenClawThreadSessionKey(agentId, `claw-studio:${createId('session')}`);
+  },
+  resolveHistoryMaxChars(instanceId) {
+    return openClawGatewayHistoryConfigService.getHistoryMaxChars(instanceId);
   },
 });
 
@@ -202,6 +220,10 @@ function applyOpenClawSnapshot(
       ...state.syncStateByInstance,
       [scopeKey]: snapshot.syncState,
     },
+    gatewayConnectionStatusByInstance: {
+      ...state.gatewayConnectionStatusByInstance,
+      [scopeKey]: snapshot.connectionStatus,
+    },
     lastErrorByInstance: {
       ...state.lastErrorByInstance,
       [scopeKey]: snapshot.lastError,
@@ -213,6 +235,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   sessions: [],
   activeSessionIdByInstance: {},
   syncStateByInstance: {},
+  gatewayConnectionStatusByInstance: {},
   lastErrorByInstance: {},
   instanceRouteModeById: {},
   async hydrateInstance(instanceId) {
@@ -227,6 +250,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         syncStateByInstance: {
           ...state.syncStateByInstance,
           [scopeKey]: 'idle',
+        },
+        gatewayConnectionStatusByInstance: {
+          ...state.gatewayConnectionStatusByInstance,
+          [scopeKey]: undefined,
         },
       }));
       return;
@@ -281,6 +308,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             ...state.syncStateByInstance,
             [getScopeKey(instanceId)]: 'idle',
           },
+          gatewayConnectionStatusByInstance: {
+            ...state.gatewayConnectionStatusByInstance,
+            [getScopeKey(instanceId)]: undefined,
+          },
           lastErrorByInstance: {
             ...state.lastErrorByInstance,
             [getScopeKey(instanceId)]: undefined,
@@ -327,6 +358,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
                   ...state.syncStateByInstance,
                   [getScopeKey(instanceId)]: 'idle',
                 },
+          gatewayConnectionStatusByInstance:
+            mode === 'instanceOpenClawGatewayWs'
+              ? state.gatewayConnectionStatusByInstance
+              : {
+                  ...state.gatewayConnectionStatusByInstance,
+                  [getScopeKey(instanceId)]: undefined,
+                },
         }));
       },
       onError(instanceId, error) {
@@ -347,62 +385,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       },
     });
   },
-  async loadSession(id) {
-    const session = get().sessions.find((item) => item.id === id);
-    if (!session?.instanceId) {
-      return;
-    }
-
-    const scopeKey = getScopeKey(session.instanceId);
-    if (session.messagesHydrated && session.messages.length > 0) {
-      return;
-    }
-
-    set((state) => ({
-      syncStateByInstance: {
-        ...state.syncStateByInstance,
-        [scopeKey]: 'loading',
-      },
-      lastErrorByInstance: {
-        ...state.lastErrorByInstance,
-        [scopeKey]: undefined,
-      },
-    }));
-
-    try {
-      const gateway = await getStudioConversationGateway();
-      const hydrated = await gateway.getInstanceConversation(
-        session.instanceId,
-        session.id,
-        normalizeSession(session),
-      );
-
-      set((state) => ({
-        sessions: upsertSessionCollection(state.sessions, hydrated),
-        syncStateByInstance: {
-          ...state.syncStateByInstance,
-          [scopeKey]: 'idle',
-        },
-        lastErrorByInstance: {
-          ...state.lastErrorByInstance,
-          [scopeKey]: undefined,
-        },
-      }));
-    } catch (error: any) {
-      console.error('Failed to load conversation:', error);
-      set((state) => ({
-        syncStateByInstance: {
-          ...state.syncStateByInstance,
-          [scopeKey]: 'error',
-        },
-        lastErrorByInstance: {
-          ...state.lastErrorByInstance,
-          [scopeKey]: error?.message || 'Failed to load conversation',
-        },
-      }));
-    }
-  },
-  async createSession(model = DEFAULT_MODEL, instanceId, options) {
+  async createSession(model, instanceId, options) {
+    const requestedModel = model?.trim() || undefined;
     if (instanceId) {
       const routeMode =
         get().instanceRouteModeById[instanceId] ??
@@ -416,14 +400,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
       if (routeMode === 'instanceOpenClawGatewayWs') {
         await openClawGatewaySessions.hydrateInstance(instanceId);
-        return openClawGatewaySessions.createDraftSession(instanceId, model, {
-          sessionId:
-            options?.openClawSessionId?.trim() ||
-            buildOpenClawMainSessionKey(options?.openClawAgentId),
+        return openClawGatewaySessions.createDraftSession(instanceId, requestedModel, {
+          agentId: options?.openClawAgentId,
+          sessionId: options?.openClawSessionId,
         }).id;
       }
     }
 
+    const resolvedModel = requestedModel || DEFAULT_MODEL;
     const timestamp = Date.now();
     const session: ChatSession = {
       id: createSessionId(instanceId),
@@ -431,7 +415,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       createdAt: timestamp,
       updatedAt: timestamp,
       messages: [],
-      model,
+      model: resolvedModel,
       instanceId,
       transport: 'local',
     };
@@ -472,6 +456,32 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       });
 
     return session.id;
+  },
+  async startNewSession(model, instanceId, options) {
+    const requestedModel = model?.trim() || undefined;
+    if (instanceId) {
+      const routeMode =
+        get().instanceRouteModeById[instanceId] ??
+        (await resolveInstanceRouteMode(instanceId)).mode;
+      set((state) => ({
+        instanceRouteModeById: {
+          ...state.instanceRouteModeById,
+          [instanceId]: routeMode,
+        },
+      }));
+
+      if (routeMode === 'instanceOpenClawGatewayWs') {
+        return openClawGatewaySessions.startNewSession({
+          instanceId,
+          agentId: options?.openClawAgentId,
+          model: requestedModel,
+        });
+      }
+    }
+
+    return get().createSession(model, instanceId, {
+      openClawAgentId: options?.openClawAgentId,
+    });
   },
   async deleteSession(id, instanceId) {
     const session = get().sessions.find((item) => item.id === id);
@@ -640,7 +650,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       });
       return;
     }
-    let targetSession: ChatSession | undefined;
     let cleared: ChatSession | undefined;
 
     set((state) => ({
@@ -649,7 +658,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           return normalizeSession(currentSession);
         }
 
-        targetSession = normalizeSession(currentSession);
         cleared = {
           ...normalizeSession(currentSession),
           messages: [],
@@ -665,30 +673,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
 
     const scopeKey = getScopeKey(resolvedInstanceId);
-
-    if (targetSession?.source === 'openclaw') {
-      void getStudioConversationGateway()
-        .then((gateway) => gateway.resetInstanceConversation(cleared!))
-        .then((savedSession) => {
-          set((state) => ({
-            sessions: upsertSessionCollection(state.sessions, savedSession),
-            lastErrorByInstance: {
-              ...state.lastErrorByInstance,
-              [scopeKey]: undefined,
-            },
-          }));
-        })
-        .catch((error: any) => {
-          console.error('Failed to clear conversation:', error);
-          set((state) => ({
-            lastErrorByInstance: {
-              ...state.lastErrorByInstance,
-              [scopeKey]: error?.message || 'Failed to persist conversation',
-            },
-          }));
-        });
-      return;
-    }
 
     void persistSession(cleared)
       .then((savedSession) => {

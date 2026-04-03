@@ -1,20 +1,17 @@
 import {
   type RuntimeBundledComponentId,
-  WebComponentPlatform,
   type RuntimeDesktopComponentCatalogInfo,
   type RuntimeDesktopComponentControlAction,
   type RuntimeDesktopComponentControlResult,
 } from '@sdkwork/claw-infrastructure';
 import { DESKTOP_COMMANDS } from './catalog';
-import { invokeDesktopCommand, runDesktopOrFallback } from './runtime';
-
-const webComponentPlatform = new WebComponentPlatform();
+import { invokeDesktopCommand, runDesktopOnly } from './runtime';
 
 export interface DesktopComponentCatalogInfo extends RuntimeDesktopComponentCatalogInfo {}
 export interface DesktopComponentControlResultInfo extends RuntimeDesktopComponentControlResult {}
 
 export async function listDesktopComponents(): Promise<DesktopComponentCatalogInfo> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     'components.list',
     () =>
       invokeDesktopCommand<DesktopComponentCatalogInfo>(
@@ -22,7 +19,6 @@ export async function listDesktopComponents(): Promise<DesktopComponentCatalogIn
         undefined,
         { operation: 'components.list' },
       ),
-    () => webComponentPlatform.listComponents(),
   );
 }
 
@@ -30,7 +26,7 @@ export async function controlDesktopComponent(
   componentId: RuntimeBundledComponentId,
   action: RuntimeDesktopComponentControlAction,
 ): Promise<DesktopComponentControlResultInfo> {
-  return runDesktopOrFallback(
+  return runDesktopOnly(
     `components.${action}`,
     () =>
       invokeDesktopCommand<DesktopComponentControlResultInfo>(
@@ -38,7 +34,6 @@ export async function controlDesktopComponent(
         { componentId, action },
         { operation: `components.${action}` },
       ),
-    () => webComponentPlatform.controlComponent({ componentId, action }),
   );
 }
 

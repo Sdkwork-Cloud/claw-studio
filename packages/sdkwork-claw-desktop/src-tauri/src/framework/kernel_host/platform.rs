@@ -1,7 +1,10 @@
 pub use super::types::KernelHostPlatform;
 use super::types::KernelPlatformServiceSpec;
 use crate::framework::{paths::AppPaths, Result};
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub fn current_kernel_host_platform() -> KernelHostPlatform {
     match crate::platform::current_target() {
@@ -27,7 +30,9 @@ pub fn resolve_platform_service_spec(
     resolve_platform_service_spec_with_launcher(platform, paths, &launcher_path)
 }
 
-pub fn repair_current_platform_service_artifacts(paths: &AppPaths) -> Result<KernelPlatformServiceSpec> {
+pub fn repair_current_platform_service_artifacts(
+    paths: &AppPaths,
+) -> Result<KernelPlatformServiceSpec> {
     let platform = current_kernel_host_platform();
     let launcher_path =
         std::env::current_exe().unwrap_or_else(|_| default_launcher_path(paths, platform));

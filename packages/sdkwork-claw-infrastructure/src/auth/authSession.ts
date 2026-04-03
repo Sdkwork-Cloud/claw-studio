@@ -1,5 +1,3 @@
-import { APP_ENV, readAccessToken } from '../config/env.ts';
-
 const AUTH_SESSION_STORAGE_KEY = 'claw-studio-auth-session';
 
 export interface AuthSession {
@@ -65,10 +63,6 @@ export function clearAuthSession() {
   }
 
   storage.removeItem(AUTH_SESSION_STORAGE_KEY);
-}
-
-export function readAuthorizationToken() {
-  return readAuthSession()?.authToken || readAccessToken(APP_ENV);
 }
 
 export { AUTH_SESSION_STORAGE_KEY };

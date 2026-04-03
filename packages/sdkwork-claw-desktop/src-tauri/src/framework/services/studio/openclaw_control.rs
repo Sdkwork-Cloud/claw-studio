@@ -231,7 +231,11 @@ impl<'a> OpenClawGatewayAdminClient<'a> {
 
     fn call(&self, method: &str, params: &Value) -> Result<Value> {
         let request = build_gateway_invoke_request(method, params)?;
-        self.send_request(method, &request, &StudioOpenClawGatewayInvokeOptions::default())
+        self.send_request(
+            method,
+            &request,
+            &StudioOpenClawGatewayInvokeOptions::default(),
+        )
     }
 
     fn invoke(

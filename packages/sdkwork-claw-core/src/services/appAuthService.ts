@@ -1,10 +1,13 @@
 import type {
+  EmailLoginForm,
   LoginForm,
   LoginVO,
   OAuthAuthUrlForm,
   OAuthLoginForm,
   OAuthUrlVO,
+  PasswordResetForm,
   PasswordResetRequestForm,
+  PhoneLoginForm,
   QrCodeStatusVO,
   QrCodeVO,
   RegisterForm,
@@ -26,7 +29,7 @@ import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
 export type AppAuthVerifyType = 'EMAIL' | 'PHONE';
 export type AppAuthScene = 'LOGIN' | 'REGISTER' | 'RESET_PASSWORD';
 export type AppAuthPasswordResetChannel = 'EMAIL' | 'SMS';
-export type AppAuthSocialProvider = 'wechat' | 'github' | 'google' | 'douyin';
+export type AppAuthSocialProvider = string;
 export type AppAuthOAuthDeviceType = 'web' | 'desktop' | 'android' | 'ios';
 export type AppAuthLoginQrCodeStatus = 'pending' | 'scanned' | 'confirmed' | 'expired';
 
@@ -42,8 +45,27 @@ export interface AppAuthRegisterInput {
   confirmPassword?: string;
   email?: string;
   phone?: string;
+  type?: 'DEFAULT' | 'EMAIL' | 'PHONE';
   name?: string;
   verificationCode?: string;
+}
+
+export interface AppAuthPhoneLoginInput {
+  phone: string;
+  code: string;
+  deviceId?: string;
+  deviceType?: AppAuthOAuthDeviceType;
+  deviceName?: string;
+  appVersion?: string;
+}
+
+export interface AppAuthEmailLoginInput {
+  email: string;
+  code: string;
+  deviceId?: string;
+  deviceType?: AppAuthOAuthDeviceType;
+  deviceName?: string;
+  appVersion?: string;
 }
 
 export interface AppAuthSendVerifyCodeInput {
@@ -59,6 +81,13 @@ export interface AppAuthVerifyCodeInput extends AppAuthSendVerifyCodeInput {
 export interface AppAuthPasswordResetRequestInput {
   account: string;
   channel: AppAuthPasswordResetChannel;
+}
+
+export interface AppAuthPasswordResetInput {
+  account: string;
+  code: string;
+  newPassword: string;
+  confirmPassword?: string;
 }
 
 export interface AppAuthOAuthAuthorizationInput {
@@ -101,12 +130,15 @@ export interface AppAuthLoginQrCodeStatusResult {
 
 export interface IAppAuthService {
   login(input: AppAuthLoginInput): Promise<AppAuthSession>;
+  loginWithPhone(input: AppAuthPhoneLoginInput): Promise<AppAuthSession>;
+  loginWithEmail(input: AppAuthEmailLoginInput): Promise<AppAuthSession>;
   register(input: AppAuthRegisterInput): Promise<AppAuthSession>;
   logout(): Promise<void>;
   refreshToken(refreshToken?: string): Promise<AppAuthSession>;
   sendVerifyCode(input: AppAuthSendVerifyCodeInput): Promise<void>;
   verifyCode(input: AppAuthVerifyCodeInput): Promise<boolean>;
   requestPasswordReset(input: AppAuthPasswordResetRequestInput): Promise<void>;
+  resetPassword(input: AppAuthPasswordResetInput): Promise<void>;
   getOAuthAuthorizationUrl(input: AppAuthOAuthAuthorizationInput): Promise<string>;
   loginWithOAuth(input: AppAuthOAuthLoginInput): Promise<AppAuthSession>;
   generateLoginQrCode(): Promise<AppAuthLoginQrCode>;
@@ -129,16 +161,11 @@ function mapVerifyType(type: AppAuthVerifyType): VerifyCodeSendForm['verifyType'
 }
 
 function mapSocialProvider(provider: AppAuthSocialProvider): OAuthAuthUrlForm['provider'] {
-  if (provider === 'wechat') {
-    return 'WECHAT';
+  const normalized = provider.trim().replace(/[\s-]+/g, '_').toUpperCase();
+  if (!normalized) {
+    throw new Error('OAuth provider is required.');
   }
-  if (provider === 'github') {
-    return 'GITHUB';
-  }
-  if (provider === 'google') {
-    return 'GOOGLE';
-  }
-  return 'DOUYIN';
+  return normalized as OAuthAuthUrlForm['provider'];
 }
 
 function mapQrStatus(status?: QrCodeStatusVO['status']): AppAuthLoginQrCodeStatus {
@@ -151,6 +178,19 @@ function mapQrStatus(status?: QrCodeStatusVO['status']): AppAuthLoginQrCodeStatu
 function readOptionalString(value?: string | null): string | undefined {
   const normalized = (value || '').trim();
   return normalized || undefined;
+}
+
+function resolveRegisterType(input: AppAuthRegisterInput): RegisterForm['type'] | undefined {
+  if (input.type) {
+    return input.type;
+  }
+  if (input.email && !input.phone) {
+    return 'EMAIL';
+  }
+  if (!input.email && input.phone) {
+    return 'PHONE';
+  }
+  return undefined;
 }
 
 function mapSession(loginData: LoginVO): AppAuthSession {
@@ -186,14 +226,50 @@ export const appAuthService: IAppAuthService = {
     return persistSession(mapSession(loginData));
   },
 
+  async loginWithPhone(input: AppAuthPhoneLoginInput): Promise<AppAuthSession> {
+    const client = getAppSdkClientWithSession();
+    const request: PhoneLoginForm = {
+      phone: input.phone.trim(),
+      code: input.code.trim(),
+      deviceId: readOptionalString(input.deviceId),
+      deviceType: readOptionalString(input.deviceType),
+      deviceName: readOptionalString(input.deviceName),
+      appVersion: readOptionalString(input.appVersion),
+    };
+    const loginData = unwrapAppSdkResponse<LoginVO>(
+      await client.auth.phoneLogin(request),
+      'Failed to complete phone code login.',
+    );
+    return persistSession(mapSession(loginData));
+  },
+
+  async loginWithEmail(input: AppAuthEmailLoginInput): Promise<AppAuthSession> {
+    const client = getAppSdkClientWithSession();
+    const request: EmailLoginForm = {
+      email: input.email.trim(),
+      code: input.code.trim(),
+      deviceId: readOptionalString(input.deviceId),
+      deviceType: readOptionalString(input.deviceType),
+      deviceName: readOptionalString(input.deviceName),
+      appVersion: readOptionalString(input.appVersion),
+    };
+    const loginData = unwrapAppSdkResponse<LoginVO>(
+      await client.auth.emailLogin(request),
+      'Failed to complete email code login.',
+    );
+    return persistSession(mapSession(loginData));
+  },
+
   async register(input: AppAuthRegisterInput): Promise<AppAuthSession> {
     const client = getAppSdkClientWithSession();
     const request: RegisterForm = {
       username: input.username.trim(),
       password: input.password,
       confirmPassword: input.confirmPassword || input.password,
-      email: input.email?.trim(),
-      phone: input.phone?.trim(),
+      email: readOptionalString(input.email),
+      phone: readOptionalString(input.phone),
+      type: resolveRegisterType(input),
+      verificationCode: readOptionalString(input.verificationCode),
     };
     unwrapAppSdkResponse(await client.auth.register(request), 'Failed to register.');
 
@@ -268,6 +344,20 @@ export const appAuthService: IAppAuthService = {
     unwrapAppSdkResponse(
       await client.auth.requestPasswordResetChallenge(request),
       'Failed to request password reset.',
+    );
+  },
+
+  async resetPassword(input: AppAuthPasswordResetInput): Promise<void> {
+    const client = getAppSdkClientWithSession();
+    const request: PasswordResetForm = {
+      account: input.account.trim(),
+      code: input.code.trim(),
+      newPassword: input.newPassword,
+      confirmPassword: input.confirmPassword || input.newPassword,
+    };
+    unwrapAppSdkResponse(
+      await client.auth.resetPassword(request),
+      'Failed to reset password.',
     );
   },
 

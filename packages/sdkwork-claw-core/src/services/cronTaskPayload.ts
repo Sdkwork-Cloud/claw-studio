@@ -44,6 +44,27 @@ function trimToUndefined(value?: string) {
   return trimmed ? trimmed : undefined;
 }
 
+function normalizeToolAllowlist(value?: readonly string[]) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const entry of value) {
+    const trimmed = trimToUndefined(entry);
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized;
+}
+
 function resolveSessionTarget(input: CronTaskCreateInput) {
   switch (input.sessionMode) {
     case 'custom': {
@@ -168,6 +189,7 @@ function buildOpenClawPayload(
     delete payload.timeoutSeconds;
     delete payload.thinking;
     delete payload.lightContext;
+    delete payload.tools;
     return payload;
   }
 
@@ -198,6 +220,15 @@ function buildOpenClawPayload(
     payload.lightContext = true;
   } else {
     delete payload.lightContext;
+  }
+
+  if (Array.isArray(input.toolAllowlist)) {
+    const toolAllowlist = normalizeToolAllowlist(input.toolAllowlist);
+    if (toolAllowlist.length > 0) {
+      payload.tools = toolAllowlist;
+    } else {
+      delete payload.tools;
+    }
   }
 
   delete payload.text;

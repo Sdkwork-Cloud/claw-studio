@@ -183,3 +183,26 @@ runTest('feature packages use shared shadcn-style form primitives instead of nat
     `Native form controls remain outside @sdkwork/claw-ui:\n${violations.join('\n')}`,
   );
 });
+
+runTest('shared form primitives keep interactive layers and focus states compatible with overlay drawers', () => {
+  const overlaySurfaceSource = read('packages/sdkwork-claw-ui/src/components/OverlaySurface.tsx');
+  const selectSource = read('packages/sdkwork-claw-ui/src/components/Select.tsx');
+  const inputSource = read('packages/sdkwork-claw-ui/src/components/Input.tsx');
+  const textareaSource = read('packages/sdkwork-claw-ui/src/components/Textarea.tsx');
+  const switchSource = read('packages/sdkwork-claw-ui/src/components/Switch.tsx');
+
+  assert.match(overlaySurfaceSource, /z-\[120\]/);
+  assert.match(
+    selectSource,
+    /z-\[(1[3-9]\d|[2-9]\d{2,})\]/,
+    'select content should render above overlay drawers so option clicks remain reachable',
+  );
+  assert.match(selectSource, /focus:ring-2/);
+  assert.match(selectSource, /disabled:cursor-not-allowed/);
+  assert.match(inputSource, /focus-visible:ring-2/);
+  assert.match(inputSource, /disabled:cursor-not-allowed/);
+  assert.match(textareaSource, /focus-visible:ring-2/);
+  assert.match(textareaSource, /disabled:cursor-not-allowed/);
+  assert.match(switchSource, /focus-visible:ring-2/);
+  assert.match(switchSource, /disabled:cursor-not-allowed/);
+});

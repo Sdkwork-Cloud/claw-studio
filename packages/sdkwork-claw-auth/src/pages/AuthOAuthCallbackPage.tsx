@@ -3,15 +3,17 @@ import { AlertCircle, ArrowRight, LoaderCircle, ShieldCheck } from 'lucide-react
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { platform, useAuthStore, type AppAuthSocialProvider } from '@sdkwork/claw-core';
+import { platform, useAuthStore } from '@sdkwork/claw-core';
 import { Button } from '@sdkwork/claw-ui';
+import {
+  isAuthOAuthLoginEnabled,
+  isConfiguredAuthOAuthProvider,
+  normalizeAuthOAuthProvider,
+  resolveAuthOAuthProviders,
+} from '../components/auth/authConfig.ts';
 import { resolveRedirectTarget } from './authRouteUtils.ts';
 
 type CallbackState = 'loading' | 'error';
-
-function isSocialProvider(value: string | undefined): value is AppAuthSocialProvider {
-  return value === 'wechat' || value === 'douyin' || value === 'github' || value === 'google';
-}
 
 function buildLoginPath(redirectTarget: string) {
   if (redirectTarget === '/dashboard') {
@@ -31,9 +33,13 @@ export function AuthOAuthCallbackPage() {
   const redirectTarget = resolveRedirectTarget(searchParams.get('redirect'));
   const [callbackState, setCallbackState] = useState<CallbackState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
+  const configuredProviders = isAuthOAuthLoginEnabled()
+    ? resolveAuthOAuthProviders()
+    : [];
 
   useEffect(() => {
-    if (!isSocialProvider(provider)) {
+    const normalizedProvider = normalizeAuthOAuthProvider(provider);
+    if (!isConfiguredAuthOAuthProvider(normalizedProvider || undefined, configuredProviders)) {
       const message = t('auth.oauth.invalidProvider');
       setCallbackState('error');
       setErrorMessage(message);
@@ -61,7 +67,7 @@ export function AuthOAuthCallbackPage() {
     void (async () => {
       try {
         await signInWithOAuth({
-          provider,
+          provider: normalizedProvider,
           code,
           state: (searchParams.get('state') || '').trim() || undefined,
           deviceType: isDesktop ? 'desktop' : 'web',
@@ -89,7 +95,7 @@ export function AuthOAuthCallbackPage() {
     return () => {
       disposed = true;
     };
-  }, [isDesktop, navigate, provider, redirectTarget, searchParams, signInWithOAuth, t]);
+  }, [configuredProviders, isDesktop, navigate, provider, redirectTarget, searchParams, signInWithOAuth, t]);
 
   if (isAuthenticated) {
     return <Navigate to={redirectTarget} replace />;

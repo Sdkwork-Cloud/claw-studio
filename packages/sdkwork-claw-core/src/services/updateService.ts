@@ -1,9 +1,9 @@
 import {
   APP_ENV,
   checkAppUpdate as defaultCheckAppUpdate,
-  getRuntimePlatform,
   hasDesktopUpdateConfig,
   platform,
+  runtime,
   type AppEnvConfig,
   type AppUpdateCheckRequest,
   type AppUpdateCheckResult,
@@ -113,7 +113,7 @@ export function createUpdateService(dependencies: UpdateServiceDependencies = {}
         return null;
       }
 
-      const runtimeInfo = await (dependencies.getRuntimeInfo ?? (() => getRuntimePlatform().getRuntimeInfo()))();
+      const runtimeInfo = await (dependencies.getRuntimeInfo ?? (() => runtime.getRuntimeInfo()))();
       const deviceId = await (dependencies.getDeviceId ?? (() => platform.getDeviceId()))();
 
       const request: AppUpdateCheckRequest = {

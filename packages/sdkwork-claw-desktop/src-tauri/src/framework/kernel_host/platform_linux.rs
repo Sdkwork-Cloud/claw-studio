@@ -54,7 +54,13 @@ pub(super) fn write_service_artifact(spec: &KernelPlatformServiceSpec) -> Result
     let env = spec
         .launch_environment
         .iter()
-        .map(|(key, value)| format!("Environment=\"{}={}\"", escape_systemd(key), escape_systemd(value)))
+        .map(|(key, value)| {
+            format!(
+                "Environment=\"{}={}\"",
+                escape_systemd(key),
+                escape_systemd(value)
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
     let document = format!(

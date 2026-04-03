@@ -14,6 +14,7 @@ export interface UserPreferences {
   general: {
     launchOnStartup: boolean;
     startMinimized: boolean;
+    compactModelSelector: boolean;
   };
   notifications: {
     systemUpdates: boolean;
@@ -45,6 +46,7 @@ const SETTINGS_OVERLAY_STORAGE_KEY = 'claw-studio-settings-overlay';
 const DEFAULT_GENERAL_PREFERENCES: UserPreferences['general'] = {
   launchOnStartup: false,
   startMinimized: false,
+  compactModelSelector: true,
 };
 
 const DEFAULT_PRIVACY_PREFERENCES: UserPreferences['privacy'] = {
@@ -87,6 +89,20 @@ interface RemoteNotificationSettings {
 const TASK_NOTIFICATION_TYPE = 'TASK';
 const MESSAGE_NOTIFICATION_TYPE = 'MESSAGE';
 const ALERT_NOTIFICATION_TYPE_CANDIDATES = ['ALERT', 'SECURITY'];
+const AUTHENTICATION_ERROR_NAMES = new Set([
+  'AuthenticationError',
+  'TokenExpiredError',
+  'TokenInvalidError',
+]);
+const AUTHENTICATION_ERROR_CODES = new Set([
+  '401',
+  '4010',
+  'UNAUTHORIZED',
+  'TOKEN_EXPIRED',
+  'TOKEN_INVALID',
+]);
+const AUTHENTICATION_ERROR_MESSAGE_PATTERN =
+  /(访问令牌无效|token expired|token invalid|invalid token|unauthorized|authentication)/i;
 
 function getStorage(): Storage | null {
   if (typeof globalThis.localStorage !== 'undefined') {
@@ -201,6 +217,33 @@ function buildPreferencesFromNotificationSettings(
       ...overlay.security,
     },
   };
+}
+
+function isAuthenticationFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const typedError = error as Error & {
+    code?: string | number;
+    httpStatus?: number;
+    status?: number;
+  };
+
+  if (AUTHENTICATION_ERROR_NAMES.has(error.name)) {
+    return true;
+  }
+
+  const normalizedCode = String(typedError.code ?? '').trim().toUpperCase();
+  if (normalizedCode && AUTHENTICATION_ERROR_CODES.has(normalizedCode)) {
+    return true;
+  }
+
+  if (typedError.httpStatus === 401 || typedError.status === 401) {
+    return true;
+  }
+
+  return AUTHENTICATION_ERROR_MESSAGE_PATTERN.test(error.message);
 }
 
 function toUserProfile(profile: {
@@ -363,12 +406,20 @@ class SettingsService implements ISettingsService {
 
   async getPreferences(): Promise<UserPreferences> {
     const client = getAppSdkClientWithSession();
-    const settings = unwrapAppSdkResponse(
-      await client.notification.getNotificationSettings(),
-      'Failed to load preferences.',
-    ) as RemoteNotificationSettings;
+    try {
+      const settings = unwrapAppSdkResponse(
+        await client.notification.getNotificationSettings(),
+        'Failed to load preferences.',
+      ) as RemoteNotificationSettings;
 
-    return buildPreferencesFromNotificationSettings(settings);
+      return buildPreferencesFromNotificationSettings(settings);
+    } catch (error) {
+      if (isAuthenticationFailure(error)) {
+        return buildPreferencesFromNotificationSettings({});
+      }
+
+      throw error;
+    }
   }
 
   async updatePreferences(prefs: Partial<UserPreferences>): Promise<UserPreferences> {

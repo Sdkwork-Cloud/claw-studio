@@ -124,7 +124,6 @@ assertMissingActivePackage('packages/claw-studio-shell');
 assertRoute('/auth');
 assertRoute('/claw-upload');
 assertRoute('/codebox');
-assertRoute('/api-router');
 assertRoute('/chat');
 assertRoute('/market');
 ```
@@ -627,7 +626,6 @@ Add assertions for:
 - `/settings`
 - `/docs`
 - `/codebox`
-- `/api-router`
 
 - [ ] **Step 2: Run the checks to verify they fail**
 

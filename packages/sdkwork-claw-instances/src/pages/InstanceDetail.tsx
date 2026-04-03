@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,7 +10,6 @@ import {
   Edit2,
   FileCode2,
   Files,
-  FolderTree,
   Hash,
   History,
   Loader2,
@@ -22,8 +21,6 @@ import {
   Plus,
   Power,
   RefreshCw,
-  RotateCcw,
-  Save,
   Server,
   Settings,
   Sparkles,
@@ -36,7 +33,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { CronTasksManager } from '@sdkwork/claw-commons';
 import type { OpenClawAgentInput, OpenClawProviderInput } from '@sdkwork/claw-core';
-import { useInstanceStore } from '@sdkwork/claw-core';
+import { normalizeLegacyProviderId, useInstanceStore } from '@sdkwork/claw-core';
 import { openExternalUrl } from '@sdkwork/claw-infrastructure';
 import {
   Button,
@@ -69,16 +66,19 @@ import {
   type TaskCatalogItem,
 } from '@sdkwork/claw-ui';
 import { AgentWorkbenchPanel } from '../components/AgentWorkbenchPanel';
-import { InstanceFileExplorer } from '../components/InstanceFileExplorer';
+import { InstanceFilesWorkspace } from '../components/InstanceFilesWorkspace';
 import { InstanceLLMConfigPanel } from '../components/InstanceLLMConfigPanel';
 import { buildInstanceDetailBadgeDescriptors } from './instanceDetailBadgeDescriptors';
 import {
   agentWorkbenchService,
   agentSkillManagementService,
   type AgentWorkbenchSnapshot,
+  buildOpenClawAgentInputFromForm,
   buildInstanceManagementSummary,
+  createOpenClawAgentFormState,
   instanceService,
   instanceWorkbenchService,
+  type OpenClawAgentFormState,
 } from '../services';
 import type {
   InstanceConfig,
@@ -114,20 +114,28 @@ interface OpenClawProviderModelFormState {
   name: string;
 }
 
-interface OpenClawAgentFormState {
-  id: string;
-  name: string;
-  avatar: string;
-  workspace: string;
-  agentDir: string;
-  isDefault: boolean;
-  primaryModel: string;
-  fallbackModelsText: string;
-  temperature: string;
-  topP: string;
-  maxTokens: string;
-  timeoutMs: string;
-  streaming: boolean;
+interface OpenClawWebSearchSharedFormState {
+  enabled: boolean;
+  provider: string;
+  maxResults: string;
+  timeoutSeconds: string;
+  cacheTtlMinutes: string;
+}
+
+interface OpenClawWebSearchProviderFormState {
+  apiKeySource: string;
+  baseUrl: string;
+  model: string;
+  advancedConfig: string;
+}
+
+interface OpenClawAuthCooldownsFormState {
+  rateLimitedProfileRotations: string;
+  overloadedProfileRotations: string;
+  overloadedBackoffMs: string;
+  billingBackoffHours: string;
+  billingMaxHours: string;
+  failureWindowHours: string;
 }
 
 const workbenchSections: WorkbenchSectionDefinition[] = [
@@ -210,8 +218,6 @@ const embeddedCronTaskActionKeys = [
   'tasks.page.actions.runNow',
   'tasks.page.actions.history',
 ] as const;
-
-const MonacoEditor = React.lazy(() => import('@monaco-editor/react'));
 
 function getRuntimeStatusTone(status: string) {
   if (status === 'healthy') {
@@ -412,12 +418,6 @@ function formatWorkbenchLabel(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function normalizeManagedProviderId(providerId: string) {
-  return providerId.startsWith('api-router-')
-    ? providerId.slice('api-router-'.length)
-    : providerId;
-}
-
 function parseProviderModelsText(modelsText: string) {
   const models = modelsText
     .split(/\r?\n/)
@@ -491,39 +491,52 @@ function createDefaultProviderRuntimeConfig(): InstanceLLMProviderUpdate['config
   };
 }
 
-function createAgentFormFromAgent(
-  agent: InstanceWorkbenchSnapshot['agents'][number] | null,
-): OpenClawAgentFormState {
+function createWebSearchSharedFormState(
+  config: InstanceWorkbenchSnapshot['managedWebSearchConfig'] | null | undefined,
+): OpenClawWebSearchSharedFormState | null {
+  if (!config) {
+    return null;
+  }
+
   return {
-    id: agent?.agent.id || '',
-    name: agent?.agent.name || '',
-    avatar: agent?.agent.avatar || '',
-    workspace: agent?.workspace || '',
-    agentDir: agent?.agentDir || '',
-    isDefault: Boolean(agent?.isDefault),
-    primaryModel: agent?.model?.primary || '',
-    fallbackModelsText: agent?.model?.fallbacks.join('\n') || '',
-    temperature:
-      typeof agent?.params?.temperature === 'number' ? String(agent.params.temperature) : '',
-    topP: typeof agent?.params?.topP === 'number' ? String(agent.params.topP) : '',
-    maxTokens:
-      typeof agent?.params?.maxTokens === 'number' ? String(agent.params.maxTokens) : '',
-    timeoutMs:
-      typeof agent?.params?.timeoutMs === 'number' ? String(agent.params.timeoutMs) : '',
-    streaming:
-      typeof agent?.params?.streaming === 'boolean' ? agent.params.streaming : true,
+    enabled: config.enabled,
+    provider: config.provider,
+    maxResults: String(config.maxResults),
+    timeoutSeconds: String(config.timeoutSeconds),
+    cacheTtlMinutes: String(config.cacheTtlMinutes),
   };
 }
 
-function parseAgentFallbackModels(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(/\r?\n/)
-        .map((entry) => entry.trim())
-        .filter(Boolean),
-    ),
-  );
+function createWebSearchProviderFormState(
+  provider?: NonNullable<InstanceWorkbenchSnapshot['managedWebSearchConfig']>['providers'][number] | null,
+): OpenClawWebSearchProviderFormState {
+  return {
+    apiKeySource: provider?.apiKeySource || '',
+    baseUrl: provider?.baseUrl || '',
+    model: provider?.model || '',
+    advancedConfig: provider?.advancedConfig || '',
+  };
+}
+
+function formatOptionalWholeNumber(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+}
+
+function createAuthCooldownsFormState(
+  config: InstanceWorkbenchSnapshot['managedAuthCooldownsConfig'] | null | undefined,
+): OpenClawAuthCooldownsFormState | null {
+  if (!config) {
+    return null;
+  }
+
+  return {
+    rateLimitedProfileRotations: formatOptionalWholeNumber(config.rateLimitedProfileRotations),
+    overloadedProfileRotations: formatOptionalWholeNumber(config.overloadedProfileRotations),
+    overloadedBackoffMs: formatOptionalWholeNumber(config.overloadedBackoffMs),
+    billingBackoffHours: formatOptionalWholeNumber(config.billingBackoffHours),
+    billingMaxHours: formatOptionalWholeNumber(config.billingMaxHours),
+    failureWindowHours: formatOptionalWholeNumber(config.failureWindowHours),
+  };
 }
 
 function getCapabilityTone(status: string) {
@@ -547,6 +560,32 @@ function getManagementEntryTone(tone: 'neutral' | 'success' | 'warning') {
     return 'border-amber-200/70 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10';
   }
   return 'border-zinc-200/70 bg-zinc-950/[0.02] dark:border-zinc-800 dark:bg-white/[0.03]';
+}
+
+function formatAgentConfigSource(
+  source: 'agent' | 'defaults' | 'runtime',
+  translate: (key: string) => string,
+) {
+  return translate(`instances.detail.instanceWorkbench.agents.modelSources.${source}`);
+}
+
+function formatAgentStreamingMode(
+  mode: OpenClawAgentFormState['streamingMode'],
+  translate: (key: string) => string,
+) {
+  if (mode === 'enabled') {
+    return translate('instances.detail.instanceWorkbench.state.enabled');
+  }
+  if (mode === 'disabled') {
+    return translate('instances.detail.instanceWorkbench.agents.skillStates.disabled');
+  }
+  return translate('instances.detail.instanceWorkbench.agents.panel.inheritDefaults');
+}
+
+function formatAgentStreamingValue(value: boolean, translate: (key: string) => string) {
+  return value
+    ? translate('instances.detail.instanceWorkbench.state.enabled')
+    : translate('instances.detail.instanceWorkbench.agents.skillStates.disabled');
 }
 
 function SectionAvailabilityNotice({
@@ -581,9 +620,8 @@ export function InstanceDetail() {
   const [workbench, setWorkbench] = useState<InstanceWorkbenchSnapshot | null>(null);
   const [config, setConfig] = useState<InstanceConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-  const [fileDrafts, setFileDrafts] = useState<Record<string, string>>({});
-  const [isSavingFile, setIsSavingFile] = useState(false);
+  const [isWorkbenchFilesLoading, setIsWorkbenchFilesLoading] = useState(false);
+  const [isWorkbenchMemoryLoading, setIsWorkbenchMemoryLoading] = useState(false);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, InstanceLLMProviderUpdate>>({});
   const [isSavingProviderConfig, setIsSavingProviderConfig] = useState(false);
@@ -602,13 +640,25 @@ export function InstanceDetail() {
   const [managedChannelDrafts, setManagedChannelDrafts] = useState<Record<string, Record<string, string>>>({});
   const [managedChannelError, setManagedChannelError] = useState<string | null>(null);
   const [isSavingManagedChannel, setIsSavingManagedChannel] = useState(false);
+  const [selectedWebSearchProviderId, setSelectedWebSearchProviderId] = useState<string | null>(null);
+  const [webSearchSharedDraft, setWebSearchSharedDraft] =
+    useState<OpenClawWebSearchSharedFormState | null>(null);
+  const [webSearchProviderDrafts, setWebSearchProviderDrafts] =
+    useState<Record<string, OpenClawWebSearchProviderFormState>>({});
+  const [webSearchError, setWebSearchError] = useState<string | null>(null);
+  const [isSavingWebSearch, setIsSavingWebSearch] = useState(false);
+  const [authCooldownsDraft, setAuthCooldownsDraft] =
+    useState<OpenClawAuthCooldownsFormState | null>(null);
+  const [authCooldownsError, setAuthCooldownsError] = useState<string | null>(null);
+  const [isSavingAuthCooldowns, setIsSavingAuthCooldowns] = useState(false);
   const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedAgentWorkbench, setSelectedAgentWorkbench] =
     useState<Awaited<ReturnType<typeof agentWorkbenchService.getAgentWorkbench>> | null>(null);
+  const [agentWorkbenchError, setAgentWorkbenchError] = useState<string | null>(null);
   const [isAgentWorkbenchLoading, setIsAgentWorkbenchLoading] = useState(false);
   const [agentDialogDraft, setAgentDialogDraft] = useState<OpenClawAgentFormState>(
-    createAgentFormFromAgent(null),
+    createOpenClawAgentFormState(null),
   );
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [isSavingAgentDialog, setIsSavingAgentDialog] = useState(false);
@@ -661,21 +711,6 @@ export function InstanceDetail() {
   }, [id]);
 
   useEffect(() => {
-    const files = workbench?.files || [];
-
-    if (files.length === 0) {
-      setSelectedFileId(null);
-      setFileDrafts({});
-      return;
-    }
-
-    setSelectedFileId((current) =>
-      current && files.some((file) => file.id === current) ? current : files[0].id,
-    );
-    setFileDrafts(Object.fromEntries(files.map((file) => [file.id, file.content])));
-  }, [workbench]);
-
-  useEffect(() => {
     const providers = workbench?.llmProviders || [];
 
     if (providers.length === 0) {
@@ -687,22 +722,8 @@ export function InstanceDetail() {
     setSelectedProviderId((current) =>
       current && providers.some((provider) => provider.id === current) ? current : providers[0].id,
     );
-    setProviderDrafts(
-      Object.fromEntries(
-        providers.map((provider) => [
-          provider.id,
-          {
-            endpoint: provider.endpoint,
-            apiKeySource: provider.apiKeySource,
-            defaultModelId: provider.defaultModelId,
-            reasoningModelId: provider.reasoningModelId,
-            embeddingModelId: provider.embeddingModelId,
-            config: { ...provider.config },
-          },
-        ]),
-      ),
-    );
-  }, [workbench]);
+    setProviderDrafts({});
+  }, [workbench?.llmProviders]);
 
   useEffect(() => {
     const managedChannels = workbench?.managedChannels || [];
@@ -717,15 +738,47 @@ export function InstanceDetail() {
     setSelectedManagedChannelId((current) =>
       current && managedChannels.some((channel) => channel.id === current) ? current : null,
     );
-    setManagedChannelDrafts(
-      Object.fromEntries(
-        managedChannels.map((channel) => [
-          channel.id,
-          { ...channel.values },
-        ]),
-      ),
-    );
-  }, [workbench]);
+    setManagedChannelDrafts({});
+  }, [workbench?.managedChannels]);
+
+  useEffect(() => {
+    const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;
+    const providers = managedWebSearchConfig?.providers || [];
+
+    if (!managedWebSearchConfig || providers.length === 0) {
+      setSelectedWebSearchProviderId(null);
+      setWebSearchSharedDraft(null);
+      setWebSearchProviderDrafts({});
+      setWebSearchError(null);
+      return;
+    }
+
+    setSelectedWebSearchProviderId((current) => {
+      if (current && providers.some((provider) => provider.id === current)) {
+        return current;
+      }
+      if (managedWebSearchConfig.provider && providers.some((provider) => provider.id === managedWebSearchConfig.provider)) {
+        return managedWebSearchConfig.provider;
+      }
+      return providers[0]?.id || null;
+    });
+    setWebSearchSharedDraft(createWebSearchSharedFormState(managedWebSearchConfig));
+    setWebSearchProviderDrafts({});
+    setWebSearchError(null);
+  }, [workbench?.managedWebSearchConfig]);
+
+  useEffect(() => {
+    const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;
+
+    if (!managedAuthCooldownsConfig) {
+      setAuthCooldownsDraft(null);
+      setAuthCooldownsError(null);
+      return;
+    }
+
+    setAuthCooldownsDraft(createAuthCooldownsFormState(managedAuthCooldownsConfig));
+    setAuthCooldownsError(null);
+  }, [workbench?.managedAuthCooldownsConfig]);
 
   useEffect(() => {
     const agents = workbench?.agents || [];
@@ -733,6 +786,7 @@ export function InstanceDetail() {
     if (agents.length === 0) {
       setSelectedAgentId(null);
       setSelectedAgentWorkbench(null);
+      setAgentWorkbenchError(null);
       setIsAgentWorkbenchLoading(false);
       return;
     }
@@ -740,18 +794,20 @@ export function InstanceDetail() {
     setSelectedAgentId((current) =>
       current && agents.some((agent) => agent.agent.id === current) ? current : agents[0].agent.id,
     );
-  }, [workbench]);
+  }, [workbench?.agents]);
 
   useEffect(() => {
     if (activeSection !== 'agents' || !id || !workbench || !selectedAgentId) {
       if (!selectedAgentId) {
         setSelectedAgentWorkbench(null);
+        setAgentWorkbenchError(null);
       }
       return;
     }
 
     let cancelled = false;
     setSelectedAgentWorkbench(null);
+    setAgentWorkbenchError(null);
     setIsAgentWorkbenchLoading(true);
 
     void agentWorkbenchService
@@ -763,12 +819,18 @@ export function InstanceDetail() {
       .then((snapshot) => {
         if (!cancelled) {
           setSelectedAgentWorkbench(snapshot);
+          setAgentWorkbenchError(null);
         }
       })
       .catch((error) => {
         console.error('Failed to load agent workbench:', error);
         if (!cancelled) {
           setSelectedAgentWorkbench(null);
+          setAgentWorkbenchError(
+            error instanceof Error && error.message.trim()
+              ? error.message
+              : 'Failed to load agent detail.',
+          );
         }
       })
       .finally(() => {
@@ -786,7 +848,7 @@ export function InstanceDetail() {
     if (historyTaskId && !workbench?.tasks.some((task) => task.id === historyTaskId)) {
       setHistoryTaskId(null);
     }
-  }, [historyTaskId, workbench]);
+  }, [historyTaskId, workbench?.tasks]);
 
   useEffect(() => {
     setTaskExecutionsById({});
@@ -797,17 +859,28 @@ export function InstanceDetail() {
     setRunningTaskIds([]);
     setStatusTaskIds([]);
     setDeletingTaskIds([]);
+    setIsWorkbenchFilesLoading(false);
+    setIsWorkbenchMemoryLoading(false);
     setIsProviderDialogOpen(false);
     setProviderDialogDraft(createEmptyProviderForm());
     setIsProviderModelDialogOpen(false);
     setProviderModelDialogDraft(createEmptyProviderModelForm());
     setProviderModelDeleteId(null);
     setProviderDeleteId(null);
+    setSelectedWebSearchProviderId(null);
+    setWebSearchSharedDraft(null);
+    setWebSearchProviderDrafts({});
+    setWebSearchError(null);
+    setIsSavingWebSearch(false);
+    setAuthCooldownsDraft(null);
+    setAuthCooldownsError(null);
+    setIsSavingAuthCooldowns(false);
     setIsAgentDialogOpen(false);
     setSelectedAgentId(null);
     setSelectedAgentWorkbench(null);
+    setAgentWorkbenchError(null);
     setIsAgentWorkbenchLoading(false);
-    setAgentDialogDraft(createAgentFormFromAgent(null));
+    setAgentDialogDraft(createOpenClawAgentFormState(null));
     setEditingAgentId(null);
     setAgentDeleteId(null);
     setIsInstallingAgentSkill(false);
@@ -818,12 +891,22 @@ export function InstanceDetail() {
   const detail = workbench?.detail || null;
   const managedConfigPath = workbench?.managedConfigPath || null;
   const managedChannels = workbench?.managedChannels || [];
+  const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;
+  const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;
   const consoleAccess = detail?.consoleAccess || null;
   const isOpenClawConfigWritable =
     detail?.instance.runtimeKind === 'openclaw' && Boolean(managedConfigPath);
   const canEditManagedChannels = Boolean(id && managedConfigPath && managedChannels.length);
+  const canEditManagedWebSearch = Boolean(
+    id && managedConfigPath && managedWebSearchConfig?.providers.length,
+  );
+  const canEditManagedAuthCooldowns = Boolean(id && managedConfigPath && managedAuthCooldownsConfig);
   const isProviderConfigReadonly =
-    detail?.instance.runtimeKind === 'openclaw' ? !managedConfigPath : false;
+    detail?.instance.runtimeKind === 'openclaw' ? Boolean(managedConfigPath) : false;
+  const canManageOpenClawProviders =
+    detail?.instance.runtimeKind === 'openclaw'
+      ? Boolean(managedConfigPath) && !isProviderConfigReadonly
+      : true;
   const canOpenOpenClawConsole = Boolean(
     consoleAccess?.available && (consoleAccess.autoLoginUrl || consoleAccess.url),
   );
@@ -839,10 +922,6 @@ export function InstanceDetail() {
     [workbench],
   );
 
-  const selectedFile = useMemo(
-    () => workbench?.files.find((file) => file.id === selectedFileId) || null,
-    [selectedFileId, workbench],
-  );
   const selectedProvider = useMemo(
     () => workbench?.llmProviders.find((provider) => provider.id === selectedProviderId) || null,
     [selectedProviderId, workbench],
@@ -859,6 +938,12 @@ export function InstanceDetail() {
     () => managedChannels.find((channel) => channel.id === selectedManagedChannelId) || null,
     [managedChannels, selectedManagedChannelId],
   );
+  const selectedWebSearchProvider = useMemo(
+    () =>
+      managedWebSearchConfig?.providers.find((provider) => provider.id === selectedWebSearchProviderId) ||
+      null,
+    [managedWebSearchConfig, selectedWebSearchProviderId],
+  );
   const providerDialogModels = useMemo(
     () => parseProviderModelsText(providerDialogDraft.modelsText),
     [providerDialogDraft.modelsText],
@@ -868,7 +953,7 @@ export function InstanceDetail() {
       const options = new Map<string, { value: string; label: string }>();
       (workbench?.llmProviders || []).forEach((provider) => {
         provider.models.forEach((model) => {
-          const value = `${normalizeManagedProviderId(provider.id)}/${model.id}`;
+          const value = `${normalizeLegacyProviderId(provider.id)}/${model.id}`;
           if (!options.has(value)) {
             options.set(value, {
               value,
@@ -882,7 +967,6 @@ export function InstanceDetail() {
     [workbench],
   );
 
-  const selectedFileDraft = selectedFile ? fileDrafts[selectedFile.id] ?? selectedFile.content : '';
   const selectedProviderDraft = selectedProvider
     ? providerDrafts[selectedProvider.id] || {
         endpoint: selectedProvider.endpoint,
@@ -895,6 +979,10 @@ export function InstanceDetail() {
     : null;
   const selectedManagedChannelDraft = selectedManagedChannel
     ? managedChannelDrafts[selectedManagedChannel.id] || selectedManagedChannel.values
+    : null;
+  const selectedWebSearchProviderDraft = selectedWebSearchProvider
+    ? webSearchProviderDrafts[selectedWebSearchProvider.id] ||
+      createWebSearchProviderFormState(selectedWebSearchProvider)
     : null;
   const readonlyChannelCatalogItems = useMemo<ChannelCatalogItem[]>(
     () =>
@@ -917,6 +1005,7 @@ export function InstanceDetail() {
   const managedChannelWorkspaceItems = useMemo<ChannelWorkspaceItem[]>(
     () =>
       managedChannels.map((channel) => {
+        const runtimeChannel = workbench?.channels.find((item) => item.id === channel.id) || null;
         const draft = managedChannelDrafts[channel.id] || channel.values;
         const configuredFieldCount = channel.fields.filter((field) =>
           Boolean((draft[field.key] || '').trim()),
@@ -935,22 +1024,144 @@ export function InstanceDetail() {
         return {
           id: channel.id,
           name: channel.name,
-          description: channel.description,
+          description: runtimeChannel?.description || channel.description,
           status: derivedStatus,
           enabled: channel.enabled,
           configurationMode: channel.configurationMode,
           fieldCount: channel.fieldCount,
           configuredFieldCount,
-          setupSteps: [...channel.setupSteps],
+          setupSteps:
+            runtimeChannel?.setupSteps && runtimeChannel.setupSteps.length > 0
+              ? [...runtimeChannel.setupSteps]
+              : [...channel.setupSteps],
           fields: channel.fields.map((field) => ({ ...field })),
           values: { ...draft },
         };
       }),
-    [managedChannelDrafts, managedChannels],
+    [managedChannelDrafts, managedChannels, workbench?.channels],
   );
-  const hasPendingFileChanges = Boolean(
-    selectedFile && !selectedFile.isReadonly && selectedFileDraft !== selectedFile.content,
-  );
+
+  useEffect(() => {
+    if (
+      !id ||
+      !workbench ||
+      detail?.instance.runtimeKind !== 'openclaw' ||
+      detail.instance.isBuiltIn ||
+      workbench.files.length > 0 ||
+      !['files', 'agents'].includes(activeSection)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsWorkbenchFilesLoading(true);
+
+    void instanceWorkbenchService
+      .listInstanceFiles(id, workbench.agents)
+      .then((files) => {
+        if (cancelled) {
+          return;
+        }
+        setWorkbench((current) => {
+          if (!current || current.instance.id !== id) {
+            return current;
+          }
+
+          return {
+            ...current,
+            files,
+            sectionCounts: {
+              ...current.sectionCounts,
+              files: files.length,
+            },
+            sectionAvailability: {
+              ...current.sectionAvailability,
+              files:
+                files.length > 0
+                  ? {
+                      status: 'ready',
+                      detail: 'Runtime file data is available for this instance workbench.',
+                    }
+                  : current.sectionAvailability.files,
+            },
+          };
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to load instance files:', error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsWorkbenchFilesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, detail, id, workbench]);
+
+  useEffect(() => {
+    if (
+      activeSection !== 'memory' ||
+      !id ||
+      !workbench ||
+      detail?.instance.runtimeKind !== 'openclaw' ||
+      detail.instance.isBuiltIn ||
+      workbench.memories.length > 0
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsWorkbenchMemoryLoading(true);
+
+    void instanceWorkbenchService
+      .listInstanceMemories(id, workbench.agents)
+      .then((memories) => {
+        if (cancelled) {
+          return;
+        }
+
+        setWorkbench((current) => {
+          if (!current || current.instance.id !== id) {
+            return current;
+          }
+
+          return {
+            ...current,
+            memories,
+            sectionCounts: {
+              ...current.sectionCounts,
+              memory: memories.length,
+            },
+            sectionAvailability: {
+              ...current.sectionAvailability,
+              memory:
+                memories.length > 0
+                  ? {
+                      status: 'ready',
+                      detail: 'Runtime memory data is available for this instance workbench.',
+                    }
+                  : current.sectionAvailability.memory,
+            },
+          };
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to load instance memories:', error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsWorkbenchMemoryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, detail, id, workbench]);
+
   const hasPendingProviderChanges = Boolean(
     selectedProvider &&
       selectedProviderDraft &&
@@ -970,45 +1181,6 @@ export function InstanceDetail() {
       : 'vs';
 
   const getSharedStatusLabel = (status: string) => t(`instances.shared.status.${status}`);
-
-  const handleFileDraftChange = (value: string) => {
-    if (!selectedFile || selectedFile.isReadonly) {
-      return;
-    }
-
-    setFileDrafts((current) => ({
-      ...current,
-      [selectedFile.id]: value,
-    }));
-  };
-
-  const handleResetFileDraft = () => {
-    if (!selectedFile) {
-      return;
-    }
-
-    setFileDrafts((current) => ({
-      ...current,
-      [selectedFile.id]: selectedFile.content,
-    }));
-  };
-
-  const handleSaveFile = async () => {
-    if (!id || !selectedFile || selectedFile.isReadonly) {
-      return;
-    }
-
-    setIsSavingFile(true);
-    try {
-      await instanceService.updateInstanceFileContent(id, selectedFile.id, selectedFileDraft);
-      toast.success(t('instances.detail.instanceWorkbench.files.fileSaved'));
-      await loadWorkbench(id);
-    } catch (error: any) {
-      toast.error(error.message || t('instances.detail.instanceWorkbench.files.fileSaveFailed'));
-    } finally {
-      setIsSavingFile(false);
-    }
-  };
 
   const handleProviderFieldChange = (
     field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
@@ -1089,12 +1261,15 @@ export function InstanceDetail() {
   };
 
   const openCreateProviderDialog = () => {
+    if (!canManageOpenClawProviders) {
+      return;
+    }
     setProviderDialogDraft(createEmptyProviderForm());
     setIsProviderDialogOpen(true);
   };
 
   const handleSubmitProviderDialog = async () => {
-    if (!id) {
+    if (isProviderConfigReadonly || !id) {
       return;
     }
 
@@ -1157,6 +1332,9 @@ export function InstanceDetail() {
   };
 
   const openCreateProviderModelDialog = () => {
+    if (!canManageOpenClawProviders) {
+      return;
+    }
     setProviderModelDialogDraft(createEmptyProviderModelForm());
     setIsProviderModelDialogOpen(true);
   };
@@ -1169,7 +1347,7 @@ export function InstanceDetail() {
   };
 
   const handleSubmitProviderModelDialog = async () => {
-    if (!id || !selectedProvider) {
+    if (isProviderConfigReadonly || !id || !selectedProvider) {
       return;
     }
 
@@ -1211,7 +1389,7 @@ export function InstanceDetail() {
   };
 
   const handleDeleteProviderModel = async () => {
-    if (!id || !selectedProvider || !providerModelDeleteId) {
+    if (isProviderConfigReadonly || !id || !selectedProvider || !providerModelDeleteId) {
       return;
     }
 
@@ -1230,7 +1408,7 @@ export function InstanceDetail() {
   };
 
   const handleDeleteProvider = async () => {
-    if (!id || !providerDeleteId) {
+    if (isProviderConfigReadonly || !id || !providerDeleteId) {
       return;
     }
 
@@ -1247,13 +1425,17 @@ export function InstanceDetail() {
 
   const openCreateAgentDialog = () => {
     setEditingAgentId(null);
-    setAgentDialogDraft(createAgentFormFromAgent(null));
+    setAgentDialogDraft(createOpenClawAgentFormState(null));
     setIsAgentDialogOpen(true);
   };
 
   const openEditAgentDialog = (agent: InstanceWorkbenchSnapshot['agents'][number]) => {
+    const modelSource =
+      selectedAgentWorkbench?.agent.agent.id === agent.agent.id
+        ? selectedAgentWorkbench.model.source
+        : 'agent';
     setEditingAgentId(agent.agent.id);
-    setAgentDialogDraft(createAgentFormFromAgent(agent));
+    setAgentDialogDraft(createOpenClawAgentFormState(agent, modelSource));
     setIsAgentDialogOpen(true);
   };
 
@@ -1262,44 +1444,11 @@ export function InstanceDetail() {
       return;
     }
 
-    const agentId = agentDialogDraft.id.trim();
-    if (!agentId) {
+    const agentInput: OpenClawAgentInput = buildOpenClawAgentInputFromForm(agentDialogDraft);
+    if (!agentInput.id) {
       toast.error(t('instances.detail.instanceWorkbench.agents.toasts.agentIdRequired'));
       return;
     }
-
-    const params: Record<string, string | number | boolean | null | undefined> = {};
-    if (agentDialogDraft.temperature.trim()) {
-      params.temperature = Number(agentDialogDraft.temperature);
-    }
-    if (agentDialogDraft.topP.trim()) {
-      params.topP = Number(agentDialogDraft.topP);
-    }
-    if (agentDialogDraft.maxTokens.trim()) {
-      params.maxTokens = Number(agentDialogDraft.maxTokens);
-    }
-    if (agentDialogDraft.timeoutMs.trim()) {
-      params.timeoutMs = Number(agentDialogDraft.timeoutMs);
-    }
-    if (!agentDialogDraft.streaming) {
-      params.streaming = false;
-    }
-
-    const agentInput: OpenClawAgentInput = {
-      id: agentId,
-      name: agentDialogDraft.name,
-      avatar: agentDialogDraft.avatar,
-      workspace: agentDialogDraft.workspace,
-      agentDir: agentDialogDraft.agentDir,
-      isDefault: agentDialogDraft.isDefault,
-      model: agentDialogDraft.primaryModel.trim()
-        ? {
-            primary: agentDialogDraft.primaryModel.trim(),
-            fallbacks: parseAgentFallbackModels(agentDialogDraft.fallbackModelsText),
-          }
-        : null,
-      params,
-    };
 
     setIsSavingAgentDialog(true);
     try {
@@ -1577,6 +1726,198 @@ export function InstanceDetail() {
       );
     } finally {
       setIsSavingManagedChannel(false);
+    }
+  };
+
+  const handleWebSearchSharedDraftChange = (
+    key: keyof OpenClawWebSearchSharedFormState,
+    value: string | boolean,
+  ) => {
+    setWebSearchError(null);
+    setWebSearchSharedDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
+  };
+
+  const handleWebSearchProviderDraftChange = (
+    key: keyof OpenClawWebSearchProviderFormState,
+    value: string,
+  ) => {
+    if (!selectedWebSearchProvider) {
+      return;
+    }
+
+    setWebSearchError(null);
+    setWebSearchProviderDrafts((current) => ({
+      ...current,
+      [selectedWebSearchProvider.id]: {
+        ...(current[selectedWebSearchProvider.id] || createWebSearchProviderFormState(selectedWebSearchProvider)),
+        [key]: value,
+      },
+    }));
+  };
+
+  const handleSaveWebSearchConfig = async () => {
+    if (
+      !id ||
+      !webSearchSharedDraft ||
+      !selectedWebSearchProvider ||
+      !selectedWebSearchProviderDraft
+    ) {
+      return;
+    }
+
+    const maxResults = Number.parseInt(webSearchSharedDraft.maxResults, 10);
+    const timeoutSeconds = Number.parseInt(webSearchSharedDraft.timeoutSeconds, 10);
+    const cacheTtlMinutes = Number.parseInt(webSearchSharedDraft.cacheTtlMinutes, 10);
+
+    if (!webSearchSharedDraft.provider.trim()) {
+      setWebSearchError(t('instances.detail.instanceWorkbench.webSearch.errors.providerRequired'));
+      return;
+    }
+    if (!Number.isFinite(maxResults) || maxResults <= 0) {
+      setWebSearchError(t('instances.detail.instanceWorkbench.webSearch.errors.maxResultsInvalid'));
+      return;
+    }
+    if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+      setWebSearchError(t('instances.detail.instanceWorkbench.webSearch.errors.timeoutInvalid'));
+      return;
+    }
+    if (!Number.isFinite(cacheTtlMinutes) || cacheTtlMinutes <= 0) {
+      setWebSearchError(t('instances.detail.instanceWorkbench.webSearch.errors.cacheTtlInvalid'));
+      return;
+    }
+
+    setIsSavingWebSearch(true);
+    setWebSearchError(null);
+    try {
+      await instanceService.saveOpenClawWebSearchConfig(id, {
+        enabled: webSearchSharedDraft.enabled,
+        provider: webSearchSharedDraft.provider.trim(),
+        maxResults,
+        timeoutSeconds,
+        cacheTtlMinutes,
+        providerConfig: {
+          providerId: selectedWebSearchProvider.id,
+          apiKeySource: selectedWebSearchProviderDraft.apiKeySource,
+          baseUrl: selectedWebSearchProviderDraft.baseUrl,
+          model: selectedWebSearchProviderDraft.model,
+          advancedConfig: selectedWebSearchProviderDraft.advancedConfig,
+        },
+      });
+      toast.success(t('instances.detail.instanceWorkbench.webSearch.toasts.saved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      setWebSearchError(
+        error?.message || t('instances.detail.instanceWorkbench.webSearch.toasts.saveFailed'),
+      );
+    } finally {
+      setIsSavingWebSearch(false);
+    }
+  };
+
+  const handleAuthCooldownsDraftChange = (
+    key: keyof OpenClawAuthCooldownsFormState,
+    value: string,
+  ) => {
+    setAuthCooldownsError(null);
+    setAuthCooldownsDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
+  };
+
+  const handleSaveAuthCooldownsConfig = async () => {
+    if (!id || !authCooldownsDraft) {
+      return;
+    }
+
+    const parseWholeNumber = (
+      value: string,
+      errorKey: string,
+    ) => {
+      const normalized = value.trim();
+      if (!normalized) {
+        return undefined;
+      }
+
+      const parsed = Number.parseInt(normalized, 10);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(t(errorKey));
+      }
+
+      return parsed;
+    };
+
+    let rateLimitedProfileRotations: number | undefined;
+    let overloadedProfileRotations: number | undefined;
+    let overloadedBackoffMs: number | undefined;
+    let billingBackoffHours: number | undefined;
+    let billingMaxHours: number | undefined;
+    let failureWindowHours: number | undefined;
+
+    try {
+      rateLimitedProfileRotations = parseWholeNumber(
+        authCooldownsDraft.rateLimitedProfileRotations,
+        'instances.detail.instanceWorkbench.authCooldowns.errors.rateLimitedProfileRotationsInvalid',
+      );
+      overloadedProfileRotations = parseWholeNumber(
+        authCooldownsDraft.overloadedProfileRotations,
+        'instances.detail.instanceWorkbench.authCooldowns.errors.overloadedProfileRotationsInvalid',
+      );
+      overloadedBackoffMs = parseWholeNumber(
+        authCooldownsDraft.overloadedBackoffMs,
+        'instances.detail.instanceWorkbench.authCooldowns.errors.overloadedBackoffMsInvalid',
+      );
+      billingBackoffHours = parseWholeNumber(
+        authCooldownsDraft.billingBackoffHours,
+        'instances.detail.instanceWorkbench.authCooldowns.errors.billingBackoffHoursInvalid',
+      );
+      billingMaxHours = parseWholeNumber(
+        authCooldownsDraft.billingMaxHours,
+        'instances.detail.instanceWorkbench.authCooldowns.errors.billingMaxHoursInvalid',
+      );
+      failureWindowHours = parseWholeNumber(
+        authCooldownsDraft.failureWindowHours,
+        'instances.detail.instanceWorkbench.authCooldowns.errors.failureWindowHoursInvalid',
+      );
+    } catch (error: any) {
+      setAuthCooldownsError(error?.message || null);
+      return;
+    }
+
+    setIsSavingAuthCooldowns(true);
+    setAuthCooldownsError(null);
+    try {
+      await instanceService.saveOpenClawAuthCooldownsConfig(id, {
+        rateLimitedProfileRotations,
+        overloadedProfileRotations,
+        overloadedBackoffMs,
+        billingBackoffHours,
+        billingMaxHours,
+        failureWindowHours,
+      });
+      toast.success(t('instances.detail.instanceWorkbench.authCooldowns.toasts.saved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      setAuthCooldownsError(
+        error?.message || t('instances.detail.instanceWorkbench.authCooldowns.toasts.saveFailed'),
+      );
+    } finally {
+      setIsSavingAuthCooldowns(false);
     }
   };
 
@@ -2271,6 +2612,7 @@ export function InstanceDetail() {
         <AgentWorkbenchPanel
           workbench={workbench}
           snapshot={selectedAgentWorkbench}
+          errorMessage={agentWorkbenchError}
           selectedAgentId={selectedAgentId}
           onSelectedAgentIdChange={setSelectedAgentId}
           onOpenAgentMarket={() => navigate(`/agents?instanceId=${encodeURIComponent(id)}`)}
@@ -2282,9 +2624,11 @@ export function InstanceDetail() {
           onRemoveSkill={handleRemoveAgentSkill}
           isReadonly={!isOpenClawConfigWritable}
           isLoading={isAgentWorkbenchLoading}
+          isFilesLoading={isWorkbenchFilesLoading}
           isInstallingSkill={isInstallingAgentSkill}
           updatingSkillKeys={updatingAgentSkillKeys}
           removingSkillKeys={removingAgentSkillKeys}
+          onReload={() => loadWorkbench(id, { withSpinner: false })}
         />
 
         <Dialog open={isAgentDialogOpen} onOpenChange={setIsAgentDialogOpen}>
@@ -2355,6 +2699,15 @@ export function InstanceDetail() {
                     ))}
                   </SelectContent>
                 </Select>
+                {agentDialogDraft.fieldSources.model === 'defaults' &&
+                (agentDialogDraft.inherited.primaryModel ||
+                  agentDialogDraft.inherited.fallbackModelsText) ? (
+                  <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatAgentConfigSource(agentDialogDraft.fieldSources.model, t)}
+                    {' · '}
+                    {agentDialogDraft.inherited.primaryModel || t('common.none')}
+                  </div>
+                ) : null}
               </label>
               <label className="block md:col-span-2">
                 <Label className="mb-2">{t('instances.detail.instanceWorkbench.agents.panel.fallbackModels')}</Label>
@@ -2369,6 +2722,14 @@ export function InstanceDetail() {
                   placeholder={t('instances.detail.instanceWorkbench.agents.dialog.placeholders.fallbackModels')}
                   rows={4}
                 />
+                {agentDialogDraft.fieldSources.model === 'defaults' &&
+                agentDialogDraft.inherited.fallbackModelsText ? (
+                  <div className="mt-2 whitespace-pre-line text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatAgentConfigSource(agentDialogDraft.fieldSources.model, t)}
+                    {' · '}
+                    {agentDialogDraft.inherited.fallbackModelsText}
+                  </div>
+                ) : null}
               </label>
               <label className="block md:col-span-2">
                 <Label className="mb-2">{t('instances.detail.instanceWorkbench.agents.dialog.workspace')}</Label>
@@ -2397,8 +2758,16 @@ export function InstanceDetail() {
                   onChange={(event) =>
                     setAgentDialogDraft((current) => ({ ...current, temperature: event.target.value }))
                   }
-                  placeholder="0.2"
+                  placeholder={agentDialogDraft.inherited.temperature || '0.2'}
                 />
+                {agentDialogDraft.fieldSources.temperature === 'defaults' &&
+                agentDialogDraft.inherited.temperature ? (
+                  <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatAgentConfigSource(agentDialogDraft.fieldSources.temperature, t)}
+                    {' · '}
+                    {agentDialogDraft.inherited.temperature}
+                  </div>
+                ) : null}
               </label>
               <label className="block">
                 <Label className="mb-2">{t('instances.detail.instanceWorkbench.llmProviders.topP')}</Label>
@@ -2407,8 +2776,16 @@ export function InstanceDetail() {
                   onChange={(event) =>
                     setAgentDialogDraft((current) => ({ ...current, topP: event.target.value }))
                   }
-                  placeholder="1"
+                  placeholder={agentDialogDraft.inherited.topP || '1'}
                 />
+                {agentDialogDraft.fieldSources.topP === 'defaults' &&
+                agentDialogDraft.inherited.topP ? (
+                  <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatAgentConfigSource(agentDialogDraft.fieldSources.topP, t)}
+                    {' · '}
+                    {agentDialogDraft.inherited.topP}
+                  </div>
+                ) : null}
               </label>
               <label className="block">
                 <Label className="mb-2">{t('instances.detail.instanceWorkbench.llmProviders.maxTokens')}</Label>
@@ -2417,8 +2794,16 @@ export function InstanceDetail() {
                   onChange={(event) =>
                     setAgentDialogDraft((current) => ({ ...current, maxTokens: event.target.value }))
                   }
-                  placeholder="32000"
+                  placeholder={agentDialogDraft.inherited.maxTokens || '32000'}
                 />
+                {agentDialogDraft.fieldSources.maxTokens === 'defaults' &&
+                agentDialogDraft.inherited.maxTokens ? (
+                  <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatAgentConfigSource(agentDialogDraft.fieldSources.maxTokens, t)}
+                    {' · '}
+                    {agentDialogDraft.inherited.maxTokens}
+                  </div>
+                ) : null}
               </label>
               <label className="block">
                 <Label className="mb-2">{t('instances.detail.instanceWorkbench.llmProviders.timeoutMs')}</Label>
@@ -2427,8 +2812,16 @@ export function InstanceDetail() {
                   onChange={(event) =>
                     setAgentDialogDraft((current) => ({ ...current, timeoutMs: event.target.value }))
                   }
-                  placeholder="60000"
+                  placeholder={agentDialogDraft.inherited.timeoutMs || '60000'}
                 />
+                {agentDialogDraft.fieldSources.timeoutMs === 'defaults' &&
+                agentDialogDraft.inherited.timeoutMs ? (
+                  <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatAgentConfigSource(agentDialogDraft.fieldSources.timeoutMs, t)}
+                    {' · '}
+                    {agentDialogDraft.inherited.timeoutMs}
+                  </div>
+                ) : null}
               </label>
               <label className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950">
                 <div>
@@ -2447,20 +2840,48 @@ export function InstanceDetail() {
                 />
               </label>
               <label className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950">
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
                     {t('instances.detail.instanceWorkbench.llmProviders.streaming')}
                   </div>
                   <div className="text-xs text-zinc-500 dark:text-zinc-400">
                     {t('instances.detail.instanceWorkbench.agents.dialog.streamingDescription')}
                   </div>
+                  {agentDialogDraft.fieldSources.streaming === 'defaults' &&
+                  agentDialogDraft.inherited.streaming !== null ? (
+                    <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      {formatAgentConfigSource(agentDialogDraft.fieldSources.streaming, t)}
+                      {' · '}
+                      {formatAgentStreamingValue(agentDialogDraft.inherited.streaming, t)}
+                    </div>
+                  ) : null}
                 </div>
-                <Switch
-                  checked={agentDialogDraft.streaming}
-                  onCheckedChange={(checked) =>
-                    setAgentDialogDraft((current) => ({ ...current, streaming: checked }))
+                <Select
+                  value={agentDialogDraft.streamingMode}
+                  onValueChange={(value) =>
+                    setAgentDialogDraft((current) => ({
+                      ...current,
+                      streamingMode: value as OpenClawAgentFormState['streamingMode'],
+                    }))
                   }
-                />
+                >
+                  <SelectTrigger className="w-[12rem] rounded-2xl">
+                    <SelectValue>
+                      {formatAgentStreamingMode(agentDialogDraft.streamingMode, t)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inherit">
+                      {t('instances.detail.instanceWorkbench.agents.panel.inheritDefaults')}
+                    </SelectItem>
+                    <SelectItem value="enabled">
+                      {t('instances.detail.instanceWorkbench.state.enabled')}
+                    </SelectItem>
+                    <SelectItem value="disabled">
+                      {t('instances.detail.instanceWorkbench.agents.skillStates.disabled')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </label>
             </div>
             <DialogFooter>
@@ -2836,6 +3257,8 @@ export function InstanceDetail() {
     }
 
     const hasProviders = workbench.llmProviders.length > 0;
+    const providerWorkspaceDescription = isProviderConfigReadonly ? t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice') : t('instances.detail.instanceWorkbench.llmProviders.panel.description');
+    const providerWorkspaceActionLabel = isProviderConfigReadonly ? t('providerCenter.page.title') : t('instances.detail.instanceWorkbench.llmProviders.panel.newProvider');
 
     return (
       <>
@@ -2854,7 +3277,7 @@ export function InstanceDetail() {
                   ) : null}
                 </div>
                 <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                  {t('instances.detail.instanceWorkbench.llmProviders.panel.description')}
+                  {providerWorkspaceDescription}
                 </p>
                 {managedConfigPath ? (
                   <div className="mt-4 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-xs text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
@@ -2865,9 +3288,17 @@ export function InstanceDetail() {
                   </div>
                 ) : null}
               </div>
-              <Button onClick={openCreateProviderDialog} disabled={!isOpenClawConfigWritable} className="rounded-2xl px-4 py-3">
+              <Button
+                onClick={
+                  isProviderConfigReadonly
+                    ? () => navigate('/settings?tab=api')
+                    : openCreateProviderDialog
+                }
+                disabled={isProviderConfigReadonly ? false : !canManageOpenClawProviders}
+                className="rounded-2xl px-4 py-3"
+              >
                 <Plus className="h-4 w-4" />
-                {t('instances.detail.instanceWorkbench.llmProviders.panel.newProvider')}
+                {providerWorkspaceActionLabel}
               </Button>
             </div>
           </div>
@@ -2944,7 +3375,7 @@ export function InstanceDetail() {
                               setSelectedProviderId(providerRecord.id);
                               setProviderDeleteId(providerRecord.id);
                             }}
-                            disabled={!isOpenClawConfigWritable}
+                            disabled={!canManageOpenClawProviders}
                             className="rounded-2xl px-3 py-2 text-rose-600 hover:text-rose-600 dark:text-rose-300"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -3024,6 +3455,8 @@ export function InstanceDetail() {
                   isSaving={isSavingProviderConfig}
                   isReadonly={isProviderConfigReadonly}
                   readonlyMessage={t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice')}
+                  onOpenProviderCenter={() => navigate('/settings?tab=api')}
+                  openProviderCenterLabel={t('providerCenter.page.title')}
                   onFieldChange={handleProviderFieldChange}
                   onConfigChange={handleProviderConfigChange}
                   onReset={handleResetProviderDraft}
@@ -3039,7 +3472,11 @@ export function InstanceDetail() {
                         {t('instances.detail.instanceWorkbench.llmProviders.panel.providerModelsDescription')}
                       </p>
                     </div>
-                    <Button onClick={openCreateProviderModelDialog} disabled={!selectedProvider || !isOpenClawConfigWritable} className="rounded-2xl px-4 py-3">
+                    <Button
+                      onClick={openCreateProviderModelDialog}
+                      disabled={!selectedProvider || !canManageOpenClawProviders}
+                      className="rounded-2xl px-4 py-3"
+                    >
                       <Plus className="h-4 w-4" />
                       {t('instances.detail.instanceWorkbench.llmProviders.panel.addModel')}
                     </Button>
@@ -3063,11 +3500,21 @@ export function InstanceDetail() {
                               <div className="mt-2 font-mono text-xs text-zinc-500 dark:text-zinc-400">{model.id}</div>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Button variant="outline" onClick={() => openEditProviderModelDialog(model)} disabled={!isOpenClawConfigWritable} className="rounded-2xl px-3 py-2">
+                              <Button
+                                variant="outline"
+                                onClick={() => openEditProviderModelDialog(model)}
+                                disabled={!canManageOpenClawProviders}
+                                className="rounded-2xl px-3 py-2"
+                              >
                                 <Edit2 className="h-4 w-4" />
                                 {t('common.edit')}
                               </Button>
-                              <Button variant="outline" onClick={() => setProviderModelDeleteId(model.id)} disabled={!isOpenClawConfigWritable} className="rounded-2xl px-3 py-2 text-rose-600 hover:text-rose-600 dark:text-rose-300">
+                              <Button
+                                variant="outline"
+                                onClick={() => setProviderModelDeleteId(model.id)}
+                                disabled={!canManageOpenClawProviders}
+                                className="rounded-2xl px-3 py-2 text-rose-600 hover:text-rose-600 dark:text-rose-300"
+                              >
                                 <Trash2 className="h-4 w-4" />
                                 {t('common.delete')}
                               </Button>
@@ -3117,178 +3564,34 @@ export function InstanceDetail() {
           </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-zinc-200/70 bg-white/75 dark:border-zinc-800 dark:bg-zinc-950/35">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200/70 px-5 py-4 dark:border-zinc-800">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-                <FolderTree className="h-4 w-4" />
-                {t('instances.detail.instanceWorkbench.files.runtimeArtifacts')}
-              </div>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                {t('instances.detail.instanceWorkbench.files.runtimeArtifactsDescription')}
-              </p>
-            </div>
-            {selectedFile ? (
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                  {selectedFile.language}
-                </span>
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                    selectedFile.status === 'missing'
-                      ? getDangerBadge(selectedFile.status)
-                      : getStatusBadge(selectedFile.status)
-                  }`}
-                >
-                  {t(`instances.detail.instanceWorkbench.fileStatus.${selectedFile.status}`)}
-                </span>
-              </div>
-            ) : null}
-          </div>
-
-          {workbench && workbench.files.length > 0 ? (
-            <div className="grid min-h-[42rem] xl:grid-cols-[20rem_minmax(0,1fr)]">
-              <aside
-                data-slot="instance-files-explorer"
-                className="border-b border-zinc-200/70 bg-zinc-950/[0.02] p-3 dark:border-zinc-800 dark:bg-white/[0.02] xl:border-r xl:border-b-0"
-              >
-                <div className="flex items-center justify-between gap-3 px-2 pb-3 pt-1">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
-                    {t('instances.detail.instanceWorkbench.files.explorer')}
-                  </div>
-                  <div className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-[11px] font-semibold text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400">
-                    {workbench.files.length}
-                  </div>
-                </div>
-                <InstanceFileExplorer
-                  files={workbench.files}
-                  selectedFileId={selectedFileId}
-                  onSelectFile={setSelectedFileId}
-                />
-              </aside>
-
-              <div data-slot="instance-files-editor" className="flex min-h-[42rem] flex-col">
-                {selectedFile ? (
-                  <>
-                    <div className="border-b border-zinc-200/70 px-5 py-4 dark:border-zinc-800">
-                      <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="truncate text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                              {selectedFile.name}
-                            </h3>
-                            <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                              {selectedFile.isReadonly
-                                ? t('instances.detail.instanceWorkbench.files.previewMode')
-                                : t('instances.detail.instanceWorkbench.files.editMode')}
-                            </span>
-                            {hasPendingFileChanges ? (
-                              <span className="rounded-full bg-amber-500/12 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
-                                {t('instances.detail.instanceWorkbench.files.unsavedChanges')}
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="mt-2 truncate font-mono text-sm text-zinc-500 dark:text-zinc-400">
-                            {selectedFile.path}
-                          </p>
-                        </div>
-                        {selectedFile.isReadonly ? (
-                          <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm leading-6 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-                            {t('instances.detail.instanceWorkbench.files.readonlyNotice')}
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={handleResetFileDraft}
-                              disabled={!hasPendingFileChanges}
-                              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                              {t('instances.detail.instanceWorkbench.files.revertDraft')}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleSaveFile}
-                              disabled={!hasPendingFileChanges || isSavingFile}
-                              className="flex items-center gap-2 rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
-                            >
-                              {isSavingFile ? (
-                                <>
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                  {t('instances.detail.instanceWorkbench.files.savingFile')}
-                                </>
-                              ) : (
-                                <>
-                                  <Save className="h-4 w-4" />
-                                  {t('instances.detail.instanceWorkbench.files.saveFile')}
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
-                          {selectedFile.size}
-                        </span>
-                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
-                          {selectedFile.updatedAt}
-                        </span>
-                        <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 dark:bg-white/[0.06]">
-                          {t(`instances.detail.instanceWorkbench.fileCategories.${selectedFile.category}`)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="min-h-[34rem] flex-1">
-                      <Suspense
-                        fallback={
-                          <div className="flex h-full min-h-[34rem] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                            {t('common.loading')}
-                          </div>
-                        }
-                      >
-                        <MonacoEditor
-                          height="100%"
-                          language={selectedFile.language}
-                          theme={editorTheme}
-                          value={selectedFileDraft}
-                          onChange={(value) => handleFileDraftChange(value ?? '')}
-                          options={{
-                            automaticLayout: true,
-                            fontSize: 13,
-                            lineHeight: 20,
-                            minimap: { enabled: true },
-                            padding: { top: 16, bottom: 16 },
-                            readOnly: selectedFile.isReadonly,
-                            roundedSelection: true,
-                            scrollBeyondLastLine: false,
-                            smoothScrolling: true,
-                            wordWrap: 'on',
-                          }}
-                        />
-                      </Suspense>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full min-h-[34rem] items-center justify-center px-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    {t('instances.detail.instanceWorkbench.files.selectFile')}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="p-5">
-              {renderSectionAvailability('files', 'instances.detail.instanceWorkbench.empty.files')}
-            </div>
-          )}
-        </div>
+        <InstanceFilesWorkspace
+          mode="instance"
+          instanceId={id}
+          files={workbench?.files || []}
+          agents={workbench?.agents || []}
+          selectedAgentId={selectedAgentId}
+          onSelectedAgentIdChange={setSelectedAgentId}
+          runtimeKind={detail?.instance.runtimeKind}
+          isBuiltIn={detail?.instance.isBuiltIn}
+          isLoading={isWorkbenchFilesLoading}
+          onReload={() => loadWorkbench(id, { withSpinner: false })}
+        />
       </div>
     );
   };
 
   const renderMemorySection = () => {
+    if (isWorkbenchMemoryLoading) {
+      return (
+        <div className="flex min-h-[20rem] items-center justify-center p-6 text-sm text-zinc-500 dark:text-zinc-400">
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200/70 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t('common.loading')}
+          </div>
+        </div>
+      );
+    }
+
     if (!workbench || workbench.memories.length === 0) {
       return renderSectionAvailability('memory', 'instances.detail.instanceWorkbench.empty.memory');
     }
@@ -3340,55 +3643,444 @@ export function InstanceDetail() {
     );
   };
 
+  const renderManagedWebSearchPanel = () => {
+    if (!managedWebSearchConfig || !webSearchSharedDraft || !selectedWebSearchProvider || !selectedWebSearchProviderDraft) {
+      return null;
+    }
+
+    return (
+      <div className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full bg-primary-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">
+                {t('instances.detail.instanceWorkbench.webSearch.badge')}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {formatWorkbenchLabel('managedFile')}
+              </span>
+            </div>
+            <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {t('instances.detail.instanceWorkbench.webSearch.title')}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.webSearch.description')}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => void handleSaveWebSearchConfig()}
+              disabled={!canEditManagedWebSearch || isSavingWebSearch}
+            >
+              {isSavingWebSearch ? t('common.loading') : t('common.save')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-zinc-200/70 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {t('instances.detail.instanceWorkbench.webSearch.fields.enabled')}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                      {t('instances.detail.instanceWorkbench.webSearch.enabledDescription')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={webSearchSharedDraft.enabled}
+                    onCheckedChange={(checked) => handleWebSearchSharedDraftChange('enabled', checked)}
+                    disabled={!canEditManagedWebSearch}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.provider')}</Label>
+                <Select
+                  value={webSearchSharedDraft.provider || ''}
+                  onValueChange={(value) => handleWebSearchSharedDraftChange('provider', value)}
+                  disabled={!canEditManagedWebSearch}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.provider')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {managedWebSearchConfig.providers.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.maxResults')}</Label>
+                <Input
+                  value={webSearchSharedDraft.maxResults}
+                  onChange={(event) => handleWebSearchSharedDraftChange('maxResults', event.target.value)}
+                  disabled={!canEditManagedWebSearch}
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.timeoutSeconds')}</Label>
+                <Input
+                  value={webSearchSharedDraft.timeoutSeconds}
+                  onChange={(event) => handleWebSearchSharedDraftChange('timeoutSeconds', event.target.value)}
+                  disabled={!canEditManagedWebSearch}
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.cacheTtlMinutes')}</Label>
+                <Input
+                  value={webSearchSharedDraft.cacheTtlMinutes}
+                  onChange={(event) => handleWebSearchSharedDraftChange('cacheTtlMinutes', event.target.value)}
+                  disabled={!canEditManagedWebSearch}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-4">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.webSearch.metrics.activeProvider')}
+                value={webSearchSharedDraft.provider || '--'}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.webSearch.metrics.managedProviders')}
+                value={String(managedWebSearchConfig.providers.length)}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                  {t('instances.detail.instanceWorkbench.webSearch.providerPanel')}
+                </div>
+                <h4 className="mt-2 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {selectedWebSearchProvider.name}
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  {selectedWebSearchProvider.description}
+                </p>
+              </div>
+              <div className="min-w-[14rem] space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.providerEditor')}</Label>
+                <Select
+                  value={selectedWebSearchProvider.id}
+                  onValueChange={setSelectedWebSearchProviderId}
+                  disabled={!canEditManagedWebSearch}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {managedWebSearchConfig.providers.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {selectedWebSearchProvider.supportsApiKey ? (
+                <div className="space-y-2 md:col-span-2">
+                  <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.apiKeySource')}</Label>
+                  <Input
+                    value={selectedWebSearchProviderDraft.apiKeySource}
+                    onChange={(event) => handleWebSearchProviderDraftChange('apiKeySource', event.target.value)}
+                    disabled={!canEditManagedWebSearch}
+                    placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.apiKeySource')}
+                  />
+                </div>
+              ) : null}
+
+              {selectedWebSearchProvider.supportsBaseUrl ? (
+                <div className="space-y-2 md:col-span-2">
+                  <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.baseUrl')}</Label>
+                  <Input
+                    value={selectedWebSearchProviderDraft.baseUrl}
+                    onChange={(event) => handleWebSearchProviderDraftChange('baseUrl', event.target.value)}
+                    disabled={!canEditManagedWebSearch}
+                    placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.baseUrl')}
+                  />
+                </div>
+              ) : null}
+
+              {selectedWebSearchProvider.supportsModel ? (
+                <div className="space-y-2 md:col-span-2">
+                  <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.model')}</Label>
+                  <Input
+                    value={selectedWebSearchProviderDraft.model}
+                    onChange={(event) => handleWebSearchProviderDraftChange('model', event.target.value)}
+                    disabled={!canEditManagedWebSearch}
+                    placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.model')}
+                  />
+                </div>
+              ) : null}
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.webSearch.fields.advancedConfig')}</Label>
+                <Textarea
+                  value={selectedWebSearchProviderDraft.advancedConfig}
+                  onChange={(event) => handleWebSearchProviderDraftChange('advancedConfig', event.target.value)}
+                  disabled={!canEditManagedWebSearch}
+                  rows={8}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearch.placeholders.advancedConfig')}
+                />
+                <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                  {t('instances.detail.instanceWorkbench.webSearch.advancedDescription')}
+                </p>
+              </div>
+            </div>
+
+            {webSearchError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {webSearchError}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderManagedAuthCooldownsPanel = () => {
+    if (!managedAuthCooldownsConfig || !authCooldownsDraft) {
+      return null;
+    }
+
+    const configuredFieldCount = [
+      authCooldownsDraft.rateLimitedProfileRotations,
+      authCooldownsDraft.overloadedProfileRotations,
+      authCooldownsDraft.overloadedBackoffMs,
+      authCooldownsDraft.billingBackoffHours,
+      authCooldownsDraft.billingMaxHours,
+      authCooldownsDraft.failureWindowHours,
+    ].filter((value) => Boolean(value.trim())).length;
+
+    return (
+      <div className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full bg-primary-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">
+                {t('instances.detail.instanceWorkbench.authCooldowns.badge')}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {formatWorkbenchLabel('managedFile')}
+              </span>
+            </div>
+            <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {t('instances.detail.instanceWorkbench.authCooldowns.title')}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.authCooldowns.description')}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => void handleSaveAuthCooldownsConfig()}
+              disabled={!canEditManagedAuthCooldowns || isSavingAuthCooldowns}
+            >
+              {isSavingAuthCooldowns ? t('common.loading') : t('common.save')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.55fr)]">
+          <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.authCooldowns.fields.rateLimitedProfileRotations')}</Label>
+                <Input
+                  value={authCooldownsDraft.rateLimitedProfileRotations}
+                  onChange={(event) =>
+                    handleAuthCooldownsDraftChange('rateLimitedProfileRotations', event.target.value)
+                  }
+                  disabled={!canEditManagedAuthCooldowns}
+                  inputMode="numeric"
+                  placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.authCooldowns.fields.overloadedProfileRotations')}</Label>
+                <Input
+                  value={authCooldownsDraft.overloadedProfileRotations}
+                  onChange={(event) =>
+                    handleAuthCooldownsDraftChange('overloadedProfileRotations', event.target.value)
+                  }
+                  disabled={!canEditManagedAuthCooldowns}
+                  inputMode="numeric"
+                  placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.authCooldowns.fields.overloadedBackoffMs')}</Label>
+                <Input
+                  value={authCooldownsDraft.overloadedBackoffMs}
+                  onChange={(event) => handleAuthCooldownsDraftChange('overloadedBackoffMs', event.target.value)}
+                  disabled={!canEditManagedAuthCooldowns}
+                  inputMode="numeric"
+                  placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.authCooldowns.fields.billingBackoffHours')}</Label>
+                <Input
+                  value={authCooldownsDraft.billingBackoffHours}
+                  onChange={(event) => handleAuthCooldownsDraftChange('billingBackoffHours', event.target.value)}
+                  disabled={!canEditManagedAuthCooldowns}
+                  inputMode="numeric"
+                  placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.authCooldowns.fields.billingMaxHours')}</Label>
+                <Input
+                  value={authCooldownsDraft.billingMaxHours}
+                  onChange={(event) => handleAuthCooldownsDraftChange('billingMaxHours', event.target.value)}
+                  disabled={!canEditManagedAuthCooldowns}
+                  inputMode="numeric"
+                  placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.authCooldowns.fields.failureWindowHours')}</Label>
+                <Input
+                  value={authCooldownsDraft.failureWindowHours}
+                  onChange={(event) => handleAuthCooldownsDraftChange('failureWindowHours', event.target.value)}
+                  disabled={!canEditManagedAuthCooldowns}
+                  inputMode="numeric"
+                  placeholder={t('instances.detail.instanceWorkbench.authCooldowns.placeholders.defaultValue')}
+                />
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.authCooldowns.note')}
+            </p>
+
+            {authCooldownsError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {authCooldownsError}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="grid gap-4">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.metrics.configuredFields')}
+                value={configuredFieldCount}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.authCooldowns.metrics.overloadedBackoff')}
+                value={
+                  authCooldownsDraft.overloadedBackoffMs.trim() ||
+                  t('instances.detail.instanceWorkbench.authCooldowns.values.upstreamDefault')
+                }
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.authCooldowns.metrics.failureWindow')}
+                value={
+                  authCooldownsDraft.failureWindowHours.trim() ||
+                  t('instances.detail.instanceWorkbench.authCooldowns.values.upstreamDefault')
+                }
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderToolsSection = () => {
-    if (!workbench || workbench.tools.length === 0) {
+    const hasRuntimeTools = Boolean(workbench && workbench.tools.length > 0);
+    const hasManagedAuthCooldowns = Boolean(managedAuthCooldownsConfig && authCooldownsDraft);
+    const hasManagedWebSearch = Boolean(managedWebSearchConfig && managedWebSearchConfig.providers.length > 0);
+
+    if (!hasRuntimeTools && !hasManagedAuthCooldowns && !hasManagedWebSearch) {
       return renderSectionAvailability('tools', 'instances.detail.instanceWorkbench.empty.tools');
     }
 
     return (
-      <WorkbenchRowList>
-        {workbench.tools.map((tool, index) => (
-          <WorkbenchRow key={tool.id} isLast={index === workbench.tools.length - 1}>
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                  {tool.name}
-                </h3>
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                    tool.status === 'restricted' ? getDangerBadge(tool.status) : getStatusBadge(tool.status)
-                  }`}
-                >
-                  {t(`instances.detail.instanceWorkbench.toolStatus.${tool.status}`)}
-                </span>
-              </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                {tool.description}
-              </p>
-              <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm font-mono text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
-                {tool.command}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-5">
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.sections.tools.title')}
-                value={t(`instances.detail.instanceWorkbench.toolCategories.${tool.category}`)}
-              />
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.actionType')}
-                value={t(`instances.detail.instanceWorkbench.toolAccess.${tool.access}`)}
-              />
-              <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.lastRun')}
-                value={tool.lastUsedAt || '--'}
-              />
-            </div>
-            <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
-              {tool.lastUsedAt || '--'}
-            </div>
-          </WorkbenchRow>
-        ))}
-      </WorkbenchRowList>
+      <div className="space-y-6">
+        {hasManagedAuthCooldowns ? renderManagedAuthCooldownsPanel() : null}
+        {hasManagedWebSearch ? renderManagedWebSearchPanel() : null}
+
+        {hasRuntimeTools ? (
+          <WorkbenchRowList>
+            {workbench!.tools.map((tool, index) => (
+              <WorkbenchRow key={tool.id} isLast={index === workbench!.tools.length - 1}>
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                      {tool.name}
+                    </h3>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                        tool.status === 'restricted' ? getDangerBadge(tool.status) : getStatusBadge(tool.status)
+                      }`}
+                    >
+                      {t(`instances.detail.instanceWorkbench.toolStatus.${tool.status}`)}
+                    </span>
+                  </div>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {tool.description}
+                  </p>
+                  <div className="mt-3 rounded-2xl bg-zinc-950/[0.04] px-4 py-3 text-sm font-mono text-zinc-600 dark:bg-white/[0.05] dark:text-zinc-300">
+                    {tool.command}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.sections.tools.title')}
+                    value={t(`instances.detail.instanceWorkbench.toolCategories.${tool.category}`)}
+                  />
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.sidebar.agents')}
+                    value={tool.agentNames?.join(', ') || tool.agentIds?.join(', ') || '--'}
+                  />
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.actionType')}
+                    value={t(`instances.detail.instanceWorkbench.toolAccess.${tool.access}`)}
+                  />
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.lastRun')}
+                    value={tool.lastUsedAt || '--'}
+                  />
+                </div>
+                <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+                  {tool.lastUsedAt || '--'}
+                </div>
+              </WorkbenchRow>
+            ))}
+          </WorkbenchRowList>
+        ) : (
+          renderSectionAvailability('tools', 'instances.detail.instanceWorkbench.empty.tools')
+        )}
+      </div>
     );
   };
 

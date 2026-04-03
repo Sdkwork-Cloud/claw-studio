@@ -1,5 +1,10 @@
 import JSON5 from 'json5';
-import { platform } from '@sdkwork/claw-infrastructure';
+import { getPlatformBridge, platform } from '@sdkwork/claw-infrastructure';
+import {
+  normalizeLegacyProviderId,
+  normalizeLegacyProviderModelRef,
+} from './legacyProviderCompat.ts';
+import type { OpenClawLocalProxyProjection } from './openClawLocalProxyProjectionService.ts';
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonArray;
@@ -65,6 +70,7 @@ export interface OpenClawChannelFieldDefinition {
   multiline?: boolean;
   sensitive?: boolean;
   inputMode?: 'text' | 'url' | 'numeric';
+  storageFormat?: 'scalar' | 'stringArray' | 'jsonObject';
 }
 
 export interface OpenClawChannelDefinition {
@@ -88,6 +94,37 @@ export interface OpenClawChannelSnapshot {
   setupSteps: string[];
   values: Record<string, string>;
   fields: OpenClawChannelFieldDefinition[];
+}
+
+export interface OpenClawWebSearchProviderSnapshot {
+  id: string;
+  name: string;
+  description: string;
+  apiKeySource: string;
+  baseUrl: string;
+  model: string;
+  advancedConfig: string;
+  supportsApiKey: boolean;
+  supportsBaseUrl: boolean;
+  supportsModel: boolean;
+}
+
+export interface OpenClawWebSearchConfigSnapshot {
+  enabled: boolean;
+  provider: string;
+  maxResults: number;
+  timeoutSeconds: number;
+  cacheTtlMinutes: number;
+  providers: OpenClawWebSearchProviderSnapshot[];
+}
+
+export interface OpenClawAuthCooldownsConfigSnapshot {
+  rateLimitedProfileRotations: number | null;
+  overloadedProfileRotations: number | null;
+  overloadedBackoffMs: number | null;
+  billingBackoffHours: number | null;
+  billingMaxHours: number | null;
+  failureWindowHours: number | null;
 }
 
 export interface OpenClawProviderSnapshot {
@@ -123,6 +160,7 @@ export interface OpenClawProviderRuntimeConfig {
 }
 
 export type OpenClawAgentParamValue = string | number | boolean;
+export type OpenClawAgentParamSource = 'agent' | 'defaults';
 
 export interface OpenClawAgentModelConfig {
   primary?: string;
@@ -153,6 +191,7 @@ export interface OpenClawAgentSnapshot {
     fallbacks: string[];
   };
   params: Record<string, OpenClawAgentParamValue>;
+  paramSources: Record<string, OpenClawAgentParamSource>;
 }
 
 export interface OpenClawResolvedAgentPaths {
@@ -181,6 +220,8 @@ export interface OpenClawConfigSnapshot {
   providerSnapshots: OpenClawProviderSnapshot[];
   agentSnapshots: OpenClawAgentSnapshot[];
   channelSnapshots: OpenClawChannelSnapshot[];
+  webSearchConfig: OpenClawWebSearchConfigSnapshot;
+  authCooldownsConfig: OpenClawAuthCooldownsConfigSnapshot;
   root: JsonObject;
 }
 
@@ -204,6 +245,32 @@ export interface DeleteOpenClawSkillEntryInput {
   skillKey: string;
 }
 
+export interface SaveOpenClawWebSearchConfigurationInput {
+  configPath: string;
+  enabled: boolean;
+  provider: string;
+  maxResults: number;
+  timeoutSeconds: number;
+  cacheTtlMinutes: number;
+  providerConfig: {
+    providerId: string;
+    apiKeySource?: string;
+    baseUrl?: string;
+    model?: string;
+    advancedConfig?: string;
+  };
+}
+
+export interface SaveOpenClawAuthCooldownsConfigurationInput {
+  configPath: string;
+  rateLimitedProfileRotations?: number;
+  overloadedProfileRotations?: number;
+  overloadedBackoffMs?: number;
+  billingBackoffHours?: number;
+  billingMaxHours?: number;
+  failureWindowHours?: number;
+}
+
 function normalizePath(path: string) {
   return path.replace(/\\/g, '/');
 }
@@ -213,6 +280,113 @@ const VALID_AGENT_ID_RE = /^[a-z0-9](?:[a-z0-9._-]{0,63})$/;
 const INVALID_AGENT_ID_CHARS_RE = /[^a-z0-9._-]+/g;
 const LEADING_DASH_RE = /^-+/;
 const TRAILING_DASH_RE = /-+$/;
+const OPENCLAW_CONFIG_SNAPSHOT_CACHE_TTL_MS = 2_000;
+const DEFAULT_WEB_SEARCH_MAX_RESULTS = 5;
+const DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS = 30;
+const DEFAULT_WEB_SEARCH_CACHE_TTL_MINUTES = 15;
+
+interface OpenClawConfigSnapshotCacheEntry {
+  expiresAt: number;
+  value: OpenClawConfigSnapshot;
+}
+
+interface OpenClawConfigRootCacheEntry {
+  expiresAt: number;
+  value: JsonObject;
+}
+
+interface OpenClawWebSearchProviderDefinition {
+  id: string;
+  name: string;
+  description: string;
+  supportsApiKey: boolean;
+  supportsBaseUrl: boolean;
+  supportsModel: boolean;
+}
+
+type OpenClawPlatformBridge = ReturnType<typeof getPlatformBridge>;
+
+const openClawConfigRootCacheByReader = new WeakMap<
+  OpenClawPlatformBridge,
+  Map<string, OpenClawConfigRootCacheEntry>
+>();
+const pendingOpenClawConfigRootByReader = new WeakMap<
+  OpenClawPlatformBridge,
+  Map<string, Promise<JsonObject>>
+>();
+const openClawConfigSnapshotCacheByReader = new WeakMap<
+  OpenClawPlatformBridge,
+  Map<string, OpenClawConfigSnapshotCacheEntry>
+>();
+const pendingOpenClawConfigSnapshotByReader = new WeakMap<
+  OpenClawPlatformBridge,
+  Map<string, Promise<OpenClawConfigSnapshot>>
+>();
+const openClawConfigSnapshotVersionByPath = new Map<string, number>();
+
+function getOpenClawConfigRootCache(
+  bridge = getPlatformBridge(),
+) {
+  let cache = openClawConfigRootCacheByReader.get(bridge);
+  if (!cache) {
+    cache = new Map<string, OpenClawConfigRootCacheEntry>();
+    openClawConfigRootCacheByReader.set(bridge, cache);
+  }
+
+  return cache;
+}
+
+function getPendingOpenClawConfigRoots(
+  bridge = getPlatformBridge(),
+) {
+  let pending = pendingOpenClawConfigRootByReader.get(bridge);
+  if (!pending) {
+    pending = new Map<string, Promise<JsonObject>>();
+    pendingOpenClawConfigRootByReader.set(bridge, pending);
+  }
+
+  return pending;
+}
+
+function getOpenClawConfigSnapshotCache(
+  bridge = getPlatformBridge(),
+) {
+  let cache = openClawConfigSnapshotCacheByReader.get(bridge);
+  if (!cache) {
+    cache = new Map<string, OpenClawConfigSnapshotCacheEntry>();
+    openClawConfigSnapshotCacheByReader.set(bridge, cache);
+  }
+
+  return cache;
+}
+
+function getPendingOpenClawConfigSnapshots(
+  bridge = getPlatformBridge(),
+) {
+  let pending = pendingOpenClawConfigSnapshotByReader.get(bridge);
+  if (!pending) {
+    pending = new Map<string, Promise<OpenClawConfigSnapshot>>();
+    pendingOpenClawConfigSnapshotByReader.set(bridge, pending);
+  }
+
+  return pending;
+}
+
+function getOpenClawConfigSnapshotVersion(configPath: string) {
+  return openClawConfigSnapshotVersionByPath.get(configPath) || 0;
+}
+
+function invalidateOpenClawConfigSnapshot(configPath: string) {
+  const normalizedPath = normalizePath(configPath);
+  openClawConfigSnapshotVersionByPath.set(
+    normalizedPath,
+    getOpenClawConfigSnapshotVersion(normalizedPath) + 1,
+  );
+  getOpenClawConfigRootCache().delete(normalizedPath);
+  getPendingOpenClawConfigRoots().delete(normalizedPath);
+  getOpenClawConfigSnapshotCache().delete(normalizedPath);
+  getPendingOpenClawConfigSnapshots().delete(normalizedPath);
+}
 
 function pushCandidatePath(target: string[], nextPath?: string | null) {
   if (!nextPath) {
@@ -328,6 +502,10 @@ function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
+function cloneJsonObject(value: JsonObject) {
+  return JSON.parse(JSON.stringify(value)) as JsonObject;
+}
+
 function readObject(value: JsonValue | undefined) {
   return isJsonObject(value) ? value : null;
 }
@@ -368,6 +546,21 @@ function readNumber(value: JsonValue | undefined, fallback: number) {
   return fallback;
 }
 
+function readOptionalNumber(value: JsonValue | undefined) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 function readBoolean(value: JsonValue | undefined, fallback = false) {
   if (typeof value === 'boolean') {
     return value;
@@ -393,6 +586,108 @@ function setOptionalScalar(target: JsonObject, key: string, value: string | unde
   }
 
   target[key] = normalized;
+}
+
+function setOptionalFiniteNumber(target: JsonObject, key: string, value: number | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    delete target[key];
+    return;
+  }
+
+  target[key] = Math.max(1, Math.round(value));
+}
+
+function setOptionalWholeNumber(
+  target: JsonObject,
+  key: string,
+  value: number | undefined,
+  options: {
+    minimum?: number;
+  } = {},
+) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    delete target[key];
+    return;
+  }
+
+  const minimum = options.minimum ?? 0;
+  target[key] = Math.max(minimum, Math.round(value));
+}
+
+function parseJsonObjectText(label: string, value: string | undefined) {
+  const normalized = value?.trim() || '';
+  if (!normalized) {
+    return {} as JsonObject;
+  }
+
+  const parsed = JSON5.parse(normalized);
+  if (!isJsonObject(parsed)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+
+  return parsed;
+}
+
+function parseChannelStringArrayValue(
+  field: OpenClawChannelFieldDefinition,
+  value: string,
+): JsonArray {
+  const normalized = value.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  if (normalized.startsWith('[')) {
+    const parsed = JSON5.parse(normalized);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`${field.label} must be a JSON array.`);
+    }
+
+    return parsed
+      .map((entry) => (entry == null ? '' : String(entry).trim()))
+      .filter(Boolean);
+  }
+
+  return normalized
+    .split(/\r?\n|,/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseChannelJsonObjectValue(
+  field: OpenClawChannelFieldDefinition,
+  value: string,
+): JsonObject {
+  const parsed = JSON5.parse(value);
+  if (!isJsonObject(parsed)) {
+    throw new Error(`${field.label} must be a JSON object.`);
+  }
+
+  return parsed;
+}
+
+function setOptionalChannelField(
+  target: JsonObject,
+  field: OpenClawChannelFieldDefinition,
+  value: string | undefined,
+) {
+  const normalized = value?.trim() || '';
+  if (!normalized) {
+    delete target[field.key];
+    return;
+  }
+
+  if (field.storageFormat === 'stringArray') {
+    target[field.key] = parseChannelStringArrayValue(field, normalized);
+    return;
+  }
+
+  if (field.storageFormat === 'jsonObject') {
+    target[field.key] = parseChannelJsonObjectValue(field, normalized);
+    return;
+  }
+
+  target[field.key] = normalized;
 }
 
 function normalizeAgentId(value: string | undefined | null) {
@@ -478,17 +773,8 @@ function getProviderIcon(channelId: string) {
   return iconMap[channelId] || 'AR';
 }
 
-const LEGACY_PROVIDER_KEY_PREFIX = 'api-router-';
-
 function normalizeProviderKey(providerId: string | undefined | null) {
-  const normalized = (providerId || '').trim();
-  if (!normalized) {
-    return '';
-  }
-
-  return normalized.startsWith(LEGACY_PROVIDER_KEY_PREFIX)
-    ? normalized.slice(LEGACY_PROVIDER_KEY_PREFIX.length)
-    : normalized;
+  return normalizeLegacyProviderId(providerId);
 }
 
 function buildProviderKey(providerId: string) {
@@ -500,17 +786,7 @@ function buildModelRef(providerKey: string, modelId: string) {
 }
 
 function normalizeModelRefString(value: string | undefined | null) {
-  const trimmed = (value || '').trim();
-  if (!trimmed) {
-    return '';
-  }
-
-  const slashIndex = trimmed.indexOf('/');
-  if (slashIndex <= 0 || slashIndex === trimmed.length - 1) {
-    return trimmed;
-  }
-
-  return `${normalizeProviderKey(trimmed.slice(0, slashIndex))}/${trimmed.slice(slashIndex + 1)}`;
+  return normalizeLegacyProviderModelRef(value);
 }
 
 function parseModelRef(value: JsonValue | undefined) {
@@ -686,6 +962,49 @@ function writeAgentParams(
   }
 
   target.params = nextParams;
+}
+
+function readProviderRuntimeConfig(
+  root: JsonObject,
+  providerKey: string,
+  modelId: string | undefined,
+): OpenClawProviderRuntimeConfig {
+  const defaultsModelsRoot = readObject(readObject(readObject(root.agents)?.defaults)?.models) || {};
+  const modelRoot = modelId
+    ? readObject(defaultsModelsRoot[buildModelRef(providerKey, modelId)])
+    : undefined;
+  const modelParams = modelRoot ? readAgentParams(modelRoot.params) : {};
+
+  return {
+    temperature: readNumber(modelParams.temperature, 0.2),
+    topP: readNumber(modelParams.topP, 1),
+    maxTokens: readNumber(modelParams.maxTokens, 8192),
+    timeoutMs: readNumber(modelParams.timeoutMs, 60000),
+    streaming: readBoolean(modelParams.streaming, true),
+  };
+}
+
+function writeProviderRuntimeConfig(
+  root: JsonObject,
+  providerKey: string,
+  modelId: string | undefined,
+  config?: Partial<OpenClawProviderRuntimeConfig>,
+) {
+  const normalizedModelId = modelId?.trim() || '';
+  if (!normalizedModelId) {
+    return;
+  }
+
+  const defaultsRoot = ensureObject(ensureObject(root, 'agents'), 'defaults');
+  const catalogRoot = ensureObject(defaultsRoot, 'models');
+  const modelRoot = ensureObject(catalogRoot, buildModelRef(providerKey, normalizedModelId));
+  writeAgentParams(modelRoot, {
+    temperature: config?.temperature,
+    topP: config?.topP,
+    maxTokens: config?.maxTokens,
+    timeoutMs: config?.timeoutMs,
+    streaming: config?.streaming,
+  });
 }
 
 function readStringArray(value: JsonValue | undefined) {
@@ -913,6 +1232,7 @@ function renameModelRefAcrossConfig(root: JsonObject, oldModelRef: string, nextM
 function buildAgentSnapshots(root: JsonObject, configPath: string): OpenClawAgentSnapshot[] {
   const defaultsRoot = readObject(readObject(root.agents)?.defaults) || {};
   const defaultModel = readModelConfig(defaultsRoot.model);
+  const defaultParams = readAgentParams(defaultsRoot.params);
   const defaultAgentId = resolveDefaultAgentId(root);
   const defaultWorkspace = readScalar(defaultsRoot.workspace).trim();
   const agentEntries = [...getAgentListEntries(root)].sort((left, right) => {
@@ -952,6 +1272,17 @@ function buildAgentSnapshots(root: JsonObject, configPath: string): OpenClawAgen
       configuredModel.primary || configuredModel.fallbacks?.length
         ? configuredModel
         : defaultModel;
+    const agentParams = readAgentParams(entry.params);
+    const effectiveParams = {
+      ...defaultParams,
+      ...agentParams,
+    };
+    const paramSources = Object.fromEntries(
+      Object.keys(effectiveParams).map((key) => [
+        key,
+        Object.prototype.hasOwnProperty.call(agentParams, key) ? 'agent' : 'defaults',
+      ]),
+    ) as Record<string, OpenClawAgentParamSource>;
 
     return {
       id,
@@ -965,7 +1296,8 @@ function buildAgentSnapshots(root: JsonObject, configPath: string): OpenClawAgen
         primary: effectiveModel.primary,
         fallbacks: [...new Set((effectiveModel.fallbacks || []).filter(Boolean))],
       },
-      params: readAgentParams(entry.params),
+      params: effectiveParams,
+      paramSources,
     };
   });
 }
@@ -1225,6 +1557,54 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
         placeholder: '8443',
         inputMode: 'numeric',
       },
+      {
+        key: 'errorPolicy',
+        label: 'Error Policy',
+        placeholder: 'retry',
+        helpText: 'Optional Telegram delivery error policy, for example retry or disable.',
+      },
+      {
+        key: 'errorCooldownMs',
+        label: 'Error Cooldown (ms)',
+        placeholder: '300000',
+        inputMode: 'numeric',
+      },
+    ],
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    description:
+      'Manage optional WhatsApp access rules for direct-message allowlists and group delivery behavior.',
+    setupSteps: [
+      'Authenticate the OpenClaw WhatsApp channel with the official CLI or runtime login flow.',
+      'Optionally restrict allowed direct-message senders or define per-group behavior here.',
+      'Keep the channel enabled so runtime login state can be reused without extra config wiring.',
+    ],
+    configurationMode: 'none',
+    fields: [
+      {
+        key: 'allowFrom',
+        label: 'Allow From',
+        placeholder: '+15555550123\n+15555550124',
+        helpText:
+          'Optional allowlist of direct-message senders. Enter one phone number per line or a JSON array.',
+        multiline: true,
+        storageFormat: 'stringArray',
+      },
+      {
+        key: 'groups',
+        label: 'Groups',
+        placeholder: `{
+  "*": {
+    "requireMention": true
+  }
+}`,
+        helpText:
+          'Optional JSON object of WhatsApp group rules. Use "*" to define defaults for all groups.',
+        multiline: true,
+        storageFormat: 'jsonObject',
+      },
     ],
   },
   {
@@ -1324,26 +1704,154 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
   },
 ];
 
+const OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS: OpenClawWebSearchProviderDefinition[] = [
+  {
+    id: 'brave',
+    name: 'Brave Search',
+    description: 'Use Brave Search as the OpenClaw web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'google',
+    name: 'Google Search',
+    description: 'Use Google web search through the official OpenClaw adapter.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'xai',
+    name: 'xAI Search',
+    description: 'Use xAI web search through the official OpenClaw adapter.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'moonshot',
+    name: 'Moonshot Search',
+    description: 'Use Moonshot as the active OpenClaw web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity Search',
+    description: 'Use Perplexity for grounded web-search results.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: true,
+  },
+  {
+    id: 'firecrawl',
+    name: 'Firecrawl Search',
+    description: 'Use Firecrawl search and extraction as the web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'tavily',
+    name: 'Tavily Search',
+    description: 'Use Tavily as the OpenClaw web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'duckduckgo',
+    name: 'DuckDuckGo Search',
+    description: 'Use DuckDuckGo without additional provider credentials.',
+    supportsApiKey: false,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'searxng',
+    name: 'SearXNG',
+    description: 'Use a self-hosted SearXNG endpoint as the web search provider.',
+    supportsApiKey: false,
+    supportsBaseUrl: true,
+    supportsModel: false,
+  },
+  {
+    id: 'exa',
+    name: 'Exa Search',
+    description: 'Use Exa as the active OpenClaw web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+];
+
 function getChannelDefinition(channelId: string) {
   return OPENCLAW_CHANNEL_DEFINITIONS.find((definition) => definition.id === channelId) || null;
 }
 
-async function readConfigRoot(configPath: string) {
-  const raw = await platform.readFile(configPath);
-  const parsed = raw.trim() ? JSON5.parse(raw) : {};
+function getWebSearchProviderDefinition(providerId: string) {
+  return (
+    OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS.find((definition) => definition.id === providerId) ||
+    null
+  );
+}
 
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return {} as JsonObject;
+async function readConfigRoot(configPath: string) {
+  const normalizedConfigPath = normalizePath(configPath);
+  const rootCache = getOpenClawConfigRootCache();
+  const pendingRoots = getPendingOpenClawConfigRoots();
+  const currentTime = Date.now();
+  const cached = rootCache.get(normalizedConfigPath);
+  if (cached && cached.expiresAt > currentTime) {
+    return cloneJsonObject(cached.value);
   }
 
-  const root = parsed as JsonObject;
-  normalizeLegacyProviderLayout(root);
-  return root;
+  const pending = pendingRoots.get(normalizedConfigPath);
+  if (pending) {
+    return pending.then((root) => cloneJsonObject(root));
+  }
+
+  const version = getOpenClawConfigSnapshotVersion(normalizedConfigPath);
+  const request = platform.readFile(normalizedConfigPath)
+    .then((raw) => {
+      const parsed = raw.trim() ? JSON5.parse(raw) : {};
+
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {} as JsonObject;
+      }
+
+      const root = parsed as JsonObject;
+      normalizeLegacyProviderLayout(root);
+      return root;
+    })
+    .then((root) => {
+      const cachedRoot = cloneJsonObject(root);
+      if (getOpenClawConfigSnapshotVersion(normalizedConfigPath) === version) {
+        rootCache.set(normalizedConfigPath, {
+          expiresAt: Date.now() + OPENCLAW_CONFIG_SNAPSHOT_CACHE_TTL_MS,
+          value: cachedRoot,
+        });
+      }
+
+      return cachedRoot;
+    })
+    .finally(() => {
+      if (pendingRoots.get(normalizedConfigPath) === request) {
+        pendingRoots.delete(normalizedConfigPath);
+      }
+    });
+
+  pendingRoots.set(normalizedConfigPath, request);
+  return request.then((root) => cloneJsonObject(root));
 }
 
 async function writeConfigRoot(configPath: string, root: JsonObject) {
+  const normalizedConfigPath = normalizePath(configPath);
   const content = `${JSON5.stringify(root, null, 2)}\n`;
-  await platform.writeFile(configPath, content);
+  await platform.writeFile(normalizedConfigPath, content);
+  invalidateOpenClawConfigSnapshot(normalizedConfigPath);
 }
 
 function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
@@ -1394,6 +1902,80 @@ function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
   });
 }
 
+function readWebSearchRoot(root: JsonObject) {
+  return readObject(readObject(readObject(root.tools)?.web)?.search) || null;
+}
+
+function getPluginWebSearchRoot(root: JsonObject, providerId: string) {
+  return (
+    readObject(
+      readObject(
+        readObject(
+          readObject(readObject(root.plugins)?.entries)?.[providerId],
+        )?.config,
+      )?.webSearch,
+    ) || null
+  );
+}
+
+function buildWebSearchProviderAdvancedConfig(root: JsonObject) {
+  const nextRoot = cloneJsonObject(root);
+  delete nextRoot.apiKey;
+  delete nextRoot.baseUrl;
+  delete nextRoot.model;
+
+  return Object.keys(nextRoot).length > 0 ? JSON5.stringify(nextRoot, null, 2) : '';
+}
+
+function buildWebSearchProviderSnapshots(root: JsonObject): OpenClawWebSearchProviderSnapshot[] {
+  return OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS.map((definition) => {
+    const providerRoot = getPluginWebSearchRoot(root, definition.id) || {};
+
+    return {
+      id: definition.id,
+      name: definition.name,
+      description: definition.description,
+      apiKeySource: readScalar(providerRoot.apiKey),
+      baseUrl: readScalar(providerRoot.baseUrl),
+      model: readScalar(providerRoot.model),
+      advancedConfig: buildWebSearchProviderAdvancedConfig(providerRoot),
+      supportsApiKey: definition.supportsApiKey,
+      supportsBaseUrl: definition.supportsBaseUrl,
+      supportsModel: definition.supportsModel,
+    };
+  });
+}
+
+function buildWebSearchConfigSnapshot(root: JsonObject): OpenClawWebSearchConfigSnapshot {
+  const searchRoot = readWebSearchRoot(root) || {};
+
+  return {
+    enabled: readBoolean(searchRoot.enabled, true),
+    provider: readScalar(searchRoot.provider).trim(),
+    maxResults: readNumber(searchRoot.maxResults, DEFAULT_WEB_SEARCH_MAX_RESULTS),
+    timeoutSeconds: readNumber(searchRoot.timeoutSeconds, DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS),
+    cacheTtlMinutes: readNumber(searchRoot.cacheTtlMinutes, DEFAULT_WEB_SEARCH_CACHE_TTL_MINUTES),
+    providers: buildWebSearchProviderSnapshots(root),
+  };
+}
+
+function readAuthCooldownsRoot(root: JsonObject) {
+  return readObject(readObject(root.auth)?.cooldowns) || null;
+}
+
+function buildAuthCooldownsConfigSnapshot(root: JsonObject): OpenClawAuthCooldownsConfigSnapshot {
+  const cooldownsRoot = readAuthCooldownsRoot(root) || {};
+
+  return {
+    rateLimitedProfileRotations: readOptionalNumber(cooldownsRoot.rateLimitedProfileRotations),
+    overloadedProfileRotations: readOptionalNumber(cooldownsRoot.overloadedProfileRotations),
+    overloadedBackoffMs: readOptionalNumber(cooldownsRoot.overloadedBackoffMs),
+    billingBackoffHours: readOptionalNumber(cooldownsRoot.billingBackoffHours),
+    billingMaxHours: readOptionalNumber(cooldownsRoot.billingMaxHours),
+    failureWindowHours: readOptionalNumber(cooldownsRoot.failureWindowHours),
+  };
+}
+
 function buildProviderSnapshots(root: JsonObject): OpenClawProviderSnapshot[] {
   const providersRoot = readObject(readObject(root.models)?.providers) || {};
   const defaultsRoot = readObject(readObject(root.agents)?.defaults) || {};
@@ -1428,6 +2010,7 @@ function buildProviderSnapshots(root: JsonObject): OpenClawProviderSnapshot[] {
       isEmbeddingModel(readScalar(model.id), readScalar(model.name)),
     )?.id;
     const status = readScalar(provider.apiKey).trim() ? 'ready' : 'configurationRequired';
+    const config = readProviderRuntimeConfig(root, providerKey, defaultModelId);
 
     return [
       {
@@ -1468,48 +2051,55 @@ function buildProviderSnapshots(root: JsonObject): OpenClawProviderSnapshot[] {
             contextWindow: inferContextWindow(role, model.contextWindow),
           };
         }),
-        config: {
-          temperature: readNumber(provider.temperature, 0.2),
-          topP: readNumber(provider.topP, 1),
-          maxTokens: readNumber(provider.maxTokens, 8192),
-          timeoutMs: readNumber(provider.timeoutMs, 60000),
-          streaming:
-            typeof provider.streaming === 'boolean'
-              ? provider.streaming
-              : readScalar(provider.streaming) !== 'false',
-        },
+        config,
       },
     ];
   });
 }
 
-function updateProviderConfig(root: JsonObject, provider: OpenClawProviderInput, selection: OpenClawModelSelection) {
+function resolveOpenClawProviderAdapter(channelId: string) {
+  switch (channelId.trim().toLowerCase()) {
+    case 'anthropic':
+      return {
+        api: 'anthropic-messages',
+        auth: 'api-key',
+      };
+    case 'gemini':
+    case 'google':
+    case 'google-generative-ai':
+      return {
+        api: 'google-generative-ai',
+        auth: 'api-key',
+      };
+    default:
+      return {
+        api: 'openai-completions',
+        auth: 'api-key',
+      };
+  }
+}
+
+function updateProviderConfig(
+  root: JsonObject,
+  provider: OpenClawProviderInput,
+  selection: OpenClawModelSelection,
+  options: {
+    overwriteDefaults?: boolean;
+  } = {},
+) {
   const modelsRoot = ensureObject(root, 'models');
   const providersRoot = ensureObject(modelsRoot, 'providers');
   const agentsRoot = ensureObject(root, 'agents');
   const defaultsRoot = ensureObject(agentsRoot, 'defaults');
   const providerKey = buildProviderKey(provider.id);
   const providerRoot = ensureObject(providersRoot, providerKey);
+  const adapter = resolveOpenClawProviderAdapter(provider.channelId);
 
   providerRoot.baseUrl = provider.baseUrl;
   providerRoot.apiKey = provider.apiKey;
-  providerRoot.api = 'openai-completions';
-  providerRoot.auth = 'api-key';
-  if (typeof provider.config?.temperature === 'number') {
-    providerRoot.temperature = provider.config.temperature;
-  }
-  if (typeof provider.config?.topP === 'number') {
-    providerRoot.topP = provider.config.topP;
-  }
-  if (typeof provider.config?.maxTokens === 'number') {
-    providerRoot.maxTokens = provider.config.maxTokens;
-  }
-  if (typeof provider.config?.timeoutMs === 'number') {
-    providerRoot.timeoutMs = provider.config.timeoutMs;
-  }
-  if (typeof provider.config?.streaming === 'boolean') {
-    providerRoot.streaming = provider.config.streaming;
-  }
+  providerRoot.api = adapter.api;
+  providerRoot.auth = adapter.auth;
+  clearLegacyProviderRuntimeConfig(providerRoot);
   providerRoot.models = provider.models.map((model) => ({
     id: model.id,
     name: model.name,
@@ -1520,15 +2110,37 @@ function updateProviderConfig(root: JsonObject, provider: OpenClawProviderInput,
     maxTokens: model.id === selection.embeddingModelId ? 8192 : 32000,
   })) as JsonValue;
 
-  writeModelConfig(defaultsRoot, 'model', {
-    primary: buildModelRef(providerKey, selection.defaultModelId),
-    fallbacks: selection.reasoningModelId
-      ? [buildModelRef(providerKey, selection.reasoningModelId)]
-      : [],
-  });
+  if (options.overwriteDefaults !== false) {
+    writeModelConfig(defaultsRoot, 'model', {
+      primary: buildModelRef(providerKey, selection.defaultModelId),
+      fallbacks: selection.reasoningModelId
+        ? [buildModelRef(providerKey, selection.reasoningModelId)]
+        : [],
+    });
+  }
 
   syncModelCatalog(root);
+  writeProviderRuntimeConfig(root, providerKey, selection.defaultModelId, provider.config);
   pruneModelReferences(root);
+}
+
+function clearLegacyProviderRuntimeConfig(providerRoot: JsonObject) {
+  delete providerRoot.temperature;
+  delete providerRoot.topP;
+  delete providerRoot.maxTokens;
+  delete providerRoot.timeoutMs;
+  delete providerRoot.streaming;
+}
+
+function canonicalizeManagedLocalProxyProviders(root: JsonObject, providerId: string) {
+  const providersRoot = ensureObject(ensureObject(root, 'models'), 'providers');
+  const managedProviderKey = buildProviderKey(providerId);
+
+  for (const providerKey of Object.keys(providersRoot)) {
+    if (providerKey !== managedProviderKey) {
+      delete providersRoot[providerKey];
+    }
+  }
 }
 
 function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigurationInput) {
@@ -1541,7 +2153,7 @@ function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigu
   }
 
   for (const field of definition.fields) {
-    setOptionalScalar(channelRoot, field.key, input.values[field.key]);
+    setOptionalChannelField(channelRoot, field, input.values[field.key]);
   }
 
   const configuredFieldCount = definition.fields.filter(
@@ -1550,6 +2162,83 @@ function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigu
   channelRoot.enabled =
     input.enabled ??
     ((definition.configurationMode || 'required') === 'none' ? true : configuredFieldCount > 0);
+}
+
+function ensurePluginWebSearchRoot(root: JsonObject, providerId: string) {
+  const pluginsRoot = ensureObject(root, 'plugins');
+  const entriesRoot = ensureObject(pluginsRoot, 'entries');
+  const entryRoot = ensureObject(entriesRoot, providerId);
+  const configRoot = ensureObject(entryRoot, 'config');
+
+  return {
+    pluginsRoot,
+    entriesRoot,
+    entryRoot,
+    configRoot,
+    webSearchRoot: ensureObject(configRoot, 'webSearch'),
+  };
+}
+
+function updateWebSearchConfig(root: JsonObject, input: SaveOpenClawWebSearchConfigurationInput) {
+  const toolsRoot = ensureObject(root, 'tools');
+  const webRoot = ensureObject(toolsRoot, 'web');
+  const searchRoot = ensureObject(webRoot, 'search');
+  searchRoot.enabled = input.enabled;
+  setOptionalScalar(searchRoot, 'provider', input.provider);
+  setOptionalFiniteNumber(searchRoot, 'maxResults', input.maxResults);
+  setOptionalFiniteNumber(searchRoot, 'timeoutSeconds', input.timeoutSeconds);
+  setOptionalFiniteNumber(searchRoot, 'cacheTtlMinutes', input.cacheTtlMinutes);
+
+  const definition = getWebSearchProviderDefinition(input.providerConfig.providerId);
+  if (!definition) {
+    throw new Error(`Unsupported OpenClaw web search provider: ${input.providerConfig.providerId}`);
+  }
+
+  const advancedRoot = parseJsonObjectText('Advanced Config', input.providerConfig.advancedConfig);
+  const {
+    pluginsRoot,
+    entriesRoot,
+    entryRoot,
+    configRoot,
+    webSearchRoot,
+  } = ensurePluginWebSearchRoot(root, input.providerConfig.providerId);
+
+  for (const key of Object.keys(webSearchRoot)) {
+    delete webSearchRoot[key];
+  }
+
+  Object.assign(webSearchRoot, advancedRoot);
+
+  if (definition.supportsApiKey) {
+    setOptionalScalar(webSearchRoot, 'apiKey', input.providerConfig.apiKeySource);
+  }
+  if (definition.supportsBaseUrl) {
+    setOptionalScalar(webSearchRoot, 'baseUrl', input.providerConfig.baseUrl);
+  }
+  if (definition.supportsModel) {
+    setOptionalScalar(webSearchRoot, 'model', input.providerConfig.model);
+  }
+
+  deleteIfEmptyObject(configRoot, 'webSearch');
+  deleteIfEmptyObject(entryRoot, 'config');
+  deleteIfEmptyObject(entriesRoot, input.providerConfig.providerId);
+  deleteIfEmptyObject(pluginsRoot, 'entries');
+  deleteIfEmptyObject(root, 'plugins');
+}
+
+function updateAuthCooldownsConfig(root: JsonObject, input: SaveOpenClawAuthCooldownsConfigurationInput) {
+  const authRoot = ensureObject(root, 'auth');
+  const cooldownsRoot = ensureObject(authRoot, 'cooldowns');
+
+  setOptionalWholeNumber(cooldownsRoot, 'rateLimitedProfileRotations', input.rateLimitedProfileRotations);
+  setOptionalWholeNumber(cooldownsRoot, 'overloadedProfileRotations', input.overloadedProfileRotations);
+  setOptionalWholeNumber(cooldownsRoot, 'overloadedBackoffMs', input.overloadedBackoffMs);
+  setOptionalWholeNumber(cooldownsRoot, 'billingBackoffHours', input.billingBackoffHours);
+  setOptionalWholeNumber(cooldownsRoot, 'billingMaxHours', input.billingMaxHours);
+  setOptionalWholeNumber(cooldownsRoot, 'failureWindowHours', input.failureWindowHours);
+
+  deleteIfEmptyObject(authRoot, 'cooldowns');
+  deleteIfEmptyObject(root, 'auth');
 }
 
 function updateSkillEntry(root: JsonObject, input: SaveOpenClawSkillEntryInput) {
@@ -1866,14 +2555,49 @@ class OpenClawConfigService {
   }
 
   async readConfigSnapshot(configPath: string): Promise<OpenClawConfigSnapshot> {
-    const root = await readConfigRoot(configPath);
-    return {
-      configPath: normalizePath(configPath),
-      providerSnapshots: buildProviderSnapshots(root),
-      agentSnapshots: buildAgentSnapshots(root, configPath),
-      channelSnapshots: buildChannelSnapshots(root),
-      root,
-    };
+    const normalizedConfigPath = normalizePath(configPath);
+    const snapshotCache = getOpenClawConfigSnapshotCache();
+    const pendingSnapshots = getPendingOpenClawConfigSnapshots();
+    const currentTime = Date.now();
+    const cached = snapshotCache.get(normalizedConfigPath);
+    if (cached && cached.expiresAt > currentTime) {
+      return cached.value;
+    }
+
+    const pending = pendingSnapshots.get(normalizedConfigPath);
+    if (pending) {
+      return pending;
+    }
+
+    const version = getOpenClawConfigSnapshotVersion(normalizedConfigPath);
+    const request = readConfigRoot(normalizedConfigPath)
+      .then((root) => ({
+        configPath: normalizedConfigPath,
+        providerSnapshots: buildProviderSnapshots(root),
+        agentSnapshots: buildAgentSnapshots(root, normalizedConfigPath),
+        channelSnapshots: buildChannelSnapshots(root),
+        webSearchConfig: buildWebSearchConfigSnapshot(root),
+        authCooldownsConfig: buildAuthCooldownsConfigSnapshot(root),
+        root,
+      }))
+      .then((snapshot) => {
+        if (getOpenClawConfigSnapshotVersion(normalizedConfigPath) === version) {
+          snapshotCache.set(normalizedConfigPath, {
+            expiresAt: Date.now() + OPENCLAW_CONFIG_SNAPSHOT_CACHE_TTL_MS,
+            value: snapshot,
+          });
+        }
+
+        return snapshot;
+      })
+      .finally(() => {
+        if (pendingSnapshots.get(normalizedConfigPath) === request) {
+          pendingSnapshots.delete(normalizedConfigPath);
+        }
+      });
+
+    pendingSnapshots.set(normalizedConfigPath, request);
+    return request;
   }
 
   async saveProviderSelection(input: {
@@ -1886,6 +2610,21 @@ class OpenClawConfigService {
     await writeConfigRoot(input.configPath, root);
 
     const providerKey = buildProviderKey(input.provider.id);
+    return buildProviderSnapshots(root).find((provider) => provider.providerKey === providerKey) || null;
+  }
+
+  async saveManagedLocalProxyProjection(input: {
+    configPath: string;
+    projection: OpenClawLocalProxyProjection;
+  }) {
+    const root = await readConfigRoot(input.configPath);
+    canonicalizeManagedLocalProxyProviders(root, input.projection.provider.id);
+    updateProviderConfig(root, input.projection.provider, input.projection.selection, {
+      overwriteDefaults: true,
+    });
+    await writeConfigRoot(input.configPath, root);
+
+    const providerKey = buildProviderKey(input.projection.provider.id);
     return buildProviderSnapshots(root).find((provider) => provider.providerKey === providerKey) || null;
   }
 
@@ -2039,6 +2778,22 @@ class OpenClawConfigService {
     await writeConfigRoot(input.configPath, root);
 
     return this.readConfigSnapshot(input.configPath);
+  }
+
+  async saveWebSearchConfiguration(input: SaveOpenClawWebSearchConfigurationInput) {
+    const root = await readConfigRoot(input.configPath);
+    updateWebSearchConfig(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildWebSearchConfigSnapshot(root);
+  }
+
+  async saveAuthCooldownsConfiguration(input: SaveOpenClawAuthCooldownsConfigurationInput) {
+    const root = await readConfigRoot(input.configPath);
+    updateAuthCooldownsConfig(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildAuthCooldownsConfigSnapshot(root);
   }
 
   async deleteSkillEntry(input: DeleteOpenClawSkillEntryInput) {

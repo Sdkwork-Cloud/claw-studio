@@ -8,6 +8,8 @@ use std::fs;
 pub const APP_LANGUAGE_PREFERENCE_SYSTEM: &str = "system";
 pub const APP_LANGUAGE_PREFERENCE_ENGLISH: &str = "en";
 pub const APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE: &str = "zh";
+pub const HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION: &str = "phase1";
+pub const HOST_PLATFORM_ROLLOUT_ENGINE_VERSION: &str = "phase1";
 const CURRENT_APP_CONFIG_VERSION: u32 = 2;
 
 pub fn normalize_app_language_preference(value: &str) -> &'static str {

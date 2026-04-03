@@ -1,116 +1,201 @@
-import { startTransition, useEffect, useState, type FormEvent } from 'react';
+import { startTransition, useEffect, useState, type ReactElement } from 'react';
 import * as QRCode from 'qrcode';
-import {
-  ArrowRight,
-  Chrome,
-  Github,
-  LoaderCircle,
-  Lock,
-  Mail,
-  MessageCircle,
-  Music2,
-  QrCode,
-  RefreshCw,
-  Smartphone,
-  User,
-} from 'lucide-react';
+import { KeyRound, Mail, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   appAuthService,
+  platform,
+  useAuthStore,
   type AppAuthLoginQrCode,
   type AppAuthSocialProvider,
-  useAuthStore,
+  type PasswordResetInput,
+  type PasswordResetRequestInput,
+  type RegisterInput,
 } from '@sdkwork/claw-core';
-import { Button, Input, Label } from '@sdkwork/claw-ui';
+import { AccountPasswordLoginForm } from '../components/auth/AccountPasswordLoginForm.tsx';
+import { AuthMethodTabs } from '../components/auth/AuthMethodTabs.tsx';
+import { EmailCodeLoginForm } from '../components/auth/EmailCodeLoginForm.tsx';
+import { ForgotPasswordFlow } from '../components/auth/ForgotPasswordFlow.tsx';
+import { OAuthProviderGrid } from '../components/auth/OAuthProviderGrid.tsx';
+import { PhoneCodeLoginForm } from '../components/auth/PhoneCodeLoginForm.tsx';
+import { QrLoginPanel } from '../components/auth/QrLoginPanel.tsx';
+import { RegisterFlow } from '../components/auth/RegisterFlow.tsx';
+import {
+  DEFAULT_AUTH_LOGIN_METHODS,
+  humanizeAuthProvider,
+  isAuthOAuthLoginEnabled,
+  isAuthQrLoginEnabled,
+  looksLikeEmailAddress,
+  looksLikePhoneNumber,
+  readErrorMessage,
+  resolveAuthLoginMethods,
+  resolveAuthRecoveryMethods,
+  resolveAuthMode,
+  resolveAuthOAuthProviders,
+  resolveAuthProviderTranslationKey,
+  resolveAuthRegisterMethods,
+  type AuthLoginMethod,
+  type QrPanelState,
+} from '../components/auth/authConfig.ts';
 import { buildOAuthCallbackUri, resolveRedirectTarget } from './authRouteUtils.ts';
-
-type AuthMode = 'login' | 'register' | 'forgot';
-type QrPanelState = 'idle' | 'loading' | 'pending' | 'scanned' | 'confirmed' | 'expired' | 'error';
 
 const QR_POLL_INTERVAL_MS = 2_000;
 
-function resolveAuthMode(pathname: string): AuthMode {
-  if (pathname === '/register') {
-    return 'register';
-  }
-
-  if (pathname === '/forgot-password') {
-    return 'forgot';
-  }
-
-  return 'login';
+interface AuthSideHighlight {
+  key: string;
+  icon: ReactElement;
+  title: string;
+  description: string;
 }
 
-function readErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
+function resolveHintedEmail(searchParams: URLSearchParams) {
+  const email = (searchParams.get('email') || '').trim();
+  if (looksLikeEmailAddress(email)) {
+    return email;
+  }
+
+  const account = (searchParams.get('account') || '').trim();
+  return looksLikeEmailAddress(account) ? account : '';
 }
 
-function ProviderGlyph({ provider }: { provider: AppAuthSocialProvider }) {
-  if (provider === 'github') {
-    return <Github className="h-5 w-5" />;
+function resolveHintedPhone(searchParams: URLSearchParams) {
+  const phone = (searchParams.get('phone') || '').trim();
+  if (looksLikePhoneNumber(phone)) {
+    return phone;
   }
 
-  if (provider === 'google') {
-    return <Chrome className="h-5 w-5" />;
-  }
-
-  if (provider === 'wechat') {
-    return <MessageCircle className="h-5 w-5" />;
-  }
-
-  return (
-    <Music2 className="h-5 w-5" />
-  );
+  const account = (searchParams.get('account') || '').trim();
+  return looksLikePhoneNumber(account) ? account : '';
 }
-
-function resolveQrStatusCopy(t: (key: string) => string, state: QrPanelState) {
-  if (state === 'loading') {
-    return t('auth.qrStatus.loading');
-  }
-  if (state === 'scanned') {
-    return t('auth.qrStatus.scanned');
-  }
-  if (state === 'confirmed') {
-    return t('auth.qrStatus.confirmed');
-  }
-  if (state === 'expired') {
-    return t('auth.qrStatus.expired');
-  }
-  if (state === 'error') {
-    return t('auth.qrStatus.error');
-  }
-  return t('auth.qrStatus.pending');
-}
-
-function resolveQrStatusAccent(state: QrPanelState) {
-  if (state === 'scanned') {
-    return 'text-amber-300';
-  }
-  if (state === 'confirmed') {
-    return 'text-emerald-300';
-  }
-  if (state === 'expired' || state === 'error') {
-    return 'text-rose-300';
-  }
-  return 'text-zinc-300';
-}
-
-const SOCIAL_PROVIDERS: AppAuthSocialProvider[] = ['wechat', 'douyin', 'github', 'google'];
 
 export function AuthPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, signIn, register, sendPasswordReset, applySession } = useAuthStore();
   const mode = resolveAuthMode(location.pathname);
   const redirectTarget = resolveRedirectTarget(searchParams.get('redirect'));
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const hintedAccount = (searchParams.get('account') || searchParams.get('email') || '').trim();
+  const hintedEmail = resolveHintedEmail(searchParams);
+  const hintedPhone = resolveHintedPhone(searchParams);
+  const isDesktop = platform.getPlatform() === 'desktop';
+  const deviceType = isDesktop ? 'desktop' : 'web';
+  const loginMethods = resolveAuthLoginMethods();
+  const registerMethods = resolveAuthRegisterMethods();
+  const recoveryMethods = resolveAuthRecoveryMethods();
+  const loginMethodsKey = loginMethods.join(',');
+  const qrLoginEnabled = isAuthQrLoginEnabled();
+  const oauthLoginEnabled = isAuthOAuthLoginEnabled();
+  const oauthProviders = oauthLoginEnabled ? resolveAuthOAuthProviders() : [];
+  const oauthProviderSummary = oauthProviders
+    .map((provider) => {
+      const label = t(resolveAuthProviderTranslationKey(provider));
+      return label.startsWith('auth.providers.')
+        ? humanizeAuthProvider(provider)
+        : label;
+    })
+    .join(' / ');
+  const sideHighlights: AuthSideHighlight[] = mode === 'register'
+    ? [
+      registerMethods.includes('email')
+        ? {
+          key: 'register-email',
+          icon: <Mail className="h-5 w-5 text-primary-200" />,
+          title: t('auth.registerMethods.email'),
+          description: t('auth.registerHighlights.email'),
+        }
+        : null,
+      registerMethods.includes('phone')
+        ? {
+          key: 'register-phone',
+          icon: <Smartphone className="h-5 w-5 text-primary-200" />,
+          title: t('auth.registerMethods.phone'),
+          description: t('auth.registerHighlights.phone'),
+        }
+        : null,
+      {
+        key: 'register-password',
+        icon: <ShieldCheck className="h-5 w-5 text-primary-200" />,
+        title: t('auth.password'),
+        description: t('auth.registerHighlights.password'),
+      },
+    ].filter((item): item is AuthSideHighlight => Boolean(item))
+    : mode === 'forgot'
+      ? [
+        recoveryMethods.includes('email')
+          ? {
+            key: 'reset-email',
+            icon: <Mail className="h-5 w-5 text-primary-200" />,
+            title: t('auth.email'),
+            description: t('auth.resetHighlights.email'),
+          }
+          : null,
+        recoveryMethods.includes('phone')
+          ? {
+            key: 'reset-phone',
+            icon: <Smartphone className="h-5 w-5 text-primary-200" />,
+            title: t('auth.phone'),
+            description: t('auth.resetHighlights.phone'),
+          }
+          : null,
+        {
+          key: 'reset-password',
+          icon: <KeyRound className="h-5 w-5 text-primary-200" />,
+          title: t('auth.resetPassword'),
+          description: t('auth.resetHighlights.password'),
+        },
+      ].filter((item): item is AuthSideHighlight => Boolean(item))
+      : [
+        loginMethods.includes('password')
+          ? {
+            key: 'login-password',
+            icon: <ShieldCheck className="h-5 w-5 text-primary-200" />,
+            title: t('auth.loginMethods.password'),
+            description: t('auth.actions.usePassword'),
+          }
+          : null,
+        loginMethods.includes('emailCode')
+          ? {
+            key: 'login-email',
+            icon: <Sparkles className="h-5 w-5 text-primary-200" />,
+            title: t('auth.loginMethods.emailCode'),
+            description: t('auth.actions.useEmailCode'),
+          }
+          : null,
+        loginMethods.includes('phoneCode')
+          ? {
+            key: 'login-phone',
+            icon: <KeyRound className="h-5 w-5 text-primary-200" />,
+            title: t('auth.loginMethods.phoneCode'),
+            description: t('auth.actions.usePhoneCode'),
+          }
+          : null,
+        oauthProviders.length
+        ? {
+          key: 'login-oauth',
+          icon: <Sparkles className="h-5 w-5 text-primary-200" />,
+          title: t('auth.oauth.badge'),
+          description: oauthProviderSummary,
+        }
+          : null,
+      ].filter((item): item is AuthSideHighlight => Boolean(item));
+
+  const {
+    isAuthenticated,
+    signIn,
+    signInWithPhoneCode,
+    signInWithEmailCode,
+    register,
+    requestPasswordReset,
+    resetPassword,
+    signInWithOAuth,
+    applySession,
+  } = useAuthStore();
+
+  const [loginMethod, setLoginMethod] = useState<AuthLoginMethod>('password');
+  const showForgotPasswordAction = loginMethods.includes('password') && loginMethod === 'password';
   const [activeOAuthProvider, setActiveOAuthProvider] = useState<AppAuthSocialProvider | null>(null);
   const [qrState, setQrState] = useState<QrPanelState>('idle');
   const [qrCode, setQrCode] = useState<AppAuthLoginQrCode | null>(null);
@@ -119,14 +204,38 @@ export function AuthPage() {
   const [qrReloadNonce, setQrReloadNonce] = useState(0);
 
   useEffect(() => {
-    const nextEmail = searchParams.get('email');
-    if (nextEmail) {
-      setEmail(nextEmail);
+    if (mode !== 'login') {
+      return;
     }
-  }, [searchParams]);
+
+    const requestedMethod = (searchParams.get('method') || '').trim();
+    if (requestedMethod === 'email' || requestedMethod === 'emailCode') {
+      setLoginMethod(
+        loginMethods.includes('emailCode')
+          ? 'emailCode'
+          : loginMethods[0] || DEFAULT_AUTH_LOGIN_METHODS[0],
+      );
+      return;
+    }
+
+    if (requestedMethod === 'phone' || requestedMethod === 'phoneCode') {
+      setLoginMethod(
+        loginMethods.includes('phoneCode')
+          ? 'phoneCode'
+          : loginMethods[0] || DEFAULT_AUTH_LOGIN_METHODS[0],
+      );
+      return;
+    }
+
+    setLoginMethod((current) =>
+      loginMethods.includes(current)
+        ? current
+        : loginMethods[0] || DEFAULT_AUTH_LOGIN_METHODS[0],
+    );
+  }, [loginMethodsKey, mode, searchParams]);
 
   useEffect(() => {
-    if (mode !== 'login') {
+    if (mode !== 'login' || !qrLoginEnabled) {
       setQrState('idle');
       setQrCode(null);
       setQrImageSrc('');
@@ -179,10 +288,9 @@ export function AuthPage() {
         if (disposed) {
           return;
         }
+
         setQrState('error');
-        setQrErrorMessage(
-          readErrorMessage(error, t('auth.errors.qrStatusFailed')),
-        );
+        setQrErrorMessage(readErrorMessage(error, t('auth.errors.qrStatusFailed')));
         clearPollTimer();
       }
     };
@@ -228,10 +336,9 @@ export function AuthPage() {
         if (disposed) {
           return;
         }
+
         setQrState('error');
-        setQrErrorMessage(
-          readErrorMessage(error, t('auth.errors.qrGenerateFailed')),
-        );
+        setQrErrorMessage(readErrorMessage(error, t('auth.errors.qrGenerateFailed')));
       }
     };
 
@@ -241,7 +348,7 @@ export function AuthPage() {
       disposed = true;
       clearPollTimer();
     };
-  }, [applySession, mode, navigate, qrReloadNonce, redirectTarget, t]);
+  }, [applySession, mode, navigate, qrLoginEnabled, qrReloadNonce, redirectTarget, t]);
 
   const withRedirect = (pathname: string) => {
     const [basePath, rawQuery = ''] = pathname.split('?');
@@ -254,51 +361,7 @@ export function AuthPage() {
     return queryString ? `${basePath}?${queryString}` : basePath;
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      if (mode === 'login') {
-        await signIn({ email, password });
-        startTransition(() => {
-          navigate(redirectTarget, { replace: true });
-        });
-        return;
-      }
-
-      if (mode === 'register') {
-        await register({ name, email, password });
-        startTransition(() => {
-          navigate(redirectTarget, { replace: true });
-        });
-        return;
-      }
-
-      await sendPasswordReset(email);
-      startTransition(() => {
-        navigate(withRedirect(`/login?email=${encodeURIComponent(email.trim())}`), {
-          replace: true,
-        });
-      });
-    } catch (error) {
-      toast.error(
-        readErrorMessage(
-          error,
-          mode === 'forgot' ? t('auth.errors.passwordResetFailed') : t('auth.errors.signInFailed'),
-        ),
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSocialSignIn = async (provider: AppAuthSocialProvider) => {
+  const handleOAuthSignIn = async (provider: AppAuthSocialProvider) => {
     if (activeOAuthProvider) {
       return;
     }
@@ -318,91 +381,140 @@ export function AuthPage() {
     }
   };
 
+  const handlePasswordLogin = async (payload: { account: string; password: string }) => {
+    await signIn(payload);
+    startTransition(() => {
+      navigate(redirectTarget, { replace: true });
+    });
+  };
+
+  const handlePhoneCodeLogin = async (payload: { phone: string; code: string }) => {
+    await signInWithPhoneCode({
+      ...payload,
+      deviceType,
+    });
+    startTransition(() => {
+      navigate(redirectTarget, { replace: true });
+    });
+  };
+
+  const handleEmailCodeLogin = async (payload: { email: string; code: string }) => {
+    await signInWithEmailCode({
+      ...payload,
+      deviceType,
+    });
+    startTransition(() => {
+      navigate(redirectTarget, { replace: true });
+    });
+  };
+
+  const handleRegister = async (payload: RegisterInput) => {
+    await register(payload);
+    startTransition(() => {
+      navigate(redirectTarget, { replace: true });
+    });
+  };
+
+  const handleRequestPasswordReset = async (payload: PasswordResetRequestInput) => {
+    await requestPasswordReset(payload);
+  };
+
+  const handlePasswordReset = async (payload: PasswordResetInput) => {
+    await resetPassword(payload);
+    startTransition(() => {
+      navigate(
+        withRedirect(`/login?account=${encodeURIComponent(payload.account.trim())}`),
+        { replace: true },
+      );
+    });
+  };
+
   if (isAuthenticated) {
     return <Navigate to={redirectTarget} replace />;
   }
 
   return (
-    <div className="relative flex min-h-full items-center justify-center p-4 sm:p-8">
-      <div className="relative z-10 flex w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-zinc-900 md:flex-row">
-        <div className="relative flex w-full flex-col justify-between overflow-hidden bg-zinc-950 p-8 text-white dark:bg-black md:w-2/5">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_62%)]" />
+    <div className="relative flex min-h-full items-center justify-center bg-zinc-100 dark:bg-zinc-950 p-4 sm:p-8">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-[8%] top-[10%] h-56 w-56 rounded-full bg-primary-500/10 blur-3xl dark:bg-primary-500/14" />
+        <div className="absolute bottom-[8%] right-[10%] h-64 w-64 rounded-full bg-white/40 blur-3xl dark:bg-zinc-900/80" />
+      </div>
 
-          <div className="relative z-10">
-            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-600 shadow-lg">
-              <QrCode className="h-8 w-8 text-white" />
-            </div>
-            <h2 className="text-2xl font-black tracking-tight">{t('auth.qrLogin')}</h2>
-            <p className="mt-3 max-w-[260px] text-sm leading-7 text-zinc-300">
-              {qrCode?.description || t('auth.qrDesc')}
-            </p>
-          </div>
+      <div className="relative z-10 flex w-full max-w-6xl flex-col overflow-hidden rounded-[32px] bg-white/92 md:min-h-[720px] md:flex-row dark:bg-zinc-950/88">
+        <div className="w-full p-4 md:w-[42%] md:p-6">
+          {mode === 'login' && qrLoginEnabled ? (
+            <QrLoginPanel
+              qrCode={qrCode}
+              qrImageSrc={qrImageSrc}
+              qrState={qrState}
+              qrErrorMessage={qrErrorMessage}
+              onRefresh={() => setQrReloadNonce((value) => value + 1)}
+            />
+          ) : (
+            <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-[28px] bg-zinc-950 p-8 text-white">
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,_rgba(255,255,255,0.05),_transparent_30%)]" />
+              <div className="relative z-10">
+                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.08]">
+                  {mode === 'register' ? (
+                    <Sparkles className="h-8 w-8 text-primary-200" />
+                  ) : (
+                    <ShieldCheck className="h-8 w-8 text-primary-200" />
+                  )}
+                </div>
+                <h2 className="text-2xl font-black tracking-tight">
+                  {mode === 'register'
+                    ? t('auth.createAccount')
+                    : mode === 'forgot'
+                      ? t('auth.resetPassword')
+                      : t('auth.welcomeBack')}
+                </h2>
+                <p className="mt-3 max-w-[320px] text-sm leading-7 text-zinc-300">
+                  {mode === 'register'
+                    ? t('auth.registerDesc')
+                    : mode === 'forgot'
+                      ? t('auth.resetDesc')
+                      : t('auth.loginDesc')}
+                </p>
+              </div>
 
-          <div className="relative z-10 mt-8">
-            <div className="rounded-[28px] bg-white/95 p-4 shadow-2xl">
-              <div className="relative overflow-hidden rounded-2xl bg-white">
-                {qrImageSrc ? (
-                  <img
-                    src={qrImageSrc}
-                    alt={t('auth.qrAlt')}
-                    className={`h-56 w-full object-contain transition-opacity ${
-                      qrState === 'expired' || qrState === 'error' ? 'opacity-40' : 'opacity-100'
-                    }`}
-                  />
-                ) : (
-                  <div className="flex h-56 items-center justify-center bg-zinc-100">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-zinc-400" />
+              <div className="relative z-10 grid gap-4">
+                {sideHighlights.map((item) => (
+                  <div
+                    key={item.key}
+                    className="rounded-3xl bg-white/[0.06] p-5"
+                  >
+                    <div className="flex items-center gap-3">
+                      {item.icon}
+                      <div className="text-sm font-semibold">{item.title}</div>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-zinc-300">
+                      {item.description}
+                    </p>
                   </div>
-                )}
-
-                {qrState === 'expired' || qrState === 'error' ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/10">
-                    <Button
-                      type="button"
-                      onClick={() => setQrReloadNonce((value) => value + 1)}
-                      className="h-auto rounded-xl px-4 py-2.5 text-sm font-bold"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      {t('auth.qrRefresh')}
-                    </Button>
-                  </div>
-                ) : null}
+                ))}
               </div>
             </div>
-
-            <div className={`mt-5 text-sm font-medium ${resolveQrStatusAccent(qrState)}`}>
-              {resolveQrStatusCopy(t, qrState)}
-            </div>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              {qrState === 'error'
-                ? qrErrorMessage
-                : qrState === 'scanned'
-                  ? t('auth.qrScannedHint')
-                  : t('auth.openApp')}
-            </p>
-            {qrCode?.qrContent ? (
-              <div className="mt-4 break-all rounded-2xl bg-white/8 px-3 py-2 font-mono text-[11px] leading-5 text-zinc-300">
-                {qrCode.qrContent}
-              </div>
-            ) : null}
-            <div className="mt-5 flex items-center gap-2 text-sm text-zinc-400">
-              <Smartphone className="h-4 w-4" />
-              <span>{t('auth.qrWeChatHint')}</span>
-            </div>
-          </div>
+          )}
         </div>
 
-        <div className="w-full p-8 md:w-3/5 md:p-12">
-          <div className="mx-auto max-w-md">
+        <div className="w-full p-8 md:w-[58%] md:px-10 md:py-12">
+          <div className="mx-auto flex h-full max-w-xl flex-col justify-center">
             <div className="mb-8">
-              <h1 className="mb-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
+              {mode !== 'login' ? (
+                <div className="inline-flex rounded-full bg-primary-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary-700 dark:bg-primary-500/14 dark:text-primary-200">
+                  {mode === 'register'
+                    ? t('auth.createAccount')
+                    : t('auth.resetPassword')}
+                </div>
+              ) : null}
+              <h1 className={`${mode === 'login' ? '' : 'mt-4 '}text-3xl font-semibold tracking-tight text-zinc-950 dark:text-white sm:text-4xl`}>
                 {mode === 'login'
                   ? t('auth.welcomeBack')
                   : mode === 'register'
                     ? t('auth.createAccount')
                     : t('auth.resetPassword')}
               </h1>
-              <p className="text-zinc-500 dark:text-zinc-400">
+              <p className="mt-3 max-w-xl text-sm leading-7 text-zinc-500 dark:text-zinc-400">
                 {mode === 'login'
                   ? t('auth.loginDesc')
                   : mode === 'register'
@@ -411,181 +523,123 @@ export function AuthPage() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {mode === 'register' ? (
-                <div>
-                  <Label className="mb-1.5 block text-zinc-700 dark:text-zinc-300">
-                    {t('auth.name')}
-                  </Label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <User className="h-5 w-5 text-zinc-400" />
-                    </div>
-                    <Input
-                      type="text"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      className="py-2.5 pl-10 pr-3"
-                      placeholder={t('auth.placeholders.name')}
-                      required
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              <div>
-                <Label className="mb-1.5 block text-zinc-700 dark:text-zinc-300">
-                  {t('auth.email')}
-                </Label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Mail className="h-5 w-5 text-zinc-400" />
-                  </div>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className="py-2.5 pl-10 pr-3"
-                    placeholder={t('auth.placeholders.email')}
-                    required
-                  />
-                </div>
-              </div>
-
-              {mode !== 'forgot' ? (
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <Label className="text-zinc-700 dark:text-zinc-300">
-                      {t('auth.password')}
-                    </Label>
-                    {mode === 'login' ? (
-                      <button
-                        type="button"
-                        onClick={() => navigate(withRedirect('/forgot-password'))}
-                        className="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500"
-                      >
-                        {t('auth.forgotPassword')}
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <Lock className="h-5 w-5 text-zinc-400" />
-                    </div>
-                    <Input
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      className="py-2.5 pl-10 pr-3"
-                      placeholder={t('auth.placeholders.password')}
-                      required
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-auto w-full py-3 font-bold"
-              >
-                {isSubmitting
-                  ? t('common.loading')
-                  : mode === 'login'
-                    ? t('auth.signIn')
-                    : mode === 'register'
-                      ? t('auth.signUp')
-                      : t('auth.sendResetLink')}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </form>
-
             {mode === 'login' ? (
-              <div className="mt-8">
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="bg-white px-2 text-zinc-500 dark:bg-zinc-900">
-                      {t('auth.continueWith')}
-                    </span>
+              <div className="space-y-6">
+                {loginMethods.length > 1 ? (
+                  <AuthMethodTabs
+                    value={loginMethod}
+                    onChange={(value) => setLoginMethod(value as AuthLoginMethod)}
+                    items={loginMethods.map((item) => ({
+                      value: item,
+                      label: t(`auth.loginMethods.${item}`),
+                      icon:
+                        item === 'password'
+                          ? <ShieldCheck className="h-4 w-4" />
+                          : item === 'phoneCode'
+                            ? <KeyRound className="h-4 w-4" />
+                            : <Sparkles className="h-4 w-4" />,
+                    }))}
+                  />
+                ) : null}
+
+                {loginMethods.includes('password') && loginMethod === 'password' ? (
+                  <AccountPasswordLoginForm
+                    initialAccount={hintedAccount}
+                    onSubmit={handlePasswordLogin}
+                  />
+                ) : null}
+
+                {loginMethods.includes('phoneCode') && loginMethod === 'phoneCode' ? (
+                  <PhoneCodeLoginForm
+                    initialPhone={hintedPhone}
+                    onSubmit={handlePhoneCodeLogin}
+                  />
+                ) : null}
+
+                {loginMethods.includes('emailCode') && loginMethod === 'emailCode' ? (
+                  <EmailCodeLoginForm
+                    initialEmail={hintedEmail}
+                    onSubmit={handleEmailCodeLogin}
+                  />
+                ) : null}
+
+                <div
+                  className={`flex flex-wrap items-center gap-x-4 gap-y-2 text-sm ${
+                    showForgotPasswordAction ? 'justify-between' : 'justify-end'
+                  }`}
+                >
+                  {showForgotPasswordAction ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(withRedirect('/forgot-password'))}
+                      className="font-medium text-zinc-500 transition-colors hover:text-primary-600 dark:text-zinc-400 dark:hover:text-primary-300"
+                    >
+                      {t('auth.forgotPassword')}
+                    </button>
+                  ) : null}
+
+                  <div className="text-zinc-500 dark:text-zinc-400">
+                    {t('auth.noAccount')}{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate(withRedirect('/register'))}
+                      className="font-semibold text-primary-600 transition-colors hover:text-primary-500"
+                    >
+                      {t('auth.signUp')}
+                    </button>
                   </div>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  {SOCIAL_PROVIDERS.map((provider) => {
-                    const isBusy = activeOAuthProvider === provider;
-                    return (
-                      <button
-                        key={provider}
-                        type="button"
-                        onClick={() => {
-                          void handleSocialSignIn(provider);
-                        }}
-                        disabled={Boolean(activeOAuthProvider)}
-                        className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                      >
-                        <span className="flex items-center gap-3 text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                          <ProviderGlyph provider={provider} />
-                          {t(`auth.providers.${provider}`)}
-                        </span>
-                        {isBusy ? (
-                          <LoaderCircle className="h-4 w-4 animate-spin text-primary-500" />
-                        ) : (
-                          <ArrowRight className="h-4 w-4 text-zinc-400" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                {oauthLoginEnabled ? (
+                  <OAuthProviderGrid
+                    providers={oauthProviders}
+                    activeProvider={activeOAuthProvider}
+                    onSelect={(provider) => {
+                      void handleOAuthSignIn(provider);
+                    }}
+                  />
+                ) : null}
               </div>
             ) : null}
 
-            <div className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
-              {mode === 'login' ? (
-                <>
-                  {t('auth.noAccount')}{' '}
-                  <button
-                    type="button"
-                    onClick={() => navigate(withRedirect('/register'))}
-                    className="font-bold text-primary-600 transition-colors hover:text-primary-500"
-                  >
-                    {t('auth.signUp')}
-                  </button>
-                </>
-              ) : mode === 'register' ? (
-                <>
-                  {t('auth.hasAccount')}{' '}
+            {mode === 'register' ? (
+              <RegisterFlow
+                methods={registerMethods}
+                onSubmit={handleRegister}
+              />
+            ) : null}
+
+            {mode === 'forgot' ? (
+              <ForgotPasswordFlow
+                initialAccount={hintedAccount || hintedEmail || hintedPhone}
+                methods={recoveryMethods}
+                onRequestReset={handleRequestPasswordReset}
+                onSubmit={handlePasswordReset}
+              />
+            ) : null}
+
+            {mode === 'register' || mode === 'forgot' ? (
+              <div className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
+                {mode === 'register' ? (
+                  <>
+                    {t('auth.hasAccount')}{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate(withRedirect('/login'))}
+                      className="font-bold text-primary-600 transition-colors hover:text-primary-500"
+                    >
+                      {t('auth.signIn')}
+                    </button>
+                  </>
+                ) : mode === 'forgot' ? (
                   <button
                     type="button"
                     onClick={() => navigate(withRedirect('/login'))}
                     className="font-bold text-primary-600 transition-colors hover:text-primary-500"
                   >
-                    {t('auth.signIn')}
+                    {t('auth.backToLogin')}
                   </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => navigate(withRedirect('/login'))}
-                  className="mx-auto flex items-center justify-center gap-1 font-bold text-primary-600 transition-colors hover:text-primary-500"
-                >
-                  <ArrowRight className="h-4 w-4 rotate-180" />
-                  {t('auth.backToLogin')}
-                </button>
-              )}
-            </div>
-
-            {mode === 'forgot' ? (
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => navigate(withRedirect('/register'))}
-                  className="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500"
-                >
-                  {t('auth.signUp')}
-                </button>
+                ) : null}
               </div>
             ) : null}
           </div>

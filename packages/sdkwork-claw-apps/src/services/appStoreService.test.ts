@@ -8,7 +8,6 @@ import {
   type HubInstallResult,
   type HubUninstallResult,
   type RuntimeInfo,
-  studioMockService,
 } from '@sdkwork/claw-infrastructure';
 import { appStoreService, createAppStoreService } from './appStoreService.ts';
 import { resolveAppHostPlatform } from './appInstallCatalog.ts';
@@ -159,40 +158,14 @@ function resetInstallerCatalogCache() {
   (appStoreService as any).runtimeInfoPromise = null;
 }
 
-function blockStudioMockAppStoreAccess() {
-  const originalMethods = {
-    getFeaturedApp: studioMockService.getFeaturedApp,
-    getTopChartApps: studioMockService.getTopChartApps,
-    getAppCategories: studioMockService.getAppCategories,
-    getApp: studioMockService.getApp,
-  };
-
-  studioMockService.getFeaturedApp = async () => {
-    throw new Error('studioMockService.getFeaturedApp should not be used by appStoreService');
-  };
-  studioMockService.getTopChartApps = async () => {
-    throw new Error('studioMockService.getTopChartApps should not be used by appStoreService');
-  };
-  studioMockService.getAppCategories = async () => {
-    throw new Error('studioMockService.getAppCategories should not be used by appStoreService');
-  };
-  studioMockService.getApp = async () => {
-    throw new Error('studioMockService.getApp should not be used by appStoreService');
-  };
-
-  return () => {
-    studioMockService.getFeaturedApp = originalMethods.getFeaturedApp;
-    studioMockService.getTopChartApps = originalMethods.getTopChartApps;
-    studioMockService.getAppCategories = originalMethods.getAppCategories;
-    studioMockService.getApp = originalMethods.getApp;
-  };
+function createNoopCleanup() {
+  return () => {};
 }
 
 await runTest(
   'getList, getCategories, and getApp delegate remote metadata reads to the shared app store catalog sdk wrapper',
   async () => {
     resetInstallerCatalogCache();
-    const restoreStudioMockService = blockStudioMockAppStoreAccess();
     const listQueries: Array<Record<string, unknown> | undefined> = [];
     const getAppCalls: string[] = [];
     const service = createAppStoreService({
@@ -237,69 +210,62 @@ await runTest(
       } as any,
     });
 
-    try {
-      configurePlatformBridge({
-        installer: {
-          async listHubInstallCatalog() {
-            return [
-              createCatalogEntry({
-                appId: 'app-openclaw',
-                title: 'OpenClaw Installer',
-                developer: 'SDKWork',
-                category: 'AI Agents',
-                summary: 'Rust catalog summary for OpenClaw.',
-                description: 'Rust-backed OpenClaw installer descriptor.',
-                homepage: 'https://docs.openclaw.ai/install',
-                tags: ['ai', 'desktop'],
-              }),
-            ];
-          },
-          async inspectHubInstall(request) {
-            return createAssessment(request);
-          },
-          async runHubDependencyInstall() {
-            throw new Error('not implemented');
-          },
-          async runHubInstall() {
-            throw new Error('not implemented');
-          },
-          async runHubUninstall() {
-            throw new Error('not implemented');
-          },
-          async subscribeHubInstallProgress() {
-            return () => {};
-          },
-          async installApiRouterClientSetup() {
-            throw new Error('not implemented');
-          },
+    configurePlatformBridge({
+      installer: {
+        async listHubInstallCatalog() {
+          return [
+            createCatalogEntry({
+              appId: 'app-openclaw',
+              title: 'OpenClaw Installer',
+              developer: 'SDKWork',
+              category: 'AI Agents',
+              summary: 'Rust catalog summary for OpenClaw.',
+              description: 'Rust-backed OpenClaw installer descriptor.',
+              homepage: 'https://docs.openclaw.ai/install',
+              tags: ['ai', 'desktop'],
+            }),
+          ];
         },
-      });
+        async inspectHubInstall(request) {
+          return createAssessment(request);
+        },
+        async runHubDependencyInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubInstall() {
+          throw new Error('not implemented');
+        },
+        async runHubUninstall() {
+          throw new Error('not implemented');
+        },
+        async subscribeHubInstallProgress() {
+          return () => {};
+        },
+      },
+    });
 
-      const page = await service.getList({ page: 1, pageSize: 20, keyword: 'claw' });
-      const categories = await service.getCategories();
-      const app = await service.getApp('app-openclaw');
+    const page = await service.getList({ page: 1, pageSize: 20, keyword: 'claw' });
+    const categories = await service.getCategories();
+    const app = await service.getApp('app-openclaw');
 
-      assert.equal(listQueries[0]?.keyword, 'claw');
-      assert.equal(listQueries[0]?.page, 1);
-      assert.equal(listQueries[0]?.pageSize, 20);
-      assert.ok(
-        listQueries.some(
-          (query) =>
-            query?.page === 1 &&
-            query?.pageSize === 100 &&
-            query?.keyword === undefined,
-        ),
-      );
-      assert.deepEqual(getAppCalls, ['app-openclaw']);
-      assert.equal(page.items[0]?.installSummary, 'Rust catalog summary for OpenClaw.');
-      assert.equal(categories[0]?.title, 'SDK');
-      assert.equal(categories[0]?.apps[0]?.id, 'app-openclaw');
-      assert.equal(app.id, 'app-openclaw');
-      assert.equal(app.developer, 'SDKWork');
-      assert.equal(app.installHomepage, 'https://docs.openclaw.ai/install');
-    } finally {
-      restoreStudioMockService();
-    }
+    assert.equal(listQueries[0]?.keyword, 'claw');
+    assert.equal(listQueries[0]?.page, 1);
+    assert.equal(listQueries[0]?.pageSize, 20);
+    assert.ok(
+      listQueries.some(
+        (query) =>
+          query?.page === 1 &&
+          query?.pageSize === 100 &&
+          query?.keyword === undefined,
+      ),
+    );
+    assert.deepEqual(getAppCalls, ['app-openclaw']);
+    assert.equal(page.items[0]?.installSummary, 'Rust catalog summary for OpenClaw.');
+    assert.equal(categories[0]?.title, 'SDK');
+    assert.equal(categories[0]?.apps[0]?.id, 'app-openclaw');
+    assert.equal(app.id, 'app-openclaw');
+    assert.equal(app.developer, 'SDKWork');
+    assert.equal(app.installHomepage, 'https://docs.openclaw.ai/install');
   },
 );
 
@@ -336,9 +302,6 @@ await runTest('getInstallCatalog delegates to the Rust installer catalog bridge'
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
-      },
     },
   });
 
@@ -354,7 +317,7 @@ await runTest(
   async () => {
     resetInstallerCatalogCache();
     let runtimeInfoCalls = 0;
-    const restoreStudioMockService = blockStudioMockAppStoreAccess();
+    const restoreCleanup = createNoopCleanup();
     const service = createAppStoreService({
       appStoreCatalogService: {
         listApps: async () => ({
@@ -473,9 +436,6 @@ await runTest(
           async subscribeHubInstallProgress() {
             return () => {};
           },
-          async installApiRouterClientSetup() {
-            throw new Error('not implemented');
-          },
         },
       });
 
@@ -487,7 +447,7 @@ await runTest(
 
       assert.equal(runtimeInfoCalls, 1);
     } finally {
-      restoreStudioMockService();
+      restoreCleanup();
     }
   },
 );
@@ -537,9 +497,6 @@ await runTest('resolveInstallTarget prefers the Rust-selected variant data for W
       },
       async subscribeHubInstallProgress() {
         return () => {};
-      },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
       },
     },
   });
@@ -625,9 +582,6 @@ await runTest('resolveInstallTarget honors an explicit Rust catalog profile sele
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
-      },
     },
   });
 
@@ -697,9 +651,6 @@ await runTest('getGuidedInstallNavigation routes claw runtimes into the step-bas
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
-      },
     },
   });
 
@@ -723,7 +674,7 @@ await runTest('getGuidedInstallNavigation routes claw runtimes into the step-bas
 
 await runTest('getList merges app sdk store metadata with the Rust installer catalog without seeded mock content', async () => {
   resetInstallerCatalogCache();
-  const restoreStudioMockService = blockStudioMockAppStoreAccess();
+  const restoreCleanup = createNoopCleanup();
   const service = createAppStoreService({
     appStoreCatalogService: {
       listApps: async () => ({
@@ -844,9 +795,6 @@ await runTest('getList merges app sdk store metadata with the Rust installer cat
         async subscribeHubInstallProgress() {
           return () => {};
         },
-        async installApiRouterClientSetup() {
-          throw new Error('not implemented');
-        },
       },
       });
 
@@ -861,13 +809,13 @@ await runTest('getList merges app sdk store metadata with the Rust installer cat
     assert.equal(result.items[1]?.defaultSoftwareName, 'nodejs-rust');
     assert.match(result.items[0]?.icon || '', /^data:image\/svg\+xml/);
   } finally {
-    restoreStudioMockService();
+    restoreCleanup();
   }
 });
 
 await runTest('getCategories groups app sdk store entries with merged installer metadata', async () => {
   resetInstallerCatalogCache();
-  const restoreStudioMockService = blockStudioMockAppStoreAccess();
+  const restoreCleanup = createNoopCleanup();
   const service = createAppStoreService({
     appStoreCatalogService: {
       listApps: async () => ({
@@ -988,9 +936,6 @@ await runTest('getCategories groups app sdk store entries with merged installer 
         async subscribeHubInstallProgress() {
           return () => {};
         },
-        async installApiRouterClientSetup() {
-          throw new Error('not implemented');
-        },
       },
       });
 
@@ -1006,13 +951,13 @@ await runTest('getCategories groups app sdk store entries with merged installer 
       ['app-pnpm', 'app-nodejs'],
     );
   } finally {
-    restoreStudioMockService();
+    restoreCleanup();
   }
 });
 
 await runTest('getApp resolves detail from app sdk store metadata and merges installer hints', async () => {
   resetInstallerCatalogCache();
-  const restoreStudioMockService = blockStudioMockAppStoreAccess();
+  const restoreCleanup = createNoopCleanup();
   const service = createAppStoreService({
     appStoreCatalogService: {
       listApps: async () => ({
@@ -1094,9 +1039,6 @@ await runTest('getApp resolves detail from app sdk store metadata and merges ins
         async subscribeHubInstallProgress() {
           return () => {};
         },
-        async installApiRouterClientSetup() {
-          throw new Error('not implemented');
-        },
       },
       });
 
@@ -1107,7 +1049,7 @@ await runTest('getApp resolves detail from app sdk store metadata and merges ins
     assert.equal(app.installHomepage, 'https://openai.com/codex');
     assert.equal(app.icon, 'https://cdn.sdkwork.com/codex/icon.png');
   } finally {
-    restoreStudioMockService();
+    restoreCleanup();
   }
 });
 
@@ -1187,9 +1129,6 @@ await runTest('inspectInstall delegates to the shared installer bridge with the 
       },
       async subscribeHubInstallProgress() {
         return () => {};
-      },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
       },
     },
   });
@@ -1278,9 +1217,6 @@ await runTest('inspectInstall preserves persistent install status from the Rust 
       },
       async subscribeHubInstallProgress() {
         return () => {};
-      },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
       },
     },
   });
@@ -1469,9 +1405,6 @@ await runTest('getInstallSurfaceSummaries derives installed, ready, and attentio
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
-      },
     },
   });
 
@@ -1597,9 +1530,6 @@ await runTest(
         },
         async subscribeHubInstallProgress() {
           return () => {};
-        },
-        async installApiRouterClientSetup() {
-          throw new Error('not implemented');
         },
       },
     });
@@ -1730,9 +1660,6 @@ await runTest('installDependencies delegates to the shared dependency installer 
       },
       async subscribeHubInstallProgress() {
         return () => {};
-      },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
       },
     },
   });
@@ -1870,9 +1797,6 @@ await runTest('installApp delegates to the shared installer bridge for the selec
       async subscribeHubInstallProgress() {
         return () => {};
       },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
-      },
     },
   });
 
@@ -1990,9 +1914,6 @@ await runTest('uninstallApp delegates to the shared installer bridge', async () 
       },
       async subscribeHubInstallProgress() {
         return () => {};
-      },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
       },
     },
   });
@@ -2151,9 +2072,6 @@ await runTest('install lifecycle requests preserve caller-supplied request ids f
       },
       async subscribeHubInstallProgress() {
         return () => {};
-      },
-      async installApiRouterClientSetup() {
-        throw new Error('not implemented');
       },
     },
   });

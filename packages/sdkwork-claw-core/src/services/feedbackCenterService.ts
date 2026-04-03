@@ -10,6 +10,7 @@ import type {
   SupportInfoVO,
 } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { getAppSdkClientWithSession } from '../sdk/useAppSdkClient.ts';
 
 type FeedbackCenterClient = Pick<SdkworkAppClient, 'feedback'>;
 
@@ -114,8 +115,7 @@ export interface FeedbackCenterService {
   getSupportInfo(): Promise<FeedbackCenterSupportInfo>;
 }
 
-async function getDefaultClient(): Promise<FeedbackCenterClient> {
-  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+function getDefaultClient(): FeedbackCenterClient {
   return getAppSdkClientWithSession();
 }
 
@@ -299,7 +299,7 @@ export function createFeedbackCenterService(
 
   return {
     async listFeedback(params = {}) {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapFeedbackPage(
         unwrapAppSdkResponse<PageFeedbackVO>(
           await client.feedback.listFeedback(
@@ -318,7 +318,7 @@ export function createFeedbackCenterService(
     },
 
     async submitFeedback(input) {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapFeedback(
         unwrapAppSdkResponse<FeedbackVO>(
           await client.feedback.submit({
@@ -334,7 +334,7 @@ export function createFeedbackCenterService(
     },
 
     async getFeedback(id: string) {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapFeedbackDetail(
         unwrapAppSdkResponse<FeedbackDetailVO>(
           await client.feedback.getFeedbackDetail(id),
@@ -344,7 +344,7 @@ export function createFeedbackCenterService(
     },
 
     async followUpFeedback(id: string, content: string, attachmentUrl?: string) {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapFeedbackDetail(
         unwrapAppSdkResponse<FeedbackDetailVO>(
           await client.feedback.followUp(id, {
@@ -358,7 +358,7 @@ export function createFeedbackCenterService(
     },
 
     async closeFeedback(id: string, reason?: string) {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapFeedbackDetail(
         unwrapAppSdkResponse<FeedbackDetailVO>(
           await client.feedback.close(
@@ -373,7 +373,7 @@ export function createFeedbackCenterService(
     },
 
     async listFaqCategories() {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       const payload = unwrapAppSdkResponse<FaqCategoryVO[]>(
         await client.feedback.listFaqCategories(),
         'Failed to load FAQ categories.',
@@ -384,7 +384,7 @@ export function createFeedbackCenterService(
     },
 
     async listFaqs(params = {}) {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapFaqPage(
         unwrapAppSdkResponse<PageFaqVO>(
           await client.feedback.listFaqs(
@@ -407,7 +407,7 @@ export function createFeedbackCenterService(
         return [];
       }
 
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       const payload = unwrapAppSdkResponse<FaqVO[]>(
         await client.feedback.searchFaqs({ keyword: normalizedKeyword }),
         'Failed to search FAQs.',
@@ -416,7 +416,7 @@ export function createFeedbackCenterService(
     },
 
     async getFaq(id: string) {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapFaqDetail(
         unwrapAppSdkResponse<FaqDetailVO>(
           await client.feedback.getFaqDetail(id),
@@ -426,7 +426,7 @@ export function createFeedbackCenterService(
     },
 
     async getSupportInfo() {
-      const client = getClient ? getClient() : await getDefaultClient();
+      const client = getClient ? getClient() : getDefaultClient();
       return mapSupportInfo(
         unwrapAppSdkResponse<SupportInfoVO>(
           await client.feedback.getSupportInfo(),

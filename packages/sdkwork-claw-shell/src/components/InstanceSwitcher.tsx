@@ -27,17 +27,6 @@ export function InstanceSwitcher() {
         }
 
         setInstances(data);
-
-        if (data.length === 0) {
-          if (activeInstanceId) {
-            setActiveInstanceId(null);
-          }
-          return;
-        }
-
-        if (!activeInstanceId || !data.some((instance) => instance.id === activeInstanceId)) {
-          setActiveInstanceId(data[0].id);
-        }
       } catch (error) {
         console.error('Failed to fetch instances for header switcher:', error);
       }
@@ -48,7 +37,20 @@ export function InstanceSwitcher() {
     return () => {
       disposed = true;
     };
-  }, [activeInstanceId, setActiveInstanceId]);
+  }, []);
+
+  useEffect(() => {
+    if (instances.length === 0) {
+      if (activeInstanceId) {
+        setActiveInstanceId(null);
+      }
+      return;
+    }
+
+    if (!activeInstanceId || !instances.some((instance) => instance.id === activeInstanceId)) {
+      setActiveInstanceId(instances[0].id);
+    }
+  }, [activeInstanceId, instances, setActiveInstanceId]);
 
   const activeInstance =
     instances.find((instance) => instance.id === activeInstanceId) ?? instances[0] ?? null;

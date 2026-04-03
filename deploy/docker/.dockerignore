@@ -1,0 +1,6 @@
+.claw-server
+artifacts
+release-assets
+*.sha256.txt
+release-manifest.json
+deploy/README.md

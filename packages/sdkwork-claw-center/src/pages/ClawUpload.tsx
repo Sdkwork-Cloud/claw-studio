@@ -169,14 +169,6 @@ export function ClawUpload() {
                   <RefreshCcw className="h-4 w-4" />
                   {t('clawUpload.refresh')}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/api-router')}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
-                >
-                  <Router className="h-4 w-4" />
-                  {t('clawUpload.openApiRouter')}
-                </button>
               </div>
             </div>
           </div>
@@ -350,14 +342,6 @@ export function ClawUpload() {
                   >
                     <Server className="h-4 w-4" />
                     {t('clawUpload.actions.viewInstance')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/api-router')}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
-                  >
-                    <Router className="h-4 w-4" />
-                    {t('clawUpload.actions.configureRouting')}
                   </button>
                 </div>
               </motion.article>

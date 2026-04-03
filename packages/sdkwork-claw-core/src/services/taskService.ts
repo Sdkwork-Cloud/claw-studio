@@ -1,7 +1,8 @@
-import { studio, studioMockService } from '@sdkwork/claw-infrastructure';
+import { openClawGatewayClient, studio } from '@sdkwork/claw-infrastructure';
 import type {
   ListParams,
   PaginatedResult,
+  StudioInstanceDetailRecord,
   StudioWorkbenchTaskExecutionRecord,
   StudioWorkbenchTaskRecord,
 } from '@sdkwork/claw-types';
@@ -67,6 +68,7 @@ export interface CreateTaskDTO {
   model?: string;
   thinking?: TaskThinkingLevel;
   lightContext?: boolean;
+  toolAllowlist?: string[];
   deliveryMode: TaskDeliveryMode;
   deliveryBestEffort?: boolean;
   deliveryChannel?: string;
@@ -98,10 +100,32 @@ export interface ITaskService {
   deleteTask(id: string, instanceId?: string): Promise<void>;
 }
 
+const TASK_MANAGEMENT_UNAVAILABLE_ERROR =
+  'Task management is not available for this instance.';
+const TASK_INSTANCE_CONTEXT_UNAVAILABLE_ERROR =
+  'Failed to resolve the task instance context.';
+
+function readToolAllowlistFromRawDefinition(
+  rawDefinition?: OpenClawCronTaskPayload,
+): string[] | undefined {
+  const payload =
+    rawDefinition?.payload &&
+    typeof rawDefinition.payload === 'object' &&
+    !Array.isArray(rawDefinition.payload)
+      ? (rawDefinition.payload as Record<string, unknown>)
+      : null;
+  const tools = Array.isArray(payload?.tools)
+    ? payload.tools.filter((value): value is string => typeof value === 'string')
+    : undefined;
+
+  return tools?.length ? [...tools] : undefined;
+}
+
 function cloneTaskRecord(task: Task): Task {
   return {
     ...task,
     scheduleConfig: { ...task.scheduleConfig },
+    toolAllowlist: task.toolAllowlist ? [...task.toolAllowlist] : undefined,
     rawDefinition: cloneOpenClawCronTaskPayload(task.rawDefinition),
   };
 }
@@ -134,6 +158,7 @@ function mapStudioTask(task: StudioWorkbenchTaskRecord): Task {
     model: task.model,
     thinking: task.thinking,
     lightContext: task.lightContext,
+    toolAllowlist: readToolAllowlistFromRawDefinition(task.rawDefinition),
     deliveryMode: task.deliveryMode,
     deliveryBestEffort: task.deliveryBestEffort,
     deliveryChannel: task.deliveryChannel,
@@ -143,6 +168,35 @@ function mapStudioTask(task: StudioWorkbenchTaskRecord): Task {
     nextRun: task.nextRun,
     rawDefinition: cloneOpenClawCronTaskPayload(task.rawDefinition),
   };
+}
+
+function normalizeId(id: string | null | undefined): string | null {
+  const normalizedId = typeof id === 'string' ? id.trim() : '';
+  return normalizedId || null;
+}
+
+function normalizeUniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seenIds = new Set<string>();
+  const normalizedItems: T[] = [];
+
+  items.forEach((item) => {
+    const normalizedId = normalizeId(item.id);
+    if (!normalizedId || seenIds.has(normalizedId)) {
+      return;
+    }
+
+    seenIds.add(normalizedId);
+    normalizedItems.push(
+      normalizedId === item.id
+        ? item
+        : ({
+            ...item,
+            id: normalizedId,
+          } as T),
+    );
+  });
+
+  return normalizedItems;
 }
 
 function toCreateTaskInput(task: Task, data: UpdateTaskDTO = {}): CreateTaskDTO {
@@ -166,6 +220,7 @@ function toCreateTaskInput(task: Task, data: UpdateTaskDTO = {}): CreateTaskDTO 
     model: data.model ?? task.model,
     thinking: data.thinking ?? task.thinking,
     lightContext: data.lightContext ?? task.lightContext,
+    toolAllowlist: data.toolAllowlist ?? task.toolAllowlist,
     deliveryMode: data.deliveryMode ?? task.deliveryMode,
     deliveryBestEffort: data.deliveryBestEffort ?? task.deliveryBestEffort,
     deliveryChannel: data.deliveryChannel ?? task.deliveryChannel,
@@ -175,34 +230,72 @@ function toCreateTaskInput(task: Task, data: UpdateTaskDTO = {}): CreateTaskDTO 
   };
 }
 
-class TaskService implements ITaskService {
-  private readonly openClawTaskInstanceById = new Map<string, string>();
+function hasWorkbench(detail: StudioInstanceDetailRecord | null | undefined) {
+  return Boolean(detail?.workbench);
+}
+
+function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
+  return detail?.instance.runtimeKind === 'openclaw';
+}
+
+function canManageTasks(detail: StudioInstanceDetailRecord | null | undefined) {
+  return Boolean(detail) && (hasWorkbench(detail) || isOpenClawDetail(detail));
+}
+
+export class TaskService implements ITaskService {
+  private readonly taskInstanceById = new Map<string, string>();
+
+  private clearTasksForInstance(instanceId: string) {
+    for (const [taskId, currentInstanceId] of [...this.taskInstanceById.entries()]) {
+      if (currentInstanceId === instanceId) {
+        this.taskInstanceById.delete(taskId);
+      }
+    }
+  }
 
   private rememberTasks(instanceId: string, tasks: Task[]) {
+    this.clearTasksForInstance(instanceId);
     tasks.forEach((task) => {
-      this.openClawTaskInstanceById.set(task.id, instanceId);
+      this.taskInstanceById.set(task.id, instanceId);
     });
   }
 
   private forgetTask(id: string) {
-    this.openClawTaskInstanceById.delete(id);
+    this.taskInstanceById.delete(id);
   }
 
   private resolveTaskInstanceId(taskId: string, instanceId?: string) {
-    return instanceId || this.openClawTaskInstanceById.get(taskId);
+    return instanceId || this.taskInstanceById.get(taskId);
   }
 
-  private async getOpenClawDetail(instanceId: string) {
+  private async getTaskWorkbenchDetail(
+    instanceId: string,
+  ): Promise<StudioInstanceDetailRecord | null> {
     const detail = await studio.getInstanceDetail(instanceId);
-    if (detail?.instance.runtimeKind === 'openclaw' && detail.workbench) {
-      return detail;
-    }
-    return null;
+    return canManageTasks(detail) ? detail : null;
   }
 
-  private async getOpenClawTask(instanceId: string, id: string) {
+  private async requireTaskWorkbenchDetail(instanceId: string) {
+    const detail = await this.getTaskWorkbenchDetail(instanceId);
+    if (!detail) {
+      throw new Error(TASK_MANAGEMENT_UNAVAILABLE_ERROR);
+    }
+
+    return detail;
+  }
+
+  private async getWorkbenchTask(instanceId: string, id: string) {
     const tasks = await this.getTasks(instanceId);
     return tasks.find((task) => task.id === id) || null;
+  }
+
+  private requireResolvedInstanceId(taskId: string, instanceId?: string) {
+    const resolvedInstanceId = this.resolveTaskInstanceId(taskId, instanceId);
+    if (!resolvedInstanceId) {
+      throw new Error(TASK_INSTANCE_CONTEXT_UNAVAILABLE_ERROR);
+    }
+
+    return resolvedInstanceId;
   }
 
   async getList(instanceId: string, params: ListParams = {}): Promise<PaginatedResult<Task>> {
@@ -248,79 +341,90 @@ class TaskService implements ITaskService {
   }
 
   async getTasks(instanceId: string): Promise<Task[]> {
-    const detail = await this.getOpenClawDetail(instanceId);
-    if (detail) {
-      const tasks = detail.workbench.cronTasks.tasks.map(mapStudioTask);
-      this.rememberTasks(instanceId, tasks);
-      return tasks.map(cloneTaskRecord);
+    const detail = await this.getTaskWorkbenchDetail(instanceId);
+    if (!detail) {
+      this.clearTasksForInstance(instanceId);
+      return [];
     }
 
-    return (await studioMockService.listTasks(instanceId)).map((task) => ({ ...task }));
+    const tasks = normalizeUniqueById(
+      isOpenClawDetail(detail)
+        ? (await openClawGatewayClient.listWorkbenchCronJobs(instanceId)).map(mapStudioTask)
+        : detail.workbench!.cronTasks.tasks.map(mapStudioTask),
+    );
+    this.rememberTasks(instanceId, tasks);
+    return tasks.map(cloneTaskRecord);
   }
 
   async createTask(instanceId: string, task: Omit<Task, 'id'>): Promise<Task> {
-    const detail = await this.getOpenClawDetail(instanceId);
-    if (detail) {
-      await studio.createInstanceTask(instanceId, buildOpenClawCronTaskPayload(task));
+    const detail = await this.requireTaskWorkbenchDetail(instanceId);
+    if (isOpenClawDetail(detail)) {
+      const createdJob = await openClawGatewayClient.addCronJob(
+        instanceId,
+        buildOpenClawCronTaskPayload(task) as never,
+      );
       const tasks = await this.getTasks(instanceId);
       const created =
+        tasks.find((candidate) => candidate.id === createdJob.id) ||
         tasks.find((candidate) => candidate.name === task.name && candidate.prompt === task.prompt) ||
         tasks[0];
       if (!created) {
         throw new Error('Failed to create task');
       }
+
       return created;
     }
 
-    return studioMockService.createTask(instanceId, task);
+    await studio.createInstanceTask(instanceId, buildOpenClawCronTaskPayload(task));
+    const tasks = await this.getTasks(instanceId);
+    const created =
+      tasks.find((candidate) => candidate.name === task.name && candidate.prompt === task.prompt) ||
+      tasks[0];
+    if (!created) {
+      throw new Error('Failed to create task');
+    }
+
+    return created;
   }
 
   async updateTask(id: string, data: UpdateTaskDTO, instanceId?: string): Promise<Task> {
-    const resolvedInstanceId = this.resolveTaskInstanceId(id, instanceId);
-    if (resolvedInstanceId) {
-      const detail = await this.getOpenClawDetail(resolvedInstanceId);
-      if (detail) {
-        const current = await this.getOpenClawTask(resolvedInstanceId, id);
-        if (!current) {
-          throw new Error('Failed to update task');
-        }
-
-        await studio.updateInstanceTask(
-          resolvedInstanceId,
-          id,
-          buildOpenClawCronTaskPayload(toCreateTaskInput(current, data), current.rawDefinition),
-        );
-        const refreshed = await this.getOpenClawTask(resolvedInstanceId, id);
-        if (!refreshed) {
-          throw new Error('Failed to update task');
-        }
-        return refreshed;
-      }
-    }
-
-    const updated = await studioMockService.updateTask(id, data);
-    if (!updated) {
+    const resolvedInstanceId = this.requireResolvedInstanceId(id, instanceId);
+    const detail = await this.requireTaskWorkbenchDetail(resolvedInstanceId);
+    const current = await this.getWorkbenchTask(resolvedInstanceId, id);
+    if (!current) {
       throw new Error('Failed to update task');
     }
-    return updated;
+
+    const nextPayload = buildOpenClawCronTaskPayload(
+      toCreateTaskInput(current, data),
+      current.rawDefinition,
+    );
+    if (isOpenClawDetail(detail)) {
+      await openClawGatewayClient.updateCronJob(resolvedInstanceId, id, nextPayload as never);
+    } else {
+      await studio.updateInstanceTask(resolvedInstanceId, id, nextPayload);
+    }
+    const refreshed = await this.getWorkbenchTask(resolvedInstanceId, id);
+    if (!refreshed) {
+      throw new Error('Failed to update task');
+    }
+    return refreshed;
   }
 
   async cloneTask(id: string, overrides: UpdateTaskDTO = {}, instanceId?: string): Promise<Task> {
-    const resolvedInstanceId = this.resolveTaskInstanceId(id, instanceId);
-    if (resolvedInstanceId) {
-      const detail = await this.getOpenClawDetail(resolvedInstanceId);
-      if (detail) {
-        await studio.cloneInstanceTask(resolvedInstanceId, id, overrides.name);
-        const tasks = await this.getTasks(resolvedInstanceId);
-        const cloned = tasks.find((candidate) => candidate.name === overrides.name) || tasks[0];
-        if (!cloned) {
-          throw new Error('Failed to clone task');
-        }
-        return cloned;
+    const resolvedInstanceId = this.requireResolvedInstanceId(id, instanceId);
+    const detail = await this.requireTaskWorkbenchDetail(resolvedInstanceId);
+    if (isOpenClawDetail(detail)) {
+      const current = await this.getWorkbenchTask(resolvedInstanceId, id);
+      if (!current) {
+        throw new Error('Failed to clone task');
       }
+      return this.createTask(resolvedInstanceId, toCreateTaskInput(current, overrides));
     }
 
-    const cloned = await studioMockService.cloneTask(id, overrides);
+    await studio.cloneInstanceTask(resolvedInstanceId, id, overrides.name);
+    const tasks = await this.getTasks(resolvedInstanceId);
+    const cloned = tasks.find((candidate) => candidate.name === overrides.name) || tasks[0];
     if (!cloned) {
       throw new Error('Failed to clone task');
     }
@@ -328,51 +432,57 @@ class TaskService implements ITaskService {
   }
 
   async runTaskNow(id: string, instanceId?: string): Promise<TaskExecutionHistoryEntry> {
-    const resolvedInstanceId = this.resolveTaskInstanceId(id, instanceId);
-    if (resolvedInstanceId) {
-      const detail = await this.getOpenClawDetail(resolvedInstanceId);
-      if (detail) {
-        return mapStudioTaskExecution(await studio.runInstanceTaskNow(resolvedInstanceId, id));
+    const resolvedInstanceId = this.requireResolvedInstanceId(id, instanceId);
+    const detail = await this.requireTaskWorkbenchDetail(resolvedInstanceId);
+    if (isOpenClawDetail(detail)) {
+      await openClawGatewayClient.runCronJob(resolvedInstanceId, id);
+      const [latest] = await openClawGatewayClient.listWorkbenchCronRuns(resolvedInstanceId, id);
+      if (latest) {
+        return mapStudioTaskExecution(latest);
       }
+
+      return {
+        id: `${id}-${Date.now()}`,
+        taskId: id,
+        status: 'running',
+        trigger: 'manual',
+        startedAt: new Date().toISOString(),
+        summary: 'Cron job has been queued.',
+      };
     }
 
-    const execution = await studioMockService.runTaskNow(id);
-    if (!execution) {
-      throw new Error('Failed to run task');
-    }
-    return execution;
+    return mapStudioTaskExecution(await studio.runInstanceTaskNow(resolvedInstanceId, id));
   }
 
-  async listTaskExecutions(id: string, instanceId?: string): Promise<TaskExecutionHistoryEntry[]> {
-    const resolvedInstanceId = this.resolveTaskInstanceId(id, instanceId);
-    if (resolvedInstanceId) {
-      const detail = await this.getOpenClawDetail(resolvedInstanceId);
-      if (detail) {
-        return (await studio.listInstanceTaskExecutions(resolvedInstanceId, id)).map(mapStudioTaskExecution);
-      }
+  async listTaskExecutions(
+    id: string,
+    instanceId?: string,
+  ): Promise<TaskExecutionHistoryEntry[]> {
+    const resolvedInstanceId = this.requireResolvedInstanceId(id, instanceId);
+    const detail = await this.requireTaskWorkbenchDetail(resolvedInstanceId);
+    if (isOpenClawDetail(detail)) {
+      return (await openClawGatewayClient.listWorkbenchCronRuns(resolvedInstanceId, id)).map(
+        mapStudioTaskExecution,
+      );
     }
 
-    return studioMockService.listTaskExecutions(id);
+    return (await studio.listInstanceTaskExecutions(resolvedInstanceId, id)).map(mapStudioTaskExecution);
   }
 
   async listDeliveryChannels(instanceId: string): Promise<TaskDeliveryChannelOption[]> {
-    const detail = await this.getOpenClawDetail(instanceId);
-    if (detail) {
-      return detail.workbench.channels
+    const detail = await this.getTaskWorkbenchDetail(instanceId);
+    if (!detail) {
+      return [];
+    }
+
+    return normalizeUniqueById(
+      detail.workbench.channels
         .filter((channel) => channel.enabled && channel.status === 'connected')
         .map((channel) => ({
           id: channel.id,
           name: channel.name,
-        }));
-    }
-
-    const channels = await studioMockService.listChannels(instanceId);
-    return channels
-      .filter((channel) => channel.enabled && channel.status === 'connected')
-      .map((channel) => ({
-        id: channel.id,
-        name: channel.name,
-      }));
+        })),
+    );
   }
 
   async updateTaskStatus(
@@ -380,39 +490,28 @@ class TaskService implements ITaskService {
     status: Extract<TaskStatus, 'active' | 'paused'>,
     instanceId?: string,
   ): Promise<void> {
-    const resolvedInstanceId = this.resolveTaskInstanceId(id, instanceId);
-    if (resolvedInstanceId) {
-      const detail = await this.getOpenClawDetail(resolvedInstanceId);
-      if (detail) {
-        await studio.updateInstanceTaskStatus(resolvedInstanceId, id, status);
-        return;
-      }
+    const resolvedInstanceId = this.requireResolvedInstanceId(id, instanceId);
+    const detail = await this.requireTaskWorkbenchDetail(resolvedInstanceId);
+    if (isOpenClawDetail(detail)) {
+      await openClawGatewayClient.updateCronJob(resolvedInstanceId, id, {
+        enabled: status === 'active',
+      });
+      return;
     }
 
-    const updated = await studioMockService.updateTaskStatus(id, status);
-    if (!updated) {
-      throw new Error('Failed to update task status');
-    }
+    await studio.updateInstanceTaskStatus(resolvedInstanceId, id, status);
   }
 
   async deleteTask(id: string, instanceId?: string): Promise<void> {
-    const resolvedInstanceId = this.resolveTaskInstanceId(id, instanceId);
-    if (resolvedInstanceId) {
-      const detail = await this.getOpenClawDetail(resolvedInstanceId);
-      if (detail) {
-        const deleted = await studio.deleteInstanceTask(resolvedInstanceId, id);
-        if (!deleted) {
-          throw new Error('Failed to delete task');
-        }
-        this.forgetTask(id);
-        return;
-      }
-    }
-
-    const deleted = await studioMockService.deleteTask(id);
+    const resolvedInstanceId = this.requireResolvedInstanceId(id, instanceId);
+    const detail = await this.requireTaskWorkbenchDetail(resolvedInstanceId);
+    const deleted = isOpenClawDetail(detail)
+      ? await openClawGatewayClient.removeCronJob(resolvedInstanceId, id)
+      : await studio.deleteInstanceTask(resolvedInstanceId, id);
     if (!deleted) {
       throw new Error('Failed to delete task');
     }
+    this.forgetTask(id);
   }
 }
 

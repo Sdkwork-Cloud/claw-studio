@@ -1,4 +1,4 @@
-use crate::framework::{FrameworkError, Result as FrameworkResult};
+use crate::framework::{runtime, FrameworkError, Result as FrameworkResult};
 use image::{DynamicImage, ImageFormat};
 use serde::Serialize;
 use std::{
@@ -83,6 +83,8 @@ fn capture_primary_monitor_png() -> FrameworkResult<CapturedScreenshotPayload> {
 }
 
 #[tauri::command]
-pub fn capture_screenshot() -> Result<CapturedScreenshotPayload, String> {
-    capture_primary_monitor_png().map_err(|error| error.to_string())
+pub async fn capture_screenshot() -> Result<CapturedScreenshotPayload, String> {
+    runtime::run_blocking_async("desktop.capture_screenshot", capture_primary_monitor_png)
+        .await
+        .map_err(|error| error.to_string())
 }

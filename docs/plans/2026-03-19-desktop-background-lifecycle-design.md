@@ -110,8 +110,8 @@ This makes the close button mean “dismiss UI” instead of “destroy parent p
 Create a tray icon at startup with menu items:
 
 - `show_window`
-- grouped navigation entries for `dashboard`, `install`, `apps`, `instances`, `tasks`, `api-router`, and `settings`
-- grouped service restart entries for `openclaw_gateway`, `web_server`, and `api_router`
+- grouped navigation entries for `dashboard`, `install`, `apps`, `instances`, `tasks`, `kernel`, and `settings`
+- grouped service restart entries for `openclaw_gateway` and `web_server`
 - grouped diagnostics entries for logs, main log reveal, integrations, and plugins
 - `quit_app`
 

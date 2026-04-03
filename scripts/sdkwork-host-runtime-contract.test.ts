@@ -80,6 +80,21 @@ runTest('sdkwork-claw-web bootstraps shell runtime before mounting the React tre
   );
 });
 
+runTest('built-in OpenClaw hosts derive a real version label instead of the bundled placeholder', () => {
+  const webStudioSource = read('packages/sdkwork-claw-infrastructure/src/platform/webStudio.ts');
+  const desktopStudioSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/studio.rs',
+  );
+
+  assert.doesNotMatch(webStudioSource, /version:\s*'bundled'/);
+  assert.match(webStudioSource, /version:\s*DEFAULT_BUNDLED_OPENCLAW_VERSION/);
+  assert.doesNotMatch(
+    desktopStudioSource,
+    /\.unwrap_or_else\(\|\| "bundled"\.to_string\(\)\)/,
+  );
+  assert.match(desktopStudioSource, /resolve_built_in_openclaw_display_version/);
+});
+
 runTest('sdkwork-claw-desktop contains the Tauri runtime package surface', () => {
   const pkg = readJson<{
     scripts?: Record<string, string>;
@@ -100,6 +115,20 @@ runTest('sdkwork-claw-desktop contains the Tauri runtime package surface', () =>
   assert.doesNotMatch(desktopLockImporter, /'@sdkwork\/claw-core':/);
 });
 
+runTest('sdkwork-claw-server and sdkwork-claw-host-core expose the shared server host foundation', () => {
+  const serverPackage = readJson<{
+    dependencies?: Record<string, string>;
+  }>('packages/sdkwork-claw-server/package.json');
+  const hostCorePackage = readJson<{
+    name?: string;
+  }>('packages/sdkwork-claw-host-core/package.json');
+
+  assert.ok(exists('packages/sdkwork-claw-server/src-host/Cargo.toml'));
+  assert.ok(exists('packages/sdkwork-claw-host-core/src-host/Cargo.toml'));
+  assert.equal(serverPackage.dependencies?.['@sdkwork/claw-host-core'], 'workspace:*');
+  assert.equal(hostCorePackage.name, '@sdkwork/claw-host-core');
+});
+
 runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React tree', () => {
   const createDesktopAppSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx',
@@ -113,6 +142,10 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
 
   assert.match(createDesktopAppSource, /<DesktopBootstrapApp/);
   assert.match(desktopBootstrapAppSource, /bootstrapShellRuntime/);
+  assert.match(desktopBootstrapAppSource, /prefetchSidebarRoute/);
+  assert.match(desktopBootstrapAppSource, /prefetchSidebarRoutes/);
+  assert.match(desktopBootstrapAppSource, /resolveSidebarStartupRoute/);
+  assert.match(desktopBootstrapAppSource, /listSidebarRoutePrefetchPaths/);
   assert.match(desktopBootstrapAppSource, /getAppInfo/);
   assert.doesNotMatch(desktopBootstrapAppSource, /@sdkwork\/claw-i18n/);
   assert.ok(connectDesktopRuntimeBody);
@@ -123,7 +156,11 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     desktopBootstrapAppSource,
-    /await revealStartupWindow\(\);[\s\S]*await connectDesktopRuntime\(\);[\s\S]*await bootstrapShellRuntime\(\);[\s\S]*setShouldRenderShell\(true\)/,
+    /await revealStartupWindow\(\);[\s\S]*await connectDesktopRuntime\(\);[\s\S]*const startupRoute = resolveSidebarStartupRoute\(window\.location\.pathname\);[\s\S]*prefetchSidebarRoute\(startupRoute\);[\s\S]*await bootstrapShellRuntime\(\);[\s\S]*setShouldRenderShell\(true\)/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /const warmSidebarRoutesHandle = window\.setTimeout\(\(\) => \{[\s\S]*prefetchSidebarRoutes\([\s\S]*listSidebarRoutePrefetchPaths\(\)\.filter\(\(path\) => path !== startupRoute\)/,
   );
   assert.match(
     desktopBootstrapAppSource,
@@ -196,6 +233,48 @@ runTest('sdkwork-claw-desktop wires hub-installer execution through a real Tauri
   assert.match(tauriConfig, /vendor\/hub-installer\/registry/);
 });
 
+runTest('sdkwork-claw-desktop keeps browser mocks out of desktop business bridges', () => {
+  const bridgeSource = read('packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts');
+  const componentsBridgeSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/componentsBridge.ts',
+  );
+
+  assert.doesNotMatch(bridgeSource, /WebKernelPlatform/);
+  assert.doesNotMatch(bridgeSource, /WebStoragePlatform/);
+  assert.doesNotMatch(bridgeSource, /WebStudioPlatform/);
+  assert.doesNotMatch(
+    bridgeSource,
+    /studioListInstances[\s\S]*webStudioPlatform\.listInstances/,
+  );
+  assert.doesNotMatch(
+    bridgeSource,
+    /storageGetText[\s\S]*webStoragePlatform\.getText/,
+  );
+  assert.doesNotMatch(
+    bridgeSource,
+    /ensureDesktopKernelRunning[\s\S]*webKernelPlatform\.ensureRunning/,
+  );
+  assert.doesNotMatch(
+    componentsBridgeSource,
+    /webComponentPlatform\.(listComponents|controlComponent)/,
+  );
+});
+
+runTest('sdkwork-claw-desktop seeds a real bundled OpenClaw version in runtime defaults', () => {
+  const componentDefaultsSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/components.rs',
+  );
+  const componentResourcesSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/components.rs',
+  );
+
+  assert.match(
+    componentDefaultsSource,
+    /PackagedComponentDefinition\s*\{\s*id:\s*"openclaw"\.to_string\(\),[\s\S]*?bundled_version:\s*bundled_openclaw_version\(\)\.to_string\(\)/,
+  );
+  assert.doesNotMatch(componentResourcesSource, /source_component_resource_dir\(\)/);
+});
+
 await runAsyncTest('sdkwork-claw-desktop recognizes Tauri v2 runtimes even when withGlobalTauri is disabled', async () => {
   const previousWindow = (globalThis as { window?: unknown }).window;
   const previousIsTauri = (globalThis as { isTauri?: unknown }).isTauri;
@@ -244,7 +323,7 @@ await runAsyncTest('sdkwork-claw-desktop recognizes Tauri v2 runtimes even when 
   }
 });
 
-await runAsyncTest('sdkwork-claw-desktop waits for a late Tauri runtime before falling back to web mocks', async () => {
+await runAsyncTest('sdkwork-claw-desktop waits for a late Tauri runtime before invoking the desktop bridge', async () => {
   const previousWindow = (globalThis as { window?: unknown }).window;
   const previousIsTauri = (globalThis as { isTauri?: unknown }).isTauri;
   const runtimeModule = await import('../packages/sdkwork-claw-desktop/src/desktop/runtime.ts');
@@ -343,6 +422,81 @@ await runAsyncTest('sdkwork-claw-desktop waits for a late Tauri runtime before f
   }
 });
 
+await runAsyncTest('sdkwork-claw-desktop strict desktop bridge rejects when Tauri runtime is unavailable', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousIsTauri = (globalThis as { isTauri?: unknown }).isTauri;
+  const runtimeModule = await import('../packages/sdkwork-claw-desktop/src/desktop/runtime.ts');
+
+  try {
+    (globalThis as { window?: unknown }).window = {};
+    delete (globalThis as { isTauri?: unknown }).isTauri;
+
+    await assert.rejects(
+      runtimeModule.runDesktopOnly('studio.listInstances', async () => []),
+      (error: unknown) => {
+        assert.equal(error instanceof runtimeModule.DesktopBridgeError, true);
+        assert.equal(
+          (error as InstanceType<typeof runtimeModule.DesktopBridgeError>).operation,
+          'studio.listInstances',
+        );
+        assert.equal(
+          (error as InstanceType<typeof runtimeModule.DesktopBridgeError>).runtime,
+          'web',
+        );
+        assert.match(
+          (error as InstanceType<typeof runtimeModule.DesktopBridgeError>).message,
+          /Tauri runtime is unavailable/,
+        );
+        return true;
+      },
+    );
+
+    await assert.rejects(
+      runtimeModule.runDesktopOnly('storage.getText', async () => ({
+        profileId: 'default-local',
+        namespace: 'claw-studio',
+        key: 'openclaw-version',
+        value: null,
+      })),
+      (error: unknown) => {
+        assert.equal(error instanceof runtimeModule.DesktopBridgeError, true);
+        assert.equal(
+          (error as InstanceType<typeof runtimeModule.DesktopBridgeError>).operation,
+          'storage.getText',
+        );
+        return true;
+      },
+    );
+
+    await assert.rejects(
+      runtimeModule.runDesktopOnly('components.list', async () => ({
+        defaultStartupComponentIds: [],
+        components: [],
+      })),
+      (error: unknown) => {
+        assert.equal(error instanceof runtimeModule.DesktopBridgeError, true);
+        assert.equal(
+          (error as InstanceType<typeof runtimeModule.DesktopBridgeError>).operation,
+          'components.list',
+        );
+        return true;
+      },
+    );
+  } finally {
+    if (typeof previousWindow === 'undefined') {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = previousWindow;
+    }
+
+    if (typeof previousIsTauri === 'undefined') {
+      delete (globalThis as { isTauri?: unknown }).isTauri;
+    } else {
+      (globalThis as { isTauri?: unknown }).isTauri = previousIsTauri;
+    }
+  }
+});
+
 await runAsyncTest('sdkwork-claw-infrastructure shares the configured platform bridge across duplicate module instances', async () => {
   const registryUrl = pathToFileURL(
     path.join(root, 'packages/sdkwork-claw-infrastructure/src/platform/registry.ts'),
@@ -374,9 +528,6 @@ await runAsyncTest('sdkwork-claw-infrastructure shares the configured platform b
     },
     async subscribeHubInstallProgress() {
       return () => {};
-    },
-    async installApiRouterClientSetup() {
-      return { success: true, files: [], environment: [] };
     },
   };
 

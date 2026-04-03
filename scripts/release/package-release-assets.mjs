@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -32,6 +33,9 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
 const webDistDir = path.join(rootDir, 'packages', 'sdkwork-claw-web', 'dist');
 const docsDistDir = path.join(rootDir, 'docs', '.vitepress', 'dist');
+const serverPackageDir = path.join(rootDir, 'packages', 'sdkwork-claw-server');
+const serverTargetDir = path.join(serverPackageDir, 'src-host', 'target');
+const serverEnvExamplePath = path.join(serverPackageDir, '.env.example');
 const desktopTargetDir = path.join(
   rootDir,
   'packages',
@@ -46,6 +50,26 @@ const desktopTauriConfigPath = path.join(
   'src-tauri',
   'tauri.conf.json',
 );
+const dockerDeploymentDir = path.join(rootDir, 'deploy', 'docker');
+const kubernetesDeploymentDir = path.join(rootDir, 'deploy', 'kubernetes');
+const DEFAULT_SERVER_BINARY_NAME = 'sdkwork-claw-server';
+const DEFAULT_DEPLOYMENT_ACCELERATOR = 'cpu';
+const SUPPORTED_DEPLOYMENT_ACCELERATORS = new Set([
+  'cpu',
+  'nvidia-cuda',
+  'amd-rocm',
+]);
+
+function readOptionValue(argv, index, flag) {
+  const next = argv[index + 1];
+  const normalizedNext = String(next ?? '').trim();
+
+  if (!normalizedNext || normalizedNext.startsWith('--')) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  return normalizedNext;
+}
 
 const desktopBundleRules = {
   windows: {
@@ -74,6 +98,283 @@ export function normalizePlatformId(platform = process.platform) {
   }
 
   throw new Error(`Unsupported release platform: ${platform}`);
+}
+
+export function normalizeDeploymentAccelerator(accelerator = DEFAULT_DEPLOYMENT_ACCELERATOR) {
+  const normalizedAccelerator = String(accelerator ?? '')
+    .trim()
+    .toLowerCase() || DEFAULT_DEPLOYMENT_ACCELERATOR;
+
+  if (!SUPPORTED_DEPLOYMENT_ACCELERATORS.has(normalizedAccelerator)) {
+    throw new Error(`Unsupported deployment accelerator: ${accelerator}`);
+  }
+
+  return normalizedAccelerator;
+}
+
+export function buildServerArchiveBaseName({
+  releaseTag,
+  platform,
+  arch,
+} = {}) {
+  const normalizedReleaseTag = String(releaseTag ?? '').trim();
+  const normalizedPlatform = normalizePlatformId(platform);
+  const normalizedArch = normalizeDesktopArch(arch);
+
+  if (!normalizedReleaseTag) {
+    throw new Error('releaseTag is required to package server release assets.');
+  }
+
+  return `claw-studio-server-${normalizedReleaseTag}-${normalizedPlatform}-${normalizedArch}`;
+}
+
+export function buildDeploymentBundleBaseName({
+  family,
+  releaseTag,
+  platform = 'linux',
+  arch,
+  accelerator = DEFAULT_DEPLOYMENT_ACCELERATOR,
+} = {}) {
+  const normalizedFamily = String(family ?? '').trim().toLowerCase();
+  const normalizedReleaseTag = String(releaseTag ?? '').trim();
+  const normalizedPlatform = normalizePlatformId(platform);
+  const normalizedArch = normalizeDesktopArch(arch);
+  const normalizedAccelerator = normalizeDeploymentAccelerator(accelerator);
+
+  if (!normalizedReleaseTag) {
+    throw new Error('releaseTag is required to package deployment release assets.');
+  }
+  if (normalizedFamily !== 'container' && normalizedFamily !== 'kubernetes') {
+    throw new Error(`Unsupported deployment family: ${family}`);
+  }
+
+  return `claw-studio-${normalizedFamily}-bundle-${normalizedReleaseTag}-${normalizedPlatform}-${normalizedArch}-${normalizedAccelerator}`;
+}
+
+function resolveServerBinaryFileName(platformId) {
+  return normalizePlatformId(platformId) === 'windows'
+    ? `${DEFAULT_SERVER_BINARY_NAME}.exe`
+    : DEFAULT_SERVER_BINARY_NAME;
+}
+
+function buildServerBinaryCandidates({
+  targetTriple = '',
+  targetDir = serverTargetDir,
+  platform = process.platform,
+} = {}) {
+  const binaryFileName = resolveServerBinaryFileName(platform);
+  const normalizedTargetTriple = String(targetTriple ?? '').trim();
+  const candidates = [];
+
+  if (normalizedTargetTriple) {
+    candidates.push(path.join(targetDir, normalizedTargetTriple, 'release', binaryFileName));
+  }
+
+  candidates.push(path.join(targetDir, 'release', binaryFileName));
+  return [...new Set(candidates)];
+}
+
+function resolveExistingServerBinaryPath({
+  targetTriple = '',
+  targetDir = serverTargetDir,
+  platform = process.platform,
+} = {}) {
+  const candidates = buildServerBinaryCandidates({
+    targetTriple,
+    targetDir,
+    platform,
+  });
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+}
+
+function buildArchiveExtension(format) {
+  return format === 'zip' ? 'zip' : 'tar.gz';
+}
+
+function createDirectoryArchive({
+  sourceDir,
+  archivePath,
+  format,
+}) {
+  const archiveFormat = buildArchiveExtension(format);
+  if (archiveFormat === 'zip') {
+    runZipCommand(archivePath, path.dirname(sourceDir), path.basename(sourceDir));
+    return;
+  }
+
+  runTarCommand(archivePath, path.dirname(sourceDir), path.basename(sourceDir));
+}
+
+function writeServerLauncherScripts(bundleRoot, platformId) {
+  const serverBinaryName = resolveServerBinaryFileName(platformId);
+  const unixLauncherPath = path.join(bundleRoot, 'start-claw-server.sh');
+  const windowsLauncherPath = path.join(bundleRoot, 'start-claw-server.cmd');
+
+  writeFileSync(
+    unixLauncherPath,
+    [
+      '#!/usr/bin/env sh',
+      'set -eu',
+      'SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"',
+      'export CLAW_SERVER_WEB_DIST="${CLAW_SERVER_WEB_DIST:-$SCRIPT_DIR/web/dist}"',
+      'export CLAW_SERVER_DATA_DIR="${CLAW_SERVER_DATA_DIR:-$SCRIPT_DIR/.claw-server}"',
+      'exec "$SCRIPT_DIR/bin/' + serverBinaryName + '" "$@"',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  writeFileSync(
+    windowsLauncherPath,
+    [
+      '@echo off',
+      'setlocal',
+      'set "SCRIPT_DIR=%~dp0"',
+      'if not defined CLAW_SERVER_WEB_DIST set "CLAW_SERVER_WEB_DIST=%SCRIPT_DIR%web\\dist"',
+      'if not defined CLAW_SERVER_DATA_DIR set "CLAW_SERVER_DATA_DIR=%SCRIPT_DIR%.claw-server"',
+      `"%SCRIPT_DIR%bin\\${serverBinaryName}" %*`,
+      '',
+    ].join('\r\n'),
+    'utf8',
+  );
+
+  if (platformId !== 'windows') {
+    chmodSync(unixLauncherPath, 0o755);
+  }
+}
+
+function writeServerRuntimeReadme({
+  bundleRoot,
+  releaseTag,
+  platformId,
+  archId,
+}) {
+  const launcherCommand = platformId === 'windows'
+    ? '.\\start-claw-server.cmd'
+    : './start-claw-server.sh';
+  writeFileSync(
+    path.join(bundleRoot, 'README.md'),
+    [
+      '# Claw Studio Server Bundle',
+      '',
+      `Release: ${releaseTag}`,
+      `Platform: ${platformId}`,
+      `Architecture: ${archId}`,
+      '',
+      '## Start',
+      '',
+      'Run the bundled launcher from the extracted directory root:',
+      '',
+      '```bash',
+      launcherCommand,
+      '```',
+      '',
+      'The launcher sets `CLAW_SERVER_WEB_DIST` to the bundled `web/dist` folder and',
+      'defaults `CLAW_SERVER_DATA_DIR` to `.claw-server` inside the extracted bundle.',
+      '',
+      '## Environment',
+      '',
+      '- Copy `.env.example` and adjust `CLAW_SERVER_HOST`, `CLAW_SERVER_PORT`, and data paths as needed.',
+      '- Override `CLAW_SERVER_WEB_DIST` only if you want the server to serve a different web build.',
+      '',
+      '## Browser access',
+      '',
+      'After startup, open `http://<host>:<port>` in a browser to manage the server-hosted application.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+}
+
+function populateServerRuntimeBundle({
+  bundleRoot,
+  platformId,
+  archId,
+  releaseTag,
+  targetTriple = '',
+  serverBuildTargetDir = serverTargetDir,
+  serverWebDistDir = webDistDir,
+  serverEnvPath = serverEnvExamplePath,
+}) {
+  const serverBinaryPath = resolveExistingServerBinaryPath({
+    targetTriple,
+    targetDir: serverBuildTargetDir,
+    platform: platformId,
+  });
+  if (!existsSync(serverBinaryPath)) {
+    const candidates = buildServerBinaryCandidates({
+      targetTriple,
+      targetDir: serverBuildTargetDir,
+      platform: platformId,
+    }).join(', ');
+    throw new Error(`Missing server binary output. Checked: ${candidates}`);
+  }
+  if (!existsSync(serverWebDistDir)) {
+    throw new Error(`Missing server web dist directory: ${serverWebDistDir}`);
+  }
+  if (!existsSync(serverEnvPath)) {
+    throw new Error(`Missing server env example: ${serverEnvPath}`);
+  }
+
+  const binDir = path.join(bundleRoot, 'bin');
+  const runtimeWebDir = path.join(bundleRoot, 'web', 'dist');
+  ensureDirectory(binDir);
+  ensureDirectory(path.dirname(runtimeWebDir));
+
+  const binaryDestinationPath = path.join(binDir, resolveServerBinaryFileName(platformId));
+  cpSync(serverBinaryPath, binaryDestinationPath);
+  cpSync(serverWebDistDir, runtimeWebDir, { recursive: true });
+  cpSync(serverEnvPath, path.join(bundleRoot, '.env.example'));
+  writeServerLauncherScripts(bundleRoot, platformId);
+  writeServerRuntimeReadme({
+    bundleRoot,
+    releaseTag,
+    platformId,
+    archId,
+  });
+
+  if (platformId !== 'windows') {
+    chmodSync(binaryDestinationPath, 0o755);
+  }
+}
+
+function writeDeploymentBundleReadme({
+  bundleRoot,
+  family,
+  releaseTag,
+  platformId,
+  archId,
+  accelerator,
+}) {
+  const deploymentCommand = family === 'container'
+    ? 'docker compose -f deploy/docker-compose.yml up -d'
+    : 'helm upgrade --install claw-studio ./chart -f values.release.yaml';
+
+  writeFileSync(
+    path.join(bundleRoot, 'README.md'),
+    [
+      `# Claw Studio ${family === 'container' ? 'Container' : 'Kubernetes'} Bundle`,
+      '',
+      `Release: ${releaseTag}`,
+      `Platform: ${platformId}`,
+      `Architecture: ${archId}`,
+      `Accelerator profile: ${accelerator}`,
+      '',
+      '## Profile model',
+      '',
+      'The Rust server binary is CPU-neutral. Accelerator variants package deployment overlays',
+      'and release metadata for CPU, NVIDIA CUDA, and AMD ROCm-oriented topologies.',
+      '',
+      '## Default command',
+      '',
+      '```bash',
+      deploymentCommand,
+      '```',
+      '',
+      'See `release-metadata.json` for the selected target architecture and accelerator profile.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
 }
 
 export function shouldIncludeDesktopBundleFile(platformId, relativePath) {
@@ -143,7 +444,7 @@ export function resolveExistingDesktopBundleRoot({
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const [mode, ...rest] = argv;
   const options = {
     profileId: DEFAULT_RELEASE_PROFILE_ID,
@@ -153,46 +454,51 @@ function parseArgs(argv) {
     target: '',
     outputDir: path.join(rootDir, 'artifacts', 'release'),
     releaseTag: '',
+    accelerator: DEFAULT_DEPLOYMENT_ACCELERATOR,
   };
 
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index];
-    const next = rest[index + 1];
 
     if (token === '--profile') {
-      options.profileId = next ?? DEFAULT_RELEASE_PROFILE_ID;
+      options.profileId = readOptionValue(rest, index, '--profile');
       index += 1;
       continue;
     }
 
     if (token === '--platform') {
-      options.platform = next;
+      options.platform = readOptionValue(rest, index, '--platform');
       index += 1;
       continue;
     }
 
     if (token === '--output-dir') {
-      options.outputDir = path.resolve(next);
+      options.outputDir = path.resolve(readOptionValue(rest, index, '--output-dir'));
       index += 1;
       continue;
     }
 
     if (token === '--arch') {
-      options.arch = next;
+      options.arch = readOptionValue(rest, index, '--arch');
       index += 1;
       continue;
     }
 
     if (token === '--target') {
-      options.target = next;
+      options.target = readOptionValue(rest, index, '--target');
       index += 1;
       continue;
     }
 
     if (token === '--release-tag') {
-      options.releaseTag = next;
+      options.releaseTag = readOptionValue(rest, index, '--release-tag');
       index += 1;
       continue;
+    }
+
+    if (token === '--accelerator') {
+      options.accelerator = readOptionValue(rest, index, '--accelerator');
+      index += 1;
     }
   }
 
@@ -414,6 +720,7 @@ export function packageDesktopAssets({
       ...macosArchives.map((archive) => ({
         name: path.basename(archive.archivePath),
         relativePath: path.relative(outputDir, archive.archivePath).replaceAll('\\', '/'),
+        family: 'desktop',
         platform: platformId,
         arch: archId,
         kind: 'archive',
@@ -432,6 +739,7 @@ export function packageDesktopAssets({
     emittedArtifacts.push({
       name: path.basename(targetPath),
       relativePath: path.relative(outputDir, targetPath).replaceAll('\\', '/'),
+      family: 'desktop',
       platform: platformId,
       arch: archId,
       kind: buildArtifactKind(platformId, bundleFile.relativePath),
@@ -456,6 +764,297 @@ export function packageDesktopAssets({
   });
 }
 
+export function packageServerAssets({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
+  releaseTag,
+  platform,
+  arch,
+  target,
+  outputDir,
+  serverBuildTargetDir = serverTargetDir,
+  serverWebDistDir = webDistDir,
+  serverEnvPath = serverEnvExamplePath,
+}) {
+  const releaseProfile = resolveReleaseProfile(profileId);
+  const targetSpec = resolveDesktopReleaseTarget({
+    targetTriple: target,
+    platform,
+    arch,
+  });
+  const platformId = normalizePlatformId(targetSpec.platform);
+  const archId = normalizeDesktopArch(targetSpec.arch);
+  const archiveBaseName = buildServerArchiveBaseName({
+    releaseTag,
+    platform: platformId,
+    arch: archId,
+  });
+  const archiveFormat = releaseProfile.server.matrix.find(
+    (entry) => entry.platform === platformId && entry.arch === archId,
+  )?.archiveFormat ?? (platformId === 'windows' ? 'zip' : 'tar.gz');
+  const platformOutputDir = path.join(outputDir, 'server', platformId, archId);
+
+  rmSync(platformOutputDir, { recursive: true, force: true });
+  ensureDirectory(platformOutputDir);
+  const stagingRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-server-release-'));
+  const bundleRoot = path.join(stagingRoot, archiveBaseName);
+  const archivePath = path.join(
+    platformOutputDir,
+    `${archiveBaseName}.${buildArchiveExtension(archiveFormat)}`,
+  );
+
+  try {
+    ensureDirectory(bundleRoot);
+    populateServerRuntimeBundle({
+      bundleRoot,
+      platformId,
+      archId,
+      releaseTag,
+      targetTriple: targetSpec.targetTriple,
+      serverBuildTargetDir,
+      serverWebDistDir,
+      serverEnvPath,
+    });
+
+    rmSync(archivePath, { force: true });
+    rmSync(`${archivePath}.sha256.txt`, { force: true });
+    createDirectoryArchive({
+      sourceDir: bundleRoot,
+      archivePath,
+      format: archiveFormat,
+    });
+    const checksum = writeSha256File(archivePath);
+    writeReleaseAssetManifest({
+      manifestPath: path.join(platformOutputDir, releaseProfile.release.partialManifestFileName),
+      profileId: releaseProfile.id,
+      productName: releaseProfile.productName,
+      platform: platformId,
+      arch: archId,
+      artifacts: [
+        {
+          name: path.basename(archivePath),
+          relativePath: path.relative(outputDir, archivePath).replaceAll('\\', '/'),
+          platform: platformId,
+          arch: archId,
+          family: 'server',
+          kind: 'archive',
+          sha256: checksum,
+          size: statSync(archivePath).size,
+        },
+      ],
+    });
+  } finally {
+    rmSync(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+export function packageContainerAssets({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
+  releaseTag,
+  platform,
+  arch,
+  target,
+  accelerator = DEFAULT_DEPLOYMENT_ACCELERATOR,
+  outputDir,
+  serverBuildTargetDir = serverTargetDir,
+  serverWebDistDir = webDistDir,
+  serverEnvPath = serverEnvExamplePath,
+  deploymentSourceDir = dockerDeploymentDir,
+}) {
+  const releaseProfile = resolveReleaseProfile(profileId);
+  const targetSpec = resolveDesktopReleaseTarget({
+    targetTriple: target,
+    platform,
+    arch,
+  });
+  const platformId = normalizePlatformId(targetSpec.platform);
+  const archId = normalizeDesktopArch(targetSpec.arch);
+  const acceleratorId = normalizeDeploymentAccelerator(accelerator);
+  const archiveBaseName = buildDeploymentBundleBaseName({
+    family: 'container',
+    releaseTag,
+    platform: platformId,
+    arch: archId,
+    accelerator: acceleratorId,
+  });
+  const outputFamilyDir = path.join(outputDir, 'container', platformId, archId, acceleratorId);
+  const archivePath = path.join(outputFamilyDir, `${archiveBaseName}.tar.gz`);
+  const stagingRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-container-release-'));
+  const bundleRoot = path.join(stagingRoot, archiveBaseName);
+
+  if (!existsSync(deploymentSourceDir)) {
+    throw new Error(`Missing container deployment source directory: ${deploymentSourceDir}`);
+  }
+
+  try {
+    ensureDirectory(bundleRoot);
+    rmSync(outputFamilyDir, { recursive: true, force: true });
+    ensureDirectory(outputFamilyDir);
+    populateServerRuntimeBundle({
+      bundleRoot: path.join(bundleRoot, 'app'),
+      platformId,
+      archId,
+      releaseTag,
+      targetTriple: targetSpec.targetTriple,
+      serverBuildTargetDir,
+      serverWebDistDir,
+      serverEnvPath,
+    });
+    cpSync(deploymentSourceDir, path.join(bundleRoot, 'deploy'), { recursive: true });
+    if (existsSync(path.join(deploymentSourceDir, '.dockerignore'))) {
+      cpSync(
+        path.join(deploymentSourceDir, '.dockerignore'),
+        path.join(bundleRoot, '.dockerignore'),
+      );
+    }
+    writeFileSync(
+      path.join(bundleRoot, 'release-metadata.json'),
+      `${JSON.stringify({
+        family: 'container',
+        releaseTag,
+        platform: platformId,
+        arch: archId,
+        accelerator: acceleratorId,
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeDeploymentBundleReadme({
+      bundleRoot,
+      family: 'container',
+      releaseTag,
+      platformId,
+      archId,
+      accelerator: acceleratorId,
+    });
+
+    rmSync(archivePath, { force: true });
+    rmSync(`${archivePath}.sha256.txt`, { force: true });
+    createDirectoryArchive({
+      sourceDir: bundleRoot,
+      archivePath,
+      format: releaseProfile.container.bundleFormat,
+    });
+    const checksum = writeSha256File(archivePath);
+    writeReleaseAssetManifest({
+      manifestPath: path.join(outputFamilyDir, releaseProfile.release.partialManifestFileName),
+      profileId: releaseProfile.id,
+      productName: releaseProfile.productName,
+      platform: platformId,
+      arch: archId,
+      artifacts: [
+        {
+          name: path.basename(archivePath),
+          relativePath: path.relative(outputDir, archivePath).replaceAll('\\', '/'),
+          platform: platformId,
+          arch: archId,
+          accelerator: acceleratorId,
+          family: 'container',
+          kind: 'archive',
+          sha256: checksum,
+          size: statSync(archivePath).size,
+        },
+      ],
+    });
+  } finally {
+    rmSync(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+export function packageKubernetesAssets({
+  profileId = DEFAULT_RELEASE_PROFILE_ID,
+  releaseTag,
+  platform = 'linux',
+  arch,
+  accelerator = DEFAULT_DEPLOYMENT_ACCELERATOR,
+  outputDir,
+  deploymentSourceDir = kubernetesDeploymentDir,
+}) {
+  const releaseProfile = resolveReleaseProfile(profileId);
+  const platformId = normalizePlatformId(platform);
+  const archId = normalizeDesktopArch(arch);
+  const acceleratorId = normalizeDeploymentAccelerator(accelerator);
+  const archiveBaseName = buildDeploymentBundleBaseName({
+    family: 'kubernetes',
+    releaseTag,
+    platform: platformId,
+    arch: archId,
+    accelerator: acceleratorId,
+  });
+  const outputFamilyDir = path.join(outputDir, 'kubernetes', platformId, archId, acceleratorId);
+  const archivePath = path.join(outputFamilyDir, `${archiveBaseName}.tar.gz`);
+  const stagingRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-kubernetes-release-'));
+  const bundleRoot = path.join(stagingRoot, archiveBaseName);
+
+  if (!existsSync(deploymentSourceDir)) {
+    throw new Error(`Missing kubernetes deployment source directory: ${deploymentSourceDir}`);
+  }
+
+  try {
+    ensureDirectory(bundleRoot);
+    rmSync(outputFamilyDir, { recursive: true, force: true });
+    ensureDirectory(outputFamilyDir);
+    cpSync(deploymentSourceDir, path.join(bundleRoot, 'chart'), { recursive: true });
+    writeFileSync(
+      path.join(bundleRoot, 'values.release.yaml'),
+      [
+        `targetArchitecture: ${archId}`,
+        `acceleratorProfile: ${acceleratorId}`,
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    writeFileSync(
+      path.join(bundleRoot, 'release-metadata.json'),
+      `${JSON.stringify({
+        family: 'kubernetes',
+        releaseTag,
+        platform: platformId,
+        arch: archId,
+        accelerator: acceleratorId,
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeDeploymentBundleReadme({
+      bundleRoot,
+      family: 'kubernetes',
+      releaseTag,
+      platformId,
+      archId,
+      accelerator: acceleratorId,
+    });
+
+    rmSync(archivePath, { force: true });
+    rmSync(`${archivePath}.sha256.txt`, { force: true });
+    createDirectoryArchive({
+      sourceDir: bundleRoot,
+      archivePath,
+      format: releaseProfile.kubernetes.bundleFormat,
+    });
+    const checksum = writeSha256File(archivePath);
+    writeReleaseAssetManifest({
+      manifestPath: path.join(outputFamilyDir, releaseProfile.release.partialManifestFileName),
+      profileId: releaseProfile.id,
+      productName: releaseProfile.productName,
+      platform: platformId,
+      arch: archId,
+      artifacts: [
+        {
+          name: path.basename(archivePath),
+          relativePath: path.relative(outputDir, archivePath).replaceAll('\\', '/'),
+          platform: platformId,
+          arch: archId,
+          accelerator: acceleratorId,
+          family: 'kubernetes',
+          kind: 'archive',
+          sha256: checksum,
+          size: statSync(archivePath).size,
+        },
+      ],
+    });
+  } finally {
+    rmSync(stagingRoot, { recursive: true, force: true });
+  }
+}
+
 function runTarCommand(archivePath, workingDirectory, entryName) {
   const result = spawnSync('tar', ['-czf', archivePath, '-C', workingDirectory, entryName], {
     cwd: rootDir,
@@ -471,17 +1070,19 @@ function runTarCommand(archivePath, workingDirectory, entryName) {
   }
 }
 
-function packageWebAssets({
+export function packageWebAssets({
   profileId = DEFAULT_RELEASE_PROFILE_ID,
   releaseTag,
   outputDir,
+  webBuildDir = webDistDir,
+  docsBuildDir = docsDistDir,
 }) {
   const releaseProfile = resolveReleaseProfile(profileId);
-  if (!existsSync(webDistDir)) {
-    throw new Error(`Missing Claw web dist directory: ${webDistDir}`);
+  if (!existsSync(webBuildDir)) {
+    throw new Error(`Missing Claw web dist directory: ${webBuildDir}`);
   }
-  if (!existsSync(docsDistDir)) {
-    throw new Error(`Missing Claw docs dist directory: ${docsDistDir}`);
+  if (!existsSync(docsBuildDir)) {
+    throw new Error(`Missing Claw docs dist directory: ${docsBuildDir}`);
   }
 
   const archiveBaseName = buildWebArchiveBaseName(releaseTag);
@@ -493,8 +1094,8 @@ function packageWebAssets({
   try {
     ensureDirectory(path.join(archiveRoot, 'web'));
     ensureDirectory(path.join(archiveRoot, 'docs'));
-    cpSync(webDistDir, path.join(archiveRoot, 'web', 'dist'), { recursive: true });
-    cpSync(docsDistDir, path.join(archiveRoot, 'docs', 'dist'), { recursive: true });
+    cpSync(webBuildDir, path.join(archiveRoot, 'web', 'dist'), { recursive: true });
+    cpSync(docsBuildDir, path.join(archiveRoot, 'docs', 'dist'), { recursive: true });
 
     const archivePath = path.join(outputDir, `${archiveBaseName}.tar.gz`);
     rmSync(archivePath, { force: true });
@@ -507,10 +1108,13 @@ function packageWebAssets({
       manifestPath: path.join(webOutputDir, releaseProfile.release.partialManifestFileName),
       profileId: releaseProfile.id,
       productName: releaseProfile.productName,
+      platform: 'web',
+      arch: 'any',
       artifacts: [
         {
           name: path.basename(archivePath),
           relativePath: path.relative(outputDir, archivePath).replaceAll('\\', '/'),
+          family: 'web',
           platform: 'web',
           arch: 'any',
           kind: 'archive',
@@ -561,6 +1165,9 @@ function printUsage() {
     [
       'Usage:',
       '  node scripts/release/package-release-assets.mjs desktop --platform <windows|linux|macos> --arch <x64|arm64> --target <triple> --output-dir <dir>',
+      '  node scripts/release/package-release-assets.mjs server --release-tag <tag> --platform <windows|linux|macos> --arch <x64|arm64> --target <triple> --output-dir <dir>',
+      '  node scripts/release/package-release-assets.mjs container --release-tag <tag> --platform linux --arch <x64|arm64> --target <triple> --accelerator <cpu|nvidia-cuda|amd-rocm> --output-dir <dir>',
+      '  node scripts/release/package-release-assets.mjs kubernetes --release-tag <tag> --platform linux --arch <x64|arm64> --accelerator <cpu|nvidia-cuda|amd-rocm> --output-dir <dir>',
       '  node scripts/release/package-release-assets.mjs web --release-tag <tag> --output-dir <dir>',
     ].join('\n'),
   );
@@ -577,6 +1184,21 @@ function main() {
 
   if (options.mode === 'desktop') {
     packageDesktopAssets(options);
+    return;
+  }
+
+  if (options.mode === 'server') {
+    packageServerAssets(options);
+    return;
+  }
+
+  if (options.mode === 'container') {
+    packageContainerAssets(options);
+    return;
+  }
+
+  if (options.mode === 'kubernetes') {
+    packageKubernetesAssets(options);
     return;
   }
 

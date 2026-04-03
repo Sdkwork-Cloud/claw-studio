@@ -47,13 +47,22 @@ function createProvider(overrides: Partial<ProxyProvider> = {}): ProxyProvider {
   };
 }
 
-await runTest('openClawInstallWizardService filters only providers compatible with OpenClaw bootstrap', async () => {
+await runTest(
+  'openClawInstallWizardService keeps native gemini and synthesized local proxy routes compatible with OpenClaw bootstrap',
+  async () => {
   const { filterOpenClawCompatibleProviders } = await import('./openClawInstallWizardService.ts');
 
   const providers = [
     createProvider({ id: 'provider-openai', channelId: 'openai' }),
     createProvider({ id: 'provider-anthropic', channelId: 'anthropic' }),
-    createProvider({ id: 'provider-google', channelId: 'google' }),
+    createProvider({ id: 'provider-google', channelId: 'google', clientProtocol: 'gemini' }),
+    createProvider({
+      id: 'provider-sdkwork-gemini',
+      channelId: 'sdkwork',
+      name: 'SDKWork Gemini Default',
+      clientProtocol: 'gemini',
+      managedBy: 'system-default',
+    }),
     createProvider({ id: 'provider-meta', channelId: 'meta' }),
   ];
 
@@ -61,9 +70,113 @@ await runTest('openClawInstallWizardService filters only providers compatible wi
 
   assert.deepEqual(
     compatibleProviders.map((provider) => provider.id),
-    ['provider-openai', 'provider-anthropic'],
+    [
+      'provider-openai',
+      'provider-anthropic',
+      'provider-google',
+      'provider-sdkwork-gemini',
+      'provider-meta',
+    ],
   );
 });
+
+await runTest(
+  'openClawInstallWizardService keeps broader OpenAI-compatible provider families compatible with OpenClaw bootstrap',
+  async () => {
+    const { filterOpenClawCompatibleProviders } = await import('./openClawInstallWizardService.ts');
+
+    const providers = [
+      createProvider({ id: 'provider-meta', channelId: 'meta' }),
+      createProvider({ id: 'provider-mistral', channelId: 'mistral' }),
+      createProvider({ id: 'provider-cohere', channelId: 'cohere' }),
+      createProvider({ id: 'provider-amazon-nova', channelId: 'amazon-nova' }),
+      createProvider({ id: 'provider-zhipu', channelId: 'zhipu' }),
+      createProvider({ id: 'provider-doubao', channelId: 'doubao' }),
+      createProvider({ id: 'provider-baichuan', channelId: 'baichuan' }),
+      createProvider({ id: 'provider-yi', channelId: 'yi' }),
+    ];
+
+    assert.deepEqual(
+      filterOpenClawCompatibleProviders(providers).map((provider) => provider.id),
+      [
+        'provider-meta',
+        'provider-mistral',
+        'provider-cohere',
+        'provider-amazon-nova',
+        'provider-zhipu',
+        'provider-doubao',
+        'provider-baichuan',
+        'provider-yi',
+      ],
+    );
+  },
+);
+
+await runTest(
+  'openClawInstallWizardService sorts providers by status, default priority, ownership, and protocol preference',
+  async () => {
+    const { sortOpenClawBootstrapProviders } = await import('./openClawInstallWizardService.ts');
+
+    const providers = [
+      createProvider({
+        id: 'provider-system-anthropic',
+        channelId: 'sdkwork',
+        name: 'SDKWork Anthropic Default',
+        status: 'active',
+        isDefault: true,
+        managedBy: 'system-default',
+        clientProtocol: 'anthropic',
+      }),
+      createProvider({
+        id: 'provider-user-openai',
+        channelId: 'openai',
+        name: 'OpenAI Production',
+        status: 'active',
+        isDefault: true,
+        managedBy: 'user',
+        clientProtocol: 'openai-compatible',
+      }),
+      createProvider({
+        id: 'provider-system-openai',
+        channelId: 'sdkwork',
+        name: 'SDKWork Default',
+        status: 'active',
+        isDefault: true,
+        managedBy: 'system-default',
+        clientProtocol: 'openai-compatible',
+      }),
+      createProvider({
+        id: 'provider-disabled-qwen',
+        channelId: 'qwen',
+        name: 'Qwen Backup',
+        status: 'disabled',
+        isDefault: false,
+        managedBy: 'user',
+        clientProtocol: 'openai-compatible',
+      }),
+      createProvider({
+        id: 'provider-system-gemini',
+        channelId: 'sdkwork',
+        name: 'SDKWork Gemini Default',
+        status: 'active',
+        isDefault: true,
+        managedBy: 'system-default',
+        clientProtocol: 'gemini',
+      }),
+    ];
+
+    assert.deepEqual(
+      sortOpenClawBootstrapProviders(providers).map((provider) => provider.id),
+      [
+        'provider-user-openai',
+        'provider-system-openai',
+        'provider-system-anthropic',
+        'provider-system-gemini',
+        'provider-disabled-qwen',
+      ],
+    );
+  },
+);
 
 await runTest('openClawInstallWizardService infers primary, reasoning, and embedding model selections', async () => {
   const { buildOpenClawModelSelection } = await import('./openClawInstallWizardService.ts');

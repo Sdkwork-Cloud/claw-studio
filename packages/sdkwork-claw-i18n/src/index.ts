@@ -1,8 +1,8 @@
 import i18n from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
-import en from './locales/en.json' with { type: 'json' };
-import zh from './locales/zh.json' with { type: 'json' };
+import en from './locales/en/index.ts';
+import zh from './locales/zh/index.ts';
 import {
   DEFAULT_LANGUAGE,
   I18N_STORAGE_KEY,

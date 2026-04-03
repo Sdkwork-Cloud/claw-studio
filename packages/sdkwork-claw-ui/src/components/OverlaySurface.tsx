@@ -7,11 +7,12 @@ import {
   getOverlayContainerClassName,
   getOverlayContainerStyle,
   getOverlaySurfaceStyle,
+  type OverlayDrawerSide,
   type OverlayModalAlignment,
   type OverlayVariant,
 } from './overlayLayout';
 
-export type { OverlayModalAlignment, OverlayVariant } from './overlayLayout';
+export type { OverlayDrawerSide, OverlayModalAlignment, OverlayVariant } from './overlayLayout';
 
 export interface OverlaySurfaceProps {
   isOpen: boolean;
@@ -19,17 +20,19 @@ export interface OverlaySurfaceProps {
   children: ReactNode;
   variant?: OverlayVariant;
   modalAlignment?: OverlayModalAlignment;
+  drawerSide?: OverlayDrawerSide;
   closeOnBackdrop?: boolean;
   className?: string;
   backdropClassName?: string;
 }
 
-function getSurfaceMotion(variant: OverlayVariant) {
+function getSurfaceMotion(variant: OverlayVariant, drawerSide: OverlayDrawerSide) {
   if (variant === 'drawer') {
+    const delta = drawerSide === 'left' ? -28 : 28;
     return {
-      initial: { opacity: 0, x: 28 },
+      initial: { opacity: 0, x: delta },
       animate: { opacity: 1, x: 0 },
-      exit: { opacity: 0, x: 28 },
+      exit: { opacity: 0, x: delta },
     };
   }
 
@@ -46,11 +49,12 @@ export function OverlaySurface({
   children,
   variant = 'modal',
   modalAlignment = 'center',
+  drawerSide = 'right',
   closeOnBackdrop = true,
   className,
   backdropClassName,
 }: OverlaySurfaceProps) {
-  const surfaceMotion = getSurfaceMotion(variant);
+  const surfaceMotion = getSurfaceMotion(variant, drawerSide);
 
   if (typeof document === 'undefined') {
     return null;
@@ -78,7 +82,7 @@ export function OverlaySurface({
           <div
             className={cn(
               'relative flex h-full',
-              getOverlayContainerClassName(variant, modalAlignment),
+              getOverlayContainerClassName(variant, modalAlignment, drawerSide),
             )}
             style={getOverlayContainerStyle()}
           >

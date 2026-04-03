@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
@@ -12,6 +12,10 @@ import {
   type CommandPaletteInstance,
 } from './commandPaletteCommands';
 import { OPEN_COMMAND_PALETTE_EVENT } from './commandPaletteEvents';
+import {
+  createCommandPaletteInstanceLoader,
+  filterCommandPaletteCommands,
+} from './commandPaletteState';
 
 export function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
@@ -22,6 +26,13 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const { setActiveInstanceId } = useInstanceStore();
   const { t } = useTranslation();
+  const instanceLoader = useMemo(
+    () =>
+      createCommandPaletteInstanceLoader({
+        loadInstances: () => instanceDirectoryService.listInstances(),
+      }),
+    [],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -53,13 +64,36 @@ export function CommandPalette() {
       return;
     }
 
+    let isActive = true;
     setSearch('');
     setSelectedIndex(0);
     const timeoutId = window.setTimeout(() => inputRef.current?.focus(), 100);
-    void instanceDirectoryService.listInstances().then(setInstances);
+    void instanceLoader
+      .load()
+      .then((nextInstances) => {
+        if (!isActive) {
+          return;
+        }
 
-    return () => window.clearTimeout(timeoutId);
-  }, [isOpen]);
+        startTransition(() => {
+          setInstances(nextInstances);
+        });
+      })
+      .catch(() => {
+        if (!isActive) {
+          return;
+        }
+
+        startTransition(() => {
+          setInstances([]);
+        });
+      });
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [instanceLoader, isOpen]);
 
   const commands: CommandPaletteCommand[] = useMemo(
     () =>
@@ -72,23 +106,23 @@ export function CommandPalette() {
     [instances, navigate, setActiveInstanceId, t],
   );
 
-  const fuse = useMemo(
-    () =>
-      new Fuse(commands, {
-        keys: ['title', 'subtitle', 'category'],
-        threshold: 0.4,
-        includeScore: true,
-      }),
-    [commands],
-  );
-
   const filteredCommands = useMemo(() => {
-    if (!search.trim()) {
-      return commands;
-    }
+    return filterCommandPaletteCommands({
+      search,
+      commands,
+      createSearch: (inputCommands) => {
+        const fuse = new Fuse(inputCommands, {
+          keys: ['title', 'subtitle', 'category'],
+          threshold: 0.4,
+          includeScore: true,
+        });
 
-    return fuse.search(search).map((result) => result.item);
-  }, [search, commands, fuse]);
+        return {
+          search: (query) => fuse.search(query).map((result) => result.item),
+        };
+      },
+    });
+  }, [search, commands]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

@@ -1,45 +1,70 @@
-import { openClawConfigService, type OpenClawProviderRuntimeConfig } from '@sdkwork/claw-core';
-import { storage, studio, type StoragePlatformAPI, type StudioPlatformAPI } from '@sdkwork/claw-infrastructure';
-import type { StudioInstanceDetailRecord, StudioInstanceRecord } from '@sdkwork/claw-types';
+import {
+  inferLocalAiProxyClientProtocol,
+  inferLocalAiProxyUpstreamProtocol,
+  listKnownProviderRoutingChannels,
+  LOCAL_AI_PROXY_DEFAULT_UPSTREAM_BASE_URL,
+  OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+  OPENCLAW_LOCAL_PROXY_PROVIDER_ID,
+  createOpenClawLocalProxyProjection,
+  createProviderRoutingCatalogService,
+  kernelPlatformService,
+  normalizeLegacyProviderId,
+  openClawConfigService,
+  providerRoutingCatalogService,
+  resolveOpenClawLocalProxyBaseUrl,
+  type OpenClawProviderRuntimeConfig,
+} from '@sdkwork/claw-core';
+import {
+  storage,
+  studio,
+  type StoragePlatformAPI,
+  type StudioPlatformAPI,
+} from '@sdkwork/claw-infrastructure';
+import type {
+  LocalAiProxyClientProtocol,
+  LocalAiProxyRouteManagedBy,
+  LocalAiProxyRouteModelRecord,
+  LocalAiProxyRouteRecord,
+  LocalAiProxyRouteRuntimeMetrics,
+  LocalAiProxyRouteTestRecord,
+  LocalAiProxyUpstreamProtocol,
+  StudioInstanceDetailRecord,
+  StudioInstanceRecord,
+} from '@sdkwork/claw-types';
 
-export const PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE = 'studio.provider-center';
-const DEFAULT_SQLITE_PROFILE_ID = 'default-sqlite';
-const PROVIDER_CONFIG_ID_PREFIX = 'provider-config-';
+export { PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE } from '@sdkwork/claw-core';
 
-export interface ProviderConfigModelRecord {
-  id: string;
-  name: string;
-}
+export type ProviderConfigModelRecord = LocalAiProxyRouteModelRecord;
 
 export interface ProviderConfigDraft {
   presetId?: string;
   name: string;
   providerId: string;
-  baseUrl: string;
+  clientProtocol?: LocalAiProxyClientProtocol;
+  upstreamProtocol?: LocalAiProxyUpstreamProtocol;
+  upstreamBaseUrl?: string;
+  baseUrl?: string;
   apiKey: string;
+  enabled?: boolean;
+  isDefault?: boolean;
+  managedBy?: LocalAiProxyRouteManagedBy;
   defaultModelId: string;
   reasoningModelId?: string;
   embeddingModelId?: string;
   models: ProviderConfigModelRecord[];
   notes?: string;
+  exposeTo?: string[];
   config?: Partial<OpenClawProviderRuntimeConfig>;
 }
 
-export interface ProviderConfigRecord {
-  id: string;
+export interface ProviderConfigRecord extends LocalAiProxyRouteRecord {
   presetId?: string;
-  name: string;
-  providerId: string;
   baseUrl: string;
-  apiKey: string;
-  defaultModelId: string;
-  reasoningModelId?: string;
-  embeddingModelId?: string;
-  models: ProviderConfigModelRecord[];
-  notes?: string;
   config: OpenClawProviderRuntimeConfig;
   createdAt: number;
   updatedAt: number;
+  runtimeMetrics?: LocalAiProxyRouteRuntimeMetrics;
+  latestTest?: LocalAiProxyRouteTestRecord | null;
 }
 
 export interface ProviderConfigPreset {
@@ -76,21 +101,34 @@ export interface ApplyProviderConfigInput {
   agentIds?: string[];
 }
 
+type ProviderRoutingCatalogApi = Pick<
+  typeof providerRoutingCatalogService,
+  'listProviderRoutingRecords' | 'saveProviderRoutingRecord' | 'deleteProviderRoutingRecord'
+>;
+
 interface ProviderConfigCenterServiceDependencies {
-  storageApi: StoragePlatformAPI;
+  providerRoutingApi: ProviderRoutingCatalogApi;
   studioApi: Pick<StudioPlatformAPI, 'listInstances' | 'getInstanceDetail'>;
+  kernelPlatformService: Pick<
+    typeof kernelPlatformService,
+    'ensureRunning' | 'getInfo' | 'testLocalAiProxyRoute'
+  >;
   openClawConfigService: Pick<
     typeof openClawConfigService,
-    'resolveInstanceConfigPath' | 'readConfigSnapshot' | 'saveProviderSelection' | 'saveAgent'
+    | 'resolveInstanceConfigPath'
+    | 'readConfigSnapshot'
+    | 'saveManagedLocalProxyProjection'
+    | 'saveAgent'
   >;
-  now: () => number;
 }
 
 export interface ProviderConfigCenterServiceOverrides {
-  storageApi?: ProviderConfigCenterServiceDependencies['storageApi'];
+  storageApi?: StoragePlatformAPI;
+  providerRoutingApi?: Partial<ProviderRoutingCatalogApi>;
   studioApi?: Partial<ProviderConfigCenterServiceDependencies['studioApi']>;
+  kernelPlatformService?: Partial<ProviderConfigCenterServiceDependencies['kernelPlatformService']>;
   openClawConfigService?: Partial<ProviderConfigCenterServiceDependencies['openClawConfigService']>;
-  now?: ProviderConfigCenterServiceDependencies['now'];
+  now?: () => number;
 }
 
 function createDefaultRuntimeConfig(): OpenClawProviderRuntimeConfig {
@@ -124,29 +162,17 @@ function normalizeRuntimeConfig(
   };
 }
 
-function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/g, '')
-    .replace(/-+$/g, '');
+function normalizeProviderId(providerId: string | undefined | null) {
+  return normalizeLegacyProviderId(providerId).toLowerCase();
 }
 
-function normalizeProviderId(providerId: string) {
-  return providerId
-    .trim()
-    .toLowerCase()
-    .replace(/^api-router-/, '');
-}
-
-function normalizeModelId(modelId: string) {
-  return modelId.trim();
+function normalizeModelId(modelId: string | undefined | null) {
+  return (modelId || '').trim();
 }
 
 function normalizeModelName(model: ProviderConfigModelRecord) {
   const id = normalizeModelId(model.id);
-  const name = model.name.trim();
+  const name = (model.name || '').trim();
   return {
     id,
     name: name || id,
@@ -156,7 +182,7 @@ function normalizeModelName(model: ProviderConfigModelRecord) {
 function normalizeModels(models: ProviderConfigModelRecord[]) {
   return Array.from(
     new Map(
-      models
+      (models || [])
         .map(normalizeModelName)
         .filter((model) => model.id)
         .map((model) => [model.id, model] as const),
@@ -165,79 +191,39 @@ function normalizeModels(models: ProviderConfigModelRecord[]) {
 }
 
 function normalizeOptionalModelId(modelId?: string) {
-  const normalized = modelId?.trim();
-  return normalized ? normalized : undefined;
+  const normalized = normalizeModelId(modelId);
+  return normalized || undefined;
+}
+
+function normalizeExposeTo(exposeTo?: string[]) {
+  return Array.from(
+    new Set((exposeTo || []).map((entry) => entry.trim()).filter(Boolean)),
+  );
 }
 
 function normalizeDraft(input: ProviderConfigDraft): ProviderConfigDraft {
+  const upstreamBaseUrl = (input.upstreamBaseUrl ?? input.baseUrl ?? '').trim();
+
   return {
     presetId: input.presetId?.trim() || undefined,
     name: input.name.trim(),
     providerId: normalizeProviderId(input.providerId),
-    baseUrl: input.baseUrl.trim(),
+    clientProtocol: input.clientProtocol,
+    upstreamProtocol: input.upstreamProtocol,
+    upstreamBaseUrl,
+    baseUrl: upstreamBaseUrl,
     apiKey: input.apiKey.trim(),
+    enabled: typeof input.enabled === 'boolean' ? input.enabled : true,
+    isDefault: input.isDefault === true,
+    managedBy: input.managedBy || 'user',
     defaultModelId: normalizeModelId(input.defaultModelId),
     reasoningModelId: normalizeOptionalModelId(input.reasoningModelId),
     embeddingModelId: normalizeOptionalModelId(input.embeddingModelId),
     models: normalizeModels(input.models),
     notes: input.notes?.trim() || undefined,
+    exposeTo: normalizeExposeTo(input.exposeTo),
     config: normalizeRuntimeConfig(input.config),
   };
-}
-
-function buildRecordId(providerId: string, now: number) {
-  const slug = slugify(providerId) || 'provider';
-  return `${PROVIDER_CONFIG_ID_PREFIX}${slug}-${now.toString(36)}`;
-}
-
-function parseStoredRecord(value: string | null): ProviderConfigRecord | null {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(value) as Partial<ProviderConfigRecord>;
-    if (!parsed || typeof parsed !== 'object') {
-      return null;
-    }
-
-    return {
-      id: typeof parsed.id === 'string' ? parsed.id : '',
-      presetId: typeof parsed.presetId === 'string' ? parsed.presetId : undefined,
-      name: typeof parsed.name === 'string' ? parsed.name : '',
-      providerId: normalizeProviderId(typeof parsed.providerId === 'string' ? parsed.providerId : ''),
-      baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl : '',
-      apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
-      defaultModelId: typeof parsed.defaultModelId === 'string' ? parsed.defaultModelId : '',
-      reasoningModelId:
-        typeof parsed.reasoningModelId === 'string' ? parsed.reasoningModelId : undefined,
-      embeddingModelId:
-        typeof parsed.embeddingModelId === 'string' ? parsed.embeddingModelId : undefined,
-      models: normalizeModels(Array.isArray(parsed.models) ? parsed.models : []),
-      notes: typeof parsed.notes === 'string' ? parsed.notes : undefined,
-      config: normalizeRuntimeConfig(parsed.config),
-      createdAt:
-        typeof parsed.createdAt === 'number' && Number.isFinite(parsed.createdAt)
-          ? parsed.createdAt
-          : 0,
-      updatedAt:
-        typeof parsed.updatedAt === 'number' && Number.isFinite(parsed.updatedAt)
-          ? parsed.updatedAt
-          : 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function sortRecords(records: ProviderConfigRecord[]) {
-  return [...records].sort((left, right) => {
-    if (right.updatedAt !== left.updatedAt) {
-      return right.updatedAt - left.updatedAt;
-    }
-
-    return left.name.localeCompare(right.name);
-  });
 }
 
 function buildAgentModelRef(providerId: string, modelId: string) {
@@ -276,17 +262,86 @@ function ensureWritableOpenClawDetail(
   };
 }
 
-function createPresets(): ProviderConfigPreset[] {
+function createPresetDraft(input: ProviderConfigDraft): ProviderConfigDraft {
+  return normalizeDraft({
+    ...input,
+    clientProtocol: input.clientProtocol || inferLocalAiProxyClientProtocol(input.providerId),
+    enabled: true,
+    isDefault: false,
+    managedBy: 'user',
+    exposeTo: input.exposeTo || ['openclaw'],
+    config: createDefaultRuntimeConfig(),
+  });
+}
+
+function createTemplatePreset(
+  channel: ReturnType<typeof listKnownProviderRoutingChannels>[number],
+): ProviderConfigPreset {
+  return {
+    id: channel.id,
+    label: channel.name,
+    description: `${channel.description} Fill in model ids for this provider or keep the SDKWork upstream fallback.`,
+    draft: createPresetDraft({
+      presetId: channel.id,
+      name: channel.name,
+      providerId: channel.id,
+      upstreamProtocol: inferLocalAiProxyUpstreamProtocol(channel.id),
+      upstreamBaseUrl: LOCAL_AI_PROXY_DEFAULT_UPSTREAM_BASE_URL,
+      apiKey: '',
+      defaultModelId: '',
+      reasoningModelId: undefined,
+      embeddingModelId: undefined,
+      models: [],
+    }),
+  };
+}
+
+function createCuratedPresets(): ProviderConfigPreset[] {
   return [
+    {
+      id: 'sdkwork',
+      label: 'SDKWork',
+      description:
+        'SDKWork universal gateway preset with OpenAI, Gemini, and Claude Code compatible APIs across mainstream global and China model families.',
+      draft: createPresetDraft({
+        presetId: 'sdkwork',
+        name: 'SDKWork',
+        providerId: 'sdkwork',
+        upstreamProtocol: 'sdkwork',
+        upstreamBaseUrl: LOCAL_AI_PROXY_DEFAULT_UPSTREAM_BASE_URL,
+        apiKey: OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+        defaultModelId: 'gpt-5.4',
+        reasoningModelId: 'o4-mini',
+        embeddingModelId: 'text-embedding-3-large',
+        models: [
+          { id: 'gpt-5.4', name: 'GPT-5.4' },
+          { id: 'o4-mini', name: 'o4-mini' },
+          { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+          { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+          { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+          { id: 'deepseek-chat', name: 'DeepSeek Chat' },
+          { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner' },
+          { id: 'glm-5.1', name: 'GLM-5.1' },
+          { id: 'glm-5v-turbo', name: 'GLM-5V Turbo' },
+          { id: 'qwen-max', name: 'Qwen Max' },
+          { id: 'qwq-plus', name: 'QwQ Plus' },
+          { id: 'minimax-m1', name: 'MiniMax M1' },
+          { id: 'kimi-k2', name: 'Moonshot Kimi K2' },
+          { id: 'text-embedding-3-large', name: 'text-embedding-3-large' },
+        ],
+      }),
+    },
     {
       id: 'openai',
       label: 'OpenAI',
       description: 'OpenAI-compatible route with GPT-5 and embedding defaults.',
-      draft: {
+      draft: createPresetDraft({
         presetId: 'openai',
         name: 'OpenAI',
         providerId: 'openai',
-        baseUrl: 'https://api.openai.com/v1',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.openai.com/v1',
         apiKey: '',
         defaultModelId: 'gpt-5.4',
         reasoningModelId: 'o4-mini',
@@ -297,17 +352,18 @@ function createPresets(): ProviderConfigPreset[] {
           { id: 'o4-mini', name: 'o4-mini' },
           { id: 'text-embedding-3-large', name: 'text-embedding-3-large' },
         ],
-      },
+      }),
     },
     {
       id: 'anthropic',
       label: 'Anthropic',
       description: 'Anthropic Claude route preset.',
-      draft: {
+      draft: createPresetDraft({
         presetId: 'anthropic',
         name: 'Anthropic',
         providerId: 'anthropic',
-        baseUrl: 'https://api.anthropic.com/v1',
+        upstreamProtocol: 'anthropic',
+        upstreamBaseUrl: 'https://api.anthropic.com/v1',
         apiKey: '',
         defaultModelId: 'claude-sonnet-4-20250514',
         reasoningModelId: 'claude-opus-4-20250514',
@@ -316,17 +372,39 @@ function createPresets(): ProviderConfigPreset[] {
           { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
           { id: 'claude-3-7-sonnet-latest', name: 'Claude 3.7 Sonnet' },
         ],
-      },
+      }),
+    },
+    {
+      id: 'gemini',
+      label: 'Gemini',
+      description: 'Google Gemini native route preset.',
+      draft: createPresetDraft({
+        presetId: 'gemini',
+        name: 'Gemini',
+        providerId: 'google',
+        upstreamProtocol: 'gemini',
+        upstreamBaseUrl: 'https://generativelanguage.googleapis.com',
+        apiKey: '',
+        defaultModelId: 'gemini-2.5-pro',
+        reasoningModelId: 'gemini-2.5-pro',
+        embeddingModelId: 'text-embedding-004',
+        models: [
+          { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+          { id: 'text-embedding-004', name: 'text-embedding-004' },
+        ],
+      }),
     },
     {
       id: 'xai',
       label: 'xAI',
       description: 'xAI Grok route preset.',
-      draft: {
+      draft: createPresetDraft({
         presetId: 'xai',
         name: 'xAI',
         providerId: 'xai',
-        baseUrl: 'https://api.x.ai/v1',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.x.ai/v1',
         apiKey: '',
         defaultModelId: 'grok-4',
         reasoningModelId: 'grok-4',
@@ -334,17 +412,18 @@ function createPresets(): ProviderConfigPreset[] {
           { id: 'grok-4', name: 'Grok 4' },
           { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast Reasoning' },
         ],
-      },
+      }),
     },
     {
       id: 'deepseek',
       label: 'DeepSeek',
       description: 'DeepSeek chat and reasoning route preset.',
-      draft: {
+      draft: createPresetDraft({
         presetId: 'deepseek',
         name: 'DeepSeek',
         providerId: 'deepseek',
-        baseUrl: 'https://api.deepseek.com/v1',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.deepseek.com/v1',
         apiKey: '',
         defaultModelId: 'deepseek-chat',
         reasoningModelId: 'deepseek-reasoner',
@@ -352,17 +431,18 @@ function createPresets(): ProviderConfigPreset[] {
           { id: 'deepseek-chat', name: 'DeepSeek Chat' },
           { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner' },
         ],
-      },
+      }),
     },
     {
       id: 'qwen',
       label: 'Qwen',
       description: 'Qwen OpenAI-compatible route preset.',
-      draft: {
+      draft: createPresetDraft({
         presetId: 'qwen',
         name: 'Qwen',
         providerId: 'qwen',
-        baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
         apiKey: '',
         defaultModelId: 'qwen-max',
         reasoningModelId: 'qwq-plus',
@@ -372,14 +452,111 @@ function createPresets(): ProviderConfigPreset[] {
           { id: 'qwq-plus', name: 'QwQ Plus' },
           { id: 'text-embedding-v4', name: 'Text Embedding V4' },
         ],
-      },
+      }),
     },
-  ].map((preset) => ({
-    ...preset,
-    draft: normalizeDraft({
-      ...preset.draft,
-      config: createDefaultRuntimeConfig(),
-    }),
+    {
+      id: 'azure-openai',
+      label: 'Azure OpenAI',
+      description: 'Azure OpenAI v1 route preset for resource-scoped deployments.',
+      draft: createPresetDraft({
+        presetId: 'azure-openai',
+        name: 'Azure OpenAI',
+        providerId: 'azure-openai',
+        upstreamProtocol: 'azure-openai',
+        upstreamBaseUrl: 'https://YOUR-RESOURCE-NAME.openai.azure.com',
+        apiKey: '',
+        defaultModelId: 'gpt-4.1',
+        reasoningModelId: 'gpt-4.1',
+        embeddingModelId: 'text-embedding-3-large',
+        models: [
+          { id: 'gpt-4.1', name: 'GPT-4.1' },
+          { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
+          { id: 'text-embedding-3-large', name: 'text-embedding-3-large' },
+        ],
+      }),
+    },
+    {
+      id: 'openrouter',
+      label: 'OpenRouter',
+      description: 'OpenRouter OpenAI-compatible route preset.',
+      draft: createPresetDraft({
+        presetId: 'openrouter',
+        name: 'OpenRouter',
+        providerId: 'openrouter',
+        upstreamProtocol: 'openrouter',
+        upstreamBaseUrl: 'https://openrouter.ai/api/v1',
+        apiKey: '',
+        defaultModelId: 'openai/gpt-4o',
+        reasoningModelId: 'anthropic/claude-3.7-sonnet',
+        models: [
+          { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o' },
+          { id: 'anthropic/claude-3.7-sonnet', name: 'Anthropic Claude 3.7 Sonnet' },
+          { id: 'google/gemini-2.5-pro', name: 'Google Gemini 2.5 Pro' },
+        ],
+      }),
+    },
+    {
+      id: 'zhipu',
+      label: 'Z.AI',
+      description: 'Z.AI GLM route preset for GLM-5 generation and vision-capable workloads.',
+      draft: createPresetDraft({
+        presetId: 'zhipu',
+        name: 'Z.AI',
+        providerId: 'zhipu',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        apiKey: '',
+        defaultModelId: 'glm-5.1',
+        reasoningModelId: 'glm-5.1',
+        models: [
+          { id: 'glm-5.1', name: 'GLM-5.1' },
+          { id: 'glm-5v-turbo', name: 'GLM-5V Turbo' },
+        ],
+      }),
+    },
+  ];
+}
+
+function createPresets(): ProviderConfigPreset[] {
+  const curatedPresets = createCuratedPresets();
+  const coveredProviderIds = new Set(
+    curatedPresets.flatMap((preset) => [
+      normalizeProviderId(preset.id),
+      normalizeProviderId(preset.draft.providerId),
+    ]),
+  );
+  const templatePresets = listKnownProviderRoutingChannels()
+    .filter((channel) => !coveredProviderIds.has(normalizeProviderId(channel.id)))
+    .map(createTemplatePreset)
+    .sort((left, right) => left.label.localeCompare(right.label));
+
+  return [...curatedPresets, ...templatePresets];
+}
+
+function indexRouteRuntimeMetrics(
+  metrics: LocalAiProxyRouteRuntimeMetrics[] | undefined | null,
+) {
+  return new Map((metrics || []).map((metric) => [metric.routeId, metric] as const));
+}
+
+function indexRouteLatestTests(
+  tests: LocalAiProxyRouteTestRecord[] | undefined | null,
+) {
+  return new Map((tests || []).map((test) => [test.routeId, test] as const));
+}
+
+function attachRouteRuntimeState(
+  records: ProviderConfigRecord[],
+  metrics: LocalAiProxyRouteRuntimeMetrics[] | undefined | null,
+  tests: LocalAiProxyRouteTestRecord[] | undefined | null,
+) {
+  const metricsByRouteId = indexRouteRuntimeMetrics(metrics);
+  const testsByRouteId = indexRouteLatestTests(tests);
+
+  return records.map((record) => ({
+    ...record,
+    runtimeMetrics: metricsByRouteId.get(record.id),
+    latestTest: testsByRouteId.get(record.id) ?? null,
   }));
 }
 
@@ -394,123 +571,42 @@ class ProviderConfigCenterService {
     return createPresets();
   }
 
-  private async resolveStorageProfileId() {
-    const info = await this.dependencies.storageApi.getStorageInfo().catch(() => null);
-    const writableSqliteProfiles =
-      info?.profiles.filter((profile) => profile.provider === 'sqlite' && !profile.readOnly) || [];
+  async listProviderConfigs() {
+    const [records, kernelInfo] = await Promise.all([
+      this.dependencies.providerRoutingApi.listProviderRoutingRecords(),
+      this.dependencies.kernelPlatformService.getInfo(),
+    ]);
 
-    if (writableSqliteProfiles.length > 0) {
-      const activeSqliteProfile = writableSqliteProfiles.find((profile) => profile.active);
-      return activeSqliteProfile?.id || writableSqliteProfiles[0]!.id;
-    }
-
-    return (
-      info?.profiles.find((profile) => profile.id === DEFAULT_SQLITE_PROFILE_ID && !profile.readOnly)
-        ?.id ||
-      info?.profiles.find((profile) => profile.active && !profile.readOnly)?.id ||
-      DEFAULT_SQLITE_PROFILE_ID
+    return attachRouteRuntimeState(
+      records,
+      kernelInfo?.localAiProxy?.routeMetrics,
+      kernelInfo?.localAiProxy?.routeTests,
     );
   }
 
-  async listProviderConfigs() {
-    const profileId = await this.resolveStorageProfileId();
-    const response = await this.dependencies.storageApi.listKeys({
-      profileId,
-      namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-    });
-    const records = await Promise.all(
-      response.keys.map(async (key) => {
-        const entry = await this.dependencies.storageApi.getText({
-          profileId,
-          namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-          key,
-        });
-        return parseStoredRecord(entry.value);
-      }),
-    );
-
-    return sortRecords(records.filter((record): record is ProviderConfigRecord => Boolean(record)));
+  private async syncLocalAiProxyRuntime() {
+    await this.dependencies.kernelPlatformService.ensureRunning();
   }
 
   async saveProviderConfig(input: ProviderConfigDraft & { id?: string }) {
-    const normalized = normalizeDraft(input);
-    if (!normalized.name) {
-      throw new Error('Provider config name is required.');
-    }
-    if (!normalized.providerId) {
-      throw new Error('Provider id is required.');
-    }
-    if (!normalized.defaultModelId) {
-      throw new Error('Default model is required.');
-    }
-    if (normalized.models.length === 0) {
-      throw new Error('At least one model is required.');
-    }
-    if (!normalized.models.some((model) => model.id === normalized.defaultModelId)) {
-      throw new Error('Default model must exist in the model list.');
-    }
-    if (
-      normalized.reasoningModelId &&
-      !normalized.models.some((model) => model.id === normalized.reasoningModelId)
-    ) {
-      throw new Error('Reasoning model must exist in the model list.');
-    }
-    if (
-      normalized.embeddingModelId &&
-      !normalized.models.some((model) => model.id === normalized.embeddingModelId)
-    ) {
-      throw new Error('Embedding model must exist in the model list.');
-    }
-
-    const now = this.dependencies.now();
-    const profileId = await this.resolveStorageProfileId();
-    const existingRecord =
-      input.id && input.id.trim()
-        ? (await this.dependencies.storageApi.getText({
-            profileId,
-            namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-            key: input.id.trim(),
-          }).catch(() => null))
-        : null;
-    const parsedExistingRecord = parseStoredRecord(existingRecord?.value || null);
-    const id = input.id?.trim() || buildRecordId(normalized.providerId, now);
-
-    const record: ProviderConfigRecord = {
-      id,
-      presetId: normalized.presetId,
-      name: normalized.name,
-      providerId: normalized.providerId,
-      baseUrl: normalized.baseUrl,
-      apiKey: normalized.apiKey,
-      defaultModelId: normalized.defaultModelId,
-      reasoningModelId: normalized.reasoningModelId,
-      embeddingModelId: normalized.embeddingModelId,
-      models: normalized.models,
-      notes: normalized.notes,
-      config: normalizeRuntimeConfig(normalized.config),
-      createdAt: parsedExistingRecord?.createdAt || now,
-      updatedAt: now,
-    };
-
-    await this.dependencies.storageApi.putText({
-      profileId,
-      namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-      key: id,
-      value: JSON.stringify(record),
+    const normalizedDraft = normalizeDraft(input);
+    const record = await this.dependencies.providerRoutingApi.saveProviderRoutingRecord({
+      ...normalizedDraft,
+      id: input.id?.trim() || undefined,
     });
-
+    await this.syncLocalAiProxyRuntime();
     return record;
   }
 
   async deleteProviderConfig(id: string) {
-    const profileId = await this.resolveStorageProfileId();
-    const result = await this.dependencies.storageApi.delete({
-      profileId,
-      namespace: PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
-      key: id.trim(),
-    });
+    const existed = await this.dependencies.providerRoutingApi.deleteProviderRoutingRecord(id.trim());
+    await this.syncLocalAiProxyRuntime();
+    return existed;
+  }
 
-    return result.existed;
+  async testProviderConfigRoute(routeId: string) {
+    await this.dependencies.kernelPlatformService.ensureRunning();
+    return this.dependencies.kernelPlatformService.testLocalAiProxyRoute(routeId.trim());
   }
 
   private async resolveApplyInstance(instanceId: string) {
@@ -555,32 +651,29 @@ class ProviderConfigCenterService {
   async applyProviderConfig(input: ApplyProviderConfigInput) {
     const instance = await this.resolveApplyInstance(input.instanceId);
     const record = input.config;
+    await this.dependencies.kernelPlatformService.ensureRunning();
+    const kernelInfo = await this.dependencies.kernelPlatformService.getInfo();
+    const proxyBaseUrl = resolveOpenClawLocalProxyBaseUrl(kernelInfo, record.clientProtocol);
+    if (!proxyBaseUrl) {
+      throw new Error('The local AI proxy is not available for OpenClaw apply.');
+    }
 
-    await this.dependencies.openClawConfigService.saveProviderSelection({
+    const projection = createOpenClawLocalProxyProjection({
+      routes: [record],
+      preferredClientProtocol: record.clientProtocol,
+      proxyBaseUrl,
+      proxyApiKey: OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
+      runtimeConfig: record.config,
+    });
+
+    await this.dependencies.openClawConfigService.saveManagedLocalProxyProjection({
       configPath: instance.configPath,
-      provider: {
-        id: record.providerId,
-        channelId: record.providerId,
-        name: record.name,
-        apiKey: record.apiKey,
-        baseUrl: record.baseUrl,
-        models: record.models.map((model) => ({
-          id: model.id,
-          name: model.name,
-        })),
-        notes: record.notes,
-        config: record.config,
-      },
-      selection: {
-        defaultModelId: record.defaultModelId,
-        reasoningModelId: record.reasoningModelId,
-        embeddingModelId: record.embeddingModelId,
-      },
+      projection,
     });
 
     const agentIds = toUniqueIds(input.agentIds || []);
-    const fallbacks = record.reasoningModelId
-      ? [buildAgentModelRef(record.providerId, record.reasoningModelId)]
+    const fallbacks = projection.selection.reasoningModelId
+      ? [buildAgentModelRef(OPENCLAW_LOCAL_PROXY_PROVIDER_ID, projection.selection.reasoningModelId)]
       : [];
 
     for (const agentId of agentIds) {
@@ -589,7 +682,10 @@ class ProviderConfigCenterService {
         agent: {
           id: agentId,
           model: {
-            primary: buildAgentModelRef(record.providerId, record.defaultModelId),
+            primary: buildAgentModelRef(
+              OPENCLAW_LOCAL_PROXY_PROVIDER_ID,
+              projection.selection.defaultModelId,
+            ),
             fallbacks,
           },
         },
@@ -598,39 +694,64 @@ class ProviderConfigCenterService {
   }
 }
 
-function createDefaultDependencies(): ProviderConfigCenterServiceDependencies {
+function createDefaultDependencies(
+  overrides: ProviderConfigCenterServiceOverrides = {},
+): ProviderConfigCenterServiceDependencies {
+  const routingDefaults = createProviderRoutingCatalogService({
+    storageApi: overrides.storageApi || storage,
+    now: overrides.now || (() => Date.now()),
+  });
+
   return {
-    storageApi: storage,
+    providerRoutingApi: {
+      listProviderRoutingRecords:
+        overrides.providerRoutingApi?.listProviderRoutingRecords ??
+        routingDefaults.listProviderRoutingRecords.bind(routingDefaults),
+      saveProviderRoutingRecord:
+        overrides.providerRoutingApi?.saveProviderRoutingRecord ??
+        routingDefaults.saveProviderRoutingRecord.bind(routingDefaults),
+      deleteProviderRoutingRecord:
+        overrides.providerRoutingApi?.deleteProviderRoutingRecord ??
+        routingDefaults.deleteProviderRoutingRecord.bind(routingDefaults),
+    },
     studioApi: {
       listInstances: () => studio.listInstances(),
       getInstanceDetail: (instanceId) => studio.getInstanceDetail(instanceId),
     },
+    kernelPlatformService: {
+      getInfo: () => kernelPlatformService.getInfo(),
+      ensureRunning: () => kernelPlatformService.ensureRunning(),
+      testLocalAiProxyRoute: (routeId) => kernelPlatformService.testLocalAiProxyRoute(routeId),
+    },
     openClawConfigService: {
       resolveInstanceConfigPath: (detail) => openClawConfigService.resolveInstanceConfigPath(detail),
       readConfigSnapshot: (configPath) => openClawConfigService.readConfigSnapshot(configPath),
-      saveProviderSelection: (input) => openClawConfigService.saveProviderSelection(input),
+      saveManagedLocalProxyProjection: (input) =>
+        openClawConfigService.saveManagedLocalProxyProjection(input),
       saveAgent: (input) => openClawConfigService.saveAgent(input),
     },
-    now: () => Date.now(),
   };
 }
 
 export function createProviderConfigCenterService(
   overrides: ProviderConfigCenterServiceOverrides = {},
 ) {
-  const defaults = createDefaultDependencies();
+  const defaults = createDefaultDependencies(overrides);
 
   return new ProviderConfigCenterService({
-    storageApi: overrides.storageApi || defaults.storageApi,
+    providerRoutingApi: defaults.providerRoutingApi,
     studioApi: {
       ...defaults.studioApi,
       ...(overrides.studioApi || {}),
+    },
+    kernelPlatformService: {
+      ...defaults.kernelPlatformService,
+      ...(overrides.kernelPlatformService || {}),
     },
     openClawConfigService: {
       ...defaults.openClawConfigService,
       ...(overrides.openClawConfigService || {}),
     },
-    now: overrides.now || defaults.now,
   });
 }
 

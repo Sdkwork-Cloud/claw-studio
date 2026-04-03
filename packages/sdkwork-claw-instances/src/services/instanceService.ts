@@ -1,15 +1,17 @@
 import {
   openClawGatewayClient,
   studio,
-  studioMockService,
   type StudioCreateInstanceInput,
   type StudioUpdateInstanceInput,
+  type OpenClawAgentFileResult,
 } from '@sdkwork/claw-infrastructure';
 import type {
+  SaveOpenClawAuthCooldownsConfigurationInput,
   OpenClawAgentInput,
   OpenClawModelSelection,
   OpenClawProviderInput,
   OpenClawProviderModelInput,
+  SaveOpenClawWebSearchConfigurationInput,
 } from '@sdkwork/claw-core';
 import { openClawConfigService } from '@sdkwork/claw-core';
 import type {
@@ -96,15 +98,11 @@ interface InstanceServiceDependencies {
       update: InstanceLLMProviderUpdate,
     ): Promise<boolean>;
   };
-  studioMockService: {
-    updateInstanceFileContent(id: string, fileId: string, content: string): Promise<unknown>;
-    updateInstanceLlmProviderConfig(
-      id: string,
-      providerId: string,
-      update: InstanceLLMProviderUpdate,
-    ): Promise<unknown>;
-  };
   openClawGatewayClient: {
+    getAgentFile(
+      instanceId: string,
+      args: { agentId: string; name: string },
+    ): Promise<OpenClawAgentFileResult>;
     setAgentFile(
       instanceId: string,
       args: { agentId: string; name: string; content: string },
@@ -122,7 +120,6 @@ interface InstanceServiceDependencies {
 
 export interface InstanceServiceDependencyOverrides {
   studioApi?: Partial<InstanceServiceDependencies['studioApi']>;
-  studioMockService?: Partial<InstanceServiceDependencies['studioMockService']>;
   openClawGatewayClient?: Partial<InstanceServiceDependencies['openClawGatewayClient']>;
 }
 
@@ -180,32 +177,6 @@ function mapUpdateInput(data: UpdateInstanceDTO): StudioUpdateInstanceInput {
   };
 }
 
-function normalizeProviderId(providerId: string) {
-  return providerId.startsWith('api-router-')
-    ? providerId.slice('api-router-'.length)
-    : providerId;
-}
-
-const updateMockInstanceLlmProviderConfig =
-  studioMockService['updateInstanceLlmProviderConfig'];
-
-async function resolveManagedOpenClawConfig(id: string) {
-  const detail = await studio.getInstanceDetail(id);
-  if (!detail || detail.instance.runtimeKind !== 'openclaw' || !detail.lifecycle.configWritable) {
-    return null;
-  }
-
-  const configPath = openClawConfigService.resolveInstanceConfigPath(detail);
-  if (!configPath) {
-    return null;
-  }
-
-  return {
-    detail,
-    configPath,
-  };
-}
-
 function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
   return detail?.instance.runtimeKind === 'openclaw';
 }
@@ -216,6 +187,149 @@ function isBuiltInManagedOpenClawDetail(detail: StudioInstanceDetailRecord | nul
     detail.instance.isBuiltIn &&
     detail.instance.deploymentMode === 'local-managed'
   );
+}
+
+function isProviderCenterManagedOpenClawDetail(
+  detail: StudioInstanceDetailRecord | null | undefined,
+) {
+  return (
+    detail?.instance.runtimeKind === 'openclaw' &&
+    detail.instance.deploymentMode !== 'remote'
+  );
+}
+
+function shouldUseStudioBridgeForFileContent(
+  detail: StudioInstanceDetailRecord | null | undefined,
+  fileId: string,
+) {
+  if (isBuiltInManagedOpenClawDetail(detail)) {
+    return true;
+  }
+
+  return Boolean(
+    detail?.workbench?.files.some((file) => file.id === fileId) &&
+      !isOpenClawDetail(detail),
+  );
+}
+
+function shouldUseStudioBridgeForProviderConfig(
+  detail: StudioInstanceDetailRecord | null | undefined,
+  providerId: string,
+) {
+  return Boolean(
+    detail?.workbench?.llmProviders.some((provider) => provider.id === providerId) &&
+      !isOpenClawDetail(detail),
+  );
+}
+
+function createManagedOpenClawProviderControlPlaneError() {
+  return new Error(
+    'Config-backed OpenClaw provider routes are managed through Provider Center.',
+  );
+}
+
+function buildOpenClawModelRef(providerId: string, modelId: string) {
+  return `${providerId.trim()}/${modelId.trim()}`;
+}
+
+function inferOpenClawModelCatalogStreaming(model: Record<string, unknown>) {
+  if (typeof model.role === 'string' && model.role.trim().toLowerCase() === 'embedding') {
+    return false;
+  }
+
+  const id = typeof model.id === 'string' ? model.id.toLowerCase() : '';
+  const name = typeof model.name === 'string' ? model.name.toLowerCase() : '';
+  const api = typeof model.api === 'string' ? model.api.toLowerCase() : '';
+  return !(
+    id.includes('embed') ||
+    name.includes('embed') ||
+    api.includes('embedding')
+  );
+}
+
+function buildOpenClawRuntimeParamsPatch(update: InstanceLLMProviderUpdate) {
+  return {
+    temperature: update.config.temperature,
+    topP: update.config.topP,
+    maxTokens: update.config.maxTokens,
+    timeoutMs: update.config.timeoutMs,
+    streaming: update.config.streaming,
+  };
+}
+
+function buildRemoteOpenClawProviderConfigPatch(
+  providerId: string,
+  update: InstanceLLMProviderUpdate,
+  existingModels: unknown[],
+) {
+  const normalizedProviderId = providerId.trim();
+  const normalizedDefaultModelId = update.defaultModelId.trim();
+  const normalizedReasoningModelId = update.reasoningModelId?.trim() || undefined;
+  const normalizedEmbeddingModelId = update.embeddingModelId?.trim() || undefined;
+  const nextModels = upsertOpenClawProviderModels(
+    existingModels,
+    normalizedDefaultModelId,
+    normalizedReasoningModelId,
+    normalizedEmbeddingModelId,
+  );
+  const defaultsModelsPatch = Object.fromEntries(
+    nextModels.flatMap((model) => {
+      if (!model || typeof model !== 'object' || Array.isArray(model)) {
+        return [];
+      }
+
+      const modelRecord = model as Record<string, unknown>;
+      const modelId = typeof modelRecord.id === 'string' ? modelRecord.id.trim() : '';
+      if (!modelId) {
+        return [];
+      }
+
+      const entry: Record<string, unknown> = {
+        alias:
+          (typeof modelRecord.name === 'string' && modelRecord.name.trim()) ||
+          modelId,
+        streaming: inferOpenClawModelCatalogStreaming(modelRecord),
+      };
+
+      if (modelId === normalizedDefaultModelId) {
+        entry.params = buildOpenClawRuntimeParamsPatch(update);
+      }
+
+      return [[buildOpenClawModelRef(normalizedProviderId, modelId), entry]];
+    }),
+  );
+
+  const defaultsModelPatch: Record<string, unknown> = {
+    primary: buildOpenClawModelRef(normalizedProviderId, normalizedDefaultModelId),
+  };
+  if (normalizedReasoningModelId) {
+    defaultsModelPatch.fallbacks = [
+      buildOpenClawModelRef(normalizedProviderId, normalizedReasoningModelId),
+    ];
+  }
+
+  return {
+    models: {
+      providers: {
+        [normalizedProviderId]: {
+          baseUrl: update.endpoint.trim(),
+          apiKey: update.apiKeySource.trim() || null,
+          temperature: null,
+          topP: null,
+          maxTokens: null,
+          timeoutMs: null,
+          streaming: null,
+          models: nextModels,
+        },
+      },
+    },
+    agents: {
+      defaults: {
+        model: defaultsModelPatch,
+        models: defaultsModelsPatch,
+      },
+    },
+  };
 }
 
 function createDefaultDependencies(): InstanceServiceDependencies {
@@ -238,13 +352,8 @@ function createDefaultDependencies(): InstanceServiceDependencies {
       updateInstanceLlmProviderConfig: (instanceId, providerId, update) =>
         studio.updateInstanceLlmProviderConfig(instanceId, providerId, update),
     },
-    studioMockService: {
-      updateInstanceFileContent: (id, fileId, content) =>
-        studioMockService.updateInstanceFileContent(id, fileId, content),
-      updateInstanceLlmProviderConfig: (id, providerId, update) =>
-        updateMockInstanceLlmProviderConfig.call(studioMockService, id, providerId, update),
-    },
     openClawGatewayClient: {
+      getAgentFile: (instanceId, args) => openClawGatewayClient.getAgentFile(instanceId, args),
       setAgentFile: (instanceId, args) => openClawGatewayClient.setAgentFile(instanceId, args),
       getConfig: (instanceId) => openClawGatewayClient.getConfig(instanceId),
       patchConfig: (instanceId, args) => openClawGatewayClient.patchConfig(instanceId, args),
@@ -268,6 +377,7 @@ export interface IInstanceService {
   getInstanceToken(id: string): Promise<string | undefined>;
   deleteInstance(id: string): Promise<void>;
   getInstanceLogs(id: string): Promise<string>;
+  getInstanceFileContent(id: string, fileId: string): Promise<string>;
   updateInstanceFileContent(id: string, fileId: string, content: string): Promise<void>;
   updateInstanceLlmProviderConfig(
     id: string,
@@ -304,6 +414,14 @@ export interface IInstanceService {
     channelId: string,
     values: Record<string, string>,
   ): Promise<void>;
+  saveOpenClawWebSearchConfig(
+    id: string,
+    input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configPath'>,
+  ): Promise<void>;
+  saveOpenClawAuthCooldownsConfig(
+    id: string,
+    input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
+  ): Promise<void>;
   setOpenClawChannelEnabled(id: string, channelId: string, enabled: boolean): Promise<void>;
 }
 
@@ -312,6 +430,33 @@ class InstanceService implements IInstanceService {
 
   constructor(dependencies: InstanceServiceDependencies) {
     this.dependencies = dependencies;
+  }
+
+  private async resolveManagedOpenClawConfig(
+    id: string,
+    detail?: StudioInstanceDetailRecord | null,
+  ) {
+    const resolvedDetail =
+      detail === undefined
+        ? await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null)
+        : detail;
+    if (
+      !resolvedDetail ||
+      resolvedDetail.instance.runtimeKind !== 'openclaw' ||
+      !resolvedDetail.lifecycle.configWritable
+    ) {
+      return null;
+    }
+
+    const configPath = openClawConfigService.resolveInstanceConfigPath(resolvedDetail);
+    if (!configPath) {
+      return null;
+    }
+
+    return {
+      detail: resolvedDetail,
+      configPath,
+    };
   }
 
   async getList(params: ListParams = {}): Promise<PaginatedResult<Instance>> {
@@ -445,10 +590,38 @@ class InstanceService implements IInstanceService {
     return this.dependencies.studioApi.getInstanceLogs(id);
   }
 
+  async getInstanceFileContent(id: string, fileId: string): Promise<string> {
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+
+    const workbenchFile = detail?.workbench?.files.find((file) => file.id === fileId);
+    if (workbenchFile && (!isOpenClawDetail(detail) || isBuiltInManagedOpenClawDetail(detail))) {
+      return workbenchFile.content;
+    }
+
+    if (isOpenClawDetail(detail)) {
+      const target = parseOpenClawAgentFileId(fileId);
+      if (!target) {
+        return workbenchFile?.content || '';
+      }
+
+      const fetched = await this.dependencies.openClawGatewayClient.getAgentFile(id, {
+        agentId: target.agentId,
+        name: target.name,
+      });
+      return typeof fetched.file?.content === 'string' ? fetched.file.content : '';
+    }
+
+    if (detail) {
+      return workbenchFile?.content || '';
+    }
+
+    throw new Error('The selected file is not available because instance detail is unavailable.');
+  }
+
   async updateInstanceFileContent(id: string, fileId: string, content: string): Promise<void> {
     const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
 
-    if (isBuiltInManagedOpenClawDetail(detail)) {
+    if (shouldUseStudioBridgeForFileContent(detail, fileId)) {
       const updated = await this.dependencies.studioApi.updateInstanceFileContent(id, fileId, content);
       if (!updated) {
         throw new Error('Failed to update instance file');
@@ -470,10 +643,11 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    const updated = await this.dependencies.studioMockService.updateInstanceFileContent(id, fileId, content);
-    if (!updated) {
-      throw new Error('Failed to update instance file');
+    if (detail) {
+      throw new Error('The selected file is not writable through the studio backend.');
     }
+
+    throw new Error('The selected file is not writable because instance detail is unavailable.');
   }
 
   async updateInstanceLlmProviderConfig(
@@ -483,7 +657,11 @@ class InstanceService implements IInstanceService {
   ): Promise<void> {
     const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
 
-    if (isBuiltInManagedOpenClawDetail(detail)) {
+    if (isProviderCenterManagedOpenClawDetail(detail)) {
+      throw createManagedOpenClawProviderControlPlaneError();
+    }
+
+    if (shouldUseStudioBridgeForProviderConfig(detail, providerId)) {
       const updated = await this.dependencies.studioApi.updateInstanceLlmProviderConfig(
         id,
         providerId,
@@ -495,38 +673,9 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, detail);
     if (managedConfig) {
-      const configSnapshot = await openClawConfigService.readConfigSnapshot(managedConfig.configPath);
-      const currentProvider = configSnapshot.providerSnapshots.find(
-        (provider) => provider.id === providerId,
-      );
-
-      if (!currentProvider) {
-        throw new Error('Failed to resolve the config-backed OpenClaw provider configuration.');
-      }
-
-      await openClawConfigService.saveProviderSelection({
-        configPath: managedConfig.configPath,
-        provider: {
-          id: normalizeProviderId(providerId),
-          channelId: currentProvider.provider,
-          name: currentProvider.name,
-          apiKey: update.apiKeySource,
-          baseUrl: update.endpoint,
-          models: currentProvider.models.map((model) => ({
-            id: model.id,
-            name: model.name,
-          })),
-          config: update.config,
-        },
-        selection: {
-          defaultModelId: update.defaultModelId,
-          reasoningModelId: update.reasoningModelId,
-          embeddingModelId: update.embeddingModelId,
-        },
-      });
-      return;
+      throw createManagedOpenClawProviderControlPlaneError();
     }
 
     if (isOpenClawDetail(detail)) {
@@ -534,28 +683,11 @@ class InstanceService implements IInstanceService {
       const providerConfig =
         getObjectValue(snapshot.config, ['models', 'providers', providerId]) || {};
       const existingModels = getArrayValue(providerConfig, ['models']) || [];
-      const nextModels = upsertOpenClawProviderModels(
+      const patch = buildRemoteOpenClawProviderConfigPatch(
+        providerId,
+        update,
         existingModels,
-        update.defaultModelId,
-        update.reasoningModelId,
-        update.embeddingModelId,
       );
-      const patch = {
-        models: {
-          providers: {
-            [providerId]: {
-              baseUrl: update.endpoint.trim(),
-              apiKey: update.apiKeySource.trim() || null,
-              temperature: update.config.temperature,
-              topP: update.config.topP,
-              maxTokens: update.config.maxTokens,
-              timeoutMs: update.config.timeoutMs,
-              streaming: update.config.streaming,
-              models: nextModels,
-            },
-          },
-        },
-      };
 
       const result = await this.dependencies.openClawGatewayClient.patchConfig(id, {
         raw: JSON.stringify(patch, null, 2),
@@ -567,14 +699,13 @@ class InstanceService implements IInstanceService {
       return;
     }
 
-    const updated = await this.dependencies.studioMockService['updateInstanceLlmProviderConfig'](
-      id,
-      providerId,
-      update,
-    );
-    if (!updated) {
-      throw new Error('Failed to update LLM provider config');
+    if (detail) {
+      throw new Error('The selected provider is not writable through the studio backend.');
     }
+
+    throw new Error(
+      'The selected provider is not writable because instance detail is unavailable.',
+    );
   }
 
   async createInstanceLlmProvider(
@@ -582,28 +713,34 @@ class InstanceService implements IInstanceService {
     provider: OpenClawProviderInput,
     selection: OpenClawModelSelection,
   ): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+    if (isProviderCenterManagedOpenClawDetail(detail)) {
+      throw createManagedOpenClawProviderControlPlaneError();
+    }
+
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, detail);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-    await openClawConfigService.saveProviderSelection({
-      configPath: managedConfig.configPath,
-      provider,
-      selection,
-    });
+    void provider;
+    void selection;
+    throw createManagedOpenClawProviderControlPlaneError();
   }
 
   async deleteInstanceLlmProvider(id: string, providerId: string): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+    if (isProviderCenterManagedOpenClawDetail(detail)) {
+      throw createManagedOpenClawProviderControlPlaneError();
+    }
+
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, detail);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-      await openClawConfigService.deleteProvider({
-        configPath: managedConfig.configPath,
-        providerId: normalizeProviderId(providerId),
-      });
+    void providerId;
+    throw createManagedOpenClawProviderControlPlaneError();
   }
 
   async createInstanceLlmProviderModel(
@@ -611,16 +748,19 @@ class InstanceService implements IInstanceService {
     providerId: string,
     model: OpenClawProviderModelInput,
   ): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+    if (isProviderCenterManagedOpenClawDetail(detail)) {
+      throw createManagedOpenClawProviderControlPlaneError();
+    }
+
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, detail);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-      await openClawConfigService.createProviderModel({
-        configPath: managedConfig.configPath,
-        providerId: normalizeProviderId(providerId),
-        model,
-      });
+    void providerId;
+    void model;
+    throw createManagedOpenClawProviderControlPlaneError();
   }
 
   async updateInstanceLlmProviderModel(
@@ -629,17 +769,20 @@ class InstanceService implements IInstanceService {
     modelId: string,
     model: OpenClawProviderModelInput,
   ): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+    if (isProviderCenterManagedOpenClawDetail(detail)) {
+      throw createManagedOpenClawProviderControlPlaneError();
+    }
+
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, detail);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-      await openClawConfigService.updateProviderModel({
-        configPath: managedConfig.configPath,
-        providerId: normalizeProviderId(providerId),
-        modelId,
-        model,
-      });
+    void providerId;
+    void modelId;
+    void model;
+    throw createManagedOpenClawProviderControlPlaneError();
   }
 
   async deleteInstanceLlmProviderModel(
@@ -647,20 +790,23 @@ class InstanceService implements IInstanceService {
     providerId: string,
     modelId: string,
   ): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const detail = await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null);
+    if (isProviderCenterManagedOpenClawDetail(detail)) {
+      throw createManagedOpenClawProviderControlPlaneError();
+    }
+
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, detail);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
 
-      await openClawConfigService.deleteProviderModel({
-        configPath: managedConfig.configPath,
-        providerId: normalizeProviderId(providerId),
-        modelId,
-      });
+    void providerId;
+    void modelId;
+    throw createManagedOpenClawProviderControlPlaneError();
   }
 
   async createOpenClawAgent(id: string, agent: OpenClawAgentInput): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
@@ -672,7 +818,7 @@ class InstanceService implements IInstanceService {
   }
 
   async updateOpenClawAgent(id: string, agent: OpenClawAgentInput): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
@@ -684,7 +830,7 @@ class InstanceService implements IInstanceService {
   }
 
   async deleteOpenClawAgent(id: string, agentId: string): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
@@ -700,7 +846,7 @@ class InstanceService implements IInstanceService {
     channelId: string,
     values: Record<string, string>,
   ): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
@@ -713,12 +859,42 @@ class InstanceService implements IInstanceService {
     });
   }
 
+  async saveOpenClawWebSearchConfig(
+    id: string,
+    input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configPath'>,
+  ): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.saveWebSearchConfiguration({
+      configPath: managedConfig.configPath,
+      ...input,
+    });
+  }
+
+  async saveOpenClawAuthCooldownsConfig(
+    id: string,
+    input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
+  ): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    await openClawConfigService.saveAuthCooldownsConfiguration({
+      configPath: managedConfig.configPath,
+      ...input,
+    });
+  }
+
   async setOpenClawChannelEnabled(
     id: string,
     channelId: string,
     enabled: boolean,
   ): Promise<void> {
-    const managedConfig = await resolveManagedOpenClawConfig(id);
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
     if (!managedConfig) {
       throw new Error('Writable OpenClaw config file is not available for this instance.');
     }
@@ -740,10 +916,6 @@ export function createInstanceService(
     studioApi: {
       ...defaults.studioApi,
       ...(overrides.studioApi || {}),
-    },
-    studioMockService: {
-      ...defaults.studioMockService,
-      ...(overrides.studioMockService || {}),
     },
     openClawGatewayClient: {
       ...defaults.openClawGatewayClient,

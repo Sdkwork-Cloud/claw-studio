@@ -63,8 +63,25 @@ export function GeneralSettings() {
   const { t } = useTranslation();
 
   useEffect(() => {
-    settingsService.getPreferences().then((preferences) => setPrefs(preferences.general));
-  }, []);
+    let cancelled = false;
+
+    void settingsService
+      .getPreferences()
+      .then((preferences) => {
+        if (!cancelled) {
+          setPrefs(preferences.general);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error(t('settings.general.updatePreferenceFailed'));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   const handleToggle = async (key: keyof UserPreferences['general']) => {
     if (!prefs) {
@@ -76,7 +93,7 @@ export function GeneralSettings() {
 
     try {
       await settingsService.updatePreferences({ general: nextPrefs });
-    } catch (error) {
+    } catch {
       setPrefs(prefs);
       toast.error(t('settings.general.updatePreferenceFailed'));
     }
@@ -100,7 +117,6 @@ export function GeneralSettings() {
     { id: 'kernel', label: t('sidebar.kernelCenter') },
     { id: 'nodes', label: t('sidebar.nodes') },
     { id: 'instances', label: t('sidebar.instances') },
-    { id: 'api-router', label: t('sidebar.apiRouter') },
   ];
 
   return (
@@ -114,155 +130,172 @@ export function GeneralSettings() {
         </p>
       </div>
 
-      <div className="space-y-6">
-        <Section title={t('settings.general.appearance')}>
-          <div className="space-y-6">
-            <div>
-              <div className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                {t('settings.general.themeMode')}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
+        <div className="space-y-6">
+          <Section title={t('settings.general.appearance')}>
+            <div className="space-y-6">
+              <div>
+                <div className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  {t('settings.general.themeMode')}
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <ThemeOption
+                    icon={Sun}
+                    label={t('settings.general.themeModes.light')}
+                    active={themeMode === 'light'}
+                    onClick={() => setThemeMode('light')}
+                  />
+                  <ThemeOption
+                    icon={Moon}
+                    label={t('settings.general.themeModes.dark')}
+                    active={themeMode === 'dark'}
+                    onClick={() => setThemeMode('dark')}
+                  />
+                  <ThemeOption
+                    icon={Laptop}
+                    label={t('settings.general.themeModes.system')}
+                    active={themeMode === 'system'}
+                    onClick={() => setThemeMode('system')}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <ThemeOption
-                  icon={Sun}
-                  label={t('settings.general.themeModes.light')}
-                  active={themeMode === 'light'}
-                  onClick={() => setThemeMode('light')}
-                />
-                <ThemeOption
-                  icon={Moon}
-                  label={t('settings.general.themeModes.dark')}
-                  active={themeMode === 'dark'}
-                  onClick={() => setThemeMode('dark')}
-                />
-                <ThemeOption
-                  icon={Laptop}
-                  label={t('settings.general.themeModes.system')}
-                  active={themeMode === 'system'}
-                  onClick={() => setThemeMode('system')}
-                />
+
+              <div>
+                <div className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  {t('settings.general.themeColor')}
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+                  {THEME_COLORS.map((color) => (
+                    <button
+                      key={color.id}
+                      onClick={() => setThemeColor(color.id)}
+                      className="group relative flex flex-col items-center gap-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 transition-all hover:border-zinc-300 hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                    >
+                      <div
+                        className={`flex h-11 w-11 items-center justify-center rounded-full ${color.colorClass} shadow-sm ring-2 ring-offset-2 transition-all dark:ring-offset-zinc-950 ${
+                          themeColor === color.id
+                            ? 'scale-110 ring-zinc-900 dark:ring-zinc-100'
+                            : 'ring-transparent group-hover:scale-105'
+                        }`}
+                      >
+                        {themeColor === color.id ? (
+                          <Check className="h-5 w-5 text-white" />
+                        ) : null}
+                      </div>
+                      <span
+                        className={`text-center text-xs font-medium ${
+                          themeColor === color.id
+                            ? 'text-zinc-900 dark:text-zinc-100'
+                            : 'text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-300'
+                        }`}
+                      >
+                        {t(color.labelKey)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+          </Section>
 
-            <div>
-              <div className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                {t('settings.general.themeColor')}
-              </div>
-              <div className="flex flex-wrap gap-4">
-                {THEME_COLORS.map((color) => (
-                  <button
-                    key={color.id}
-                    onClick={() => setThemeColor(color.id)}
-                    className="group relative flex flex-col items-center gap-2"
+          <Section title={t('settings.general.sidebarNavigation')}>
+            <div className="space-y-4">
+              <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+                {t('settings.general.sidebarDescription')}
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {sidebarItems.map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 p-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
                   >
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-full ${color.colorClass} shadow-sm ring-2 ring-offset-2 transition-all dark:ring-offset-zinc-950 ${
-                        themeColor === color.id
-                          ? 'scale-110 ring-zinc-900 dark:ring-zinc-100'
-                          : 'ring-transparent hover:scale-105'
-                      }`}
-                    >
-                      {themeColor === color.id ? (
-                        <Check className="h-5 w-5 text-white" />
-                      ) : null}
-                    </div>
-                    <span
-                      className={`text-xs font-medium ${
-                        themeColor === color.id
-                          ? 'text-zinc-900 dark:text-zinc-100'
-                          : 'text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-300'
-                      }`}
-                    >
-                      {t(color.labelKey)}
+                    <Checkbox
+                      checked={!hiddenSidebarItems.includes(item.id)}
+                      onCheckedChange={() => toggleSidebarItem(item.id)}
+                    />
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      {item.label}
                     </span>
-                  </button>
+                  </label>
                 ))}
               </div>
             </div>
-          </div>
-        </Section>
+          </Section>
+        </div>
 
-        <Section title={t('settings.general.languageRegion')}>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
-                  <Globe className="h-5 w-5 text-zinc-500 dark:text-zinc-400" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {t('settings.general.language')}
+        <div className="space-y-6">
+          <Section title={t('settings.general.languageRegion')}>
+            <div className="space-y-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+                    <Globe className="h-5 w-5 text-zinc-500 dark:text-zinc-400" />
                   </div>
-                  <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {t('settings.general.languageDescription')}
+                  <div>
+                    <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {t('settings.general.language')}
+                    </div>
+                    <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {t('settings.general.languageDescription')}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <Select
-                value={languagePreference}
-                onValueChange={(value) => setLanguage(value as LanguagePreference)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="system">
-                    {t('settings.general.themeModes.system')}
-                  </SelectItem>
-                  {supportedLanguages.map((supportedLanguage) => (
-                    <SelectItem key={supportedLanguage} value={supportedLanguage}>
-                      {LANGUAGE_LABELS[supportedLanguage]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </Section>
-
-        <Section title={t('settings.general.sidebarNavigation')}>
-          <div className="space-y-4">
-            <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
-              {t('settings.general.sidebarDescription')}
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {sidebarItems.map((item) => (
-                <label
-                  key={item.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 p-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
+                <Select
+                  value={languagePreference}
+                  onValueChange={(value) => setLanguage(value as LanguagePreference)}
                 >
-                  <Checkbox
-                    checked={!hiddenSidebarItems.includes(item.id)}
-                    onCheckedChange={() => toggleSidebarItem(item.id)}
-                  />
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    {item.label}
-                  </span>
-                </label>
-              ))}
+                  <SelectTrigger className="w-full sm:w-[220px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system">
+                      {t('settings.general.themeModes.system')}
+                    </SelectItem>
+                    {supportedLanguages.map((supportedLanguage) => (
+                      <SelectItem key={supportedLanguage} value={supportedLanguage}>
+                        {LANGUAGE_LABELS[supportedLanguage]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </Section>
+          </Section>
 
-        <Section title={t('settings.general.startup')}>
-          <div className="space-y-4">
-            {prefs ? (
-              <>
+          <Section title={t('settings.general.startup')}>
+            <div className="space-y-4">
+              {prefs ? (
+                <>
+                  <ToggleRow
+                    title={t('settings.general.launchOnStartup')}
+                    description={t('settings.general.launchOnStartupDescription')}
+                    enabled={prefs.launchOnStartup}
+                    onToggle={() => handleToggle('launchOnStartup')}
+                  />
+                  <ToggleRow
+                    title={t('settings.general.startMinimized')}
+                    description={t('settings.general.startMinimizedDescription')}
+                    enabled={prefs.startMinimized}
+                    onToggle={() => handleToggle('startMinimized')}
+                  />
+                </>
+              ) : null}
+            </div>
+          </Section>
+
+          <Section title={t('settings.general.chatComposer')}>
+            <div className="space-y-4">
+              {prefs ? (
                 <ToggleRow
-                  title={t('settings.general.launchOnStartup')}
-                  description={t('settings.general.launchOnStartupDescription')}
-                  enabled={prefs.launchOnStartup}
-                  onToggle={() => handleToggle('launchOnStartup')}
+                  title={t('settings.general.compactModelSelector')}
+                  description={t('settings.general.compactModelSelectorDescription')}
+                  enabled={prefs.compactModelSelector}
+                  onToggle={() => handleToggle('compactModelSelector')}
                 />
-                <ToggleRow
-                  title={t('settings.general.startMinimized')}
-                  description={t('settings.general.startMinimizedDescription')}
-                  enabled={prefs.startMinimized}
-                  onToggle={() => handleToggle('startMinimized')}
-                />
-              </>
-            ) : null}
-          </div>
-        </Section>
+              ) : null}
+            </div>
+          </Section>
+        </div>
       </div>
     </div>
   );

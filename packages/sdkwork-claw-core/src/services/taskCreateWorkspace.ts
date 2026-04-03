@@ -18,6 +18,7 @@ export type TaskCreateFieldId =
   | 'model'
   | 'thinking'
   | 'lightContext'
+  | 'toolAllowlist'
   | 'deliveryMode'
   | 'deliveryBestEffort'
   | 'deliveryChannel'
@@ -77,6 +78,7 @@ const runtimeFieldIds: TaskCreateFieldId[] = [
   'model',
   'thinking',
   'lightContext',
+  'toolAllowlist',
 ];
 
 const deliveryFieldIds: TaskCreateFieldId[] = [

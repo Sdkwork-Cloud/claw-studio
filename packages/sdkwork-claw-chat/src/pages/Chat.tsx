@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
+  ArrowDown,
   AlertCircle,
   Check,
   ChevronDown,
@@ -14,10 +15,8 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useInstanceStore } from '@sdkwork/claw-core';
-import { Input } from '@sdkwork/claw-ui';
-import { marketService } from '@sdkwork/claw-market';
-import { useLLMStore } from '@sdkwork/claw-settings';
+import { clawHubService, settingsService, useInstanceStore, useLLMStore } from '@sdkwork/claw-core';
+import { cn, Input } from '@sdkwork/claw-ui';
 import { type Agent, type Skill } from '@sdkwork/claw-types';
 import { ChatInput } from '../components/ChatInput';
 import { ChatMessage } from '../components/ChatMessage';
@@ -26,11 +25,26 @@ import {
   agentService,
   composeOutgoingChatText,
   chatService,
+  groupChatMessagesForDisplay,
   instanceEffectiveModelCatalogService,
+  isChatViewportNearBottom,
   openClawChatAgentCatalogService,
+  presentChatHeader,
+  presentChatMessageGroupFooter,
+  resolveChatAutoScrollDecision,
   resolveChatBootstrapAction,
-  resolveOpenClawCreateSessionTarget,
+  resolveChatMessageRenderKey,
+  resolveChatSendSessionId,
+  resolveChatSessionViewState,
+  resolveGatewayVisibleSessionSyncTarget,
+  resolveNewChatSessionModel,
+  resolveOpenClawDraftSessionId,
 } from '../services';
+import {
+  shouldLoadChatDirectAgents,
+  shouldLoadChatSkills,
+} from './chatHydrationPolicy';
+import { resolveChatGenerationViewState } from './chatGenerationViewPolicy';
 import type { ChatComposerSubmitPayload } from '../types/index.ts';
 import { useChatStore } from '../store/useChatStore';
 
@@ -65,11 +79,13 @@ function createFallbackGatewayChannel(modelId: string) {
 }
 
 export function Chat() {
+  const [compactModelSelector, setCompactModelSelector] = useState(true);
   const { activeInstanceId } = useInstanceStore();
   const {
     sessions,
     activeSessionIdByInstance,
     syncStateByInstance,
+    gatewayConnectionStatusByInstance,
     lastErrorByInstance,
     instanceRouteModeById,
     hydrateInstance,
@@ -83,7 +99,7 @@ export function Chat() {
     setGatewaySessionModel,
   } = useChatStore();
   const { setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const appName = t('common.productName');
   const suggestions = [
     t('chat.page.suggestions.quantum'),
@@ -92,7 +108,7 @@ export function Chat() {
     t('chat.page.suggestions.email'),
   ];
 
-  const [isTyping, setIsTyping] = useState(false);
+  const [pendingSendSessionId, setPendingSendSessionId] = useState<string | null>(null);
   const [showSkillDropdown, setShowSkillDropdown] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
@@ -100,23 +116,61 @@ export function Chat() {
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
   const [agentSearchQuery, setAgentSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [composerSurfaceHeight, setComposerSurfaceHeight] = useState(0);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatRef = useRef<any>(null);
+  const messagesScrollContainerRef = useRef<HTMLDivElement>(null);
+  const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const chatHasAutoScrolledRef = useRef(false);
+  const chatUserNearBottomRef = useRef(true);
+  const chatScrollRetryTimeoutRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const navigate = useNavigate();
-
-  const { data: skills = EMPTY_SKILLS } = useQuery<Skill[]>({
-    queryKey: ['skills'],
-    queryFn: () => marketService.getSkills(),
+  const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
+  const activeChannelId = instanceConfig?.activeChannelId || '';
+  const activeModelId = instanceConfig?.activeModelId || '';
+  const scopeKey = getScopeKey(activeInstanceId);
+  const activeSessionId = activeSessionIdByInstance[scopeKey] ?? null;
+  const syncState = syncStateByInstance[scopeKey] ?? 'idle';
+  const routeMode = activeInstanceId ? instanceRouteModeById[activeInstanceId] : 'directLlm';
+  const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';
+  const gatewayConnectionStatus =
+    gatewayConnectionStatusByInstance[scopeKey] ?? (isOpenClawGateway ? 'disconnected' : null);
+  const lastError = lastErrorByInstance[scopeKey];
+  const shouldLoadSkillCatalog = shouldLoadChatSkills({
+    showSkillDropdown,
+    selectedSkillId,
+  });
+  const shouldLoadDirectAgentCatalog = shouldLoadChatDirectAgents({
+    activeInstanceId,
+    isOpenClawGateway,
+    showAgentDropdown,
+    selectedAgentId,
   });
 
-  const { data: agents = EMPTY_AGENTS } = useQuery<Agent[]>({
-    queryKey: ['agents'],
-    queryFn: () => agentService.getAgents(),
+  const {
+    data: skills = EMPTY_SKILLS,
+    isFetching: isSkillsFetching,
+  } = useQuery<Skill[]>({
+    queryKey: ['skills'],
+    enabled: shouldLoadSkillCatalog,
+    staleTime: 30_000,
+    queryFn: () => clawHubService.listSkills(),
+  });
+
+  const {
+    data: agents = EMPTY_AGENTS,
+    isFetched: isDirectAgentsFetched,
+    isFetching: isDirectAgentsFetching,
+  } = useQuery<Agent[]>({
+    queryKey: ['agents', activeInstanceId],
+    enabled: shouldLoadDirectAgentCatalog,
+    staleTime: 30_000,
+    queryFn: () => agentService.getAgents(activeInstanceId ?? undefined),
   });
   const {
     data: openClawAgentCatalog,
+    isFetched: isOpenClawAgentCatalogFetched,
   } = useQuery({
     queryKey: ['chat', 'openclaw-agent-catalog', activeInstanceId],
     enabled: Boolean(activeInstanceId),
@@ -132,16 +186,6 @@ export function Chat() {
       return openClawChatAgentCatalogService.getCatalog(activeInstanceId);
     },
   });
-
-  const instanceConfig = activeInstanceId ? getInstanceConfig(activeInstanceId) : null;
-  const activeChannelId = instanceConfig?.activeChannelId || '';
-  const activeModelId = instanceConfig?.activeModelId || '';
-  const scopeKey = getScopeKey(activeInstanceId);
-  const activeSessionId = activeSessionIdByInstance[scopeKey] ?? null;
-  const syncState = syncStateByInstance[scopeKey] ?? 'idle';
-  const lastError = lastErrorByInstance[scopeKey];
-  const routeMode = activeInstanceId ? instanceRouteModeById[activeInstanceId] : 'directLlm';
-  const isOpenClawGateway = routeMode === 'instanceOpenClawGatewayWs';
   const visibleAgents =
     isOpenClawGateway ? openClawAgentCatalog?.agents ?? EMPTY_AGENTS : agents;
   const defaultOpenClawAgentId =
@@ -153,7 +197,25 @@ export function Chat() {
     (session) =>
       session.instanceId === activeInstanceId || (!session.instanceId && !activeInstanceId),
   );
-  const activeSession = instanceSessions.find((session) => session.id === activeSessionId);
+  const {
+    selectableSessions: selectableInstanceSessions,
+    effectiveActiveSessionId,
+  } = useMemo(
+    () =>
+      resolveChatSessionViewState({
+        sessions: instanceSessions,
+        activeSessionId,
+        isOpenClawGateway,
+        openClawAgentId: effectiveGatewayAgentId,
+      }),
+    [activeSessionId, effectiveGatewayAgentId, instanceSessions, isOpenClawGateway],
+  );
+  const activeSession = selectableInstanceSessions.find(
+    (session) => session.id === effectiveActiveSessionId,
+  );
+  const runningSessionId = isOpenClawGateway
+    ? instanceSessions.find((session) => Boolean(session.runId))?.id ?? null
+    : null;
   const sessionSelectedModelId =
     isOpenClawGateway && activeSession
       ? activeSession.model || activeSession.defaultModel || null
@@ -177,23 +239,6 @@ export function Chat() {
       );
     },
   });
-  const openClawCreateTarget = useMemo(
-    () =>
-      isOpenClawGateway
-        ? resolveOpenClawCreateSessionTarget({
-            agentId: effectiveGatewayAgentId,
-            activeSessionId,
-            sessions: instanceSessions.map((session) => ({
-              id: session.id,
-              isDraft: session.isDraft,
-            })),
-          })
-        : null,
-    [activeSessionId, effectiveGatewayAgentId, instanceSessions, isOpenClawGateway],
-  );
-  const openClawTargetSessionId =
-    openClawCreateTarget?.type === 'select' ? openClawCreateTarget.sessionId : null;
-
   const catalogChannels = modelCatalog?.channels ?? [];
   const channels = useMemo(() => {
     if (catalogChannels.length > 0) {
@@ -207,8 +252,18 @@ export function Chat() {
     return [];
   }, [catalogChannels, sessionSelectedModelId]);
   const activeMessages = Array.isArray(activeSession?.messages) ? activeSession.messages : [];
+  const activeMessageGroups = useMemo(
+    () => groupChatMessagesForDisplay(activeMessages),
+    [activeMessages],
+  );
   const gatewayStreaming = isOpenClawGateway ? Boolean(activeSession?.runId) : false;
-  const isBusy = isTyping || gatewayStreaming;
+  const { isActiveSessionGenerating, isComposerLocked, stopSessionId } = resolveChatGenerationViewState({
+    effectiveActiveSessionId,
+    pendingSendSessionId,
+    activeSessionRunId: activeSession?.runId ?? null,
+    runningSessionId,
+  });
+  const isBusy = isComposerLocked;
 
   const preferredModelId = sessionSelectedModelId || activeModelId || '';
   const channelFromPreferredModel = preferredModelId
@@ -222,11 +277,82 @@ export function Chat() {
       : undefined) ||
     activeChannel?.models.find((model) => model.id === activeModelId) ||
     activeChannel?.models[0];
+  const newSessionModel = resolveNewChatSessionModel({
+    isOpenClawGateway,
+    activeModelId: activeModel?.id,
+    activeModelName: activeModel?.name,
+  });
   const activeSkill = skills.find((skill) => skill.id === selectedSkillId);
   const activeAgent = visibleAgents.find((agent) => agent.id === effectiveGatewayAgentId);
+  const headerPresentation = useMemo(
+    () =>
+      presentChatHeader({
+        activeSession,
+        isOpenClawGateway,
+        gatewayConnectionStatus,
+        syncState,
+        activeAgentName: activeAgent?.name ?? null,
+        activeModelName: activeModel?.name ?? null,
+        isActiveSessionGenerating,
+      }),
+    [
+      activeAgent?.name,
+      activeModel?.name,
+      activeSession,
+      gatewayConnectionStatus,
+      isActiveSessionGenerating,
+      isOpenClawGateway,
+      syncState,
+    ],
+  );
   const effectiveLastError =
     lastError ||
     (modelCatalogError instanceof Error ? modelCatalogError.message : undefined);
+  const headerStatusLabel = t(`chat.page.headerStatus.${headerPresentation.status}`);
+  const headerStatusClassName = cn(
+    'inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium',
+    headerPresentation.status === 'responding'
+      ? 'text-primary-700 dark:text-primary-300'
+      : headerPresentation.status === 'connected'
+        ? 'text-emerald-700 dark:text-emerald-300'
+        : headerPresentation.status === 'reconnecting'
+          ? 'text-amber-700 dark:text-amber-300'
+          : headerPresentation.status === 'disconnected'
+            ? 'text-rose-700 dark:text-rose-300'
+            : 'text-zinc-500 dark:text-zinc-400',
+  );
+  const headerStatusDotClassName = cn(
+    'h-1.5 w-1.5 rounded-full',
+    headerPresentation.status === 'responding'
+      ? 'animate-pulse bg-primary-500 dark:bg-primary-300'
+      : headerPresentation.status === 'connected'
+        ? 'bg-emerald-500 dark:bg-emerald-300'
+        : headerPresentation.status === 'reconnecting'
+          ? 'animate-pulse bg-amber-500 dark:bg-amber-300'
+          : headerPresentation.status === 'disconnected'
+            ? 'bg-rose-500 dark:bg-rose-300'
+            : 'bg-zinc-400 dark:bg-zinc-500',
+  );
+  const hasResolvedVisibleAgents = isOpenClawGateway
+    ? !activeInstanceId || isOpenClawAgentCatalogFetched
+    : !shouldLoadDirectAgentCatalog || isDirectAgentsFetched;
+  const isAgentSelectorLoading =
+    showAgentDropdown &&
+    (
+      (isOpenClawGateway &&
+        Boolean(activeInstanceId) &&
+        !isOpenClawAgentCatalogFetched &&
+        visibleAgents.length === 0) ||
+      (!isOpenClawGateway &&
+        shouldLoadDirectAgentCatalog &&
+        isDirectAgentsFetching &&
+        agents.length === 0)
+    );
+  const isSkillSelectorLoading =
+    showSkillDropdown &&
+    shouldLoadSkillCatalog &&
+    isSkillsFetching &&
+    skills.length === 0;
 
   const filteredSkills = useMemo(() => {
     if (!skillSearchQuery) {
@@ -253,26 +379,75 @@ export function Chat() {
         agent.description.toLowerCase().includes(lowerQuery),
     );
   }, [visibleAgents, agentSearchQuery]);
+  const groupTimeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(i18n.language, {
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+    [i18n.language],
+  );
+  const messageListBottomPadding = `calc(${composerSurfaceHeight + 32}px + env(safe-area-inset-bottom))`;
+  const emptyStateBottomPadding = `calc(${composerSurfaceHeight + 52}px + env(safe-area-inset-bottom))`;
 
   useEffect(() => {
-    if (selectedAgentId && !visibleAgents.some((agent) => agent.id === selectedAgentId)) {
+    let cancelled = false;
+
+    void settingsService
+      .getPreferences()
+      .then((preferences) => {
+        if (!cancelled) {
+          setCompactModelSelector(preferences.general.compactModelSelector);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCompactModelSelector(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const composerSurface = composerSurfaceRef.current;
+    if (!composerSurface) {
+      setComposerSurfaceHeight(0);
+      return;
+    }
+
+    const updateComposerSurfaceHeight = (height: number) => {
+      setComposerSurfaceHeight((current) => (current === height ? current : height));
+    };
+
+    updateComposerSurfaceHeight(Math.ceil(composerSurface.getBoundingClientRect().height));
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      updateComposerSurfaceHeight(Math.ceil(entry.contentRect.height));
+    });
+
+    resizeObserver.observe(composerSurface);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      selectedAgentId &&
+      hasResolvedVisibleAgents &&
+      !visibleAgents.some((agent) => agent.id === selectedAgentId)
+    ) {
       setSelectedAgentId(null);
     }
-  }, [selectedAgentId, visibleAgents]);
-
-  useEffect(() => {
-    if (isOpenClawGateway) {
-      chatRef.current = null;
-      return;
-    }
-
-    if (activeChannel?.provider === 'google' && activeModel) {
-      chatRef.current = chatService.createChatSession(activeModel.id, activeSkill, activeAgent);
-      return;
-    }
-
-    chatRef.current = null;
-  }, [activeAgent, activeChannel, activeModel, activeSkill, isOpenClawGateway]);
+  }, [hasResolvedVisibleAgents, selectedAgentId, visibleAgents]);
 
   useEffect(() => {
     void hydrateInstance(activeInstanceId);
@@ -307,39 +482,6 @@ export function Chat() {
     sessionSelectedModelId,
     setActiveChannel,
     setActiveModel,
-  ]);
-
-  const lastOpenClawAgentScopeRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!isOpenClawGateway || !activeInstanceId || syncState === 'loading') {
-      lastOpenClawAgentScopeRef.current = null;
-      return;
-    }
-
-    const scopeKey = `${activeInstanceId}:${effectiveGatewayAgentId || 'main'}`;
-    if (lastOpenClawAgentScopeRef.current === scopeKey) {
-      return;
-    }
-    lastOpenClawAgentScopeRef.current = scopeKey;
-
-    if (openClawTargetSessionId) {
-      if (activeSessionId !== openClawTargetSessionId) {
-        void setActiveSession(openClawTargetSessionId, activeInstanceId);
-      }
-      return;
-    }
-
-    if (activeSessionId !== null) {
-      void setActiveSession(null, activeInstanceId);
-    }
-  }, [
-    activeInstanceId,
-    activeSessionId,
-    effectiveGatewayAgentId,
-    isOpenClawGateway,
-    openClawTargetSessionId,
-    setActiveSession,
-    syncState,
   ]);
 
   const lastOpenClawModelScopeRef = useRef<string | null>(null);
@@ -390,8 +532,8 @@ export function Chat() {
       routeMode,
       syncState,
       hasActiveModel: Boolean(activeModel),
-      activeSessionId,
-      sessionIds: instanceSessions.map((session) => session.id),
+      activeSessionId: effectiveActiveSessionId,
+      sessionIds: selectableInstanceSessions.map((session) => session.id),
     });
 
     if (bootstrapAction.type === 'create' && activeModel) {
@@ -408,17 +550,174 @@ export function Chat() {
   }, [
     activeInstanceId,
     activeModel,
-    activeSessionId,
+    effectiveActiveSessionId,
     createSession,
-    instanceSessions,
+    isOpenClawGateway,
     routeMode,
     setActiveSession,
+    selectableInstanceSessions,
     syncState,
   ]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeMessages, isBusy]);
+    if (!activeInstanceId) {
+      return;
+    }
+
+    const syncTarget = resolveGatewayVisibleSessionSyncTarget({
+      isOpenClawGateway,
+      activeSessionId,
+      effectiveActiveSessionId,
+    });
+    if (!syncTarget) {
+      return;
+    }
+
+    void setActiveSession(syncTarget, activeInstanceId);
+  }, [
+    activeInstanceId,
+    activeSessionId,
+    effectiveActiveSessionId,
+    isOpenClawGateway,
+    setActiveSession,
+  ]);
+
+  const clearChatScrollRetry = () => {
+    if (chatScrollRetryTimeoutRef.current !== null) {
+      window.clearTimeout(chatScrollRetryTimeoutRef.current);
+      chatScrollRetryTimeoutRef.current = null;
+    }
+  };
+
+  const scrollChatToLatest = (force = false) => {
+    const container = messagesScrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const decision = resolveChatAutoScrollDecision({
+      force,
+      hasAutoScrolled: chatHasAutoScrolledRef.current,
+      userNearBottom: chatUserNearBottomRef.current,
+      scrollHeight: container.scrollHeight,
+      scrollTop: container.scrollTop,
+      clientHeight: container.clientHeight,
+    });
+    chatHasAutoScrolledRef.current = decision.nextHasAutoScrolled;
+
+    if (!decision.shouldScroll) {
+      setShowJumpToLatest(decision.showJumpToLatest);
+      return;
+    }
+
+    const applyScroll = (behavior: ScrollBehavior) => {
+      const target = messagesScrollContainerRef.current;
+      if (!target) {
+        return;
+      }
+
+      if (typeof target.scrollTo === 'function') {
+        target.scrollTo({
+          top: target.scrollHeight,
+          behavior,
+        });
+      } else {
+        target.scrollTop = target.scrollHeight;
+      }
+
+      chatUserNearBottomRef.current = true;
+      setShowJumpToLatest(false);
+    };
+
+    window.requestAnimationFrame(() => {
+      applyScroll('auto');
+      clearChatScrollRetry();
+      const shouldForceRetry = decision.effectiveForce;
+      chatScrollRetryTimeoutRef.current = window.setTimeout(() => {
+        const target = messagesScrollContainerRef.current;
+        if (!target) {
+          return;
+        }
+
+        const shouldStickRetry =
+          shouldForceRetry ||
+          chatUserNearBottomRef.current ||
+          isChatViewportNearBottom({
+            scrollHeight: target.scrollHeight,
+            scrollTop: target.scrollTop,
+            clientHeight: target.clientHeight,
+          });
+        if (!shouldStickRetry) {
+          return;
+        }
+
+        applyScroll('auto');
+      }, decision.effectiveForce ? 150 : 120);
+    });
+  };
+
+  const jumpToLatest = () => {
+    clearChatScrollRetry();
+    const target = messagesScrollContainerRef.current;
+    if (!target) {
+      return;
+    }
+
+    if (typeof target.scrollTo === 'function') {
+      target.scrollTo({
+        top: target.scrollHeight,
+        behavior: 'smooth',
+      });
+    } else {
+      target.scrollTop = target.scrollHeight;
+    }
+
+    chatHasAutoScrolledRef.current = true;
+    chatUserNearBottomRef.current = true;
+    setShowJumpToLatest(false);
+  };
+
+  useEffect(() => {
+    chatHasAutoScrolledRef.current = false;
+    chatUserNearBottomRef.current = true;
+    setShowJumpToLatest(false);
+    clearChatScrollRetry();
+
+    const frame = window.requestAnimationFrame(() => {
+      scrollChatToLatest(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [effectiveActiveSessionId]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      scrollChatToLatest(false);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [activeMessages, composerSurfaceHeight, isBusy]);
+
+  useEffect(() => () => {
+    clearChatScrollRetry();
+  }, []);
+
+  const handleMessageListScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const container = event.currentTarget;
+    const userNearBottom = isChatViewportNearBottom({
+      scrollHeight: container.scrollHeight,
+      scrollTop: container.scrollTop,
+      clientHeight: container.clientHeight,
+    });
+    chatUserNearBottomRef.current = userNearBottom;
+    if (userNearBottom) {
+      setShowJumpToLatest(false);
+    }
+  };
 
   const handleChannelChange = (channelId: string) => {
     if (!activeInstanceId) {
@@ -483,22 +782,24 @@ export function Chat() {
       return;
     }
 
-    let sessionId = activeSessionId;
+    let sessionId = resolveChatSendSessionId({
+      activeSessionId,
+      effectiveActiveSessionId,
+      isOpenClawGateway,
+    });
     if (!sessionId) {
       if (isOpenClawGateway && activeInstanceId) {
-        if (openClawCreateTarget?.type === 'select') {
-          sessionId = openClawCreateTarget.sessionId;
-          await setActiveSession(sessionId, activeInstanceId);
-        } else {
-          sessionId = await createSession(
-            activeModel.id,
-            activeInstanceId,
-            {
+        sessionId = await createSession(
+          activeModel.id,
+          activeInstanceId,
+          {
+            openClawAgentId: effectiveGatewayAgentId,
+            openClawSessionId: resolveOpenClawDraftSessionId({
+              isOpenClawGateway,
               openClawAgentId: effectiveGatewayAgentId,
-              openClawSessionId: openClawCreateTarget?.sessionId || null,
-            },
-          );
-        }
+            }),
+          },
+        );
       } else {
         sessionId = await createSession(
           activeModel.name,
@@ -515,10 +816,9 @@ export function Chat() {
     const requestChannel = activeChannel;
     const requestSkill = activeSkill;
     const requestAgent = activeAgent;
-    const requestChatSession = chatRef.current;
 
     if (isOpenClawGateway && activeInstanceId) {
-      setIsTyping(true);
+      setPendingSendSessionId(sessionId);
       try {
         await sendGatewayMessage({
           instanceId: activeInstanceId,
@@ -531,7 +831,7 @@ export function Chat() {
       } catch (error) {
         console.error('OpenClaw gateway chat error:', error);
       } finally {
-        setIsTyping(false);
+        setPendingSendSessionId((current) => (current === sessionId ? null : current));
       }
       return;
     }
@@ -542,7 +842,7 @@ export function Chat() {
       attachments: normalizedAttachments,
     });
 
-    setIsTyping(true);
+    setPendingSendSessionId(sessionId);
 
     addMessage(sessionId, {
       role: 'assistant',
@@ -554,7 +854,7 @@ export function Chat() {
       abortControllerRef.current = new AbortController();
       let fullContent = '';
       const stream = chatService.sendMessageStream(
-        requestChatSession,
+        null,
         requestText,
         {
           id: requestModel.id,
@@ -605,17 +905,17 @@ export function Chat() {
         }
       }
     } finally {
-      setIsTyping(false);
+      setPendingSendSessionId((current) => (current === sessionId ? null : current));
       abortControllerRef.current = null;
       void flushSession(sessionId);
     }
   };
 
   const handleStop = () => {
-    if (isOpenClawGateway && activeInstanceId && activeSessionId) {
+    if (isOpenClawGateway && activeInstanceId && stopSessionId) {
       void abortSession({
         instanceId: activeInstanceId,
-        sessionId: activeSessionId,
+        sessionId: stopSessionId,
       });
       return;
     }
@@ -650,8 +950,8 @@ export function Chat() {
 
     return (
       <div className="relative flex h-full min-w-0 flex-1 flex-col">
-        <header className="z-10 flex min-h-16 flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white/80 px-3 py-3 backdrop-blur-xl sm:px-4 lg:px-6 dark:border-zinc-800 dark:bg-zinc-900/80">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
+        <header className="z-10 flex min-h-[3.75rem] flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white/80 px-3 py-2.5 backdrop-blur-xl sm:px-4 lg:px-6 dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
@@ -661,7 +961,35 @@ export function Chat() {
             >
               <Menu className="h-5 w-5" />
             </button>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <h1
+                  className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-base"
+                  title={headerPresentation.title}
+                >
+                  {headerPresentation.title}
+                </h1>
+                <span className={headerStatusClassName}>
+                  <span className={headerStatusDotClassName} />
+                  <span>{headerStatusLabel}</span>
+                </span>
+              </div>
+              {headerPresentation.detailItems.length > 0 ? (
+                <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {headerPresentation.detailItems.map((item, index) => (
+                    <React.Fragment key={item}>
+                      {index > 0 ? (
+                        <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                      ) : null}
+                      <span className="max-w-[16rem] truncate">{item}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
 
+          <div className="flex max-w-full items-center gap-2 overflow-x-auto scrollbar-hide">
             <div className="relative min-w-0 max-w-full">
               <button
                 onClick={() => {
@@ -719,7 +1047,11 @@ export function Chat() {
                           {selectedAgentId === null ? <Check className="h-4 w-4" /> : null}
                         </button>
 
-                        {filteredAgents.map((agent) => (
+                        {isAgentSelectorLoading ? (
+                          <div className="px-3 py-6 text-sm text-zinc-500 dark:text-zinc-400">
+                            {t('common.loading')}
+                          </div>
+                        ) : filteredAgents.map((agent) => (
                           <button
                             key={agent.id}
                             onClick={() => {
@@ -809,7 +1141,11 @@ export function Chat() {
                           {selectedSkillId === null ? <Check className="h-4 w-4" /> : null}
                         </button>
 
-                        {filteredSkills.map((skill) => (
+                        {isSkillSelectorLoading ? (
+                          <div className="px-3 py-6 text-sm text-zinc-500 dark:text-zinc-400">
+                            {t('common.loading')}
+                          </div>
+                        ) : filteredSkills.map((skill) => (
                           <button
                             key={skill.id}
                             onClick={() => {
@@ -839,11 +1175,9 @@ export function Chat() {
                 ) : null}
               </AnimatePresence>
             </div>
-          </div>
 
-          <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
             <button
-              onClick={() => navigate('/api-router')}
+              onClick={() => navigate('/settings?tab=api')}
               className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
             >
               <Settings2 className="h-5 w-5" />
@@ -857,9 +1191,18 @@ export function Chat() {
           </div>
         ) : null}
 
-        <div className="relative flex flex-1 flex-col overflow-y-auto scrollbar-hide scroll-smooth">
+        <div
+          ref={messagesScrollContainerRef}
+          onScroll={handleMessageListScroll}
+          className="relative flex flex-1 flex-col overflow-y-auto scrollbar-hide"
+        >
           {activeMessages.length === 0 ? (
-            <div className="flex min-h-full flex-1 items-center justify-center px-3 pb-[calc(9.5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-[calc(10.5rem+env(safe-area-inset-bottom))] sm:pt-8 lg:px-8 lg:pb-[calc(11rem+env(safe-area-inset-bottom))] lg:pt-10">
+            <div
+              className="flex min-h-full flex-1 items-center justify-center px-3 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pt-10"
+              style={{
+                paddingBottom: emptyStateBottomPadding,
+              }}
+            >
               <div className="grid w-full max-w-6xl gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:items-center xl:gap-6">
                 <div className="flex flex-col items-center rounded-[2rem] border border-zinc-200/70 bg-white/80 p-6 text-center shadow-[0_18px_48px_rgba(15,23,42,0.08)] sm:p-8 lg:items-start lg:p-10 lg:text-left dark:border-zinc-800/70 dark:bg-zinc-900/80 dark:shadow-none">
                   <span className="mb-6 inline-flex items-center rounded-full border border-primary-500/15 bg-primary-500/8 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-primary-600 dark:border-primary-400/20 dark:bg-primary-400/10 dark:text-primary-300">
@@ -929,30 +1272,134 @@ export function Chat() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 space-y-5 px-3 py-6 pb-36 sm:space-y-6 sm:px-4 sm:py-8 sm:pb-40">
-              {activeMessages.map((message, index) => {
-                const isLastMessage = index === activeMessages.length - 1;
-                const showTyping = isBusy && isLastMessage && message.role === 'assistant';
+            <div
+              className="flex-1 space-y-4 px-3 py-6 sm:space-y-5 sm:px-4 sm:py-8"
+              style={{
+                paddingBottom: messageListBottomPadding,
+              }}
+            >
+              {activeMessageGroups.map((group, groupIndex) => {
+                const firstItem = group.items[0];
+                const groupKey = firstItem
+                  ? `group:${groupIndex}:${resolveChatMessageRenderKey({
+                      sessionId: effectiveActiveSessionId,
+                      message: firstItem.message,
+                      index: firstItem.index,
+                    })}`
+                  : `group:${groupIndex}`;
+                const footerPresentation = presentChatMessageGroupFooter({
+                  role: group.role,
+                  senderLabel: group.senderLabel,
+                  messages: group.items.map((item) => ({
+                    role: item.message.role,
+                    timestamp: item.message.timestamp,
+                    model: item.message.model ?? null,
+                  })),
+                  assistantLabel: t('chat.message.assistant'),
+                  userLabel: t('chat.message.you'),
+                  toolLabel: t('chat.message.toolOutput'),
+                  systemLabel: t('chat.message.system'),
+                });
+                const footerTimestampLabel =
+                  typeof footerPresentation.timestamp === 'number'
+                    ? groupTimeFormatter.format(new Date(footerPresentation.timestamp))
+                    : null;
+                const showGroupFooter =
+                  Boolean(footerPresentation.label) ||
+                  Boolean(footerTimestampLabel) ||
+                  Boolean(footerPresentation.modelLabel);
 
                 return (
-                  <ChatMessage
-                    key={message.id || index}
-                    role={message.role}
-                    content={message.content}
-                    model={message.model}
-                    timestamp={message.timestamp}
-                    isTyping={showTyping}
-                    attachments={message.attachments}
-                  />
+                  <div key={groupKey} className="space-y-2 sm:space-y-2.5">
+                    {group.items.map((item) => {
+                      const message = item.message;
+                      const isLastMessage = item.index === activeMessages.length - 1;
+                      const showTyping =
+                        isActiveSessionGenerating &&
+                        isLastMessage &&
+                        message.role === 'assistant';
+
+                      return (
+                        <ChatMessage
+                          key={resolveChatMessageRenderKey({
+                            sessionId: effectiveActiveSessionId,
+                            message,
+                            index: item.index,
+                          })}
+                          role={message.role}
+                          content={message.content}
+                          model={message.model}
+                          timestamp={message.timestamp}
+                          senderLabel={message.senderLabel}
+                          isTyping={showTyping}
+                          attachments={message.attachments}
+                          reasoning={message.reasoning}
+                          toolCards={message.toolCards}
+                          showHeader={false}
+                        />
+                      );
+                    })}
+                    {showGroupFooter ? (
+                      <div
+                        className={cn(
+                          'mx-auto flex w-full max-w-6xl px-4 text-[10px] tracking-normal text-zinc-400 sm:px-6 lg:px-8 dark:text-zinc-500',
+                          group.role === 'user'
+                            ? 'justify-end'
+                            : 'justify-start',
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'flex min-w-0 max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5',
+                            group.role === 'user' ? 'justify-end' : null,
+                          )}
+                        >
+                          <span className="truncate font-medium text-zinc-500 dark:text-zinc-400">
+                            {footerPresentation.label}
+                          </span>
+                          {footerTimestampLabel ? (
+                            <>
+                              <span className="shrink-0 text-zinc-300 dark:text-zinc-600">/</span>
+                              <span className="text-zinc-400 dark:text-zinc-500">
+                                {footerTimestampLabel}
+                              </span>
+                            </>
+                          ) : null}
+                          {footerPresentation.modelLabel ? (
+                            <>
+                              <span className="shrink-0 text-zinc-300 dark:text-zinc-600">/</span>
+                              <span className="truncate text-zinc-400 dark:text-zinc-500">
+                                {footerPresentation.modelLabel}
+                              </span>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
-              <div ref={messagesEndRef} className="h-4" />
             </div>
           )}
         </div>
 
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-50 via-zinc-50/90 to-transparent p-3 pb-4 pt-10 sm:p-4 sm:pb-6 sm:pt-12 dark:from-zinc-950 dark:via-zinc-950/90 dark:to-transparent">
-          <div className="pointer-events-auto mx-auto w-full max-w-4xl">
+        <div
+          ref={composerSurfaceRef}
+          className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-50 via-zinc-50/90 to-transparent p-3 pb-4 pt-10 sm:p-4 sm:pb-6 sm:pt-12 dark:from-zinc-950 dark:via-zinc-950/90 dark:to-transparent"
+        >
+          <div className="pointer-events-auto mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+            {showJumpToLatest && activeMessages.length > 0 ? (
+              <div className="mb-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={jumpToLatest}
+                  className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-lg shadow-zinc-950/5 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-200 dark:hover:border-primary-500 dark:hover:text-primary-300"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  <span>{t('chat.page.jumpToLatest')}</span>
+                </button>
+              </div>
+            ) : null}
             <ChatInput
               onSend={handleSend}
               isLoading={isBusy}
@@ -962,7 +1409,8 @@ export function Chat() {
               activeModel={activeModel}
               onChannelChange={handleChannelChange}
               onModelChange={handleModelChange}
-              onOpenModelConfig={() => navigate('/api-router')}
+              onOpenModelConfig={() => navigate('/settings?tab=api')}
+              compactModelSelector={compactModelSelector}
             />
           </div>
         </div>
@@ -976,7 +1424,7 @@ export function Chat() {
         <ChatSidebar
           isOpenClawGateway={isOpenClawGateway}
           openClawAgentId={effectiveGatewayAgentId}
-          openClawTargetSessionId={openClawTargetSessionId}
+          newSessionModel={newSessionModel}
         />
       </div>
       <AnimatePresence>
@@ -1005,7 +1453,7 @@ export function Chat() {
                 onClose={closeSidebar}
                 isOpenClawGateway={isOpenClawGateway}
                 openClawAgentId={effectiveGatewayAgentId}
-                openClawTargetSessionId={openClawTargetSessionId}
+                newSessionModel={newSessionModel}
               />
             </motion.div>
           </>

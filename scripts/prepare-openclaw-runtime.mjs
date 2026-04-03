@@ -17,6 +17,16 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 import { resolveDesktopReleaseTarget } from './release/desktop-targets.mjs';
+import {
+  DEFAULT_NODE_VERSION,
+  DEFAULT_OPENCLAW_PACKAGE,
+  DEFAULT_OPENCLAW_VERSION,
+} from './openclaw-release.mjs';
+export {
+  DEFAULT_NODE_VERSION,
+  DEFAULT_OPENCLAW_PACKAGE,
+  DEFAULT_OPENCLAW_VERSION,
+} from './openclaw-release.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,23 +43,21 @@ const PREPARED_RUNTIME_MANIFEST_KEYS = [
   'nodeRelativePath',
   'cliRelativePath',
 ];
+const PREPARED_RUNTIME_SIDECAR_MANIFEST_FILENAME = '.sdkwork-openclaw-runtime.json';
 
-export const DEFAULT_OPENCLAW_VERSION = process.env.OPENCLAW_VERSION ?? '2026.3.28';
-export const DEFAULT_NODE_VERSION = process.env.OPENCLAW_NODE_VERSION ?? '22.16.0';
-export const DEFAULT_OPENCLAW_PACKAGE = process.env.OPENCLAW_PACKAGE_NAME ?? 'openclaw';
 export const DEFAULT_RESOURCE_DIR = path.join(
   rootDir,
   'packages',
   'sdkwork-claw-desktop',
   'src-tauri',
   'resources',
-  'openclaw-runtime',
+  'openclaw',
 );
 export const DEFAULT_PREPARE_CACHE_DIR = resolveDefaultOpenClawPrepareCacheDir();
 
 export function resolveBundledResourceMirrorRoot(
   workspaceRootDir = rootDir,
-  resourceId = 'openclaw-runtime',
+  resourceId = 'openclaw',
   platform = process.platform,
 ) {
   if (platform !== 'win32') {
@@ -247,6 +255,12 @@ export async function inspectPreparedOpenClawRuntime({
       if (repairedInspection.reusable) {
         return repairedInspection;
       }
+
+      return {
+        ...repairedInspection,
+        manifestPath,
+        manifestReadError: error instanceof Error ? error.message : String(error),
+      };
     }
 
     return {
@@ -318,6 +332,10 @@ export async function prepareOpenClawRuntimeFromSource({
   await removeDirectoryWithRetries(resourceDir);
   await mkdir(resourceDir, { recursive: true });
   await copyDirectoryWithWindowsFallback(sourceRuntimeDir, path.join(resourceDir, 'runtime'));
+  await writePreparedRuntimeSidecarManifest({
+    runtimeDir: path.join(resourceDir, 'runtime'),
+    manifest,
+  });
   await writeFile(
     path.join(resourceDir, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -344,6 +362,10 @@ export async function prepareOpenClawRuntimeFromStagedDirs({
   await mkdir(path.join(resourceDir, 'runtime'), { recursive: true });
   await copyDirectoryWithWindowsFallback(nodeSourceDir, path.join(resourceDir, 'runtime', 'node'));
   await copyDirectoryWithWindowsFallback(packageSourceDir, path.join(resourceDir, 'runtime', 'package'));
+  await writePreparedRuntimeSidecarManifest({
+    runtimeDir: path.join(resourceDir, 'runtime'),
+    manifest,
+  });
   await writeFile(
     path.join(resourceDir, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -479,6 +501,10 @@ export async function prepareOpenClawRuntime({
       packageSourceDir: packageDir,
       cachePaths,
     });
+    await writePreparedRuntimeSidecarManifest({
+      runtimeDir: path.join(resourceDir, 'runtime'),
+      manifest,
+    });
     await writeFile(
       path.join(resourceDir, 'manifest.json'),
       `${JSON.stringify(manifest, null, 2)}\n`,
@@ -500,7 +526,7 @@ async function finalizePreparedOpenClawRuntime(result) {
   if (shouldSyncBundledResourceMirror({ resourceDir: result.resourceDir })) {
     await ensureBundledResourceMirror({
       resourceDir: result.resourceDir,
-      resourceId: 'openclaw-runtime',
+      resourceId: 'openclaw',
     });
   }
   return result;
@@ -565,6 +591,27 @@ async function inspectCachedOpenClawRuntimeArtifacts({
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function resolvePreparedRuntimeSidecarManifestPath(runtimeDir) {
+  return path.join(runtimeDir, PREPARED_RUNTIME_SIDECAR_MANIFEST_FILENAME);
+}
+
+async function writePreparedRuntimeSidecarManifest({
+  runtimeDir,
+  manifest,
+}) {
+  await writeFile(
+    resolvePreparedRuntimeSidecarManifestPath(runtimeDir),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8',
+  );
+}
+
+async function readPreparedRuntimeSidecarManifest(runtimeDir) {
+  return JSON.parse(
+    await readFile(resolvePreparedRuntimeSidecarManifestPath(runtimeDir), 'utf8'),
+  );
 }
 
 async function inspectCachedNodeRuntimeDir({
@@ -844,6 +891,38 @@ async function repairPreparedOpenClawRuntimeManifest({
       reason: 'runtime-invalid',
       manifestPath,
       error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  let preparedSidecarManifest;
+  try {
+    preparedSidecarManifest = await readPreparedRuntimeSidecarManifest(runtimeDir);
+  } catch {
+    preparedSidecarManifest = null;
+  }
+
+  if (preparedOpenClawManifestMatches(preparedSidecarManifest, manifest)) {
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      'utf8',
+    );
+
+    return {
+      reusable: true,
+      repairedManifest: true,
+      reason: 'repaired-manifest',
+      manifestPath,
+      manifest,
+    };
+  }
+
+  if (preparedSidecarManifest && !preparedOpenClawManifestMatches(preparedSidecarManifest, manifest)) {
+    return {
+      reusable: false,
+      reason: 'manifest-mismatch',
+      manifestPath,
+      existingManifest: preparedSidecarManifest,
     };
   }
 

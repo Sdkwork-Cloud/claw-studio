@@ -1,10 +1,4 @@
-import {
-  clawHubService,
-  type ClawHubCategory,
-  type ClawHubPackageListParams,
-  type ClawHubService,
-  type ClawHubSkillListParams,
-} from '@sdkwork/claw-core';
+import { clawHubService as defaultClawHubService } from '@sdkwork/claw-core';
 import type { ListParams, PaginatedResult, Review, Skill, SkillPack } from '@sdkwork/claw-types';
 
 export interface InstallSkillInput {
@@ -35,7 +29,31 @@ export interface InstallationResult {
   fallback?: boolean;
 }
 
-export type MarketCategory = ClawHubCategory;
+export interface MarketCategory {
+  id: string;
+  code?: string;
+  name: string;
+}
+
+type ClawHubSkillListParams = {
+  categoryId?: string;
+  keyword?: string;
+  sortBy?: string;
+};
+
+type ClawHubPackageListParams = {
+  categoryId?: string;
+  keyword?: string;
+};
+
+export interface ClawHubService {
+  listCategories(): Promise<MarketCategory[]>;
+  listSkills(params?: ClawHubSkillListParams): Promise<Skill[]>;
+  getSkill(id: string): Promise<Skill>;
+  listReviews(id: string): Promise<Review[]>;
+  listPackages(params?: ClawHubPackageListParams): Promise<SkillPack[]>;
+  getPackage(id: string): Promise<SkillPack>;
+}
 
 export interface MarketCatalogQuery extends ListParams {
   categoryId?: string;
@@ -65,6 +83,11 @@ export interface CreateMarketServiceOptions {
   clawHubService?: ClawHubService;
   instanceWorkbenchService?: InstanceWorkbenchServiceLike;
   agentSkillManagementService?: AgentSkillManagementServiceLike;
+  downloadCatalogAsset?: (
+    filename: string,
+    payload: unknown,
+    onProgress: (progress: number) => void,
+  ) => Promise<void>;
 }
 
 function paginateItems<T>(items: T[], params: ListParams = {}): PaginatedResult<T> {
@@ -82,39 +105,37 @@ function paginateItems<T>(items: T[], params: ListParams = {}): PaginatedResult<
   };
 }
 
-function simulateLocalDownload(
+async function downloadCatalogAssetAsJsonFile(
   filename: string,
   payload: unknown,
   onProgress: (progress: number) => void,
 ) {
-  return new Promise<void>((resolve) => {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
+  if (
+    typeof Blob === 'undefined'
+    || typeof URL === 'undefined'
+    || typeof URL.createObjectURL !== 'function'
+    || typeof document === 'undefined'
+  ) {
+    throw new Error('Local export is only available in the browser host.');
+  }
 
-      if (progress >= 100) {
-        clearInterval(interval);
-        onProgress(100);
-
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        resolve();
-        return;
-      }
-
-      onProgress(progress);
-    }, 500);
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json',
   });
+  const url = URL.createObjectURL(blob);
+
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    onProgress(100);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function toSkillQueryParams(params: MarketCatalogQuery = {}): ClawHubSkillListParams {
@@ -170,11 +191,12 @@ async function getDefaultAgentSkillManagementService(): Promise<AgentSkillManage
 }
 
 export function createMarketService(options: CreateMarketServiceOptions = {}): IMarketService {
-  const hubService = options.clawHubService || clawHubService;
+  const downloadCatalogAsset = options.downloadCatalogAsset || downloadCatalogAssetAsJsonFile;
+  const resolveClawHubService = async () => options.clawHubService || defaultClawHubService;
 
   return {
     async getCategories() {
-      return hubService.listCategories();
+      return (await resolveClawHubService()).listCategories();
     },
 
     async getSkillList(params: MarketCatalogQuery = {}) {
@@ -186,23 +208,23 @@ export function createMarketService(options: CreateMarketServiceOptions = {}): I
     },
 
     async getSkills(params: MarketCatalogQuery = {}) {
-      return hubService.listSkills(toSkillQueryParams(params));
+      return (await resolveClawHubService()).listSkills(toSkillQueryParams(params));
     },
 
     async getSkill(id: string) {
-      return hubService.getSkill(id);
+      return (await resolveClawHubService()).getSkill(id);
     },
 
     async getSkillReviews(id: string) {
-      return hubService.listReviews(id);
+      return (await resolveClawHubService()).listReviews(id);
     },
 
     async getPacks(params: MarketCatalogQuery = {}) {
-      return hubService.listPackages(toPackageQueryParams(params));
+      return (await resolveClawHubService()).listPackages(toPackageQueryParams(params));
     },
 
     async getPack(id: string) {
-      return hubService.getPackage(id);
+      return (await resolveClawHubService()).getPackage(id);
     },
 
     async installSkill(instanceId: string, skillId: string) {
@@ -210,6 +232,7 @@ export function createMarketService(options: CreateMarketServiceOptions = {}): I
         options.instanceWorkbenchService || await getDefaultInstanceWorkbenchService();
       const skillManagementService =
         options.agentSkillManagementService || await getDefaultAgentSkillManagementService();
+      const hubService = await resolveClawHubService();
       const [skill, workbench] = await Promise.all([
         hubService.getSkill(skillId),
         workbenchService.getInstanceWorkbench(instanceId),
@@ -228,7 +251,7 @@ export function createMarketService(options: CreateMarketServiceOptions = {}): I
     },
 
     async installPack(instanceId: string, packId: string) {
-      const pack = await hubService.getPackage(packId);
+      const pack = await (await resolveClawHubService()).getPackage(packId);
       return this.installPackWithSkills(
         instanceId,
         packId,
@@ -241,6 +264,7 @@ export function createMarketService(options: CreateMarketServiceOptions = {}): I
         options.instanceWorkbenchService || await getDefaultInstanceWorkbenchService();
       const skillManagementService =
         options.agentSkillManagementService || await getDefaultAgentSkillManagementService();
+      const hubService = await resolveClawHubService();
       const [pack, workbench] = await Promise.all([
         hubService.getPackage(packId),
         workbenchService.getInstanceWorkbench(instanceId),
@@ -272,11 +296,11 @@ export function createMarketService(options: CreateMarketServiceOptions = {}): I
     },
 
     async downloadSkillLocal(skill: Skill, onProgress: (progress: number) => void) {
-      return simulateLocalDownload(`${skill.id}-skill.json`, skill, onProgress);
+      return downloadCatalogAsset(`${skill.id}-skill.json`, skill, onProgress);
     },
 
     async downloadPackLocal(pack: SkillPack, onProgress: (progress: number) => void) {
-      return simulateLocalDownload(`${pack.id}-pack.json`, pack, onProgress);
+      return downloadCatalogAsset(`${pack.id}-pack.json`, pack, onProgress);
     },
   };
 }

@@ -1,7 +1,6 @@
 import React, { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Bot,
   Camera,
   Check,
   Copy,
@@ -14,22 +13,30 @@ import {
   ThumbsDown,
   ThumbsUp,
   Video,
+  Wrench,
 } from 'lucide-react';
 import type { StudioConversationAttachment } from '@sdkwork/claw-types';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@sdkwork/claw-ui';
+import {
+  detectChatJsonBlock,
+  type OpenClawToolCard,
+} from '../services/index.ts';
+import { ChatMessageCodeHighlighter } from './chatMessageCodeHighlighter.tsx';
 
 interface ChatMessageProps {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   model?: string;
   timestamp: number;
+  senderLabel?: string | null;
   onRegenerate?: () => void;
   isTyping?: boolean;
   attachments?: StudioConversationAttachment[];
+  reasoning?: string | null;
+  toolCards?: OpenClawToolCard[];
+  showHeader?: boolean;
 }
 
 function formatFileSize(
@@ -126,7 +133,7 @@ const CodeBlock = memo(
     };
 
     return (
-      <div className="relative mb-6 mt-4 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-[#1E1E1E]">
+      <div className="relative mb-4 mt-3 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-[#1E1E1E]">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-100 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/50">
           <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">{match[1]}</span>
           <button
@@ -144,23 +151,11 @@ const CodeBlock = memo(
           </button>
         </div>
         <div className="overflow-x-auto">
-          <SyntaxHighlighter
-            {...props}
-            style={vscDarkPlus}
+          <ChatMessageCodeHighlighter
             language={match[1]}
-            PreTag="div"
-            className="!m-0 !bg-transparent !p-4 text-[13px] leading-relaxed"
-            showLineNumbers={true}
-            lineNumberStyle={{
-              minWidth: '2.5em',
-              paddingRight: '1em',
-              color: '#6e7681',
-              textAlign: 'right',
-              userSelect: 'none',
-            }}
-          >
-            {String(children).replace(/\n$/, '')}
-          </SyntaxHighlighter>
+            code={String(children).replace(/\n$/, '')}
+            props={props}
+          />
         </div>
       </div>
     );
@@ -313,14 +308,150 @@ const AttachmentTile = memo(function AttachmentTile({
   );
 });
 
+const JsonContentBlock = memo(function JsonContentBlock({
+  content,
+}: {
+  content: string;
+}) {
+  const { t } = useTranslation();
+  const jsonBlock = detectChatJsonBlock(content);
+  if (!jsonBlock) {
+    return null;
+  }
+
+  const summaryLabel =
+    jsonBlock.kind === 'array'
+      ? t('chat.message.jsonArray', { count: jsonBlock.itemCount })
+      : jsonBlock.keyCount > 0 && jsonBlock.keyCount <= 4
+        ? `{ ${jsonBlock.keys.join(', ')} }`
+        : t('chat.message.jsonObjectCount', { count: jsonBlock.keyCount });
+
+  return (
+    <details className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-zinc-50/85 dark:border-zinc-800 dark:bg-zinc-950/50">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3">
+        <span className="rounded-md bg-zinc-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-950">
+          {t('chat.message.json')}
+        </span>
+        <span className="min-w-0 truncate text-sm font-medium text-zinc-600 dark:text-zinc-300">
+          {summaryLabel}
+        </span>
+      </summary>
+      <div className="border-t border-zinc-200/70 dark:border-zinc-800">
+        <pre className="overflow-x-auto px-4 py-3 text-xs leading-6 text-zinc-700 dark:text-zinc-200">
+          <code>{jsonBlock.pretty}</code>
+        </pre>
+      </div>
+    </details>
+  );
+});
+
+const ToolLinksPanel = memo(function ToolLinksPanel({
+  toolCards,
+}: {
+  toolCards: OpenClawToolCard[];
+}) {
+  const { t } = useTranslation();
+  const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
+  const occurrenceByName = new Map<string, number>();
+  const linkItems = toolCards.map((toolCard, index) => {
+    const toolName = toolCard.name.trim() || 'Tool';
+    const occurrence = (occurrenceByName.get(toolName) ?? 0) + 1;
+    occurrenceByName.set(toolName, occurrence);
+
+    return {
+      ...toolCard,
+      id: `${toolCard.kind}:${toolName}:${index}`,
+      label: occurrence > 1 ? `${toolName} ${occurrence}` : toolName,
+      typeLabel: toolCard.kind === 'call'
+        ? t('chat.message.toolCall')
+        : t('chat.message.toolResult'),
+    };
+  });
+  const expandedTool = linkItems.find((toolCard) => toolCard.id === expandedToolId) ?? null;
+
+  return (
+    <div className="text-xs leading-5">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
+          {toolCards.length === 1
+            ? t('chat.message.toolSingle')
+            : t('chat.message.toolsMultiple', { count: toolCards.length })}
+        </span>
+
+        <span className="shrink-0 text-zinc-300 dark:text-zinc-600">
+          /
+        </span>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1">
+          {linkItems.map((toolCard) => {
+            const isExpanded = toolCard.id === expandedToolId;
+
+            return (
+              <button
+                key={toolCard.id}
+                type="button"
+                aria-pressed={isExpanded}
+                onClick={() => setExpandedToolId(isExpanded ? null : toolCard.id)}
+                className={cn(
+                  'inline-flex min-w-0 max-w-full items-center text-xs transition-colors hover:underline underline-offset-2',
+                  isExpanded
+                    ? 'font-semibold text-primary-700 dark:text-primary-200'
+                    : 'text-primary-600 dark:text-primary-300',
+                )}
+                title={toolCard.name}
+              >
+                <span className="max-w-[14rem] truncate">{toolCard.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {expandedTool ? (
+        <div className="mt-1.5 pl-4">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-5">
+            <span className="truncate font-semibold text-zinc-600 dark:text-zinc-300">
+              {expandedTool.name}
+            </span>
+            <span className="text-zinc-400 dark:text-zinc-500">/</span>
+            <span className="text-zinc-500 dark:text-zinc-400">
+              {expandedTool.typeLabel}
+            </span>
+          </div>
+
+          {expandedTool.detail ? (
+            <div className="mt-1 whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-zinc-600 dark:text-zinc-300">
+              {expandedTool.detail}
+            </div>
+          ) : null}
+
+          {expandedTool.preview ? (
+            <div className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-zinc-600 dark:text-zinc-300">
+              {expandedTool.preview}
+            </div>
+          ) : expandedTool.kind === 'result' ? (
+            <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              {t('chat.message.completed')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
 export const ChatMessage = memo(function ChatMessage({
   role,
   content,
   model,
   timestamp,
+  senderLabel,
   onRegenerate,
   isTyping,
   attachments = [],
+  reasoning,
+  toolCards = [],
+  showHeader = true,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
   const { t, i18n } = useTranslation();
@@ -337,95 +468,118 @@ export const ChatMessage = memo(function ChatMessage({
   };
 
   const isUser = role === 'user';
-  const hasRenderableContent = content.trim().length > 0 || isTyping;
+  const isTool = role === 'tool';
+  const trimmedContent = content.trim();
+  const hasRenderableContent = trimmedContent.length > 0 || isTyping;
+  const isCompactToolLinksOnlyMessage =
+    isTool &&
+    !hasRenderableContent &&
+    attachments.length === 0 &&
+    !reasoning &&
+    toolCards.length > 0;
+  const showAssistantActions = role === 'assistant';
+  const canCopyMessage = trimmedContent.length > 0;
+  const normalizedModel = model?.trim();
+  const normalizedSenderLabel =
+    typeof senderLabel === 'string' && senderLabel.trim() ? senderLabel.trim() : null;
+  const messageLabel = isTool
+    ? t('chat.message.toolOutput')
+    : normalizedModel
+      ? (normalizedModel.includes('/') ? normalizedModel.split('/').pop() : normalizedModel)
+      : t('chat.message.assistant');
+  const hasJsonBlock = !isTyping && Boolean(detectChatJsonBlock(trimmedContent));
+  const messageActions =
+    canCopyMessage || showAssistantActions || onRegenerate ? (
+      <div
+        className={cn(
+          'flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:gap-1',
+          showHeader && isUser ? 'sm:mr-3' : null,
+        )}
+      >
+        {canCopyMessage ? (
+          <button
+            onClick={handleCopy}
+            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
+            title={t('chat.message.copyMessage')}
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-emerald-500 sm:h-4 sm:w-4" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            )}
+          </button>
+        ) : null}
+        {showAssistantActions ? (
+          <button className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100">
+            <ThumbsUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </button>
+        ) : null}
+        {showAssistantActions ? (
+          <button className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100">
+            <ThumbsDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </button>
+        ) : null}
+        {showAssistantActions && onRegenerate ? (
+          <button
+            onClick={onRegenerate}
+            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
+            title={t('chat.message.regenerateResponse')}
+          >
+            <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </button>
+        ) : null}
+      </div>
+    ) : null;
 
   return (
     <div
       className={cn(
-        'group mx-auto flex w-full max-w-4xl transition-all duration-300',
-        isUser ? 'justify-end pl-4 sm:pl-12 lg:pl-24' : 'justify-start pr-4 sm:pr-12 lg:pr-24',
+        'group mx-auto flex w-full max-w-6xl px-4 sm:px-6 lg:px-8 transition-all duration-300',
+        isUser ? 'justify-end' : 'justify-start',
       )}
     >
       <div
         className={cn(
-          'flex max-w-full gap-3 rounded-3xl p-4 sm:gap-4 sm:p-5',
+          'flex max-w-full rounded-3xl',
+          isCompactToolLinksOnlyMessage && 'w-full rounded-none bg-transparent p-0',
           isUser
-            ? 'rounded-br-md bg-zinc-100 text-zinc-900 sm:max-w-[85%] dark:bg-zinc-800 dark:text-zinc-100'
-            : 'bg-transparent text-zinc-900 dark:text-zinc-100',
+            ? 'rounded-br-md bg-zinc-100 px-4 py-2.5 text-zinc-900 sm:max-w-[95%] dark:bg-zinc-800 dark:text-zinc-100'
+            : isTool
+              ? 'w-full px-0 py-0.5 text-zinc-900 dark:text-zinc-100'
+              : 'w-full px-0 py-0.5 text-zinc-900 dark:text-zinc-100',
         )}
       >
-        {!isUser ? (
-          <div className="mt-1 flex-shrink-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-purple-600 shadow-sm ring-2 ring-primary-50 dark:ring-primary-900/20 sm:h-10 sm:w-10">
-              <Bot className="h-4 w-4 text-white sm:h-5 sm:w-5" />
-            </div>
-          </div>
-        ) : null}
-
         <div className="min-w-0 flex-1">
-          {isUser ? (
-            <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
-              <div className="flex items-center gap-0.5 opacity-100 transition-opacity sm:mr-3 sm:opacity-0 sm:group-hover:opacity-100 sm:gap-1">
-                <button
-                  onClick={handleCopy}
-                  className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
-                  title={t('chat.message.copyMessage')}
-                >
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-500 sm:h-4 sm:w-4" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  )}
-                </button>
+          {isUser && showHeader ? (
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center justify-end gap-2">
+                {normalizedSenderLabel ? (
+                  <span className="max-w-[12rem] truncate text-[12px] font-semibold tracking-tight text-zinc-500 dark:text-zinc-400 sm:text-[13px]">
+                    {normalizedSenderLabel}
+                  </span>
+                ) : null}
+                <span className="text-[11px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500 sm:text-xs">
+                  {formatTimeLabel(timestamp)}
+                </span>
               </div>
-              <span className="text-[11px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500 sm:text-xs">
-                {formatTimeLabel(timestamp)}
-              </span>
+              {messageActions}
             </div>
-          ) : (
-            <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+          ) : !isUser && showHeader ? (
+            <div className="mb-1.5 flex flex-wrap items-start justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-3">
                 <span className="max-w-full truncate text-[14px] font-semibold tracking-tight sm:text-[15px]">
-                  {model || t('chat.message.assistant')}
+                  {messageLabel}
                 </span>
                 <span className="text-[11px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500 sm:text-xs">
                   {formatTimeLabel(timestamp)}
                 </span>
               </div>
-
-              <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:gap-1">
-                <button
-                  onClick={handleCopy}
-                  className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
-                  title={t('chat.message.copyMessage')}
-                >
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-500 sm:h-4 sm:w-4" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  )}
-                </button>
-                <button className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100">
-                  <ThumbsUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
-                <button className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100">
-                  <ThumbsDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
-                {onRegenerate ? (
-                  <button
-                    onClick={onRegenerate}
-                    className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
-                    title={t('chat.message.regenerateResponse')}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  </button>
-                ) : null}
-              </div>
+              {messageActions}
             </div>
-          )}
+          ) : null}
 
           {attachments.length > 0 ? (
-            <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div className="mb-3 grid gap-3 sm:grid-cols-2">
               {attachments.map((attachment) => (
                 <AttachmentTile
                   key={attachment.id}
@@ -436,17 +590,19 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           ) : null}
 
+          {reasoning ? (
+            <details className="mb-3 overflow-hidden rounded-2xl border border-zinc-200/80 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-900/65">
+              <summary className="cursor-pointer px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('chat.message.reasoning')}
+              </summary>
+              <div className="border-t border-zinc-200/70 px-4 py-3 text-sm leading-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+                <div className="whitespace-pre-wrap break-words">{reasoning}</div>
+              </div>
+            </details>
+          ) : null}
+
           {hasRenderableContent ? (
-            <div
-              className={cn(
-                'prose prose-zinc prose-sm relative max-w-none break-words dark:prose-invert sm:prose-base',
-                'prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-primary-500 hover:prose-a:text-primary-600',
-                'prose-code:before:content-none prose-code:after:content-none prose-p:leading-relaxed prose-pre:bg-transparent prose-pre:p-0',
-                isTyping &&
-                  content !== '' &&
-                  "[&>*:last-child]:after:ml-1 [&>*:last-child]:after:animate-pulse [&>*:last-child]:after:content-['|'] [&>*:last-child]:after:text-primary-500",
-              )}
-            >
+            <div>
               {content === '' && isTyping ? (
                 <div className="flex h-6 items-center gap-1">
                   <span
@@ -462,35 +618,54 @@ export const ChatMessage = memo(function ChatMessage({
                     style={{ animationDelay: '300ms' }}
                   />
                 </div>
+              ) : hasJsonBlock ? (
+                <JsonContentBlock content={trimmedContent} />
               ) : (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    code({ className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const isInline = !match && !className?.includes('language-');
-
-                      if (!isInline && match) {
-                        return <CodeBlock match={match} children={children} props={props} />;
-                      }
-
-                      return (
-                        <code
-                          {...props}
-                          className={cn(
-                            'rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[13px] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
-                            className,
-                          )}
-                        >
-                          {children}
-                        </code>
-                      );
-                    },
-                  }}
+                <div
+                  className={cn(
+                    'prose prose-zinc prose-sm relative max-w-none break-words dark:prose-invert sm:prose-base',
+                    'prose-headings:font-semibold prose-headings:tracking-tight prose-headings:mb-2 prose-headings:mt-4 prose-a:text-primary-500 hover:prose-a:text-primary-600',
+                    'prose-code:before:content-none prose-code:after:content-none prose-p:my-2.5 prose-p:leading-relaxed prose-pre:my-3 prose-pre:bg-transparent prose-pre:p-0 prose-ul:my-2.5 prose-ol:my-2.5',
+                    isTyping &&
+                      content !== '' &&
+                      "[&>*:last-child]:after:ml-1 [&>*:last-child]:after:animate-pulse [&>*:last-child]:after:content-['|'] [&>*:last-child]:after:text-primary-500",
+                  )}
                 >
-                  {content}
-                </ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ className, children, ...props }: any) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        const isInline = !match && !className?.includes('language-');
+
+                        if (!isInline && match) {
+                          return <CodeBlock match={match} children={children} props={props} />;
+                        }
+
+                        return (
+                          <code
+                            {...props}
+                            className={cn(
+                              'rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[13px] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
+                              className,
+                            )}
+                          >
+                            {children}
+                          </code>
+                        );
+                      },
+                    }}
+                  >
+                    {content}
+                  </ReactMarkdown>
+                </div>
               )}
+            </div>
+          ) : null}
+
+          {toolCards.length > 0 ? (
+            <div className={hasRenderableContent ? 'mt-2.5' : null}>
+              <ToolLinksPanel toolCards={toolCards} />
             </div>
           ) : null}
         </div>

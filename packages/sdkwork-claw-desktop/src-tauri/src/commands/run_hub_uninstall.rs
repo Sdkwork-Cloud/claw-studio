@@ -1,6 +1,6 @@
 use crate::{
     commands::hub_install_progress::{emit_hub_install_progress, HubInstallProgressOperationKind},
-    framework::{FrameworkError, Result as FrameworkResult},
+    framework::{runtime, FrameworkError, Result as FrameworkResult},
     state::AppState,
 };
 use hub_installer_rs::{
@@ -105,12 +105,17 @@ pub struct HubUninstallResult {
 }
 
 #[tauri::command]
-pub fn run_hub_uninstall(
+pub async fn run_hub_uninstall(
     request: RunHubUninstallRequest,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<HubUninstallResult, String> {
-    run_hub_uninstall_at(&app, &state, request).map_err(|error| error.to_string())
+    let state = state.inner().clone();
+    runtime::run_blocking_async("installer.run_hub_uninstall", move || {
+        run_hub_uninstall_at(&app, &state, request)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 pub fn run_hub_uninstall_at<R: Runtime>(

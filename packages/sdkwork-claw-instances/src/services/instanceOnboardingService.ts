@@ -1,6 +1,6 @@
 import {
-  getRuntimePlatform,
   installerService,
+  runtime,
   studio,
   type HubInstallAssessmentResult,
   type HubInstallCatalogEntry,
@@ -95,7 +95,7 @@ export interface InstanceOnboardingDependencyOverrides {
 function createDefaultDependencies(): InstanceOnboardingDependencies {
   return {
     runtimeApi: {
-      getRuntimeInfo: () => getRuntimePlatform().getRuntimeInfo(),
+      getRuntimeInfo: () => runtime.getRuntimeInfo(),
     },
     installerApi: {
       listHubInstallCatalog: (query) => installerService.listHubInstallCatalog(query),

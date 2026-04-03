@@ -1,5 +1,10 @@
-import type { MockChannel, MockInstance, MockTask } from '@sdkwork/claw-infrastructure';
-import type { Agent, Skill } from '@sdkwork/claw-types';
+import type {
+  Agent,
+  Skill,
+  StudioInstanceRecord,
+  StudioWorkbenchChannelRecord,
+  StudioWorkbenchTaskRecord,
+} from '@sdkwork/claw-types';
 
 export type DashboardAnalyticsGranularity = 'day' | 'hour';
 export type DashboardAnalyticsRangeMode = 'seven_days' | 'month' | 'custom';
@@ -13,7 +18,7 @@ export interface DashboardAnalyticsQuery {
 }
 
 export interface DashboardInstanceSummary {
-  instance: MockInstance;
+  instance: StudioInstanceRecord;
   readinessScore: number;
   activeTaskCount: number;
   failedTaskCount: number;
@@ -52,7 +57,7 @@ export interface DashboardTokenTrendPoint {
 export interface DashboardTokenInstanceBreakdown {
   instanceId: string;
   name: string;
-  status: MockInstance['status'];
+  status: StudioInstanceRecord['status'];
   tokens: number;
   estimatedSpend: number;
   share: number;
@@ -241,8 +246,8 @@ export interface DashboardSnapshot {
   activityFeed: DashboardActivityFeed;
   instances: DashboardInstanceSummary[];
   agents: DashboardAgentSummary[];
-  tasks: MockTask[];
-  channels: MockChannel[];
+  tasks: StudioWorkbenchTaskRecord[];
+  channels: StudioWorkbenchChannelRecord[];
   installedSkills: Skill[];
   recommendations: DashboardRecommendation[];
 }

@@ -114,6 +114,7 @@ runTest('sdkwork-claw-community keeps the V5 community package surface locally',
   assert.ok(exists('packages/sdkwork-claw-community/src/services/communityService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-community']);
+  assert.ok(!pkg.dependencies?.['@google/genai']);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-community/);
   assert.match(communityEntrySource, /lazy\(\(\) =>/);
   assert.match(communityEntrySource, /\.\/pages\/community\/Community/);
@@ -164,6 +165,7 @@ runTest('sdkwork-claw-community routes classifieds through the shared app sdk in
     'packages/sdkwork-claw-community/src/services/communityRecommendations.ts',
   );
   const newPostSource = read('packages/sdkwork-claw-community/src/pages/community/NewPost.tsx');
+  const llmServiceSource = read('packages/sdkwork-claw-community/src/services/llmService.ts');
   const detailSource = read('packages/sdkwork-claw-community/src/pages/community/CommunityPostDetail.tsx');
 
   assert.match(serviceSource, /@sdkwork\/claw-core/);
@@ -191,6 +193,10 @@ runTest('sdkwork-claw-community routes classifieds through the shared app sdk in
   assert.doesNotMatch(serviceSource, /i\.pravatar\.cc/);
   assert.doesNotMatch(serviceSource, /picsum\.photos/);
   assert.doesNotMatch(serviceSource, /delay\(/);
+  assert.match(llmServiceSource, /@sdkwork\/claw-core/);
+  assert.doesNotMatch(llmServiceSource, /@google\/genai/);
+  assert.doesNotMatch(llmServiceSource, /GoogleGenAI/);
+  assert.doesNotMatch(llmServiceSource, /VITE_GEMINI_API_KEY/);
   assert.match(newPostSource, /community\.newPost\.entryTypes\.jobSeeking/);
   assert.match(newPostSource, /community\.newPost\.entryTypes\.recruitment/);
   assert.match(newPostSource, /community\.newPost\.fields\.location/);
@@ -201,6 +207,7 @@ runTest('sdkwork-claw-community routes classifieds through the shared app sdk in
   assert.match(newPostSource, /community\.newPost\.fields\.turnaround/);
   assert.match(newPostSource, /community\.newPost\.assistantPanel\.title/);
   assert.match(newPostSource, /community\.newPost\.assistantCards\.recruitment/);
+  assert.match(newPostSource, /llmService\.generateContent/);
   assert.match(recommendationSource, /buildCommunityRecommendations/);
   assert.match(recommendationSource, /relatedServices/);
   assert.match(recommendationSource, /relatedCompanies/);

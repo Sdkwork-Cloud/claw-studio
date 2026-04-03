@@ -6,7 +6,7 @@
 
 **Architecture:** Introduce a native `Kernel Host` boundary above the current direct Tauri child-process model. Normalize install methods into kernel topologies, move lifecycle and endpoint truth into the host layer, then add slot-based upgrades and node/cluster control on top of the same contract.
 
-**Tech Stack:** Tauri/Rust, TypeScript, React, pnpm workspace packages, Windows Service, launchd, systemd, existing OpenClaw bundled runtime and API Router integration.
+**Tech Stack:** Tauri/Rust, TypeScript, React, pnpm workspace packages, Windows Service, launchd, systemd, existing OpenClaw bundled runtime and provider-center integration.
 
 ---
 
@@ -765,7 +765,7 @@ Run: `node scripts/sdkwork-shell-contract.test.ts`
 
 Expected: PASS.
 
-Run: `node scripts/sdkwork-apirouter-contract.test.ts`
+Run: `node --experimental-strip-types scripts/sdkwork-foundation-contract.test.ts`
 
 Expected: PASS.
 

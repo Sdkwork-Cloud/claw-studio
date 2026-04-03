@@ -27,7 +27,8 @@ import {
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'prepare-openclaw-runtime-test-'));
 const actualNodeVersion = process.version.replace(/^v/i, '');
-const expectedOpenClawVersion = '2026.3.28';
+const expectedOpenClawVersion = DEFAULT_OPENCLAW_VERSION;
+const runtimeSidecarManifestRelativePath = path.join('runtime', '.sdkwork-openclaw-runtime.json');
 
 try {
   if (DEFAULT_OPENCLAW_VERSION !== expectedOpenClawVersion) {
@@ -101,14 +102,28 @@ try {
 
   await stat(path.join(resourceDir, 'runtime'));
   await stat(path.join(resourceDir, 'manifest.json'));
+  await stat(path.join(resourceDir, runtimeSidecarManifestRelativePath));
 
   const copiedManifest = JSON.parse(await readFile(path.join(resourceDir, 'manifest.json'), 'utf8'));
+  const copiedRuntimeSidecarManifest = JSON.parse(
+    await readFile(path.join(resourceDir, runtimeSidecarManifestRelativePath), 'utf8'),
+  );
   if (copiedManifest.runtimeId !== 'openclaw') {
     throw new Error(`Expected runtimeId=openclaw, received ${copiedManifest.runtimeId}`);
   }
 
   if (copiedManifest.openclawVersion !== expectedOpenClawVersion) {
     throw new Error(`Expected openclawVersion=${expectedOpenClawVersion}, received ${copiedManifest.openclawVersion}`);
+  }
+  if (copiedRuntimeSidecarManifest.openclawVersion !== expectedOpenClawVersion) {
+    throw new Error(
+      `Expected runtime sidecar openclawVersion=${expectedOpenClawVersion}, received ${copiedRuntimeSidecarManifest.openclawVersion}`,
+    );
+  }
+  if (copiedRuntimeSidecarManifest.nodeVersion !== '22.16.0') {
+    throw new Error(
+      `Expected runtime sidecar nodeVersion=22.16.0, received ${copiedRuntimeSidecarManifest.nodeVersion}`,
+    );
   }
 
   if (result.manifest.cliRelativePath !== 'runtime/package/node_modules/openclaw/openclaw.mjs') {
@@ -182,6 +197,7 @@ try {
 
   await stat(path.join(stagedResourceDir, 'runtime', 'node', 'node.exe'));
   await stat(path.join(stagedResourceDir, 'runtime', 'package', 'node_modules', 'openclaw', 'openclaw.mjs'));
+  await stat(path.join(stagedResourceDir, runtimeSidecarManifestRelativePath));
 
   const reusableResourceDir = path.join(tempRoot, 'reusable-resource-runtime');
   await prepareOpenClawRuntimeFromSource({

@@ -31,6 +31,11 @@ function createMemoryStorage(): Storage {
   };
 }
 
+function installBrowserStorage(storage: Storage): void {
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  Object.defineProperty(globalThis, 'window', { value: { localStorage: storage }, configurable: true });
+}
+
 const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
 
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -72,6 +77,67 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
             avatar: 'https://cdn.example.com/octocat.png',
           },
         },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/phone/login')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-phone-login',
+        errorName: '',
+        data: {
+          authToken: 'phone-auth-token',
+          accessToken: 'phone-payload-access-token',
+          refreshToken: 'phone-refresh-token',
+          tokenType: 'Bearer',
+          expiresIn: 3600,
+          userInfo: {
+            username: '13800138000',
+            phone: '13800138000',
+            nickname: 'Phone Operator',
+          },
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/email/login')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-email-login',
+        errorName: '',
+        data: {
+          authToken: 'email-auth-token',
+          accessToken: 'email-payload-access-token',
+          refreshToken: 'email-refresh-token',
+          tokenType: 'Bearer',
+          expiresIn: 3600,
+          userInfo: {
+            username: 'operator@example.com',
+            email: 'operator@example.com',
+            nickname: 'Email Operator',
+          },
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (url.endsWith('/app/v3/api/auth/password/reset')) {
+    return new Response(
+      JSON.stringify({
+        code: '2000',
+        msg: 'success',
+        requestId: 'req-password-reset',
+        errorName: '',
+        data: null,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
@@ -153,7 +219,7 @@ async function runTest(name: string, fn: () => Promise<void> | void) {
 
 await runTest('appAuthService requests OAuth authorization URLs through the generated app sdk auth client', async () => {
   const storage = createMemoryStorage();
-  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  installBrowserStorage(storage);
   const { appAuthService } = await import('./appAuthService.ts');
 
   const authUrl = await appAuthService.getOAuthAuthorizationUrl({
@@ -179,7 +245,7 @@ await runTest('appAuthService requests OAuth authorization URLs through the gene
 
 await runTest('appAuthService maps Douyin OAuth authorization through the generated app sdk auth client', async () => {
   const storage = createMemoryStorage();
-  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  installBrowserStorage(storage);
   const { appAuthService } = await import('./appAuthService.ts');
 
   await appAuthService.getOAuthAuthorizationUrl({
@@ -204,7 +270,7 @@ await runTest('appAuthService maps Douyin OAuth authorization through the genera
 
 await runTest('appAuthService completes OAuth login and persists returned session tokens', async () => {
   const storage = createMemoryStorage();
-  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  installBrowserStorage(storage);
   initAppSdkClient({ accessToken: 'configured-access-token' });
   const { appAuthService } = await import('./appAuthService.ts');
 
@@ -239,7 +305,7 @@ await runTest('appAuthService completes OAuth login and persists returned sessio
 
 await runTest('appAuthService completes Douyin OAuth login through the generated app sdk auth client', async () => {
   const storage = createMemoryStorage();
-  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  installBrowserStorage(storage);
   const { appAuthService } = await import('./appAuthService.ts');
 
   await appAuthService.loginWithOAuth({
@@ -264,7 +330,7 @@ await runTest('appAuthService completes Douyin OAuth login through the generated
 
 await runTest('appAuthService generates login qr payloads from backend qr metadata', async () => {
   const storage = createMemoryStorage();
-  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  installBrowserStorage(storage);
   const { appAuthService } = await import('./appAuthService.ts');
 
   const qrCode = await appAuthService.generateLoginQrCode();
@@ -282,7 +348,7 @@ await runTest('appAuthService generates login qr payloads from backend qr metada
 
 await runTest('appAuthService persists confirmed qr login sessions while polling qr status', async () => {
   const storage = createMemoryStorage();
-  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  installBrowserStorage(storage);
   initAppSdkClient({ accessToken: 'configured-access-token' });
   const { appAuthService } = await import('./appAuthService.ts');
 
@@ -295,4 +361,108 @@ await runTest('appAuthService persists confirmed qr login sessions while polling
   assert.equal(readAppSdkSessionTokens().authToken, 'qr-auth-token');
   assert.equal(readAppSdkSessionTokens().accessToken, 'configured-access-token');
   assert.equal(readAppSdkSessionTokens().refreshToken, 'qr-refresh-token');
+});
+
+await runTest('appAuthService completes phone verification-code login through the generated app sdk auth client', async () => {
+  const storage = createMemoryStorage();
+  installBrowserStorage(storage);
+  initAppSdkClient({ accessToken: 'configured-access-token' });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  const session = await appAuthService.loginWithPhone({
+    phone: '13800138000',
+    code: '123456',
+  });
+
+  assert.equal(session.authToken, 'phone-auth-token');
+  assert.equal(session.accessToken, 'configured-access-token');
+  assert.equal(session.refreshToken, 'phone-refresh-token');
+  assert.equal(session.userInfo?.nickname, 'Phone Operator');
+
+  const phoneLoginRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/phone/login'),
+  );
+
+  assert.ok(phoneLoginRequest);
+  assert.equal(phoneLoginRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(phoneLoginRequest.init?.body ?? '{}')), {
+    phone: '13800138000',
+    code: '123456',
+  });
+});
+
+await runTest('appAuthService completes email verification-code login through the generated app sdk auth client', async () => {
+  const storage = createMemoryStorage();
+  installBrowserStorage(storage);
+  initAppSdkClient({ accessToken: 'configured-access-token' });
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  const session = await appAuthService.loginWithEmail({
+    email: 'operator@example.com',
+    code: '654321',
+  });
+
+  assert.equal(session.authToken, 'email-auth-token');
+  assert.equal(session.accessToken, 'configured-access-token');
+  assert.equal(session.refreshToken, 'email-refresh-token');
+  assert.equal(session.userInfo?.nickname, 'Email Operator');
+
+  const emailLoginRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/email/login'),
+  );
+
+  assert.ok(emailLoginRequest);
+  assert.equal(emailLoginRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(emailLoginRequest.init?.body ?? '{}')), {
+    email: 'operator@example.com',
+    code: '654321',
+  });
+});
+
+await runTest('appAuthService resets passwords through the generated app sdk auth client', async () => {
+  const storage = createMemoryStorage();
+  installBrowserStorage(storage);
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  await appAuthService.resetPassword({
+    account: 'operator@example.com',
+    code: '654321',
+    newPassword: 'new-secret',
+  });
+
+  const passwordResetRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/password/reset'),
+  );
+
+  assert.ok(passwordResetRequest);
+  assert.equal(passwordResetRequest.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(passwordResetRequest.init?.body ?? '{}')), {
+    account: 'operator@example.com',
+    code: '654321',
+    newPassword: 'new-secret',
+    confirmPassword: 'new-secret',
+  });
+});
+
+await runTest('appAuthService maps configurable OAuth providers without hard-coded allowlists', async () => {
+  const storage = createMemoryStorage();
+  installBrowserStorage(storage);
+  const { appAuthService } = await import('./appAuthService.ts');
+
+  await appAuthService.getOAuthAuthorizationUrl({
+    provider: 'microsoft',
+    redirectUri: 'https://studio.example.com/login/oauth/callback/microsoft',
+    state: 'oauth:microsoft',
+  });
+
+  const oauthUrlRequest = fetchCalls.find(({ input }) =>
+    String(input).endsWith('/app/v3/api/auth/oauth/url'),
+  );
+
+  assert.ok(oauthUrlRequest);
+  assert.deepEqual(JSON.parse(String(oauthUrlRequest.init?.body ?? '{}')), {
+    provider: 'MICROSOFT',
+    redirectUri: 'https://studio.example.com/login/oauth/callback/microsoft',
+    state: 'oauth:microsoft',
+  });
 });

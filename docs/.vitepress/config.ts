@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import { localSearchOptions, publicDocsSrcExclude } from './searchIndexPolicy';
 
 const enNav = [
   { text: 'Guide', link: '/guide/getting-started' },
@@ -88,6 +89,7 @@ export default defineConfig({
   description: 'Package-first documentation for the Claw Studio workspace, web shell, and Tauri desktop runtime.',
   cleanUrls: true,
   lastUpdated: true,
+  srcExclude: publicDocsSrcExclude,
   head: [
     ['link', { rel: 'icon', href: '/logo.svg' }],
     ['meta', { name: 'theme-color', content: '#0f766e' }],
@@ -100,6 +102,7 @@ export default defineConfig({
     logo: '/logo.svg',
     search: {
       provider: 'local',
+      options: localSearchOptions,
     },
   },
   locales: {

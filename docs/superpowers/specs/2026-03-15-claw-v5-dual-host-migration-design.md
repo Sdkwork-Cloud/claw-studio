@@ -331,7 +331,7 @@ Must prove:
 - all V5 routes are present
 - all V5 feature pages exist
 - sidebar and navigation match V5
-- missing gaps such as `/auth`, `/claw-upload`, `/codebox`, and `/api-router` are restored
+- missing gaps such as `/auth`, `/claw-upload`, and `/codebox` are restored
 
 ### Visual verification
 

@@ -1,0 +1,260 @@
+{
+  "units": {
+    "points": "积分"
+  },
+  "filters": {
+    "all": "全部记录",
+    "earned": "获得记录",
+    "spent": "支出记录"
+  },
+  "cycles": {
+    "monthly": "月套餐",
+    "yearly": "年套餐"
+  },
+  "paymentMethods": {
+    "wechat": "微信支付",
+    "alipay": "支付宝",
+    "bankcard": "银行卡"
+  },
+  "header": {
+    "upgrade": "升级 Plus",
+    "upgradeShort": "Plus",
+    "pointsButton": "打开积分面板"
+  },
+  "quickPanel": {
+    "eyebrow": "积分钱包",
+    "pointsAvailable": "当前可用积分",
+    "guestHint": "登录后即可查看实时积分与会员状态。",
+    "currentPlan": "当前套餐",
+    "thisMonth": "本月获得",
+    "recharge": "充值积分",
+    "rechargeHint": "支持常用积分档位，也支持自定义输入。",
+    "upgrade": "升级会员",
+    "upgradeHint": "解锁每月赠送积分与更强工作流能力。",
+    "authRequired": "请先登录，再继续积分与会员相关操作。",
+    "recentRecords": "最近记录",
+    "openCenter": "进入积分中心",
+    "noRecords": "暂时还没有最近的积分记录。"
+  },
+  "page": {
+    "eyebrow": "积分中心",
+    "title": "管理积分、充值与使用情况",
+    "description": "查看实时积分余额，按后端配置汇率充值积分，并通过共享 app-sdk 购买可用的 VIP 套餐。",
+    "rechargeAction": "充值积分",
+    "upgradeAction": "升级 Plus",
+    "availablePoints": "当前积分余额",
+    "growthHint": "提前准备好积分，让工作流持续不断档。",
+    "currentPlan": "会员套餐",
+    "planMeta": "{{cycle}}，立即到账 {{grant}} 积分",
+    "planPrice": "当前周期价格 {{amount}}",
+    "earnedThisMonth": "本月获得",
+    "spentThisMonth": "本月支出",
+    "monthlyGrant": "套餐赠送积分",
+    "noGrant": "暂无赠送积分",
+    "rateTitle": "兑换汇率",
+    "rateValue": "1 元 = {{rate}} 积分",
+    "rateMeta": "当前后端汇率：1 元充值 {{rate}} 积分",
+    "rateUnavailable": "汇率暂不可用",
+    "recordsEyebrow": "积分账本",
+    "recordsTitle": "全部积分记录",
+    "empty": "当前筛选下暂无积分记录。",
+    "errorTitle": "积分数据加载失败",
+    "errorDescription": "共享 app-sdk 暂时不可用，请稍后重试。",
+    "retry": "重新加载"
+  },
+  "rechargeDialog": {
+    "eyebrow": "积分充值",
+    "title": "充值积分",
+    "description": "选择常用档位或自定义数量，核对后端返回的实时汇率后，直接通过真实 app-sdk 提交充值。",
+    "payable": "本次需支付",
+    "commonAmounts": "常用积分档位",
+    "configureTitle": "配置本次充值",
+    "configureDescription": "常用档位仍然保留为快捷入口，但实际支付金额始终以服务端配置的积分汇率为准。",
+    "customAmount": "自定义积分数量",
+    "customPlaceholder": "请输入正整数积分数量",
+    "backToForm": "返回充值设置",
+    "summaryEyebrow": "充值信息",
+    "summaryTitle": "确认本次积分充值",
+    "summaryDescription": "这里展示实时兑换汇率、支付方式与本次应付金额，全部来自真实积分充值契约。",
+    "summaryMeta": "购买 {{points}} 积分，需支付 {{amount}}",
+    "rechargeDetailsTitle": "充值积分",
+    "rechargeDetailsDescription": "确认本次购买的积分数量、划线原价与实付金额后，在右侧扫码完成支付。",
+    "selectedPointsLabel": "购买积分",
+    "purchaseTypeLabel": "充值方式",
+    "originalPriceLabel": "划线原价",
+    "actualPriceLabel": "实付金额",
+    "exchangeRateLabel": "兑换汇率",
+    "exchangeRateValue": "1 元 = {{rate}} 积分",
+    "rateUnavailable": "后端暂未返回可用的积分汇率。",
+    "presetMeta": "需支付 {{amount}}",
+    "presetPurchase": "常用档位",
+    "customPurchase": "自定义数量",
+    "paymentEyebrow": "扫码支付",
+    "paymentTitle": "扫码完成积分充值",
+    "paymentDescription": "右侧展示当前支付二维码，切换支付方式后二维码会同步更新。",
+    "qrAlt": "{{method}} 充值二维码",
+    "scanHint": "请使用{{method}}扫描上方二维码",
+    "paymentTip": "确认后会发起真实的 {{points}} 积分充值请求，待支付结果返回后刷新钱包信息。",
+    "paymentMethod": "支付方式",
+    "tip": "充值已接入真实账户钱包服务。后端确认支付结果后，余额、记录和头部积分面板会同步刷新。",
+    "continueToPayment": "去支付",
+    "confirm": "确认充值",
+    "confirmPayment": "我已完成充值"
+  },
+  "upgradeDialog": {
+    "eyebrow": "会员升级",
+    "title": "升级您的订阅计划",
+    "description": "从 app-sdk 返回的实时 VIP 套餐中选择合适的方案，并通过真实会员购买契约完成提交。",
+    "save20": "省 20%",
+    "pointsGrant": "立即到账套餐积分",
+    "pointsGrantValue": "{{points}} 积分",
+    "noGrant": "暂无套餐积分",
+    "includedBenefits": "包含特权",
+    "backToPlans": "返回计划",
+    "summaryEyebrow": "套餐信息",
+    "summaryTitle": "确认已选套餐",
+    "summaryDescription": "先确认当前会员状态、所选套餐、有效时长和赠送积分，再提交真实会员购买请求。",
+    "currentMembership": "当前会员状态",
+    "defaultPlanDescription": "该 VIP 套餐由共享 app-sdk 提供，购买成功后即可立即生效。",
+    "noPlans": "当前暂无可购买的 VIP 套餐。",
+    "summaryMeta": "{{cycle}}，开通后立即到账 {{points}} 积分",
+    "paymentLockedHint": "当前支付步骤不支持修改套餐或年月周期，请点击左上角返回重新选择。",
+    "paymentSummaryHint": "如需更换套餐或周期，请点击左上角返回上一步重新选择。",
+    "currentPlanHint": "当前选择已经是你正在使用的套餐周期，无需重复开通。",
+    "paymentEyebrow": "扫码支付",
+    "paymentTitle": "扫码完成支付",
+    "paymentDescription": "右侧展示当前支付二维码与支付摘要，切换方式后二维码会同步更新。",
+    "qrAlt": "{{method}} 支付二维码",
+    "scanHint": "请使用{{method}}扫描上方二维码",
+    "paymentTip": "确认后会提交真实会员购买请求，待后端返回结果后刷新套餐与积分信息。",
+    "confirmPayment": "我已完成支付",
+    "agreementPrefix": "支付即代表您已阅读并同意",
+    "membershipAgreement": "《会员权益说明》",
+    "agreementJoiner": "与",
+    "serviceAgreement": "《订阅服务协议》",
+    "packageDetailsTitle": "套餐信息",
+    "packageDetailsDescription": "核对套餐、周期、到账积分与价格后即可继续支付。",
+    "lockedBadge": "已锁定",
+    "packageNameLabel": "套餐方案",
+    "durationLabel": "有效时长",
+    "durationValue": "{{days}} 天",
+    "durationUnknown": "暂未提供时长信息",
+    "billingCycleLabel": "订阅周期",
+    "grantPointsLabel": "到账积分",
+    "originalPriceLabel": "划线原价",
+    "actualPriceLabel": "实付金额",
+    "totalPriceLabel": "应付金额"
+  },
+  "auth": {
+    "signInRequired": "请先登录，才能读取、充值或升级您的实时积分账户。"
+  },
+  "membership": {
+    "guest": "访客",
+    "free": "免费版",
+    "vip": "会员",
+    "freeMeta": "您当前使用的是免费会员层级。",
+    "remainingDays": "剩余 {{days}} 天",
+    "expireAt": "到期时间 {{date}}"
+  },
+  "status": {
+    "completed": "已完成",
+    "pending": "处理中",
+    "failed": "失败"
+  },
+  "planBadges": {
+    "recommended": "推荐计划",
+    "current": "当前方案",
+    "free": "免费"
+  },
+  "plans": {
+    "free": {
+      "title": "Free",
+      "tagline": "适合初次体验和轻量日常使用。",
+      "audience": "适合首次体验用户与产品评估场景。",
+      "benefits": [
+        "每日签到奖励持续可领",
+        "保留核心聊天与工作流能力",
+        "可随时升级到付费套餐"
+      ]
+    },
+    "plus": {
+      "title": "Plus",
+      "tagline": "适合高频创作与持续输出的主力方案。",
+      "audience": "适合个人创作者与轻量执行团队。",
+      "benefits": [
+        "每月赠送 8,800 积分",
+        "每日额外 200 免费积分",
+        "优先体验高强度工作流运行"
+      ]
+    },
+    "pro": {
+      "title": "Pro",
+      "tagline": "为多任务并发和深度自动化提供更多余量。",
+      "audience": "适合承担更复杂自动化与稳定产出的团队。",
+      "benefits": [
+        "每月赠送 17,600 积分",
+        "支持更高并发的复杂任务批次",
+        "更适合内容与运营跨团队协作"
+      ]
+    },
+    "ultra": {
+      "title": "Ultra",
+      "tagline": "面向持续运行与规模化自动化交付的团队方案。",
+      "audience": "适合长期高负载运行的规模化团队。",
+      "benefits": [
+        "每月赠送 44,000 积分",
+        "支持长时间高负载工作流",
+        "更适合团队级自动化覆盖"
+      ]
+    }
+  },
+  "transactions": {
+    "dailyCheckIn": {
+      "title": "每日签到奖励",
+      "description": "今日签到积分已经到账。"
+    },
+    "aiImageGeneration": {
+      "title": "AI 绘图支出",
+      "description": "高清绘图任务消耗了一部分积分。"
+    },
+    "referralReward": {
+      "title": "邀请奖励",
+      "description": "有新用户通过你的邀请加入，奖励积分已发放。"
+    },
+    "workflowRun": {
+      "title": "工作流运行支出",
+      "description": "自动化工作流执行时消耗积分。"
+    },
+    "welcomePack": {
+      "title": "新人积分礼包",
+      "description": "首次登录赠送的欢迎积分礼包。"
+    },
+    "manualTopUp": {
+      "title": "积分充值",
+      "description": "通过 {{method}} 充值，支付金额 {{amount}}。"
+    },
+    "planUpgrade": {
+      "title": "{{plan}}{{cycle}}已开通",
+      "description": "已即时发放 {{points}} 积分，当前模拟支付金额为 {{amount}}。"
+    },
+    "fallback": {
+      "title": "积分变动",
+      "description": "你的积分余额发生了变化。"
+    }
+  },
+  "actions": {
+    "processing": "处理中...",
+    "currentPlan": "当前正在使用",
+    "freePlan": "当前免费方案",
+    "upgradeNow": "立即升级",
+    "selectedPlan": "已选择",
+    "selectPlan": "选择此套餐"
+  },
+  "toasts": {
+    "rechargeSuccess": "已成功到账 {{points}} 积分。",
+    "rechargeFailed": "充值失败，请稍后重试。",
+    "upgradeSuccess": "{{plan}} 已开通，并到账 {{points}} 积分。",
+    "upgradeFailed": "升级失败，请稍后重试。",
+    "invalidCustomPoints": "请输入大于 0 的整数积分数量。"
+  }
+}

@@ -1,0 +1,4 @@
+acceleratorProfile: nvidia-cuda
+resources:
+  limits:
+    nvidia.com/gpu: 1

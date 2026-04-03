@@ -7,7 +7,7 @@ The current `Install Claw` experience already covers product selection, environm
 Today the OpenClaw path is still split across several surfaces:
 
 - install readiness and execution live inside the install modal
-- model and provider configuration live in instance and API Router surfaces
+- model and provider configuration live in the instance workbench and provider center surfaces
 - channel configuration lives in the channels page
 - skills initialization lives in the market
 
@@ -23,7 +23,7 @@ This makes the first-run experience feel technically rich but operationally inco
 
 - Turn the OpenClaw install action into a guided five-step onboarding flow.
 - Keep the product-first install page shell intact while upgrading the OpenClaw install interaction.
-- Reuse existing infrastructure, channels, API Router, instance, and market data capabilities without breaking package boundaries.
+- Reuse existing infrastructure, channels, provider-center, instance, and market data capabilities without breaking package boundaries.
 - Ensure each step has clear readiness logic, validation, and recovery paths.
 - Let users finish with a real "ready to use" state, not just a completed installer command.
 
@@ -32,7 +32,7 @@ This makes the first-run experience feel technically rich but operationally inco
 - Rebuild uninstall or migrate into the same wizard in this iteration.
 - Introduce new backend installer APIs beyond the current hub-installer bridge.
 - Make this first version generic for `zeroclaw` or `ironclaw`.
-- Replace existing settings, channels, market, or API Router pages. They remain advanced destinations.
+- Replace existing settings, channels, market, or provider-center pages. They remain advanced destinations.
 
 **Approaches Considered**
 
@@ -167,7 +167,7 @@ Apply behavior:
 
 - upsert an OpenClaw LLM provider onto the selected instance
 - mark the provider `configurationRequired` if key/source information is missing
-- expose a deep link to advanced tuning in the instance workbench or API Router
+- expose a deep link to advanced tuning in the instance workbench or provider center
 
 ### 5.2 Channels
 
@@ -228,11 +228,11 @@ The step also includes quick next actions:
 - open instances
 - open market
 - open channels
-- open API Router
+- open provider center
 
 ## 8. Data Flow And Boundaries
 
-To preserve the declared dependency flow, the install package must not import feature-local services from `market`, `channels`, `apirouter`, or `instances`.
+To preserve the declared dependency flow, the install package must not import feature-local services from `market`, `channels`, `settings`, or `instances`.
 
 The wizard should instead use:
 
@@ -245,7 +245,7 @@ The wizard should instead use:
   - applying initialization
   - building verification summaries
 
-Any shared inference logic needed by both install and API Router should be moved to a neutral service if duplication becomes painful. For this iteration, the install package may host its own tested inference logic to avoid a broad refactor.
+Any shared inference logic needed by both install and the provider center should be moved to a neutral service if duplication becomes painful. For this iteration, the install package may host its own tested inference logic to avoid a broad refactor.
 
 ## 9. Error Handling
 

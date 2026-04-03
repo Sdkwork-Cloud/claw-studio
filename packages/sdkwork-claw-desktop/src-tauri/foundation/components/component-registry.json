@@ -5,7 +5,7 @@
       "id": "openclaw",
       "displayName": "OpenClaw",
       "kind": "nodeApp",
-      "bundledVersion": "bundled",
+      "bundledVersion": "2026.4.1",
       "startupMode": "autoStart",
       "installSubdir": "modules/openclaw/current",
       "upgradeChannel": "stable",
@@ -30,21 +30,6 @@
       "installSubdir": "modules/ironclaw/current",
       "upgradeChannel": "stable",
       "serviceIds": ["ironclaw"]
-    },
-    {
-      "id": "sdkwork-api-router",
-      "displayName": "SdkWork API Router",
-      "kind": "serviceGroup",
-      "bundledVersion": "bundled",
-      "startupMode": "autoStart",
-      "installSubdir": "modules/sdkwork-api-router/current",
-      "upgradeChannel": "stable",
-      "serviceIds": [
-        "sdkwork_api_router_gateway",
-        "sdkwork_api_router_admin_api",
-        "sdkwork_api_router_portal_api",
-        "sdkwork_api_router_web_server"
-      ]
     },
     {
       "id": "hub-installer",

@@ -35,6 +35,7 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
     closeWindow: async () => {},
     listDirectory: async () => [],
     pathExists: async () => false,
+    pathExistsForUserTooling: async () => false,
     getPathInfo: async (path) => ({
       path,
       name: path.split(/[\\/]/).pop() || path,
@@ -51,6 +52,7 @@ function createPlatformBridgeStub(overrides: Partial<PlatformAPI> = {}): Platfor
     readBinaryFile: async () => new Uint8Array(),
     writeBinaryFile: async () => {},
     readFile: async () => '',
+    readFileForUserTooling: async () => '',
     writeFile: async () => {},
     ...overrides,
   };
