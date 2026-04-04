@@ -5,7 +5,16 @@ import { fileURLToPath } from 'node:url';
 import { withRustToolchainPath } from './ensure-tauri-rust-toolchain.mjs';
 import { buildNonInteractiveInstallEnv, shouldUseWindowsCommandShell } from './desktop-build-helpers.mjs';
 import { DEFAULT_OPENCLAW_VERSION } from './openclaw-release.mjs';
-import { DEFAULT_RESOURCE_DIR } from './prepare-openclaw-runtime.mjs';
+import {
+  buildOpenClawRuntimeInstallEnv,
+  DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
+  DEFAULT_NODE_VERSION,
+  DEFAULT_PREPARE_CACHE_DIR,
+  resolveOpenClawRuntimeInstallSpecs,
+  resolveOpenClawPrepareCachePaths,
+  resolveRequestedOpenClawTarget,
+  validatePreparedOpenClawPackageTree,
+} from './prepare-openclaw-runtime.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +45,12 @@ const openClawRuntimeBundleSourceRoot = resolveBundledResourceMirrorRoot(
   'openclaw',
   process.platform,
 );
+const desktopWebDistBundleSourceRoot = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-desktop',
+  'dist',
+);
 const sourceFoundationDir = path.join(
   rootDir,
   'packages',
@@ -52,6 +67,7 @@ const releaseMode = args.has('--release');
 const skipOpenClaw = args.has('--skip-openclaw');
 const windowsTauriBundleBridgeRoots = {
   bundled: ['generated', 'br', 'b'],
+  'web-dist': ['generated', 'br', 'w'],
   openclaw: ['generated', 'br', 'o'],
 };
 
@@ -187,6 +203,18 @@ export function prepareBundledOutputRootSync(
   }
 }
 
+export async function validateStagedOpenClawPackage({
+  packageRoot,
+  expectedVersion = null,
+  runtimeSupplementalPackages = DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
+} = {}) {
+  await validatePreparedOpenClawPackageTree({
+    packageRoot,
+    expectedOpenClawVersion: expectedVersion,
+    runtimeSupplementalPackages,
+  });
+}
+
 function filesHaveEqualContent(sourcePath, targetPath) {
   try {
     return fs.readFileSync(sourcePath).equals(fs.readFileSync(targetPath));
@@ -316,26 +344,16 @@ const componentSources = [
       installPnpmWorkspace(repoDir);
       runCommand(pnpmCmd, ['build'], { cwd: repoDir });
     },
-    stage(repoDir, version) {
+    async stage(repoDir, version) {
       if (skipOpenClaw) {
         return;
       }
 
       const expectedVersion = readJson(path.join(repoDir, 'package.json')).version;
       const expectedCommit = readGitHeadCommit(repoDir);
-      const preparedPackageRoot = path.join(
-        DEFAULT_RESOURCE_DIR,
-        'runtime',
-        'package',
-        'node_modules',
-        'openclaw',
-      );
-      const preparedModulesDir = path.join(
-        DEFAULT_RESOURCE_DIR,
-        'runtime',
-        'package',
-        'node_modules',
-      );
+      const { preparedPackageRoot, preparedModulesDir } = resolvePreparedOpenClawPackageRoots({
+        openclawVersion: expectedVersion,
+      });
       const stageVersionDir = path.join(bundledRoot, 'modules', 'openclaw', version);
       const stageDir = path.join(bundledRoot, 'modules', 'openclaw', version, 'app');
 
@@ -344,6 +362,7 @@ const componentSources = [
           packageRoot: repoDir,
           expectedVersion,
           expectedCommit,
+          expectedSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
         });
 
         if (!sourceInspection.fresh) {
@@ -351,6 +370,7 @@ const componentSources = [
             packageRoot: preparedPackageRoot,
             expectedVersion,
             expectedCommit,
+            expectedSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
           });
 
         if (preparedInspection.fresh) {
@@ -377,6 +397,7 @@ const componentSources = [
               packageRoot: stageDir,
               expectedVersion,
               expectedCommit,
+              expectedSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
             });
 
             if (!stagedPreparedInspection.fresh) {
@@ -384,6 +405,12 @@ const componentSources = [
                 `staged prepared openclaw package drifted from ${expectedVersion}@${expectedCommit.slice(0, 7)}: ${stagedPreparedInspection.issues.join(', ')}`,
               );
             }
+
+            await validateStagedOpenClawPackage({
+              packageRoot: stageDir,
+              expectedVersion,
+              runtimeSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
+            });
             return;
           }
 
@@ -426,6 +453,10 @@ const componentSources = [
         throw new Error('failed to resolve openclaw npm pack output');
       }
 
+      const installSpecs = resolveOpenClawRuntimeInstallSpecs({
+        openclawInstallSpec: path.join(packedDir, tarballName),
+        runtimeSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
+      });
       runCommand(
         npmCmd,
         [
@@ -434,9 +465,12 @@ const componentSources = [
           '--prefix',
           prefixDir,
           '--ignore-scripts',
-          path.join(packedDir, tarballName),
+          ...installSpecs,
         ],
-        { cwd: repoDir },
+        {
+          cwd: repoDir,
+          env: buildOpenClawRuntimeInstallEnv(commandEnv),
+        },
       );
 
       const installedModulesDir = resolveGlobalNodeModulesDir(prefixDir);
@@ -464,6 +498,7 @@ const componentSources = [
         packageRoot: stageDir,
         expectedVersion,
         expectedCommit,
+        expectedSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
       });
 
       if (!stagedInspection.fresh) {
@@ -471,6 +506,12 @@ const componentSources = [
           `staged openclaw package metadata drifted from ${expectedVersion}@${expectedCommit.slice(0, 7)}: ${stagedInspection.issues.join(', ')}`,
         );
       }
+
+      await validateStagedOpenClawPackage({
+        packageRoot: stageDir,
+        expectedVersion,
+        runtimeSupplementalPackages: DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES,
+      });
     },
   },
   {
@@ -534,7 +575,7 @@ const componentSources = [
   },
 ];
 
-function main() {
+async function main() {
   fs.mkdirSync(upstreamRoot, { recursive: true });
   fs.mkdirSync(buildRoot, { recursive: true });
   fs.mkdirSync(generatedRoot, { recursive: true });
@@ -591,12 +632,12 @@ function main() {
     if (executionPlan.shouldStage) {
       if (devMode) {
         try {
-          component.stage(repoDir, version);
+          await component.stage(repoDir, version);
         } catch (error) {
           console.warn(`[bundled-components] skipped staging ${component.id} in dev mode: ${error instanceof Error ? error.message : String(error)}`);
         }
       } else {
-        component.stage(repoDir, version);
+        await component.stage(repoDir, version);
       }
     } else {
       console.log(
@@ -929,6 +970,26 @@ function tryReadJson(filePath) {
   }
 }
 
+export function resolvePreparedOpenClawPackageRoots({
+  cacheDir = DEFAULT_PREPARE_CACHE_DIR,
+  openclawVersion = DEFAULT_OPENCLAW_VERSION,
+  nodeVersion = DEFAULT_NODE_VERSION,
+  target = resolveRequestedOpenClawTarget({ env: process.env }),
+} = {}) {
+  const cachePaths = resolveOpenClawPrepareCachePaths({
+    cacheDir,
+    openclawVersion,
+    nodeVersion,
+    target,
+  });
+
+  return {
+    cachePaths,
+    preparedPackageRoot: path.join(cachePaths.packageCacheDir, 'node_modules', 'openclaw'),
+    preparedModulesDir: path.join(cachePaths.packageCacheDir, 'node_modules'),
+  };
+}
+
 export function normalizeComponentRegistryOpenClawVersion(
   componentRegistry,
   { bundledOpenClawVersion = DEFAULT_OPENCLAW_VERSION } = {},
@@ -998,6 +1059,7 @@ export function inspectOpenClawPackageMetadata({
   packageRoot,
   expectedVersion = null,
   expectedCommit = null,
+  expectedSupplementalPackages = [],
 } = {}) {
   const packageJson = tryReadJson(path.join(packageRoot, 'package.json'));
   const buildInfo = tryReadJson(path.join(packageRoot, 'dist', 'build-info.json'));
@@ -1042,6 +1104,18 @@ export function inspectOpenClawPackageMetadata({
   ) {
     issues.push('cli-startup-commit-mismatch');
   }
+  const modulesRoot = path.join(packageRoot, '..');
+  for (const installSpec of expectedSupplementalPackages) {
+    const packageName = resolvePackageNameFromInstallSpec(installSpec);
+    if (!packageName) {
+      continue;
+    }
+
+    const supplementalPackagePath = path.join(modulesRoot, ...packageName.split('/'));
+    if (!fs.existsSync(supplementalPackagePath)) {
+      issues.push(`missing-supplemental-package:${packageName}`);
+    }
+  }
 
   return {
     fresh: issues.length === 0,
@@ -1070,6 +1144,21 @@ export function resolveGlobalNodeModulesDir(prefixDir, platform = process.platfo
   }
 
   return path.posix.join(prefixDir, 'lib', 'node_modules');
+}
+
+function resolvePackageNameFromInstallSpec(installSpec) {
+  const normalized = String(installSpec ?? '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (normalized.startsWith('@')) {
+    const versionSeparatorIndex = normalized.lastIndexOf('@');
+    return versionSeparatorIndex > 0 ? normalized.slice(0, versionSeparatorIndex) : normalized;
+  }
+
+  const versionSeparatorIndex = normalized.indexOf('@');
+  return versionSeparatorIndex >= 0 ? normalized.slice(0, versionSeparatorIndex) : normalized;
 }
 
 function resolveBundledBuildRoot(workspaceRootDir, platform = process.platform) {
@@ -1173,6 +1262,11 @@ function ensureWindowsTauriBundleBridgeRoots() {
     process.platform,
   );
   ensureDirectoryLinkRoot(
+    resolveWindowsTauriBundleBridgeDir(rootDir, 'web-dist', process.platform),
+    desktopWebDistBundleSourceRoot,
+    process.platform,
+  );
+  ensureDirectoryLinkRoot(
     resolveWindowsTauriBundleBridgeDir(rootDir, 'openclaw', process.platform),
     openClawRuntimeBundleSourceRoot,
     process.platform,
@@ -1194,6 +1288,7 @@ export function createTauriBundleOverlayConfig({
         // Use short in-tree bridge junctions so Windows bundling avoids both
         // lost drive prefixes and MAX_PATH expansion through repo-relative roots.
         [resolveWindowsTauriBundleBridgeSource('bundled')]: 'generated/bundled/',
+        [resolveWindowsTauriBundleBridgeSource('web-dist')]: 'dist/',
         'vendor/hub-installer/registry/': 'vendor/hub-installer/registry/',
         [resolveWindowsTauriBundleBridgeSource('openclaw')]: 'resources/openclaw/',
       },
@@ -1335,10 +1430,8 @@ function rustTargetDir(componentId) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  try {
-    main();
-  } catch (error) {
+  main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
-  }
+  });
 }

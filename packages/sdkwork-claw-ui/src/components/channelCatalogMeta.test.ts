@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   getChannelCatalogRegion,
+  getChannelCatalogRegions,
   getChannelOfficialLink,
   isChannelDownloadAppAction,
   partitionChannelCatalogItemsByRegion,
@@ -67,7 +68,14 @@ runTest('getChannelCatalogRegion keeps domestic channels grouped separately from
   assert.equal(getChannelCatalogRegion('unknown-channel'), 'global');
 });
 
-runTest('partitionChannelCatalogItemsByRegion prefers the domestic tab when both groups have entries', () => {
+runTest('getChannelCatalogRegions allows Sdkwork Chat to appear in both domestic and global tabs', () => {
+  assert.deepEqual(getChannelCatalogRegions('sdkworkchat'), ['domestic', 'global']);
+  assert.deepEqual(getChannelCatalogRegions('wehcat'), ['domestic']);
+  assert.deepEqual(getChannelCatalogRegions('discord'), ['global']);
+  assert.deepEqual(getChannelCatalogRegions('unknown-channel'), ['global']);
+});
+
+runTest('partitionChannelCatalogItemsByRegion builds domestic, global, and all tabs while keeping domestic as the default', () => {
   const groups = partitionChannelCatalogItemsByRegion([
     {
       id: 'discord',
@@ -98,15 +106,28 @@ runTest('partitionChannelCatalogItemsByRegion prefers the domestic tab when both
   );
   assert.deepEqual(
     groups.global.map((item) => item.id),
-    ['discord'],
+    ['sdkworkchat', 'discord'],
+  );
+  assert.deepEqual(
+    groups.all.map((item) => item.id),
+    ['sdkworkchat', 'qq', 'discord'],
   );
   assert.equal(resolveDefaultChannelCatalogRegion(groups), 'domestic');
   assert.equal(
     resolveDefaultChannelCatalogRegion({
       domestic: [],
       global: groups.global,
+      all: groups.all,
     }),
     'global',
+  );
+  assert.equal(
+    resolveDefaultChannelCatalogRegion({
+      domestic: [],
+      global: [],
+      all: [],
+    }),
+    'all',
   );
 });
 

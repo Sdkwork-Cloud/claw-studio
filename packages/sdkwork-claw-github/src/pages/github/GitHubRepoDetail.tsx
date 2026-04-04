@@ -5,7 +5,7 @@ import {
   Code,
   Download,
   FileText,
-  Github,
+  GitBranch,
   GitFork,
   ShieldCheck,
   Star,
@@ -138,7 +138,7 @@ export function GitHubRepoDetail() {
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <Github className="h-10 w-10 text-zinc-700 dark:text-zinc-300" />
+              <GitBranch className="h-10 w-10 text-zinc-700 dark:text-zinc-300" />
             )}
           </div>
           <div>

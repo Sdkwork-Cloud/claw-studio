@@ -54,6 +54,7 @@ const dockerDeploymentDir = path.join(rootDir, 'deploy', 'docker');
 const kubernetesDeploymentDir = path.join(rootDir, 'deploy', 'kubernetes');
 const DEFAULT_SERVER_BINARY_NAME = 'sdkwork-claw-server';
 const DEFAULT_DEPLOYMENT_ACCELERATOR = 'cpu';
+const DEFAULT_KUBERNETES_IMAGE_REPOSITORY = 'claw-studio-server';
 const SUPPORTED_DEPLOYMENT_ACCELERATORS = new Set([
   'cpu',
   'nvidia-cuda',
@@ -85,6 +86,22 @@ const desktopBundleRules = {
     suffixes: ['.dmg', '.app.tar.gz', '.app.zip', '.zip'],
   },
 };
+
+function removeLegacyDesktopOutputPaths({
+  outputDir,
+  platformId,
+}) {
+  const desktopBundleRule = desktopBundleRules[platformId];
+  if (!desktopBundleRule) {
+    return;
+  }
+
+  const legacyPlatformOutputDir = path.join(outputDir, 'desktop', platformId);
+  for (const bundleDirectory of desktopBundleRule.directories) {
+    rmSync(path.join(legacyPlatformOutputDir, bundleDirectory), { recursive: true, force: true });
+  }
+  rmSync(path.join(legacyPlatformOutputDir, 'release-asset-manifest.json'), { force: true });
+}
 
 export function normalizePlatformId(platform = process.platform) {
   if (platform === 'win32' || platform === 'windows') {
@@ -149,6 +166,19 @@ export function buildDeploymentBundleBaseName({
   }
 
   return `claw-studio-${normalizedFamily}-bundle-${normalizedReleaseTag}-${normalizedPlatform}-${normalizedArch}-${normalizedAccelerator}`;
+}
+
+function buildServerBinaryMissingHint(targetTriple = '') {
+  const normalizedTargetTriple = String(targetTriple ?? '').trim();
+  if (normalizedTargetTriple.length > 0) {
+    return ` Build a matching native server binary first with "pnpm server:build -- --target ${normalizedTargetTriple}".`;
+  }
+
+  return ' Build a native server binary first with "pnpm server:build".';
+}
+
+function buildDesktopBundleMissingHint() {
+  return ' Run "pnpm release:desktop" or "pnpm tauri:build" first. "pnpm release:package:desktop" only collects installers and app bundles that were already produced by the desktop release build.';
 }
 
 function resolveServerBinaryFileName(platformId) {
@@ -306,7 +336,9 @@ function populateServerRuntimeBundle({
       targetDir: serverBuildTargetDir,
       platform: platformId,
     }).join(', ');
-    throw new Error(`Missing server binary output. Checked: ${candidates}`);
+    throw new Error(
+      `Missing server binary output. Checked: ${candidates}.${buildServerBinaryMissingHint(targetTriple)}`,
+    );
   }
   if (!existsSync(serverWebDistDir)) {
     throw new Error(`Missing server web dist directory: ${serverWebDistDir}`);
@@ -344,6 +376,9 @@ function writeDeploymentBundleReadme({
   platformId,
   archId,
   accelerator,
+  imageRepository = '',
+  imageTag = '',
+  imageDigest = '',
 }) {
   const deploymentCommand = family === 'container'
     ? 'docker compose -f deploy/docker-compose.yml up -d'
@@ -371,6 +406,11 @@ function writeDeploymentBundleReadme({
       '```',
       '',
       'See `release-metadata.json` for the selected target architecture and accelerator profile.',
+      family === 'kubernetes'
+        ? `The generated Helm values pin image tag \`${imageTag}\` for repository \`${imageRepository}\`${
+          imageDigest ? ` and also include digest \`${imageDigest}\`` : ''
+        }.`
+        : 'The generated bundle metadata records the selected deployment family and accelerator profile.',
       '',
     ].join('\n'),
     'utf8',
@@ -455,6 +495,9 @@ export function parseArgs(argv) {
     outputDir: path.join(rootDir, 'artifacts', 'release'),
     releaseTag: '',
     accelerator: DEFAULT_DEPLOYMENT_ACCELERATOR,
+    imageRepository: '',
+    imageTag: '',
+    imageDigest: '',
   };
 
   for (let index = 0; index < rest.length; index += 1) {
@@ -498,6 +541,24 @@ export function parseArgs(argv) {
 
     if (token === '--accelerator') {
       options.accelerator = readOptionValue(rest, index, '--accelerator');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--image-repository') {
+      options.imageRepository = readOptionValue(rest, index, '--image-repository');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--image-tag') {
+      options.imageTag = readOptionValue(rest, index, '--image-tag');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--image-digest') {
+      options.imageDigest = readOptionValue(rest, index, '--image-digest');
       index += 1;
     }
   }
@@ -671,6 +732,7 @@ function packageMacosAppArchives({
 
 export function packageDesktopAssets({
   profileId = DEFAULT_RELEASE_PROFILE_ID,
+  releaseTag = '',
   platform,
   arch,
   target,
@@ -696,12 +758,18 @@ export function packageDesktopAssets({
       targetTriple: targetSpec.targetTriple,
       targetDir,
     }).join(', ');
-    throw new Error(`Missing desktop bundle output directory. Checked: ${candidateMessage}`);
+    throw new Error(
+      `Missing desktop bundle output directory. Checked: ${candidateMessage}.${buildDesktopBundleMissingHint()}`,
+    );
   }
 
   const bundleFiles = listFilesRecursively(desktopBundleRoot)
     .filter((file) => shouldIncludeDesktopBundleFile(platformId, file.relativePath));
 
+  removeLegacyDesktopOutputPaths({
+    outputDir,
+    platformId,
+  });
   const platformOutputDir = path.join(outputDir, 'desktop', platformId, archId);
   rmSync(platformOutputDir, { recursive: true, force: true });
   ensureDirectory(platformOutputDir);
@@ -758,6 +826,7 @@ export function packageDesktopAssets({
     manifestPath: path.join(platformOutputDir, releaseProfile.release.partialManifestFileName),
     profileId: releaseProfile.id,
     productName: releaseProfile.productName,
+    releaseTag,
     platform: platformId,
     arch: archId,
     artifacts: emittedArtifacts,
@@ -827,6 +896,7 @@ export function packageServerAssets({
       manifestPath: path.join(platformOutputDir, releaseProfile.release.partialManifestFileName),
       profileId: releaseProfile.id,
       productName: releaseProfile.productName,
+      releaseTag,
       platform: platformId,
       arch: archId,
       artifacts: [
@@ -938,6 +1008,7 @@ export function packageContainerAssets({
       manifestPath: path.join(outputFamilyDir, releaseProfile.release.partialManifestFileName),
       profileId: releaseProfile.id,
       productName: releaseProfile.productName,
+      releaseTag,
       platform: platformId,
       arch: archId,
       artifacts: [
@@ -967,14 +1038,22 @@ export function packageKubernetesAssets({
   accelerator = DEFAULT_DEPLOYMENT_ACCELERATOR,
   outputDir,
   deploymentSourceDir = kubernetesDeploymentDir,
+  imageRepository = DEFAULT_KUBERNETES_IMAGE_REPOSITORY,
+  imageTag = '',
+  imageDigest = '',
 }) {
   const releaseProfile = resolveReleaseProfile(profileId);
   const platformId = normalizePlatformId(platform);
   const archId = normalizeDesktopArch(arch);
   const acceleratorId = normalizeDeploymentAccelerator(accelerator);
+  const normalizedReleaseTag = String(releaseTag ?? '').trim();
+  const normalizedImageRepository =
+    String(imageRepository ?? '').trim() || DEFAULT_KUBERNETES_IMAGE_REPOSITORY;
+  const normalizedImageTag = String(imageTag ?? '').trim() || normalizedReleaseTag;
+  const normalizedImageDigest = String(imageDigest ?? '').trim();
   const archiveBaseName = buildDeploymentBundleBaseName({
     family: 'kubernetes',
-    releaseTag,
+    releaseTag: normalizedReleaseTag,
     platform: platformId,
     arch: archId,
     accelerator: acceleratorId,
@@ -998,6 +1077,10 @@ export function packageKubernetesAssets({
       [
         `targetArchitecture: ${archId}`,
         `acceleratorProfile: ${acceleratorId}`,
+        'image:',
+        `  repository: ${normalizedImageRepository}`,
+        `  tag: ${normalizedImageTag}`,
+        `  digest: ${normalizedImageDigest}`,
         '',
       ].join('\n'),
       'utf8',
@@ -1010,6 +1093,9 @@ export function packageKubernetesAssets({
         platform: platformId,
         arch: archId,
         accelerator: acceleratorId,
+        imageRepository: normalizedImageRepository,
+        imageTag: normalizedImageTag,
+        imageDigest: normalizedImageDigest || null,
       }, null, 2)}\n`,
       'utf8',
     );
@@ -1020,6 +1106,9 @@ export function packageKubernetesAssets({
       platformId,
       archId,
       accelerator: acceleratorId,
+      imageRepository: normalizedImageRepository,
+      imageTag: normalizedImageTag,
+      imageDigest: normalizedImageDigest,
     });
 
     rmSync(archivePath, { force: true });
@@ -1034,6 +1123,7 @@ export function packageKubernetesAssets({
       manifestPath: path.join(outputFamilyDir, releaseProfile.release.partialManifestFileName),
       profileId: releaseProfile.id,
       productName: releaseProfile.productName,
+      releaseTag: normalizedReleaseTag,
       platform: platformId,
       arch: archId,
       artifacts: [
@@ -1108,6 +1198,7 @@ export function packageWebAssets({
       manifestPath: path.join(webOutputDir, releaseProfile.release.partialManifestFileName),
       profileId: releaseProfile.id,
       productName: releaseProfile.productName,
+      releaseTag,
       platform: 'web',
       arch: 'any',
       artifacts: [
@@ -1143,6 +1234,7 @@ function writeReleaseAssetManifest({
   manifestPath,
   profileId,
   productName,
+  releaseTag = '',
   platform,
   arch,
   artifacts,
@@ -1152,6 +1244,7 @@ function writeReleaseAssetManifest({
     `${JSON.stringify({
       profileId,
       productName,
+      releaseTag: String(releaseTag ?? '').trim(),
       platform,
       arch,
       artifacts,
@@ -1167,7 +1260,7 @@ function printUsage() {
       '  node scripts/release/package-release-assets.mjs desktop --platform <windows|linux|macos> --arch <x64|arm64> --target <triple> --output-dir <dir>',
       '  node scripts/release/package-release-assets.mjs server --release-tag <tag> --platform <windows|linux|macos> --arch <x64|arm64> --target <triple> --output-dir <dir>',
       '  node scripts/release/package-release-assets.mjs container --release-tag <tag> --platform linux --arch <x64|arm64> --target <triple> --accelerator <cpu|nvidia-cuda|amd-rocm> --output-dir <dir>',
-      '  node scripts/release/package-release-assets.mjs kubernetes --release-tag <tag> --platform linux --arch <x64|arm64> --accelerator <cpu|nvidia-cuda|amd-rocm> --output-dir <dir>',
+      '  node scripts/release/package-release-assets.mjs kubernetes --release-tag <tag> --platform linux --arch <x64|arm64> --accelerator <cpu|nvidia-cuda|amd-rocm> [--image-repository <name>] [--image-tag <tag>] [--image-digest <digest>] --output-dir <dir>',
       '  node scripts/release/package-release-assets.mjs web --release-tag <tag> --output-dir <dir>',
     ].join('\n'),
   );

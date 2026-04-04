@@ -112,3 +112,17 @@ runTest('sdkwork-claw-agent installs standard OpenClaw agent workspaces and enab
   assert.doesNotMatch(installServiceSource, /fetch\(/);
   assert.doesNotMatch(installServiceSource, /axios\./);
 });
+
+runTest('sdkwork-claw-agent parity checks use a dedicated tsx runner for OpenClaw install flows', () => {
+  const workspacePackageJson = read('package.json');
+  const installServiceTestSource = read(
+    'packages/sdkwork-claw-agent/src/services/agentInstallService.test.ts',
+  );
+
+  assert.match(installServiceTestSource, /@sdkwork\/claw-core/);
+  assert.match(
+    workspacePackageJson,
+    /"check:sdkwork-agent"\s*:\s*"node scripts\/run-sdkwork-agent-check\.mjs"/,
+  );
+  assert.ok(exists('scripts/run-sdkwork-agent-check.mjs'));
+});

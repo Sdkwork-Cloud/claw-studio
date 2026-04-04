@@ -26,7 +26,14 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime},
 };
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{ProcessStatus, ProcessesToUpdate, System};
+#[cfg(windows)]
+use windows_sys::Win32::{
+    Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0},
+    System::Threading::{
+        OpenProcess, TerminateProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    },
+};
 
 const DEFAULT_RESTART_WINDOW_MS: u64 = 60_000;
 const DEFAULT_RESTART_BACKOFF_MS: u64 = 5_000;
@@ -714,6 +721,7 @@ fn reap_stale_openclaw_gateway_processes(paths: &AppPaths) -> Result<()> {
         return Ok(());
     }
 
+    let configured_port = configured_managed_openclaw_gateway_port(paths);
     terminate_process_ids(&stale_pids)?;
 
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -722,13 +730,95 @@ fn reap_stale_openclaw_gateway_processes(paths: &AppPaths) -> Result<()> {
             return Ok(());
         }
 
+        if configured_port
+            .map(|port| !is_loopback_port_accepting(port))
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
+
         thread::sleep(Duration::from_millis(100));
     }
 
+    let remaining_processes = describe_stale_openclaw_gateway_processes(paths);
+    let port_diagnostic = configured_port
+        .map(|port| {
+            format!(
+                "configured gateway port {port} listening={}",
+                is_loopback_port_accepting(port)
+            )
+        })
+        .unwrap_or_else(|| "configured gateway port unavailable".to_string());
+
     Err(FrameworkError::Timeout(format!(
-        "stale openclaw gateway processes did not stop within 5000ms under {}",
-        paths.openclaw_runtime_dir.display()
+        "stale openclaw gateway processes did not stop within 5000ms under {} ({port_diagnostic}; remaining processes: {})",
+        paths.openclaw_runtime_dir.display(),
+        if remaining_processes.is_empty() {
+            "none".to_string()
+        } else {
+            remaining_processes.join(" | ")
+        }
     )))
+}
+
+fn configured_managed_openclaw_gateway_port(paths: &AppPaths) -> Option<u16> {
+    let config = fs::read_to_string(&paths.openclaw_config_file).ok()?;
+    let parsed = json5::from_str::<serde_json::Value>(&config).ok()?;
+    parsed
+        .get("gateway")
+        .and_then(|value| value.get("port"))
+        .and_then(|value| value.as_u64())
+        .and_then(|value| u16::try_from(value).ok())
+        .filter(|port| *port > 0)
+}
+
+fn is_loopback_port_accepting(port: u16) -> bool {
+    let loopback = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port));
+    TcpStream::connect_timeout(&loopback, Duration::from_millis(200)).is_ok()
+}
+
+fn describe_stale_openclaw_gateway_processes(paths: &AppPaths) -> Vec<String> {
+    let managed_runtime_root = normalize_process_match_path(&paths.openclaw_runtime_dir);
+    let current_process_id = std::process::id();
+    let mut system = System::new_all();
+    system.refresh_processes(ProcessesToUpdate::All, true);
+
+    system
+        .processes()
+        .iter()
+        .filter_map(|(pid, process)| {
+            let pid = pid.as_u32();
+            if pid == current_process_id {
+                return None;
+            }
+
+            if !process.cmd().iter().any(|segment| {
+                let segment = normalize_command_segment(segment);
+                segment.starts_with(&managed_runtime_root) && segment.ends_with("openclaw.mjs")
+            }) {
+                return None;
+            }
+
+            if !process
+                .cmd()
+                .iter()
+                .any(|segment| normalize_command_segment(segment) == "gateway")
+            {
+                return None;
+            }
+
+            Some(format!(
+                "pid={pid} status={:?} cmd={}",
+                process.status(),
+                process
+                    .cmd()
+                    .iter()
+                    .map(|segment| segment.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ))
+        })
+        .collect()
 }
 
 fn find_stale_openclaw_gateway_process_ids(paths: &AppPaths) -> Result<Vec<u32>> {
@@ -743,6 +833,13 @@ fn find_stale_openclaw_gateway_process_ids(paths: &AppPaths) -> Result<Vec<u32>>
         .filter_map(|(pid, process)| {
             let pid = pid.as_u32();
             if pid == current_process_id {
+                return None;
+            }
+
+            if matches!(
+                process.status(),
+                ProcessStatus::Dead | ProcessStatus::Zombie
+            ) {
                 return None;
             }
 
@@ -809,12 +906,26 @@ fn terminate_process_group(
 
 #[cfg(windows)]
 fn terminate_process_id(pid: u32) -> Result<()> {
-    let pid = pid.to_string();
-    let _ = Command::new("taskkill")
-        .args(["/PID", pid.as_str(), "/T", "/F"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+    let Some(handle) = open_terminable_process_handle(pid)? else {
+        return Ok(());
+    };
+    let _handle = WindowsHandle(handle);
+
+    let terminated = unsafe { TerminateProcess(handle, 1) };
+    if terminated == 0 {
+        return Err(FrameworkError::Internal(format!(
+            "failed to terminate stale openclaw gateway process {pid}: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+
+    let wait_result = unsafe { WaitForSingleObject(handle, 5_000) };
+    if wait_result != WAIT_OBJECT_0 {
+        return Err(FrameworkError::Timeout(format!(
+            "stale openclaw gateway process {pid} did not exit after native termination"
+        )));
+    }
+
     Ok(())
 }
 
@@ -828,21 +939,40 @@ fn terminate_process_id(pid: u32) -> Result<()> {
 
 #[cfg(windows)]
 fn terminate_process_ids(pids: &[u32]) -> Result<()> {
-    if pids.is_empty() {
-        return Ok(());
+    for pid in pids {
+        terminate_process_id(*pid)?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+struct WindowsHandle(HANDLE);
+
+#[cfg(windows)]
+impl Drop for WindowsHandle {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+fn open_terminable_process_handle(pid: u32) -> Result<Option<HANDLE>> {
+    let handle = unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, 0, pid) };
+    if !handle.is_null() {
+        return Ok(Some(handle));
     }
 
-    let mut command = Command::new("taskkill");
-    for pid in pids {
-        let pid = pid.to_string();
-        command.args(["/PID", pid.as_str()]);
+    match std::io::Error::last_os_error().raw_os_error() {
+        Some(87) => Ok(None),
+        _ => Err(FrameworkError::Internal(format!(
+            "failed to open stale openclaw gateway process {pid}: {}",
+            std::io::Error::last_os_error()
+        ))),
     }
-    let _ = command
-        .args(["/T", "/F"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    Ok(())
 }
 
 #[cfg(not(windows))]
@@ -903,8 +1033,10 @@ fn force_process_shutdown(child: &mut Child) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(windows))]
+    use super::force_process_shutdown;
     use super::{
-        configure_command_for_managed_process, force_process_shutdown, wait_for_gateway_ready,
+        configure_command_for_managed_process, terminate_process_id, wait_for_gateway_ready,
         ManagedServiceLifecycle, SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY,
     };
     #[cfg(windows)]
@@ -1152,8 +1284,12 @@ mod tests {
         stale_gateway.current_dir(&runtime.runtime_dir);
         stale_gateway.envs(runtime.managed_env());
         let mut stale_gateway = stale_gateway.spawn().expect("spawn stale gateway");
+        #[cfg(windows)]
+        let stale_gateway_pid = stale_gateway.id();
         wait_for_gateway_ready(&mut stale_gateway, gateway_port, 5_000)
             .expect("stale gateway should become ready");
+        #[cfg(windows)]
+        drop(stale_gateway);
 
         service
             .configure_openclaw_gateway(&runtime)
@@ -1169,8 +1305,13 @@ mod tests {
         assert_eq!(refreshed.gateway_port, gateway_port);
 
         service.begin_shutdown().expect("shutdown");
-        let _ = force_process_shutdown(&mut stale_gateway);
-        let _ = stale_gateway.wait();
+        #[cfg(windows)]
+        let _ = terminate_process_id(stale_gateway_pid);
+        #[cfg(not(windows))]
+        {
+            let _ = force_process_shutdown(&mut stale_gateway);
+            let _ = stale_gateway.wait();
+        }
     }
 
     #[cfg(windows)]

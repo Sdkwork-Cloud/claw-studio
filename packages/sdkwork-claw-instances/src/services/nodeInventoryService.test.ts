@@ -64,9 +64,9 @@ function createKernelSnapshot(
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home/.openclaw/openclaw.json',
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home',
-      runtimeInstallDir: `C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+      configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+      runtimeInstallDir: `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
     },
   };
 
@@ -148,6 +148,31 @@ function createHostPlatformStatus(
     rolloutEngineVersion: 'phase1',
     manageBasePath: '/claw/manage/v1',
     internalBasePath: '/claw/internal/v1',
+    stateStoreDriver: 'sqlite',
+    stateStore: {
+      activeProfileId: 'default-sqlite',
+      providers: [
+        {
+          id: 'sqlite',
+          label: 'SQLite',
+          availability: 'ready',
+          requiresConfiguration: false,
+          configurationKeys: [],
+        },
+      ],
+      profiles: [
+        {
+          id: 'default-sqlite',
+          label: 'SQLite',
+          driver: 'sqlite',
+          active: true,
+          availability: 'ready',
+          path: 'C:/Users/admin/.sdkwork/crawstudio/storage/default.db',
+          connectionConfigured: false,
+          configuredKeys: ['path'],
+        },
+      ],
+    },
     capabilityKeys: ['nodeSessions', 'rollouts'],
     updatedAt: 1_743_100_500_000,
     ...overrides,

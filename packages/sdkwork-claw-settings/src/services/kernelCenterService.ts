@@ -1,10 +1,9 @@
-import {
-  hostPlatformService,
-  kernelPlatformService,
-  rolloutService,
-  type HostPlatformSnapshot,
-  type KernelPlatformSnapshot,
-  type RolloutPhaseCounts,
+import type {
+  HostPlatformSnapshot,
+  HostPortSettingsSummary,
+  HostRuntimeModeSummary,
+  KernelPlatformSnapshot,
+  RolloutPhaseCounts,
 } from '@sdkwork/claw-core';
 import type {
   ManageRolloutListResult,
@@ -34,6 +33,8 @@ export interface KernelCenterDashboard {
     capabilityKeys: string[];
     capabilityCount: number;
   };
+  hostRuntime: HostRuntimeModeSummary;
+  hostEndpoints: HostPortSettingsSummary;
   rollouts: {
     items: ManageRolloutRecord[];
     total: number;
@@ -103,23 +104,62 @@ export interface KernelCenterDashboard {
   };
 }
 
-type KernelCenterPlatformService = Pick<
-  typeof kernelPlatformService,
-  'getInfo' | 'getStatus' | 'ensureRunning' | 'restart'
->;
-type KernelCenterHostPlatformService = Pick<typeof hostPlatformService, 'getStatus'>;
-type KernelCenterRolloutService = Pick<typeof rolloutService, 'list' | 'summarizePhases'>;
+type ClawCoreModule = typeof import('@sdkwork/claw-core');
+
+interface KernelCenterPlatformService {
+  getInfo(): Promise<RuntimeDesktopKernelInfo | null>;
+  getStatus(): Promise<KernelPlatformSnapshot | null>;
+  ensureRunning(): Promise<KernelPlatformSnapshot | null>;
+  restart(): Promise<KernelPlatformSnapshot | null>;
+}
+
+interface KernelCenterHostPlatformService {
+  getStatus(): Promise<HostPlatformSnapshot>;
+}
+
+interface KernelCenterHostRuntimeModeService {
+  getSummary(): Promise<HostRuntimeModeSummary>;
+}
+
+interface KernelCenterHostPortSettingsService {
+  getSummary(): Promise<HostPortSettingsSummary>;
+}
+
+interface KernelCenterRolloutService {
+  list(): Promise<ManageRolloutListResult>;
+  summarizePhases(result: ManageRolloutListResult): RolloutPhaseCounts;
+}
 
 export interface KernelCenterServiceOverrides {
   kernelPlatformService?: Partial<KernelCenterPlatformService>;
   hostPlatformService?: Partial<KernelCenterHostPlatformService>;
+  hostRuntimeModeService?: Partial<KernelCenterHostRuntimeModeService>;
+  hostPortSettingsService?: Partial<KernelCenterHostPortSettingsService>;
   rolloutService?: Partial<KernelCenterRolloutService>;
 }
 
 interface KernelCenterServiceDependencies {
   kernelPlatformService: KernelCenterPlatformService;
   hostPlatformService: KernelCenterHostPlatformService;
+  hostRuntimeModeService: KernelCenterHostRuntimeModeService;
+  hostPortSettingsService: KernelCenterHostPortSettingsService;
   rolloutService: KernelCenterRolloutService;
+}
+
+const EMPTY_HOST_PORT_SETTINGS_SUMMARY: HostPortSettingsSummary = {
+  totalEndpoints: 0,
+  readyEndpoints: 0,
+  conflictedEndpoints: 0,
+  dynamicPortEndpoints: 0,
+  browserBaseUrl: null,
+  rows: [],
+};
+
+let clawCoreModulePromise: Promise<ClawCoreModule> | null = null;
+
+function loadClawCoreModule(): Promise<ClawCoreModule> {
+  clawCoreModulePromise ??= import('@sdkwork/claw-core');
+  return clawCoreModulePromise;
 }
 
 function formatRuntimeState(state?: string | null) {
@@ -267,29 +307,149 @@ function resolveStatusTone(
 function createDependencies(
   overrides: KernelCenterServiceOverrides = {},
 ): KernelCenterServiceDependencies {
-  return {
-    kernelPlatformService: {
-      getInfo: overrides.kernelPlatformService?.getInfo ?? kernelPlatformService.getInfo,
-      getStatus: overrides.kernelPlatformService?.getStatus ?? kernelPlatformService.getStatus,
-      ensureRunning:
-        overrides.kernelPlatformService?.ensureRunning ?? kernelPlatformService.ensureRunning,
-      restart: overrides.kernelPlatformService?.restart ?? kernelPlatformService.restart,
+  const defaultKernelPlatformService: KernelCenterPlatformService = {
+    async getInfo() {
+      return (await loadClawCoreModule()).kernelPlatformService.getInfo();
     },
-    hostPlatformService: {
-      getStatus: overrides.hostPlatformService?.getStatus ?? hostPlatformService.getStatus,
+    async getStatus() {
+      return (await loadClawCoreModule()).kernelPlatformService.getStatus();
     },
-    rolloutService: {
-      list: overrides.rolloutService?.list ?? rolloutService.list,
-      summarizePhases:
-        overrides.rolloutService?.summarizePhases ?? rolloutService.summarizePhases,
+    async ensureRunning() {
+      return (await loadClawCoreModule()).kernelPlatformService.ensureRunning();
+    },
+    async restart() {
+      return (await loadClawCoreModule()).kernelPlatformService.restart();
     },
   };
+  const defaultHostPlatformService: KernelCenterHostPlatformService = {
+    async getStatus() {
+      return (await loadClawCoreModule()).hostPlatformService.getStatus();
+    },
+  };
+  const defaultHostPortSettingsService: KernelCenterHostPortSettingsService = {
+    async getSummary() {
+      return (await loadClawCoreModule()).hostPortSettingsService.getSummary();
+    },
+  };
+  const defaultRolloutService: KernelCenterRolloutService = {
+    async list() {
+      return (await loadClawCoreModule()).rolloutService.list();
+    },
+    summarizePhases(result) {
+      return result.items.reduce<RolloutPhaseCounts>((counts, item) => {
+        switch (item.phase) {
+          case 'draft':
+            counts.drafts += 1;
+            break;
+          case 'completed':
+            counts.completed += 1;
+            break;
+          case 'failed':
+            counts.failed += 1;
+            break;
+          case 'paused':
+            counts.paused += 1;
+            break;
+          case 'previewing':
+          case 'awaitingApproval':
+          case 'ready':
+          case 'promoting':
+            counts.active += 1;
+            break;
+          default:
+            break;
+        }
+        return counts;
+      }, {
+        active: 0,
+        failed: 0,
+        completed: 0,
+        paused: 0,
+        drafts: 0,
+      });
+    },
+  };
+  const resolvedHostPlatformService: KernelCenterHostPlatformService = {
+    getStatus: overrides.hostPlatformService?.getStatus ?? defaultHostPlatformService.getStatus,
+  };
+  const resolvedHostRuntimeModeService: KernelCenterHostRuntimeModeService = {
+    async getSummary() {
+      return createFallbackHostRuntimeSummary(await resolvedHostPlatformService.getStatus());
+    },
+  };
+
+  return {
+    kernelPlatformService: {
+      getInfo: overrides.kernelPlatformService?.getInfo ?? defaultKernelPlatformService.getInfo,
+      getStatus: overrides.kernelPlatformService?.getStatus ?? defaultKernelPlatformService.getStatus,
+      ensureRunning:
+        overrides.kernelPlatformService?.ensureRunning ?? defaultKernelPlatformService.ensureRunning,
+      restart: overrides.kernelPlatformService?.restart ?? defaultKernelPlatformService.restart,
+    },
+    hostPlatformService: resolvedHostPlatformService,
+    hostRuntimeModeService: {
+      getSummary:
+        overrides.hostRuntimeModeService?.getSummary ?? resolvedHostRuntimeModeService.getSummary,
+    },
+    hostPortSettingsService: {
+      getSummary:
+        overrides.hostPortSettingsService?.getSummary ?? defaultHostPortSettingsService.getSummary,
+    },
+    rolloutService: {
+      list: overrides.rolloutService?.list ?? defaultRolloutService.list,
+      summarizePhases:
+        overrides.rolloutService?.summarizePhases ?? defaultRolloutService.summarizePhases,
+    },
+  };
+}
+
+function createFallbackHostRuntimeSummary(
+  hostPlatformStatus: HostPlatformSnapshot | null,
+): HostRuntimeModeSummary {
+  const mode = hostPlatformStatus?.mode ?? 'web';
+  const lifecycle = hostPlatformStatus?.lifecycle ?? 'inactive';
+  const browserManagementSupported = mode === 'desktopCombined' || mode === 'server';
+  const browserManagementAvailable =
+    browserManagementSupported
+    && lifecycle === 'ready'
+    && Boolean(hostPlatformStatus?.manageBasePath && hostPlatformStatus?.internalBasePath);
+
+  return {
+    mode,
+    modeLabel: formatHostPlatformMode(mode),
+    lifecycle,
+    lifecycleLabel: formatHostPlatformLifecycle(lifecycle),
+    browserManagementSupported,
+    browserManagementAvailable,
+    browserManagementLabel: browserManagementAvailable
+      ? mode === 'desktopCombined'
+        ? 'Embedded Browser Management'
+        : 'Hosted Browser Management'
+      : browserManagementSupported
+      ? 'Host Runtime Available'
+      : 'Browser Management Unavailable',
+    manageBasePath: hostPlatformStatus?.manageBasePath ?? null,
+    internalBasePath: hostPlatformStatus?.internalBasePath ?? null,
+  };
+}
+
+function unwrapSettledResult<T>(
+  result: PromiseSettledResult<T>,
+  label: string,
+): T {
+  if (result.status === 'fulfilled') {
+    return result.value;
+  }
+
+  throw new Error(`${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
 }
 
 function mapDashboard(
   snapshot: KernelPlatformSnapshot | null,
   info: RuntimeDesktopKernelInfo | null,
   hostPlatformStatus: HostPlatformSnapshot | null,
+  hostRuntime: HostRuntimeModeSummary,
+  hostEndpoints: HostPortSettingsSummary,
   rolloutResult: ManageRolloutListResult,
   rolloutPhaseCounts: RolloutPhaseCounts,
 ): KernelCenterDashboard {
@@ -325,6 +485,8 @@ function mapDashboard(
       capabilityKeys: hostPlatformStatus?.capabilityKeys ?? [],
       capabilityCount: hostPlatformStatus?.capabilityCount ?? 0,
     },
+    hostRuntime,
+    hostEndpoints,
     rollouts: {
       items: rolloutResult.items,
       total: rolloutResult.total,
@@ -402,16 +564,46 @@ export function createKernelCenterService(
   const buildDashboard = async (
     snapshotPromise: Promise<KernelPlatformSnapshot | null>,
   ): Promise<KernelCenterDashboard> => {
-    const [snapshot, info, hostPlatformStatus, rolloutResult] = await Promise.all([
+    const [
+      snapshotResult,
+      infoResult,
+      hostPlatformStatusResult,
+      hostRuntimeResult,
+      hostEndpointsResult,
+      rolloutResultResult,
+    ] = await Promise.allSettled([
       snapshotPromise,
       dependencies.kernelPlatformService.getInfo(),
       dependencies.hostPlatformService.getStatus(),
+      dependencies.hostRuntimeModeService.getSummary(),
+      dependencies.hostPortSettingsService.getSummary(),
       dependencies.rolloutService.list(),
     ]);
+    const snapshot = unwrapSettledResult(snapshotResult, 'Failed to load kernel status');
+    const info = unwrapSettledResult(infoResult, 'Failed to load kernel details');
+    const hostPlatformStatus = unwrapSettledResult(
+      hostPlatformStatusResult,
+      'Failed to load host platform status',
+    );
+    const hostRuntime =
+      hostRuntimeResult.status === 'fulfilled'
+        ? hostRuntimeResult.value
+        : createFallbackHostRuntimeSummary(hostPlatformStatus);
+    const hostEndpoints =
+      hostEndpointsResult.status === 'fulfilled'
+        ? hostEndpointsResult.value
+        : EMPTY_HOST_PORT_SETTINGS_SUMMARY;
+    const rolloutResult = unwrapSettledResult(
+      rolloutResultResult,
+      'Failed to load rollout status',
+    );
+
     return mapDashboard(
       snapshot,
       info,
       hostPlatformStatus,
+      hostRuntime,
+      hostEndpoints,
       rolloutResult,
       dependencies.rolloutService.summarizePhases(rolloutResult),
     );

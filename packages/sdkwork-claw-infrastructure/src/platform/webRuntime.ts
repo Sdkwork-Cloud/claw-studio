@@ -10,7 +10,18 @@ import type {
 
 export class WebRuntimePlatform implements RuntimePlatformAPI {
   async getRuntimeInfo(): Promise<RuntimeInfo> {
-    return { platform: 'web' };
+    return {
+      platform: 'web',
+      startup: {
+        hostMode: 'web',
+        packageFamily: 'web',
+        startupTarget: 'web',
+        hostedBrowser: false,
+        manageBasePath: null,
+        internalBasePath: null,
+        browserBaseUrl: null,
+      },
+    };
   }
 
   async setAppLanguage(_language: RuntimeLanguagePreference): Promise<void> {}

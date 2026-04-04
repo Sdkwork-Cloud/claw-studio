@@ -21,15 +21,14 @@ pnpm docs:build
 
 仓库校验是分层设计的：
 
-- `pnpm lint`：Web 包 TypeScript 校验 + 架构边界校验 + parity 校验
+- `pnpm lint`：Web 区 TypeScript 校验、架构边界校验与 parity 校验
 - `pnpm build`：Web 包生产构建
-- `pnpm check:arch`：目录结构、依赖分层和根级导入校验
-- `pnpm check:parity`：关键功能与 `upgrade/claw-studio-v5` 基线的一致性校验
-- `pnpm check:desktop`：桌面平台与 Tauri 命令契约校验
+- `pnpm check:arch`：目录结构、依赖分层和包根导入校验
+- `pnpm check:parity`：关键行为与 `upgrade/claw-studio-v5` 基线对齐校验
+- `pnpm check:desktop`：桌面端平台与 Tauri 命令契约校验
+- `pnpm check:server`：原生 Server 结构与 Rust 测试校验
 
 ## 包级执行
-
-如果只想针对某个包执行脚本，可以使用 pnpm filter：
 
 ```bash
 pnpm --filter @sdkwork/claw-web build
@@ -41,7 +40,7 @@ pnpm --filter @sdkwork/claw-market lint
 
 ### 入口包必须保持轻量
 
-`@sdkwork/claw-web` 是应用入口，不应该继续吸收 store、hooks 或业务服务。`@sdkwork/claw-desktop` 也遵循同样原则。
+`@sdkwork/claw-web` 是应用入口，不应继续吸收 store、hooks 或业务服务。`@sdkwork/claw-desktop` 也遵循同样原则。
 
 ### 跨包导入必须使用包根
 
@@ -57,19 +56,18 @@ import { Market } from '@sdkwork/claw-market';
 import { Market } from '@sdkwork/claw-market/src/pages/market/Market';
 ```
 
-### 功能逻辑留在功能包
+### 业务逻辑留在业务包中
 
-功能页面、组件和服务应该留在对应业务包中。只有当逻辑被多个功能真实复用时，才提升到 `core`。
+页面、组件和服务应当留在各自的 feature package 中。只有在多个功能真实复用时，才提升到 `core`。
 
-## 文档流程
+## 文档工作流
 
-- 仓库入口信息变化时，更新 `README.md` 或 `README.zh-CN.md`
+- 仓库入口变化时，更新 `README.md` 或 `README.zh-CN.md`
 - 公共项目文档变化时，更新 `docs/`
-- 设计与实施计划继续放在 `docs/plans/`
+- 设计与实施计划继续保留在 `docs/plans/`
+- 公共 API 和部署说明应与 [API 总览](/zh-CN/reference/api-reference)、[应用模式](/zh-CN/guide/application-modes) 与 [安装与部署](/zh-CN/guide/install-and-deploy) 保持一致
 
-## 发起 PR 之前
-
-请执行能够证明结果的命令：
+## 提交 PR 之前
 
 ```bash
 pnpm lint
@@ -77,4 +75,15 @@ pnpm build
 pnpm docs:build
 ```
 
-如果改动涉及桌面端，还应执行 `pnpm check:desktop` 和相关 Tauri 命令。
+如果改动涉及桌面端，还应执行：
+
+```bash
+pnpm check:desktop
+```
+
+如果改动涉及原生 Server、Docker、Kubernetes 或发布自动化，还应执行：
+
+```bash
+pnpm check:server
+pnpm check:automation
+```

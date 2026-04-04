@@ -26,11 +26,12 @@ pub fn preflight_target(
         return PreflightOutcome::BlockedByVersion;
     }
 
-    if policy
-        .required_capabilities
-        .iter()
-        .any(|required| !target.capabilities.iter().any(|capability| capability == required))
-    {
+    if policy.required_capabilities.iter().any(|required| {
+        !target
+            .capabilities
+            .iter()
+            .any(|capability| capability == required)
+    }) {
         return PreflightOutcome::BlockedByCapability;
     }
 

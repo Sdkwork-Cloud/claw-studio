@@ -24,7 +24,7 @@ type StorageLike = Pick<Storage, 'getItem' | 'removeItem' | 'setItem'>;
 type WebSocketLike = Pick<WebSocket, 'addEventListener' | 'close' | 'readyState' | 'send'>;
 
 type PendingRequest = {
-  resolve: (value: unknown) => void;
+  resolve: (value: any) => void;
   reject: (error: unknown) => void;
 };
 
@@ -253,7 +253,7 @@ async function sha256Hex(bytes: Uint8Array) {
     throw new Error('WebCrypto is unavailable.');
   }
 
-  const digest = await subtle.digest('SHA-256', bytes);
+  const digest = await subtle.digest('SHA-256', new Uint8Array(bytes));
   return bytesToHex(new Uint8Array(digest));
 }
 

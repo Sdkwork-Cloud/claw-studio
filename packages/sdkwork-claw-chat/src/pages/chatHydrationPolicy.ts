@@ -1,27 +1,27 @@
 export function shouldLoadChatSkills({
-  showSkillDropdown,
+  isSessionContextDrawerOpen,
   selectedSkillId,
 }: {
-  showSkillDropdown: boolean;
+  isSessionContextDrawerOpen: boolean;
   selectedSkillId: string | null;
 }) {
-  return showSkillDropdown || Boolean(selectedSkillId);
+  return isSessionContextDrawerOpen || Boolean(selectedSkillId);
 }
 
 export function shouldLoadChatDirectAgents({
   activeInstanceId,
   isOpenClawGateway,
-  showAgentDropdown,
+  isSessionContextDrawerOpen,
   selectedAgentId,
 }: {
   activeInstanceId: string | null | undefined;
   isOpenClawGateway: boolean;
-  showAgentDropdown: boolean;
+  isSessionContextDrawerOpen: boolean;
   selectedAgentId: string | null;
 }) {
   if (isOpenClawGateway || !activeInstanceId) {
     return false;
   }
 
-  return showAgentDropdown || Boolean(selectedAgentId);
+  return isSessionContextDrawerOpen || Boolean(selectedAgentId);
 }

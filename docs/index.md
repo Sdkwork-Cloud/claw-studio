@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Claw Studio
-  text: A package-first workspace for web and desktop.
-  tagline: Shared shell, vertical feature packages, root-only imports, and a Tauri runtime aligned to the v5 product baseline.
+  text: One product shell, multiple host modes, one documented control plane.
+  tagline: Web, desktop, native server, container, and Kubernetes modes now share a clearer architecture, a published native `/claw/*` API surface, and a unified release system.
   image:
     src: /logo.svg
     alt: Claw Studio
@@ -13,50 +13,55 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: Explore Architecture
-      link: /core/architecture
+      text: API Reference
+      link: /reference/api-reference
 
 features:
-  - title: Shared Product Shell
-    details: One application shell serves the web entry package and the desktop runtime without duplicating route and layout logic.
-  - title: Vertical Feature Packages
-    details: Account, chat, market, settings, apps, extensions, community, devices, and more stay isolated behind package roots.
-  - title: Architecture Enforcement
-    details: Repository checks validate layering, required package structure, and root-only cross-package imports.
-  - title: Desktop Distribution
-    details: Tauri packaging, runtime providers, update checks, and distribution metadata live in dedicated desktop packages.
-  - title: v5 Parity
-    details: The workspace tracks the functionality and UI surface of upgrade/claw-studio-v5 while improving maintainability.
-  - title: Contributor Ready
-    details: Commands, environment variables, package roles, and contribution rules are documented for everyday development.
+  - title: Multi-Mode Delivery
+    details: Run Claw Studio as a web workspace, a Tauri desktop app, a standalone Rust server, a Docker deployment, or a Kubernetes release family.
+  - title: Native Control Plane
+    details: The server publishes documented `/claw/health/*`, `/claw/api/v1/*`, `/claw/openapi/*`, `/claw/internal/v1/*`, and `/claw/manage/v1/*` route families.
+  - title: Package-First Architecture
+    details: Shell, core, infrastructure, UI, and feature packages stay separated by enforced import and dependency boundaries.
+  - title: Desktop + Server Alignment
+    details: Desktop combined mode and the standalone server share the same logical control-plane contracts, even when transport differs.
+  - title: Release Automation
+    details: GitHub Actions packages desktop, server, container, Kubernetes, and web/docs artifacts from one unified release workflow.
+  - title: Operations Ready
+    details: Commands, environment variables, artifact layouts, and deployment instructions are documented for contributors and operators.
 ---
 
-## Why This Workspace
+## What This Site Covers
 
-Claw Studio is organized as a `pnpm` workspace so product growth does not collapse into a single application package. The result is a clear split between shell, shared core state, infrastructure, and feature packages.
+This VitePress site is the public source of truth for how Claw Studio is organized, how it is packaged, and which native APIs are currently implemented.
 
-<div class="site-grid">
-  <div class="site-card">
-    <h3>Thin Entry Packages</h3>
-    <p>`@sdkwork/claw-web` and `@sdkwork/claw-desktop` bootstrap the app. They do not own core stores or feature-local services.</p>
-  </div>
-  <div class="site-card">
-    <h3>Stable Boundaries</h3>
-    <p>Cross-package imports must use package roots. This keeps packages replaceable and prevents coupling to internal file layouts.</p>
-  </div>
-  <div class="site-card">
-    <h3>Desktop Included</h3>
-    <p>The same product shell also powers a Tauri desktop application with native runtime and packaging support.</p>
-  </div>
-</div>
+It is designed for three audiences:
 
-## Quick Links
+- contributors working inside the `pnpm` workspace
+- operators deploying the standalone Rust server, Docker bundle, or Kubernetes chart
+- integrators who need the published native `/claw/*` API and current runtime boundaries
 
-- Start here: [Getting Started](/guide/getting-started)
-- Understand the layering: [Architecture](/core/architecture)
-- Inspect package roles: [Packages](/core/packages)
-- Run desktop flows: [Desktop Runtime](/core/desktop)
-- Find scripts fast: [Commands Reference](/reference/commands)
-- Follow repository rules: [Contributing](/contributing/)
+## Recommended Reading Path
 
-> The public VitePress site complements the in-app `@sdkwork/claw-docs` package. Use this site for repository onboarding and contributor guidance.
+- Start from [Getting Started](/guide/getting-started)
+- Choose a host shape in [Application Modes](/guide/application-modes)
+- Follow installation guidance in [Install And Deploy](/guide/install-and-deploy)
+- Understand package boundaries in [Architecture](/core/architecture)
+- Inspect the current native surface in [API Overview](/reference/api-reference)
+- Verify packaging and release behavior in [Release And Deployment](/core/release-and-deployment)
+
+## Current API Publication
+
+The native server currently publishes:
+
+- `GET /claw/health/live`
+- `GET /claw/health/ready`
+- `GET /claw/api/v1/discovery`
+- `GET /claw/openapi/discovery`
+- `GET /claw/openapi/v1.json`
+- `/claw/internal/v1/*`
+- `/claw/manage/v1/*`
+
+Use [API Overview](/reference/api-reference) for the route-family map and [Claw Server Runtime](/reference/claw-server-runtime) for runtime behavior details.
+
+> Historical plans under `docs/plans` and `docs/superpowers` remain intentionally excluded from public search indexing. Public documentation here should describe implemented behavior or explicitly marked future boundaries only.

@@ -13,6 +13,7 @@ test('server build helper creates a default release cargo plan', async () => {
 
   const plan = helper.createServerBuildPlan({
     env: {},
+    hostPlatform: 'linux',
   });
 
   assert.deepEqual(plan, {
@@ -32,6 +33,7 @@ test('server build helper forwards an explicit rust target triple', async () => 
   const plan = helper.createServerBuildPlan({
     targetTriple: 'aarch64-unknown-linux-gnu',
     env: {},
+    hostPlatform: 'linux',
   });
 
   assert.deepEqual(plan, {
@@ -51,6 +53,62 @@ test('server build helper forwards an explicit rust target triple', async () => 
       SDKWORK_SERVER_TARGET_ARCH: 'arm64',
     },
   });
+});
+
+test('server build helper routes Windows-hosted Linux targets through WSL when a distro is available', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'run-claw-server-build.mjs');
+  const helper = await import(pathToFileURL(modulePath).href);
+
+  assert.equal(typeof helper.createServerBuildPlan, 'function');
+
+  const plan = helper.createServerBuildPlan({
+    targetTriple: 'x86_64-unknown-linux-gnu',
+    env: {},
+    hostPlatform: 'win32',
+    wslDistributions: ['docker-desktop', 'Ubuntu-22.04'],
+  });
+
+  assert.equal(plan.command, 'wsl.exe');
+  assert.deepEqual(plan.args.slice(0, 5), [
+    '--distribution',
+    'Ubuntu-22.04',
+    '--',
+    'bash',
+    '-lc',
+  ]);
+  assert.equal(plan.cwd, path.join(rootDir, 'packages', 'sdkwork-claw-server'));
+  assert.deepEqual(plan.env, {});
+  assert.equal(plan.runner, 'wsl');
+  assert.equal(plan.wslDistribution, 'Ubuntu-22.04');
+  assert.match(
+    plan.args[5],
+    /cargo build --manifest-path src-host\/Cargo\.toml --release --target x86_64-unknown-linux-gnu/,
+  );
+  assert.match(
+    plan.args[5],
+    /cd '\/mnt\/d\/javasource\/spring-ai-plus\/spring-ai-plus-business\/apps\/claw-studio\/packages\/sdkwork-claw-server'/,
+  );
+  assert.match(plan.args[5], /export SDKWORK_SERVER_TARGET='x86_64-unknown-linux-gnu'/);
+});
+
+test('server build helper prefers a WSL distro that already exposes cargo when multiple Linux distros are installed', async () => {
+  const modulePath = path.join(rootDir, 'scripts', 'run-claw-server-build.mjs');
+  const helper = await import(pathToFileURL(modulePath).href);
+
+  assert.equal(typeof helper.createServerBuildPlan, 'function');
+
+  const plan = helper.createServerBuildPlan({
+    targetTriple: 'x86_64-unknown-linux-gnu',
+    env: {},
+    hostPlatform: 'win32',
+    wslDistributions: ['Ubuntu-24.04', 'Ubuntu-22.04'],
+    distributionSupportsCargo(distribution) {
+      return distribution === 'Ubuntu-22.04';
+    },
+  });
+
+  assert.equal(plan.command, 'wsl.exe');
+  assert.equal(plan.wslDistribution, 'Ubuntu-22.04');
 });
 
 test('server build helper rejects a missing --target value instead of silently falling back', async () => {

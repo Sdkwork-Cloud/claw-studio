@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Claw Studio
-  text: 面向 Web 与桌面端的分包工作区。
-  tagline: 共享应用壳层、垂直业务分包、根级导入约束，以及与 v5 产品基线对齐的 Tauri 运行时。
+  text: 一个产品外壳，多种运行模式，一套清晰的控制平面文档。
+  tagline: Web、桌面端、原生 Server、Docker 与 Kubernetes 现在共享更清晰的架构说明、已发布的原生 `/claw/*` API 面，以及统一的发布体系。
   image:
     src: /logo.svg
     alt: Claw Studio
@@ -13,50 +13,53 @@ hero:
       text: 快速开始
       link: /zh-CN/guide/getting-started
     - theme: alt
-      text: 查看架构
-      link: /zh-CN/core/architecture
+      text: API 参考
+      link: /zh-CN/reference/api-reference
 
 features:
-  - title: 共享产品 Shell
-    details: Web 入口包和桌面运行时共用同一套应用壳层，不重复维护路由和布局逻辑。
-  - title: 垂直业务分包
-    details: account、chat、market、settings、apps、extensions、community、devices 等模块都通过包根隔离。
-  - title: 架构自动校验
-    details: 仓库脚本会校验依赖分层、目录结构以及跨包根级导入规则。
-  - title: 桌面分发能力
-    details: Tauri 打包、运行时 Provider、更新检查和分发元数据都收敛在专门的桌面包中。
-  - title: v5 功能对齐
-    details: 当前工作区以 upgrade/claw-studio-v5 为功能和界面基线，同时改进可维护性。
-  - title: 面向贡献者
-    details: 命令、环境变量、分包职责和贡献规则都已经公开文档化。
+  - title: 多运行模式交付
+    details: 同一套产品能力可以运行在 Web 工作区、Tauri 桌面端、独立 Rust Server、Docker 部署包和 Kubernetes 发布包中。
+  - title: 原生控制平面
+    details: 服务端已经对外发布 `/claw/health/*`、`/claw/api/v1/*`、`/claw/openapi/*`、`/claw/internal/v1/*` 与 `/claw/manage/v1/*` 路由族。
+  - title: 分包优先架构
+    details: Shell、Core、Infrastructure、UI 与各业务 Feature 包通过显式的依赖边界和导入规则保持低耦合。
+  - title: 桌面端与服务端对齐
+    details: 桌面端 combined mode 与独立 Server 共享同一套逻辑控制平面契约，只是在传输层上有所区别。
+  - title: 统一发布自动化
+    details: GitHub Actions 会从同一套 release workflow 打包 desktop、server、container、kubernetes 与 web/docs 产物。
+  - title: 面向运维落地
+    details: 命令、环境变量、产物结构、安装步骤和部署说明都已经纳入标准文档体系。
 ---
 
-## 为什么采用这种工作区结构
+## 这套文档覆盖什么
 
-Claw Studio 通过 `pnpm` 工作区组织代码，避免产品规模增长后重新退化为单体前端包。结果是：shell、共享 core 状态、基础设施和业务功能之间的边界都清晰可控。
+这个 VitePress 站点是当前 Claw Studio 公开文档的主入口，重点说明三类内容：
 
-<div class="site-grid">
-  <div class="site-card">
-    <h3>入口包保持轻量</h3>
-    <p>`@sdkwork/claw-web` 与 `@sdkwork/claw-desktop` 只负责启动应用，不承载业务 store 或功能服务。</p>
-  </div>
-  <div class="site-card">
-    <h3>边界长期稳定</h3>
-    <p>跨包导入必须使用包根，这让每个包都可以独立演进，而不会被内部目录结构耦合。</p>
-  </div>
-  <div class="site-card">
-    <h3>桌面端是一级能力</h3>
-    <p>同一套产品壳层同时驱动 Tauri 桌面应用，具备原生运行时与打包能力。</p>
-  </div>
-</div>
+- 如何在 `pnpm` workspace 中进行开发与协作
+- 如何以桌面端、原生 Server、Docker、Kubernetes 等方式交付应用
+- 当前原生 `/claw/*` API 已实现了哪些能力，以及它们的运行边界是什么
 
-## 快速入口
+## 推荐阅读顺序
 
-- 从这里开始：[快速开始](/zh-CN/guide/getting-started)
-- 理解分层规则：[架构说明](/zh-CN/core/architecture)
-- 查看分包职责：[分包布局](/zh-CN/core/packages)
-- 运行桌面端流程：[桌面运行时](/zh-CN/core/desktop)
-- 查询脚本命令：[命令参考](/zh-CN/reference/commands)
-- 遵循仓库规则：[贡献指南](/zh-CN/contributing/)
+- 从 [快速开始](/zh-CN/guide/getting-started) 开始
+- 在 [应用模式](/zh-CN/guide/application-modes) 中选择合适的运行形态
+- 在 [安装与部署](/zh-CN/guide/install-and-deploy) 中查看不同操作系统和部署方式的说明
+- 在 [架构说明](/zh-CN/core/architecture) 中理解分层和分包边界
+- 在 [API 总览](/zh-CN/reference/api-reference) 中查看当前原生接口面
+- 在 [发布与部署](/zh-CN/core/release-and-deployment) 中查看打包与发布系统
 
-> 公共 VitePress 文档站与应用内 `@sdkwork/claw-docs` 功能包并存。这里主要承担仓库接入和开源协作说明。
+## 当前 API 发布面
+
+当前原生服务端已经发布：
+
+- `GET /claw/health/live`
+- `GET /claw/health/ready`
+- `GET /claw/api/v1/discovery`
+- `GET /claw/openapi/discovery`
+- `GET /claw/openapi/v1.json`
+- `/claw/internal/v1/*`
+- `/claw/manage/v1/*`
+
+请结合 [API 总览](/zh-CN/reference/api-reference) 查看接口分层，再结合 [Claw Server 运行时](/zh-CN/reference/claw-server-runtime) 查看运行时行为细节。
+
+> `docs/plans` 与 `docs/superpowers` 中的历史计划文档会继续保留，但它们不会进入公开搜索索引。对外文档只应描述当前已实现行为，或明确标注为未来规划的边界。

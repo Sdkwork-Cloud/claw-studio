@@ -23,6 +23,8 @@ export {
   configureServerBrowserPlatformBridge,
   createServerBrowserPlatformBridge,
   readServerBrowserPlatformBridgeConfig,
+  SERVER_API_BASE_PATH_META_NAME,
+  SERVER_BROWSER_SESSION_TOKEN_META_NAME,
   SERVER_HOST_MODE_META_NAME,
   SERVER_INTERNAL_BASE_PATH_META_NAME,
   SERVER_MANAGE_BASE_PATH_META_NAME,
@@ -31,6 +33,7 @@ export { WebInternalPlatform, DEFAULT_INTERNAL_BASE_PATH } from './platform/webI
 export { WebKernelPlatform } from './platform/webKernel.ts';
 export { WebManagePlatform, DEFAULT_MANAGE_BASE_PATH } from './platform/webManage.ts';
 export { WebPlatform } from './platform/web.ts';
+export { WebHostedStudioPlatform, DEFAULT_STUDIO_API_BASE_PATH } from './platform/webHostedStudio.ts';
 export { WebStoragePlatform } from './platform/webStorage.ts';
 export { WebStudioPlatform } from './platform/webStudio.ts';
 export * from './config/env.ts';

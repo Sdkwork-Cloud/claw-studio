@@ -254,6 +254,10 @@ export function InstanceFilesWorkspace(props: InstanceFilesWorkspaceProps) {
       return;
     }
 
+    if (!file) {
+      return;
+    }
+
     setFileDrafts((current) => ({
       ...current,
       [file.id]: value,

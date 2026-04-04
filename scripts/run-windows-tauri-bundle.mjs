@@ -33,6 +33,8 @@ const windowsNsisShortSourceSpecs = [
   ['generated', 'bundled', ['generated', 'bundled']],
   ['bridge-bundled', 'bundled', ['generated', 'br', 'b']],
   ['openclaw', 'openclaw', ['resources', 'openclaw']],
+  ['web-dist', 'web-dist', ['..', 'dist']],
+  ['bridge-web-dist', 'web-dist', ['generated', 'br', 'w']],
   ['bridge-openclaw', 'openclaw', ['generated', 'br', 'o']],
 ];
 

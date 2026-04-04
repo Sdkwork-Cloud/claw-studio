@@ -1,5 +1,9 @@
+import { invoke } from '@tauri-apps/api/core';
 import {
+  WebHostedStudioPlatform,
+  WebManagePlatform,
   WebPlatform,
+  WebInternalPlatform,
   configurePlatformBridge,
 } from '@sdkwork/claw-infrastructure';
 import type {
@@ -12,6 +16,16 @@ import type {
   LocalAiProxyMessageCaptureSettings,
   LocalAiProxyMessageLogRecord,
   LocalAiProxyMessageLogsQuery,
+  ManageHostEndpointRecord,
+  ManageOpenClawGatewayInvokeRequest,
+  ManageOpenClawGatewayRecord,
+  ManageOpenClawRuntimeRecord,
+  OpenClawMirrorExportPreview,
+  OpenClawMirrorExportRequest,
+  OpenClawMirrorExportResult,
+  OpenClawMirrorImportPreview,
+  OpenClawMirrorImportRequest,
+  OpenClawMirrorImportResult,
   LocalAiProxyRequestLogRecord,
   LocalAiProxyRequestLogsQuery,
   LocalAiProxyRouteTestRecord,
@@ -29,6 +43,7 @@ import type {
   PlatformCapturedScreenshot,
   PlatformFetchedRemoteUrl,
   PlatformFileEntry,
+  PlatformNotificationRequest,
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
@@ -52,17 +67,6 @@ import type {
   StorageListKeysResult,
   StoragePutTextRequest,
   StoragePutTextResult,
-  StudioConversationRecord,
-  StudioCreateInstanceInput,
-  StudioInstanceDetailRecord,
-  StudioInstanceConfig,
-  StudioInstanceRecord,
-  StudioInstanceTaskMutationPayload,
-  StudioOpenClawGatewayInvokeOptions,
-  StudioOpenClawGatewayInvokeRequest,
-  StudioUpdateInstanceLlmProviderConfigInput,
-  StudioWorkbenchTaskExecutionRecord,
-  StudioUpdateInstanceInput,
 } from '@sdkwork/claw-infrastructure';
 import { DESKTOP_COMMANDS, DESKTOP_EVENTS } from './catalog';
 import {
@@ -74,6 +78,7 @@ import {
   stopDesktopComponent,
 } from './componentsBridge';
 import {
+  DesktopBridgeError,
   getDesktopWindow,
   invokeDesktopCommand,
   isTauriRuntime,
@@ -89,8 +94,39 @@ export {
   startDesktopComponent,
   stopDesktopComponent,
 } from './componentsBridge';
+export {
+  desktopLegacyStudioCompatApi,
+  invokeOpenClawGateway,
+  studioCloneInstanceTask,
+  studioCreateInstance,
+  studioCreateInstanceTask,
+  studioDeleteConversation,
+  studioDeleteInstance,
+  studioDeleteInstanceTask,
+  studioGetInstance,
+  studioGetInstanceConfig,
+  studioGetInstanceDetail,
+  studioGetInstanceLogs,
+  studioListConversations,
+  studioListInstanceTaskExecutions,
+  studioListInstances,
+  studioPutConversation,
+  studioRestartInstance,
+  studioRunInstanceTaskNow,
+  studioStartInstance,
+  studioStopInstance,
+  studioUpdateInstance,
+  studioUpdateInstanceConfig,
+  studioUpdateInstanceFileContent,
+  studioUpdateInstanceLlmProviderConfig,
+  studioUpdateInstanceTask,
+  studioUpdateInstanceTaskStatus,
+} from './studioCommandCompat';
 
 const webPlatform = new WebPlatform();
+const DESKTOP_API_BASE_PATH = '/claw/api/v1';
+const DESKTOP_MANAGE_BASE_PATH = '/claw/manage/v1';
+const DESKTOP_INTERNAL_BASE_PATH = '/claw/internal/v1';
 
 export interface DesktopAppInfo extends RuntimeAppInfo {}
 export interface DesktopAppPaths extends RuntimePathsInfo {}
@@ -287,360 +323,74 @@ export async function updateLocalAiProxyMessageCapture(
   );
 }
 
+export async function inspectOpenClawMirrorExport(): Promise<OpenClawMirrorExportPreview | null> {
+  return runDesktopOnly(
+    'kernel.inspectOpenClawMirrorExport',
+    () =>
+      invokeDesktopCommand<OpenClawMirrorExportPreview | null>(
+        DESKTOP_COMMANDS.inspectOpenClawMirrorExport,
+        undefined,
+        {
+          operation: 'kernel.inspectOpenClawMirrorExport',
+        },
+      ),
+  );
+}
+
+export async function exportOpenClawMirror(
+  request: OpenClawMirrorExportRequest,
+): Promise<OpenClawMirrorExportResult> {
+  return runDesktopOnly(
+    'kernel.exportOpenClawMirror',
+    () =>
+      invokeDesktopCommand<OpenClawMirrorExportResult>(
+        DESKTOP_COMMANDS.exportOpenClawMirror,
+        { request },
+        {
+          operation: 'kernel.exportOpenClawMirror',
+        },
+      ),
+  );
+}
+
+export async function inspectOpenClawMirrorImport(
+  sourcePath: string,
+): Promise<OpenClawMirrorImportPreview | null> {
+  return runDesktopOnly(
+    'kernel.inspectOpenClawMirrorImport',
+    () =>
+      invokeDesktopCommand<OpenClawMirrorImportPreview | null>(
+        DESKTOP_COMMANDS.inspectOpenClawMirrorImport,
+        { sourcePath },
+        {
+          operation: 'kernel.inspectOpenClawMirrorImport',
+        },
+      ),
+  );
+}
+
+export async function importOpenClawMirror(
+  request: OpenClawMirrorImportRequest,
+): Promise<OpenClawMirrorImportResult> {
+  return runDesktopOnly(
+    'kernel.importOpenClawMirror',
+    () =>
+      invokeDesktopCommand<OpenClawMirrorImportResult>(
+        DESKTOP_COMMANDS.importOpenClawMirror,
+        { request },
+        {
+          operation: 'kernel.importOpenClawMirror',
+        },
+      ),
+  );
+}
+
 export async function getDesktopStorageInfo(): Promise<DesktopStorageInfo | null> {
   return runDesktopOnly(
     'storage.getInfo',
     () =>
       invokeDesktopCommand<DesktopStorageInfo>(DESKTOP_COMMANDS.desktopStorageInfo, undefined, {
         operation: 'storage.getInfo',
-      }),
-  );
-}
-
-export async function studioListInstances(): Promise<StudioInstanceRecord[]> {
-  return runDesktopOnly(
-    'studio.listInstances',
-    () =>
-      invokeDesktopCommand<StudioInstanceRecord[]>(
-        DESKTOP_COMMANDS.studioListInstances,
-        undefined,
-        { operation: 'studio.listInstances' },
-      ),
-  );
-}
-
-export async function studioGetInstance(id: string): Promise<StudioInstanceRecord | null> {
-  return runDesktopOnly(
-    'studio.getInstance',
-    () =>
-      invokeDesktopCommand<StudioInstanceRecord | null>(
-        DESKTOP_COMMANDS.studioGetInstance,
-        { id },
-        { operation: 'studio.getInstance' },
-      ),
-  );
-}
-
-export async function studioGetInstanceDetail(
-  id: string,
-): Promise<StudioInstanceDetailRecord | null> {
-  return runDesktopOnly(
-    'studio.getInstanceDetail',
-    () =>
-      invokeDesktopCommand<StudioInstanceDetailRecord | null>(
-        DESKTOP_COMMANDS.studioGetInstanceDetail,
-        { id },
-        { operation: 'studio.getInstanceDetail' },
-      ),
-  );
-}
-
-export async function invokeOpenClawGateway(
-  instanceId: string,
-  request: StudioOpenClawGatewayInvokeRequest,
-  options: StudioOpenClawGatewayInvokeOptions = {},
-): Promise<unknown> {
-  return invokeDesktopCommand<unknown>(
-    DESKTOP_COMMANDS.studioInvokeOpenClawGateway,
-    { instanceId, request, options },
-    { operation: 'studio.invokeOpenClawGateway' },
-  );
-}
-
-export async function studioCreateInstance(
-  input: StudioCreateInstanceInput,
-): Promise<StudioInstanceRecord> {
-  return runDesktopOnly(
-    'studio.createInstance',
-    () =>
-      invokeDesktopCommand<StudioInstanceRecord>(
-        DESKTOP_COMMANDS.studioCreateInstance,
-        { input },
-        { operation: 'studio.createInstance' },
-      ),
-  );
-}
-
-export async function studioUpdateInstance(
-  id: string,
-  input: StudioUpdateInstanceInput,
-): Promise<StudioInstanceRecord> {
-  return runDesktopOnly(
-    'studio.updateInstance',
-    () =>
-      invokeDesktopCommand<StudioInstanceRecord>(
-        DESKTOP_COMMANDS.studioUpdateInstance,
-        { id, input },
-        { operation: 'studio.updateInstance' },
-      ),
-  );
-}
-
-export async function studioDeleteInstance(id: string): Promise<boolean> {
-  return runDesktopOnly(
-    'studio.deleteInstance',
-    () =>
-      invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.studioDeleteInstance, { id }, {
-        operation: 'studio.deleteInstance',
-      }),
-  );
-}
-
-export async function studioStartInstance(
-  id: string,
-): Promise<StudioInstanceRecord | null> {
-  return runDesktopOnly(
-    'studio.startInstance',
-    () =>
-      invokeDesktopCommand<StudioInstanceRecord | null>(
-        DESKTOP_COMMANDS.studioStartInstance,
-        { id },
-        { operation: 'studio.startInstance' },
-      ),
-  );
-}
-
-export async function studioStopInstance(
-  id: string,
-): Promise<StudioInstanceRecord | null> {
-  return runDesktopOnly(
-    'studio.stopInstance',
-    () =>
-      invokeDesktopCommand<StudioInstanceRecord | null>(
-        DESKTOP_COMMANDS.studioStopInstance,
-        { id },
-        { operation: 'studio.stopInstance' },
-      ),
-  );
-}
-
-export async function studioRestartInstance(
-  id: string,
-): Promise<StudioInstanceRecord | null> {
-  return runDesktopOnly(
-    'studio.restartInstance',
-    () =>
-      invokeDesktopCommand<StudioInstanceRecord | null>(
-        DESKTOP_COMMANDS.studioRestartInstance,
-        { id },
-        { operation: 'studio.restartInstance' },
-      ),
-  );
-}
-
-export async function studioGetInstanceConfig(
-  id: string,
-): Promise<StudioInstanceConfig | null> {
-  return runDesktopOnly(
-    'studio.getInstanceConfig',
-    () =>
-      invokeDesktopCommand<StudioInstanceConfig | null>(
-        DESKTOP_COMMANDS.studioGetInstanceConfig,
-        { id },
-        { operation: 'studio.getInstanceConfig' },
-      ),
-  );
-}
-
-export async function studioUpdateInstanceConfig(
-  id: string,
-  config: StudioInstanceConfig,
-): Promise<StudioInstanceConfig | null> {
-  return runDesktopOnly(
-    'studio.updateInstanceConfig',
-    () =>
-      invokeDesktopCommand<StudioInstanceConfig | null>(
-        DESKTOP_COMMANDS.studioUpdateInstanceConfig,
-        { id, config },
-        { operation: 'studio.updateInstanceConfig' },
-      ),
-  );
-}
-
-export async function studioGetInstanceLogs(id: string): Promise<string> {
-  return runDesktopOnly(
-    'studio.getInstanceLogs',
-    () =>
-      invokeDesktopCommand<string>(DESKTOP_COMMANDS.studioGetInstanceLogs, { id }, {
-        operation: 'studio.getInstanceLogs',
-      }),
-  );
-}
-
-export async function studioCreateInstanceTask(
-  instanceId: string,
-  payload: StudioInstanceTaskMutationPayload,
-): Promise<void> {
-  await runDesktopOnly(
-    'studio.createInstanceTask',
-    () =>
-      invokeDesktopCommand<void>(
-        DESKTOP_COMMANDS.studioCreateInstanceTask,
-        { instanceId, payload },
-        { operation: 'studio.createInstanceTask' },
-      ),
-  );
-}
-
-export async function studioUpdateInstanceTask(
-  instanceId: string,
-  taskId: string,
-  payload: StudioInstanceTaskMutationPayload,
-): Promise<void> {
-  await runDesktopOnly(
-    'studio.updateInstanceTask',
-    () =>
-      invokeDesktopCommand<void>(
-        DESKTOP_COMMANDS.studioUpdateInstanceTask,
-        { instanceId, taskId, payload },
-        { operation: 'studio.updateInstanceTask' },
-      ),
-  );
-}
-
-export async function studioUpdateInstanceFileContent(
-  instanceId: string,
-  fileId: string,
-  content: string,
-): Promise<boolean> {
-  return runDesktopOnly(
-    'studio.updateInstanceFileContent',
-    () =>
-      invokeDesktopCommand<boolean>(
-        DESKTOP_COMMANDS.studioUpdateInstanceFileContent,
-        { instanceId, fileId, content },
-        { operation: 'studio.updateInstanceFileContent' },
-      ),
-  );
-}
-
-export async function studioUpdateInstanceLlmProviderConfig(
-  instanceId: string,
-  providerId: string,
-  update: StudioUpdateInstanceLlmProviderConfigInput,
-): Promise<boolean> {
-  return runDesktopOnly(
-    'studio.updateInstanceLlmProviderConfig',
-    () =>
-      invokeDesktopCommand<boolean>(
-        DESKTOP_COMMANDS.studioUpdateInstanceLlmProviderConfig,
-        { instanceId, providerId, update },
-        { operation: 'studio.updateInstanceLlmProviderConfig' },
-      ),
-  );
-}
-
-export async function studioCloneInstanceTask(
-  instanceId: string,
-  taskId: string,
-  name?: string,
-): Promise<void> {
-  await runDesktopOnly(
-    'studio.cloneInstanceTask',
-    () =>
-      invokeDesktopCommand<void>(
-        DESKTOP_COMMANDS.studioCloneInstanceTask,
-        { instanceId, taskId, name },
-        { operation: 'studio.cloneInstanceTask' },
-      ),
-  );
-}
-
-export async function studioRunInstanceTaskNow(
-  instanceId: string,
-  taskId: string,
-): Promise<StudioWorkbenchTaskExecutionRecord> {
-  return runDesktopOnly(
-    'studio.runInstanceTaskNow',
-    () =>
-      invokeDesktopCommand<StudioWorkbenchTaskExecutionRecord>(
-        DESKTOP_COMMANDS.studioRunInstanceTaskNow,
-        { instanceId, taskId },
-        { operation: 'studio.runInstanceTaskNow' },
-      ),
-  );
-}
-
-export async function studioListInstanceTaskExecutions(
-  instanceId: string,
-  taskId: string,
-): Promise<StudioWorkbenchTaskExecutionRecord[]> {
-  return runDesktopOnly(
-    'studio.listInstanceTaskExecutions',
-    () =>
-      invokeDesktopCommand<StudioWorkbenchTaskExecutionRecord[]>(
-        DESKTOP_COMMANDS.studioListInstanceTaskExecutions,
-        { instanceId, taskId },
-        { operation: 'studio.listInstanceTaskExecutions' },
-      ),
-  );
-}
-
-export async function studioUpdateInstanceTaskStatus(
-  instanceId: string,
-  taskId: string,
-  status: 'active' | 'paused',
-): Promise<void> {
-  await runDesktopOnly(
-    'studio.updateInstanceTaskStatus',
-    () =>
-      invokeDesktopCommand<void>(
-        DESKTOP_COMMANDS.studioUpdateInstanceTaskStatus,
-        { instanceId, taskId, status },
-        { operation: 'studio.updateInstanceTaskStatus' },
-      ),
-  );
-}
-
-export async function studioDeleteInstanceTask(
-  instanceId: string,
-  taskId: string,
-): Promise<boolean> {
-  return runDesktopOnly(
-    'studio.deleteInstanceTask',
-    () =>
-      invokeDesktopCommand<boolean>(
-        DESKTOP_COMMANDS.studioDeleteInstanceTask,
-        { instanceId, taskId },
-        { operation: 'studio.deleteInstanceTask' },
-      ),
-  );
-}
-
-export async function studioListConversations(
-  instanceId: string,
-): Promise<StudioConversationRecord[]> {
-  return runDesktopOnly(
-    'studio.listConversations',
-    () =>
-      invokeDesktopCommand<StudioConversationRecord[]>(
-        DESKTOP_COMMANDS.studioListConversations,
-        { instanceId },
-        { operation: 'studio.listConversations' },
-      ),
-  );
-}
-
-export async function studioPutConversation(
-  record: StudioConversationRecord,
-): Promise<StudioConversationRecord> {
-  return runDesktopOnly(
-    'studio.putConversation',
-    () =>
-      invokeDesktopCommand<StudioConversationRecord>(
-        DESKTOP_COMMANDS.studioPutConversation,
-        { record },
-        { operation: 'studio.putConversation' },
-      ),
-  );
-}
-
-export async function studioDeleteConversation(id: string): Promise<boolean> {
-  return runDesktopOnly(
-    'studio.deleteConversation',
-    () =>
-      invokeDesktopCommand<boolean>(DESKTOP_COMMANDS.studioDeleteConversation, { id }, {
-        operation: 'studio.deleteConversation',
       }),
   );
 }
@@ -679,6 +429,56 @@ export async function startRollout(rolloutId: string): Promise<ManageRolloutReco
         DESKTOP_COMMANDS.startRollout,
         { rolloutId },
         { operation: 'manage.startRollout' },
+      ),
+  );
+}
+
+export async function getHostEndpoints(): Promise<ManageHostEndpointRecord[]> {
+  return runDesktopOnly(
+    'manage.getHostEndpoints',
+    () =>
+      invokeDesktopCommand<ManageHostEndpointRecord[]>(
+        DESKTOP_COMMANDS.getHostEndpoints,
+        undefined,
+        { operation: 'manage.getHostEndpoints' },
+      ),
+  );
+}
+
+export async function getOpenClawRuntime(): Promise<ManageOpenClawRuntimeRecord> {
+  return runDesktopOnly(
+    'manage.getOpenClawRuntime',
+    () =>
+      invokeDesktopCommand<ManageOpenClawRuntimeRecord>(
+        DESKTOP_COMMANDS.getOpenClawRuntime,
+        undefined,
+        { operation: 'manage.getOpenClawRuntime' },
+      ),
+  );
+}
+
+export async function getOpenClawGateway(): Promise<ManageOpenClawGatewayRecord> {
+  return runDesktopOnly(
+    'manage.getOpenClawGateway',
+    () =>
+      invokeDesktopCommand<ManageOpenClawGatewayRecord>(
+        DESKTOP_COMMANDS.getOpenClawGateway,
+        undefined,
+        { operation: 'manage.getOpenClawGateway' },
+      ),
+  );
+}
+
+export async function invokeManagedOpenClawGateway(
+  request: ManageOpenClawGatewayInvokeRequest,
+): Promise<unknown> {
+  return runDesktopOnly(
+    'manage.invokeOpenClawGateway',
+    () =>
+      invokeDesktopCommand<unknown>(
+        DESKTOP_COMMANDS.invokeManagedOpenClawGateway,
+        { request },
+        { operation: 'manage.invokeOpenClawGateway' },
       ),
   );
 }
@@ -1010,6 +810,22 @@ export async function openExternal(url: string): Promise<void> {
   );
 }
 
+export async function showDesktopNotification(
+  notification: PlatformNotificationRequest,
+): Promise<void> {
+  await runDesktopOrFallback(
+    'shell.showNotification',
+    () =>
+      invoke('plugin:notification|notify', {
+        options: {
+          title: notification.title,
+          body: notification.body,
+        },
+      }),
+    () => webPlatform.showNotification(notification),
+  );
+}
+
 export function supportsNativeScreenshot(): boolean {
   return isTauriRuntime();
 }
@@ -1262,6 +1078,138 @@ export async function runHubUninstall(
   );
 }
 
+async function resolveDesktopHostBrowserBaseUrl(): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  try {
+    const hostEndpoints = await getHostEndpoints();
+    return hostEndpoints.find((endpoint) => endpoint.endpointId === 'claw-manage-http')
+      ?.baseUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveDesktopHostedBasePath(browserBaseUrl: string, basePath: string): string {
+  const normalizedBrowserBaseUrl = browserBaseUrl.endsWith('/')
+    ? browserBaseUrl
+    : `${browserBaseUrl}/`;
+
+  try {
+    return new URL(basePath, normalizedBrowserBaseUrl).toString();
+  } catch {
+    const normalizedBasePath = basePath.startsWith('/') ? basePath : `/${basePath}`;
+    return `${browserBaseUrl.replace(/\/+$/, '')}${normalizedBasePath}`;
+  }
+}
+
+async function requireDesktopHostedBasePath(
+  operation: string,
+  basePath: string,
+): Promise<string> {
+  const browserBaseUrl = await resolveDesktopHostBrowserBaseUrl();
+  if (!browserBaseUrl) {
+    throw new DesktopBridgeError({
+      operation,
+      runtime: 'desktop',
+      cause: 'Canonical desktop embedded host browserBaseUrl is unavailable.',
+    });
+  }
+
+  return resolveDesktopHostedBasePath(browserBaseUrl, basePath);
+}
+
+async function createDesktopHostedManagePlatform(
+  operation: string,
+): Promise<WebManagePlatform> {
+  return new WebManagePlatform(
+    await requireDesktopHostedBasePath(operation, DESKTOP_MANAGE_BASE_PATH),
+  );
+}
+
+async function createDesktopHostedInternalPlatform(
+  operation: string,
+): Promise<WebInternalPlatform> {
+  return new WebInternalPlatform(
+    await requireDesktopHostedBasePath(operation, DESKTOP_INTERNAL_BASE_PATH),
+  );
+}
+
+function createDesktopHttpFirstManagePlatform() {
+  return {
+    async listRollouts() {
+      const hostedPlatform = await createDesktopHostedManagePlatform(
+        'manage.listRollouts',
+      );
+      return hostedPlatform.listRollouts();
+    },
+    async previewRollout(input: PreviewRolloutRequest) {
+      const hostedPlatform = await createDesktopHostedManagePlatform(
+        'manage.previewRollout',
+      );
+      return hostedPlatform.previewRollout(input);
+    },
+    async startRollout(rolloutId: string) {
+      const hostedPlatform = await createDesktopHostedManagePlatform(
+        'manage.startRollout',
+      );
+      return hostedPlatform.startRollout(rolloutId);
+    },
+    async getHostEndpoints() {
+      const hostedPlatform = await createDesktopHostedManagePlatform(
+        'manage.getHostEndpoints',
+      );
+      return hostedPlatform.getHostEndpoints();
+    },
+    async getOpenClawRuntime() {
+      const hostedPlatform = await createDesktopHostedManagePlatform(
+        'manage.getOpenClawRuntime',
+      );
+      return hostedPlatform.getOpenClawRuntime();
+    },
+    async getOpenClawGateway() {
+      const hostedPlatform = await createDesktopHostedManagePlatform(
+        'manage.getOpenClawGateway',
+      );
+      return hostedPlatform.getOpenClawGateway();
+    },
+    async invokeOpenClawGateway(request: ManageOpenClawGatewayInvokeRequest) {
+      const hostedPlatform = await createDesktopHostedManagePlatform(
+        'manage.invokeOpenClawGateway',
+      );
+      return hostedPlatform.invokeOpenClawGateway(request);
+    },
+  };
+}
+
+function createDesktopHttpFirstInternalPlatform() {
+  return {
+    async getHostPlatformStatus() {
+      const hostedPlatform = await createDesktopHostedInternalPlatform(
+        'internal.getHostPlatformStatus',
+      );
+      return hostedPlatform.getHostPlatformStatus();
+    },
+    async listNodeSessions() {
+      const hostedPlatform = await createDesktopHostedInternalPlatform(
+        'internal.listNodeSessions',
+      );
+      return hostedPlatform.listNodeSessions();
+    },
+  };
+}
+
+function createDesktopHttpFirstStudioPlatform() {
+  const hostedPlatform = new WebHostedStudioPlatform({
+    resolveBasePath: async () =>
+      requireDesktopHostedBasePath('studio.resolveHostedBasePath', DESKTOP_API_BASE_PATH),
+  });
+
+  return hostedPlatform;
+}
+
 export async function getRuntimeInfo(): Promise<RuntimeInfo> {
   const [app, paths, config, system] = await Promise.all([
     getAppInfo(),
@@ -1272,6 +1220,16 @@ export async function getRuntimeInfo(): Promise<RuntimeInfo> {
 
   return {
     platform: 'desktop' as const,
+    startup: {
+      hostMode: 'desktopCombined',
+      packageFamily: 'desktop',
+      startupTarget: 'desktop',
+      hostedBrowser: false,
+      apiBasePath: DESKTOP_API_BASE_PATH,
+      manageBasePath: DESKTOP_MANAGE_BASE_PATH,
+      internalBasePath: DESKTOP_INTERNAL_BASE_PATH,
+      browserBaseUrl: await resolveDesktopHostBrowserBaseUrl(),
+    },
     app,
     paths,
     config,
@@ -1305,6 +1263,10 @@ export const desktopTemplateApi = {
     listLocalAiProxyRequestLogs,
     listLocalAiProxyMessageLogs,
     updateLocalAiProxyMessageCapture,
+    inspectOpenClawMirrorExport,
+    exportOpenClawMirror,
+    inspectOpenClawMirrorImport,
+    importOpenClawMirror,
     getStorageInfo: getDesktopStorageInfo,
   },
   storage: {
@@ -1314,32 +1276,7 @@ export const desktopTemplateApi = {
     delete: storageDelete,
     listKeys: storageListKeys,
   },
-  studio: {
-    listInstances: studioListInstances,
-    getInstance: studioGetInstance,
-    getInstanceDetail: studioGetInstanceDetail,
-    createInstance: studioCreateInstance,
-    updateInstance: studioUpdateInstance,
-    deleteInstance: studioDeleteInstance,
-    startInstance: studioStartInstance,
-    stopInstance: studioStopInstance,
-    restartInstance: studioRestartInstance,
-    getInstanceConfig: studioGetInstanceConfig,
-    updateInstanceConfig: studioUpdateInstanceConfig,
-    getInstanceLogs: studioGetInstanceLogs,
-    createInstanceTask: studioCreateInstanceTask,
-    updateInstanceTask: studioUpdateInstanceTask,
-    updateInstanceFileContent: studioUpdateInstanceFileContent,
-    updateInstanceLlmProviderConfig: studioUpdateInstanceLlmProviderConfig,
-    cloneInstanceTask: studioCloneInstanceTask,
-    runInstanceTaskNow: studioRunInstanceTaskNow,
-    listInstanceTaskExecutions: studioListInstanceTaskExecutions,
-    updateInstanceTaskStatus: studioUpdateInstanceTaskStatus,
-    deleteInstanceTask: studioDeleteInstanceTask,
-    listConversations: studioListConversations,
-    putConversation: studioPutConversation,
-    deleteConversation: studioDeleteConversation,
-  },
+  studio: createDesktopHttpFirstStudioPlatform(),
   filesystem: {
     listDirectory,
     pathExists,
@@ -1363,6 +1300,7 @@ export const desktopTemplateApi = {
     subscribeProcessOutput,
   },
   shell: {
+    showNotification: showDesktopNotification,
     openExternal,
     fetchRemoteUrl,
     captureScreenshot,
@@ -1384,15 +1322,8 @@ export const desktopTemplateApi = {
     runHubUninstall,
     subscribeHubInstallProgress,
   },
-  manage: {
-    listRollouts: () => listRollouts(),
-    previewRollout: (input) => previewRollout(input),
-    startRollout: (rolloutId) => startRollout(rolloutId),
-  },
-  internal: {
-    getHostPlatformStatus: () => getHostPlatformStatus(),
-    listNodeSessions: () => listNodeSessions(),
-  },
+  manage: createDesktopHttpFirstManagePlatform(),
+  internal: createDesktopHttpFirstInternalPlatform(),
   runtime: {
     getInfo: getRuntimeInfo,
     setAppLanguage,
@@ -1409,6 +1340,7 @@ export function configureDesktopPlatformBridge() {
       setStorage: (key, value) => webPlatform.setStorage(key, value),
       getStorage: (key) => webPlatform.getStorage(key),
       copy: (text) => webPlatform.copy(text),
+      showNotification: (notification) => showDesktopNotification(notification),
       openExternal: (url) => openExternal(url),
       supportsNativeScreenshot: () => supportsNativeScreenshot(),
       captureScreenshot: () => captureScreenshot(),
@@ -1445,6 +1377,10 @@ export function configureDesktopPlatformBridge() {
       listLocalAiProxyRequestLogs: (query) => listLocalAiProxyRequestLogs(query),
       listLocalAiProxyMessageLogs: (query) => listLocalAiProxyMessageLogs(query),
       updateLocalAiProxyMessageCapture: (enabled) => updateLocalAiProxyMessageCapture(enabled),
+      inspectOpenClawMirrorExport: () => inspectOpenClawMirrorExport(),
+      exportOpenClawMirror: (request) => exportOpenClawMirror(request),
+      inspectOpenClawMirrorImport: (sourcePath) => inspectOpenClawMirrorImport(sourcePath),
+      importOpenClawMirror: (request) => importOpenClawMirror(request),
     },
     installer: {
       listHubInstallCatalog: (query) => listHubInstallCatalog(query),
@@ -1454,15 +1390,8 @@ export function configureDesktopPlatformBridge() {
       runHubUninstall: (request) => runHubUninstall(request),
       subscribeHubInstallProgress: (listener) => subscribeHubInstallProgress(listener),
     },
-    manage: {
-      listRollouts: () => listRollouts(),
-      previewRollout: (input) => previewRollout(input),
-      startRollout: (rolloutId) => startRollout(rolloutId),
-    },
-    internal: {
-      getHostPlatformStatus: () => getHostPlatformStatus(),
-      listNodeSessions: () => listNodeSessions(),
-    },
+    manage: createDesktopHttpFirstManagePlatform(),
+    internal: createDesktopHttpFirstInternalPlatform(),
     components: {
       listComponents: () => desktopComponentsApi.list(),
       controlComponent: (request) => desktopComponentsApi.control(request.componentId, request.action),
@@ -1474,54 +1403,7 @@ export function configureDesktopPlatformBridge() {
       delete: (request) => storageDelete(request),
       listKeys: (request) => storageListKeys(request),
     },
-    studio: {
-      listInstances: () => studioListInstances(),
-      getInstance: (id) => studioGetInstance(id),
-      getInstanceDetail: (id) => studioGetInstanceDetail(id),
-      invokeOpenClawGateway: (instanceId, request, options) =>
-        invokeOpenClawGateway(instanceId, request, options),
-      createInstance: (input) => studioCreateInstance(input),
-      updateInstance: (id, input) => studioUpdateInstance(id, input),
-      deleteInstance: (id) => studioDeleteInstance(id),
-      startInstance: (id) => studioStartInstance(id),
-      stopInstance: (id) => studioStopInstance(id),
-      restartInstance: (id) => studioRestartInstance(id),
-      setInstanceStatus: async (id, status) => {
-        if (status === 'online') {
-          return studioStartInstance(id);
-        }
-
-        if (status === 'offline') {
-          return studioStopInstance(id);
-        }
-
-        return studioUpdateInstance(id, { status });
-      },
-      getInstanceConfig: (id) => studioGetInstanceConfig(id),
-      updateInstanceConfig: (id, config) => studioUpdateInstanceConfig(id, config),
-      getInstanceLogs: (id) => studioGetInstanceLogs(id),
-      createInstanceTask: (instanceId, payload) =>
-        studioCreateInstanceTask(instanceId, payload),
-      updateInstanceTask: (instanceId, taskId, payload) =>
-        studioUpdateInstanceTask(instanceId, taskId, payload),
-      updateInstanceFileContent: (instanceId, fileId, content) =>
-        studioUpdateInstanceFileContent(instanceId, fileId, content),
-      updateInstanceLlmProviderConfig: (instanceId, providerId, update) =>
-        studioUpdateInstanceLlmProviderConfig(instanceId, providerId, update),
-      cloneInstanceTask: (instanceId, taskId, name) =>
-        studioCloneInstanceTask(instanceId, taskId, name),
-      runInstanceTaskNow: (instanceId, taskId) =>
-        studioRunInstanceTaskNow(instanceId, taskId),
-      listInstanceTaskExecutions: (instanceId, taskId) =>
-        studioListInstanceTaskExecutions(instanceId, taskId),
-      updateInstanceTaskStatus: (instanceId, taskId, status) =>
-        studioUpdateInstanceTaskStatus(instanceId, taskId, status),
-      deleteInstanceTask: (instanceId, taskId) =>
-        studioDeleteInstanceTask(instanceId, taskId),
-      listConversations: (instanceId) => studioListConversations(instanceId),
-      putConversation: (record) => studioPutConversation(record),
-      deleteConversation: (id) => studioDeleteConversation(id),
-    },
+    studio: createDesktopHttpFirstStudioPlatform(),
     runtime: {
       getRuntimeInfo: () => getRuntimeInfo(),
       setAppLanguage: (language) => setAppLanguage(language),

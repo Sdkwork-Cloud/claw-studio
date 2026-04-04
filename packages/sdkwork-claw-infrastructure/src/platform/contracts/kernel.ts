@@ -2,6 +2,12 @@ import type {
   LocalAiProxyMessageCaptureSettings,
   LocalAiProxyMessageLogRecord,
   LocalAiProxyMessageLogsQuery,
+  OpenClawMirrorExportPreview,
+  OpenClawMirrorExportRequest,
+  OpenClawMirrorExportResult,
+  OpenClawMirrorImportPreview,
+  OpenClawMirrorImportRequest,
+  OpenClawMirrorImportResult,
   LocalAiProxyRequestLogRecord,
   LocalAiProxyRequestLogsQuery,
   LocalAiProxyRouteTestRecord,
@@ -157,4 +163,8 @@ export interface KernelPlatformAPI {
   updateLocalAiProxyMessageCapture(
     enabled: boolean,
   ): Promise<LocalAiProxyMessageCaptureSettings>;
+  inspectOpenClawMirrorExport(): Promise<OpenClawMirrorExportPreview | null>;
+  exportOpenClawMirror(request: OpenClawMirrorExportRequest): Promise<OpenClawMirrorExportResult>;
+  inspectOpenClawMirrorImport(sourcePath: string): Promise<OpenClawMirrorImportPreview | null>;
+  importOpenClawMirror(request: OpenClawMirrorImportRequest): Promise<OpenClawMirrorImportResult>;
 }

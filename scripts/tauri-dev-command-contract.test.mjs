@@ -99,10 +99,10 @@ assertCommandsAppearInOrder(
   tauriCliDevScript,
   [
     rustToolchainGuardCommand,
+    bundledOpenClawPrepareCommand,
     bundledSyncDevCommand,
     devBinaryUnlockGuardCommand,
     staleTargetGuardCommand,
-    bundledOpenClawPrepareCommand,
     devPortGuardCommand,
     tauriDevRunnerCommand,
   ],
@@ -134,10 +134,10 @@ assertCommandsAppearInOrder(
   tauriCliBuildScript,
   [
     rustToolchainGuardCommand,
+    bundledOpenClawPrepareCommand,
     bundledSyncBuildCommand,
     devBinaryUnlockGuardCommand,
     staleTargetGuardCommand,
-    bundledOpenClawPrepareCommand,
     desktopBundleRunnerCommand,
   ],
   'Desktop "tauri:build"',
@@ -152,6 +152,9 @@ if (!tauriCliBuildScript.includes(desktopBundleRunnerCommand)) {
 const bundledResources = tauriConfig.bundle?.resources;
 if (!Array.isArray(bundledResources) || !bundledResources.includes('resources/openclaw/**/*')) {
   fail('Desktop Tauri bundle resources must include resources/openclaw/**/*.');
+}
+if (!Array.isArray(bundledResources) || !bundledResources.includes('../dist/**/*')) {
+  fail('Desktop Tauri bundle resources must include ../dist/**/* so the embedded host can serve the packaged browser shell.');
 }
 
 if (Array.isArray(bundledResources) && bundledResources.includes('resources/sdkwork-api-router-runtime/**/*')) {
@@ -169,6 +172,7 @@ if (!windowsBundleResources || Array.isArray(windowsBundleResources)) {
 const expectedWindowsBundleSources = [
   'foundation/components/',
   'generated/br/b/',
+  'generated/br/w/',
   'vendor/hub-installer/registry/',
   'generated/br/o/',
 ];
@@ -190,18 +194,13 @@ for (const source of Object.keys(windowsBundleResources)) {
 if (windowsBundleResources['generated/br/o/'] !== 'resources/openclaw/') {
   fail('Desktop Windows bundle overlay must map the OpenClaw bridge root into resources/openclaw/.');
 }
+if (windowsBundleResources['generated/br/w/'] !== 'dist/') {
+  fail('Desktop Windows bundle overlay must map the browser shell bridge root into dist/.');
+}
 
 const windowsTauriResources = tauriWindowsConfig.bundle?.resources;
-if (!windowsTauriResources || Array.isArray(windowsTauriResources)) {
-  fail('Desktop Windows Tauri config must declare bundle.resources as a source-to-target mapping object.');
-}
-
-if (windowsTauriResources['resources/openclaw/'] !== 'resources/ocrt/') {
-  fail('Desktop Windows Tauri config must package resources/openclaw/ into resources/ocrt/.');
-}
-
-if ('resources/openclaw-runtime/' in windowsTauriResources) {
-  fail('Desktop Windows Tauri config must not reference the legacy resources/openclaw-runtime/ path.');
+if (typeof windowsTauriResources !== 'undefined') {
+  fail('Desktop Windows Tauri config must not duplicate bundle.resources when the Windows overlay already owns bundled resource mapping.');
 }
 
 const tauriBuildScriptSource = readText('packages/sdkwork-claw-desktop/src-tauri/build.rs');

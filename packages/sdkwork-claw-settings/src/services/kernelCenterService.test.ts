@@ -71,9 +71,9 @@ function createSnapshot(
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home/.openclaw/openclaw.json',
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home',
-      runtimeInstallDir: `C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+      configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+      runtimeInstallDir: `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
     },
   };
 
@@ -110,12 +110,12 @@ function createKernelInfo(
       machineStateDir: 'C:/ProgramData/SdkWork/ClawStudio/state',
       machineStoreDir: 'C:/ProgramData/SdkWork/ClawStudio/store',
       machineStagingDir: 'C:/ProgramData/SdkWork/ClawStudio/staging',
-      userRoot: 'C:/Users/admin/.sdkwork/claw-studio',
-      studioDir: 'C:/Users/admin/.sdkwork/claw-studio/studio',
-      storageDir: 'C:/Users/admin/.sdkwork/claw-studio/storage',
-      pluginsDir: 'C:/Users/admin/.sdkwork/claw-studio/plugins',
-      integrationsDir: 'C:/Users/admin/.sdkwork/claw-studio/integrations',
-      backupsDir: 'C:/Users/admin/.sdkwork/claw-studio/backups',
+      userRoot: 'C:/Users/admin/.sdkwork/crawstudio',
+      studioDir: 'C:/Users/admin/.sdkwork/crawstudio/studio',
+      storageDir: 'C:/Users/admin/.sdkwork/crawstudio/storage',
+      pluginsDir: 'C:/Users/admin/.sdkwork/crawstudio/plugins',
+      integrationsDir: 'C:/Users/admin/.sdkwork/crawstudio/integrations',
+      backupsDir: 'C:/Users/admin/.sdkwork/crawstudio/backups',
     },
     capabilities: [
       {
@@ -131,7 +131,7 @@ function createKernelInfo(
     ],
     filesystem: {
       defaultWorkingDirectory: 'C:/Users/admin',
-      managedRoots: ['C:/Users/admin/.sdkwork/claw-studio'],
+      managedRoots: ['C:/Users/admin/.sdkwork/crawstudio'],
       supportsBinaryIo: true,
     },
     security: {
@@ -167,8 +167,8 @@ function createKernelInfo(
       pluginsEnabled: true,
       remoteApiEnabled: true,
       allowUnsignedPlugins: false,
-      pluginsDir: 'C:/Users/admin/.sdkwork/claw-studio/plugins',
-      integrationsDir: 'C:/Users/admin/.sdkwork/claw-studio/integrations',
+      pluginsDir: 'C:/Users/admin/.sdkwork/crawstudio/plugins',
+      integrationsDir: 'C:/Users/admin/.sdkwork/crawstudio/integrations',
       installedPluginCount: 2,
       status: 'ready',
       availableAdapters: [],
@@ -253,7 +253,7 @@ function createKernelInfo(
     },
     storage: {
       activeProfileId: 'default-sqlite',
-      rootDir: 'C:/Users/admin/.sdkwork/claw-studio/storage',
+      rootDir: 'C:/Users/admin/.sdkwork/crawstudio/storage',
       providers: [],
       profiles: [
         {
@@ -264,7 +264,7 @@ function createKernelInfo(
           availability: 'ready',
           namespace: 'claw-studio',
           readOnly: false,
-          path: 'C:/Users/admin/.sdkwork/claw-studio/storage/default.db',
+          path: 'C:/Users/admin/.sdkwork/crawstudio/storage/default.db',
           connectionConfigured: false,
           databaseConfigured: true,
           endpointConfigured: false,
@@ -289,6 +289,33 @@ function createHostPlatformStatus(
     rolloutEngineVersion: 'phase1',
     manageBasePath: '/claw/manage/v1',
     internalBasePath: '/claw/internal/v1',
+    stateStoreDriver: 'sqlite',
+    stateStore: {
+      activeProfileId: 'default-sqlite',
+      providers: [
+        {
+          id: 'sqlite',
+          label: 'SQLite',
+          availability: 'ready',
+          requiresConfiguration: false,
+          configurationKeys: [],
+          projectionMode: 'runtime',
+        },
+      ],
+      profiles: [
+        {
+          id: 'default-sqlite',
+          label: 'SQLite',
+          driver: 'sqlite',
+          active: true,
+          availability: 'ready',
+          path: 'C:/Users/admin/.sdkwork/crawstudio/storage/default.db',
+          connectionConfigured: false,
+          configuredKeys: ['path'],
+          projectionMode: 'runtime',
+        },
+      ],
+    },
     capabilityKeys: ['nodeSessions', 'rollouts'],
     updatedAt: 1_743_100_100_000,
     ...overrides,
@@ -347,6 +374,54 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
         drafts: 0,
       }),
     },
+    hostRuntimeModeService: {
+      getSummary: async () => ({
+        mode: 'desktopCombined',
+        modeLabel: 'Desktop Combined',
+        lifecycle: 'ready',
+        lifecycleLabel: 'Ready',
+        browserManagementSupported: true,
+        browserManagementAvailable: true,
+        browserManagementLabel: 'Embedded Browser Management',
+        manageBasePath: '/claw/manage/v1',
+        internalBasePath: '/claw/internal/v1',
+      }),
+    },
+    hostPortSettingsService: {
+      getSummary: async () => ({
+        totalEndpoints: 2,
+        readyEndpoints: 2,
+        conflictedEndpoints: 1,
+        dynamicPortEndpoints: 2,
+        browserBaseUrl: 'http://127.0.0.1:18797',
+        rows: [
+          {
+            endpointId: 'claw-manage-http',
+            bindHost: '127.0.0.1',
+            requestedPort: 18797,
+            activePort: 18797,
+            portBindingLabel: '18797',
+            statusLabel: 'Requested Port Active',
+            exposureLabel: 'Loopback Only',
+            conflictSummary: null,
+            baseUrl: 'http://127.0.0.1:18797',
+            websocketUrl: null,
+          },
+          {
+            endpointId: 'openclaw-gateway-http',
+            bindHost: '0.0.0.0',
+            requestedPort: 18801,
+            activePort: 18819,
+            portBindingLabel: '18801 -> 18819',
+            statusLabel: 'Fallback Active',
+            exposureLabel: 'Network',
+            conflictSummary: 'Requested port unavailable: EADDRINUSE',
+            baseUrl: 'http://0.0.0.0:18819',
+            websocketUrl: 'ws://0.0.0.0:18819',
+          },
+        ],
+      }),
+    },
   });
 
   const dashboard = await service.getDashboard();
@@ -402,13 +477,22 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
   assert.equal(dashboard.hostPlatform.lifecycleLabel, 'Ready');
   assert.deepEqual(dashboard.hostPlatform.capabilityKeys, ['nodeSessions', 'rollouts']);
   assert.equal(dashboard.hostPlatform.manageBasePath, '/claw/manage/v1');
+  assert.equal(dashboard.hostRuntime.modeLabel, 'Desktop Combined');
+  assert.equal(dashboard.hostRuntime.browserManagementAvailable, true);
+  assert.equal(dashboard.hostRuntime.browserManagementLabel, 'Embedded Browser Management');
+  assert.equal(dashboard.hostEndpoints.totalEndpoints, 2);
+  assert.equal(dashboard.hostEndpoints.conflictedEndpoints, 1);
+  assert.equal(dashboard.hostEndpoints.browserBaseUrl, 'http://127.0.0.1:18797');
+  assert.equal(dashboard.hostEndpoints.rows[1]?.portBindingLabel, '18801 -> 18819');
   assert.equal(dashboard.rollouts.total, 2);
   assert.equal(dashboard.rollouts.phaseCounts.active, 1);
   assert.equal(dashboard.rollouts.phaseCounts.failed, 1);
   assert.equal(dashboard.rollouts.latestUpdatedAt, 1_743_100_300_000);
 });
 
-await runTest('kernelCenterService forwards ensureRunning and restart actions through the kernel platform service', async () => {
+await runTest(
+  'kernelCenterService forwards ensureRunning and restart actions and degrades gracefully when host governance details are unavailable',
+  async () => {
   const { createKernelCenterService } = await import('./kernelCenterService.ts');
 
   const calls: string[] = [];
@@ -451,4 +535,11 @@ await runTest('kernelCenterService forwards ensureRunning and restart actions th
   assert.equal(ensured.snapshot?.controlMode, 'nativeService');
   assert.equal(restarted.snapshot?.runtimeState, 'recovering');
   assert.equal(ensured.hostPlatform.lifecycleLabel, 'Degraded');
+  assert.equal(ensured.hostRuntime.modeLabel, 'Desktop Combined');
+  assert.equal(ensured.hostRuntime.lifecycleLabel, 'Degraded');
+  assert.equal(ensured.hostRuntime.browserManagementAvailable, false);
+  assert.equal(ensured.hostRuntime.browserManagementLabel, 'Host Runtime Available');
+  assert.equal(ensured.hostEndpoints.totalEndpoints, 0);
+  assert.equal(ensured.hostEndpoints.rows.length, 0);
+  assert.equal(ensured.hostEndpoints.browserBaseUrl, null);
 });

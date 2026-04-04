@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { settingsService } from './settingsService.ts';
+import { createSettingsService } from './settingsService.ts';
 
 function createStorage() {
   const store = new Map<string, string>();
@@ -50,6 +50,55 @@ function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function createTestSettingsService() {
+  return createSettingsService({
+    getClient: () => ({
+      user: {
+        async getUserProfile() {
+          return (await fetch('http://localhost/app/v3/api/user/profile')).json();
+        },
+        async updateUserProfile(body: Record<string, unknown>) {
+          return (
+            await fetch('http://localhost/app/v3/api/user/profile', {
+              method: 'PUT',
+              body: JSON.stringify(body),
+            })
+          ).json();
+        },
+        async changePassword(body: Record<string, unknown>) {
+          return (
+            await fetch('http://localhost/app/v3/api/user/password', {
+              method: 'PUT',
+              body: JSON.stringify(body),
+            })
+          ).json();
+        },
+      },
+      notification: {
+        async getNotificationSettings() {
+          return (await fetch('http://localhost/app/v3/api/notification/settings')).json();
+        },
+        async updateNotificationSettings(body: Record<string, unknown>) {
+          return (
+            await fetch('http://localhost/app/v3/api/notification/settings', {
+              method: 'PUT',
+              body: JSON.stringify(body),
+            })
+          ).json();
+        },
+        async updateTypeSettings(type: string, body: Record<string, unknown>) {
+          return (
+            await fetch(`http://localhost/app/v3/api/notification/settings/${encodeURIComponent(type)}`, {
+              method: 'PUT',
+              body: JSON.stringify(body),
+            })
+          ).json();
+        },
+      },
+    }),
   });
 }
 
@@ -120,6 +169,7 @@ async function runTest(name: string, fn: () => Promise<void> | void) {
 }
 
 await runTest('settingsService persists general preferences across reads', async () => {
+  const settingsService = createTestSettingsService();
   const initial = await settingsService.getPreferences();
   assert.equal(initial.general.launchOnStartup, false);
   assert.equal(initial.general.compactModelSelector, true);
@@ -143,6 +193,7 @@ await runTest('settingsService persists general preferences across reads', async
 });
 
 await runTest('settingsService keeps security and privacy overlays when notification settings reload', async () => {
+  const settingsService = createTestSettingsService();
   await settingsService.updatePreferences({
     privacy: {
       shareUsageData: true,
@@ -162,6 +213,7 @@ await runTest('settingsService keeps security and privacy overlays when notifica
 });
 
 await runTest('settingsService falls back to local overlay preferences when notification settings authentication expires', async () => {
+  const settingsService = createTestSettingsService();
   await settingsService.updatePreferences({
     general: {
       launchOnStartup: true,
@@ -220,6 +272,7 @@ await runTest('settingsService falls back to local overlay preferences when noti
 });
 
 await runTest('settingsService updates notification globals and per-type switches through app sdk routes', async () => {
+  const settingsService = createTestSettingsService();
   const updated = await settingsService.updatePreferences({
     notifications: {
       systemUpdates: false,
@@ -257,6 +310,7 @@ await runTest('settingsService updates notification globals and per-type switche
 });
 
 await runTest('settingsService surfaces remote profile failures instead of falling back to mock data', async () => {
+  const settingsService = createTestSettingsService();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 
@@ -280,6 +334,7 @@ await runTest('settingsService surfaces remote profile failures instead of falli
 });
 
 await runTest('settingsService preserves empty remote profile names instead of forcing a placeholder identity', async () => {
+  const settingsService = createTestSettingsService();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
 

@@ -2,7 +2,8 @@ replicaCount: 1
 
 image:
   repository: claw-studio-server
-  tag: latest
+  tag: 0.1.0
+  digest: ""
   pullPolicy: IfNotPresent
 
 service:
@@ -23,6 +24,22 @@ ingress:
 server:
   host: 0.0.0.0
   port: 18797
+  dataDir: /var/lib/claw-server
+
+auth:
+  existingSecret: ""
+  manageUsername: ""
+  managePassword: ""
+  internalUsername: ""
+  internalPassword: ""
+
+persistence:
+  enabled: true
+  mountPath: /var/lib/claw-server
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClass: ""
 
 targetArchitecture: x64
 acceleratorProfile: cpu

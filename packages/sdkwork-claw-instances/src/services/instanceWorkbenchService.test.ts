@@ -1811,6 +1811,8 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
     const workbench = await service.getInstanceWorkbench('managed-live');
 
     assert.ok(workbench);
+    assert.equal(workbench?.sectionCounts.config, 1);
+    assert.equal(workbench?.sectionAvailability.config.status, 'ready');
     assert.equal(workbench?.managedConfigPath, managedConfigPath);
     assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'qq'), true);
     assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'whatsapp'), true);

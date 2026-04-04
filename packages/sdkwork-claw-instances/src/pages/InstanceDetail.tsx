@@ -66,6 +66,7 @@ import {
   type TaskCatalogItem,
 } from '@sdkwork/claw-ui';
 import { AgentWorkbenchPanel } from '../components/AgentWorkbenchPanel';
+import { InstanceConfigWorkbenchPanel } from '../components/InstanceConfigWorkbenchPanel';
 import { InstanceFilesWorkspace } from '../components/InstanceFilesWorkspace';
 import { InstanceLLMConfigPanel } from '../components/InstanceLLMConfigPanel';
 import { buildInstanceDetailBadgeDescriptors } from './instanceDetailBadgeDescriptors';
@@ -210,6 +211,14 @@ const workbenchSections: WorkbenchSectionDefinition[] = [
     descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.tools',
     sectionTitleKey: 'instances.detail.instanceWorkbench.sections.tools.title',
     sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.tools.description',
+  },
+  {
+    id: 'config',
+    icon: FileCode2,
+    labelKey: 'instances.detail.instanceWorkbench.sidebar.config',
+    descriptionKey: 'instances.detail.instanceWorkbench.sidebar.itemDescriptions.config',
+    sectionTitleKey: 'instances.detail.instanceWorkbench.sections.config.title',
+    sectionDescriptionKey: 'instances.detail.instanceWorkbench.sections.config.description',
   },
 ];
 
@@ -1494,7 +1503,7 @@ export function InstanceDetail() {
       await agentSkillManagementService.installSkill({
         instanceId: id,
         agentId: selectedAgentWorkbench.agent.agent.id,
-        isDefaultAgent: selectedAgentWorkbench.agent.isDefault,
+        isDefaultAgent: Boolean(selectedAgentWorkbench.agent.isDefault),
         slug,
       });
       toast.success(t('instances.detail.instanceWorkbench.agents.toasts.skillInstalled'));
@@ -2615,7 +2624,9 @@ export function InstanceDetail() {
           errorMessage={agentWorkbenchError}
           selectedAgentId={selectedAgentId}
           onSelectedAgentIdChange={setSelectedAgentId}
-          onOpenAgentMarket={() => navigate(`/agents?instanceId=${encodeURIComponent(id)}`)}
+          onOpenAgentMarket={() =>
+            navigate(id ? `/agents?instanceId=${encodeURIComponent(id)}` : '/agents')
+          }
           onCreateAgent={openCreateAgentDialog}
           onEditAgent={openEditAgentDialog}
           onDeleteAgent={setAgentDeleteId}
@@ -2628,7 +2639,7 @@ export function InstanceDetail() {
           isInstallingSkill={isInstallingAgentSkill}
           updatingSkillKeys={updatingAgentSkillKeys}
           removingSkillKeys={removingAgentSkillKeys}
-          onReload={() => loadWorkbench(id, { withSpinner: false })}
+          onReload={() => (id ? loadWorkbench(id, { withSpinner: false }) : undefined)}
         />
 
         <Dialog open={isAgentDialogOpen} onOpenChange={setIsAgentDialogOpen}>
@@ -3566,7 +3577,7 @@ export function InstanceDetail() {
 
         <InstanceFilesWorkspace
           mode="instance"
-          instanceId={id}
+          instanceId={id ?? ''}
           files={workbench?.files || []}
           agents={workbench?.agents || []}
           selectedAgentId={selectedAgentId}
@@ -3574,7 +3585,7 @@ export function InstanceDetail() {
           runtimeKind={detail?.instance.runtimeKind}
           isBuiltIn={detail?.instance.isBuiltIn}
           isLoading={isWorkbenchFilesLoading}
-          onReload={() => loadWorkbench(id, { withSpinner: false })}
+          onReload={() => (id ? loadWorkbench(id, { withSpinner: false }) : undefined)}
         />
       </div>
     );
@@ -4084,6 +4095,20 @@ export function InstanceDetail() {
     );
   };
 
+  const renderConfigSection = () => {
+    if (!workbench?.managedConfigPath || !id) {
+      return renderSectionAvailability('config', 'instances.detail.instanceWorkbench.empty.config');
+    }
+
+    return (
+      <InstanceConfigWorkbenchPanel
+        instanceId={id}
+        workbench={workbench}
+        onReload={() => loadWorkbench(id, { withSpinner: false })}
+      />
+    );
+  };
+
   const renderSectionContent = () => {
     switch (activeSection) {
       case 'overview':
@@ -4104,6 +4129,8 @@ export function InstanceDetail() {
         return renderMemorySection();
       case 'tools':
         return renderToolsSection();
+      case 'config':
+        return renderConfigSection();
       default:
         return null;
     }

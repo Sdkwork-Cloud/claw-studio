@@ -39,7 +39,7 @@ export function AuthOAuthCallbackPage() {
 
   useEffect(() => {
     const normalizedProvider = normalizeAuthOAuthProvider(provider);
-    if (!isConfiguredAuthOAuthProvider(normalizedProvider || undefined, configuredProviders)) {
+    if (!normalizedProvider || !isConfiguredAuthOAuthProvider(normalizedProvider, configuredProviders)) {
       const message = t('auth.oauth.invalidProvider');
       setCallbackState('error');
       setErrorMessage(message);

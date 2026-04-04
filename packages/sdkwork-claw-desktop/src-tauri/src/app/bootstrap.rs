@@ -112,7 +112,9 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
     plugins::register(tauri::Builder::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
-            let context = Arc::new(FrameworkContext::bootstrap(&app_handle)?);
+            let mut context = FrameworkContext::bootstrap(&app_handle)?;
+            context.bootstrap_desktop_host()?;
+            let context = Arc::new(context);
             context.logger.info("managed desktop state initialized")?;
             let package_info = app.package_info();
             let metadata = AppMetadata::new(
@@ -146,6 +148,10 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::desktop_kernel::list_local_ai_proxy_request_logs,
             commands::desktop_kernel::list_local_ai_proxy_message_logs,
             commands::desktop_kernel::update_local_ai_proxy_message_capture,
+            commands::openclaw_mirror::inspect_openclaw_mirror_export,
+            commands::openclaw_mirror::export_openclaw_mirror,
+            commands::openclaw_mirror::inspect_openclaw_mirror_import,
+            commands::openclaw_mirror::import_openclaw_mirror,
             commands::desktop_kernel::desktop_storage_info,
             commands::get_app_paths::get_app_paths,
             commands::get_app_config::get_app_config,
@@ -185,6 +191,10 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::studio_commands::list_rollouts,
             commands::studio_commands::preview_rollout,
             commands::studio_commands::start_rollout,
+            commands::studio_commands::get_host_endpoints,
+            commands::studio_commands::get_openclaw_runtime,
+            commands::studio_commands::get_openclaw_gateway,
+            commands::studio_commands::invoke_managed_openclaw_gateway,
             commands::studio_commands::list_node_sessions,
             commands::job_commands::job_submit,
             commands::job_commands::job_submit_process,

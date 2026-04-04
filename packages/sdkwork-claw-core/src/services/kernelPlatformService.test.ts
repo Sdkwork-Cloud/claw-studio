@@ -70,7 +70,7 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
           configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
           runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
           runtimeInstallDir:
-            `C:/ProgramData/SdkWork/CrawStudio/machine/runtime/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+            `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
         },
       }),
       ensureRunning: async () => {
@@ -80,6 +80,10 @@ await runTest('kernelPlatformService maps kernel host status into a UI-friendly 
         throw new Error('not needed');
       },
       testLocalAiProxyRoute: async () => null,
+      inspectOpenClawMirrorExport: async () => null,
+      exportOpenClawMirror: async () => {
+        throw new Error('not needed');
+      },
     }),
   });
 
@@ -147,7 +151,8 @@ await runTest('kernelPlatformService delegates ensureRunning and restart to the 
       installSource: 'bundled',
       configPath: '/home/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
       runtimeHomeDir: '/home/admin/.sdkwork/crawstudio/openclaw-home',
-      runtimeInstallDir: `/var/lib/claw-studio/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-linux-x64`,
+      runtimeInstallDir:
+        `/opt/sdkwork/crawstudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-linux-x64`,
     },
   } as const;
 
@@ -165,6 +170,10 @@ await runTest('kernelPlatformService delegates ensureRunning and restart to the 
         return response;
       },
       testLocalAiProxyRoute: async () => null,
+      inspectOpenClawMirrorExport: async () => null,
+      exportOpenClawMirror: async () => {
+        throw new Error('not needed');
+      },
     }),
   });
 
@@ -254,6 +263,10 @@ await runTest('kernelPlatformService exposes local ai proxy request logs, messag
           enabled,
           updatedAt: 1743510001234,
         };
+      },
+      inspectOpenClawMirrorExport: async () => null,
+      exportOpenClawMirror: async () => {
+        throw new Error('not needed');
       },
     }),
   });

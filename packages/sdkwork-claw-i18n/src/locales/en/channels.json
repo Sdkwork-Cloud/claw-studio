@@ -26,12 +26,14 @@
     },
     "catalog": {
       "tabs": {
-        "domestic": "Domestic Messaging Apps",
-        "global": "Global Messaging Apps"
+        "domestic": "Domestic",
+        "global": "Global",
+        "all": "All"
       },
       "empty": {
-        "domestic": "No domestic messaging channels are available in this workspace.",
-        "global": "No global messaging channels are available in this workspace."
+        "domestic": "No domestic chat channels are available in this workspace.",
+        "global": "No global chat channels are available in this workspace.",
+        "all": "No chat channels are available in this workspace."
       }
     }
   }

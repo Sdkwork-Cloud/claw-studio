@@ -68,6 +68,38 @@ function readTarGzEntries(archivePath) {
   return entries;
 }
 
+function normalizeArchivePath(pathValue) {
+  const normalized = String(pathValue ?? '').replaceAll('\\', '/');
+  const segments = [];
+  for (const segment of normalized.split('/')) {
+    if (!segment || segment === '.') {
+      continue;
+    }
+    if (segment === '..') {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+  return segments.join('/');
+}
+
+function resolveArchiveRelativePath(basePath, relativePath) {
+  return normalizeArchivePath(`${basePath}/${relativePath}`);
+}
+
+function readSingleLineYamlValue(source, key) {
+  const match = source.match(new RegExp(`^\\s*${key}:\\s+([^\\r\\n]+)`, 'm'));
+  assert.notEqual(match, null, `missing YAML key "${key}"`);
+  return match[1].trim();
+}
+
+function readSingleListYamlValue(source, key) {
+  const match = source.match(new RegExp(`^\\s*${key}:\\s*[\\r\\n]+\\s*-\\s+([^\\r\\n]+)`, 'm'));
+  assert.notEqual(match, null, `missing YAML list entry for "${key}"`);
+  return match[1].trim();
+}
+
 test('release asset packager archives macOS app bundles into release-safe zip assets', async () => {
   const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
   const packager = await import(pathToFileURL(packagerPath).href);
@@ -129,6 +161,154 @@ test('release asset packager archives macOS app bundles into release-safe zip as
     assert.equal(
       manifest.artifacts[0].relativePath,
       'desktop/macos/x64/macos/Claw Studio_0.1.0_x64.app.zip',
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset packager collects Windows desktop installers from the targeted bundle root', async () => {
+  const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
+  const packager = await import(pathToFileURL(packagerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-windows-desktop-'));
+  const targetDir = path.join(tempRoot, 'target');
+  const bundleRoot = path.join(targetDir, 'x86_64-pc-windows-msvc', 'release', 'bundle', 'nsis');
+  const outputDir = path.join(tempRoot, 'release-assets');
+
+  try {
+    mkdirSync(bundleRoot, { recursive: true });
+    writeFileSync(
+      path.join(bundleRoot, 'Claw Studio_0.1.0_x64-setup.exe'),
+      'synthetic desktop installer\n',
+      'utf8',
+    );
+
+    packager.packageDesktopAssets({
+      platform: 'windows',
+      arch: 'x64',
+      target: 'x86_64-pc-windows-msvc',
+      outputDir,
+      targetDir,
+    });
+
+    const installerPath = path.join(
+      outputDir,
+      'desktop',
+      'windows',
+      'x64',
+      'nsis',
+      'Claw Studio_0.1.0_x64-setup.exe',
+    );
+    const manifestPath = path.join(
+      outputDir,
+      'desktop',
+      'windows',
+      'x64',
+      'release-asset-manifest.json',
+    );
+
+    assert.equal(existsSync(installerPath), true, `missing expected installer ${installerPath}`);
+    assert.equal(existsSync(`${installerPath}.sha256.txt`), true, 'missing expected installer checksum');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    assert.equal(manifest.artifacts.length, 1);
+    assert.equal(manifest.artifacts[0].family, 'desktop');
+    assert.equal(manifest.artifacts[0].platform, 'windows');
+    assert.equal(manifest.artifacts[0].kind, 'installer');
+    assert.equal(
+      manifest.artifacts[0].relativePath,
+      'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe',
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset packager removes legacy Windows desktop output paths before copying fresh installers', async () => {
+  const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
+  const packager = await import(pathToFileURL(packagerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-windows-desktop-legacy-'));
+  const targetDir = path.join(tempRoot, 'target');
+  const bundleRoot = path.join(targetDir, 'x86_64-pc-windows-msvc', 'release', 'bundle', 'nsis');
+  const outputDir = path.join(tempRoot, 'release-assets');
+  const legacyOutputDir = path.join(outputDir, 'desktop', 'windows', 'nsis');
+  const legacyInstallerPath = path.join(legacyOutputDir, 'legacy-installer.exe');
+
+  try {
+    mkdirSync(bundleRoot, { recursive: true });
+    mkdirSync(legacyOutputDir, { recursive: true });
+    writeFileSync(legacyInstallerPath, 'stale legacy desktop installer\n', 'utf8');
+    writeFileSync(
+      path.join(bundleRoot, 'Claw Studio_0.1.0_x64-setup.exe'),
+      'synthetic desktop installer\n',
+      'utf8',
+    );
+
+    packager.packageDesktopAssets({
+      platform: 'windows',
+      arch: 'x64',
+      target: 'x86_64-pc-windows-msvc',
+      outputDir,
+      targetDir,
+    });
+
+    assert.equal(
+      existsSync(legacyOutputDir),
+      false,
+      `expected legacy desktop output directory to be removed: ${legacyOutputDir}`,
+    );
+    assert.equal(
+      existsSync(legacyInstallerPath),
+      false,
+      `expected stale legacy installer to be removed: ${legacyInstallerPath}`,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset packager explains how to build missing desktop and server release prerequisites', async () => {
+  const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
+  const packager = await import(pathToFileURL(packagerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-prereqs-'));
+  const outputDir = path.join(tempRoot, 'release-assets');
+  const targetDir = path.join(tempRoot, 'desktop-target');
+  const serverTargetDir = path.join(tempRoot, 'server-target');
+  const webDistDir = path.join(tempRoot, 'web-dist');
+  const envExamplePath = path.join(tempRoot, '.env.example');
+
+  try {
+    mkdirSync(path.join(webDistDir, 'assets'), { recursive: true });
+    writeFileSync(path.join(webDistDir, 'index.html'), '<html><body>synthetic web</body></html>\n', 'utf8');
+    writeFileSync(path.join(webDistDir, 'assets', 'index.js'), 'console.log("synthetic");\n', 'utf8');
+    writeFileSync(envExamplePath, 'CLAW_SERVER_PORT=18797\n', 'utf8');
+
+    assert.throws(
+      () => packager.packageDesktopAssets({
+        platform: 'windows',
+        arch: 'x64',
+        target: 'x86_64-pc-windows-msvc',
+        outputDir,
+        targetDir,
+      }),
+      /Run "pnpm release:desktop" or "pnpm tauri:build" first/,
+    );
+
+    assert.throws(
+      () => packager.packageContainerAssets({
+        releaseTag: 'release-2026-04-04-01',
+        platform: 'linux',
+        arch: 'x64',
+        target: 'x86_64-unknown-linux-gnu',
+        accelerator: 'cpu',
+        outputDir,
+        serverBuildTargetDir: serverTargetDir,
+        serverWebDistDir: webDistDir,
+        serverEnvPath: envExamplePath,
+      }),
+      /pnpm server:build -- --target x86_64-unknown-linux-gnu/,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -318,7 +498,7 @@ test('container asset packager bundles deployment overlays, app runtime, and rel
   const serverTargetDir = path.join(tempRoot, 'server-target');
   const webDistDir = path.join(tempRoot, 'web-dist');
   const envExamplePath = path.join(tempRoot, '.env.example');
-  const deployDir = path.join(tempRoot, 'deploy-docker');
+  const deploymentSourceDir = path.join(rootDir, 'deploy', 'docker');
   const releaseTag = 'release-2026-04-03-03';
 
   try {
@@ -330,14 +510,6 @@ test('container asset packager bundles deployment overlays, app runtime, and rel
       envExamplePath,
     });
 
-    mkdirSync(path.join(deployDir, 'profiles'), { recursive: true });
-    writeFileSync(path.join(deployDir, 'Dockerfile'), 'FROM scratch\n', 'utf8');
-    writeFileSync(path.join(deployDir, 'docker-compose.yml'), 'services: {}\n', 'utf8');
-    writeFileSync(path.join(deployDir, 'docker-compose.nvidia-cuda.yml'), 'services: {}\n', 'utf8');
-    writeFileSync(path.join(deployDir, 'docker-compose.amd-rocm.yml'), 'services: {}\n', 'utf8');
-    writeFileSync(path.join(deployDir, 'profiles', 'default.env'), 'CLAW_SERVER_PORT=18797\n', 'utf8');
-    writeFileSync(path.join(deployDir, '.dockerignore'), 'node_modules\n', 'utf8');
-
     packager.packageContainerAssets({
       releaseTag,
       platform: 'linux',
@@ -348,7 +520,7 @@ test('container asset packager bundles deployment overlays, app runtime, and rel
       serverBuildTargetDir: serverTargetDir,
       serverWebDistDir: webDistDir,
       serverEnvPath: envExamplePath,
-      deploymentSourceDir: deployDir,
+      deploymentSourceDir,
     });
 
     const archivePath = path.join(
@@ -378,6 +550,55 @@ test('container asset packager bundles deployment overlays, app runtime, and rel
     assert.equal(archiveEntries.has(`${bundleRoot}/deploy/docker-compose.nvidia-cuda.yml`), true);
     assert.equal(archiveEntries.has(`${bundleRoot}/deploy/profiles/default.env`), true);
     assert.equal(archiveEntries.has(`${bundleRoot}/.dockerignore`), true);
+    const composeSource = archiveEntries
+      .get(`${bundleRoot}/deploy/docker-compose.yml`)
+      .content
+      .toString('utf8');
+    const nvidiaComposeSource = archiveEntries
+      .get(`${bundleRoot}/deploy/docker-compose.nvidia-cuda.yml`)
+      .content
+      .toString('utf8');
+    const amdComposeSource = archiveEntries
+      .get(`${bundleRoot}/deploy/docker-compose.amd-rocm.yml`)
+      .content
+      .toString('utf8');
+    const composeDir = `${bundleRoot}/deploy`;
+    const buildContext = readSingleLineYamlValue(composeSource, 'context');
+    const dockerfilePath = readSingleLineYamlValue(composeSource, 'dockerfile');
+    const defaultEnvPath = readSingleListYamlValue(composeSource, 'env_file');
+    const nvidiaEnvPath = readSingleListYamlValue(nvidiaComposeSource, 'env_file');
+    const amdEnvPath = readSingleListYamlValue(amdComposeSource, 'env_file');
+    const resolvedBuildContext = resolveArchiveRelativePath(composeDir, buildContext);
+    const resolvedDockerfile = resolveArchiveRelativePath(resolvedBuildContext, dockerfilePath);
+    const resolvedDefaultEnv = resolveArchiveRelativePath(composeDir, defaultEnvPath);
+    const resolvedNvidiaEnv = resolveArchiveRelativePath(composeDir, nvidiaEnvPath);
+    const resolvedAmdEnv = resolveArchiveRelativePath(composeDir, amdEnvPath);
+
+    assert.equal(
+      archiveEntries.has(`${resolvedBuildContext}/app/start-claw-server.sh`),
+      true,
+      'compose build context must resolve to the bundle root so the app runtime is visible',
+    );
+    assert.equal(
+      archiveEntries.has(resolvedDockerfile),
+      true,
+      'compose dockerfile path must resolve against the build context inside the bundle',
+    );
+    assert.equal(
+      archiveEntries.has(resolvedDefaultEnv),
+      true,
+      'compose default env overlay must resolve relative to the packaged deploy directory',
+    );
+    assert.equal(
+      archiveEntries.has(resolvedNvidiaEnv),
+      true,
+      'compose NVIDIA overlay env file must resolve relative to the packaged deploy directory',
+    );
+    assert.equal(
+      archiveEntries.has(resolvedAmdEnv),
+      true,
+      'compose AMD overlay env file must resolve relative to the packaged deploy directory',
+    );
     assert.match(
       archiveEntries.get(`${bundleRoot}/release-metadata.json`).content.toString('utf8'),
       /"accelerator": "nvidia-cuda"/,
@@ -451,8 +672,16 @@ test('kubernetes asset packager bundles chart assets and generated release value
       /acceleratorProfile: amd-rocm/,
     );
     assert.match(
+      archiveEntries.get(`${bundleRoot}/values.release.yaml`).content.toString('utf8'),
+      /image:\n  repository: claw-studio-server\n  tag: release-2026-04-03-04/,
+    );
+    assert.match(
       archiveEntries.get(`${bundleRoot}/release-metadata.json`).content.toString('utf8'),
       /"family": "kubernetes"/,
+    );
+    assert.match(
+      archiveEntries.get(`${bundleRoot}/release-metadata.json`).content.toString('utf8'),
+      /"imageTag": "release-2026-04-03-04"/,
     );
 
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));

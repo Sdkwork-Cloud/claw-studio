@@ -2,8 +2,11 @@ use super::storage::StorageService;
 use crate::framework::{
     config::AppConfig,
     paths::AppPaths,
-    storage::{StorageGetTextRequest, StorageListKeysRequest, StorageProviderKind},
-    Result,
+    storage::{
+        StorageDeleteRequest, StorageGetTextRequest, StorageListKeysRequest, StorageProviderKind,
+        StoragePutTextRequest,
+    },
+    FrameworkError, Result,
 };
 use serde_json::{Number, Value};
 use std::{collections::BTreeMap, fs, path::Path};
@@ -14,6 +17,7 @@ pub const LOCAL_AI_PROXY_DEFAULT_PORT: u16 = 18_791;
 pub const LOCAL_AI_PROXY_DEFAULT_UPSTREAM_BASE_URL: &str = "https://ai.sdkwork.com";
 pub const LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY: &str = "sk_sdkwork_api_key";
 pub const LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE: &str = "studio.provider-center";
+pub const LOCAL_AI_PROXY_PROVIDER_CENTER_CATALOG_SCHEMA_VERSION: u32 = 1;
 pub const LOCAL_AI_PROXY_DEFAULT_ROUTE_ID: &str = "local-ai-proxy-system-default-openai-compatible";
 pub const LOCAL_AI_PROXY_DEFAULT_PROVIDER_ID: &str = "sdkwork";
 pub const LOCAL_AI_PROXY_DEFAULT_CLIENT_PROTOCOL: &str = "openai-compatible";
@@ -88,6 +92,23 @@ pub struct LocalAiProxySnapshot {
     pub auth_token: String,
     pub default_route_id: String,
     pub routes: Vec<LocalAiProxyRouteSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiProxyProviderCenterRouteRecord {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiProxyProviderCenterCatalogSnapshot {
+    pub schema_version: u32,
+    pub namespace: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+    pub routes: Vec<LocalAiProxyProviderCenterRouteRecord>,
 }
 
 impl LocalAiProxySnapshot {
@@ -261,6 +282,118 @@ pub fn load_local_ai_proxy_snapshot(path: &Path) -> Result<LocalAiProxySnapshot>
     Ok(serde_json::from_str(&content)?)
 }
 
+pub fn export_provider_center_catalog(
+    paths: &AppPaths,
+    config: &AppConfig,
+    storage: &StorageService,
+) -> Result<LocalAiProxyProviderCenterCatalogSnapshot> {
+    let Some(profile_id) = resolve_provider_center_profile_id(config) else {
+        return Ok(LocalAiProxyProviderCenterCatalogSnapshot {
+            schema_version: LOCAL_AI_PROXY_PROVIDER_CENTER_CATALOG_SCHEMA_VERSION,
+            namespace: LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE.to_string(),
+            profile_id: None,
+            routes: Vec::new(),
+        });
+    };
+
+    let listed = storage.list_keys(
+        paths,
+        config,
+        StorageListKeysRequest {
+            profile_id: Some(profile_id.clone()),
+            namespace: Some(LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE.to_string()),
+        },
+    )?;
+
+    let mut routes = Vec::new();
+    for key in listed.keys {
+        let value = storage
+            .get_text(
+                paths,
+                config,
+                StorageGetTextRequest {
+                    profile_id: Some(profile_id.clone()),
+                    namespace: Some(LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE.to_string()),
+                    key: key.clone(),
+                },
+            )?
+            .value
+            .unwrap_or_default();
+        routes.push(LocalAiProxyProviderCenterRouteRecord { key, value });
+    }
+    routes.sort_by(|left, right| left.key.cmp(&right.key));
+
+    Ok(LocalAiProxyProviderCenterCatalogSnapshot {
+        schema_version: LOCAL_AI_PROXY_PROVIDER_CENTER_CATALOG_SCHEMA_VERSION,
+        namespace: LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE.to_string(),
+        profile_id: Some(profile_id),
+        routes,
+    })
+}
+
+pub fn restore_provider_center_catalog(
+    paths: &AppPaths,
+    config: &AppConfig,
+    storage: &StorageService,
+    catalog: &LocalAiProxyProviderCenterCatalogSnapshot,
+) -> Result<()> {
+    if catalog.schema_version != LOCAL_AI_PROXY_PROVIDER_CENTER_CATALOG_SCHEMA_VERSION {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "unsupported local ai proxy provider center catalog schema version: {}",
+            catalog.schema_version
+        )));
+    }
+
+    if catalog.namespace != LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "unsupported local ai proxy provider center catalog namespace: {}",
+            catalog.namespace
+        )));
+    }
+
+    let profile_id = resolve_provider_center_profile_id(config).ok_or_else(|| {
+        FrameworkError::NotFound(
+            "writable sqlite storage profile for the local ai proxy provider center".to_string(),
+        )
+    })?;
+
+    let listed = storage.list_keys(
+        paths,
+        config,
+        StorageListKeysRequest {
+            profile_id: Some(profile_id.clone()),
+            namespace: Some(LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE.to_string()),
+        },
+    )?;
+
+    for key in listed.keys {
+        storage.delete(
+            paths,
+            config,
+            StorageDeleteRequest {
+                profile_id: Some(profile_id.clone()),
+                namespace: Some(LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE.to_string()),
+                key,
+            },
+        )?;
+    }
+
+    for route in &catalog.routes {
+        storage.put_text(
+            paths,
+            config,
+            StoragePutTextRequest {
+                profile_id: Some(profile_id.clone()),
+                namespace: Some(LOCAL_AI_PROXY_PROVIDER_CENTER_NAMESPACE.to_string()),
+                key: route.key.clone(),
+                value: route.value.clone(),
+            },
+        )?;
+    }
+
+    Ok(())
+}
+
 fn load_provider_center_routes(
     paths: &AppPaths,
     config: &AppConfig,
@@ -308,7 +441,7 @@ fn load_provider_center_routes(
     routes
 }
 
-fn resolve_provider_center_profile_id(config: &AppConfig) -> Option<String> {
+pub fn resolve_provider_center_profile_id(config: &AppConfig) -> Option<String> {
     let storage_config = config.storage.normalized();
     let writable_sqlite_profiles = storage_config
         .profiles

@@ -1,6 +1,12 @@
 import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  buildOpenClawManifest,
+  DEFAULT_NODE_VERSION,
+  DEFAULT_OPENCLAW_VERSION,
+  resolveRequestedOpenClawTarget,
+} from './prepare-openclaw-runtime.mjs';
 
 const BUNDLED_OPENCLAW_MANIFEST_KEYS = [
   'schemaVersion',
@@ -93,9 +99,19 @@ function bundledOpenClawManifestMatches(sourceManifest, targetManifest) {
   return BUNDLED_OPENCLAW_MANIFEST_KEYS.every((key) => sourceManifest[key] === targetManifest[key]);
 }
 
-function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir) {
+function resolveExpectedBundledOpenClawManifest({
+  env = process.env,
+} = {}) {
+  return buildOpenClawManifest({
+    openclawVersion: DEFAULT_OPENCLAW_VERSION,
+    nodeVersion: DEFAULT_NODE_VERSION,
+    target: resolveRequestedOpenClawTarget({ env }),
+  });
+}
+
+function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir, { env = process.env } = {}) {
   const sourceManifestPath = path.join(srcTauriDir, 'resources', 'openclaw', 'manifest.json');
-  if (!existsSync(targetDir) || !existsSync(sourceManifestPath)) {
+  if (!existsSync(targetDir)) {
     return {
       sourceManifestPath,
       issues: [],
@@ -104,14 +120,14 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir) {
 
   let sourceManifest;
   try {
-    sourceManifest = readJsonFile(sourceManifestPath);
+    sourceManifest = resolveExpectedBundledOpenClawManifest({ env });
   } catch (error) {
     return {
       sourceManifestPath,
       issues: [
         {
           entryPath: sourceManifestPath,
-          reason: `failed to read source bundled OpenClaw manifest: ${error instanceof Error ? error.message : String(error)}`,
+          reason: `failed to resolve expected bundled OpenClaw manifest: ${error instanceof Error ? error.message : String(error)}`,
         },
       ],
     };
@@ -169,7 +185,7 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir) {
       if (!bundledOpenClawManifestMatches(sourceManifest, targetManifest)) {
         issues.push({
           entryPath,
-          reason: 'bundled OpenClaw target manifest does not match src-tauri/resources/openclaw/manifest.json',
+          reason: 'bundled OpenClaw target manifest does not match the expected bundled runtime manifest for the current release target',
         });
       }
     }
@@ -181,7 +197,7 @@ function inspectBundledOpenClawTargetResources(srcTauriDir, targetDir) {
   };
 }
 
-function inspectSingleTauriTarget(resolvedSrcTauriDir, targetDir) {
+function inspectSingleTauriTarget(resolvedSrcTauriDir, targetDir, { env = process.env } = {}) {
   if (!existsSync(targetDir)) {
     return {
       targetDir,
@@ -203,6 +219,7 @@ function inspectSingleTauriTarget(resolvedSrcTauriDir, targetDir) {
   const bundledOpenClawInspection = inspectBundledOpenClawTargetResources(
     resolvedSrcTauriDir,
     targetDir,
+    { env },
   );
 
   for (const manifestPath of manifestFiles) {
@@ -262,11 +279,11 @@ function resolveCandidateTargetDirs(resolvedSrcTauriDir) {
   return targetDirs;
 }
 
-export function inspectTauriTarget(srcTauriDir = 'src-tauri') {
+export function inspectTauriTarget(srcTauriDir = 'src-tauri', { env = process.env } = {}) {
   const resolvedSrcTauriDir = path.resolve(srcTauriDir);
   const targetDirs = resolveCandidateTargetDirs(resolvedSrcTauriDir);
   const targetInspections = targetDirs.map((targetDir) =>
-    inspectSingleTauriTarget(resolvedSrcTauriDir, targetDir),
+    inspectSingleTauriTarget(resolvedSrcTauriDir, targetDir, { env }),
   );
   const manifestFiles = targetInspections.flatMap((inspection) => inspection.manifestFiles);
   const staleEntries = targetInspections.flatMap((inspection) =>
@@ -296,8 +313,8 @@ export function inspectTauriTarget(srcTauriDir = 'src-tauri') {
   };
 }
 
-export function ensureTauriTargetClean(srcTauriDir = 'src-tauri') {
-  const inspection = inspectTauriTarget(srcTauriDir);
+export function ensureTauriTargetClean(srcTauriDir = 'src-tauri', { env = process.env } = {}) {
+  const inspection = inspectTauriTarget(srcTauriDir, { env });
   const removedTargetDirs = [];
 
   for (const targetInspection of inspection.targetInspections) {

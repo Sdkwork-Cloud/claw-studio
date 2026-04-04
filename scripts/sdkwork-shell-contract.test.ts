@@ -355,6 +355,9 @@ runTest('sdkwork-claw-shell promotes a unified app header above routed content',
 
   assert.match(layoutSource, /AppHeader/);
   assert.match(layoutSource, /<AppHeader\s*\/>/);
+  assert.doesNotMatch(layoutSource, /const isChatRoute = location\.pathname === ROUTE_PATHS\.CHAT;/);
+  assert.doesNotMatch(layoutSource, /\{!isChatRoute \? <AppHeader\s*\/> : null\}/);
+  assert.doesNotMatch(layoutSource, /DesktopWindowControls variant="floating"/);
   assert.match(layoutSource, /MobileAppDownloadDialog/);
   assert.match(layoutSource, /flex-col/);
   assert.match(routesSource, /Navigate to="\/chat" replace/);

@@ -31,6 +31,22 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   const indexSource = read('packages/sdkwork-claw-channels/src/index.ts');
   const serviceSource = read('packages/sdkwork-claw-channels/src/services/channelService.ts');
   const pageSource = read('packages/sdkwork-claw-channels/src/pages/channels/Channels.tsx');
+  const zhSidebar = readJson<{ channels: string }>('packages/sdkwork-claw-i18n/src/locales/zh/sidebar.json');
+  const zhChannels = readJson<{
+    page: {
+      title: string;
+      catalog: {
+        tabs: Record<'domestic' | 'global' | 'all', string>;
+      };
+    };
+  }>('packages/sdkwork-claw-i18n/src/locales/zh/channels.json');
+  const enChannels = readJson<{
+    page: {
+      catalog: {
+        tabs: Record<'domestic' | 'global' | 'all', string>;
+      };
+    };
+  }>('packages/sdkwork-claw-i18n/src/locales/en/channels.json');
 
   assert.ok(exists('packages/sdkwork-claw-channels/src/Channels.tsx'));
   assert.ok(exists('packages/sdkwork-claw-channels/src/services/channelService.ts'));
@@ -73,4 +89,10 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.match(pageSource, /actionDownloadApp/);
   assert.match(pageSource, /onOpenOfficialLink=\{\(_channel, link\) => void openOfficialLink\(link\.href\)\}/);
   assert.doesNotMatch(pageSource, /href=\{selectedChannelOfficialLink\.href\}/);
+  assert.equal(zhSidebar.channels, '聊天通道');
+  assert.equal(zhChannels.page.title, '聊天通道');
+  assert.equal(zhChannels.page.catalog.tabs.domestic, '国内');
+  assert.equal(zhChannels.page.catalog.tabs.global, '国外');
+  assert.equal(zhChannels.page.catalog.tabs.all, '全部');
+  assert.equal(enChannels.page.catalog.tabs.all, 'All');
 });

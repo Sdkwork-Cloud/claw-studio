@@ -5,4 +5,5 @@ metadata:
 data:
   CLAW_SERVER_HOST: {{ .Values.server.host | quote }}
   CLAW_SERVER_PORT: {{ .Values.server.port | quote }}
+  CLAW_SERVER_DATA_DIR: {{ .Values.server.dataDir | quote }}
   CLAW_ACCELERATOR_PROFILE: {{ .Values.acceleratorProfile | quote }}

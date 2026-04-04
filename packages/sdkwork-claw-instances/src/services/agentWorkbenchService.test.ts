@@ -145,6 +145,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
     } as any,
     managedConfigPath: 'C:/OpenClaw/.openclaw/openclaw.json',
     managedChannels: [],
+    managedConfigInsights: null,
     healthScore: 92,
     runtimeStatus: 'healthy',
     connectedChannelCount: 2,
@@ -161,6 +162,7 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
       files: 2,
       memory: 0,
       tools: 2,
+      config: 1,
     },
     sectionAvailability: {
       overview: {
@@ -196,6 +198,10 @@ function createWorkbench(): InstanceWorkbenchSnapshot {
         detail: 'planned',
       },
       tools: {
+        status: 'ready',
+        detail: 'ready',
+      },
+      config: {
         status: 'ready',
         detail: 'ready',
       },

@@ -13,12 +13,25 @@ export function loadOpenClawReleaseConfig({
   return JSON.parse(readFileImpl(releaseConfigPath));
 }
 
+function normalizeRuntimeSupplementalPackages(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => String(entry ?? '').trim())
+    .filter(Boolean);
+}
+
 const releaseConfig = loadOpenClawReleaseConfig();
 
 export const OPENCLAW_RELEASE = Object.freeze({
   stableVersion: String(releaseConfig.stableVersion ?? '').trim(),
   nodeVersion: String(releaseConfig.nodeVersion ?? '').trim(),
   packageName: String(releaseConfig.packageName ?? '').trim(),
+  runtimeSupplementalPackages: normalizeRuntimeSupplementalPackages(
+    releaseConfig.runtimeSupplementalPackages,
+  ),
 });
 
 if (!OPENCLAW_RELEASE.stableVersion) {
@@ -37,3 +50,5 @@ export const DEFAULT_NODE_VERSION =
   process.env.OPENCLAW_NODE_VERSION ?? OPENCLAW_RELEASE.nodeVersion;
 export const DEFAULT_OPENCLAW_PACKAGE =
   process.env.OPENCLAW_PACKAGE_NAME ?? OPENCLAW_RELEASE.packageName;
+export const DEFAULT_OPENCLAW_RUNTIME_SUPPLEMENTAL_PACKAGES =
+  OPENCLAW_RELEASE.runtimeSupplementalPackages;

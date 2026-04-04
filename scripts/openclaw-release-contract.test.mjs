@@ -52,7 +52,7 @@ const sourceComponentRegistry = JSON.parse(
 
 assert.equal(
   releaseConfig.stableVersion,
-  '2026.4.1',
+  '2026.4.2',
   'openclaw shared release config must pin the current stable OpenClaw version',
 );
 assert.equal(

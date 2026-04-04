@@ -8,7 +8,6 @@ import {
   Camera,
   Check,
   ChevronDown,
-  Globe2,
   Image as ImageIcon,
   Link2,
   LoaderCircle,
@@ -462,15 +461,15 @@ export function ChatInput({
   const { t } = useTranslation();
   const modelTriggerLabel = activeModel?.name || t('chat.page.selectModel');
   const modelTriggerClassName = cn(
-    'inline-flex h-8 max-w-[11.5rem] items-center gap-1.5 rounded-full border border-transparent px-2.5 text-xs font-medium transition-colors sm:h-9 sm:max-w-[13.5rem] lg:max-w-[15.5rem]',
+    'inline-flex h-8 max-w-[11.5rem] items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors sm:h-9 sm:max-w-[13.5rem] lg:max-w-[15.5rem]',
     showModelDropdown
-      ? 'border-zinc-200/80 bg-white text-zinc-900 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
-      : 'text-zinc-500 hover:border-zinc-200/80 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100',
+      ? 'bg-zinc-100/95 text-zinc-900 shadow-sm dark:bg-white/[0.12] dark:text-zinc-50'
+      : 'bg-zinc-100/72 text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:bg-white/[0.05] dark:text-zinc-100 dark:hover:bg-white/[0.09] dark:hover:text-white',
   );
   const actionButtonClassName =
-    'flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100 sm:h-9 sm:w-9';
+    'flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100/80 hover:text-zinc-900 dark:bg-white/[0.045] dark:text-zinc-200 dark:hover:bg-white/[0.09] dark:hover:text-zinc-50 sm:h-9 sm:w-9';
   const sendSideActionButtonClassName =
-    'flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-500 transition-colors hover:bg-zinc-100/80 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-100';
+    'flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100/80 hover:text-zinc-900 dark:bg-white/[0.045] dark:text-zinc-200 dark:hover:bg-white/[0.09] dark:hover:text-zinc-50';
   const isDesktopPlatform = platform.getPlatform() === 'desktop';
   const supportsScreenRecording =
     typeof navigator !== 'undefined' &&
@@ -695,7 +694,7 @@ export function ChatInput({
         ]);
         const fileName = pathInfo.name || path.split(/[\\/]/).at(-1) || 'attachment.bin';
         const contentType = mimeTypeFromFileName(fileName);
-        const blob = new Blob([bytes], {
+        const blob = new Blob([new Uint8Array(bytes)], {
           type: contentType,
         });
         const source = await buildBlobSource(blob, fileName);
@@ -913,7 +912,7 @@ export function ChatInput({
         return;
       }
 
-      const blob = new Blob([screenshot.bytes], {
+      const blob = new Blob([new Uint8Array(screenshot.bytes)], {
         type: screenshot.mimeType || 'image/png',
       });
       const source = await buildBlobSource(
@@ -1427,7 +1426,7 @@ export function ChatInput({
             : null;
 
   return (
-    <div className="relative w-full px-0 sm:px-2 lg:px-4">
+    <div className="relative w-full">
       <input
         ref={fileInputRef}
         type="file"
@@ -1450,12 +1449,12 @@ export function ChatInput({
           void handleDrop(event);
         }}
         className={cn(
-          'relative flex w-full flex-col overflow-hidden rounded-[24px] border backdrop-blur-xl transition-all duration-300 sm:rounded-[28px]',
+          'relative flex w-full flex-col overflow-visible rounded-[18px] bg-white/90 px-2 py-1.5 shadow-[0_-10px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-300 dark:bg-[#161b24]/76 dark:shadow-[0_-14px_34px_rgba(0,0,0,0.28)] sm:rounded-[20px] sm:px-2.5 sm:py-2',
           isDragging
-            ? 'border-primary-500 bg-white shadow-[0_22px_60px_rgba(59,130,246,0.18)] ring-2 ring-primary-500/20 dark:border-primary-400 dark:bg-zinc-900 dark:shadow-[0_22px_60px_rgba(15,23,42,0.45)]'
+            ? 'overflow-hidden bg-white/95 shadow-[0_22px_60px_rgba(59,130,246,0.18)] ring-2 ring-primary-500/20 dark:bg-[#1b2230]/86 dark:ring-primary-400/25 dark:shadow-[0_22px_60px_rgba(15,23,42,0.45)]'
             : showElevatedSurface
-              ? 'border-zinc-300 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.14)] ring-1 ring-zinc-200/80 dark:border-zinc-700 dark:bg-zinc-900 dark:shadow-[0_18px_48px_rgba(0,0,0,0.32)] dark:ring-zinc-800'
-              : 'border-zinc-300/90 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.09)] ring-1 ring-zinc-200/70 dark:border-zinc-700/90 dark:bg-zinc-900 dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:ring-zinc-800/80',
+              ? 'bg-white/96 shadow-[0_-14px_32px_rgba(15,23,42,0.10)] dark:bg-[#1a202b]/80 dark:shadow-[0_-16px_36px_rgba(0,0,0,0.32)]'
+              : null,
         )}
       >
         <AnimatePresence>
@@ -1481,7 +1480,7 @@ export function ChatInput({
           ) : null}
         </AnimatePresence>
 
-        <div className="flex flex-col gap-3 px-3 py-3 sm:px-5 sm:py-4">
+        <div className="flex flex-col gap-2.5 px-1 py-1.5 sm:px-2 sm:py-2">
           {drafts.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {drafts.map((draft) => {
@@ -1675,7 +1674,7 @@ export function ChatInput({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={t('chat.input.placeholder')}
-            className="min-h-[72px] max-h-[320px] w-full resize-none rounded-none border-none bg-transparent px-0 py-0 text-[15px] leading-7 text-zinc-900 shadow-none placeholder:text-zinc-400 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            className="min-h-[48px] max-h-[220px] w-full resize-none rounded-none border-none bg-transparent px-0 py-0.5 text-[14px] leading-6 text-zinc-900 shadow-none placeholder:text-zinc-400 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent dark:text-zinc-50 dark:placeholder:text-zinc-500"
             rows={1}
           />
 
@@ -1701,22 +1700,6 @@ export function ChatInput({
                 title={t('chat.input.uploadImage')}
               >
                 <ImageIcon className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowUrlImport((current) => !current);
-                  setComposerError(null);
-                }}
-                className={cn(
-                  actionButtonClassName,
-                  showUrlImport &&
-                    'bg-primary-500/10 text-primary-600 dark:bg-primary-400/10 dark:text-primary-300',
-                )}
-                title={t('chat.input.importUrl')}
-              >
-                <Globe2 className="h-4 w-4" />
               </button>
 
               {supportsNativeScreenshot ? (
@@ -1785,7 +1768,7 @@ export function ChatInput({
 
             <div
               className={cn(
-                'flex items-center gap-3 sm:justify-end',
+                'flex items-center gap-2.5 sm:justify-end',
                 statusLabel ? 'justify-between' : 'justify-end',
               )}
             >
@@ -1838,7 +1821,7 @@ export function ChatInput({
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.8, opacity: 0 }}
                     onClick={onStop}
-                    className="group flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900"
+                    className="group flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition-all duration-300 hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900"
                     title={t('chat.input.stopGenerating')}
                   >
                     <StopCircle className="h-[18px] w-[18px] transition-colors group-hover:text-red-400" />
@@ -1856,7 +1839,7 @@ export function ChatInput({
                     disabled={!canSend}
                     title={t('chat.input.sendMessage')}
                     className={cn(
-                      'flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300',
+                      'flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300',
                       canSend
                         ? 'bg-zinc-900 text-white shadow-sm hover:scale-105 active:scale-95 dark:bg-zinc-100 dark:text-zinc-900'
                         : 'bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500',

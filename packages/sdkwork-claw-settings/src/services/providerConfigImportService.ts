@@ -735,9 +735,10 @@ async function importCodexConfigs(
     };
   }
 
+  const hasAuthPath = await dependencies.platformApi.pathExistsForUserTooling(authPath);
   const [configText, authText] = await Promise.all([
     dependencies.platformApi.readFileForUserTooling(configPath),
-    dependencies.platformApi.pathExistsForUserTooling(authPath)
+    hasAuthPath
       ? dependencies.platformApi.readFileForUserTooling(authPath)
       : Promise.resolve('{}'),
   ]);

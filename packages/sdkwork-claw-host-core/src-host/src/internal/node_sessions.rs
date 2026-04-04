@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,9 @@ use crate::domain::rollout::{
     ManageRolloutPreview, ManageRolloutTargetPreviewRecord, PreflightOutcome,
 };
 use crate::projection::compiler::DesiredStateProjection;
-use crate::storage::file_store::{JsonFileStoreError, load_or_seed_json_file, save_json_file};
+use crate::storage::node_session_store::{JsonNodeSessionCatalogStore, NodeSessionCatalogStore};
+use crate::storage::sqlite_store::SqliteNodeSessionCatalogStore;
+use crate::storage::StorageError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -131,7 +133,7 @@ pub struct NodeSessionHelloResponse {
 
 #[derive(Debug)]
 pub enum NodeSessionRegistryError {
-    Store(JsonFileStoreError),
+    Store(StorageError),
     SessionNotFound { session_id: String },
     HelloTokenInvalid { session_id: String },
     LeaseIdInvalid { session_id: String },
@@ -181,15 +183,15 @@ impl Display for NodeSessionRegistryError {
 
 impl std::error::Error for NodeSessionRegistryError {}
 
-impl From<JsonFileStoreError> for NodeSessionRegistryError {
-    fn from(value: JsonFileStoreError) -> Self {
+impl From<StorageError> for NodeSessionRegistryError {
+    fn from(value: StorageError) -> Self {
         NodeSessionRegistryError::Store(value)
     }
 }
 
 #[derive(Debug)]
 pub struct NodeSessionRegistry {
-    store_path: PathBuf,
+    store: Arc<dyn NodeSessionCatalogStore>,
     catalog: Mutex<PersistedNodeSessionCatalog>,
 }
 
@@ -301,7 +303,11 @@ pub enum NodeSessionDesiredStateAckResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "mode", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "mode",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum NodeSessionPullDesiredStateResponse {
     NotModified {
         desired_state_revision: u64,
@@ -374,10 +380,20 @@ pub struct NodeSessionCloseResponse {
 
 impl NodeSessionRegistry {
     pub fn open(store_path: PathBuf) -> Result<Self, NodeSessionRegistryError> {
-        let catalog = load_or_seed_json_file(&store_path, seed_node_session_catalog)?;
+        Self::from_store(Arc::new(JsonNodeSessionCatalogStore::new(store_path)))
+    }
+
+    pub fn open_sqlite(database_path: PathBuf) -> Result<Self, NodeSessionRegistryError> {
+        Self::from_store(Arc::new(SqliteNodeSessionCatalogStore::new(database_path)))
+    }
+
+    pub(crate) fn from_store(
+        store: Arc<dyn NodeSessionCatalogStore>,
+    ) -> Result<Self, NodeSessionRegistryError> {
+        let catalog = load_or_seed_catalog(store.as_ref())?;
 
         Ok(Self {
-            store_path,
+            store,
             catalog: Mutex::new(catalog),
         })
     }
@@ -429,9 +445,8 @@ impl NodeSessionRegistry {
             issued_at: observed_at,
             expires_at: observed_at.saturating_add(30_000),
         };
-        let (state, admission_mode, next_action) = hello_outcome_for_compatibility(
-            compatibility_preview.compatibility_state,
-        );
+        let (state, admission_mode, next_action) =
+            hello_outcome_for_compatibility(compatibility_preview.compatibility_state);
         let record = NodeSessionRecord {
             session_id: session_id.clone(),
             node_id,
@@ -459,7 +474,7 @@ impl NodeSessionRegistry {
             capabilities: input.capabilities,
             compatibility_reason: compatibility_preview.reason.clone(),
         });
-        save_json_file(&self.store_path, &*catalog)?;
+        self.store.save_catalog(&catalog)?;
 
         Ok(NodeSessionHelloResponse {
             session_id,
@@ -545,7 +560,7 @@ impl NodeSessionRegistry {
                     .clone(),
             },
         };
-        save_json_file(&self.store_path, &*catalog)?;
+        self.store.save_catalog(&catalog)?;
 
         Ok(response)
     }
@@ -597,7 +612,7 @@ impl NodeSessionRegistry {
                 ),
             },
         };
-        save_json_file(&self.store_path, &*catalog)?;
+        self.store.save_catalog(&catalog)?;
 
         Ok(response)
     }
@@ -624,22 +639,32 @@ impl NodeSessionRegistry {
         ensure_authoritative_runtime_session(session, session_id)?;
 
         session.record.last_seen_at = observed_at;
-        session.record.desired_state_revision = Some(desired_state.projection.desired_state_revision);
-        session.record.desired_state_hash = Some(desired_state.projection.desired_state_hash.clone());
+        session.record.desired_state_revision =
+            Some(desired_state.projection.desired_state_revision);
+        session.record.desired_state_hash =
+            Some(desired_state.projection.desired_state_hash.clone());
 
-        let response = if input.known_revision == Some(desired_state.projection.desired_state_revision)
-            && input.known_hash.as_deref() == Some(desired_state.projection.desired_state_hash.as_str())
+        let response = if input.known_revision
+            == Some(desired_state.projection.desired_state_revision)
+            && input.known_hash.as_deref()
+                == Some(desired_state.projection.desired_state_hash.as_str())
         {
             NodeSessionPullDesiredStateResponse::NotModified {
                 desired_state_revision: desired_state.projection.desired_state_revision,
                 desired_state_hash: desired_state.projection.desired_state_hash.clone(),
-                config_projection_version: desired_state.projection.config_projection_version.clone(),
+                config_projection_version: desired_state
+                    .projection
+                    .config_projection_version
+                    .clone(),
             }
         } else {
             NodeSessionPullDesiredStateResponse::Projection {
                 desired_state_revision: desired_state.projection.desired_state_revision,
                 desired_state_hash: desired_state.projection.desired_state_hash.clone(),
-                config_projection_version: desired_state.projection.config_projection_version.clone(),
+                config_projection_version: desired_state
+                    .projection
+                    .config_projection_version
+                    .clone(),
                 required_capabilities: desired_state.required_capabilities,
                 projection: desired_state.projection,
                 apply_policy: NodeSessionApplyPolicy {
@@ -651,7 +676,7 @@ impl NodeSessionRegistry {
                 },
             }
         };
-        save_json_file(&self.store_path, &*catalog)?;
+        self.store.save_catalog(&catalog)?;
 
         Ok(response)
     }
@@ -729,7 +754,7 @@ impl NodeSessionRegistry {
                 ),
             },
         };
-        save_json_file(&self.store_path, &*catalog)?;
+        self.store.save_catalog(&catalog)?;
 
         Ok(response)
     }
@@ -760,7 +785,7 @@ impl NodeSessionRegistry {
             closed: true,
             replacement_expected: input.successor_hint.is_some(),
         };
-        save_json_file(&self.store_path, &*catalog)?;
+        self.store.save_catalog(&catalog)?;
 
         Ok(response)
     }
@@ -812,13 +837,9 @@ fn node_session_state_for_lifecycle(lifecycle_ready: bool) -> NodeSessionState {
     }
 }
 
-fn compatibility_state_for_preflight(
-    outcome: PreflightOutcome,
-) -> NodeSessionCompatibilityState {
+fn compatibility_state_for_preflight(outcome: PreflightOutcome) -> NodeSessionCompatibilityState {
     match outcome {
-        PreflightOutcome::Admissible => {
-            NodeSessionCompatibilityState::Compatible
-        }
+        PreflightOutcome::Admissible => NodeSessionCompatibilityState::Compatible,
         PreflightOutcome::AdmissibleDegraded => NodeSessionCompatibilityState::Degraded,
         PreflightOutcome::BlockedByVersion
         | PreflightOutcome::BlockedByCapability
@@ -942,8 +963,21 @@ fn seed_node_session_catalog() -> PersistedNodeSessionCatalog {
     }
 }
 
+fn load_or_seed_catalog(
+    store: &dyn NodeSessionCatalogStore,
+) -> Result<PersistedNodeSessionCatalog, NodeSessionRegistryError> {
+    match store.load_catalog()? {
+        Some(catalog) => Ok(catalog),
+        None => {
+            let seeded = seed_node_session_catalog();
+            store.save_catalog(&seeded)?;
+            Ok(seeded)
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct PersistedNodeSessionCatalog {
+pub(crate) struct PersistedNodeSessionCatalog {
     next_sequence: u64,
     sessions: Vec<PersistedNodeSession>,
 }

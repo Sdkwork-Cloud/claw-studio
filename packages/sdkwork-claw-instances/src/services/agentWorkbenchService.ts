@@ -389,8 +389,8 @@ function buildAgentWorkbenchSkill(
     blockedByAllowlist: entry.blockedByAllowlist === true,
     primaryEnv: entry.primaryEnv?.trim() || undefined,
     homepage: entry.homepage?.trim() || undefined,
-    filePath: normalizePath(entry.filePath),
-    baseDir: normalizePath(entry.baseDir),
+    filePath: normalizePath(entry.filePath) ?? undefined,
+    baseDir: normalizePath(entry.baseDir) ?? undefined,
     installOptions: mapSkillInstallOptions(entry),
     missing: mapMissingRequirements(entry),
   };

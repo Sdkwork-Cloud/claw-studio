@@ -374,6 +374,377 @@ await runTest('getInstanceFileContent returns built-in workbench file content wi
   assert.equal(content, '# built-in content');
 });
 
+await runTest(
+  'getManagedOpenClawConfigDocument reads the attached openclaw.json for config-backed OpenClaw instances',
+  async () => {
+    const originalReadConfigDocument = openClawConfigService.readConfigDocument;
+    const calls: string[] = [];
+    openClawConfigService.readConfigDocument = async (configPath: string) => {
+      calls.push(configPath);
+      return '{\n  "agents": {}\n}\n';
+    };
+
+    try {
+      const service = createInstanceService({
+        studioApi: {
+          getInstanceDetail: async () =>
+            createOpenClawDetail('managed-openclaw', {
+              instance: {
+                ...createOpenClawDetail('managed-openclaw').instance,
+                deploymentMode: 'local-external',
+              },
+              lifecycle: {
+                ...createOpenClawDetail('managed-openclaw').lifecycle,
+                configWritable: false,
+              },
+              dataAccess: {
+                routes: [
+                  {
+                    id: 'config',
+                    label: 'Configuration',
+                    scope: 'config',
+                    mode: 'managedFile',
+                    status: 'ready',
+                    target: 'D:/OpenClaw/.openclaw/openclaw.json',
+                    readonly: true,
+                    authoritative: true,
+                    detail: 'Managed config file is readable.',
+                    source: 'integration',
+                  },
+                ],
+              },
+            }),
+        },
+      });
+
+      const content = await service.getManagedOpenClawConfigDocument('managed-openclaw');
+
+      assert.equal(content, '{\n  "agents": {}\n}\n');
+      assert.deepEqual(calls, ['D:/OpenClaw/.openclaw/openclaw.json']);
+    } finally {
+      openClawConfigService.readConfigDocument = originalReadConfigDocument;
+    }
+  },
+);
+
+await runTest(
+  'updateManagedOpenClawConfigDocument writes the attached openclaw.json for config-backed OpenClaw instances',
+  async () => {
+    const originalWriteConfigDocument = openClawConfigService.writeConfigDocument;
+    const calls: Array<[string, string]> = [];
+    openClawConfigService.writeConfigDocument = async (configPath: string, raw: string) => {
+      calls.push([configPath, raw]);
+    };
+
+    try {
+      const service = createInstanceService({
+        studioApi: {
+          getInstanceDetail: async () =>
+            createOpenClawDetail('managed-openclaw', {
+              instance: {
+                ...createOpenClawDetail('managed-openclaw').instance,
+                deploymentMode: 'local-external',
+              },
+              lifecycle: {
+                ...createOpenClawDetail('managed-openclaw').lifecycle,
+                configWritable: true,
+              },
+              dataAccess: {
+                routes: [
+                  {
+                    id: 'config',
+                    label: 'Configuration',
+                    scope: 'config',
+                    mode: 'managedFile',
+                    status: 'ready',
+                    target: 'D:/OpenClaw/.openclaw/openclaw.json',
+                    readonly: false,
+                    authoritative: true,
+                    detail: 'Managed config file is writable.',
+                    source: 'integration',
+                  },
+                ],
+              },
+            }),
+        },
+      });
+
+      await service.updateManagedOpenClawConfigDocument(
+        'managed-openclaw',
+        '{\n  "tools": {}\n}\n',
+      );
+
+      assert.deepEqual(calls, [['D:/OpenClaw/.openclaw/openclaw.json', '{\n  "tools": {}\n}\n']]);
+    } finally {
+      openClawConfigService.writeConfigDocument = originalWriteConfigDocument;
+    }
+  },
+);
+
+await runTest(
+  'getManagedOpenClawConfigSchema reads the gateway-backed config schema for config-backed OpenClaw instances',
+  async () => {
+    const calls: string[] = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail('managed-openclaw', {
+            instance: {
+              ...createOpenClawDetail('managed-openclaw').instance,
+              deploymentMode: 'local-external',
+            },
+            lifecycle: {
+              ...createOpenClawDetail('managed-openclaw').lifecycle,
+              configWritable: true,
+            },
+            dataAccess: {
+              routes: [
+                {
+                  id: 'config',
+                  label: 'Configuration',
+                  scope: 'config',
+                  mode: 'managedFile',
+                  status: 'ready',
+                  target: 'D:/OpenClaw/.openclaw/openclaw.json',
+                  readonly: false,
+                  authoritative: true,
+                  detail: 'Managed config file is writable.',
+                  source: 'integration',
+                },
+              ],
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        getConfigSchema: async (instanceId: string) => {
+          calls.push(instanceId);
+          return {
+            schema: {
+              type: 'object',
+              properties: {
+                env: {
+                  type: 'object',
+                  properties: {
+                    OPENAI_API_KEY: { type: 'string' },
+                  },
+                },
+              },
+            },
+            uiHints: {
+              env: {
+                label: 'Environment',
+                order: 1,
+              },
+            },
+            version: '2026.4.3',
+            generatedAt: '2026-04-03T00:00:00.000Z',
+          };
+        },
+      } as any,
+    });
+
+    const snapshot = await service.getManagedOpenClawConfigSchema('managed-openclaw');
+
+    assert.deepEqual(calls, ['managed-openclaw']);
+    assert.equal(snapshot.version, '2026.4.3');
+    assert.deepEqual(snapshot.schema, {
+      type: 'object',
+      properties: {
+        env: {
+          type: 'object',
+          properties: {
+            OPENAI_API_KEY: { type: 'string' },
+          },
+        },
+      },
+    });
+    assert.deepEqual(snapshot.uiHints, {
+      env: {
+        label: 'Environment',
+        order: 1,
+      },
+    });
+  },
+);
+
+await runTest(
+  'openManagedOpenClawConfigFile uses the gateway open-file bridge for attached configs',
+  async () => {
+    const calls: string[] = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail('managed-openclaw', {
+            instance: {
+              ...createOpenClawDetail('managed-openclaw').instance,
+              deploymentMode: 'local-external',
+            },
+            lifecycle: {
+              ...createOpenClawDetail('managed-openclaw').lifecycle,
+              configWritable: true,
+            },
+            dataAccess: {
+              routes: [
+                {
+                  id: 'config',
+                  label: 'Configuration',
+                  scope: 'config',
+                  mode: 'managedFile',
+                  status: 'ready',
+                  target: 'D:/OpenClaw/.openclaw/openclaw.json',
+                  readonly: false,
+                  authoritative: true,
+                  detail: 'Managed config file is writable.',
+                  source: 'integration',
+                },
+              ],
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        openConfigFile: async (instanceId: string) => {
+          calls.push(instanceId);
+          return {
+            ok: true,
+            path: 'D:/OpenClaw/.openclaw/openclaw.json',
+          };
+        },
+      } as any,
+    });
+
+    const openedPath = await service.openManagedOpenClawConfigFile('managed-openclaw');
+
+    assert.deepEqual(calls, ['managed-openclaw']);
+    assert.equal(openedPath, 'D:/OpenClaw/.openclaw/openclaw.json');
+  },
+);
+
+await runTest(
+  'applyManagedOpenClawConfigDocument uses the gateway apply bridge with the latest base hash',
+  async () => {
+    const calls: Array<{ step: string; instanceId: string; raw?: string; baseHash?: string }> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail('managed-openclaw', {
+            instance: {
+              ...createOpenClawDetail('managed-openclaw').instance,
+              deploymentMode: 'local-external',
+            },
+            lifecycle: {
+              ...createOpenClawDetail('managed-openclaw').lifecycle,
+              configWritable: true,
+            },
+            dataAccess: {
+              routes: [
+                {
+                  id: 'config',
+                  label: 'Configuration',
+                  scope: 'config',
+                  mode: 'managedFile',
+                  status: 'ready',
+                  target: 'D:/OpenClaw/.openclaw/openclaw.json',
+                  readonly: false,
+                  authoritative: true,
+                  detail: 'Managed config file is writable.',
+                  source: 'integration',
+                },
+              ],
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        getConfig: async (instanceId: string) => {
+          calls.push({ step: 'getConfig', instanceId });
+          return {
+            baseHash: 'config-hash-42',
+            config: {},
+          };
+        },
+        applyConfig: async (instanceId: string, args: { raw: string; baseHash?: string }) => {
+          calls.push({
+            step: 'applyConfig',
+            instanceId,
+            raw: args.raw,
+            baseHash: args.baseHash,
+          });
+          return {
+            ok: true,
+          };
+        },
+      } as any,
+    });
+
+    await service.applyManagedOpenClawConfigDocument(
+      'managed-openclaw',
+      '{\n  "agents": {\n    "defaults": {}\n  }\n}\n',
+    );
+
+    assert.deepEqual(calls, [
+      {
+        step: 'getConfig',
+        instanceId: 'managed-openclaw',
+      },
+      {
+        step: 'applyConfig',
+        instanceId: 'managed-openclaw',
+        raw: '{\n  "agents": {\n    "defaults": {}\n  }\n}\n',
+        baseHash: 'config-hash-42',
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'runManagedOpenClawUpdate triggers the gateway update bridge for attached configs',
+  async () => {
+    const calls: string[] = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createOpenClawDetail('managed-openclaw', {
+            instance: {
+              ...createOpenClawDetail('managed-openclaw').instance,
+              deploymentMode: 'local-external',
+            },
+            lifecycle: {
+              ...createOpenClawDetail('managed-openclaw').lifecycle,
+              configWritable: true,
+            },
+            dataAccess: {
+              routes: [
+                {
+                  id: 'config',
+                  label: 'Configuration',
+                  scope: 'config',
+                  mode: 'managedFile',
+                  status: 'ready',
+                  target: 'D:/OpenClaw/.openclaw/openclaw.json',
+                  readonly: false,
+                  authoritative: true,
+                  detail: 'Managed config file is writable.',
+                  source: 'integration',
+                },
+              ],
+            },
+          }),
+      },
+      openClawGatewayClient: {
+        runUpdate: async (instanceId: string) => {
+          calls.push(instanceId);
+          return {
+            ok: true,
+          };
+        },
+      } as any,
+    });
+
+    await service.runManagedOpenClawUpdate('managed-openclaw');
+
+    assert.deepEqual(calls, ['managed-openclaw']);
+  },
+);
+
 await runTest('getInstanceFileContent rejects reads when instance detail is unavailable', async () => {
   const service = createInstanceService({
     studioApi: {

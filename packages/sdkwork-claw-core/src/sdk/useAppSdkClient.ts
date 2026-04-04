@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { SdkworkAppClient, SdkworkAppConfig } from '@sdkwork/app-sdk';
+import type { SdkworkAppConfig } from '@sdkwork/app-sdk';
 import {
   applyAppClientSessionTokens,
   createAppClientConfigFromEnv,
@@ -23,6 +23,8 @@ export type AppRuntimeEnv = 'development' | 'staging' | 'production' | 'test';
 export interface AppSdkClientConfig extends SdkworkAppConfig {
   env: AppRuntimeEnv;
 }
+
+export type AppSdkClient = ReturnType<typeof getAppClient>;
 
 export interface AppSdkSessionTokens {
   authToken?: string;
@@ -53,12 +55,12 @@ export function createAppSdkClientConfig(
   return createAppClientConfigFromEnv(readPcReactEnvSource(), overrides) as AppSdkClientConfig;
 }
 
-export function initAppSdkClient(overrides: Partial<SdkworkAppConfig> = {}): SdkworkAppClient {
+export function initAppSdkClient(overrides: Partial<SdkworkAppConfig> = {}): AppSdkClient {
   ensureConfigured();
   return initAppClient(overrides);
 }
 
-export function getAppSdkClient(): SdkworkAppClient {
+export function getAppSdkClient(): AppSdkClient {
   ensureConfigured();
   return getAppClient();
 }
@@ -107,7 +109,7 @@ export function clearAppSdkSessionTokens(): void {
 
 export function getAppSdkClientWithSession(
   overrides: Partial<SdkworkAppConfig> = {},
-): SdkworkAppClient {
+): AppSdkClient {
   ensureConfigured();
   return Object.keys(overrides).length > 0
     ? getAppClientWithSession(overrides)
@@ -116,7 +118,7 @@ export function getAppSdkClientWithSession(
 
 export function useAppSdkClient(
   overrides: Partial<SdkworkAppConfig> = {},
-): SdkworkAppClient {
+): AppSdkClient {
   const key = JSON.stringify(overrides || {});
   return useMemo(() => getAppSdkClientWithSession(overrides), [key]);
 }

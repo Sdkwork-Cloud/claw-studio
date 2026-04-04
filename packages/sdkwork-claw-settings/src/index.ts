@@ -1,4 +1,5 @@
 export * from './ApiSettings.ts';
+export * from './HostRuntimeSettings.ts';
 export * from './KernelCenter.ts';
 export * from './ProviderConfigCenter.ts';
 export * from './Settings.ts';

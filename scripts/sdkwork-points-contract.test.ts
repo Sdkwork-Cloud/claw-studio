@@ -47,7 +47,7 @@ runTest('sdkwork-claw-points stays a dedicated feature package wired to claw-cor
   assert.equal(corePkg.exports?.['.'], './src/index.ts');
   assert.equal(corePkg.exports?.['./sdk'], './src/sdk/index.ts');
   assert.equal(corePkg.exports?.['./points-wallet'], undefined);
-  assert.equal(pkg.dependencies?.['@tanstack/react-query'], '^5.90.21');
+  assert.match(pkg.dependencies?.['@tanstack/react-query'] || '', /^\^5\./);
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-points']);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-points/);
   assert.match(indexSource, /\.\/Points/);

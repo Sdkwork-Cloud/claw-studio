@@ -6,6 +6,12 @@ import type {
   LocalAiProxyMessageCaptureSettings,
   LocalAiProxyMessageLogRecord,
   LocalAiProxyMessageLogsQuery,
+  OpenClawMirrorExportPreview,
+  OpenClawMirrorExportRequest,
+  OpenClawMirrorExportResult,
+  OpenClawMirrorImportPreview,
+  OpenClawMirrorImportRequest,
+  OpenClawMirrorImportResult,
   LocalAiProxyRequestLogRecord,
   LocalAiProxyRequestLogsQuery,
   LocalAiProxyRouteTestRecord,
@@ -72,5 +78,27 @@ export class WebKernelPlatform implements KernelPlatformAPI {
       enabled,
       updatedAt: null,
     };
+  }
+
+  async inspectOpenClawMirrorExport(): Promise<OpenClawMirrorExportPreview | null> {
+    return null;
+  }
+
+  async exportOpenClawMirror(
+    _request: OpenClawMirrorExportRequest,
+  ): Promise<OpenClawMirrorExportResult> {
+    throw new Error('OpenClaw mirror export is not available for the active platform bridge.');
+  }
+
+  async inspectOpenClawMirrorImport(
+    _sourcePath: string,
+  ): Promise<OpenClawMirrorImportPreview | null> {
+    return null;
+  }
+
+  async importOpenClawMirror(
+    _request: OpenClawMirrorImportRequest,
+  ): Promise<OpenClawMirrorImportResult> {
+    throw new Error('OpenClaw mirror import is not available for the active platform bridge.');
   }
 }

@@ -290,6 +290,7 @@
         "files": "文件",
         "memory": "记忆",
         "tools": "工具",
+        "config": "配置",
         "itemDescriptions": {
           "overview": "运行时身份、连接方式、存储绑定与诊断状态",
           "channels": "交付路由与操作员通知",
@@ -299,7 +300,8 @@
           "skills": "已安装的运行时能力",
           "files": "配置、提示词、日志与产物",
           "memory": "固定上下文与保留知识",
-          "tools": "可调用的运行时工具与控制"
+          "tools": "可调用的运行时工具与控制",
+          "config": "openclaw.json 结构、默认值与托管控制"
         }
       },
       "sections": {
@@ -340,6 +342,73 @@
         "tools": {
           "title": "工具",
           "description": "检查可调用工具、执行权限和高影响运行时控制。"
+        },
+        "config": {
+          "title": "配置",
+          "description": "查看已挂载的 openclaw.json、分组后的默认配置，以及 config-backed 的 OpenClaw 控制项。"
+        }
+      },
+      "config": {
+        "hero": {
+          "eyebrow": "Config-backed OpenClaw",
+          "title": "openclaw.json 工作台",
+          "description": "按照 Control UI 的配置思路查看这份 OpenClaw 配置：先看结构化摘要，需要时再下钻到原始文档。",
+          "writable": "可写",
+          "readonly": "只读"
+        },
+        "tabs": {
+          "overview": "总览",
+          "providers": "提供方",
+          "tools": "工具",
+          "agents": "智能体",
+          "raw": "原始"
+        },
+        "overview": {
+          "providers": "提供方",
+          "agents": "智能体",
+          "channels": "通道",
+          "rawLines": "原始行数",
+          "defaultsTitle": "默认值与路由",
+          "coordinationTitle": "协同控制",
+          "defaultAgent": "默认智能体",
+          "defaultModel": "默认模型",
+          "sessionsVisibility": "会话可见性",
+          "agentToAgent": "智能体互调",
+          "allowList": "允许列表",
+          "managedFile": "配置访问",
+          "none": "无",
+          "notConfigured": "未配置"
+        },
+        "tools": {
+          "channelsTitle": "通道",
+          "webSearchTitle": "网页搜索",
+          "authCooldownsTitle": "认证冷却",
+          "sessionControlsTitle": "会话与委派",
+          "total": "总数",
+          "connected": "已连接",
+          "enabled": "已启用",
+          "configured": "已配置",
+          "activeProvider": "当前提供方",
+          "timeout": "超时"
+        },
+        "raw": {
+          "title": "原始 openclaw.json",
+          "reload": "重新加载",
+          "revert": "恢复",
+          "save": "保存",
+          "saving": "保存中...",
+          "loading": "正在加载配置文档...",
+          "loadFailed": "加载 openclaw.json 失败。",
+          "saved": "openclaw.json 已保存。",
+          "saveFailed": "保存 openclaw.json 失败。",
+          "readonlyNotice": "当前配置挂载为只读，原始编辑器仅提供预览模式。",
+          "unsaved": "当前有未保存的原始配置变更。",
+          "lines": "行数：{{count}}",
+          "characters": "字符：{{count}}"
+        },
+        "empty": {
+          "providers": "当前挂载的 openclaw.json 中还没有定义提供方。",
+          "agents": "当前挂载的 openclaw.json 中还没有定义智能体。"
         }
       },
       "webSearch": {
@@ -757,7 +826,8 @@
         "skills": "此实例还没有安装任何技能。",
         "files": "此实例暂无可用运行时文件。",
         "memory": "此实例暂无保留记忆条目。",
-        "tools": "此实例当前没有暴露可调用工具。"
+        "tools": "此实例当前没有暴露可调用工具。",
+        "config": "此实例当前没有可查看的 openclaw.json。"
       },
       "fileStatus": {
         "synced": "已同步",

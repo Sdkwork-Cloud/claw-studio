@@ -467,6 +467,22 @@ export const ChatMessage = memo(function ChatMessage({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const renderCopyButton = (className: string) => (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={className}
+      title={t('chat.message.copyMessage')}
+      aria-label={t('chat.message.copyMessage')}
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-500 sm:h-4 sm:w-4" />
+      ) : (
+        <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+      )}
+    </button>
+  );
+
   const isUser = role === 'user';
   const isTool = role === 'tool';
   const trimmedContent = content.trim();
@@ -479,6 +495,7 @@ export const ChatMessage = memo(function ChatMessage({
     toolCards.length > 0;
   const showAssistantActions = role === 'assistant';
   const canCopyMessage = trimmedContent.length > 0;
+  const showFloatingCopyAction = !showHeader && canCopyMessage && (isUser || role === 'assistant');
   const normalizedModel = model?.trim();
   const normalizedSenderLabel =
     typeof senderLabel === 'string' && senderLabel.trim() ? senderLabel.trim() : null;
@@ -489,38 +506,37 @@ export const ChatMessage = memo(function ChatMessage({
       : t('chat.message.assistant');
   const hasJsonBlock = !isTyping && Boolean(detectChatJsonBlock(trimmedContent));
   const messageActions =
-    canCopyMessage || showAssistantActions || onRegenerate ? (
+    showHeader && (canCopyMessage || showAssistantActions || onRegenerate) ? (
       <div
         className={cn(
           'flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:gap-1',
           showHeader && isUser ? 'sm:mr-3' : null,
         )}
       >
-        {canCopyMessage ? (
-          <button
-            onClick={handleCopy}
-            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
-            title={t('chat.message.copyMessage')}
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-emerald-500 sm:h-4 sm:w-4" />
-            ) : (
-              <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            )}
-          </button>
-        ) : null}
+        {canCopyMessage
+          ? renderCopyButton(
+              'rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100',
+            )
+          : null}
         {showAssistantActions ? (
-          <button className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100">
+          <button
+            type="button"
+            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
+          >
             <ThumbsUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         ) : null}
         {showAssistantActions ? (
-          <button className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100">
+          <button
+            type="button"
+            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
+          >
             <ThumbsDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         ) : null}
         {showAssistantActions && onRegenerate ? (
           <button
+            type="button"
             onClick={onRegenerate}
             className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-200/50 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100"
             title={t('chat.message.regenerateResponse')}
@@ -543,13 +559,25 @@ export const ChatMessage = memo(function ChatMessage({
           'flex max-w-full rounded-3xl',
           isCompactToolLinksOnlyMessage && 'w-full rounded-none bg-transparent p-0',
           isUser
-            ? 'rounded-br-md bg-zinc-100 px-4 py-2.5 text-zinc-900 sm:max-w-[95%] dark:bg-zinc-800 dark:text-zinc-100'
+            ? 'rounded-br-md bg-zinc-100 px-4 py-2 text-zinc-900 sm:max-w-[95%] dark:bg-zinc-800 dark:text-zinc-100'
             : isTool
-              ? 'w-full px-0 py-0.5 text-zinc-900 dark:text-zinc-100'
-              : 'w-full px-0 py-0.5 text-zinc-900 dark:text-zinc-100',
+              ? 'w-full px-0 py-0 text-zinc-900 dark:text-zinc-100'
+              : 'w-full px-0 py-0 text-zinc-900 dark:text-zinc-100',
         )}
       >
-        <div className="min-w-0 flex-1">
+        <div className={cn('min-w-0 flex-1', showFloatingCopyAction && 'relative pr-11 sm:pr-12')}>
+          {showFloatingCopyAction ? (
+            <div
+              className={cn(
+                'absolute right-0 top-0 z-10 flex items-center opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100',
+                isUser ? null : null,
+              )}
+            >
+              {renderCopyButton(
+                'rounded-md border border-zinc-200/70 bg-white/95 p-1.5 text-zinc-500 shadow-sm backdrop-blur transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-100',
+              )}
+            </div>
+          ) : null}
           {isUser && showHeader ? (
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-center justify-end gap-2">
@@ -579,7 +607,7 @@ export const ChatMessage = memo(function ChatMessage({
           ) : null}
 
           {attachments.length > 0 ? (
-            <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <div className="mb-2.5 grid gap-3 sm:grid-cols-2">
               {attachments.map((attachment) => (
                 <AttachmentTile
                   key={attachment.id}
@@ -591,11 +619,11 @@ export const ChatMessage = memo(function ChatMessage({
           ) : null}
 
           {reasoning ? (
-            <details className="mb-3 overflow-hidden rounded-2xl border border-zinc-200/80 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-900/65">
+            <details className="mb-2.5 overflow-hidden rounded-2xl border border-zinc-200/80 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-900/65">
               <summary className="cursor-pointer px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
                 {t('chat.message.reasoning')}
               </summary>
-              <div className="border-t border-zinc-200/70 px-4 py-3 text-sm leading-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+              <div className="border-t border-zinc-200/70 px-4 py-3 text-[13px] leading-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300 sm:text-[14px]">
                 <div className="whitespace-pre-wrap break-words">{reasoning}</div>
               </div>
             </details>
@@ -623,9 +651,9 @@ export const ChatMessage = memo(function ChatMessage({
               ) : (
                 <div
                   className={cn(
-                    'prose prose-zinc prose-sm relative max-w-none break-words dark:prose-invert sm:prose-base',
+                    'prose prose-zinc prose-sm relative max-w-none break-words text-[14px] leading-6 dark:prose-invert sm:prose-sm',
                     'prose-headings:font-semibold prose-headings:tracking-tight prose-headings:mb-2 prose-headings:mt-4 prose-a:text-primary-500 hover:prose-a:text-primary-600',
-                    'prose-code:before:content-none prose-code:after:content-none prose-p:my-2.5 prose-p:leading-relaxed prose-pre:my-3 prose-pre:bg-transparent prose-pre:p-0 prose-ul:my-2.5 prose-ol:my-2.5',
+                    'prose-code:before:content-none prose-code:after:content-none prose-p:my-2 prose-p:leading-6 prose-pre:my-3 prose-pre:bg-transparent prose-pre:p-0 prose-ul:my-2 prose-ol:my-2',
                     isTyping &&
                       content !== '' &&
                       "[&>*:last-child]:after:ml-1 [&>*:last-child]:after:animate-pulse [&>*:last-child]:after:content-['|'] [&>*:last-child]:after:text-primary-500",
@@ -664,7 +692,7 @@ export const ChatMessage = memo(function ChatMessage({
           ) : null}
 
           {toolCards.length > 0 ? (
-            <div className={hasRenderableContent ? 'mt-2.5' : null}>
+            <div className={hasRenderableContent ? 'mt-1.5' : undefined}>
               <ToolLinksPanel toolCards={toolCards} />
             </div>
           ) : null}

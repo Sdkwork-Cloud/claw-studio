@@ -49,6 +49,8 @@ export interface ChatSession {
   runId?: string | null;
   thinkingLevel?: string | null;
   lastMessagePreview?: string;
+  historyState?: 'idle' | 'loading' | 'ready' | 'error';
+  sessionKind?: string | null;
 }
 
 type ScopeMap<T> = Record<string, T>;
@@ -597,7 +599,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       return;
     }
 
-    void persistSession(nextSession)
+    const persistedSession = nextSession;
+
+    void persistSession(persistedSession)
       .then((savedSession) => {
         if (!savedSession) {
           return;
@@ -606,7 +610,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           sessions: upsertSessionCollection(state.sessions, savedSession),
           lastErrorByInstance: {
             ...state.lastErrorByInstance,
-            [getScopeKey(nextSession.instanceId)]: undefined,
+            [getScopeKey(persistedSession.instanceId)]: undefined,
           },
         }));
       })
@@ -615,7 +619,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         set((state) => ({
           lastErrorByInstance: {
             ...state.lastErrorByInstance,
-            [getScopeKey(nextSession.instanceId)]: error?.message || 'Failed to persist conversation',
+            [getScopeKey(persistedSession.instanceId)]: error?.message || 'Failed to persist conversation',
           },
         }));
       });

@@ -20,6 +20,7 @@ permissions:
   contents: write
   attestations: write
   id-token: write
+  packages: write
 
 concurrency:
   group: release-${{ inputs.release_profile }}-${{ inputs.release_tag }}
@@ -413,6 +414,109 @@ jobs:
       - name: Package container release assets
         run: node scripts/release/package-release-assets.mjs container --profile ${{ inputs.release_profile }} --release-tag ${{ needs.prepare.outputs.release_tag }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --accelerator ${{ matrix.accelerator }} --output-dir artifacts/release
 
+      - name: Resolve OCI image reference
+        if: matrix.accelerator == 'cpu'
+        id: oci_image
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          case "${{ matrix.arch }}" in
+            x64)
+              docker_platform='linux/amd64'
+              ;;
+            arm64)
+              docker_platform='linux/arm64'
+              ;;
+            *)
+              echo "Unsupported image architecture: ${{ matrix.arch }}" >&2
+              exit 1
+              ;;
+          esac
+          {
+            echo "image_repository=ghcr.io/${owner}/claw-studio-server"
+            echo "image_tag=${{ needs.prepare.outputs.release_tag }}-linux-${{ matrix.arch }}"
+            echo "docker_platform=${docker_platform}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Extract container bundle for OCI build context
+        if: matrix.accelerator == 'cpu'
+        id: bundle_context
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_path="$(find artifacts/release/container -type f -name '*.tar.gz' | head -n 1)"
+          if [ -z "${archive_path}" ]; then
+            echo 'Missing packaged container bundle archive.' >&2
+            exit 1
+          fi
+          extract_root="${RUNNER_TEMP}/claw-container-image-${{ matrix.arch }}"
+          rm -rf "${extract_root}"
+          mkdir -p "${extract_root}"
+          tar -xzf "${archive_path}" -C "${extract_root}"
+          bundle_root="$(find "${extract_root}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+          if [ -z "${bundle_root}" ]; then
+            echo "Unable to resolve extracted container bundle root from ${archive_path}." >&2
+            exit 1
+          fi
+          {
+            echo "archive_path=${archive_path}"
+            echo "bundle_root=${bundle_root}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Setup Docker Buildx
+        if: matrix.accelerator == 'cpu'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: matrix.accelerator == 'cpu'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish server OCI image
+        if: matrix.accelerator == 'cpu'
+        id: publish_image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.bundle_context.outputs.bundle_root }}
+          file: ${{ steps.bundle_context.outputs.bundle_root }}/deploy/Dockerfile
+          platforms: ${{ steps.oci_image.outputs.docker_platform }}
+          push: true
+          tags: ${{ steps.oci_image.outputs.image_repository }}:${{ steps.oci_image.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.release_tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=claw-studio-server
+
+      - name: Record published OCI image metadata
+        if: matrix.accelerator == 'cpu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata_dir="${RUNNER_TEMP}/container-image-metadata-${{ matrix.arch }}"
+          metadata_path="${metadata_dir}/published-image.json"
+          mkdir -p "${metadata_dir}"
+          cat > "${metadata_path}" <<EOF
+          {
+            "imageRepository": "${{ steps.oci_image.outputs.image_repository }}",
+            "imageTag": "${{ steps.oci_image.outputs.image_tag }}",
+            "imageDigest": "${{ steps.publish_image.outputs.digest }}",
+            "imageReference": "${{ steps.oci_image.outputs.image_repository }}@${{ steps.publish_image.outputs.digest }}"
+          }
+          EOF
+
+      - name: Upload published OCI image metadata
+        if: matrix.accelerator == 'cpu'
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-image-metadata-${{ matrix.arch }}
+          path: ${{ runner.temp }}/container-image-metadata-${{ matrix.arch }}/published-image.json
+          if-no-files-found: error
+
       - name: Attest container release assets
         if: ${{ needs.prepare.outputs.release_tag != '' }}
         uses: actions/attest-build-provenance@v3
@@ -428,7 +532,7 @@ jobs:
 
   kubernetes-release:
     name: Kubernetes release (${{ matrix.arch }}-${{ matrix.accelerator }})
-    needs: [prepare, verify-release]
+    needs: [prepare, verify-release, container-release]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -447,8 +551,37 @@ jobs:
         with:
           node-version: 22
 
+      - name: Download published OCI image metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: container-image-metadata-${{ matrix.arch }}
+          path: artifacts/container-image-metadata
+
+      - name: Resolve published OCI image metadata
+        id: image_metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - "artifacts/container-image-metadata/published-image.json" <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const metadataPath = process.argv[2];
+          const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+          const entries = [
+            ['image_repository', metadata.imageRepository],
+            ['image_tag', metadata.imageTag],
+            ['image_digest', metadata.imageDigest],
+          ];
+          for (const [key, value] of entries) {
+            const normalizedValue = String(value ?? '').trim();
+            if (!normalizedValue) {
+              throw new Error(`Missing ${key} in ${metadataPath}`);
+            }
+            process.stdout.write(`${key}=${normalizedValue}\n`);
+          }
+          NODE
+
       - name: Package kubernetes release assets
-        run: node scripts/release/package-release-assets.mjs kubernetes --profile ${{ inputs.release_profile }} --release-tag ${{ needs.prepare.outputs.release_tag }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --accelerator ${{ matrix.accelerator }} --output-dir artifacts/release
+        run: node scripts/release/package-release-assets.mjs kubernetes --profile ${{ inputs.release_profile }} --release-tag ${{ needs.prepare.outputs.release_tag }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --accelerator ${{ matrix.accelerator }} --image-repository ${{ steps.image_metadata.outputs.image_repository }} --image-tag ${{ steps.image_metadata.outputs.image_tag }} --image-digest ${{ steps.image_metadata.outputs.image_digest }} --output-dir artifacts/release
 
       - name: Attest kubernetes release assets
         if: ${{ needs.prepare.outputs.release_tag != '' }}

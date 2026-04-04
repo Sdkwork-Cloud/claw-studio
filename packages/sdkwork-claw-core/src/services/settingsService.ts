@@ -1,7 +1,4 @@
-import {
-  getAppSdkClientWithSession,
-  unwrapAppSdkResponse,
-} from '../sdk/index.ts';
+import { unwrapAppSdkResponse, type AppSdkEnvelope } from '../sdk/appSdkResult.ts';
 
 export interface UserProfile {
   firstName: string;
@@ -39,6 +36,46 @@ export interface ISettingsService {
   updatePassword(current: string, newPass: string): Promise<void>;
   getPreferences(): Promise<UserPreferences>;
   updatePreferences(prefs: Partial<UserPreferences>): Promise<UserPreferences>;
+}
+
+interface SettingsSdkClient {
+  user: {
+    getUserProfile(): Promise<AppSdkEnvelope<RemoteUserProfilePayload> | RemoteUserProfilePayload>;
+    updateUserProfile(body: {
+      nickname?: string;
+      email: string;
+    }): Promise<AppSdkEnvelope<RemoteUserProfileUpdatePayload> | RemoteUserProfileUpdatePayload>;
+    changePassword(body: {
+      oldPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+    }): Promise<AppSdkEnvelope<null> | null>;
+  };
+  notification: {
+    getNotificationSettings(): Promise<AppSdkEnvelope<RemoteNotificationSettings> | RemoteNotificationSettings>;
+    updateNotificationSettings(
+      body: RemoteNotificationSettings,
+    ): Promise<AppSdkEnvelope<RemoteNotificationSettings> | RemoteNotificationSettings>;
+    updateTypeSettings(
+      type: string | number,
+      body: RemoteNotificationTypeSettingsUpdate,
+    ): Promise<AppSdkEnvelope<null> | null>;
+  };
+}
+
+export interface CreateSettingsServiceOptions {
+  getClient?: () => SettingsSdkClient | Promise<SettingsSdkClient>;
+}
+
+interface RemoteUserProfilePayload {
+  nickname?: string;
+  email?: string;
+  avatar?: string;
+}
+
+interface RemoteUserProfileUpdatePayload {
+  email?: string;
+  avatar?: string;
 }
 
 const SETTINGS_OVERLAY_STORAGE_KEY = 'claw-studio-settings-overlay';
@@ -362,10 +399,21 @@ function buildNotificationTypeSettingsUpdates(
   return updates;
 }
 
+async function getDefaultSettingsClient(): Promise<SettingsSdkClient> {
+  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+  return getAppSdkClientWithSession() as unknown as SettingsSdkClient;
+}
+
 class SettingsService implements ISettingsService {
+  private readonly getClient: () => SettingsSdkClient | Promise<SettingsSdkClient>;
+
+  constructor(getClient: () => SettingsSdkClient | Promise<SettingsSdkClient>) {
+    this.getClient = getClient;
+  }
+
   async getProfile(): Promise<UserProfile> {
-    const client = getAppSdkClientWithSession();
-    const profile = unwrapAppSdkResponse(
+    const client = await this.getClient();
+    const profile = unwrapAppSdkResponse<RemoteUserProfilePayload>(
       await client.user.getUserProfile(),
       'Failed to load profile.',
     );
@@ -374,8 +422,8 @@ class SettingsService implements ISettingsService {
   }
 
   async updateProfile(profile: UserProfile): Promise<UserProfile> {
-    const client = getAppSdkClientWithSession();
-    const updated = unwrapAppSdkResponse(
+    const client = await this.getClient();
+    const updated = unwrapAppSdkResponse<RemoteUserProfileUpdatePayload>(
       await client.user.updateUserProfile({
         nickname:
           [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || undefined,
@@ -393,7 +441,7 @@ class SettingsService implements ISettingsService {
   }
 
   async updatePassword(current: string, newPass: string): Promise<void> {
-    const client = getAppSdkClientWithSession();
+    const client = await this.getClient();
     unwrapAppSdkResponse(
       await client.user.changePassword({
         oldPassword: current,
@@ -405,12 +453,12 @@ class SettingsService implements ISettingsService {
   }
 
   async getPreferences(): Promise<UserPreferences> {
-    const client = getAppSdkClientWithSession();
+    const client = await this.getClient();
     try {
-      const settings = unwrapAppSdkResponse(
+      const settings = unwrapAppSdkResponse<RemoteNotificationSettings>(
         await client.notification.getNotificationSettings(),
         'Failed to load preferences.',
-      ) as RemoteNotificationSettings;
+      );
 
       return buildPreferencesFromNotificationSettings(settings);
     } catch (error) {
@@ -431,22 +479,22 @@ class SettingsService implements ISettingsService {
     };
     writeSettingsOverlay(nextOverlay);
 
-    const client = getAppSdkClientWithSession();
-    const currentSettings = unwrapAppSdkResponse(
+    const client = await this.getClient();
+    const currentSettings = unwrapAppSdkResponse<RemoteNotificationSettings>(
       await client.notification.getNotificationSettings(),
       'Failed to load notification settings.',
-    ) as RemoteNotificationSettings;
+    );
 
     if (!prefs.notifications) {
       return buildPreferencesFromNotificationSettings(currentSettings, nextOverlay);
     }
 
-    const updatedSettings = unwrapAppSdkResponse(
+    const updatedSettings = unwrapAppSdkResponse<RemoteNotificationSettings>(
       await client.notification.updateNotificationSettings(
         buildNotificationSettingsUpdate(currentSettings, prefs.notifications),
       ),
       'Failed to update preferences.',
-    ) as RemoteNotificationSettings;
+    );
 
     const typeSettingsUpdates = buildNotificationTypeSettingsUpdates(
       updatedSettings,
@@ -466,13 +514,19 @@ class SettingsService implements ISettingsService {
     const refreshedSettings =
       typeSettingsUpdates.length === 0
         ? updatedSettings
-        : (unwrapAppSdkResponse(
+        : unwrapAppSdkResponse<RemoteNotificationSettings>(
             await client.notification.getNotificationSettings(),
             'Failed to load preferences.',
-          ) as RemoteNotificationSettings);
+          );
 
     return buildPreferencesFromNotificationSettings(refreshedSettings, nextOverlay);
   }
 }
 
-export const settingsService = new SettingsService();
+export function createSettingsService(
+  options: CreateSettingsServiceOptions = {},
+): ISettingsService {
+  return new SettingsService(options.getClient ?? getDefaultSettingsClient);
+}
+
+export const settingsService = createSettingsService();

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, GitFork, Github, ShieldCheck, Star } from 'lucide-react';
+import { Download, GitBranch, GitFork, ShieldCheck, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
@@ -61,7 +61,7 @@ export function RepositoryCard({
               referrerPolicy="no-referrer"
             />
           ) : type === 'github' ? (
-            <Github className="h-7 w-7 text-zinc-700 dark:text-zinc-300" />
+            <GitBranch className="h-7 w-7 text-zinc-700 dark:text-zinc-300" />
           ) : (
             <span className="text-sm font-bold tracking-wide text-primary-600 dark:text-primary-400">
               {HUGGING_FACE_MONOGRAM}

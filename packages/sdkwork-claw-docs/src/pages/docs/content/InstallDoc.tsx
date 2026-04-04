@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AlertCircle, Cloud, Github, Package, Server, Terminal } from 'lucide-react';
+import { AlertCircle, Cloud, GitBranch, Package, Server, Terminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 
@@ -153,7 +153,7 @@ export function InstallDoc() {
       <div id="source" className="mb-16 scroll-mt-8 border-t border-zinc-200 pt-8">
         <div className="mb-6 flex items-center gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100">
-            <Github className="h-6 w-6 text-zinc-700" />
+            <GitBranch className="h-6 w-6 text-zinc-700" />
           </div>
           <h2 className="m-0 text-2xl font-bold text-zinc-900">
             {t('docs.install.sections.source.title')}

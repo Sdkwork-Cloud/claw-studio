@@ -1,6 +1,7 @@
 import type { PaginatedResult, PaginationParams } from './service.ts';
 
 export * from './service.ts';
+export * from './openclawMirror.ts';
 export * from './openclawRelease.ts';
 
 export interface Agent {

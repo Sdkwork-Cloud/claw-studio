@@ -964,7 +964,7 @@ mod tests {
         assert!(variant_ids.contains(&"unix-podman"));
         assert!(variant_ids.contains(&"unix-bun"));
         assert!(variant_ids.contains(&"unix-nix"));
-        assert!(!variant_ids.contains(&"unix-ansible"));
+        assert!(variant_ids.contains(&"unix-ansible"));
     }
 
     #[test]

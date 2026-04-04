@@ -82,7 +82,7 @@ export function BillingSettings() {
 
   const formatUsage = (item: (typeof usageData)[number]) => {
     if ('tokens' in item) {
-      const compactTokens = formatNumber(item.tokens, language, {
+      const compactTokens = formatNumber(item.tokens ?? 0, language, {
         notation: 'compact',
         maximumFractionDigits: 1,
       });

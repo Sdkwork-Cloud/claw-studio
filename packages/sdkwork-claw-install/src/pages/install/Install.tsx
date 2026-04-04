@@ -4,7 +4,7 @@ import {
   Cloud,
   DownloadCloud,
   FolderOpen,
-  Github,
+  GitBranch,
   Package,
   RefreshCw,
   Server,
@@ -121,7 +121,7 @@ function renderMethodIcon(iconId: IconId) {
   if (iconId === 'sparkles') return <Sparkles className="h-4 w-4" />;
   if (iconId === 'server') return <Server className="h-4 w-4" />;
   if (iconId === 'package') return <Package className="h-4 w-4" />;
-  if (iconId === 'github') return <Github className="h-4 w-4" />;
+  if (iconId === 'github') return <GitBranch className="h-4 w-4" />;
   if (iconId === 'cloud') return <Cloud className="h-4 w-4" />;
   if (iconId === 'trash') return <Trash2 className="h-4 w-4" />;
   return <FolderOpen className="h-4 w-4" />;

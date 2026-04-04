@@ -38,6 +38,7 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /release_profile:\s*claw-studio/);
   assert.match(reusableWorkflow, /workflow_call:/);
   assert.match(reusableWorkflow, /concurrency:/);
+  assert.match(reusableWorkflow, /packages:\s*write/);
   assert.match(reusableWorkflow, /verify-release:/);
   assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_MODE:\s*git/);
   assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_GIT_REF:\s*main/);
@@ -71,11 +72,46 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(reusableWorkflow, /server-release:/);
   assert.match(reusableWorkflow, /container-release:/);
   assert.match(reusableWorkflow, /kubernetes-release:/);
+  assert.match(
+    reusableWorkflow,
+    /container-release:[\s\S]*docker\/setup-buildx-action@/,
+    'container release workflow must provision buildx before publishing OCI images',
+  );
+  assert.match(
+    reusableWorkflow,
+    /container-release:[\s\S]*docker\/login-action@/,
+    'container release workflow must authenticate to the OCI registry before pushing images',
+  );
+  assert.match(
+    reusableWorkflow,
+    /container-release:[\s\S]*docker\/build-push-action@/,
+    'container release workflow must build and push the published server image',
+  );
+  assert.match(
+    reusableWorkflow,
+    /container-image-metadata-\$\{\{ matrix\.arch \}\}/,
+    'release workflow must persist published image metadata by architecture for downstream packaging',
+  );
   assert.match(reusableWorkflow, /pnpm server:build/);
   assert.match(reusableWorkflow, /node scripts\/run-claw-server-build\.mjs --target \$\{\{ matrix\.target \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs server --profile \$\{\{ inputs\.release_profile \}\} --release-tag \$\{\{ needs\.prepare\.outputs\.release_tag \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs container --profile \$\{\{ inputs\.release_profile \}\} --release-tag \$\{\{ needs\.prepare\.outputs\.release_tag \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs kubernetes --profile \$\{\{ inputs\.release_profile \}\} --release-tag \$\{\{ needs\.prepare\.outputs\.release_tag \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\}/);
+  assert.match(
+    reusableWorkflow,
+    /kubernetes-release:[\s\S]*needs:\s*\[\s*prepare,\s*verify-release,\s*container-release\s*\]/,
+    'kubernetes packaging must wait for the OCI image publication metadata',
+  );
+  assert.match(
+    reusableWorkflow,
+    /kubernetes-release:[\s\S]*actions\/download-artifact@v4[\s\S]*container-image-metadata-\$\{\{ matrix\.arch \}\}/,
+    'kubernetes packaging must download the published image metadata for the current architecture',
+  );
+  assert.match(
+    reusableWorkflow,
+    /package-release-assets\.mjs kubernetes[\s\S]*--image-repository \$\{\{ steps\.[^.]+\.outputs\.image_repository \}\}[\s\S]*--image-tag \$\{\{ steps\.[^.]+\.outputs\.image_tag \}\}[\s\S]*--image-digest \$\{\{ steps\.[^.]+\.outputs\.image_digest \}\}/,
+    'kubernetes release packaging must stamp repository, tag, and digest from the published OCI image metadata',
+  );
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs web --profile \$\{\{ inputs\.release_profile \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/finalize-release-assets\.mjs --profile \$\{\{ inputs\.release_profile \}\}/);
   assert.match(reusableWorkflow, /actions\/attest-build-provenance@v3/);
@@ -99,26 +135,44 @@ test('desktop tauri build script stays clean of removed sdkwork-api-router artif
 
 test('root package exposes release helper scripts for desktop and asset packaging', () => {
   const rootPackage = JSON.parse(read('package.json'));
+  const releaseClosureScriptPath = path.join(rootDir, 'scripts', 'check-release-closure.mjs');
 
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-flow-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-deployment-contract\.test\.mjs/);
+  assert.equal(existsSync(releaseClosureScriptPath), true, 'missing scripts/check-release-closure.mjs');
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/check-release-closure\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-profiles\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-desktop-release-build\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-claw-server-build\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/finalize-release-assets\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/local-release-command\.test\.mjs/);
   assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:automation'], /pnpm check:release-flow && pnpm check:ci-flow/);
   assert.match(rootPackage.scripts['lint'], /pnpm check:automation/);
   assert.match(rootPackage.scripts['check:server'], /node scripts\/check-server-platform-foundation\.mjs/);
   assert.match(rootPackage.scripts['check:server'], /cargo test --manifest-path packages\/sdkwork-claw-server\/src-host\/Cargo\.toml/);
   assert.match(rootPackage.scripts['release:desktop'], /node scripts\/run-desktop-release-build\.mjs/);
-  assert.match(rootPackage.scripts['release:package:desktop'], /node scripts\/release\/package-release-assets\.mjs desktop/);
-  assert.match(rootPackage.scripts['release:package:server'], /node scripts\/release\/package-release-assets\.mjs server/);
-  assert.match(rootPackage.scripts['release:package:container'], /node scripts\/release\/package-release-assets\.mjs container/);
-  assert.match(rootPackage.scripts['release:package:kubernetes'], /node scripts\/release\/package-release-assets\.mjs kubernetes/);
-  assert.match(rootPackage.scripts['release:package:web'], /node scripts\/release\/package-release-assets\.mjs web/);
-  assert.match(rootPackage.scripts['release:finalize'], /node scripts\/release\/finalize-release-assets\.mjs/);
+  assert.match(rootPackage.scripts['release:plan'], /node scripts\/release\/local-release-command\.mjs plan/);
+  assert.match(rootPackage.scripts['release:package:desktop'], /node scripts\/release\/local-release-command\.mjs package desktop/);
+  assert.match(rootPackage.scripts['release:package:server'], /node scripts\/release\/local-release-command\.mjs package server/);
+  assert.match(rootPackage.scripts['release:package:container'], /node scripts\/release\/local-release-command\.mjs package container/);
+  assert.match(rootPackage.scripts['release:package:kubernetes'], /node scripts\/release\/local-release-command\.mjs package kubernetes/);
+  assert.match(rootPackage.scripts['release:package:web'], /node scripts\/release\/local-release-command\.mjs package web/);
+  assert.match(rootPackage.scripts['release:finalize'], /node scripts\/release\/local-release-command\.mjs finalize/);
   assert.match(rootPackage.scripts['server:build'], /node scripts\/run-claw-server-build\.mjs/);
+});
+
+test('release closure guard passes against the committed release packaging contracts', () => {
+  const releaseClosureCheck = spawnSync(process.execPath, ['scripts/check-release-closure.mjs'], {
+    cwd: rootDir,
+    encoding: 'utf8',
+  });
+
+  assert.equal(
+    releaseClosureCheck.status,
+    0,
+    releaseClosureCheck.stderr || releaseClosureCheck.stdout || 'release closure guard must pass',
+  );
 });
 
 test('shared sdk mode helper defaults to source mode and supports git trunk release mode', async () => {

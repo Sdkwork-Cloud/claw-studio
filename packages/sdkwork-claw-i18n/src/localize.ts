@@ -14,7 +14,7 @@ export function localizedText(en: string, zh: string): LocalizedText {
 
 export function isLocalizedText(value: unknown): value is LocalizedText {
   return (
-    Boolean(value) &&
+    value !== null &&
     typeof value === 'object' &&
     'en' in value &&
     'zh' in value &&

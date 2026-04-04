@@ -19,6 +19,11 @@ import {
 } from './release-profiles.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
+const supportedDesktopPlatforms = new Set(['windows', 'linux', 'macos']);
+const supportedServerPlatforms = new Set(['windows', 'linux', 'macos']);
+const supportedDeploymentPlatforms = new Set(['linux']);
+const supportedArchIds = new Set(['x64', 'arm64']);
+const supportedAccelerators = new Set(['cpu', 'nvidia-cuda', 'amd-rocm']);
 
 function readOptionValue(argv, index, flag) {
   const next = argv[index + 1];
@@ -103,7 +108,7 @@ function readPartialManifest(filePath) {
   return JSON.parse(readFileSync(filePath, 'utf8'));
 }
 
-function buildArtifactIndex(releaseAssetsDir, partialManifestFileName) {
+function buildArtifactIndex(releaseAssetsDir, partialManifestFileName, releaseTag = '') {
   const files = listFilesRecursively(releaseAssetsDir);
   const partialManifestFiles = files.filter((file) => file.relativePath.endsWith(`/${partialManifestFileName}`) || file.relativePath === partialManifestFileName);
   const assetFiles = files.filter((file) => (
@@ -117,10 +122,27 @@ function buildArtifactIndex(releaseAssetsDir, partialManifestFileName) {
   const assetFilesByRelativePath = new Map(
     assetFiles.map((file) => [file.relativePath, file]),
   );
+  const partialManifestRecords = partialManifestFiles.map((file) => ({
+    file,
+    manifest: readPartialManifest(file.absolutePath),
+  }));
+  const normalizedReleaseTag = String(releaseTag ?? '').trim();
+  const hasTaggedManifest = normalizedReleaseTag.length > 0
+    && partialManifestRecords.some((record) => String(record.manifest?.releaseTag ?? '').trim().length > 0);
   const artifacts = [];
 
-  for (const partialManifestFile of partialManifestFiles) {
-    const partialManifest = readPartialManifest(partialManifestFile.absolutePath);
+  for (const partialManifestRecord of partialManifestRecords) {
+    const partialManifest = partialManifestRecord.manifest;
+    const partialManifestReleaseTag = String(partialManifest?.releaseTag ?? '').trim();
+    if (hasTaggedManifest && partialManifestReleaseTag !== normalizedReleaseTag) {
+      for (const artifact of partialManifest.artifacts ?? []) {
+        if (typeof artifact?.relativePath === 'string' && artifact.relativePath.trim().length > 0) {
+          assetFilesByRelativePath.delete(artifact.relativePath);
+        }
+      }
+      continue;
+    }
+
     for (const artifact of partialManifest.artifacts ?? []) {
       const assetFile = assetFilesByRelativePath.get(artifact.relativePath);
       if (!assetFile) {
@@ -138,6 +160,10 @@ function buildArtifactIndex(releaseAssetsDir, partialManifestFileName) {
   }
 
   for (const remainingAssetFile of assetFilesByRelativePath.values()) {
+    if (!isFallbackArtifactEligible(remainingAssetFile.relativePath, normalizedReleaseTag)) {
+      continue;
+    }
+
     const assetStat = statSync(remainingAssetFile.absolutePath);
     artifacts.push(normalizeArtifactRecord({
       name: path.posix.basename(remainingAssetFile.relativePath),
@@ -247,6 +273,50 @@ function inferArtifactKind(relativePath) {
   return 'archive';
 }
 
+function isFallbackArtifactEligible(relativePath, releaseTag = '') {
+  const segments = relativePath.split('/');
+  const family = inferFamily(relativePath);
+  const normalizedReleaseTag = String(releaseTag ?? '').trim();
+
+  if (!family) {
+    return false;
+  }
+  if (normalizedReleaseTag.length > 0 && !relativePath.includes(normalizedReleaseTag)) {
+    return false;
+  }
+
+  if (family === 'desktop') {
+    return (
+      segments.length >= 4
+      && supportedDesktopPlatforms.has(segments[1])
+      && supportedArchIds.has(segments[2])
+    );
+  }
+
+  if (family === 'server') {
+    return (
+      segments.length >= 4
+      && supportedServerPlatforms.has(segments[1])
+      && supportedArchIds.has(segments[2])
+    );
+  }
+
+  if (family === 'container' || family === 'kubernetes') {
+    return (
+      segments.length >= 5
+      && supportedDeploymentPlatforms.has(segments[1])
+      && supportedArchIds.has(segments[2])
+      && supportedAccelerators.has(segments[3])
+    );
+  }
+
+  if (family === 'web') {
+    return segments.length >= 2;
+  }
+
+  return false;
+}
+
 function writeGlobalChecksumManifest({
   releaseAssetsDir,
   fileName,
@@ -311,6 +381,7 @@ export function finalizeReleaseAssets({
   const artifacts = buildArtifactIndex(
     releaseAssetsDir,
     profile.release.partialManifestFileName,
+    normalizedReleaseTag,
   );
   if (artifacts.length === 0) {
     throw new Error(`No release assets found under ${releaseAssetsDir}`);

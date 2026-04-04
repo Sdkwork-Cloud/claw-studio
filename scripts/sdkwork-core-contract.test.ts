@@ -54,7 +54,7 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-business']);
   assert.ok(!pkg.dependencies?.['@google/genai']);
-  assert.equal(pkg.dependencies?.['@sdkwork/app-sdk'], '^1.0.34');
+  assert.equal(pkg.dependencies?.['@sdkwork/app-sdk'], 'workspace:^');
   assert.ok(pkg.dependencies?.json5);
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-business/);
   assert.match(indexSource, /\.\/platform/);
@@ -211,6 +211,19 @@ runTest('claw hosts resolve @sdkwork/sdk-common from shared SDK source only in s
   }
 });
 
+runTest('claw host tsconfig paths align TypeScript shared sdk resolution with the host alias strategy', () => {
+  const webTsconfig = read('packages/sdkwork-claw-web/tsconfig.json');
+  const desktopTsconfig = read('packages/sdkwork-claw-desktop/tsconfig.json');
+
+  for (const source of [webTsconfig, desktopTsconfig]) {
+    assert.match(source, /"@sdkwork\/app-sdk"/);
+    assert.match(source, /sdkwork-app-sdk-typescript/);
+    assert.match(source, /"@sdkwork\/sdk-common"/);
+    assert.match(source, /sdkwork-sdk-common-typescript/);
+    assert.match(source, /"@sdkwork\/claw-\*"/);
+  }
+});
+
 runTest('claw workspace defines tracked Vite env files for development, test, and production hosts', () => {
   const gitignoreSource = read('.gitignore');
   const envExampleSource = read('.env.example');
@@ -326,7 +339,7 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(coreCheckRunner, /communityService\.test\.ts/);
   assert.match(coreCheckRunner, /openClawAgentCatalogService\.test\.ts/);
   assert.match(coreCheckRunner, /settingsService\.test\.ts/);
-  assert.match(workspacePackageJson, /"check:sdkwork-auth"\s*:\s*"pnpm prepare:shared-sdk && node --experimental-strip-types packages\/sdkwork-claw-auth\/src\/components\/auth\/authConfig\.test\.ts && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/services\/appAuthService\.test\.ts && node --experimental-strip-types packages\/sdkwork-claw-core\/src\/stores\/useAuthStore\.test\.ts && node --experimental-strip-types scripts\/sdkwork-auth-contract\.test\.ts"/);
+  assert.match(workspacePackageJson, /"check:sdkwork-auth"\s*:\s*"pnpm prepare:shared-sdk && node scripts\/run-sdkwork-auth-check\.mjs"/);
 });
 
 runTest('claw workspace tsconfig no longer hard-pins @sdkwork/app-sdk to an external source path', () => {
@@ -350,6 +363,15 @@ runTest('claw core runtime wrapper delegates desktop env and session handling to
   assert.match(appSdkSource, /readPcReactRuntimeSession/);
   assert.match(appSdkSource, /clearPcReactRuntimeSession/);
   assert.match(appSdkSource, /createAppClientConfigFromEnv/);
+  assert.match(appSdkSource, /export type AppSdkClient = ReturnType<typeof getAppClient>;/);
+  assert.match(appSdkSource, /initAppSdkClient\(overrides: Partial<SdkworkAppConfig> = \{\}\): AppSdkClient/);
+  assert.match(appSdkSource, /getAppSdkClient\(\): AppSdkClient/);
+  assert.match(appSdkSource, /getAppSdkClientWithSession\(\s*overrides: Partial<SdkworkAppConfig> = \{\},\s*\): AppSdkClient/);
+  assert.match(appSdkSource, /useAppSdkClient\(\s*overrides: Partial<SdkworkAppConfig> = \{\},\s*\): AppSdkClient/);
+  assert.doesNotMatch(appSdkSource, /initAppSdkClient\(overrides: Partial<SdkworkAppConfig> = \{\}\): SdkworkAppClient/);
+  assert.doesNotMatch(appSdkSource, /getAppSdkClient\(\): SdkworkAppClient/);
+  assert.doesNotMatch(appSdkSource, /getAppSdkClientWithSession\(\s*overrides: Partial<SdkworkAppConfig> = \{\},\s*\): SdkworkAppClient/);
+  assert.doesNotMatch(appSdkSource, /useAppSdkClient\(\s*overrides: Partial<SdkworkAppConfig> = \{\},\s*\): SdkworkAppClient/);
   assert.doesNotMatch(appSdkSource, /createClient\(/);
   assert.doesNotMatch(appSdkSource, /localStorage/);
   assert.doesNotMatch(appSdkSource, /memoryStorage/);

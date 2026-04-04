@@ -1,9 +1,5 @@
-use axum::{
-    Json, Router,
-    extract::State,
-    routing::get,
-};
-use serde_json::{Value, json};
+use axum::{extract::State, routing::get, Json, Router};
+use serde_json::{json, Value};
 
 use crate::bootstrap::ServerState;
 
@@ -68,15 +64,15 @@ fn build_native_v1_document(state: &ServerState) -> Value {
                 "description": "Operator-oriented rollout control-plane APIs."
             }
         ],
-        "paths": build_paths(),
+        "paths": build_paths(state),
         "components": {
             "schemas": build_schemas()
         }
     })
 }
 
-fn build_paths() -> Value {
-    json!({
+fn build_paths(state: &ServerState) -> Value {
+    let mut paths = json!({
         "/claw/health/live": {
             "get": {
                 "tags": ["health"],
@@ -114,6 +110,457 @@ fn build_paths() -> Value {
                 }
             }
         },
+        "/claw/api/v1/studio/instances": {
+            "get": {
+                "tags": ["api"],
+                "operationId": "apiListStudioInstances",
+                "summary": "List studio instances projected by the active host shell",
+                "responses": {
+                    "200": json_array_response(
+                        "Current canonical studio instance records.",
+                        "#/components/schemas/StudioInstanceRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance list could not be projected."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            },
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiCreateStudioInstance",
+                "summary": "Create one studio instance through the active host shell",
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioCreateInstanceInput",
+                    true,
+                    "Studio instance creation payload."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Created canonical studio instance record.",
+                        "#/components/schemas/StudioInstanceRecord"
+                    ),
+                    "400": internal_error_json_response("The studio instance creation payload was invalid."),
+                    "500": internal_error_json_response("The studio instance could not be created."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}": {
+            "get": {
+                "tags": ["api"],
+                "operationId": "apiGetStudioInstance",
+                "summary": "Read one studio instance projected by the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Requested canonical studio instance record or null when the instance does not exist.",
+                        "#/components/schemas/StudioInstanceNullableRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance record could not be projected."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            },
+            "put": {
+                "tags": ["api"],
+                "operationId": "apiUpdateStudioInstance",
+                "summary": "Update one studio instance through the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioUpdateInstanceInput",
+                    true,
+                    "Studio instance update payload."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Updated canonical studio instance record.",
+                        "#/components/schemas/StudioInstanceRecord"
+                    ),
+                    "400": internal_error_json_response("The studio instance update payload was invalid."),
+                    "500": internal_error_json_response("The studio instance could not be updated."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            },
+            "delete": {
+                "tags": ["api"],
+                "operationId": "apiDeleteStudioInstance",
+                "summary": "Delete one studio instance through the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Whether the canonical studio instance was deleted.",
+                        "#/components/schemas/StudioInstanceDeleteResult"
+                    ),
+                    "500": internal_error_json_response("The studio instance could not be deleted."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}:start": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiStartStudioInstance",
+                "summary": "Start one studio instance through the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Updated canonical studio instance record or null when the instance does not exist.",
+                        "#/components/schemas/StudioInstanceNullableRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance could not be started."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}:stop": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiStopStudioInstance",
+                "summary": "Stop one studio instance through the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Updated canonical studio instance record or null when the instance does not exist.",
+                        "#/components/schemas/StudioInstanceNullableRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance could not be stopped."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}:restart": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiRestartStudioInstance",
+                "summary": "Restart one studio instance through the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Updated canonical studio instance record or null when the instance does not exist.",
+                        "#/components/schemas/StudioInstanceNullableRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance could not be restarted."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/detail": {
+            "get": {
+                "tags": ["api"],
+                "operationId": "apiGetStudioInstanceDetail",
+                "summary": "Read one rich studio instance detail projection surfaced by the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Requested canonical studio instance detail record or null when the instance does not exist.",
+                        "#/components/schemas/StudioInstanceDetailNullableRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance detail record could not be projected."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/config": {
+            "get": {
+                "tags": ["api"],
+                "operationId": "apiGetStudioInstanceConfig",
+                "summary": "Read one studio instance config projection surfaced by the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Requested canonical studio instance config record or null when the instance does not exist.",
+                        "#/components/schemas/StudioInstanceConfigNullableRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance config record could not be projected."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            },
+            "put": {
+                "tags": ["api"],
+                "operationId": "apiUpdateStudioInstanceConfig",
+                "summary": "Update one studio instance config projection through the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioInstanceConfigRecord",
+                    true,
+                    "Studio instance config payload."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Updated canonical studio instance config record or null when the instance does not exist.",
+                        "#/components/schemas/StudioInstanceConfigNullableRecord"
+                    ),
+                    "400": internal_error_json_response("The studio instance config payload was invalid."),
+                    "500": internal_error_json_response("The studio instance config could not be updated."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/logs": {
+            "get": {
+                "tags": ["api"],
+                "operationId": "apiGetStudioInstanceLogs",
+                "summary": "Read one studio instance logs projection surfaced by the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Requested canonical studio instance logs projection.",
+                        "#/components/schemas/StudioInstanceLogsRecord"
+                    ),
+                    "500": internal_error_json_response("The studio instance logs could not be projected."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/gateway/invoke": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiInvokeStudioOpenClawGateway",
+                "summary": "Invoke one managed OpenClaw gateway through the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioOpenClawGatewayInvokePayload",
+                    true,
+                    "Managed OpenClaw gateway invocation payload."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Managed OpenClaw gateway invocation result.",
+                        "#/components/schemas/StudioOpenClawGatewayInvokeResult"
+                    ),
+                    "400": internal_error_json_response("The managed OpenClaw gateway invocation payload was invalid."),
+                    "404": internal_error_json_response("The requested studio instance does not exist."),
+                    "503": internal_error_json_response("The managed OpenClaw gateway is not available for the requested studio instance.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/tasks": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiCreateStudioWorkbenchTask",
+                "summary": "Create one managed studio workbench task",
+                "parameters": [studio_instance_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioTaskMutationInput",
+                    true,
+                    "Managed studio workbench task payload."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Managed studio workbench task was created.",
+                        "#/components/schemas/StudioNullResult"
+                    ),
+                    "400": internal_error_json_response("The managed studio workbench task payload was invalid."),
+                    "500": internal_error_json_response("The managed studio workbench task could not be created."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/tasks/{taskId}": {
+            "put": {
+                "tags": ["api"],
+                "operationId": "apiUpdateStudioWorkbenchTask",
+                "summary": "Update one managed studio workbench task",
+                "parameters": [studio_instance_id_parameter(), studio_task_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioTaskMutationInput",
+                    true,
+                    "Managed studio workbench task payload."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Managed studio workbench task was updated.",
+                        "#/components/schemas/StudioNullResult"
+                    ),
+                    "400": internal_error_json_response("The managed studio workbench task payload was invalid."),
+                    "500": internal_error_json_response("The managed studio workbench task could not be updated."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            },
+            "delete": {
+                "tags": ["api"],
+                "operationId": "apiDeleteStudioWorkbenchTask",
+                "summary": "Delete one managed studio workbench task",
+                "parameters": [studio_instance_id_parameter(), studio_task_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Whether the managed studio workbench task was deleted.",
+                        "#/components/schemas/StudioWorkbenchMutationResult"
+                    ),
+                    "500": internal_error_json_response("The managed studio workbench task could not be deleted."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/tasks/{taskId}:clone": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiCloneStudioWorkbenchTask",
+                "summary": "Clone one managed studio workbench task",
+                "parameters": [studio_instance_id_parameter(), studio_task_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioTaskCloneInput",
+                    false,
+                    "Optional managed studio workbench task clone request."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Managed studio workbench task was cloned.",
+                        "#/components/schemas/StudioNullResult"
+                    ),
+                    "500": internal_error_json_response("The managed studio workbench task could not be cloned."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/tasks/{taskId}:run": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiRunStudioWorkbenchTaskNow",
+                "summary": "Run one managed studio workbench task immediately",
+                "parameters": [studio_instance_id_parameter(), studio_task_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Managed studio workbench task execution record.",
+                        "#/components/schemas/StudioWorkbenchTaskExecutionRecord"
+                    ),
+                    "500": internal_error_json_response("The managed studio workbench task could not be run."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/tasks/{taskId}:status": {
+            "post": {
+                "tags": ["api"],
+                "operationId": "apiUpdateStudioWorkbenchTaskStatus",
+                "summary": "Update one managed studio workbench task status",
+                "parameters": [studio_instance_id_parameter(), studio_task_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioTaskStatusInput",
+                    true,
+                    "Managed studio workbench task status update request."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Managed studio workbench task status was updated.",
+                        "#/components/schemas/StudioNullResult"
+                    ),
+                    "400": internal_error_json_response("The managed studio workbench task status payload was invalid."),
+                    "500": internal_error_json_response("The managed studio workbench task status could not be updated."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/tasks/{taskId}/executions": {
+            "get": {
+                "tags": ["api"],
+                "operationId": "apiListStudioWorkbenchTaskExecutions",
+                "summary": "List managed studio workbench task executions",
+                "parameters": [studio_instance_id_parameter(), studio_task_id_parameter()],
+                "responses": {
+                    "200": json_array_response(
+                        "Managed studio workbench task execution records.",
+                        "#/components/schemas/StudioWorkbenchTaskExecutionRecord"
+                    ),
+                    "500": internal_error_json_response("The managed studio workbench task executions could not be listed."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/files/{fileId}": {
+            "put": {
+                "tags": ["api"],
+                "operationId": "apiUpdateStudioWorkbenchFileContent",
+                "summary": "Update one managed studio workbench file",
+                "parameters": [studio_instance_id_parameter(), studio_file_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioFileContentUpdateInput",
+                    true,
+                    "Managed studio workbench file content update request."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Whether the managed studio workbench file was updated.",
+                        "#/components/schemas/StudioWorkbenchMutationResult"
+                    ),
+                    "400": internal_error_json_response("The managed studio workbench file payload was invalid."),
+                    "500": internal_error_json_response("The managed studio workbench file could not be updated."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/llm-providers/{providerId}": {
+            "put": {
+                "tags": ["api"],
+                "operationId": "apiUpdateStudioWorkbenchLlmProvider",
+                "summary": "Update one managed studio workbench LLM provider",
+                "parameters": [studio_instance_id_parameter(), studio_provider_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioUpdateInstanceLlmProviderConfigInput",
+                    true,
+                    "Managed studio workbench LLM provider update request."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Whether the managed studio workbench LLM provider was updated.",
+                        "#/components/schemas/StudioWorkbenchMutationResult"
+                    ),
+                    "400": internal_error_json_response("The managed studio workbench LLM provider payload was invalid."),
+                    "500": internal_error_json_response("The managed studio workbench LLM provider could not be updated."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/instances/{id}/conversations": {
+            "get": {
+                "tags": ["api"],
+                "operationId": "apiListStudioConversations",
+                "summary": "List studio conversations projected for one instance by the active host shell",
+                "parameters": [studio_instance_id_parameter()],
+                "responses": {
+                    "200": json_array_response(
+                        "Current canonical studio conversation records for the requested instance.",
+                        "#/components/schemas/StudioConversationRecord"
+                    ),
+                    "500": internal_error_json_response("The studio conversation list could not be projected."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
+        "/claw/api/v1/studio/conversations/{conversationId}": {
+            "put": {
+                "tags": ["api"],
+                "operationId": "apiPutStudioConversation",
+                "summary": "Create or replace one studio conversation projected by the active host shell",
+                "parameters": [studio_conversation_id_parameter()],
+                "requestBody": json_request_body(
+                    "#/components/schemas/StudioConversationRecord",
+                    true,
+                    "Studio conversation payload."
+                ),
+                "responses": {
+                    "200": json_response(
+                        "Stored canonical studio conversation record.",
+                        "#/components/schemas/StudioConversationRecord"
+                    ),
+                    "400": internal_error_json_response("The studio conversation payload was invalid."),
+                    "500": internal_error_json_response("The studio conversation record could not be projected."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            },
+            "delete": {
+                "tags": ["api"],
+                "operationId": "apiDeleteStudioConversation",
+                "summary": "Delete one studio conversation projected by the active host shell",
+                "parameters": [studio_conversation_id_parameter()],
+                "responses": {
+                    "200": json_response(
+                        "Whether the canonical studio conversation record was deleted.",
+                        "#/components/schemas/StudioConversationDeleteResult"
+                    ),
+                    "500": internal_error_json_response("The studio conversation record could not be deleted."),
+                    "503": internal_error_json_response("The canonical studio public API is not available for the active host shell.")
+                }
+            }
+        },
         "/claw/internal/v1/host-platform": {
             "get": {
                 "tags": ["internal"],
@@ -123,7 +570,8 @@ fn build_paths() -> Value {
                     "200": json_response(
                         "Current host platform status.",
                         "#/components/schemas/HostPlatformStatusRecord"
-                    )
+                    ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface.")
                 }
             }
         },
@@ -137,6 +585,7 @@ fn build_paths() -> Value {
                         "Merged live and projected node sessions.",
                         "#/components/schemas/NodeSessionRecord"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface."),
                     "500": internal_error_json_response("Node session list could not be loaded.")
                 }
             }
@@ -156,6 +605,7 @@ fn build_paths() -> Value {
                         "Hello response with compatibility preview and lease proposal.",
                         "#/components/schemas/NodeSessionHelloResponse"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface."),
                     "400": internal_error_json_response("The node hello request body was invalid."),
                     "409": internal_error_json_response("The node hello request could not be processed in the current control-plane state."),
                     "500": internal_error_json_response("Node hello could not be processed."),
@@ -179,8 +629,9 @@ fn build_paths() -> Value {
                         "Admitted node session state.",
                         "#/components/schemas/NodeSessionAdmitResponse"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface."),
                     "400": internal_error_json_response("The node session admit request body was invalid."),
-                    "401": internal_error_json_response("The node session bootstrap token was invalid."),
+                    "403": internal_error_json_response("The node session bootstrap token was invalid."),
                     "404": internal_error_json_response("The requested node session was not found."),
                     "409": internal_error_json_response("The node session could not be admitted in the current state."),
                     "500": internal_error_json_response("The node session could not be admitted.")
@@ -203,6 +654,7 @@ fn build_paths() -> Value {
                         "Refreshed node session lease and posture.",
                         "#/components/schemas/NodeSessionHeartbeatResponse"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface."),
                     "400": internal_error_json_response("The node session heartbeat request body was invalid."),
                     "404": internal_error_json_response("The requested node session was not found."),
                     "409": internal_error_json_response("The node session lease was invalid, expired, or replaced."),
@@ -226,6 +678,7 @@ fn build_paths() -> Value {
                         "Desired-state projection or not-modified response.",
                         "#/components/schemas/NodeSessionPullDesiredStateResponse"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface."),
                     "400": internal_error_json_response("The desired-state pull request body was invalid."),
                     "404": internal_error_json_response("The requested node session was not found."),
                     "409": internal_error_json_response("The node session lease was invalid, expired, or replaced."),
@@ -250,6 +703,7 @@ fn build_paths() -> Value {
                         "Desired-state acknowledgement was recorded.",
                         "#/components/schemas/NodeSessionAckDesiredStateResponse"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface."),
                     "400": internal_error_json_response("The desired-state acknowledgement request body was invalid."),
                     "404": internal_error_json_response("The requested node session was not found."),
                     "409": internal_error_json_response("The acknowledgement conflicted with the current session or desired state."),
@@ -273,10 +727,149 @@ fn build_paths() -> Value {
                         "Node session was closed.",
                         "#/components/schemas/NodeSessionCloseResponse"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the internal control-plane surface."),
                     "400": internal_error_json_response("The node session close request body was invalid."),
                     "404": internal_error_json_response("The requested node session was not found."),
                     "409": internal_error_json_response("The node session lease was invalid or expired."),
                     "500": internal_error_json_response("The node session could not be closed.")
+                }
+            }
+        },
+        "/claw/manage/v1/service": {
+            "get": {
+                "tags": ["manage"],
+                "operationId": "manageGetServiceStatus",
+                "summary": "Read native service status",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "Current native service status projection.",
+                        "#/components/schemas/ManageServiceExecutionResult"
+                    ),
+                    "500": internal_error_json_response("The native service control plane could not complete the requested action.")
+                }
+            }
+        },
+        "/claw/manage/v1/service:install": {
+            "post": {
+                "tags": ["manage"],
+                "operationId": "manageInstallService",
+                "summary": "Install the native server service",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "Install result from the native service control plane.",
+                        "#/components/schemas/ManageServiceExecutionResult"
+                    ),
+                    "500": internal_error_json_response("The native service control plane could not complete the requested action.")
+                }
+            }
+        },
+        "/claw/manage/v1/service:start": {
+            "post": {
+                "tags": ["manage"],
+                "operationId": "manageStartService",
+                "summary": "Start the native server service",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "Start result from the native service control plane.",
+                        "#/components/schemas/ManageServiceExecutionResult"
+                    ),
+                    "500": internal_error_json_response("The native service control plane could not complete the requested action.")
+                }
+            }
+        },
+        "/claw/manage/v1/service:stop": {
+            "post": {
+                "tags": ["manage"],
+                "operationId": "manageStopService",
+                "summary": "Stop the native server service",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "Stop result from the native service control plane.",
+                        "#/components/schemas/ManageServiceExecutionResult"
+                    ),
+                    "500": internal_error_json_response("The native service control plane could not complete the requested action.")
+                }
+            }
+        },
+        "/claw/manage/v1/service:restart": {
+            "post": {
+                "tags": ["manage"],
+                "operationId": "manageRestartService",
+                "summary": "Restart the native server service",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "Restart result from the native service control plane.",
+                        "#/components/schemas/ManageServiceExecutionResult"
+                    ),
+                    "500": internal_error_json_response("The native service control plane could not complete the requested action.")
+                }
+            }
+        },
+        "/claw/manage/v1/host-endpoints": {
+            "get": {
+                "tags": ["manage"],
+                "operationId": "manageListHostEndpoints",
+                "summary": "List canonical host-managed endpoints",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_array_response(
+                        "Current host-managed endpoint records.",
+                        "#/components/schemas/ManageHostEndpointRecord"
+                    )
+                }
+            }
+        },
+        "/claw/manage/v1/openclaw/runtime": {
+            "get": {
+                "tags": ["manage"],
+                "operationId": "manageGetOpenClawRuntime",
+                "summary": "Read the canonical OpenClaw runtime status",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "Current canonical OpenClaw runtime projection.",
+                        "#/components/schemas/ManageOpenClawRuntimeRecord"
+                    )
+                }
+            }
+        },
+        "/claw/manage/v1/openclaw/gateway": {
+            "get": {
+                "tags": ["manage"],
+                "operationId": "manageGetOpenClawGateway",
+                "summary": "Read the canonical OpenClaw gateway status",
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "Current canonical OpenClaw gateway projection.",
+                        "#/components/schemas/ManageOpenClawGatewayRecord"
+                    )
+                }
+            }
+        },
+        "/claw/manage/v1/openclaw/gateway/invoke": {
+            "post": {
+                "tags": ["manage"],
+                "operationId": "manageInvokeOpenClawGateway",
+                "summary": "Invoke the canonical OpenClaw gateway control surface",
+                "requestBody": json_request_body(
+                    "#/components/schemas/ManageOpenClawGatewayInvokeRequest",
+                    true,
+                    "OpenClaw gateway invocation request."
+                ),
+                "responses": {
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
+                    "200": json_response(
+                        "OpenClaw gateway invocation result.",
+                        "#/components/schemas/ManageOpenClawGatewayInvokeResult"
+                    ),
+                    "400": internal_error_json_response("The OpenClaw gateway invocation request body was invalid."),
+                    "500": internal_error_json_response("The OpenClaw gateway control plane could not complete the requested action.")
                 }
             }
         },
@@ -290,6 +883,7 @@ fn build_paths() -> Value {
                         "Current rollout list.",
                         "#/components/schemas/ManageRolloutListResult"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
                     "503": internal_error_json_response("The rollout list could not be loaded.")
                 }
             }
@@ -305,6 +899,7 @@ fn build_paths() -> Value {
                         "Requested rollout record.",
                         "#/components/schemas/ManageRolloutRecord"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
                     "404": internal_error_json_response("The requested rollout was not found."),
                     "503": internal_error_json_response("The rollout record could not be loaded.")
                 }
@@ -321,6 +916,7 @@ fn build_paths() -> Value {
                         "Current rollout target preview records.",
                         "#/components/schemas/ManageRolloutTargetListResult"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
                     "404": internal_error_json_response("The requested rollout was not found."),
                     "503": internal_error_json_response("The rollout target list could not be loaded.")
                 }
@@ -337,6 +933,7 @@ fn build_paths() -> Value {
                         "Requested rollout target preview record.",
                         "#/components/schemas/ManageRolloutTargetPreviewRecord"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
                     "404": internal_error_json_response("The requested rollout target was not found."),
                     "503": internal_error_json_response("The rollout target record could not be loaded.")
                 }
@@ -353,6 +950,7 @@ fn build_paths() -> Value {
                         "Current rollout wave summary records.",
                         "#/components/schemas/ManageRolloutWaveListResult"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
                     "404": internal_error_json_response("The requested rollout was not found."),
                     "503": internal_error_json_response("The rollout wave list could not be loaded.")
                 }
@@ -374,6 +972,7 @@ fn build_paths() -> Value {
                         "Rollout preview result.",
                         "#/components/schemas/ManageRolloutPreview"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
                     "400": internal_error_json_response("The rollout preview request body was invalid."),
                     "404": internal_error_json_response("The requested rollout was not found."),
                     "409": internal_error_json_response("The rollout preview could not proceed in the current state."),
@@ -392,13 +991,26 @@ fn build_paths() -> Value {
                         "Started rollout record.",
                         "#/components/schemas/ManageRolloutRecord"
                     ),
+                    "401": internal_error_json_response("Authentication is required for the manage control-plane surface."),
                     "404": internal_error_json_response("The requested rollout was not found."),
                     "409": internal_error_json_response("The rollout could not be started in the current state."),
                     "503": internal_error_json_response("The rollout start operation could not be processed.")
                 }
             }
         }
-    })
+    });
+
+    if !state.supports_manage_service_api() {
+        if let Some(path_object) = paths.as_object_mut() {
+            path_object.remove("/claw/manage/v1/service");
+            path_object.remove("/claw/manage/v1/service:install");
+            path_object.remove("/claw/manage/v1/service:start");
+            path_object.remove("/claw/manage/v1/service:stop");
+            path_object.remove("/claw/manage/v1/service:restart");
+        }
+    }
+
+    paths
 }
 
 fn build_schemas() -> Value {
@@ -461,6 +1073,280 @@ fn build_schemas() -> Value {
                 "generatedAt": {"type": "integer", "format": "uint64", "minimum": 0}
             }
         },
+        "StudioInstanceRecord": {
+            "type": "object",
+            "description": "Studio instance projection surfaced by the canonical host public API.",
+            "properties": {
+                "id": {"type": "string"},
+                "name": {"type": "string"},
+                "description": {"type": ["string", "null"]},
+                "status": {"type": "string"},
+                "isBuiltIn": {"type": "boolean"},
+                "isDefault": {"type": "boolean"},
+                "baseUrl": {"type": ["string", "null"]},
+                "websocketUrl": {"type": ["string", "null"]}
+            },
+            "additionalProperties": true
+        },
+        "StudioInstanceNullableRecord": {
+            "oneOf": [
+                schema_ref("#/components/schemas/StudioInstanceRecord"),
+                {"type": "null"}
+            ]
+        },
+        "StudioCreateInstanceInput": {
+            "type": "object",
+            "required": ["name", "runtimeKind", "deploymentMode", "transportKind"],
+            "properties": {
+                "name": {"type": "string"},
+                "description": {"type": ["string", "null"]},
+                "runtimeKind": {"type": "string"},
+                "deploymentMode": {"type": "string"},
+                "transportKind": {"type": "string"},
+                "iconType": {"type": ["string", "null"]},
+                "version": {"type": ["string", "null"]},
+                "typeLabel": {"type": ["string", "null"]},
+                "host": {"type": ["string", "null"]},
+                "port": {"type": ["integer", "null"], "minimum": 0},
+                "baseUrl": {"type": ["string", "null"]},
+                "websocketUrl": {"type": ["string", "null"]},
+                "storage": {"type": ["object", "null"], "additionalProperties": true},
+                "config": {"type": ["object", "null"], "additionalProperties": true}
+            }
+        },
+        "StudioUpdateInstanceInput": {
+            "type": "object",
+            "properties": {
+                "name": {"type": ["string", "null"]},
+                "description": {"type": ["string", "null"]},
+                "iconType": {"type": ["string", "null"]},
+                "version": {"type": ["string", "null"]},
+                "typeLabel": {"type": ["string", "null"]},
+                "host": {"type": ["string", "null"]},
+                "port": {"type": ["integer", "null"], "minimum": 0},
+                "baseUrl": {"type": ["string", "null"]},
+                "websocketUrl": {"type": ["string", "null"]},
+                "status": {"type": ["string", "null"]},
+                "isDefault": {"type": ["boolean", "null"]},
+                "config": {"type": ["object", "null"], "additionalProperties": true}
+            }
+        },
+        "StudioInstanceDeleteResult": {
+            "type": "boolean",
+            "description": "Whether the requested canonical studio instance was deleted."
+        },
+        "StudioInstanceDetailRecord": {
+            "type": "object",
+            "properties": {
+                "instance": schema_ref("#/components/schemas/StudioInstanceRecord"),
+                "config": {"type": "object", "additionalProperties": true},
+                "logs": {"type": "string"},
+                "health": {"type": "object", "additionalProperties": true},
+                "lifecycle": {"type": "object", "additionalProperties": true},
+                "storage": {"type": "object", "additionalProperties": true},
+                "connectivity": {"type": "object", "additionalProperties": true},
+                "observability": {"type": "object", "additionalProperties": true},
+                "dataAccess": {"type": "object", "additionalProperties": true},
+                "artifacts": {
+                    "type": "array",
+                    "items": {"type": "object", "additionalProperties": true}
+                },
+                "capabilities": {
+                    "type": "array",
+                    "items": {"type": "object", "additionalProperties": true}
+                },
+                "officialRuntimeNotes": {
+                    "type": "array",
+                    "items": {"type": "object", "additionalProperties": true}
+                },
+                "consoleAccess": {"type": ["object", "null"], "additionalProperties": true},
+                "workbench": {"type": ["object", "null"], "additionalProperties": true}
+            },
+            "additionalProperties": true
+        },
+        "StudioInstanceDetailNullableRecord": {
+            "oneOf": [
+                schema_ref("#/components/schemas/StudioInstanceDetailRecord"),
+                {"type": "null"}
+            ]
+        },
+        "StudioInstanceConfigRecord": {
+            "type": "object",
+            "properties": {
+                "port": {"type": "string"},
+                "sandbox": {"type": "boolean"},
+                "autoUpdate": {"type": "boolean"},
+                "logLevel": {"type": "string"},
+                "corsOrigins": {"type": "string"},
+                "workspacePath": {"type": ["string", "null"]},
+                "baseUrl": {"type": ["string", "null"]},
+                "websocketUrl": {"type": ["string", "null"]},
+                "authToken": {"type": ["string", "null"]}
+            },
+            "additionalProperties": true
+        },
+        "StudioInstanceConfigNullableRecord": {
+            "oneOf": [
+                schema_ref("#/components/schemas/StudioInstanceConfigRecord"),
+                {"type": "null"}
+            ]
+        },
+        "StudioInstanceLogsRecord": {
+            "type": "string",
+            "description": "Studio instance logs projection surfaced by the canonical host public API."
+        },
+        "StudioNullResult": {
+            "type": "null",
+            "description": "The canonical studio public API completed the requested mutation without a response payload."
+        },
+        "StudioWorkbenchMutationResult": {
+            "type": "boolean",
+            "description": "Whether the requested managed studio workbench mutation changed persisted state."
+        },
+        "StudioOpenClawGatewayInvokePayload": {
+            "type": "object",
+            "required": ["request"],
+            "properties": {
+                "request": schema_ref("#/components/schemas/StudioOpenClawGatewayInvokeRequest"),
+                "options": schema_ref("#/components/schemas/StudioOpenClawGatewayInvokeOptions")
+            }
+        },
+        "StudioOpenClawGatewayInvokeRequest": {
+            "type": "object",
+            "required": ["tool"],
+            "properties": {
+                "tool": {"type": "string"},
+                "action": {"type": ["string", "null"]},
+                "args": {"type": ["object", "null"], "additionalProperties": true},
+                "sessionKey": {"type": ["string", "null"]},
+                "dryRun": {"type": ["boolean", "null"]}
+            }
+        },
+        "StudioOpenClawGatewayInvokeOptions": {
+            "type": "object",
+            "properties": {
+                "messageChannel": {"type": ["string", "null"]},
+                "accountId": {"type": ["string", "null"]},
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {"type": "string"}
+                }
+            }
+        },
+        "StudioOpenClawGatewayInvokeResult": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Managed OpenClaw gateway invocation result payload."
+        },
+        "StudioTaskMutationInput": {
+            "type": "object",
+            "properties": {
+                "id": {"type": ["string", "null"]},
+                "name": {"type": ["string", "null"]},
+                "enabled": {"type": ["boolean", "null"]},
+                "description": {"type": ["string", "null"]},
+                "schedule": {"type": ["object", "null"], "additionalProperties": true},
+                "payload": {"type": ["object", "null"], "additionalProperties": true},
+                "delivery": {"type": ["object", "null"], "additionalProperties": true}
+            },
+            "additionalProperties": true
+        },
+        "StudioTaskCloneInput": {
+            "type": "object",
+            "properties": {
+                "name": {"type": ["string", "null"]}
+            }
+        },
+        "StudioTaskStatusInput": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+                "status": {"type": "string", "enum": ["active", "paused"]}
+            }
+        },
+        "StudioWorkbenchTaskExecutionRecord": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "taskId": {"type": "string"},
+                "status": {"type": "string"},
+                "trigger": {"type": "string"},
+                "startedAt": {"type": "string"},
+                "finishedAt": {"type": ["string", "null"]},
+                "summary": {"type": "string"},
+                "details": {"type": ["string", "null"]}
+            },
+            "additionalProperties": true
+        },
+        "StudioFileContentUpdateInput": {
+            "type": "object",
+            "required": ["content"],
+            "properties": {
+                "content": {"type": "string"}
+            }
+        },
+        "StudioUpdateInstanceLlmProviderConfigInput": {
+            "type": "object",
+            "required": ["endpoint", "apiKeySource", "defaultModelId", "config"],
+            "properties": {
+                "endpoint": {"type": "string"},
+                "apiKeySource": {"type": "string"},
+                "defaultModelId": {"type": "string"},
+                "reasoningModelId": {"type": ["string", "null"]},
+                "embeddingModelId": {"type": ["string", "null"]},
+                "config": {"type": "object", "additionalProperties": true}
+            },
+            "additionalProperties": true
+        },
+        "StudioConversationAttachmentRecord": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "kind": {"type": "string"},
+                "name": {"type": "string"},
+                "url": {"type": ["string", "null"]}
+            },
+            "additionalProperties": true
+        },
+        "StudioConversationMessageRecord": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "conversationId": {"type": "string"},
+                "role": {"type": "string"},
+                "content": {"type": "string"},
+                "createdAt": {"type": "integer", "format": "uint64", "minimum": 0},
+                "updatedAt": {"type": "integer", "format": "uint64", "minimum": 0},
+                "model": {"type": ["string", "null"]},
+                "senderInstanceId": {"type": ["string", "null"]},
+                "status": {"type": "string"},
+                "attachments": {
+                    "type": "array",
+                    "items": schema_ref("#/components/schemas/StudioConversationAttachmentRecord")
+                }
+            }
+        },
+        "StudioConversationRecord": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "title": {"type": "string"},
+                "primaryInstanceId": {"type": "string"},
+                "participantInstanceIds": string_array_schema(),
+                "createdAt": {"type": "integer", "format": "uint64", "minimum": 0},
+                "updatedAt": {"type": "integer", "format": "uint64", "minimum": 0},
+                "messageCount": {"type": "integer", "format": "uint64", "minimum": 0},
+                "lastMessagePreview": {"type": ["string", "null"]},
+                "messages": {
+                    "type": "array",
+                    "items": schema_ref("#/components/schemas/StudioConversationMessageRecord")
+                }
+            }
+        },
+        "StudioConversationDeleteResult": {
+            "type": "boolean",
+            "description": "Whether the requested canonical studio conversation was deleted."
+        },
         "HostPlatformStatusRecord": {
             "type": "object",
             "properties": {
@@ -473,8 +1359,55 @@ fn build_schemas() -> Value {
                 "rolloutEngineVersion": {"type": "string"},
                 "manageBasePath": {"type": "string"},
                 "internalBasePath": {"type": "string"},
+                "stateStoreDriver": {"type": "string", "enum": ["json-file", "sqlite"]},
+                "stateStore": {"$ref": "#/components/schemas/HostPlatformStateStoreRecord"},
                 "capabilityKeys": string_array_schema(),
                 "updatedAt": {"type": "integer", "format": "uint64", "minimum": 0}
+            }
+        },
+        "HostPlatformStateStoreRecord": {
+            "type": "object",
+            "properties": {
+                "activeProfileId": {"type": "string"},
+                "providers": {
+                    "type": "array",
+                    "items": schema_ref("#/components/schemas/HostPlatformStateStoreProviderRecord")
+                },
+                "profiles": {
+                    "type": "array",
+                    "items": schema_ref("#/components/schemas/HostPlatformStateStoreProfileRecord")
+                }
+            }
+        },
+        "HostPlatformStateStoreProviderRecord": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "label": {"type": "string"},
+                "availability": {"type": "string"},
+                "requiresConfiguration": {"type": "boolean"},
+                "configurationKeys": string_array_schema(),
+                "projectionMode": {
+                    "type": "string",
+                    "enum": ["runtime", "metadataOnly"]
+                }
+            }
+        },
+        "HostPlatformStateStoreProfileRecord": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "label": {"type": "string"},
+                "driver": {"type": "string"},
+                "active": {"type": "boolean"},
+                "availability": {"type": "string"},
+                "path": {"type": ["string", "null"]},
+                "connectionConfigured": {"type": "boolean"},
+                "configuredKeys": string_array_schema(),
+                "projectionMode": {
+                    "type": "string",
+                    "enum": ["runtime", "metadataOnly"]
+                }
             }
         },
         "NodeSessionRecord": {
@@ -766,6 +1699,151 @@ fn build_schemas() -> Value {
                 "replacementExpected": {"type": "boolean"}
             }
         },
+        "ManageHostEndpointRecord": {
+            "type": "object",
+            "properties": {
+                "endpointId": {"type": "string"},
+                "bindHost": {"type": "string"},
+                "requestedPort": {"type": "integer", "minimum": 0},
+                "activePort": {"type": ["integer", "null"], "minimum": 0},
+                "scheme": {"type": "string"},
+                "baseUrl": {"type": ["string", "null"]},
+                "websocketUrl": {"type": ["string", "null"]},
+                "loopbackOnly": {"type": "boolean"},
+                "dynamicPort": {"type": "boolean"},
+                "lastConflictAt": {"type": ["integer", "null"], "format": "uint64", "minimum": 0},
+                "lastConflictReason": {"type": ["string", "null"]}
+            }
+        },
+        "ManageOpenClawRuntimeRecord": {
+            "type": "object",
+            "properties": {
+                "runtimeKind": {"type": "string"},
+                "lifecycle": {"type": "string"},
+                "endpointId": {"type": ["string", "null"]},
+                "requestedPort": {"type": ["integer", "null"], "minimum": 0},
+                "activePort": {"type": ["integer", "null"], "minimum": 0},
+                "baseUrl": {"type": ["string", "null"]},
+                "websocketUrl": {"type": ["string", "null"]},
+                "managedBy": {"type": "string"},
+                "updatedAt": {"type": "integer", "format": "uint64", "minimum": 0}
+            }
+        },
+        "ManageOpenClawGatewayRecord": {
+            "type": "object",
+            "properties": {
+                "gatewayKind": {"type": "string"},
+                "lifecycle": {"type": "string"},
+                "endpointId": {"type": ["string", "null"]},
+                "requestedPort": {"type": ["integer", "null"], "minimum": 0},
+                "activePort": {"type": ["integer", "null"], "minimum": 0},
+                "baseUrl": {"type": ["string", "null"]},
+                "websocketUrl": {"type": ["string", "null"]},
+                "managedBy": {"type": "string"},
+                "updatedAt": {"type": "integer", "format": "uint64", "minimum": 0}
+            }
+        },
+        "ManageOpenClawGatewayInvokeRequest": {
+            "type": "object",
+            "required": ["tool"],
+            "properties": {
+                "tool": {"type": "string"},
+                "action": {"type": ["string", "null"]},
+                "args": {"type": ["object", "null"], "additionalProperties": true},
+                "sessionKey": {"type": ["string", "null"]},
+                "dryRun": {"type": ["boolean", "null"]},
+                "messageChannel": {"type": ["string", "null"]},
+                "accountId": {"type": ["string", "null"]},
+                "headers": {
+                    "type": ["object", "null"],
+                    "additionalProperties": {"type": "string"}
+                }
+            }
+        },
+        "ManageOpenClawGatewayInvokeResult": {
+            "type": "object",
+            "properties": {
+                "accepted": {"type": "boolean"},
+                "tool": {"type": "string"},
+                "action": {"type": ["string", "null"]},
+                "dryRun": {"type": "boolean"},
+                "lifecycle": {"type": "string"},
+                "message": {"type": "string"},
+                "updatedAt": {"type": "integer", "format": "uint64", "minimum": 0}
+            }
+        },
+        "ManageServiceShellCommand": {
+            "type": "object",
+            "properties": {
+                "program": {"type": "string"},
+                "args": string_array_schema()
+            }
+        },
+        "ManageServiceCommandResult": {
+            "type": "object",
+            "properties": {
+                "program": {"type": "string"},
+                "args": string_array_schema(),
+                "exitCode": {"type": ["integer", "null"]},
+                "stdout": {"type": "string"},
+                "stderr": {"type": "string"},
+                "success": {"type": "boolean"}
+            }
+        },
+        "ManageServiceExecutionResult": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string"},
+                "platform": {"type": "string"},
+                "serviceManager": {"type": "string"},
+                "serviceName": {"type": "string"},
+                "serviceConfigPath": {"type": "string"},
+                "executablePath": {"type": "string"},
+                "configPath": {"type": "string"},
+                "commands": {
+                    "type": "array",
+                    "items": schema_ref("#/components/schemas/ManageServiceShellCommand")
+                },
+                "runtimeConfig": schema_ref("#/components/schemas/ManageServiceRuntimeConfig"),
+                "artifactWritten": {"type": "boolean"},
+                "writtenFiles": string_array_schema(),
+                "success": {"type": "boolean"},
+                "state": {"type": "string"},
+                "commandResults": {
+                    "type": "array",
+                    "items": schema_ref("#/components/schemas/ManageServiceCommandResult")
+                }
+            }
+        },
+        "ManageServiceRuntimeConfig": {
+            "type": "object",
+            "properties": {
+                "host": {"type": "string"},
+                "port": {"type": "integer", "minimum": 0},
+                "dataDir": {"type": "string"},
+                "webDistDir": {"type": "string"},
+                "stateStore": schema_ref("#/components/schemas/ManageServiceStateStoreConfig"),
+                "auth": schema_ref("#/components/schemas/ManageServiceAuthConfig")
+            }
+        },
+        "ManageServiceStateStoreConfig": {
+            "type": "object",
+            "properties": {
+                "driver": {"type": "string"},
+                "sqlitePath": {"type": ["string", "null"]},
+                "postgresUrl": {"type": ["string", "null"]},
+                "postgresSchema": {"type": ["string", "null"]}
+            }
+        },
+        "ManageServiceAuthConfig": {
+            "type": "object",
+            "properties": {
+                "manageUsername": {"type": ["string", "null"]},
+                "managePassword": {"type": ["string", "null"]},
+                "internalUsername": {"type": ["string", "null"]},
+                "internalPassword": {"type": ["string", "null"]}
+            }
+        },
         "ManageRolloutRecord": {
             "type": "object",
             "properties": {
@@ -999,6 +2077,66 @@ fn node_id_parameter() -> Value {
         "in": "path",
         "required": true,
         "description": "Node identifier.",
+        "schema": {
+            "type": "string"
+        }
+    })
+}
+
+fn studio_instance_id_parameter() -> Value {
+    json!({
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Studio instance identifier.",
+        "schema": {
+            "type": "string"
+        }
+    })
+}
+
+fn studio_task_id_parameter() -> Value {
+    json!({
+        "name": "taskId",
+        "in": "path",
+        "required": true,
+        "description": "Managed studio workbench task identifier.",
+        "schema": {
+            "type": "string"
+        }
+    })
+}
+
+fn studio_file_id_parameter() -> Value {
+    json!({
+        "name": "fileId",
+        "in": "path",
+        "required": true,
+        "description": "Managed studio workbench file identifier.",
+        "schema": {
+            "type": "string"
+        }
+    })
+}
+
+fn studio_provider_id_parameter() -> Value {
+    json!({
+        "name": "providerId",
+        "in": "path",
+        "required": true,
+        "description": "Managed studio workbench LLM provider identifier.",
+        "schema": {
+            "type": "string"
+        }
+    })
+}
+
+fn studio_conversation_id_parameter() -> Value {
+    json!({
+        "name": "conversationId",
+        "in": "path",
+        "required": true,
+        "description": "Studio conversation identifier.",
         "schema": {
             "type": "string"
         }

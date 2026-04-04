@@ -3,6 +3,8 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "@sdkwork/app-sdk": ["../../../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript/src/index.ts"],
+      "@sdkwork/sdk-common": ["../../../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript/src/index.ts"],
       "@sdkwork/claw-*": ["../../packages/sdkwork-claw-*/src/index.ts"]
     }
   },

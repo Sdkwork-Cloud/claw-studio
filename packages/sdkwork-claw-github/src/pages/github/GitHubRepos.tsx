@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Filter, Github, Search } from 'lucide-react';
+import { ArrowUpDown, Filter, GitBranch, Search } from 'lucide-react';
 import Fuse from 'fuse.js';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -119,7 +119,7 @@ export function GitHubRepos() {
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 shadow-md dark:bg-zinc-100">
-              <Github className="h-5 w-5 text-white dark:text-zinc-900" />
+              <GitBranch className="h-5 w-5 text-white dark:text-zinc-900" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
@@ -168,7 +168,7 @@ export function GitHubRepos() {
             </div>
           ) : filteredRepos.length === 0 ? (
             <div className="py-20 text-center">
-              <Github className="mx-auto mb-4 h-16 w-16 text-zinc-300 dark:text-zinc-700" />
+              <GitBranch className="mx-auto mb-4 h-16 w-16 text-zinc-300 dark:text-zinc-700" />
               <h3 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-100">
                 {t('github.repos.emptyTitle')}
               </h3>

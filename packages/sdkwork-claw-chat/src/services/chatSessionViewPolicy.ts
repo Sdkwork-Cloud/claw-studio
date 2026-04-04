@@ -2,10 +2,12 @@ import {
   buildOpenClawMainSessionKey,
   filterUserFacingOpenClawSessionsByAgent,
   resolveOpenClawVisibleActiveSessionId,
+  shouldKeepHiddenOpenClawSessionVisible,
 } from './chatSessionBootstrap.ts';
 
 type ChatSessionLike = {
   id: string;
+  sessionKind?: string | null;
 };
 
 export function resolveChatSessionViewState<T extends ChatSessionLike>(params: {
@@ -14,9 +16,20 @@ export function resolveChatSessionViewState<T extends ChatSessionLike>(params: {
   isOpenClawGateway: boolean;
   openClawAgentId?: string | null;
 }) {
-  const visibleSessions = params.isOpenClawGateway
+  const baseVisibleSessions = params.isOpenClawGateway
     ? filterUserFacingOpenClawSessionsByAgent(params.sessions, params.openClawAgentId)
     : params.sessions;
+  const hiddenActiveSession =
+    params.isOpenClawGateway && params.activeSessionId
+      ? params.sessions.find((session) => session.id === params.activeSessionId)
+      : undefined;
+  const visibleSessions =
+    params.isOpenClawGateway &&
+    shouldKeepHiddenOpenClawSessionVisible(hiddenActiveSession) &&
+    hiddenActiveSession &&
+    !baseVisibleSessions.some((session) => session.id === hiddenActiveSession.id)
+      ? [...baseVisibleSessions, hiddenActiveSession]
+      : baseVisibleSessions;
 
   return {
     visibleSessions,
@@ -47,9 +60,11 @@ export function resolveGatewayVisibleSessionSyncTarget(params: {
     return null;
   }
 
-  return params.activeSessionId === params.effectiveActiveSessionId
-    ? null
-    : params.effectiveActiveSessionId;
+  if (params.activeSessionId) {
+    return null;
+  }
+
+  return params.effectiveActiveSessionId;
 }
 
 export function resolveNewChatSessionModel(params: {

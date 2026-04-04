@@ -29,7 +29,7 @@
 | `pnpm tauri:info` | Print Tauri environment information |
 | `pnpm check:desktop` | Validate desktop runtime and command contracts |
 | `pnpm release:desktop` | Run the desktop release build entry used by CI |
-| `pnpm release:package:desktop` | Collect built desktop installers and checksum files into `artifacts/release` |
+| `pnpm release:package:desktop` | Collect already-built desktop installers and checksum files into `artifacts/release`; run `pnpm release:desktop` or `pnpm tauri:build` first |
 | `pnpm release:package:web` | Archive built web and docs assets into `artifacts/release` |
 
 ## Server And Deployment Commands
@@ -37,13 +37,13 @@
 | Command | Purpose |
 | --- | --- |
 | `pnpm server:dev` | Run the native Rust server host in development mode |
-| `pnpm server:build` | Build the native Rust server binary in release mode; append `-- --target <triple>` for an explicit release target |
+| `pnpm server:build` | Build the native Rust server binary in release mode; append `-- --target <triple>` for an explicit release target. Windows hosts automatically route Linux targets through WSL when an installed distro is available |
 | `pnpm check:server` | Validate server package structure and run native Rust server tests |
 | `pnpm release:plan` | Resolve the current multi-family release plan and emit the target matrices |
-| `pnpm release:package:server` | Collect a built native server archive into `artifacts/release` |
-| `pnpm release:package:container` | Package Docker deployment bundles into `artifacts/release` |
-| `pnpm release:package:kubernetes` | Package Helm-compatible deployment bundles into `artifacts/release` |
-| `pnpm release:finalize` | Merge family manifests, compute top-level checksums, and emit `release-manifest.json` |
+| `pnpm release:package:server` | Package a native server archive into `artifacts/release`; the local wrapper auto-builds the missing server binary first when needed |
+| `pnpm release:package:container` | Package Docker deployment bundles into `artifacts/release`; the local wrapper auto-builds a missing matching Linux server binary first. On Windows that build can reuse WSL automatically |
+| `pnpm release:package:kubernetes` | Package Helm-compatible deployment bundles into `artifacts/release`; packages chart assets without building a server binary |
+| `pnpm release:finalize` | Merge family manifests, compute top-level checksums, and emit `release-manifest.json` in the active release asset directory, which defaults to `artifacts/release` locally |
 
 ## Release And CI Automation
 

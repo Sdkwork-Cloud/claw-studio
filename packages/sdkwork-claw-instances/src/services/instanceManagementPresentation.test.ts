@@ -150,6 +150,7 @@ function createWorkbench(
     detail: createDetail(),
     managedConfigPath: 'D:/OpenClaw/.openclaw/openclaw.json',
     managedChannels: [],
+    managedConfigInsights: null,
     healthScore: 92,
     runtimeStatus: 'healthy',
     connectedChannelCount: 2,
@@ -166,6 +167,7 @@ function createWorkbench(
       files: 2,
       memory: 0,
       tools: 4,
+      config: 1,
     },
     sectionAvailability: {
       overview: { status: 'ready', detail: 'ready' },
@@ -177,6 +179,7 @@ function createWorkbench(
       files: { status: 'ready', detail: 'ready' },
       memory: { status: 'planned', detail: 'planned' },
       tools: { status: 'ready', detail: 'ready' },
+      config: { status: 'ready', detail: 'ready' },
     },
     channels: [],
     tasks: [],

@@ -2,8 +2,8 @@ use std::fmt::{Display, Formatter};
 use std::fs;
 use std::path::Path;
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[derive(Debug)]
 pub enum JsonFileStoreError {
@@ -28,21 +28,18 @@ impl Display for JsonFileStoreError {
 
 impl std::error::Error for JsonFileStoreError {}
 
-pub fn load_or_seed_json_file<T>(
-    path: &Path,
-    seed: impl FnOnce() -> T,
-) -> Result<T, JsonFileStoreError>
+pub fn load_json_file<T>(path: &Path) -> Result<Option<T>, JsonFileStoreError>
 where
-    T: Serialize + DeserializeOwned,
+    T: DeserializeOwned,
 {
-    if path.exists() {
-        let content = fs::read_to_string(path).map_err(JsonFileStoreError::Io)?;
-        return serde_json::from_str(&content).map_err(JsonFileStoreError::Deserialize);
+    if !path.exists() {
+        return Ok(None);
     }
 
-    let seeded = seed();
-    save_json_file(path, &seeded)?;
-    Ok(seeded)
+    let content = fs::read_to_string(path).map_err(JsonFileStoreError::Io)?;
+    serde_json::from_str(&content)
+        .map(Some)
+        .map_err(JsonFileStoreError::Deserialize)
 }
 
 pub fn save_json_file<T>(path: &Path, value: &T) -> Result<(), JsonFileStoreError>

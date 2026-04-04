@@ -14,7 +14,7 @@ import {
   getAppSdkClientWithSession,
   readAppSdkSessionTokens,
 } from '../sdk/useAppSdkClient.ts';
-import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
+import { type AppSdkEnvelope, unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
 
 export interface PointsWalletAccount {
   availablePoints: number;
@@ -323,7 +323,10 @@ function mapPurchaseVipPackResult(result: VipPurchaseVO | null | undefined): Pur
   };
 }
 
-async function readOptional<T>(callback: () => Promise<unknown>, fallback: T): Promise<T> {
+async function readOptional<T>(
+  callback: () => Promise<T | AppSdkEnvelope<T> | null | undefined>,
+  fallback: T,
+): Promise<T> {
   try {
     return unwrapAppSdkResponse<T>(await callback());
   } catch {

@@ -1,0 +1,498 @@
+#!/usr/bin/env node
+
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+import { runServerBuild } from '../run-claw-server-build.mjs';
+import {
+  DEFAULT_RELEASE_PROFILE_ID,
+} from './release-profiles.mjs';
+import { createReleasePlan } from './resolve-release-plan.mjs';
+import {
+  packageContainerAssets,
+  packageDesktopAssets,
+  packageKubernetesAssets,
+  packageServerAssets,
+  packageWebAssets,
+} from './package-release-assets.mjs';
+import { finalizeReleaseAssets } from './finalize-release-assets.mjs';
+import {
+  buildDesktopTargetTriple,
+  normalizeDesktopArch,
+  normalizeDesktopPlatform,
+  resolveDesktopReleaseTarget,
+} from './desktop-targets.mjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '..', '..');
+const serverBuildTargetDir = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-server',
+  'src-host',
+  'target',
+);
+
+const LOCAL_RELEASE_TAG = 'release-local';
+const RELEASE_PROFILE_ENV_VAR = 'SDKWORK_RELEASE_PROFILE';
+const RELEASE_TAG_ENV_VAR = 'SDKWORK_RELEASE_TAG';
+const RELEASE_GIT_REF_ENV_VAR = 'SDKWORK_RELEASE_GIT_REF';
+const RELEASE_OUTPUT_DIR_ENV_VAR = 'SDKWORK_RELEASE_OUTPUT_DIR';
+const RELEASE_ASSETS_DIR_ENV_VAR = 'SDKWORK_RELEASE_ASSETS_DIR';
+const RELEASE_PLATFORM_ENV_VAR = 'SDKWORK_RELEASE_PLATFORM';
+const RELEASE_ARCH_ENV_VAR = 'SDKWORK_RELEASE_ARCH';
+const RELEASE_TARGET_ENV_VAR = 'SDKWORK_RELEASE_TARGET';
+const RELEASE_ACCELERATOR_ENV_VAR = 'SDKWORK_RELEASE_ACCELERATOR';
+const RELEASE_IMAGE_REPOSITORY_ENV_VAR = 'SDKWORK_RELEASE_IMAGE_REPOSITORY';
+const RELEASE_IMAGE_TAG_ENV_VAR = 'SDKWORK_RELEASE_IMAGE_TAG';
+const RELEASE_IMAGE_DIGEST_ENV_VAR = 'SDKWORK_RELEASE_IMAGE_DIGEST';
+const RELEASE_REPOSITORY_ENV_VAR = 'SDKWORK_RELEASE_REPOSITORY';
+
+function readOptionValue(argv, index, flag) {
+  const next = argv[index + 1];
+  const normalizedNext = String(next ?? '').trim();
+
+  if (!normalizedNext || normalizedNext.startsWith('--')) {
+    throw new Error(`Missing value for ${flag}.`);
+  }
+
+  return normalizedNext;
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return '';
+}
+
+function resolveServerBinaryFileName(platform = '') {
+  return normalizeDesktopPlatform(platform) === 'windows'
+    ? 'sdkwork-claw-server.exe'
+    : 'sdkwork-claw-server';
+}
+
+export function resolveLocalServerBinaryPath({
+  target = '',
+  platform = '',
+} = {}) {
+  const normalizedTarget = String(target ?? '').trim();
+  const binaryFileName = resolveServerBinaryFileName(platform);
+
+  if (normalizedTarget.length > 0) {
+    return path.join(serverBuildTargetDir, normalizedTarget, 'release', binaryFileName);
+  }
+
+  return path.join(serverBuildTargetDir, 'release', binaryFileName);
+}
+
+export function ensureLocalServerBuildPrerequisite({
+  context,
+  fileExists = existsSync,
+  resolveBinaryPath = resolveLocalServerBinaryPath,
+  runServerBuildFn = runServerBuild,
+} = {}) {
+  const normalizedMode = String(context?.mode ?? '').trim().toLowerCase();
+  if (normalizedMode !== 'package:server' && normalizedMode !== 'package:container') {
+    return null;
+  }
+
+  const binaryPath = resolveBinaryPath({
+    target: context?.target,
+    platform: context?.platform,
+  });
+  if (typeof binaryPath === 'string' && binaryPath.length > 0 && fileExists(binaryPath)) {
+    return {
+      binaryPath,
+      built: false,
+    };
+  }
+
+  runServerBuildFn({
+    targetTriple: String(context?.target ?? '').trim(),
+  });
+  return {
+    binaryPath,
+    built: true,
+  };
+}
+
+function resolveMode(command, family) {
+  const normalizedCommand = String(command ?? '').trim().toLowerCase();
+  const normalizedFamily = String(family ?? '').trim().toLowerCase();
+
+  if (!normalizedCommand) {
+    throw new Error('A local release command is required: plan, package <family>, or finalize.');
+  }
+  if (normalizedCommand === 'plan' || normalizedCommand === 'finalize') {
+    return normalizedCommand;
+  }
+  if (normalizedCommand === 'package') {
+    if (!normalizedFamily) {
+      throw new Error('A release family is required for "package": desktop, server, container, kubernetes, or web.');
+    }
+    return `package:${normalizedFamily}`;
+  }
+
+  return normalizedCommand;
+}
+
+export function parseArgs(argv) {
+  const [command, maybeFamily, ...rest] = argv;
+  const options = {
+    mode: resolveMode(command, command === 'package' ? maybeFamily : ''),
+    profileId: '',
+    releaseTag: '',
+    gitRef: '',
+    outputDir: '',
+    releaseAssetsDir: '',
+    platform: '',
+    arch: '',
+    target: '',
+    accelerator: '',
+    imageRepository: '',
+    imageTag: '',
+    imageDigest: '',
+    repository: '',
+  };
+  const startIndex = command === 'package' ? 2 : 1;
+  const tokens = argv.slice(startIndex);
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+
+    if (token === '--profile') {
+      options.profileId = readOptionValue(tokens, index, '--profile');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--release-tag') {
+      options.releaseTag = readOptionValue(tokens, index, '--release-tag');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--git-ref') {
+      options.gitRef = readOptionValue(tokens, index, '--git-ref');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--output-dir') {
+      options.outputDir = readOptionValue(tokens, index, '--output-dir');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--release-assets-dir') {
+      options.releaseAssetsDir = readOptionValue(tokens, index, '--release-assets-dir');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--platform') {
+      options.platform = readOptionValue(tokens, index, '--platform');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--arch') {
+      options.arch = readOptionValue(tokens, index, '--arch');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--target') {
+      options.target = readOptionValue(tokens, index, '--target');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--accelerator') {
+      options.accelerator = readOptionValue(tokens, index, '--accelerator');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--image-repository') {
+      options.imageRepository = readOptionValue(tokens, index, '--image-repository');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--image-tag') {
+      options.imageTag = readOptionValue(tokens, index, '--image-tag');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--image-digest') {
+      options.imageDigest = readOptionValue(tokens, index, '--image-digest');
+      index += 1;
+      continue;
+    }
+
+    if (token === '--repository') {
+      options.repository = readOptionValue(tokens, index, '--repository');
+      index += 1;
+    }
+  }
+
+  return options;
+}
+
+export function resolveLocalReleaseContext({
+  mode,
+  env = process.env,
+  platform = process.platform,
+  arch = process.arch,
+  cwd = rootDir,
+  cliOverrides = {},
+} = {}) {
+  const normalizedMode = String(mode ?? '').trim().toLowerCase();
+  const hostPlatform = firstNonEmpty(platform, process.platform);
+  const hostArch = firstNonEmpty(arch, process.arch);
+  const profileId = firstNonEmpty(
+    cliOverrides.profileId,
+    env?.[RELEASE_PROFILE_ENV_VAR],
+    DEFAULT_RELEASE_PROFILE_ID,
+  );
+  const releaseTag = firstNonEmpty(
+    cliOverrides.releaseTag,
+    env?.[RELEASE_TAG_ENV_VAR],
+    LOCAL_RELEASE_TAG,
+  );
+  const gitRef = firstNonEmpty(
+    cliOverrides.gitRef,
+    env?.[RELEASE_GIT_REF_ENV_VAR],
+    `refs/tags/${releaseTag}`,
+  );
+  const outputDir = path.resolve(
+    cwd,
+    firstNonEmpty(
+      cliOverrides.outputDir,
+      env?.[RELEASE_OUTPUT_DIR_ENV_VAR],
+      path.join('artifacts', 'release'),
+    ),
+  );
+  const releaseAssetsDir = path.resolve(
+    cwd,
+    firstNonEmpty(
+      cliOverrides.releaseAssetsDir,
+      env?.[RELEASE_ASSETS_DIR_ENV_VAR],
+      path.join('artifacts', 'release'),
+    ),
+  );
+  const repository = firstNonEmpty(
+    cliOverrides.repository,
+    env?.[RELEASE_REPOSITORY_ENV_VAR],
+    env?.GITHUB_REPOSITORY,
+  );
+  const accelerator = firstNonEmpty(
+    cliOverrides.accelerator,
+    env?.[RELEASE_ACCELERATOR_ENV_VAR],
+    'cpu',
+  );
+  const imageRepository = firstNonEmpty(
+    cliOverrides.imageRepository,
+    env?.[RELEASE_IMAGE_REPOSITORY_ENV_VAR],
+    'claw-studio-server',
+  );
+  const imageTag = firstNonEmpty(
+    cliOverrides.imageTag,
+    env?.[RELEASE_IMAGE_TAG_ENV_VAR],
+    releaseTag,
+  );
+  const imageDigest = firstNonEmpty(
+    cliOverrides.imageDigest,
+    env?.[RELEASE_IMAGE_DIGEST_ENV_VAR],
+  );
+
+  if (normalizedMode === 'package:container' || normalizedMode === 'package:kubernetes') {
+    const resolvedPlatform = normalizeDesktopPlatform(
+      firstNonEmpty(
+        cliOverrides.platform,
+        env?.[RELEASE_PLATFORM_ENV_VAR],
+        'linux',
+      ),
+    );
+    if (resolvedPlatform !== 'linux') {
+      throw new Error(`${normalizedMode} only supports linux deployment targets.`);
+    }
+    const resolvedArch = normalizeDesktopArch(
+      firstNonEmpty(
+        cliOverrides.arch,
+        env?.[RELEASE_ARCH_ENV_VAR],
+        hostArch,
+      ),
+    );
+    const target = firstNonEmpty(
+      cliOverrides.target,
+      env?.[RELEASE_TARGET_ENV_VAR],
+      buildDesktopTargetTriple({
+        platform: resolvedPlatform,
+        arch: resolvedArch,
+      }),
+    );
+
+    return {
+      mode: normalizedMode,
+      profileId,
+      releaseTag,
+      gitRef,
+      outputDir,
+      releaseAssetsDir,
+      repository,
+      platform: resolvedPlatform,
+      arch: resolvedArch,
+      target,
+      accelerator,
+      imageRepository,
+      imageTag,
+      imageDigest,
+    };
+  }
+
+  if (normalizedMode === 'package:desktop' || normalizedMode === 'package:server') {
+    const targetSpec = resolveDesktopReleaseTarget({
+      targetTriple: firstNonEmpty(
+        cliOverrides.target,
+        env?.[RELEASE_TARGET_ENV_VAR],
+      ),
+      platform: firstNonEmpty(
+        cliOverrides.platform,
+        env?.[RELEASE_PLATFORM_ENV_VAR],
+        hostPlatform,
+      ),
+      arch: firstNonEmpty(
+        cliOverrides.arch,
+        env?.[RELEASE_ARCH_ENV_VAR],
+        hostArch,
+      ),
+    });
+
+    return {
+      mode: normalizedMode,
+      profileId,
+      releaseTag,
+      gitRef,
+      outputDir,
+      releaseAssetsDir,
+      repository,
+      platform: targetSpec.platform,
+      arch: targetSpec.arch,
+      target: targetSpec.targetTriple,
+      accelerator,
+      imageRepository,
+      imageTag,
+      imageDigest,
+    };
+  }
+
+  return {
+    mode: normalizedMode,
+    profileId,
+    releaseTag,
+    gitRef,
+    outputDir,
+    releaseAssetsDir,
+    repository,
+    platform: '',
+    arch: '',
+    target: '',
+    accelerator,
+    imageRepository,
+    imageTag,
+    imageDigest,
+  };
+}
+
+export function runLocalReleaseCommand(options = {}) {
+  const context = resolveLocalReleaseContext({
+    mode: options.mode,
+    env: options.env,
+    platform: options.platform,
+    arch: options.arch,
+    cwd: options.cwd,
+    cliOverrides: options,
+  });
+
+  if (context.mode === 'plan') {
+    const plan = createReleasePlan({
+      profileId: context.profileId,
+      releaseTag: context.releaseTag,
+      gitRef: context.gitRef,
+    });
+    process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+    return context;
+  }
+
+  if (context.mode === 'package:desktop') {
+    packageDesktopAssets(context);
+    return context;
+  }
+
+  if (context.mode === 'package:server') {
+    ensureLocalServerBuildPrerequisite({
+      context,
+      fileExists: options.fileExists,
+      resolveBinaryPath: options.resolveBinaryPath,
+      runServerBuildFn: options.runServerBuildFn,
+    });
+    packageServerAssets(context);
+    return context;
+  }
+
+  if (context.mode === 'package:container') {
+    ensureLocalServerBuildPrerequisite({
+      context,
+      fileExists: options.fileExists,
+      resolveBinaryPath: options.resolveBinaryPath,
+      runServerBuildFn: options.runServerBuildFn,
+    });
+    packageContainerAssets(context);
+    return context;
+  }
+
+  if (context.mode === 'package:kubernetes') {
+    packageKubernetesAssets(context);
+    return context;
+  }
+
+  if (context.mode === 'package:web') {
+    packageWebAssets(context);
+    return context;
+  }
+
+  if (context.mode === 'finalize') {
+    finalizeReleaseAssets({
+      profileId: context.profileId,
+      releaseTag: context.releaseTag,
+      repository: context.repository,
+      releaseAssetsDir: context.releaseAssetsDir,
+    });
+    return context;
+  }
+
+  throw new Error(`Unsupported local release command: ${context.mode}`);
+}
+
+function main() {
+  runLocalReleaseCommand(parseArgs(process.argv.slice(2)));
+}
+
+if (path.resolve(process.argv[1] ?? '') === __filename) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}

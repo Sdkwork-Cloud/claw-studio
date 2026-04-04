@@ -1,3 +1,5 @@
+/// <reference path="../types/react-syntax-highlighter.d.ts" />
+
 import { memo } from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/prism-light';
 import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';

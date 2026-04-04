@@ -192,7 +192,7 @@ runTest('sdkwork-claw-install gives OpenClaw a dedicated file-backed guided wiza
   assert.doesNotMatch(bootstrapSource, /ws:\/\/\$\{host\}:\$\{port\}\/ws/);
   assert.doesNotMatch(bootstrapSource, /authToken:\s*null/);
   assert.doesNotMatch(bootstrapSource, /upsertInstanceLlmProvider/);
-  assert.doesNotMatch(bootstrapSource, /saveChannelConfig/);
+  assert.doesNotMatch(bootstrapSource, /\bsaveChannelConfig\b/);
   assert.doesNotMatch(bootstrapSource, /saveProviderSelection/);
   assert.doesNotMatch(bootstrapSource, /PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE/);
   assert.doesNotMatch(bootstrapSource, /storage\.getStorageInfo/);

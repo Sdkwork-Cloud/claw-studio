@@ -2,12 +2,15 @@ use crate::{
     framework::{layout::set_active_runtime_version, paths::AppPaths, FrameworkError, Result},
     platform,
 };
+use sdkwork_claw_host_core::port_allocator::{
+    allocate_tcp_listener, PortAllocationRequest, PortRange,
+};
 use serde_json::{Map, Number, Value};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
-    net::{Ipv4Addr, SocketAddrV4, TcpListener},
     path::{Path, PathBuf},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager, Runtime};
@@ -16,7 +19,13 @@ use uuid::Uuid;
 pub const OPENCLAW_RUNTIME_ID: &str = "openclaw";
 const BUNDLED_RESOURCE_DIR: &str = "openclaw";
 const NESTED_BUNDLED_RESOURCE_DIR: &str = "resources/openclaw";
+const BUNDLED_RUNTIME_ARCHIVE_FILE_NAME: &str = "runtime.zip";
 const DEFAULT_GATEWAY_PORT: u16 = 18_789;
+const TAURI_CONTROL_UI_ALLOWED_ORIGINS: [&str; 3] = [
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+    "tauri://localhost",
+];
 const LEGACY_PROVIDER_RUNTIME_CONFIG_KEYS: [&str; 5] =
     ["temperature", "topP", "maxTokens", "timeoutMs", "streaming"];
 
@@ -110,7 +119,8 @@ impl OpenClawRuntimeService {
         paths: &AppPaths,
         resource_root: &Path,
     ) -> Result<ActivatedOpenClawRuntime> {
-        let manifest = load_manifest(&resource_root.join("manifest.json"))?;
+        let bundled_manifest_path = resource_root.join("manifest.json");
+        let manifest = load_manifest(&bundled_manifest_path)?;
         validate_manifest_target(&manifest)?;
 
         if manifest.runtime_id != OPENCLAW_RUNTIME_ID {
@@ -121,10 +131,13 @@ impl OpenClawRuntimeService {
         }
 
         let bundled_runtime_dir = resource_root.join("runtime");
-        if !bundled_runtime_dir.exists() {
+        let bundled_runtime_archive_path = resource_root.join(BUNDLED_RUNTIME_ARCHIVE_FILE_NAME);
+        if !bundled_runtime_dir.exists() && !bundled_runtime_archive_path.exists() {
             return Err(FrameworkError::NotFound(format!(
-                "bundled runtime directory not found: {}",
-                bundled_runtime_dir.display()
+                "bundled runtime payload not found under {} (expected {} or {})",
+                resource_root.display(),
+                bundled_runtime_dir.display(),
+                bundled_runtime_archive_path.display()
             )));
         }
 
@@ -133,14 +146,25 @@ impl OpenClawRuntimeService {
         let runtime_dir = install_dir.join("runtime");
         let manifest_path = install_dir.join("manifest.json");
 
-        ensure_runtime_installation(
-            &bundled_runtime_dir,
-            &resource_root.join("manifest.json"),
-            &manifest,
-            &install_dir,
-            &runtime_dir,
-            &manifest_path,
-        )?;
+        if bundled_runtime_dir.exists() {
+            ensure_runtime_installation_from_directory(
+                &bundled_runtime_dir,
+                &bundled_manifest_path,
+                &manifest,
+                &install_dir,
+                &runtime_dir,
+                &manifest_path,
+            )?;
+        } else {
+            ensure_runtime_installation_from_archive(
+                &bundled_runtime_archive_path,
+                &bundled_manifest_path,
+                &manifest,
+                &install_dir,
+                &runtime_dir,
+                &manifest_path,
+            )?;
+        }
 
         let node_path = install_dir.join(&manifest.node_relative_path);
         let cli_path = install_dir.join(&manifest.cli_relative_path);
@@ -236,7 +260,7 @@ fn resolve_bundled_resource_root_with_manifest_dir(
     )))
 }
 
-fn ensure_runtime_installation(
+fn ensure_runtime_installation_from_directory(
     bundled_runtime_dir: &Path,
     bundled_manifest_path: &Path,
     manifest: &BundledOpenClawManifest,
@@ -246,7 +270,14 @@ fn ensure_runtime_installation(
 ) -> Result<()> {
     let node_path = install_dir.join(&manifest.node_relative_path);
     let cli_path = install_dir.join(&manifest.cli_relative_path);
-    if install_dir.exists() && node_path.exists() && cli_path.exists() && manifest_path.exists() {
+    if runtime_installation_is_complete(
+        bundled_runtime_dir,
+        install_dir,
+        runtime_dir,
+        manifest_path,
+        &node_path,
+        &cli_path,
+    )? {
         return Ok(());
     }
 
@@ -278,6 +309,261 @@ fn ensure_runtime_installation(
     Ok(())
 }
 
+fn ensure_runtime_installation_from_archive(
+    bundled_runtime_archive_path: &Path,
+    bundled_manifest_path: &Path,
+    manifest: &BundledOpenClawManifest,
+    install_dir: &Path,
+    runtime_dir: &Path,
+    manifest_path: &Path,
+) -> Result<()> {
+    let node_path = install_dir.join(&manifest.node_relative_path);
+    let cli_path = install_dir.join(&manifest.cli_relative_path);
+    if runtime_installation_from_archive_is_complete(
+        manifest,
+        install_dir,
+        manifest_path,
+        &node_path,
+        &cli_path,
+    )? {
+        return Ok(());
+    }
+
+    if install_dir.exists() {
+        fs::remove_dir_all(install_dir)?;
+    }
+
+    let staging_dir = install_dir.with_extension(format!("staging-{}", unix_timestamp_ms()?));
+    if staging_dir.exists() {
+        fs::remove_dir_all(&staging_dir)?;
+    }
+
+    fs::create_dir_all(&staging_dir)?;
+    extract_bundled_runtime_archive(bundled_runtime_archive_path, &staging_dir)?;
+    if !staging_dir.join("runtime").exists() {
+        return Err(FrameworkError::ValidationFailed(format!(
+            "bundled runtime archive did not materialize a runtime directory under {}",
+            staging_dir.display()
+        )));
+    }
+    fs::copy(bundled_manifest_path, staging_dir.join("manifest.json"))?;
+
+    if let Some(parent) = install_dir.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::rename(&staging_dir, install_dir)?;
+    if !runtime_dir.exists() {
+        return Err(FrameworkError::Internal(format!(
+            "failed to finalize bundled runtime installation at {}",
+            install_dir.display()
+        )));
+    }
+
+    Ok(())
+}
+
+fn runtime_installation_is_complete(
+    bundled_runtime_dir: &Path,
+    install_dir: &Path,
+    runtime_dir: &Path,
+    manifest_path: &Path,
+    node_path: &Path,
+    cli_path: &Path,
+) -> Result<bool> {
+    if !(install_dir.exists() && node_path.exists() && cli_path.exists() && manifest_path.exists())
+    {
+        return Ok(false);
+    }
+
+    let bundled_package_install_root = bundled_runtime_dir.join("package");
+    let installed_package_install_root = runtime_dir.join("package");
+    validate_runtime_dependency_sentinels(
+        &bundled_package_install_root,
+        &installed_package_install_root,
+    )
+}
+
+fn runtime_installation_from_archive_is_complete(
+    manifest: &BundledOpenClawManifest,
+    install_dir: &Path,
+    manifest_path: &Path,
+    node_path: &Path,
+    cli_path: &Path,
+) -> Result<bool> {
+    if !(install_dir.exists() && node_path.exists() && cli_path.exists() && manifest_path.exists())
+    {
+        return Ok(false);
+    }
+
+    Ok(load_manifest(manifest_path)? == *manifest)
+}
+
+fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) -> Result<()> {
+    let extract_result = if cfg!(windows) {
+        extract_windows_bundled_runtime_archive(archive_path, destination_dir)
+    } else {
+        extract_unix_bundled_runtime_archive(archive_path, destination_dir)
+    };
+
+    extract_result
+}
+
+fn escape_powershell_literal(path: &Path) -> String {
+    path.to_string_lossy().replace('\'', "''")
+}
+
+fn extract_windows_bundled_runtime_archive(
+    archive_path: &Path,
+    destination_dir: &Path,
+) -> Result<()> {
+    let command = format!(
+        "$ErrorActionPreference = 'Stop'; Expand-Archive -Force -LiteralPath '{}' -DestinationPath '{}'",
+        escape_powershell_literal(archive_path),
+        escape_powershell_literal(destination_dir)
+    );
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &command])
+        .output()?;
+
+    if !output.status.success() {
+        return Err(FrameworkError::ProcessFailed {
+            command: "powershell Expand-Archive".to_string(),
+            exit_code: output.status.code(),
+            stderr_tail: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+fn extract_unix_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) -> Result<()> {
+    let output = Command::new("unzip")
+        .args([
+            "-qq",
+            archive_path.to_string_lossy().as_ref(),
+            "-d",
+            destination_dir.to_string_lossy().as_ref(),
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        return Err(FrameworkError::ProcessFailed {
+            command: "unzip -qq".to_string(),
+            exit_code: output.status.code(),
+            stderr_tail: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+fn validate_runtime_dependency_sentinels(
+    bundled_package_install_root: &Path,
+    installed_package_install_root: &Path,
+) -> Result<bool> {
+    for relative_sentinel_path in
+        collect_runtime_dependency_sentinel_paths(bundled_package_install_root)?
+    {
+        let bundled_sentinel_path = bundled_package_install_root.join(&relative_sentinel_path);
+        let installed_sentinel_path = installed_package_install_root.join(&relative_sentinel_path);
+
+        if !bundled_sentinel_path.exists() || !installed_sentinel_path.exists() {
+            return Ok(false);
+        }
+
+        let bundled_package_version = read_package_version(&bundled_sentinel_path)?;
+        let installed_package_version = read_package_version(&installed_sentinel_path)?;
+        if bundled_package_version != installed_package_version {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+fn collect_runtime_dependency_sentinel_paths(
+    bundled_package_install_root: &Path,
+) -> Result<Vec<PathBuf>> {
+    let bundled_openclaw_package_root = bundled_package_install_root
+        .join("node_modules")
+        .join("openclaw");
+    let openclaw_package_json_path = bundled_openclaw_package_root.join("package.json");
+    if !openclaw_package_json_path.exists() {
+        return Err(FrameworkError::NotFound(format!(
+            "bundled openclaw package.json not found: {}",
+            openclaw_package_json_path.display()
+        )));
+    }
+
+    let mut dependency_names =
+        collect_dependency_names_from_package_json(&openclaw_package_json_path)?;
+    let extensions_root = bundled_openclaw_package_root
+        .join("dist")
+        .join("extensions");
+    if extensions_root.exists() {
+        for entry in fs::read_dir(extensions_root)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+
+            let package_json_path = entry.path().join("package.json");
+            if !package_json_path.exists() {
+                continue;
+            }
+
+            dependency_names.extend(collect_dependency_names_from_package_json(
+                &package_json_path,
+            )?);
+        }
+    }
+
+    Ok(dependency_names
+        .into_iter()
+        .map(|package_name| package_dependency_sentinel_path(&package_name))
+        .collect())
+}
+
+fn collect_dependency_names_from_package_json(path: &Path) -> Result<BTreeSet<String>> {
+    let content = fs::read_to_string(path)?;
+    let package_json = serde_json::from_str::<Value>(&content)?;
+    let mut names = BTreeSet::new();
+
+    for field in ["dependencies", "optionalDependencies"] {
+        let Some(entries) = package_json.get(field).and_then(Value::as_object) else {
+            continue;
+        };
+
+        for name in entries.keys() {
+            let normalized = name.trim();
+            if normalized.is_empty() {
+                continue;
+            }
+            names.insert(normalized.to_string());
+        }
+    }
+
+    Ok(names)
+}
+
+fn package_dependency_sentinel_path(package_name: &str) -> PathBuf {
+    let mut relative_path = PathBuf::from("node_modules");
+    for segment in package_name.split('/') {
+        relative_path.push(segment);
+    }
+    relative_path.join("package.json")
+}
+
+fn read_package_version(path: &Path) -> Result<Option<String>> {
+    let content = fs::read_to_string(path)?;
+    let package_json = serde_json::from_str::<Value>(&content)?;
+    Ok(package_json
+        .get("version")
+        .and_then(Value::as_str)
+        .map(|value| value.to_string()))
+}
+
 fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawState> {
     fs::create_dir_all(&paths.openclaw_home_dir)?;
     fs::create_dir_all(&paths.openclaw_state_dir)?;
@@ -288,11 +574,7 @@ fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawStat
     set_nested_string(&mut config, &["gateway", "mode"], "local");
     set_nested_string(&mut config, &["gateway", "bind"], "loopback");
     let configured_port = get_nested_u16(&config, &["gateway", "port"]).filter(|port| *port > 0);
-    let gateway_port = match configured_port {
-        Some(port) if is_loopback_port_available(port) => port,
-        Some(port) => find_available_gateway_port(port)?,
-        None => find_available_gateway_port(DEFAULT_GATEWAY_PORT)?,
-    };
+    let gateway_port = allocate_gateway_port(configured_port.unwrap_or(DEFAULT_GATEWAY_PORT))?;
     let gateway_auth_token = get_nested_string(&config, &["gateway", "auth", "token"])
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(generate_gateway_auth_token);
@@ -303,6 +585,7 @@ fn ensure_managed_openclaw_state(paths: &AppPaths) -> Result<ManagedOpenClawStat
         &["gateway", "auth", "token"],
         gateway_auth_token.as_str(),
     );
+    ensure_managed_control_ui_allowed_origins(&mut config);
     ensure_nested_string_array_contains(&mut config, &["gateway", "tools", "allow"], "cron");
     set_nested_string(
         &mut config,
@@ -364,6 +647,16 @@ fn sanitize_legacy_provider_runtime_config(config: &mut Value) {
         for key in LEGACY_PROVIDER_RUNTIME_CONFIG_KEYS {
             provider_root.remove(key);
         }
+    }
+}
+
+fn ensure_managed_control_ui_allowed_origins(config: &mut Value) {
+    for origin in TAURI_CONTROL_UI_ALLOWED_ORIGINS {
+        ensure_nested_string_array_contains(
+            config,
+            &["gateway", "controlUi", "allowedOrigins"],
+            origin,
+        );
     }
 }
 
@@ -514,32 +807,21 @@ fn unix_timestamp_ms() -> Result<u128> {
         .as_millis())
 }
 
-fn find_available_gateway_port(preferred_port: u16) -> Result<u16> {
-    for candidate in preferred_port..preferred_port.saturating_add(32) {
-        if is_loopback_port_available(candidate) {
-            return Ok(candidate);
-        }
-    }
-
-    reserve_any_loopback_port().ok_or_else(|| {
-        FrameworkError::Conflict(
-            "failed to reserve an available loopback port for the bundled openclaw gateway"
-                .to_string(),
-        )
+fn allocate_gateway_port(requested_port: u16) -> Result<u16> {
+    let allocation = allocate_tcp_listener(PortAllocationRequest {
+        bind_host: "127.0.0.1".to_string(),
+        requested_port,
+        fallback_range: Some(PortRange::new(
+            requested_port,
+            requested_port.saturating_add(31),
+        )),
+        allow_ephemeral_fallback: true,
     })
-}
+    .map_err(FrameworkError::Conflict)?;
 
-fn is_loopback_port_available(port: u16) -> bool {
-    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    TcpListener::bind(address).is_ok()
-}
-
-fn reserve_any_loopback_port() -> Option<u16> {
-    TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
-        .ok()?
-        .local_addr()
-        .ok()
-        .map(|address| address.port())
+    let active_port = allocation.active_port;
+    drop(allocation.into_listener());
+    Ok(active_port)
 }
 
 #[cfg(test)]
@@ -547,7 +829,8 @@ mod tests {
     use super::{
         normalized_target_arch, normalized_target_platform, resolve_bundled_resource_root,
         resolve_bundled_resource_root_with_manifest_dir, BundledOpenClawManifest,
-        OpenClawRuntimeService, DEFAULT_GATEWAY_PORT, OPENCLAW_RUNTIME_ID,
+        OpenClawRuntimeService, BUNDLED_RUNTIME_ARCHIVE_FILE_NAME, DEFAULT_GATEWAY_PORT,
+        OPENCLAW_RUNTIME_ID, TAURI_CONTROL_UI_ALLOWED_ORIGINS,
     };
     use crate::framework::{layout::ActiveState, paths::resolve_paths_for_root};
     use serde_json::Value;
@@ -634,6 +917,13 @@ mod tests {
             .is_some_and(|token| !token.trim().is_empty()));
         assert_eq!(
             config
+                .pointer("/gateway/controlUi/allowedOrigins")
+                .and_then(Value::as_array)
+                .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>()),
+            Some(TAURI_CONTROL_UI_ALLOWED_ORIGINS.to_vec())
+        );
+        assert_eq!(
+            config
                 .pointer("/gateway/tools/allow")
                 .and_then(Value::as_array)
                 .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>()),
@@ -682,6 +972,110 @@ mod tests {
     }
 
     #[test]
+    fn reinstalls_existing_install_when_a_root_runtime_dependency_is_missing() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        let first = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("first activation");
+        let sentinel = first.install_dir.join("sentinel.txt");
+        fs::write(&sentinel, "stale").expect("sentinel");
+
+        fs::remove_file(
+            first
+                .install_dir
+                .join("runtime")
+                .join("package")
+                .join("node_modules")
+                .join("@buape")
+                .join("carbon")
+                .join("package.json"),
+        )
+        .expect("remove root dependency sentinel");
+
+        let second = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("second activation");
+
+        assert!(second
+            .install_dir
+            .join("runtime")
+            .join("package")
+            .join("node_modules")
+            .join("@buape")
+            .join("carbon")
+            .join("package.json")
+            .exists());
+        assert!(!sentinel.exists());
+    }
+
+    #[test]
+    fn reinstalls_existing_install_when_a_bundled_plugin_runtime_dependency_is_missing() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        let first = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("first activation");
+        let sentinel = first.install_dir.join("sentinel.txt");
+        fs::write(&sentinel, "stale").expect("sentinel");
+
+        fs::remove_file(
+            first
+                .install_dir
+                .join("runtime")
+                .join("package")
+                .join("node_modules")
+                .join("@aws-sdk")
+                .join("client-bedrock")
+                .join("package.json"),
+        )
+        .expect("remove bundled plugin dependency sentinel");
+
+        let second = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("second activation");
+
+        assert!(second
+            .install_dir
+            .join("runtime")
+            .join("package")
+            .join("node_modules")
+            .join("@aws-sdk")
+            .join("client-bedrock")
+            .join("package.json")
+            .exists());
+        assert!(!sentinel.exists());
+    }
+
+    #[test]
+    fn installs_bundled_runtime_from_runtime_archive_bridge() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_archived_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activate archived runtime");
+
+        assert!(activated.node_path.exists());
+        assert!(activated.cli_path.exists());
+        assert!(
+            activated.install_dir.join("manifest.json").exists(),
+            "archived bundled runtime install should restore manifest.json",
+        );
+    }
+
+    #[test]
     fn rejects_bundled_runtime_for_a_different_target() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
@@ -711,10 +1105,7 @@ mod tests {
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let service = OpenClawRuntimeService::new();
-        let busy_port = super::find_available_gateway_port(DEFAULT_GATEWAY_PORT)
-            .expect("available busy-port candidate");
-        let busy_listener = std::net::TcpListener::bind(("127.0.0.1", busy_port))
-            .expect("busy gateway port listener");
+        let (busy_port, occupied_ports) = reserve_contiguous_port_window(1);
 
         fs::write(
             &paths.openclaw_config_file,
@@ -726,7 +1117,7 @@ mod tests {
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("activated runtime");
 
-        drop(busy_listener);
+        drop(occupied_ports);
 
         assert_ne!(activated.gateway_port, busy_port);
 
@@ -856,6 +1247,55 @@ mod tests {
                 .and_then(Value::as_bool),
             Some(false)
         );
+        assert_eq!(
+            config
+                .pointer("/gateway/controlUi/allowedOrigins")
+                .and_then(Value::as_array)
+                .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>()),
+            Some(TAURI_CONTROL_UI_ALLOWED_ORIGINS.to_vec())
+        );
+    }
+
+    #[test]
+    fn preserves_existing_control_ui_origins_while_appending_tauri_webview_origins() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+
+        fs::write(
+            &paths.openclaw_config_file,
+            r#"{
+  gateway: {
+    controlUi: {
+      allowedOrigins: ["https://control.example.com"],
+    },
+  },
+}
+"#,
+        )
+        .expect("seed config file");
+
+        service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activated runtime");
+
+        let config = serde_json::from_str::<Value>(
+            &fs::read_to_string(&paths.openclaw_config_file).expect("config file"),
+        )
+        .expect("config json");
+        assert_eq!(
+            config
+                .pointer("/gateway/controlUi/allowedOrigins")
+                .and_then(Value::as_array)
+                .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>()),
+            Some(
+                std::iter::once("https://control.example.com")
+                    .chain(TAURI_CONTROL_UI_ALLOWED_ORIGINS)
+                    .collect::<Vec<_>>()
+            )
+        );
     }
 
     #[test]
@@ -920,10 +1360,7 @@ mod tests {
         let activated = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect("activated runtime");
-        let busy_port = super::find_available_gateway_port(DEFAULT_GATEWAY_PORT)
-            .expect("available busy-port candidate");
-        let busy_listener = std::net::TcpListener::bind(("127.0.0.1", busy_port))
-            .expect("busy gateway port listener");
+        let (busy_port, occupied_ports) = reserve_contiguous_port_window(1);
 
         fs::write(
             &paths.openclaw_config_file,
@@ -935,7 +1372,7 @@ mod tests {
             .refresh_configured_runtime(&paths, &activated)
             .expect("refreshed runtime");
 
-        drop(busy_listener);
+        drop(occupied_ports);
 
         assert_ne!(refreshed.gateway_port, busy_port);
         let config = serde_json::from_str::<Value>(
@@ -986,6 +1423,16 @@ mod tests {
         )
     }
 
+    fn create_archived_bundled_runtime_fixture(
+        root: &std::path::Path,
+        version: &str,
+    ) -> std::path::PathBuf {
+        let resource_root = create_bundled_runtime_fixture(root, version);
+        create_test_runtime_archive(&resource_root);
+        std::fs::remove_dir_all(resource_root.join("runtime")).expect("remove runtime dir");
+        resource_root
+    }
+
     fn create_bundled_runtime_fixture_for_target(
         root: &std::path::Path,
         version: &str,
@@ -1007,6 +1454,101 @@ mod tests {
         fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
         fs::write(&node_path, "node").expect("node file");
         fs::write(&cli_path, "console.log('openclaw');").expect("cli file");
+        let openclaw_package_json_path = resource_root
+            .join("runtime")
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("package.json");
+        let bundled_plugin_package_json_path = resource_root
+            .join("runtime")
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("dist")
+            .join("extensions")
+            .join("amazon-bedrock")
+            .join("package.json");
+        let carbon_package_json_path = resource_root
+            .join("runtime")
+            .join("package")
+            .join("node_modules")
+            .join("@buape")
+            .join("carbon")
+            .join("package.json");
+        let client_bedrock_package_json_path = resource_root
+            .join("runtime")
+            .join("package")
+            .join("node_modules")
+            .join("@aws-sdk")
+            .join("client-bedrock")
+            .join("package.json");
+        fs::create_dir_all(
+            openclaw_package_json_path
+                .parent()
+                .expect("openclaw package json parent"),
+        )
+        .expect("openclaw package dir");
+        fs::create_dir_all(
+            bundled_plugin_package_json_path
+                .parent()
+                .expect("bundled plugin package json parent"),
+        )
+        .expect("bundled plugin package dir");
+        fs::create_dir_all(
+            carbon_package_json_path
+                .parent()
+                .expect("carbon package json parent"),
+        )
+        .expect("carbon package dir");
+        fs::create_dir_all(
+            client_bedrock_package_json_path
+                .parent()
+                .expect("client bedrock package json parent"),
+        )
+        .expect("client bedrock package dir");
+        fs::write(
+            &openclaw_package_json_path,
+            r#"{
+  "name": "openclaw",
+  "version": "2026.4.2",
+  "dependencies": {
+    "@buape/carbon": "0.0.0-beta-20260327000044"
+  }
+}
+"#,
+        )
+        .expect("openclaw package json");
+        fs::write(
+            &bundled_plugin_package_json_path,
+            r#"{
+  "name": "@openclaw/amazon-bedrock-provider",
+  "version": "2026.4.2-beta.1",
+  "dependencies": {
+    "@aws-sdk/client-bedrock": "3.1020.0"
+  }
+}
+"#,
+        )
+        .expect("bundled plugin package json");
+        fs::write(
+            &carbon_package_json_path,
+            r#"{
+  "name": "@buape/carbon",
+  "version": "0.0.0-beta-20260327000044"
+}
+"#,
+        )
+        .expect("carbon package json");
+        fs::write(
+            &client_bedrock_package_json_path,
+            r#"{
+  "name": "@aws-sdk/client-bedrock",
+  "version": "3.1020.0"
+}
+"#,
+        )
+        .expect("client-bedrock package json");
         assert!(runtime_root.exists());
 
         let manifest = BundledOpenClawManifest {
@@ -1027,6 +1569,44 @@ mod tests {
         .expect("manifest file");
 
         resource_root
+    }
+
+    fn create_test_runtime_archive(resource_root: &std::path::Path) {
+        let archive_path = resource_root.join(BUNDLED_RUNTIME_ARCHIVE_FILE_NAME);
+
+        if cfg!(windows) {
+            let command = format!(
+                "$ErrorActionPreference = 'Stop'; if (Test-Path -LiteralPath '{destination}') {{ Remove-Item -LiteralPath '{destination}' -Force }}; Compress-Archive -Path 'runtime' -DestinationPath '{destination}' -Force",
+                destination = archive_path.to_string_lossy().replace('\'', "''"),
+            );
+            let output = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-Command", &command])
+                .current_dir(resource_root)
+                .output()
+                .expect("create windows runtime archive");
+            assert!(
+                output.status.success(),
+                "windows runtime archive creation failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+
+        let output = std::process::Command::new("zip")
+            .args([
+                "-q",
+                "-r",
+                archive_path.to_string_lossy().as_ref(),
+                "runtime",
+            ])
+            .current_dir(resource_root)
+            .output()
+            .expect("create unix runtime archive");
+        assert!(
+            output.status.success(),
+            "unix runtime archive creation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     fn reserve_contiguous_port_window(size: u16) -> (u16, Vec<std::net::TcpListener>) {

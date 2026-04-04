@@ -3,10 +3,7 @@ use crate::{
     state::AppState,
 };
 
-pub fn read_text_file_for_user_tooling_at(
-    state: &AppState,
-    path: &str,
-) -> FrameworkResult<String> {
+pub fn read_text_file_for_user_tooling_at(state: &AppState, path: &str) -> FrameworkResult<String> {
     state
         .context
         .services

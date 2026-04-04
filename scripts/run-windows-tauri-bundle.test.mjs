@@ -100,7 +100,7 @@ assert.deepEqual(
 
 const replacements = bundleModule.createWindowsNsisSourceReplacements(syntheticWorkspaceRoot);
 
-assert.equal(replacements.length, 4);
+assert.equal(replacements.length, 6);
 assert.deepEqual(replacements.slice(0, 3), [
   {
     from:
@@ -121,6 +121,16 @@ assert.deepEqual(replacements.slice(0, 3), [
 assert.deepEqual(replacements.slice(3), [
   {
     from:
+      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\dist\\',
+    to: 'D:\\.sdkwork-bc\\claw-studio\\web-dist\\',
+  },
+  {
+    from:
+      'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\w\\',
+    to: 'D:\\.sdkwork-bc\\claw-studio\\web-dist\\',
+  },
+  {
+    from:
       'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\o\\',
     to: 'D:\\.sdkwork-bc\\claw-studio\\openclaw\\',
   },
@@ -130,6 +140,8 @@ const sampleInstaller = [
   'File /a "/oname=generated\\\\bundled\\\\bundle-manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\bundled\\foundation\\components\\bundle-manifest.json"',
   'File /a "/oname=generated\\\\bundled\\\\bundle-manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\b\\foundation\\components\\bundle-manifest.json"',
   'File /a "/oname=resources\\\\openclaw\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw\\manifest.json"',
+  'File /a "/oname=dist\\\\index.html" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\dist\\index.html"',
+  'File /a "/oname=dist\\\\index.html" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\w\\index.html"',
   'File /a "/oname=resources\\\\openclaw\\\\manifest.json" "D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\generated\\br\\o\\manifest.json"',
 ].join('\n');
 
@@ -141,15 +153,19 @@ const preparedInstaller = bundleModule.prepareWindowsNsisRetryScript({
 });
 
 assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\bundled\\/);
+assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\web-dist\\/);
 assert.match(rewrittenInstaller, /D:\\\.sdkwork-bc\\claw-studio\\openclaw\\/);
 assert.doesNotMatch(rewrittenInstaller, /generated\\bundled\\\\/);
+assert.doesNotMatch(rewrittenInstaller, /generated\\br\\w\\\\/);
 assert.doesNotMatch(rewrittenInstaller, /generated\\br\\[bo]\\\\/);
 assert.doesNotMatch(rewrittenInstaller, /resources\\openclaw\\\\/);
+assert.doesNotMatch(rewrittenInstaller, /packages\\sdkwork-claw-desktop\\dist\\\\/);
 assert.match(
   preparedInstaller,
   /!define OUTFILE "D:\\release\\Claw Studio_0\.1\.0_x64-setup\.exe"/,
 );
 assert.match(preparedInstaller, /D:\\\.sdkwork-bc\\claw-studio\\bundled\\/);
+assert.match(preparedInstaller, /D:\\\.sdkwork-bc\\claw-studio\\web-dist\\/);
 assert.doesNotMatch(preparedInstaller, /!define OUTFILE "nsis-output\.exe"/);
 
 console.log('ok - windows tauri bundle fallback rewrites long NSIS sources to short absolute sources');

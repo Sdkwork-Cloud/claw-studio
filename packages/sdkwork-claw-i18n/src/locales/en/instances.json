@@ -290,6 +290,7 @@
         "files": "Files",
         "memory": "Memory",
         "tools": "Tools",
+        "config": "Config",
         "itemDescriptions": {
           "overview": "Runtime identity, connectivity, storage, and diagnostics",
           "channels": "Delivery routes and operator notifications",
@@ -299,7 +300,8 @@
           "skills": "Installed runtime capabilities",
           "files": "Config, prompts, logs, and artifacts",
           "memory": "Pinned context and retained knowledge",
-          "tools": "Callable runtime tools and controls"
+          "tools": "Callable runtime tools and controls",
+          "config": "openclaw.json defaults, grouped controls, and raw file view"
         }
       },
       "sections": {
@@ -340,6 +342,117 @@
         "tools": {
           "title": "Tools",
           "description": "Inspect callable tools, execution privileges, and high-impact runtime controls."
+        },
+        "config": {
+          "title": "Config",
+          "description": "Inspect the attached openclaw.json, grouped defaults, and config-backed OpenClaw controls."
+        }
+      },
+      "config": {
+        "hero": {
+          "eyebrow": "Config-backed OpenClaw",
+          "title": "openclaw.json Workbench",
+          "description": "Review the attached OpenClaw config the same way Control UI thinks about it: structured summaries first, raw document when you need the source of truth.",
+          "writable": "Writable",
+          "readonly": "Read Only"
+        },
+        "tabs": {
+          "overview": "Overview",
+          "providers": "AI & Agents",
+          "tools": "Channels",
+          "agents": "Runtime",
+          "raw": "Raw"
+        },
+        "overview": {
+          "providers": "Providers",
+          "agents": "Agents",
+          "channels": "Channels",
+          "sections": "Sections",
+          "rawLines": "Raw Lines",
+          "rawLinesDetail": "{{count}} raw lines",
+          "defaultsTitle": "Defaults & Routing",
+          "documentTitle": "Document State",
+          "coordinationTitle": "Coordination",
+          "defaultAgent": "Default Agent",
+          "defaultModel": "Default Model",
+          "sessionsVisibility": "Session Visibility",
+          "agentToAgent": "Agent-to-Agent",
+          "allowList": "Allow List",
+          "managedFile": "Config Access",
+          "rawStatus": "Draft Validity",
+          "parseReady": "Ready",
+          "parseInvalid": "Invalid Draft",
+          "customSections": "Custom Sections",
+          "groupsTitle": "Config Domains",
+          "groupsDescription": "Top-level config keys are bucketed into the same domain model Control UI uses so you can scan the file before dropping into raw editing.",
+          "none": "None",
+          "notConfigured": "Not configured"
+        },
+        "providers": {
+          "sectionsTitle": "Structured AI Config",
+          "sectionsDescription": "These top-level sections shape model routing, agents, skills, and other AI-facing defaults inside openclaw.json."
+        },
+        "tools": {
+          "channelsTitle": "Channels",
+          "webSearchTitle": "Web Search",
+          "authCooldownsTitle": "Auth Cooldowns",
+          "sessionControlsTitle": "Session & Delegation",
+          "sectionsTitle": "Structured Channel Config",
+          "sectionsDescription": "Communication-facing sections from openclaw.json are surfaced here so delivery routes and message surfaces stay easy to audit.",
+          "total": "Total",
+          "connected": "Connected",
+          "enabled": "Enabled",
+          "configured": "Configured",
+          "activeProvider": "Active Provider",
+          "timeout": "Timeout"
+        },
+        "runtime": {
+          "sectionsTitle": "Structured Runtime Config",
+          "sectionsDescription": "Core, automation, infrastructure, appearance, and custom top-level sections are grouped here as runtime-facing configuration.",
+          "parseStatus": "Draft Validity"
+        },
+        "groups": {
+          "core": "Core",
+          "ai": "AI & Agents",
+          "communication": "Communication",
+          "automation": "Automation",
+          "infrastructure": "Infrastructure",
+          "appearance": "Appearance",
+          "other": "Custom"
+        },
+        "sections": {
+          "kind": {
+            "object": "Object",
+            "array": "Array",
+            "scalar": "Scalar"
+          },
+          "entries": "{{count}} entries"
+        },
+        "raw": {
+          "title": "Raw openclaw.json",
+          "reload": "Reload",
+          "revert": "Revert",
+          "save": "Save",
+          "saving": "Saving...",
+          "loading": "Loading config document...",
+          "loadFailed": "Failed to load openclaw.json.",
+          "saved": "openclaw.json saved.",
+          "saveFailed": "Failed to save openclaw.json.",
+          "invalidDraft": "The current draft is not valid JSON5",
+          "readonlyNotice": "This config attachment is currently read-only, so the raw editor stays in preview mode.",
+          "unsaved": "You have unsaved raw config changes.",
+          "dirtyShort": "Dirty",
+          "lines": "Lines: {{count}}",
+          "characters": "Chars: {{count}}",
+          "sections": "Sections: {{count}}"
+        },
+        "empty": {
+          "channels": "No channels are defined in the attached openclaw.json.",
+          "providers": "No providers are defined in the attached openclaw.json.",
+          "agents": "No agents are defined in the attached openclaw.json.",
+          "aiSections": "No AI-facing top-level sections were detected in the current openclaw.json draft.",
+          "communicationSections": "No communication-facing top-level sections were detected in the current openclaw.json draft.",
+          "runtimeSections": "No runtime-facing top-level sections were detected in the current openclaw.json draft."
         }
       },
       "webSearch": {
@@ -758,7 +871,8 @@
         "skills": "No skills are installed on this instance yet.",
         "files": "No runtime files are available for this instance.",
         "memory": "No retained memory entries are available for this instance.",
-        "tools": "No callable tools are currently exposed by this instance."
+        "tools": "No callable tools are currently exposed by this instance.",
+        "config": "No attached openclaw.json is available for this instance."
       },
       "fileStatus": {
         "synced": "Synced",

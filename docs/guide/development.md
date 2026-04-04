@@ -66,6 +66,7 @@ Feature-local pages, components, and services belong in their own package. Promo
 - update `README.md` or `README.zh-CN.md` for repository entry changes
 - update pages in `docs/` for public documentation changes
 - keep `docs/plans/` for internal design and implementation plans
+- keep public API and deployment guidance aligned with [API Overview](/reference/api-reference), [Application Modes](/guide/application-modes), and [Install And Deploy](/guide/install-and-deploy)
 
 ## Before Opening A Pull Request
 

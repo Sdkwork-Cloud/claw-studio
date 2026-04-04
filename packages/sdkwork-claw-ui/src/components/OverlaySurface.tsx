@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import {
-  APP_HEADER_HEIGHT_PX,
   getOverlayContainerClassName,
   getOverlayContainerStyle,
   getOverlaySurfaceStyle,
@@ -64,20 +63,15 @@ export function OverlaySurface({
     <AnimatePresence>
       {isOpen ? (
         <div className="fixed inset-0 z-[120]">
-          <div
-            className="absolute inset-x-0 top-0"
-            style={{ height: `${APP_HEADER_HEIGHT_PX}px` }}
-          />
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
             className={cn(
-              'absolute inset-x-0 bottom-0 top-12 bg-zinc-950/45 backdrop-blur-sm',
+              'absolute inset-0 bg-zinc-950/45 backdrop-blur-sm',
               backdropClassName,
             )}
-            onClick={closeOnBackdrop ? onClose : undefined}
           />
           <div
             className={cn(
@@ -85,6 +79,7 @@ export function OverlaySurface({
               getOverlayContainerClassName(variant, modalAlignment, drawerSide),
             )}
             style={getOverlayContainerStyle()}
+            onClick={closeOnBackdrop ? onClose : undefined}
           >
             <motion.div
               {...surfaceMotion}
@@ -102,6 +97,7 @@ export function OverlaySurface({
                   : 'max-w-md rounded-[28px]',
                 className,
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               {children}
             </motion.div>

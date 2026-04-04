@@ -21,6 +21,8 @@ function runTest(name: string, fn: () => void) {
 runTest('sdkwork-claw-shell exposes a theme-aware global scrollbar system', () => {
   const stylesSource = read('packages/sdkwork-claw-shell/src/styles/index.css');
 
+  assert.match(stylesSource, /@source\s+"\.\.\/\.\.\/\.\.\/";/);
+  assert.doesNotMatch(stylesSource, /@source\s+"\.\.\/\.\.\/\.\.\/\.\.\/";/);
   assert.match(stylesSource, /--scrollbar-size:/);
   assert.match(stylesSource, /--scrollbar-track:/);
   assert.match(stylesSource, /--scrollbar-thumb:/);

@@ -468,7 +468,7 @@ export function buildCommunityRecommendations(
     })
     .filter(
       (item): item is CommunityCompanyRecommendation =>
-        Boolean(item) && item.score > 0 && item.reasons.length > 0,
+        item !== null && item.score > 0 && item.reasons.length > 0,
     )
     .sort((left, right) => {
       if (right.score !== left.score) {

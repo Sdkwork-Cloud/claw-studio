@@ -198,7 +198,8 @@ function createKernelStatus(callId: number) {
       serviceManager: 'tauriSupervisor',
       ownership: 'appSupervisor',
       serviceName: 'ClawStudioOpenClawKernel',
-      serviceConfigPath: 'C:/ProgramData/SdkWork/ClawStudio/kernel/service.json',
+      serviceConfigPath:
+        'C:/ProgramData/SdkWork/CrawStudio/machine/state/kernel-host/windows-service.json',
       startupMode: 'auto',
       attachSupported: true,
       repairSupported: true,
@@ -212,9 +213,10 @@ function createKernelStatus(callId: number) {
       platform: 'windows',
       arch: 'x64',
       installSource: 'bundled',
-      configPath: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home/.openclaw/openclaw.json',
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home',
-      runtimeInstallDir: 'C:/ProgramData/SdkWork/ClawStudio/runtime/openclaw',
+      configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+      runtimeInstallDir:
+        `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/install-${callId}`,
     },
   } as const;
 }
@@ -250,7 +252,7 @@ function createInstallAssessment(callId: number) {
       wslAvailable: false,
       hostDockerAvailable: false,
       wslDockerAvailable: false,
-      runtimeHomeDir: 'C:/Users/admin/.sdkwork/claw-studio/openclaw-home',
+      runtimeHomeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
       commandAvailability: {},
     },
   } as any;
@@ -554,6 +556,31 @@ await runTest('server browser bridge installs live manage and internal clients w
             rolloutEngineVersion: 'phase2',
             manageBasePath: '/claw/manage/v1',
             internalBasePath: '/claw/internal/v1',
+            stateStoreDriver: 'json-file',
+            stateStore: {
+              activeProfileId: 'default-json-file',
+              providers: [
+                {
+                  id: 'json-file',
+                  label: 'JSON File Catalogs',
+                  availability: 'ready',
+                  requiresConfiguration: false,
+                  configurationKeys: [],
+                },
+              ],
+              profiles: [
+                {
+                  id: 'default-json-file',
+                  label: 'JSON File Catalogs',
+                  driver: 'json-file',
+                  active: true,
+                  availability: 'ready',
+                  path: '.claw-server',
+                  connectionConfigured: false,
+                  configuredKeys: ['path'],
+                },
+              ],
+            },
             capabilityKeys: ['manage.rollouts.list'],
             updatedAt: 1,
           }) as Response;
@@ -590,6 +617,8 @@ await runTest('server browser bridge installs live manage and internal clients w
 
     assert.equal(status.mode, 'server');
     assert.equal(status.manageBasePath, '/claw/manage/v1');
+    assert.equal(status.stateStoreDriver, 'json-file');
+    assert.equal(status.stateStore.activeProfileId, 'default-json-file');
     assert.deepEqual(sessions, []);
     assert.equal(rollouts.total, 1);
     assert.deepEqual(requests, [
@@ -606,6 +635,179 @@ await runTest('server browser bridge installs live manage and internal clients w
         method: 'GET',
       },
     ]);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('server browser bridge also installs live manage and internal clients when desktopCombined metadata is present', async () => {
+  const originalBridge = getPlatformBridge();
+  const requests: Array<{ input: string; method: string }> = [];
+
+  try {
+    const configured = configureServerBrowserPlatformBridge({
+      document: createMetaDocument({
+        'sdkwork-claw-host-mode': 'desktopCombined',
+        'sdkwork-claw-manage-base-path': '/claw/manage/v1',
+        'sdkwork-claw-internal-base-path': '/claw/internal/v1',
+      }) as Document,
+      fetchImpl: async (input, init) => {
+        const inputText = String(input);
+        requests.push({
+          input: inputText,
+          method: init?.method ?? 'GET',
+        });
+
+        if (inputText === '/claw/internal/v1/host-platform') {
+          return createJsonResponse({
+            mode: 'desktopCombined',
+            lifecycle: 'ready',
+            hostId: 'desktop-local',
+            displayName: 'Desktop Combined Host',
+            version: 'sdkwork-claw-desktop@test',
+            desiredStateProjectionVersion: 'phase2',
+            rolloutEngineVersion: 'phase2',
+            manageBasePath: '/claw/manage/v1',
+            internalBasePath: '/claw/internal/v1',
+            stateStoreDriver: 'sqlite',
+            stateStore: {
+              activeProfileId: 'default-sqlite',
+              providers: [
+                {
+                  id: 'sqlite',
+                  label: 'SQLite Host State',
+                  availability: 'ready',
+                  requiresConfiguration: false,
+                  configurationKeys: [],
+                },
+              ],
+              profiles: [
+                {
+                  id: 'default-sqlite',
+                  label: 'SQLite Host State',
+                  driver: 'sqlite',
+                  active: true,
+                  availability: 'ready',
+                  path: 'desktop-state.sqlite3',
+                  connectionConfigured: false,
+                  configuredKeys: ['path'],
+                },
+              ],
+            },
+            capabilityKeys: ['manage.rollouts.list'],
+            updatedAt: 1,
+          }) as Response;
+        }
+
+        if (inputText === '/claw/internal/v1/node-sessions') {
+          return createJsonResponse([]) as Response;
+        }
+
+        if (inputText === '/claw/manage/v1/rollouts') {
+          return createJsonResponse({
+            items: [
+              {
+                id: 'rollout-desktop-a',
+                phase: 'ready',
+                attempt: 1,
+                targetCount: 1,
+                updatedAt: 1,
+              },
+            ],
+            total: 1,
+          }) as Response;
+        }
+
+        throw new Error(`unexpected fetch input: ${inputText}`);
+      },
+    });
+
+    assert.equal(configured, true);
+
+    const status = await internal.getHostPlatformStatus();
+    const sessions = await internal.listNodeSessions();
+    const rollouts = await manage.listRollouts();
+
+    assert.equal(status.mode, 'desktopCombined');
+    assert.equal(status.manageBasePath, '/claw/manage/v1');
+    assert.equal(status.stateStoreDriver, 'sqlite');
+    assert.equal(status.stateStore.activeProfileId, 'default-sqlite');
+    assert.deepEqual(sessions, []);
+    assert.equal(rollouts.total, 1);
+    assert.deepEqual(requests, [
+      {
+        input: '/claw/internal/v1/host-platform',
+        method: 'GET',
+      },
+      {
+        input: '/claw/internal/v1/node-sessions',
+        method: 'GET',
+      },
+      {
+        input: '/claw/manage/v1/rollouts',
+        method: 'GET',
+      },
+    ]);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('server browser bridge also installs hosted-browser runtime startup metadata for server mode', async () => {
+  const originalBridge = getPlatformBridge();
+
+  try {
+    const configured = configureServerBrowserPlatformBridge({
+      document: createMetaDocument({
+        'sdkwork-claw-host-mode': 'server',
+        'sdkwork-claw-manage-base-path': '/claw/manage/v1',
+        'sdkwork-claw-internal-base-path': '/claw/internal/v1',
+      }) as Document,
+      browserBaseUrl: 'http://127.0.0.1:18797',
+    });
+
+    assert.equal(configured, true);
+
+    const runtimeInfo = await runtime.getRuntimeInfo();
+
+    assert.equal(runtimeInfo.platform, 'web');
+    assert.equal(runtimeInfo.startup?.hostMode, 'server');
+    assert.equal(runtimeInfo.startup?.packageFamily, 'server');
+    assert.equal(runtimeInfo.startup?.startupTarget, 'server');
+    assert.equal(runtimeInfo.startup?.hostedBrowser, true);
+    assert.equal(runtimeInfo.startup?.manageBasePath, '/claw/manage/v1');
+    assert.equal(runtimeInfo.startup?.internalBasePath, '/claw/internal/v1');
+    assert.equal(runtimeInfo.startup?.browserBaseUrl, 'http://127.0.0.1:18797');
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('server browser bridge also installs hosted-browser runtime startup metadata for desktopCombined mode', async () => {
+  const originalBridge = getPlatformBridge();
+
+  try {
+    const configured = configureServerBrowserPlatformBridge({
+      document: createMetaDocument({
+        'sdkwork-claw-host-mode': 'desktopCombined',
+        'sdkwork-claw-manage-base-path': '/claw/manage/v1',
+        'sdkwork-claw-internal-base-path': '/claw/internal/v1',
+      }) as Document,
+      browserBaseUrl: 'http://127.0.0.1:19876',
+    });
+
+    assert.equal(configured, true);
+
+    const runtimeInfo = await runtime.getRuntimeInfo();
+
+    assert.equal(runtimeInfo.platform, 'web');
+    assert.equal(runtimeInfo.startup?.hostMode, 'desktopCombined');
+    assert.equal(runtimeInfo.startup?.packageFamily, 'desktop');
+    assert.equal(runtimeInfo.startup?.startupTarget, 'desktop');
+    assert.equal(runtimeInfo.startup?.hostedBrowser, true);
+    assert.equal(runtimeInfo.startup?.manageBasePath, '/claw/manage/v1');
+    assert.equal(runtimeInfo.startup?.internalBasePath, '/claw/internal/v1');
+    assert.equal(runtimeInfo.startup?.browserBaseUrl, 'http://127.0.0.1:19876');
   } finally {
     configurePlatformBridge(originalBridge);
   }
@@ -628,8 +830,37 @@ await runTest('server browser bridge keeps the default mock bridge when server m
     const rollouts = await manage.listRollouts();
 
     assert.equal(status.mode, 'web');
+    assert.equal(status.stateStore.activeProfileId, 'web-preview');
+    assert.deepEqual(status.stateStore.providers, []);
     assert.equal(rollouts.total, 0);
   } finally {
     configurePlatformBridge(originalBridge);
   }
+});
+
+await runTest('default platform bridge freezes startup context and canonical host-manage placeholders', async () => {
+  const runtimeInfo = await runtime.getRuntimeInfo();
+
+  assert.equal(runtimeInfo.startup?.hostMode, 'web');
+  assert.equal(runtimeInfo.startup?.packageFamily, 'web');
+  assert.equal(runtimeInfo.startup?.startupTarget, 'web');
+  await assert.rejects(
+    async () => manage.getHostEndpoints(),
+    /Manage host endpoints are not available/,
+  );
+  await assert.rejects(
+    async () => manage.getOpenClawRuntime(),
+    /Manage OpenClaw runtime is not available/,
+  );
+  await assert.rejects(
+    async () => manage.getOpenClawGateway(),
+    /Manage OpenClaw gateway is not available/,
+  );
+  await assert.rejects(
+    async () =>
+      manage.invokeOpenClawGateway({
+        tool: 'gateway',
+      }),
+    /Manage OpenClaw gateway invoke is not available/,
+  );
 });

@@ -17,7 +17,7 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
 await runTest('shouldLoadChatSkills only hydrates the skill catalog when the selector is in play', () => {
   assert.equal(
     shouldLoadChatSkills({
-      showSkillDropdown: false,
+      isSessionContextDrawerOpen: false,
       selectedSkillId: null,
     }),
     false,
@@ -25,7 +25,7 @@ await runTest('shouldLoadChatSkills only hydrates the skill catalog when the sel
 
   assert.equal(
     shouldLoadChatSkills({
-      showSkillDropdown: true,
+      isSessionContextDrawerOpen: true,
       selectedSkillId: null,
     }),
     true,
@@ -33,7 +33,7 @@ await runTest('shouldLoadChatSkills only hydrates the skill catalog when the sel
 
   assert.equal(
     shouldLoadChatSkills({
-      showSkillDropdown: false,
+      isSessionContextDrawerOpen: false,
       selectedSkillId: 'skill-1',
     }),
     true,
@@ -45,7 +45,7 @@ await runTest('shouldLoadChatDirectAgents skips the direct-agent catalog for ope
     shouldLoadChatDirectAgents({
       activeInstanceId: 'instance-1',
       isOpenClawGateway: true,
-      showAgentDropdown: true,
+      isSessionContextDrawerOpen: true,
       selectedAgentId: 'agent-1',
     }),
     false,
@@ -57,7 +57,7 @@ await runTest('shouldLoadChatDirectAgents hydrates direct agents only when the s
     shouldLoadChatDirectAgents({
       activeInstanceId: null,
       isOpenClawGateway: false,
-      showAgentDropdown: true,
+      isSessionContextDrawerOpen: true,
       selectedAgentId: null,
     }),
     false,
@@ -67,7 +67,7 @@ await runTest('shouldLoadChatDirectAgents hydrates direct agents only when the s
     shouldLoadChatDirectAgents({
       activeInstanceId: 'instance-1',
       isOpenClawGateway: false,
-      showAgentDropdown: false,
+      isSessionContextDrawerOpen: false,
       selectedAgentId: null,
     }),
     false,
@@ -77,7 +77,7 @@ await runTest('shouldLoadChatDirectAgents hydrates direct agents only when the s
     shouldLoadChatDirectAgents({
       activeInstanceId: 'instance-1',
       isOpenClawGateway: false,
-      showAgentDropdown: true,
+      isSessionContextDrawerOpen: true,
       selectedAgentId: null,
     }),
     true,
@@ -87,7 +87,7 @@ await runTest('shouldLoadChatDirectAgents hydrates direct agents only when the s
     shouldLoadChatDirectAgents({
       activeInstanceId: 'instance-1',
       isOpenClawGateway: false,
-      showAgentDropdown: false,
+      isSessionContextDrawerOpen: false,
       selectedAgentId: 'agent-1',
     }),
     true,

@@ -253,7 +253,7 @@ export function createChatUploadService(
           remoteFile.contentType ||
           'application/octet-stream'
         ).trim();
-      const data = new Blob([remoteFile.bytes], {
+      const data = new Blob([new Uint8Array(remoteFile.bytes)], {
         type: contentType,
       });
       const fileName = sanitizeFileName(

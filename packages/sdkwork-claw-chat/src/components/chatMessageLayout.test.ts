@@ -15,6 +15,12 @@ function runTest(name: string, callback: () => void | Promise<void>) {
 
 const source = readFileSync(new URL('./ChatMessage.tsx', import.meta.url), 'utf8');
 const pageSource = readFileSync(new URL('../pages/Chat.tsx', import.meta.url), 'utf8');
+let drawerSource = '';
+try {
+  drawerSource = readFileSync(new URL('./ChatSessionContextDrawer.tsx', import.meta.url), 'utf8');
+} catch {
+  drawerSource = '';
+}
 
 await runTest(
   'ChatMessage does not reserve a grouped top action row when headers are hidden',
@@ -53,11 +59,11 @@ await runTest(
     );
     assert.match(
       source,
-      /rounded-br-md bg-zinc-100 px-4 py-2\.5 text-zinc-900 sm:max-w-\[95%\] dark:bg-zinc-800 dark:text-zinc-100/,
+      /rounded-br-md bg-zinc-100 px-4 py-2 text-zinc-900 sm:max-w-\[95%\] dark:bg-zinc-800 dark:text-zinc-100/,
     );
     assert.match(
       source,
-      /:\s*isTool\s*\?\s*'w-full px-0 py-0\.5 text-zinc-900 dark:text-zinc-100'\s*:\s*'w-full px-0 py-0\.5 text-zinc-900 dark:text-zinc-100'/,
+      /:\s*isTool\s*\?\s*'w-full px-0 py-0 text-zinc-900 dark:text-zinc-100'\s*:\s*'w-full px-0 py-0 text-zinc-900 dark:text-zinc-100'/,
     );
     assert.doesNotMatch(source, /showAvatar\?: boolean;/);
     assert.doesNotMatch(source, /reserveAvatarSpace\?: boolean;/);
@@ -79,11 +85,38 @@ await runTest(
     );
     assert.match(
       source,
-      /prose-code:before:content-none prose-code:after:content-none prose-p:my-2\.5 prose-p:leading-relaxed prose-pre:my-3 prose-pre:bg-transparent prose-pre:p-0 prose-ul:my-2\.5 prose-ol:my-2\.5/,
+      /'prose prose-zinc prose-sm relative max-w-none break-words text-\[14px\] leading-6 dark:prose-invert sm:prose-sm'/,
     );
-    assert.match(source, /attachments\.length > 0 \? \(\s*<div className="mb-3 grid gap-3 sm:grid-cols-2">/);
-    assert.match(source, /reasoning \? \(\s*<details className="mb-3 overflow-hidden rounded-2xl border/);
-    assert.match(source, /<div className=\{hasRenderableContent \? 'mt-2\.5' : null\}>/);
+    assert.match(
+      source,
+      /prose-code:before:content-none prose-code:after:content-none prose-p:my-2 prose-p:leading-6 prose-pre:my-3 prose-pre:bg-transparent prose-pre:p-0 prose-ul:my-2 prose-ol:my-2/,
+    );
+    assert.match(source, /attachments\.length > 0 \? \(\s*<div className="mb-2\.5 grid gap-3 sm:grid-cols-2">/);
+    assert.match(source, /reasoning \? \(\s*<details className="mb-2\.5 overflow-hidden rounded-2xl border/);
+    assert.match(source, /<div className=\{hasRenderableContent \? 'mt-1\.5' : null\}>/);
+    assert.doesNotMatch(source, /sm:prose-base/);
+  },
+);
+
+await runTest(
+  'ChatMessage exposes floating copy actions for user and assistant messages when headers are hidden',
+  () => {
+    assert.match(
+      source,
+      /const showFloatingCopyAction = !showHeader && canCopyMessage && \(isUser \|\| role === 'assistant'\);/,
+    );
+    assert.match(
+      source,
+      /'min-w-0 flex-1',\s*showFloatingCopyAction && 'relative pr-11 sm:pr-12'/,
+    );
+    assert.match(
+      source,
+      /className=\{cn\(\s*'absolute right-0 top-0 z-10 flex items-center opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100'/,
+    );
+    assert.match(
+      source,
+      /title=\{t\('chat\.message\.copyMessage'\)\}/,
+    );
   },
 );
 
@@ -98,30 +131,72 @@ await runTest(
     );
     assert.match(
       pageSource,
-      /style=\{\{\s*paddingBottom: messageListBottomPadding,\s*\}\}/,
-    );
-    assert.match(
-      pageSource,
-      /<div key=\{groupKey\} className="space-y-2 sm:space-y-2\.5">/,
-    );
-    assert.match(
-      pageSource,
-      /pointer-events-auto mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8/,
+      /<div key=\{groupKey\} className="space-y-1\.5 sm:space-y-2">/,
     );
     assert.doesNotMatch(pageSource, /ml-11 sm:ml-14/);
   },
 );
 
 await runTest(
-  'Chat page measures the composer height so the latest message stays above the input overlay',
+  'Chat page keeps the composer in layout so the latest message is never hidden behind an overlay',
   () => {
-    assert.match(pageSource, /const composerSurfaceRef = useRef<HTMLDivElement \| null>\(null\);/);
-    assert.match(pageSource, /const \[composerSurfaceHeight, setComposerSurfaceHeight\] = useState\(0\);/);
-    assert.match(pageSource, /const messageListBottomPadding = `calc\(\$\{composerSurfaceHeight \+ 32\}px \+ env\(safe-area-inset-bottom\)\)`;/);
-    assert.match(pageSource, /const emptyStateBottomPadding = `calc\(\$\{composerSurfaceHeight \+ 52\}px \+ env\(safe-area-inset-bottom\)\)`;/);
-    assert.match(pageSource, /new ResizeObserver\(\(\[entry\]\) => \{/);
-    assert.match(pageSource, /ref=\{composerSurfaceRef\}/);
-    assert.doesNotMatch(pageSource, /pb-36 sm:pb-40/);
+    assert.doesNotMatch(pageSource, /const composerSurfaceRef = useRef<HTMLDivElement \| null>\(null\);/);
+    assert.doesNotMatch(pageSource, /const \[composerSurfaceHeight, setComposerSurfaceHeight\] = useState\(0\);/);
+    assert.doesNotMatch(pageSource, /messageListBottomPadding/);
+    assert.doesNotMatch(pageSource, /emptyStateBottomPadding/);
+    assert.doesNotMatch(pageSource, /ResizeObserver/);
+    assert.doesNotMatch(pageSource, /absolute bottom-0 left-0 right-0/);
+    assert.match(
+      pageSource,
+      /className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"/,
+    );
+    assert.match(
+      pageSource,
+      /className="flex-shrink-0 bg-gradient-to-t from-zinc-50 via-zinc-50\/78 to-transparent px-3 pb-3 pt-1\.5 sm:px-4 sm:pb-4 sm:pt-2 lg:px-6 dark:from-zinc-950 dark:via-zinc-950\/38 dark:to-transparent"/,
+    );
+  },
+);
+
+await runTest(
+  'Chat page keeps the message rail on a tighter desktop rhythm with floating controls and no chat-local top header band',
+  () => {
+    assert.match(
+      pageSource,
+      /className="flex-1 space-y-3 px-3 py-4 sm:space-y-4 sm:px-4 sm:py-5"/,
+    );
+    assert.doesNotMatch(pageSource, /<header className="z-10 flex min-h-\[3\.75rem\]/);
+    assert.match(pageSource, /className="relative flex h-full min-w-0 flex-1 flex-col"/);
+    assert.doesNotMatch(pageSource, /className="relative flex h-full min-w-0 flex-1 flex-col pt-11 sm:pt-12"/);
+    assert.doesNotMatch(
+      pageSource,
+      /className="pointer-events-none absolute inset-x-0 top-0 z-20 px-3 pt-3 sm:px-4 sm:pt-4 lg:px-6"/,
+    );
+  },
+);
+
+await runTest(
+  'Chat page routes session controls through a right-side context drawer',
+  () => {
+    assert.match(
+      pageSource,
+      /import \{ ChatSessionContextDrawer \} from '\.\.\/components\/ChatSessionContextDrawer';/,
+    );
+    assert.match(
+      pageSource,
+      /const \[isSessionContextDrawerOpen, setIsSessionContextDrawerOpen\] = useState\(false\);/,
+    );
+    assert.match(
+      pageSource,
+      /<ChatSessionContextDrawer[\s\S]*isOpen=\{isSessionContextDrawerOpen\}/,
+    );
+    assert.match(
+      pageSource,
+      /onClick=\{\(\) => setIsSessionContextDrawerOpen\(true\)\}/,
+    );
+    assert.match(drawerSource, /export function ChatSessionContextDrawer/);
+    assert.match(drawerSource, /<OverlaySurface[\s\S]*variant="drawer"/);
+    assert.match(drawerSource, /agentOptions:/);
+    assert.match(drawerSource, /skillOptions:/);
   },
 );
 

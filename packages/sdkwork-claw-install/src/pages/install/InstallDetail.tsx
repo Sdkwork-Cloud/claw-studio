@@ -3,7 +3,7 @@ import {
   ArrowLeft,
   Cloud,
   ExternalLink,
-  Github,
+  GitBranch,
   Info,
   Package,
   Server,
@@ -23,7 +23,7 @@ function renderDetailIcon(detail: OpenClawInstallDetail) {
   }
 
   if (detail.id === 'git' || detail.id === 'source') {
-    return <Github className="h-7 w-7" />;
+    return <GitBranch className="h-7 w-7" />;
   }
 
   if (

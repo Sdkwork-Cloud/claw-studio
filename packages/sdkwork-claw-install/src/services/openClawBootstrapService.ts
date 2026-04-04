@@ -355,8 +355,9 @@ function isSelectedSkillInitialized(skill: Skill, initializedSkills: Array<Recor
   });
 }
 
-const saveManagedChannelConfiguration =
-  openClawConfigService['saveChannel' + 'Configuration'];
+const saveManagedChannelConfiguration = (
+  input: Parameters<typeof openClawConfigService.saveChannelConfiguration>[0],
+) => openClawConfigService.saveChannelConfiguration(input);
 
 class OpenClawBootstrapService {
   async loadBootstrapData(input: {

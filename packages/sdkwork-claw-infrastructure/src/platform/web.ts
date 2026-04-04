@@ -2,6 +2,7 @@ import type {
   PlatformAPI,
   PlatformFetchedRemoteUrl,
   PlatformFileEntry,
+  PlatformNotificationRequest,
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
@@ -59,6 +60,29 @@ export class WebPlatform implements PlatformAPI {
 
   async copy(text: string): Promise<void> {
     await navigator.clipboard.writeText(text);
+  }
+
+  async showNotification(notification: PlatformNotificationRequest): Promise<void> {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return;
+    }
+
+    if (window.Notification.permission === 'default') {
+      try {
+        await window.Notification.requestPermission();
+      } catch {
+        return;
+      }
+    }
+
+    if (window.Notification.permission !== 'granted') {
+      return;
+    }
+
+    void new window.Notification(notification.title, {
+      body: notification.body,
+      tag: notification.tag,
+    });
   }
 
   async openExternal(url: string): Promise<void> {

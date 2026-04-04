@@ -83,6 +83,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src/desktop/catalog.ts', 'desktop command and event catalog module'],
   ['packages/sdkwork-claw-desktop/src/desktop/runtime.ts', 'desktop runtime bridge module'],
   ['packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts', 'desktop bridge'],
+  ['packages/sdkwork-claw-desktop/src/desktop/studioCommandCompat.ts', 'desktop studio command compatibility bridge'],
   ['packages/sdkwork-claw-infrastructure/src/config/env.ts', 'desktop env config module'],
   ['packages/sdkwork-claw-infrastructure/src/updates/contracts.ts', 'desktop update contracts module'],
   ['packages/sdkwork-claw-infrastructure/src/updates/updateClient.ts', 'desktop update client module'],
@@ -91,8 +92,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-desktop/src-tauri/Cargo.toml', 'desktop Cargo manifest'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json', 'desktop Tauri config'],
   ['packages/sdkwork-claw-desktop/src-tauri/generated', 'desktop generated bundled resource root'],
-  ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/runtime', 'bundled openclaw runtime resource root'],
-  ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/manifest.json', 'bundled openclaw runtime manifest'],
+  ['packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/.gitkeep', 'bundled openclaw runtime placeholder'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/mod.rs', 'desktop framework module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/error.rs', 'desktop framework error module'],
   ['packages/sdkwork-claw-desktop/src-tauri/src/framework/context.rs', 'desktop framework context module'],
@@ -370,6 +370,36 @@ assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
   'export const desktopTemplateApi',
   'desktop template API facade export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  "from './studioCommandCompat'",
+  'desktop studio command compat re-export wiring',
+);
+assertNotIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function studioListInstances',
+  'inline desktop studio compat list export in canonical bridge',
+);
+assertNotIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
+  'export async function invokeOpenClawGateway',
+  'inline desktop studio compat gateway export in canonical bridge',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/studioCommandCompat.ts',
+  'export const desktopLegacyStudioCompatApi',
+  'desktop studio compat facade export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/studioCommandCompat.ts',
+  'DESKTOP_COMMANDS.studioListInstances',
+  'desktop studio compat list command wiring',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src/desktop/studioCommandCompat.ts',
+  'DESKTOP_COMMANDS.studioCreateInstanceTask',
+  'desktop studio compat task command wiring',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src/desktop/tauriBridge.ts',
@@ -673,8 +703,28 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
+  '../dist/**/*',
+  'desktop browser shell dist resource packaging',
+);
+assertIncludes(
+  'packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json',
   'resources/openclaw/**/*',
   'bundled openclaw runtime resource declaration',
+);
+assertIncludes(
+  'scripts/sync-bundled-components.mjs',
+  "desktopWebDistBundleSourceRoot",
+  'desktop browser shell bundle source root wiring',
+);
+assertIncludes(
+  'scripts/sync-bundled-components.mjs',
+  "'web-dist': ['generated', 'br', 'w']",
+  'windows desktop browser shell bridge root mapping',
+);
+assertIncludes(
+  'scripts/run-windows-tauri-bundle.mjs',
+  "['bridge-web-dist', 'web-dist', ['generated', 'br', 'w']]",
+  'windows NSIS browser shell bridge rewrite mapping',
 );
 assertIncludes(
   'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/mod.rs',
@@ -776,6 +826,16 @@ assertIncludes('.gitignore', '__pycache__/', 'Python bytecode cache ignore rule'
 assertIncludes('.gitignore', '*.pyc', 'Python compiled file ignore rule');
 assertIncludes('.gitignore', '.pytest_cache/', 'pytest cache ignore rule');
 assertIncludes('.gitignore', '.cache/', 'generic cache ignore rule');
+assertIncludes(
+  '.gitignore',
+  'packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/*',
+  'bundled openclaw generated resource ignore rule',
+);
+assertIncludes(
+  '.gitignore',
+  '!packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/.gitkeep',
+  'bundled openclaw placeholder keep rule',
+);
 
 const tauriLeakTargets = [
   'packages/sdkwork-claw-install/src/pages/install/Install.tsx',

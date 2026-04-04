@@ -3,8 +3,7 @@ use super::{
         LocalAiProxyLoggedMessage, LocalAiProxyMessageCaptureSettings,
         LocalAiProxyMessageLogRecord, LocalAiProxyMessageLogsQuery,
         LocalAiProxyObservabilityRepository, LocalAiProxyPaginatedResult,
-        LocalAiProxyRequestLogInsert, LocalAiProxyRequestLogRecord,
-        LocalAiProxyRequestLogsQuery,
+        LocalAiProxyRequestLogInsert, LocalAiProxyRequestLogRecord, LocalAiProxyRequestLogsQuery,
     },
     local_ai_proxy_snapshot::{
         write_local_ai_proxy_snapshot, LocalAiProxyRouteSnapshot, LocalAiProxySnapshot,
@@ -547,7 +546,8 @@ impl LocalAiProxyService {
         &self,
         paths: &AppPaths,
     ) -> Result<LocalAiProxyMessageCaptureSettings> {
-        self.ensure_observability_repo(paths)?.message_capture_settings()
+        self.ensure_observability_repo(paths)?
+            .message_capture_settings()
     }
 
     pub fn update_message_capture_settings(
@@ -564,7 +564,8 @@ impl LocalAiProxyService {
         paths: &AppPaths,
         query: LocalAiProxyRequestLogsQuery,
     ) -> Result<LocalAiProxyPaginatedResult<LocalAiProxyRequestLogRecord>> {
-        self.ensure_observability_repo(paths)?.list_request_logs(query)
+        self.ensure_observability_repo(paths)?
+            .list_request_logs(query)
     }
 
     pub fn list_message_logs(
@@ -572,7 +573,8 @@ impl LocalAiProxyService {
         paths: &AppPaths,
         query: LocalAiProxyMessageLogsQuery,
     ) -> Result<LocalAiProxyPaginatedResult<LocalAiProxyMessageLogRecord>> {
-        self.ensure_observability_repo(paths)?.list_message_logs(query)
+        self.ensure_observability_repo(paths)?
+            .list_message_logs(query)
     }
 
     pub fn test_route_by_id(&self, route_id: &str) -> Result<LocalAiProxyRouteTestRecord> {
@@ -897,8 +899,12 @@ fn record_proxy_request_log(
                 output_tokens: 0,
                 cache_tokens: 0,
                 request_preview: context.request_preview.clone(),
-                response_preview: extract_response_preview_from_value(&body.0)
-                    .or_else(|| trim_optional_text(&extract_proxy_error_message(&(status.clone(), body.clone())))),
+                response_preview: extract_response_preview_from_value(&body.0).or_else(|| {
+                    trim_optional_text(&extract_proxy_error_message(&(
+                        status.clone(),
+                        body.clone(),
+                    )))
+                }),
                 error: Some(extract_proxy_error_message(&(status.clone(), body.clone()))),
                 request_body: context.request_body.clone(),
                 response_body,
@@ -920,7 +926,9 @@ fn record_completed_stream_request_log(
     ttft_ms: Option<u64>,
     response_text: Option<String>,
 ) {
-    let response_preview = response_text.as_ref().and_then(|value| trim_optional_text(value));
+    let response_preview = response_text
+        .as_ref()
+        .and_then(|value| trim_optional_text(value));
     let _ = repository.insert_request_log(LocalAiProxyRequestLogInsert {
         id: context.id,
         created_at: context.created_at,
@@ -1236,7 +1244,12 @@ fn extract_response_preview_from_value(value: &Value) -> Option<String> {
 }
 
 fn duration_to_ms(duration: Duration) -> u64 {
-    duration.as_millis().min(u128::from(u64::MAX)) as u64
+    if duration.is_zero() {
+        return 0;
+    }
+
+    let millis = duration.as_millis().min(u128::from(u64::MAX)) as u64;
+    millis.max(1)
 }
 
 fn trim_optional_text(value: &str) -> Option<String> {
@@ -2539,14 +2552,12 @@ where
     };
     let mut builder = Response::builder().status(status);
     builder = builder.header(CONTENT_TYPE, content_type);
-    builder
-        .body(Body::from_stream(stream))
-        .map_err(|error| {
-            proxy_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &format!("Local AI proxy failed to build response: {error}"),
-            )
-        })
+    builder.body(Body::from_stream(stream)).map_err(|error| {
+        proxy_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Local AI proxy failed to build response: {error}"),
+        )
+    })
 }
 
 impl OpenAiTranslatedStreamState {
@@ -4801,7 +4812,10 @@ mod tests {
         assert_eq!(latest_message_log.provider_id, "openai");
         assert_eq!(latest_message_log.message_count, 1);
         assert_eq!(latest_message_log.messages[0].role, "user");
-        assert_eq!(latest_message_log.messages[0].content, "capture enabled second");
+        assert_eq!(
+            latest_message_log.messages[0].content,
+            "capture enabled second"
+        );
 
         service.stop().expect("stop local ai proxy");
     }

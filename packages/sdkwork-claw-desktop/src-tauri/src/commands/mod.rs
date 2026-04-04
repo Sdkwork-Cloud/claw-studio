@@ -16,6 +16,7 @@ pub mod job_commands;
 pub mod list_directory;
 pub mod move_path;
 pub mod open_external;
+pub mod openclaw_mirror;
 pub mod path_exists;
 pub mod path_exists_for_user_tooling;
 pub mod process_commands;

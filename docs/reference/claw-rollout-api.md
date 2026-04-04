@@ -163,6 +163,40 @@ These contracts let the browser surface combine:
 - node compatibility outcomes
 - desired-state revision hashes
 - host mode and lifecycle
+- state-store provider and profile metadata for the current host shell
+
+Current host-platform state-store projection shape:
+
+```ts
+interface HostPlatformStateStoreRecord {
+  activeProfileId: string;
+  providers: Array<{
+    id: string;
+    label: string;
+    availability: 'ready' | 'planned';
+    requiresConfiguration: boolean;
+    configurationKeys: string[];
+    projectionMode: 'runtime' | 'metadataOnly';
+  }>;
+  profiles: Array<{
+    id: string;
+    label: string;
+    driver: 'json-file' | 'sqlite' | 'postgres';
+    active: boolean;
+    availability: 'ready' | 'planned';
+    path?: string;
+    connectionConfigured: boolean;
+    configuredKeys: string[];
+    projectionMode: 'runtime' | 'metadataOnly';
+  }>;
+}
+```
+
+Contract note:
+
+- `stateStore` now belongs to the shared host-platform projection contract used by server mode, desktop combined mode, and the web preview bridge
+- `stateStoreDriver` remains an additive host-specific hint; server currently uses values such as `json-file` and `sqlite`, while other host modes may omit it or use their own provider ids
+- `projectionMode` makes the activation posture explicit: built-in runtime-backed entries use `runtime`, while the current PostgreSQL provider and profile stay `metadataOnly` until the real driver lands
 
 ## Desktop Combined Mode
 
@@ -191,7 +225,7 @@ Current HTTP behavior:
 - `GET /claw/manage/v1/rollouts/{rolloutId}/targets/{nodeId}` returns one target record from that same preview-derived read model
 - `GET /claw/manage/v1/rollouts/{rolloutId}/waves` returns the current preview-derived per-wave summary grouped by `waveId`
 - `POST /claw/manage/v1/rollouts/{rolloutId}:preview` computes and persists a rollout preview
-- `POST /claw/manage/v1/rollouts/{rolloutId}:start` requires a previously persisted preview and returns the rollout record in `promoting`
+- `POST /claw/manage/v1/rollouts/{rolloutId}:start` requires a previously persisted preview, returns the rollout record in `promoting`, and updates the active rollout pointer used by `/claw/internal/v1/*`
 
 Important runtime notes:
 
@@ -201,7 +235,9 @@ Important runtime notes:
 - rollout wave reads reuse that same preview-generated target truth and aggregate wave summaries without introducing a second planner state
 - non-`2xx` rollout route outcomes now return a JSON error envelope with `error.code`, `error.category`, `error.httpStatus`, `error.retryable`, `error.resolution`, `error.correlationId`, and a matching `x-claw-correlation-id` response header
 - start currently rejects blocked previews and previews that have not been run yet
+- when manage credentials are configured, `/claw/manage/v1/*` and the browser shell are protected by the same HTTP basic-auth challenge
 - host-platform status is exposed from the same server shell under `/claw/internal/v1/host-platform`
+- the host-platform `stateStore` snapshot now exposes `configurationKeys` for built-in provider profiles, `configuredKeys` for the planned PostgreSQL profile, and `projectionMode` so browser tooling can distinguish runtime-backed entries from metadata-only posture without exposing raw connection material
 
 ## Browser Surface Wiring
 

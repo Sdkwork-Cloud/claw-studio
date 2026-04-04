@@ -14,6 +14,7 @@
     "types": ["vite/client"],
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "noEmit": true
   }

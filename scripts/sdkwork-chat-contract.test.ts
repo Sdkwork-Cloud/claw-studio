@@ -49,15 +49,19 @@ await runTest('sdkwork-claw-chat is implemented locally instead of re-exporting 
 
 await runTest('sdkwork-claw-chat routes model selection through the composer', () => {
   const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
+  const composerPanelSource = read('packages/sdkwork-claw-chat/src/components/ChatComposerPanel.tsx');
   const chatInputSource = read('packages/sdkwork-claw-chat/src/components/ChatInput.tsx');
 
   assert.ok(exists('packages/sdkwork-claw-chat/src/services/chatComposerState.ts'));
+  assert.ok(exists('packages/sdkwork-claw-chat/src/components/ChatComposerPanel.tsx'));
   assert.doesNotMatch(chatPageSource, /showModelDropdown/);
   assert.doesNotMatch(chatPageSource, /setShowModelDropdown/);
   assert.doesNotMatch(chatPageSource, /chat\.page\.selectModel/);
-  assert.match(chatPageSource, /<ChatInput[\s\S]*activeChannel=\{activeChannel\}/);
-  assert.match(chatPageSource, /<ChatInput[\s\S]*activeModel=\{activeModel\}/);
-  assert.match(chatPageSource, /<ChatInput[\s\S]*onModelChange=\{/);
+  assert.match(chatPageSource, /import \{ ChatComposerPanel \} from '\.\.\/components\/ChatComposerPanel';/);
+  assert.match(chatPageSource, /<ChatComposerPanel[\s\S]*inputProps=\{\{/);
+  assert.match(chatPageSource, /inputProps=\{\{[\s\S]*activeChannel,[\s\S]*activeModel,[\s\S]*onChannelChange: handleChannelChange,[\s\S]*onModelChange: handleModelChange,/);
+  assert.doesNotMatch(chatPageSource, /<ChatInput[\s\S]*activeChannel=\{activeChannel\}/);
+  assert.match(composerPanelSource, /<ChatInput \{\.\.\.inputProps\} \/>/);
   assert.match(chatInputSource, /onModelChange/);
   assert.match(chatInputSource, /activeChannel/);
   assert.match(chatInputSource, /activeModel/);
@@ -102,8 +106,10 @@ await runTest('sdkwork-claw-chat keeps route-level boundaries by consuming share
 await runTest('sdkwork-claw-chat routes model configuration entry points into settings after api-router removal', () => {
   const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
 
-  assert.match(chatPageSource, /onClick=\{\(\) => navigate\('\/settings\?tab=api'\)\}/);
-  assert.match(chatPageSource, /onOpenModelConfig=\{\(\) => navigate\('\/settings\?tab=api'\)\}/);
+  assert.match(chatPageSource, /const handleOpenSessionSettings = \(\) => \{/);
+  assert.match(chatPageSource, /navigate\('\/settings\?tab=api'\)/);
+  assert.match(chatPageSource, /onOpenSettings=\{handleOpenSessionSettings\}/);
+  assert.match(chatPageSource, /onOpenModelConfig: \(\) => navigate\('\/settings\?tab=api'\)/);
   assert.doesNotMatch(chatPageSource, /navigate\('\/settings\/llm'\)/);
   assert.doesNotMatch(chatPageSource, /navigate\('\/api-router'\)/);
 });
@@ -116,6 +122,16 @@ await runTest('sdkwork-claw-chat resolves model catalogs through the shared prov
   assert.doesNotMatch(serviceSource, /studioMockService/);
   assert.match(serviceSource, /providerRoutingCatalogService/);
   assert.match(serviceSource, /from '@sdkwork\/claw-core'/);
+});
+
+await runTest('sdkwork-claw-chat parity checks use a dedicated tsx runner for Node-loaded chat services', () => {
+  const workspacePackageJson = read('package.json');
+
+  assert.match(
+    workspacePackageJson,
+    /"check:sdkwork-chat"\s*:\s*"node scripts\/run-sdkwork-chat-check\.mjs"/,
+  );
+  assert.ok(exists('scripts/run-sdkwork-chat-check.mjs'));
 });
 
 await runTest('sdkwork-claw-chat chat service loads under Node without Vite env injection', async () => {
@@ -561,6 +577,8 @@ await runTest('sdkwork-claw-chat resolves runtime chat routes for multiple claw 
 await runTest('sdkwork-claw-chat reflows chrome before text gets squeezed on smaller screens', () => {
   const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
   const chatSidebarSource = read('packages/sdkwork-claw-chat/src/components/ChatSidebar.tsx');
+  const topControlsSource = read('packages/sdkwork-claw-chat/src/components/ChatTopControls.tsx');
+  const composerPanelSource = read('packages/sdkwork-claw-chat/src/components/ChatComposerPanel.tsx');
   const chatInputSource = read('packages/sdkwork-claw-chat/src/components/ChatInput.tsx');
   const chatMessageSource = read('packages/sdkwork-claw-chat/src/components/ChatMessage.tsx');
 
@@ -568,18 +586,18 @@ await runTest('sdkwork-claw-chat reflows chrome before text gets squeezed on sma
   assert.match(chatPageSource, /className="hidden h-full w-72 shrink-0 lg:flex xl:w-80"/);
   assert.match(chatPageSource, /className="fixed inset-0 z-40 bg-zinc-950\/45 backdrop-blur-sm lg:hidden"/);
   assert.match(chatPageSource, /className="fixed inset-y-0 left-0 z-50 w-\[min\(22rem,calc\(100vw-1rem\)\)\] lg:hidden"/);
-  assert.match(chatPageSource, /className="z-10 flex min-h-\[3\.75rem\] flex-shrink-0 flex-wrap items-center justify-between gap-3/);
-  assert.match(chatPageSource, /className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3"/);
-  assert.match(chatPageSource, /className="flex min-w-0 items-center gap-2"/);
-  assert.match(chatPageSource, /'inline-flex shrink-0 items-center gap-1\.5 text-\[11px\] font-medium'/);
-  assert.match(chatPageSource, /className="mt-0\.5 flex min-w-0 flex-wrap items-center gap-x-1\.5 gap-y-0\.5 text-\[11px\] text-zinc-500 dark:text-zinc-400"/);
-  assert.match(chatPageSource, /className="relative min-w-0 max-w-full"/);
-  assert.match(chatPageSource, /const composerSurfaceRef = useRef<HTMLDivElement \| null>\(null\);/);
-  assert.match(chatPageSource, /const \[composerSurfaceHeight, setComposerSurfaceHeight\] = useState\(0\);/);
-  assert.match(chatPageSource, /const messageListBottomPadding = `calc\(\$\{composerSurfaceHeight \+ 32\}px \+ env\(safe-area-inset-bottom\)\)`;/);
-  assert.match(chatPageSource, /const emptyStateBottomPadding = `calc\(\$\{composerSurfaceHeight \+ 52\}px \+ env\(safe-area-inset-bottom\)\)`;/);
-  assert.match(chatPageSource, /style=\{\{\s*paddingBottom: messageListBottomPadding,\s*\}\}/);
-  assert.match(chatPageSource, /new ResizeObserver\(\(\[entry\]\) => \{/);
+  assert.match(chatPageSource, /import \{ ChatTopControls \} from '\.\.\/components\/ChatTopControls';/);
+  assert.match(chatPageSource, /import \{ ChatComposerPanel \} from '\.\.\/components\/ChatComposerPanel';/);
+  assert.match(chatPageSource, /className="relative flex h-full min-w-0 flex-1 flex-col"/);
+  assert.doesNotMatch(chatPageSource, /className="relative flex h-full min-w-0 flex-1 flex-col pt-11 sm:pt-12"/);
+  assert.match(chatPageSource, /className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"/);
+  assert.match(chatPageSource, /className="flex-shrink-0 bg-gradient-to-t from-zinc-50 via-zinc-50\/78 to-transparent px-3 pb-3 pt-1\.5 sm:px-4 sm:pb-4 sm:pt-2 lg:px-6 dark:from-zinc-950 dark:via-zinc-950\/38 dark:to-transparent"/);
+  assert.doesNotMatch(chatPageSource, /const composerSurfaceRef = useRef<HTMLDivElement \| null>\(null\);/);
+  assert.doesNotMatch(chatPageSource, /const \[composerSurfaceHeight, setComposerSurfaceHeight\] = useState\(0\);/);
+  assert.doesNotMatch(chatPageSource, /const messageListBottomPadding = `calc\(\$\{composerSurfaceHeight \+ 32\}px \+ env\(safe-area-inset-bottom\)\)`;/);
+  assert.doesNotMatch(chatPageSource, /const emptyStateBottomPadding = `calc\(\$\{composerSurfaceHeight \+ 52\}px \+ env\(safe-area-inset-bottom\)\)`;/);
+  assert.doesNotMatch(chatPageSource, /style=\{\{\s*paddingBottom: messageListBottomPadding,\s*\}\}/);
+  assert.doesNotMatch(chatPageSource, /new ResizeObserver\(\(\[entry\]\) => \{/);
   assert.match(chatPageSource, /mx-auto flex w-full max-w-6xl px-4 text-\[10px\] tracking-normal text-zinc-400 sm:px-6 lg:px-8 dark:text-zinc-500/);
   assert.match(chatPageSource, /flex min-w-0 max-w-full flex-wrap items-center gap-x-1\.5 gap-y-0\.5/);
   assert.match(chatPageSource, /<span className="truncate font-medium text-zinc-500 dark:text-zinc-400">/);
@@ -587,6 +605,11 @@ await runTest('sdkwork-claw-chat reflows chrome before text gets squeezed on sma
   assert.match(chatPageSource, /<span className="truncate text-zinc-400 dark:text-zinc-500">\s*\{footerPresentation\.modelLabel\}\s*<\/span>/);
   assert.doesNotMatch(chatPageSource, /rounded-full border border-zinc-200 bg-white\/80 px-2 py-0\.5 text-\[10px\] font-semibold text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900\/70 dark:text-zinc-300/);
   assert.doesNotMatch(chatPageSource, /'inline-flex shrink-0 items-center gap-1\.5 rounded-full border px-2\.5 py-1 text-\[11px\] font-semibold'/);
+  assert.match(topControlsSource, /className="pointer-events-none absolute left-2\.5 top-2\.5 z-20 sm:left-3 sm:top-3 lg:hidden"/);
+  assert.match(topControlsSource, /className="pointer-events-none absolute right-2\.5 top-2\.5 z-20 sm:right-3 sm:top-3 lg:right-4"/);
+  assert.doesNotMatch(topControlsSource, /lg:right-32 xl:right-36/);
+  assert.match(composerPanelSource, /className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8"/);
+  assert.match(composerPanelSource, /<ChatInput \{\.\.\.inputProps\} \/>/);
 
   assert.match(chatSidebarSource, /onSessionSelect\?: \(\) => void;/);
   assert.match(chatSidebarSource, /onClose\?: \(\) => void;/);
@@ -609,16 +632,23 @@ await runTest('sdkwork-claw-chat reflows chrome before text gets squeezed on sma
 
   assert.match(chatMessageSource, /group mx-auto flex w-full max-w-6xl px-4 sm:px-6 lg:px-8 transition-all duration-300/);
   assert.match(chatMessageSource, /isUser \? 'justify-end' : 'justify-start'/);
-  assert.match(chatMessageSource, /rounded-br-md bg-zinc-100 px-4 py-2\.5 text-zinc-900 sm:max-w-\[95%\] dark:bg-zinc-800 dark:text-zinc-100/);
-  assert.match(chatMessageSource, /:\s*isTool\s*\?\s*'w-full px-0 py-0\.5 text-zinc-900 dark:text-zinc-100'\s*:\s*'w-full px-0 py-0\.5 text-zinc-900 dark:text-zinc-100'/);
-  assert.match(chatMessageSource, /mb-1\.5 flex flex-wrap items-start justify-between gap-2/);
+  assert.match(chatMessageSource, /rounded-br-md bg-zinc-100 px-4 py-2 text-zinc-900 sm:max-w-\[95%\] dark:bg-zinc-800 dark:text-zinc-100/);
+  assert.match(chatMessageSource, /:\s*isTool\s*\?\s*'w-full px-0 py-0 text-zinc-900 dark:text-zinc-100'\s*:\s*'w-full px-0 py-0 text-zinc-900 dark:text-zinc-100'/);
   assert.match(chatMessageSource, /relative mb-4 mt-3 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-\[#1E1E1E\]/);
   assert.match(chatMessageSource, /prose-headings:font-semibold prose-headings:tracking-tight prose-headings:mb-2 prose-headings:mt-4 prose-a:text-primary-500 hover:prose-a:text-primary-600/);
-  assert.match(chatMessageSource, /prose-code:before:content-none prose-code:after:content-none prose-p:my-2\.5 prose-p:leading-relaxed prose-pre:my-3 prose-pre:bg-transparent prose-pre:p-0 prose-ul:my-2\.5 prose-ol:my-2\.5/);
-  assert.match(chatMessageSource, /attachments\.length > 0 \? \(\s*<div className="mb-3 grid gap-3 sm:grid-cols-2">/);
-  assert.match(chatMessageSource, /reasoning \? \(\s*<details className="mb-3 overflow-hidden rounded-2xl border/);
-  assert.match(chatMessageSource, /<div className=\{hasRenderableContent \? 'mt-2\.5' : null\}>/);
+  assert.match(chatMessageSource, /'prose prose-zinc prose-sm relative max-w-none break-words text-\[14px\] leading-6 dark:prose-invert sm:prose-sm'/);
+  assert.match(chatMessageSource, /prose-code:before:content-none prose-code:after:content-none prose-p:my-2 prose-p:leading-6 prose-pre:my-3 prose-pre:bg-transparent prose-pre:p-0 prose-ul:my-2 prose-ol:my-2/);
+  assert.match(chatMessageSource, /attachments\.length > 0 \? \(\s*<div className="mb-2\.5 grid gap-3 sm:grid-cols-2">/);
+  assert.match(chatMessageSource, /reasoning \? \(\s*<details className="mb-2\.5 overflow-hidden rounded-2xl border/);
+  assert.match(
+    chatMessageSource,
+    /<div className=\{hasRenderableContent \? 'mt-1\.5' : (?:undefined|null)\}>/,
+  );
   assert.match(chatMessageSource, /opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100/);
+  assert.match(chatMessageSource, /const showFloatingCopyAction = !showHeader && canCopyMessage && \(isUser \|\| role === 'assistant'\);/);
+  assert.match(chatMessageSource, /'min-w-0 flex-1',\s*showFloatingCopyAction && 'relative pr-11 sm:pr-12'/);
+  assert.match(chatMessageSource, /className=\{cn\(\s*'absolute right-0 top-0 z-10 flex items-center opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100'/);
+  assert.doesNotMatch(chatMessageSource, /sm:prose-base/);
   assert.doesNotMatch(chatMessageSource, /showAvatar\?: boolean;/);
   assert.doesNotMatch(chatMessageSource, /reserveAvatarSpace\?: boolean;/);
   assert.doesNotMatch(chatMessageSource, /<Bot className=/);
@@ -626,22 +656,18 @@ await runTest('sdkwork-claw-chat reflows chrome before text gets squeezed on sma
 
 await runTest('sdkwork-claw-chat empty state scales from stacked mobile welcome to a balanced desktop split layout', () => {
   const chatPageSource = read('packages/sdkwork-claw-chat/src/pages/Chat.tsx');
-  const zhLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/zh.json');
-  const enLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/en.json');
+  const chatEmptyStateSource = read('packages/sdkwork-claw-chat/src/components/ChatEmptyState.tsx');
 
   assert.match(chatPageSource, /const appName = t\('common\.productName'\);/);
+  assert.match(chatPageSource, /import \{ ChatEmptyState \} from '\.\.\/components\/ChatEmptyState';/);
   assert.match(chatPageSource, /className="flex min-h-full flex-1 items-center justify-center px-3 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pt-10"/);
-  assert.match(chatPageSource, /style=\{\{\s*paddingBottom: emptyStateBottomPadding,\s*\}\}/);
-  assert.match(chatPageSource, /className="grid w-full max-w-6xl gap-4 lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(20rem,0\.95fr\)\] lg:items-center xl:gap-6"/);
-  assert.match(chatPageSource, /className="flex flex-col items-center rounded-\[2rem\] border border-zinc-200\/70 bg-white\/80 p-6 text-center shadow-\[0_18px_48px_rgba\(15,23,42,0\.08\)\] sm:p-8 lg:items-start lg:p-10 lg:text-left/);
-  assert.match(chatPageSource, /className="mb-6 inline-flex items-center rounded-full border border-primary-500\/15 bg-primary-500\/8 px-3 py-1 text-xs font-semibold tracking-\[0\.16em\] text-primary-600/);
-  assert.match(chatPageSource, /className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"/);
-  assert.match(chatPageSource, /className="group relative flex min-h-\[8\.5rem\] flex-col justify-between overflow-hidden rounded-\[1\.75rem\] border border-zinc-200\/80 bg-white p-5 text-left/);
-  assert.match(chatPageSource, /appName,\s*\n\s*}\)/);
-  assert.match(zhLocaleSource, /"emptyWithSkill":\s*"我已启用“\{\{skill\}\}”技能，会在 \{\{appName\}\} 中帮你处理与 \{\{category\}\} 相关的任务。"/);
-  assert.match(zhLocaleSource, /"emptyDefault":\s*"我会在 \{\{appName\}\} 中帮你编写代码、回答问题、起草邮件，或一起头脑风暴。"/);
-  assert.match(enLocaleSource, /"emptyWithSkill":\s*"I have the \\"\{\{skill\}\}\\" skill ready and can help with \{\{category\}\} tasks in \{\{appName\}\}\."/);
-  assert.match(enLocaleSource, /"emptyDefault":\s*"I can help you write code, answer questions, draft emails, or brainstorm ideas in \{\{appName\}\}\."/);
-  assert.doesNotMatch(zhLocaleSource, /"emptyDefault":\s*"[^"]*\{\{model\}\}[^"]*"/);
-  assert.doesNotMatch(enLocaleSource, /"emptyDefault":\s*"[^"]*\{\{model\}\}[^"]*"/);
+  assert.match(chatPageSource, /const emptyStateHighlights = \[/);
+  assert.match(chatPageSource, /<ChatEmptyState/);
+  assert.match(chatPageSource, /description=\{emptyStateDescription\}/);
+  assert.match(chatPageSource, /highlights=\{emptyStateHighlights\}/);
+  assert.match(chatEmptyStateSource, /className="grid w-full max-w-6xl gap-4 lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(20rem,0\.95fr\)\] lg:items-center xl:gap-6"/);
+  assert.match(chatEmptyStateSource, /className="flex flex-col items-center rounded-\[2rem\] border border-zinc-200\/70 bg-white\/80 p-6 text-center shadow-\[0_18px_48px_rgba\(15,23,42,0\.08\)\] sm:p-8 lg:items-start lg:p-10 lg:text-left/);
+  assert.match(chatEmptyStateSource, /className="mb-6 inline-flex items-center rounded-full border border-primary-500\/15 bg-primary-500\/8 px-3 py-1 text-xs font-semibold tracking-\[0\.16em\] text-primary-600/);
+  assert.match(chatEmptyStateSource, /className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"/);
+  assert.match(chatEmptyStateSource, /className="group relative flex min-h-\[8\.5rem\] flex-col justify-between overflow-hidden rounded-\[1\.75rem\] border border-zinc-200\/80 bg-white p-5 text-left/);
 });

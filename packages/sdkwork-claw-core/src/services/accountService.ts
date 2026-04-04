@@ -1,7 +1,4 @@
-import {
-  getAppSdkClientWithSession,
-  unwrapAppSdkResponse,
-} from '../sdk/index.ts';
+import { unwrapAppSdkResponse, type AppSdkEnvelope } from '../sdk/appSdkResult.ts';
 
 export interface Transaction {
   id: string;
@@ -23,6 +20,59 @@ export interface AccountService {
   getTransactions(filter?: 'all' | 'income' | 'expense'): Promise<Transaction[]>;
   recharge(amount: number, method: string): Promise<Transaction>;
   withdraw(amount: number, destination: string): Promise<Transaction>;
+}
+
+interface AccountSdkClient {
+  account: {
+    getAccountSummary(): Promise<AppSdkEnvelope<AccountSummaryPayload> | AccountSummaryPayload>;
+    getCash(): Promise<AppSdkEnvelope<AccountCashPayload> | AccountCashPayload>;
+    getHistoryCash(): Promise<AppSdkEnvelope<AccountHistoryPayload> | AccountHistoryPayload>;
+    recharge(body: {
+      amount: number;
+      paymentMethod: string;
+      remarks: string;
+    }): Promise<AppSdkEnvelope<AccountTransactionMutationPayload> | AccountTransactionMutationPayload>;
+    withdraw(body: {
+      amount: number;
+      withdrawMethod: string;
+      remarks: string;
+    }): Promise<AppSdkEnvelope<AccountTransactionMutationPayload> | AccountTransactionMutationPayload>;
+  };
+}
+
+export interface CreateAccountServiceOptions {
+  getClient?: () => AccountSdkClient | Promise<AccountSdkClient>;
+}
+
+interface AccountSummaryPayload {
+  cashAvailable?: number | string;
+}
+
+interface AccountCashPayload {
+  availableBalance?: number | string;
+  totalRecharged?: number | string;
+  totalSpent?: number | string;
+  totalWithdrawn?: number | string;
+}
+
+interface AccountHistoryItemPayload {
+  historyId?: string;
+  transactionId?: string;
+  transactionType?: string;
+  transactionTypeName?: string;
+  amount?: number | string;
+  remarks?: string;
+  createdAt?: string;
+  status?: string;
+}
+
+interface AccountHistoryPayload {
+  content?: AccountHistoryItemPayload[];
+}
+
+interface AccountTransactionMutationPayload {
+  transactionId?: string;
+  status?: string;
 }
 
 function toNumber(value: number | string | undefined, fallback = 0) {
@@ -71,16 +121,25 @@ function createTransactionId() {
   return `txn-${Date.now()}`;
 }
 
-export function createAccountService(): AccountService {
+async function getDefaultAccountClient(): Promise<AccountSdkClient> {
+  const { getAppSdkClientWithSession } = await import('../sdk/useAppSdkClient.ts');
+  return getAppSdkClientWithSession() as unknown as AccountSdkClient;
+}
+
+export function createAccountService(
+  options: CreateAccountServiceOptions = {},
+): AccountService {
+  const getClient = options.getClient ?? getDefaultAccountClient;
+
   return {
     async getSummary() {
-      const client = getAppSdkClientWithSession();
+      const client = await getClient();
       const [summaryResponse, cashAccountResponse] = await Promise.all([
         client.account.getAccountSummary(),
         client.account.getCash(),
       ]);
-      const summary = unwrapAppSdkResponse(summaryResponse);
-      const cashAccount = unwrapAppSdkResponse(cashAccountResponse);
+      const summary = unwrapAppSdkResponse<AccountSummaryPayload>(summaryResponse);
+      const cashAccount = unwrapAppSdkResponse<AccountCashPayload>(cashAccountResponse);
 
       return {
         balance: toNumber(cashAccount.availableBalance, toNumber(summary.cashAvailable)),
@@ -90,8 +149,10 @@ export function createAccountService(): AccountService {
     },
 
     async getTransactions(filter = 'all') {
-      const client = getAppSdkClientWithSession();
-      const history = unwrapAppSdkResponse(await client.account.getHistoryCash());
+      const client = await getClient();
+      const history = unwrapAppSdkResponse<AccountHistoryPayload>(
+        await client.account.getHistoryCash(),
+      );
       const items = (history.content ?? []).map((item) => ({
         id: item.historyId || item.transactionId || createTransactionId(),
         type: resolveTransactionType(item.transactionType),
@@ -113,12 +174,14 @@ export function createAccountService(): AccountService {
     },
 
     async recharge(amount, method) {
-      const client = getAppSdkClientWithSession();
-      const result = unwrapAppSdkResponse(await client.account.recharge({
+      const client = await getClient();
+      const result = unwrapAppSdkResponse<AccountTransactionMutationPayload>(
+        await client.account.recharge({
         amount,
         paymentMethod: method,
         remarks: `Wallet Top-up via ${method}`,
-      }));
+        }),
+      );
 
       return {
         id: result.transactionId || createTransactionId(),
@@ -131,12 +194,14 @@ export function createAccountService(): AccountService {
     },
 
     async withdraw(amount, destination) {
-      const client = getAppSdkClientWithSession();
-      const result = unwrapAppSdkResponse(await client.account.withdraw({
+      const client = await getClient();
+      const result = unwrapAppSdkResponse<AccountTransactionMutationPayload>(
+        await client.account.withdraw({
         amount,
         withdrawMethod: destination,
         remarks: `Withdrawal to ${destination}`,
-      }));
+        }),
+      );
 
       return {
         id: result.transactionId || createTransactionId(),

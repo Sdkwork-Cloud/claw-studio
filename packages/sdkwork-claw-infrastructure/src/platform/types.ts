@@ -51,6 +51,12 @@ export interface PlatformFetchedRemoteUrl {
   fileName?: string;
 }
 
+export interface PlatformNotificationRequest {
+  title: string;
+  body?: string;
+  tag?: string;
+}
+
 export type PlatformWindowStateUnsubscribe = () => void | Promise<void>;
 
 export interface PlatformAPI {
@@ -62,6 +68,7 @@ export interface PlatformAPI {
   getStorage(key: string): Promise<string | null>;
 
   copy(text: string): Promise<void>;
+  showNotification(notification: PlatformNotificationRequest): Promise<void>;
   openExternal(url: string): Promise<void>;
   supportsNativeScreenshot(): boolean;
   captureScreenshot(): Promise<PlatformCapturedScreenshot | null>;

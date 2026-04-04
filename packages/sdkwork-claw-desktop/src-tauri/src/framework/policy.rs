@@ -118,7 +118,10 @@ pub fn resolve_user_tooling_config_path(paths: &AppPaths, candidate: &Path) -> R
     let normalized = normalize_path(&raw);
     let allowed = user_tooling_config_files(paths);
 
-    if allowed.iter().any(|allowed_path| normalized == *allowed_path) {
+    if allowed
+        .iter()
+        .any(|allowed_path| normalized == *allowed_path)
+    {
         return Ok(normalized);
     }
 
@@ -228,7 +231,10 @@ fn user_tooling_config_files(paths: &AppPaths) -> Vec<PathBuf> {
         home.join(".config").join("opencode").join("opencode.json"),
         home.join(".config").join("opencode").join("opencode.jsonc"),
         home.join(".config").join("opencode").join("auth.json"),
-        home.join(".local").join("share").join("opencode").join("auth.json"),
+        home.join(".local")
+            .join("share")
+            .join("opencode")
+            .join("auth.json"),
         home.join("AppData")
             .join("Roaming")
             .join("opencode")

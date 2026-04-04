@@ -2,9 +2,8 @@ use super::{
     read_json5_object, read_openclaw_provider_runtime_config, StudioInstanceDeploymentMode,
     StudioInstanceRecord, StudioRuntimeKind, StudioWorkbenchAgentProfile,
     StudioWorkbenchAgentRecord, StudioWorkbenchChannelRecord, StudioWorkbenchCronTasksSnapshot,
-    StudioWorkbenchFileRecord,
-    StudioWorkbenchLLMProviderModelRecord, StudioWorkbenchLLMProviderRecord,
-    StudioWorkbenchMemoryEntryRecord, StudioWorkbenchSkillRecord,
+    StudioWorkbenchFileRecord, StudioWorkbenchLLMProviderModelRecord,
+    StudioWorkbenchLLMProviderRecord, StudioWorkbenchMemoryEntryRecord, StudioWorkbenchSkillRecord,
     StudioWorkbenchSnapshot, StudioWorkbenchTaskExecutionRecord, StudioWorkbenchTaskRecord,
     StudioWorkbenchTaskScheduleConfig, StudioWorkbenchToolRecord, DEFAULT_INSTANCE_ID,
 };
@@ -142,12 +141,13 @@ fn build_openclaw_llm_providers(
             let model_records = build_openclaw_provider_models(&models);
             let primary_ref = string_at_path(config, &["agents", "defaults", "model", "primary"])
                 .and_then(|entry| parse_openclaw_model_ref(&entry));
-            let fallback_refs = array_at_path(config, &["agents", "defaults", "model", "fallbacks"])
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|entry| entry.as_str().and_then(parse_openclaw_model_ref))
-                .collect::<Vec<_>>();
+            let fallback_refs =
+                array_at_path(config, &["agents", "defaults", "model", "fallbacks"])
+                    .cloned()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|entry| entry.as_str().and_then(parse_openclaw_model_ref))
+                    .collect::<Vec<_>>();
             let default_model_id = model_records
                 .iter()
                 .find_map(|model| {

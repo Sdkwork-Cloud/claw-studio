@@ -1,4 +1,8 @@
 import type {
+  ManageHostEndpointRecord,
+  ManageOpenClawGatewayInvokeRequest,
+  ManageOpenClawGatewayRecord,
+  ManageOpenClawRuntimeRecord,
   ManagePlatformAPI,
   ManageRolloutListResult,
   ManageRolloutPreview,
@@ -67,6 +71,64 @@ export class WebManagePlatform implements ManagePlatformAPI {
         },
       },
       `manage.startRollout(${rolloutId})`,
+    );
+  }
+
+  async getHostEndpoints(): Promise<ManageHostEndpointRecord[]> {
+    return requestJson<ManageHostEndpointRecord[]>(
+      this.fetchImpl,
+      joinBasePath(this.basePath, '/host-endpoints'),
+      {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+        },
+      },
+      'manage.getHostEndpoints',
+    );
+  }
+
+  async getOpenClawRuntime(): Promise<ManageOpenClawRuntimeRecord> {
+    return requestJson<ManageOpenClawRuntimeRecord>(
+      this.fetchImpl,
+      joinBasePath(this.basePath, '/openclaw/runtime'),
+      {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+        },
+      },
+      'manage.getOpenClawRuntime',
+    );
+  }
+
+  async getOpenClawGateway(): Promise<ManageOpenClawGatewayRecord> {
+    return requestJson<ManageOpenClawGatewayRecord>(
+      this.fetchImpl,
+      joinBasePath(this.basePath, '/openclaw/gateway'),
+      {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+        },
+      },
+      'manage.getOpenClawGateway',
+    );
+  }
+
+  async invokeOpenClawGateway(request: ManageOpenClawGatewayInvokeRequest): Promise<unknown> {
+    return requestJson<unknown>(
+      this.fetchImpl,
+      joinBasePath(this.basePath, '/openclaw/gateway/invoke'),
+      {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      },
+      `manage.invokeOpenClawGateway(${request.tool})`,
     );
   }
 }

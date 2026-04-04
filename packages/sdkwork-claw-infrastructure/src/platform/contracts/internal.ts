@@ -8,6 +8,40 @@ export type HostPlatformLifecycle =
   | 'stopping'
   | 'stopped';
 
+export type HostPlatformStateStoreAvailability =
+  | 'ready'
+  | 'planned'
+  | 'configurationRequired';
+
+export type HostPlatformStateStoreProjectionMode = 'runtime' | 'metadataOnly';
+
+export interface HostPlatformStateStoreProviderRecord {
+  id: string;
+  label: string;
+  availability: HostPlatformStateStoreAvailability;
+  requiresConfiguration: boolean;
+  configurationKeys: string[];
+  projectionMode: HostPlatformStateStoreProjectionMode;
+}
+
+export interface HostPlatformStateStoreProfileRecord {
+  id: string;
+  label: string;
+  driver: string;
+  active: boolean;
+  availability: HostPlatformStateStoreAvailability;
+  path?: string;
+  connectionConfigured: boolean;
+  configuredKeys: string[];
+  projectionMode: HostPlatformStateStoreProjectionMode;
+}
+
+export interface HostPlatformStateStoreRecord {
+  activeProfileId: string;
+  providers: HostPlatformStateStoreProviderRecord[];
+  profiles: HostPlatformStateStoreProfileRecord[];
+}
+
 export interface HostPlatformStatusRecord {
   mode: HostPlatformMode;
   lifecycle: HostPlatformLifecycle;
@@ -18,6 +52,8 @@ export interface HostPlatformStatusRecord {
   rolloutEngineVersion: string;
   manageBasePath: string;
   internalBasePath: string;
+  stateStoreDriver?: string;
+  stateStore: HostPlatformStateStoreRecord;
   capabilityKeys: string[];
   updatedAt: number;
 }

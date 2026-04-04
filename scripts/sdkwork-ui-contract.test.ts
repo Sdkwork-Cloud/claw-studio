@@ -114,24 +114,40 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(channelCatalogSource, /showRegionTabs\?: boolean/);
   assert.match(channelCatalogSource, /ChannelRegionTabs/);
   assert.match(channelCatalogSource, /channels\.page\.catalog\.tabs\.domestic/);
+  assert.match(channelCatalogSource, /channels\.page\.catalog\.tabs\.all/);
+  assert.match(channelCatalogSource, /regionGroups\.all\.length/);
   assert.match(channelCatalogSource, /sortChannelCatalogItems/);
   assert.match(channelWorkspaceSource, /export interface ChannelWorkspaceItem/);
   assert.match(channelWorkspaceSource, /export function ChannelWorkspace/);
   assert.match(channelWorkspaceSource, /actionDownloadApp/);
   assert.match(channelWorkspaceSource, /ChannelRegionTabs/);
   assert.match(channelWorkspaceSource, /showRegionTabs=\{false\}/);
+  assert.match(channelWorkspaceSource, /channels\.page\.catalog\.tabs\.all/);
+  assert.match(channelWorkspaceSource, /regionGroups\.all\.length/);
+  assert.match(channelWorkspaceSource, /activeRegion !== 'all'/);
   assert.match(channelWorkspaceSource, /OverlaySurface/);
   assert.match(channelWorkspaceSource, /setupSteps/);
   assert.match(channelWorkspaceSource, /Delete configuration/);
   assert.match(channelRegionTabsSource, /data-slot="channel-region-tabs"/);
+  assert.match(channelRegionTabsSource, /\['domestic', 'global', 'all'\]/);
   assert.match(channelCatalogMetaSource, /sdkworkchat/);
   assert.match(channelCatalogMetaSource, /wehcat/);
   assert.match(channelCatalogMetaSource, /clawstudio\.sdkwork\.com\/platforms\/android/);
+  assert.match(channelCatalogMetaSource, /export type ChannelCatalogRegion = 'domestic' \| 'global' \| 'all'/);
+  assert.match(channelCatalogMetaSource, /all: T\[];/);
   assert.match(channelCatalogMetaSource, /getChannelCatalogRegion/);
+  assert.match(channelCatalogMetaSource, /getChannelCatalogRegions/);
   assert.match(channelCatalogMetaSource, /partitionChannelCatalogItemsByRegion/);
   assert.match(channelCatalogMetaSource, /resolveDefaultChannelCatalogRegion/);
   assert.match(channelCatalogMetaSource, /isChannelDownloadAppAction/);
   assert.match(channelCatalogMetaSource, /export function sortChannelCatalogItems/);
+  assert.match(channelCatalogMetaSource, /sdkworkchat:\s*\{[\s\S]*regions:\s*\['domestic', 'global'\]/);
+  assert.match(channelCatalogMetaSource, /groups\.all\.push\(item\)/);
+  assert.match(channelCatalogMetaSource, /for \(const region of regions\)/);
+  assert.match(channelCatalogMetaSource, /all: \[\]/);
+  assert.match(channelCatalogMetaSource, /return 'all'/);
+  assert.match(channelWorkspaceSource, /getChannelCatalogRegions/);
+  assert.match(channelWorkspaceSource, /getChannelCatalogRegions\(selectedChannel\.id\)\.includes\(activeRegion\)/);
   assert.match(overlaySurfaceSource, /createPortal/);
   assert.match(overlaySurfaceSource, /document\.body/);
 });
@@ -205,4 +221,29 @@ runTest('shared form primitives keep interactive layers and focus states compati
   assert.match(textareaSource, /disabled:cursor-not-allowed/);
   assert.match(switchSource, /focus-visible:ring-2/);
   assert.match(switchSource, /disabled:cursor-not-allowed/);
+});
+
+runTest('overlay surfaces close from any external click while preserving drawer and modal interactions inside the surface', () => {
+  const overlaySurfaceSource = read('packages/sdkwork-claw-ui/src/components/OverlaySurface.tsx');
+
+  assert.match(
+    overlaySurfaceSource,
+    /className=\{cn\(\s*'absolute inset-0 bg-zinc-950\/45 backdrop-blur-sm'/,
+  );
+  assert.match(
+    overlaySurfaceSource,
+    /className=\{cn\(\s*'relative flex h-full'/,
+  );
+  assert.match(
+    overlaySurfaceSource,
+    /onClick=\{closeOnBackdrop \? onClose : undefined\}/,
+  );
+  assert.match(
+    overlaySurfaceSource,
+    /onClick=\{\(event\) => event\.stopPropagation\(\)\}/,
+  );
+  assert.doesNotMatch(
+    overlaySurfaceSource,
+    /className="absolute inset-x-0 bottom-0 top-12 bg-zinc-950\/45 backdrop-blur-sm"/,
+  );
 });

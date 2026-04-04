@@ -23,11 +23,13 @@ interface AppStoreCategoryPayload {
   count?: number | string;
 }
 
-interface AppStoreCatalogCandidate extends AppVO, AppDetailVO {
+type AppStoreCatalogCandidate =
+  Omit<Partial<AppVO>, 'id'> &
+  Omit<Partial<AppDetailVO>, 'id'> & {
   id?: string | number;
   developer?: string;
   category?: string;
-}
+};
 
 export interface AppStoreCatalogQuery {
   keyword?: string;

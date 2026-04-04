@@ -16,6 +16,11 @@ function normalizeOpenClawSessionKey(sessionId: string | null | undefined) {
   return normalizedSessionId || null;
 }
 
+function normalizeOpenClawSessionKind(kind: string | null | undefined) {
+  const normalizedKind = kind?.trim().toLowerCase();
+  return normalizedKind || null;
+}
+
 export function buildOpenClawMainSessionKey(agentId?: string | null) {
   return `agent:${normalizeOpenClawAgentId(agentId)}:main`;
 }
@@ -81,16 +86,78 @@ function isOpenClawLegacyUserFacingSession(sessionId: string | null | undefined)
   return Boolean(normalizedSessionId) && !normalizedSessionId!.startsWith('agent:');
 }
 
+function isOpenClawBackgroundSessionKind(kind: string | null | undefined) {
+  const normalizedKind = normalizeOpenClawSessionKind(kind);
+  return normalizedKind === 'global' || normalizedKind === 'unknown';
+}
+
+export function isOpenClawCronSessionKey(sessionId: string | null | undefined) {
+  const normalizedSessionId = normalizeOpenClawSessionKey(sessionId);
+  if (!normalizedSessionId) {
+    return false;
+  }
+
+  if (normalizedSessionId.startsWith('cron:')) {
+    return true;
+  }
+
+  if (!normalizedSessionId.startsWith('agent:')) {
+    return false;
+  }
+
+  const parts = normalizedSessionId.split(':').filter(Boolean);
+  if (parts.length < 3) {
+    return false;
+  }
+
+  return parts.slice(2).join(':').startsWith('cron:');
+}
+
+function shouldHideOpenClawBackgroundSession(params: {
+  sessionId: string | null | undefined;
+  sessionKind?: string | null;
+}) {
+  return (
+    isOpenClawBackgroundSessionKind(params.sessionKind) ||
+    isOpenClawCronSessionKey(params.sessionId)
+  );
+}
+
 export function filterUserFacingOpenClawSessionsByAgent<T extends { id: string }>(
   sessions: T[],
   agentId: string | null | undefined,
 ) {
   return sessions.filter((session) => {
+    const sessionKind =
+      'sessionKind' in session && typeof session.sessionKind === 'string'
+        ? session.sessionKind
+        : null;
+    if (shouldHideOpenClawBackgroundSession({ sessionId: session.id, sessionKind })) {
+      return false;
+    }
+
     if (isOpenClawLegacyUserFacingSession(session.id)) {
       return true;
     }
 
     return isOpenClawSessionInAgentScope(session.id, agentId);
+  });
+}
+
+export function shouldKeepHiddenOpenClawSessionVisible<T extends { id: string }>(
+  session: T | undefined,
+) {
+  if (!session) {
+    return false;
+  }
+
+  const sessionKind =
+    'sessionKind' in session && typeof session.sessionKind === 'string'
+      ? session.sessionKind
+      : null;
+  return shouldHideOpenClawBackgroundSession({
+    sessionId: session.id,
+    sessionKind,
   });
 }
 

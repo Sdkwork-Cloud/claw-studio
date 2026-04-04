@@ -25,8 +25,7 @@ test('tauriBridge removes api-router runtime bootstrap helpers while keeping des
   assert.match(tauriBridgeSource, /export async function listLocalAiProxyRequestLogs/);
   assert.match(tauriBridgeSource, /export async function listLocalAiProxyMessageLogs/);
   assert.match(tauriBridgeSource, /export async function updateLocalAiProxyMessageCapture/);
-  assert.match(tauriBridgeSource, /export async function invokeOpenClawGateway/);
-  assert.match(tauriBridgeSource, /invokeOpenClawGateway:\s*\(instanceId,\s*request,\s*options\)\s*=>/);
+  assert.match(tauriBridgeSource, /from '\.\/studioCommandCompat';/);
   assert.match(tauriBridgeSource, /getStatus:\s*getDesktopKernelStatus/);
   assert.match(tauriBridgeSource, /ensureRunning:\s*ensureDesktopKernelRunning/);
   assert.match(tauriBridgeSource, /restart:\s*restartDesktopKernel/);
@@ -39,6 +38,43 @@ test('tauriBridge removes api-router runtime bootstrap helpers while keeping des
   assert.match(tauriBridgeSource, /DESKTOP_COMMANDS\.listLocalAiProxyMessageLogs/);
   assert.match(tauriBridgeSource, /DESKTOP_COMMANDS\.updateLocalAiProxyMessageCapture/);
   assert.doesNotMatch(desktopProvidersSource, /DesktopAuthSessionBridge/);
+});
+
+test('tauriBridge isolates direct studio Tauri command compatibility in a dedicated compat module', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const compatSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'studioCommandCompat.ts'),
+    'utf8',
+  );
+  const desktopIndexSource = fs.readFileSync(
+    path.join(desktopRoot, 'src/index.ts'),
+    'utf8',
+  );
+
+  assert.match(compatSource, /export interface DesktopLegacyStudioCompatApi/);
+  assert.match(compatSource, /export const desktopLegacyStudioCompatApi/);
+  assert.match(compatSource, /DESKTOP_COMMANDS\.studioListInstances/);
+  assert.match(compatSource, /DESKTOP_COMMANDS\.studioInvokeOpenClawGateway/);
+  assert.match(compatSource, /DESKTOP_COMMANDS\.studioCreateInstanceTask/);
+  assert.match(compatSource, /DESKTOP_COMMANDS\.studioUpdateInstanceTask/);
+  assert.match(compatSource, /DESKTOP_COMMANDS\.studioListConversations/);
+  assert.match(tauriBridgeSource, /export \{[\s\S]*\} from '\.\/studioCommandCompat';/);
+  assert.match(tauriBridgeSource, /desktopLegacyStudioCompatApi/);
+  assert.match(tauriBridgeSource, /studioListInstances/);
+  assert.match(tauriBridgeSource, /invokeOpenClawGateway/);
+  assert.match(tauriBridgeSource, /studioCreateInstanceTask/);
+  assert.match(tauriBridgeSource, /studioUpdateInstanceTask/);
+  assert.match(tauriBridgeSource, /studioListConversations/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function studioListInstances/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function invokeOpenClawGateway/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function studioCreateInstanceTask/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function studioUpdateInstanceTask/);
+  assert.doesNotMatch(tauriBridgeSource, /export async function studioListConversations/);
+  assert.match(desktopIndexSource, /desktopLegacyStudioCompatApi/);
 });
 
 test('tauriBridge exposes manage rollout and internal host platform contract surfaces', () => {
@@ -89,11 +125,11 @@ test('tauriBridge exposes manage rollout and internal host platform contract sur
   assert.match(tauriBridgeSource, /export async function listNodeSessions/);
   assert.match(
     tauriBridgeSource,
-    /manage:\s*\{[\s\S]*listRollouts:\s*\(\)\s*=>\s*listRollouts\(\),[\s\S]*previewRollout:\s*\(input\)\s*=>\s*previewRollout\(input\),[\s\S]*startRollout:\s*\(rolloutId\)\s*=>\s*startRollout\(rolloutId\)/,
+    /manage:\s*createDesktopHttpFirstManagePlatform\(\),/,
   );
   assert.match(
     tauriBridgeSource,
-    /internal:\s*\{[\s\S]*getHostPlatformStatus:\s*\(\)\s*=>\s*getHostPlatformStatus\(\),[\s\S]*listNodeSessions:\s*\(\)\s*=>\s*listNodeSessions\(\)/,
+    /internal:\s*createDesktopHttpFirstInternalPlatform\(\),/,
   );
   assert.match(registrySource, /manage:\s*ManagePlatformAPI;/);
   assert.match(registrySource, /internal:\s*InternalPlatformAPI;/);
@@ -148,4 +184,532 @@ test('tauriBridge routes combined host status and rollout preview through deskto
   assert.match(bootstrapSource, /commands::studio_commands::preview_rollout/);
   assert.match(bootstrapSource, /commands::studio_commands::start_rollout/);
   assert.match(bootstrapSource, /commands::studio_commands::list_node_sessions/);
+});
+
+test('tauriBridge exposes native desktop notifications through the shared platform bridge', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const pluginsSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/plugins/mod.rs'),
+    'utf8',
+  );
+  const cargoSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/Cargo.toml'),
+    'utf8',
+  );
+  const notificationsServiceSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/framework/services/notifications.rs'),
+    'utf8',
+  );
+  const infrastructureRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-infrastructure/src');
+  const platformTypesSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/types.ts'),
+    'utf8',
+  );
+  const registrySource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/registry.ts'),
+    'utf8',
+  );
+  const platformIndexSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/index.ts'),
+    'utf8',
+  );
+
+  assert.match(platformTypesSource, /export interface PlatformNotificationRequest \{/);
+  assert.match(platformTypesSource, /title: string;/);
+  assert.match(platformTypesSource, /body\?: string;/);
+  assert.match(
+    platformTypesSource,
+    /showNotification\(notification: PlatformNotificationRequest\): Promise<void>;/,
+  );
+  assert.match(
+    registrySource,
+    /showNotification:\s*\(notification\)\s*=>\s*getPlatformBridge\(\)\.platform\.showNotification\(notification\)/,
+  );
+  assert.match(platformIndexSource, /PlatformNotificationRequest/);
+  assert.match(tauriBridgeSource, /export async function showDesktopNotification/);
+  assert.match(tauriBridgeSource, /plugin:notification\|notify/);
+  assert.match(
+    tauriBridgeSource,
+    /showNotification:\s*\(notification\)\s*=>\s*showDesktopNotification\(notification\)/,
+  );
+  assert.match(cargoSource, /tauri-plugin-notification\s*=\s*"2"/);
+  assert.match(pluginsSource, /plugin\(tauri_plugin_notification::init\(\)\)/);
+  assert.match(
+    notificationsServiceSource,
+    /id:\s*"native"\.to_string\(\),[\s\S]*availability:\s*DesktopProviderAvailability::Ready/,
+  );
+  assert.match(
+    notificationsServiceSource,
+    /native_notifications_are_ready_once_runtime_adapters_are_wired/,
+  );
+});
+
+test('tauriBridge exposes managed OpenClaw mirror export through the shared kernel platform bridge', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const catalogSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'catalog.ts'),
+    'utf8',
+  );
+  const bootstrapSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/app/bootstrap.rs'),
+    'utf8',
+  );
+  const commandsModSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/commands/mod.rs'),
+    'utf8',
+  );
+  const infrastructureRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-infrastructure/src');
+  const kernelContractSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/contracts/kernel.ts'),
+    'utf8',
+  );
+  const registrySource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/registry.ts'),
+    'utf8',
+  );
+  const platformIndexSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/index.ts'),
+    'utf8',
+  );
+  const webKernelSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/webKernel.ts'),
+    'utf8',
+  );
+  const typesRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-types/src');
+  const typesIndexSource = fs.readFileSync(path.join(typesRoot, 'index.ts'), 'utf8');
+
+  assert.match(typesIndexSource, /export \* from '\.\/openclawMirror\.ts';/);
+  assert.match(kernelContractSource, /inspectOpenClawMirrorExport\(\): Promise<OpenClawMirrorExportPreview \| null>;/);
+  assert.match(
+    kernelContractSource,
+    /exportOpenClawMirror\(request: OpenClawMirrorExportRequest\): Promise<OpenClawMirrorExportResult>;/,
+  );
+  assert.match(catalogSource, /inspectOpenClawMirrorExport:\s*'inspect_openclaw_mirror_export'/);
+  assert.match(catalogSource, /exportOpenClawMirror:\s*'export_openclaw_mirror'/);
+  assert.match(tauriBridgeSource, /export async function inspectOpenClawMirrorExport/);
+  assert.match(tauriBridgeSource, /export async function exportOpenClawMirror/);
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<OpenClawMirrorExportPreview \| null>\(\s*DESKTOP_COMMANDS\.inspectOpenClawMirrorExport,[\s\S]*operation:\s*'kernel\.inspectOpenClawMirrorExport'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<OpenClawMirrorExportResult>\(\s*DESKTOP_COMMANDS\.exportOpenClawMirror,\s*\{\s*request\s*\},[\s\S]*operation:\s*'kernel\.exportOpenClawMirror'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /kernel:\s*\{[\s\S]*inspectOpenClawMirrorExport:\s*\(\)\s*=>\s*inspectOpenClawMirrorExport\(\),[\s\S]*exportOpenClawMirror:\s*\(request\)\s*=>\s*exportOpenClawMirror\(request\)/,
+  );
+  assert.match(
+    registrySource,
+    /inspectOpenClawMirrorExport:\s*\(\)\s*=>\s*getPlatformBridge\(\)\.kernel\.inspectOpenClawMirrorExport\(\)/,
+  );
+  assert.match(
+    registrySource,
+    /exportOpenClawMirror:\s*\(request\)\s*=>\s*getPlatformBridge\(\)\.kernel\.exportOpenClawMirror\(request\)/,
+  );
+  assert.match(platformIndexSource, /OpenClawMirrorExportPreview/);
+  assert.match(platformIndexSource, /OpenClawMirrorExportResult/);
+  assert.match(webKernelSource, /async inspectOpenClawMirrorExport\(\): Promise<OpenClawMirrorExportPreview \| null>/);
+  assert.match(
+    webKernelSource,
+    /async exportOpenClawMirror\(\s*_request: OpenClawMirrorExportRequest,\s*\): Promise<OpenClawMirrorExportResult>/,
+  );
+  assert.match(commandsModSource, /pub mod openclaw_mirror;/);
+  assert.match(bootstrapSource, /commands::openclaw_mirror::inspect_openclaw_mirror_export/);
+  assert.match(bootstrapSource, /commands::openclaw_mirror::export_openclaw_mirror/);
+});
+
+test('tauriBridge exposes managed OpenClaw mirror import through the shared kernel platform bridge', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const catalogSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'catalog.ts'),
+    'utf8',
+  );
+  const bootstrapSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/app/bootstrap.rs'),
+    'utf8',
+  );
+  const commandsModSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/commands/mod.rs'),
+    'utf8',
+  );
+  const infrastructureRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-infrastructure/src');
+  const kernelContractSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/contracts/kernel.ts'),
+    'utf8',
+  );
+  const registrySource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/registry.ts'),
+    'utf8',
+  );
+  const platformIndexSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/index.ts'),
+    'utf8',
+  );
+  const webKernelSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/webKernel.ts'),
+    'utf8',
+  );
+  const typesRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-types/src');
+  const mirrorTypesSource = fs.readFileSync(path.join(typesRoot, 'openclawMirror.ts'), 'utf8');
+  const coreRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-core/src');
+  const mirrorServiceSource = fs.readFileSync(
+    path.join(coreRoot, 'services/openClawMirrorService.ts'),
+    'utf8',
+  );
+
+  assert.match(mirrorTypesSource, /export interface OpenClawMirrorImportPreview \{/);
+  assert.match(mirrorTypesSource, /sourcePath: string;/);
+  assert.match(mirrorTypesSource, /warnings: string\[\];/);
+  assert.match(mirrorTypesSource, /export interface OpenClawMirrorImportRequest \{/);
+  assert.match(mirrorTypesSource, /createSafetySnapshot: boolean;/);
+  assert.match(mirrorTypesSource, /restartGateway: boolean;/);
+  assert.match(
+    mirrorTypesSource,
+    /export type OpenClawMirrorImportVerificationStatus = 'ready' \| 'degraded';/,
+  );
+  assert.match(
+    mirrorTypesSource,
+    /export type OpenClawMirrorImportVerificationCheckStatus = 'passed' \| 'failed' \| 'skipped';/,
+  );
+  assert.match(mirrorTypesSource, /export interface OpenClawMirrorImportVerificationCheck \{/);
+  assert.match(mirrorTypesSource, /id: string;/);
+  assert.match(mirrorTypesSource, /label: string;/);
+  assert.match(mirrorTypesSource, /status: OpenClawMirrorImportVerificationCheckStatus;/);
+  assert.match(mirrorTypesSource, /detail: string;/);
+  assert.match(mirrorTypesSource, /export interface OpenClawMirrorImportVerification \{/);
+  assert.match(mirrorTypesSource, /checkedAt: string;/);
+  assert.match(mirrorTypesSource, /status: OpenClawMirrorImportVerificationStatus;/);
+  assert.match(
+    mirrorTypesSource,
+    /checks: OpenClawMirrorImportVerificationCheck\[\];/,
+  );
+  assert.match(mirrorTypesSource, /export interface OpenClawMirrorImportResult \{/);
+  assert.match(mirrorTypesSource, /safetySnapshot\?: OpenClawMirrorSafetySnapshotRecord \| null;/);
+  assert.match(
+    mirrorTypesSource,
+    /verification: OpenClawMirrorImportVerification;/,
+  );
+  assert.match(
+    kernelContractSource,
+    /inspectOpenClawMirrorImport\(sourcePath: string\): Promise<OpenClawMirrorImportPreview \| null>;/,
+  );
+  assert.match(
+    kernelContractSource,
+    /importOpenClawMirror\(request: OpenClawMirrorImportRequest\): Promise<OpenClawMirrorImportResult>;/,
+  );
+  assert.match(catalogSource, /inspectOpenClawMirrorImport:\s*'inspect_openclaw_mirror_import'/);
+  assert.match(catalogSource, /importOpenClawMirror:\s*'import_openclaw_mirror'/);
+  assert.match(tauriBridgeSource, /export async function inspectOpenClawMirrorImport/);
+  assert.match(tauriBridgeSource, /export async function importOpenClawMirror/);
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<OpenClawMirrorImportPreview \| null>\(\s*DESKTOP_COMMANDS\.inspectOpenClawMirrorImport,\s*\{\s*sourcePath\s*\},[\s\S]*operation:\s*'kernel\.inspectOpenClawMirrorImport'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<OpenClawMirrorImportResult>\(\s*DESKTOP_COMMANDS\.importOpenClawMirror,\s*\{\s*request\s*\},[\s\S]*operation:\s*'kernel\.importOpenClawMirror'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /kernel:\s*\{[\s\S]*inspectOpenClawMirrorImport:\s*\(sourcePath\)\s*=>\s*inspectOpenClawMirrorImport\(sourcePath\),[\s\S]*importOpenClawMirror:\s*\(request\)\s*=>\s*importOpenClawMirror\(request\)/,
+  );
+  assert.match(
+    registrySource,
+    /inspectOpenClawMirrorImport:\s*\(sourcePath\)\s*=>\s*getPlatformBridge\(\)\.kernel\.inspectOpenClawMirrorImport\(sourcePath\)/,
+  );
+  assert.match(
+    registrySource,
+    /importOpenClawMirror:\s*\(request\)\s*=>\s*getPlatformBridge\(\)\.kernel\.importOpenClawMirror\(request\)/,
+  );
+  assert.match(platformIndexSource, /OpenClawMirrorImportPreview/);
+  assert.match(platformIndexSource, /OpenClawMirrorImportResult/);
+  assert.match(
+    webKernelSource,
+    /async inspectOpenClawMirrorImport\(\s*_sourcePath: string,\s*\): Promise<OpenClawMirrorImportPreview \| null>/,
+  );
+  assert.match(
+    webKernelSource,
+    /async importOpenClawMirror\(\s*_request: OpenClawMirrorImportRequest,\s*\): Promise<OpenClawMirrorImportResult>/,
+  );
+  assert.match(
+    mirrorServiceSource,
+    /async inspectOpenClawMirrorImport\(\s*sourcePath: string,\s*\): Promise<OpenClawMirrorImportPreview \| null>/,
+  );
+  assert.match(
+    mirrorServiceSource,
+    /async importOpenClawMirror\(\s*request: OpenClawMirrorImportRequest,\s*\): Promise<OpenClawMirrorImportResult>/,
+  );
+  assert.match(commandsModSource, /pub mod openclaw_mirror;/);
+  assert.match(bootstrapSource, /commands::openclaw_mirror::inspect_openclaw_mirror_import/);
+  assert.match(bootstrapSource, /commands::openclaw_mirror::import_openclaw_mirror/);
+});
+
+test('tauriBridge keeps canonical host-manage placeholders and startup metadata visible at the desktop package boundary', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const desktopIndexSource = fs.readFileSync(
+    path.join(desktopRoot, 'src/index.ts'),
+    'utf8',
+  );
+  const infrastructureRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-infrastructure/src');
+  const manageContractSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/contracts/manage.ts'),
+    'utf8',
+  );
+  const runtimeContractSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/contracts/runtime.ts'),
+    'utf8',
+  );
+
+  assert.match(manageContractSource, /getHostEndpoints\(\): Promise<ManageHostEndpointRecord\[]>/);
+  assert.match(manageContractSource, /getOpenClawRuntime\(\): Promise<ManageOpenClawRuntimeRecord>/);
+  assert.match(manageContractSource, /getOpenClawGateway\(\): Promise<ManageOpenClawGatewayRecord>/);
+  assert.match(manageContractSource, /invokeOpenClawGateway\(request: ManageOpenClawGatewayInvokeRequest\)/);
+  assert.match(runtimeContractSource, /export interface RuntimeStartupContext \{/);
+  assert.match(runtimeContractSource, /apiBasePath\?: string \| null;/);
+  assert.match(tauriBridgeSource, /export async function getHostEndpoints\(\)/);
+  assert.match(tauriBridgeSource, /export async function getOpenClawRuntime\(\)/);
+  assert.match(tauriBridgeSource, /export async function getOpenClawGateway\(\)/);
+  assert.match(tauriBridgeSource, /export async function invokeManagedOpenClawGateway\(/);
+  assert.match(
+    tauriBridgeSource,
+    /startup:\s*\{[\s\S]*hostMode:\s*'desktopCombined'[\s\S]*packageFamily:\s*'desktop'[\s\S]*startupTarget:\s*'desktop'[\s\S]*apiBasePath:\s*DESKTOP_API_BASE_PATH[\s\S]*manageBasePath:\s*DESKTOP_MANAGE_BASE_PATH[\s\S]*internalBasePath:\s*DESKTOP_INTERNAL_BASE_PATH/,
+  );
+  assert.match(desktopIndexSource, /getHostEndpoints,/);
+  assert.match(desktopIndexSource, /getOpenClawRuntime,/);
+  assert.match(desktopIndexSource, /getOpenClawGateway,/);
+  assert.match(desktopIndexSource, /invokeManagedOpenClawGateway,/);
+});
+
+test('tauriBridge derives desktop browserBaseUrl from the canonical embedded host endpoint metadata', () => {
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+
+  assert.match(tauriBridgeSource, /async function resolveDesktopHostBrowserBaseUrl\(\)/);
+  assert.match(tauriBridgeSource, /const hostEndpoints = await getHostEndpoints\(\);/);
+  assert.match(
+    tauriBridgeSource,
+    /endpoint\.endpointId === 'claw-manage-http'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /browserBaseUrl:\s*await resolveDesktopHostBrowserBaseUrl\(\)/,
+  );
+});
+
+test('tauriBridge configures manage and internal desktop bridge surfaces as HTTP-only over the embedded host browser shell', () => {
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+
+  assert.match(
+    tauriBridgeSource,
+    /WebManagePlatform,\s*WebPlatform,\s*WebInternalPlatform,\s*configurePlatformBridge/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /const DESKTOP_MANAGE_BASE_PATH = '\/claw\/manage\/v1';/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /const DESKTOP_INTERNAL_BASE_PATH = '\/claw\/internal\/v1';/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /function resolveDesktopHostedBasePath\(browserBaseUrl: string,\s*basePath: string\): string \{/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /async function requireDesktopHostedBasePath\(\s*operation: string,\s*basePath: string,\s*\): Promise<string> \{/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /async function createDesktopHostedManagePlatform\(\s*operation: string,\s*\): Promise<WebManagePlatform> \{/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /async function createDesktopHostedInternalPlatform\(\s*operation: string,\s*\): Promise<WebInternalPlatform> \{/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /return new WebManagePlatform\(\s*await requireDesktopHostedBasePath\(operation,\s*DESKTOP_MANAGE_BASE_PATH\),?\s*\);/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /return new WebInternalPlatform\(\s*await requireDesktopHostedBasePath\(operation,\s*DESKTOP_INTERNAL_BASE_PATH\),?\s*\);/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /throw new DesktopBridgeError\(\{[\s\S]*operation,[\s\S]*runtime:\s*'desktop'[\s\S]*Canonical desktop embedded host browserBaseUrl is unavailable\./,
+   );
+   assert.doesNotMatch(
+     tauriBridgeSource,
+     /if \(!browserBaseUrl\) \{[\s\S]*return listRollouts\(\);/,
+   );
+   assert.doesNotMatch(
+     tauriBridgeSource,
+     /if \(!browserBaseUrl\) \{[\s\S]*return getHostPlatformStatus\(\);/,
+   );
+  assert.match(
+    tauriBridgeSource,
+     /manage:\s*createDesktopHttpFirstManagePlatform\(\),/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /internal:\s*createDesktopHttpFirstInternalPlatform\(\),/,
+  );
+});
+
+test('tauriBridge configures studio operations as HTTP-only over the embedded host browser shell', () => {
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+
+  assert.match(
+    tauriBridgeSource,
+    /const DESKTOP_API_BASE_PATH = '\/claw\/api\/v1';/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /WebHostedStudioPlatform/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /function createDesktopHttpFirstStudioPlatform\(\) \{/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /const hostedPlatform = new WebHostedStudioPlatform\(\{/,
+  );
+  assert.match(
+    tauriBridgeSource,
+     /resolveBasePath:\s*async \(\) =>[\s\S]*requireDesktopHostedBasePath\(\s*'studio\.resolveHostedBasePath',\s*DESKTOP_API_BASE_PATH\s*\)/,
+   );
+   assert.doesNotMatch(
+     tauriBridgeSource,
+     /fallback:\s*desktopDirectStudioPlatform,/,
+   );
+  assert.match(
+    tauriBridgeSource,
+     /studio:\s*createDesktopHttpFirstStudioPlatform\(\),/,
+  );
+});
+
+test('tauriBridge reuses the shared hosted studio adapter instead of maintaining a second manual studio fetch implementation', () => {
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const infrastructureRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-infrastructure/src');
+  const platformIndexSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/index.ts'),
+    'utf8',
+  );
+
+  assert.match(platformIndexSource, /WebHostedStudioPlatform/);
+  assert.match(tauriBridgeSource, /WebHostedStudioPlatform/);
+  assert.match(
+    tauriBridgeSource,
+    /const hostedPlatform = new WebHostedStudioPlatform\(/,
+  );
+});
+
+test('tauriBridge routes canonical host-manage OpenClaw surfaces through concrete desktop commands instead of placeholders', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const catalogSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'catalog.ts'),
+    'utf8',
+  );
+  const bootstrapSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/app/bootstrap.rs'),
+    'utf8',
+  );
+  const studioCommandsSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/commands/studio_commands.rs'),
+    'utf8',
+  );
+  const studioServiceSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/framework/services/studio.rs'),
+    'utf8',
+  );
+
+  assert.match(catalogSource, /getHostEndpoints:\s*'manage_get_host_endpoints'/);
+  assert.match(catalogSource, /getOpenClawRuntime:\s*'manage_get_openclaw_runtime'/);
+  assert.match(catalogSource, /getOpenClawGateway:\s*'manage_get_openclaw_gateway'/);
+  assert.match(
+    catalogSource,
+    /invokeManagedOpenClawGateway:\s*'manage_invoke_openclaw_gateway'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<ManageHostEndpointRecord\[]>\(\s*DESKTOP_COMMANDS\.getHostEndpoints,\s*undefined,\s*\{\s*operation:\s*'manage\.getHostEndpoints'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<ManageOpenClawRuntimeRecord>\(\s*DESKTOP_COMMANDS\.getOpenClawRuntime,\s*undefined,\s*\{\s*operation:\s*'manage\.getOpenClawRuntime'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<ManageOpenClawGatewayRecord>\(\s*DESKTOP_COMMANDS\.getOpenClawGateway,\s*undefined,\s*\{\s*operation:\s*'manage\.getOpenClawGateway'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<unknown>\(\s*DESKTOP_COMMANDS\.invokeManagedOpenClawGateway,\s*\{\s*request\s*\},\s*\{\s*operation:\s*'manage\.invokeOpenClawGateway'/,
+  );
+  assert.doesNotMatch(
+    tauriBridgeSource,
+    /Manage host endpoints are not available on the desktop bridge yet\./,
+  );
+  assert.doesNotMatch(
+    tauriBridgeSource,
+    /Manage OpenClaw runtime is not available on the desktop bridge yet\./,
+  );
+  assert.doesNotMatch(
+    tauriBridgeSource,
+    /Manage OpenClaw gateway is not available on the desktop bridge yet\./,
+  );
+  assert.doesNotMatch(
+    tauriBridgeSource,
+    /Manage OpenClaw gateway invoke is not available on the desktop bridge yet\./,
+  );
+  assert.match(studioCommandsSource, /pub async fn get_host_endpoints/);
+  assert.match(studioCommandsSource, /pub async fn get_openclaw_runtime/);
+  assert.match(studioCommandsSource, /pub async fn get_openclaw_gateway/);
+  assert.match(studioCommandsSource, /pub async fn invoke_managed_openclaw_gateway/);
+  assert.match(bootstrapSource, /commands::studio_commands::get_host_endpoints/);
+  assert.match(bootstrapSource, /commands::studio_commands::get_openclaw_runtime/);
+  assert.match(bootstrapSource, /commands::studio_commands::get_openclaw_gateway/);
+  assert.match(bootstrapSource, /commands::studio_commands::invoke_managed_openclaw_gateway/);
+  assert.match(studioServiceSource, /pub fn get_host_endpoints\(/);
+  assert.match(studioServiceSource, /pub fn get_openclaw_runtime\(/);
+  assert.match(studioServiceSource, /pub fn get_openclaw_gateway\(/);
+  assert.match(studioServiceSource, /pub fn invoke_managed_openclaw_gateway\(/);
+  assert.match(studioServiceSource, /project_openclaw_runtime/);
+  assert.match(studioServiceSource, /project_openclaw_gateway/);
+  assert.match(studioServiceSource, /managed_openclaw_lifecycle\(supervisor\)\?/);
 });

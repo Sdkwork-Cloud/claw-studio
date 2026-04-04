@@ -2,12 +2,29 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use axum::{
-    Router,
     body::Body,
-    http::{StatusCode, Uri, header},
+    extract::State,
+    http::{header, StatusCode, Uri},
     response::{Html, IntoResponse, Response},
     routing::get,
+    Router,
 };
+
+use crate::{bootstrap::ServerState, http::auth::authorize_browser_request};
+
+const DEFAULT_STUDIO_API_BASE_PATH: &str = "/claw/api/v1";
+const DEFAULT_MANAGE_BASE_PATH: &str = "/claw/manage/v1";
+const DEFAULT_INTERNAL_BASE_PATH: &str = "/claw/internal/v1";
+const BROWSER_SESSION_TOKEN_META_NAME: &str = "sdkwork-claw-browser-session-token";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ServerBrowserHostMetadata {
+    mode: &'static str,
+    api_base_path: &'static str,
+    manage_base_path: &'static str,
+    internal_base_path: &'static str,
+    browser_session_token: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct StaticAssetMount {
@@ -21,17 +38,50 @@ impl StaticAssetMount {
         }
     }
 
-    pub fn attach(self, router: Router) -> Router {
+    pub fn attach(self, router: Router<ServerState>) -> Router<ServerState> {
         let dist_dir = self.dist_dir.clone();
-        router.fallback(get(move |uri: Uri| {
-            let dist_dir = dist_dir.clone();
-            let request_path = uri.path().to_string();
-            async move { serve_browser_path(dist_dir, &request_path).await }
-        }))
+        router.fallback(get(
+            move |State(state): State<ServerState>, headers: axum::http::HeaderMap, uri: Uri| {
+                let dist_dir = dist_dir.clone();
+                let request_path = uri.path().to_string();
+                async move {
+                    if let Err(response) = authorize_browser_request(&headers, &state) {
+                        return response;
+                    }
+
+                    serve_browser_path(
+                        dist_dir,
+                        &request_path,
+                        ServerBrowserHostMetadata::from_state(&state),
+                    )
+                    .await
+                }
+            },
+        ))
     }
 }
 
-async fn serve_browser_path(dist_dir: PathBuf, request_path: &str) -> Response {
+impl ServerBrowserHostMetadata {
+    fn from_state(state: &ServerState) -> Self {
+        Self {
+            mode: state.mode,
+            api_base_path: DEFAULT_STUDIO_API_BASE_PATH,
+            manage_base_path: DEFAULT_MANAGE_BASE_PATH,
+            internal_base_path: DEFAULT_INTERNAL_BASE_PATH,
+            browser_session_token: state.auth.browser_session_token.clone(),
+        }
+    }
+}
+
+async fn serve_browser_path(
+    dist_dir: PathBuf,
+    request_path: &str,
+    host_metadata: ServerBrowserHostMetadata,
+) -> Response {
+    if request_path == "/claw" || request_path.starts_with("/claw/") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
     if let Some(relative_path) = resolve_browser_relative_path(request_path) {
         let candidate_path = dist_dir.join(&relative_path);
 
@@ -44,33 +94,57 @@ async fn serve_browser_path(dist_dir: PathBuf, request_path: &str) -> Response {
         }
     }
 
-    serve_index_html(dist_dir).await
+    serve_index_html(dist_dir, host_metadata).await
 }
 
-async fn serve_index_html(dist_dir: PathBuf) -> Response {
+async fn serve_index_html(dist_dir: PathBuf, host_metadata: ServerBrowserHostMetadata) -> Response {
     let index_path = dist_dir.join("index.html");
     match fs::read_to_string(index_path) {
-        Ok(html) => Html(inject_server_host_metadata(&html)).into_response(),
+        Ok(html) => Html(inject_server_host_metadata(&html, host_metadata)).into_response(),
         Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
     }
 }
 
-fn inject_server_host_metadata(html: &str) -> String {
-    if html.contains("sdkwork-claw-host-mode") {
+fn inject_server_host_metadata(html: &str, host_metadata: ServerBrowserHostMetadata) -> String {
+    let has_core_metadata = html.contains("sdkwork-claw-host-mode")
+        && html.contains("sdkwork-claw-api-base-path")
+        && html.contains("sdkwork-claw-manage-base-path")
+        && html.contains("sdkwork-claw-internal-base-path");
+    let has_browser_session_metadata = html.contains(BROWSER_SESSION_TOKEN_META_NAME);
+
+    if has_core_metadata
+        && (host_metadata.browser_session_token.is_none() || has_browser_session_metadata)
+    {
         return html.to_string();
     }
 
-    let metadata = concat!(
-        "\n    <meta name=\"sdkwork-claw-host-mode\" content=\"server\" />\n",
-        "    <meta name=\"sdkwork-claw-manage-base-path\" content=\"/claw/manage/v1\" />\n",
-        "    <meta name=\"sdkwork-claw-internal-base-path\" content=\"/claw/internal/v1\" />\n",
-    );
+    let browser_session_metadata = host_metadata
+        .browser_session_token
+        .as_deref()
+        .map(|token| {
+            format!(
+                "\n    <meta name=\"{BROWSER_SESSION_TOKEN_META_NAME}\" content=\"{token}\" />\n"
+            )
+        })
+        .unwrap_or_default();
+    let metadata = if has_core_metadata {
+        browser_session_metadata
+    } else {
+        format!(
+            "\n    <meta name=\"sdkwork-claw-host-mode\" content=\"{}\" />\n    <meta name=\"sdkwork-claw-api-base-path\" content=\"{}\" />\n    <meta name=\"sdkwork-claw-manage-base-path\" content=\"{}\" />\n    <meta name=\"sdkwork-claw-internal-base-path\" content=\"{}\" />{}\n",
+            host_metadata.mode,
+            host_metadata.api_base_path,
+            host_metadata.manage_base_path,
+            host_metadata.internal_base_path,
+            browser_session_metadata,
+        )
+    };
 
     match html.find("</head>") {
         Some(index) => {
             let mut injected = String::with_capacity(html.len() + metadata.len());
             injected.push_str(&html[..index]);
-            injected.push_str(metadata);
+            injected.push_str(&metadata);
             injected.push_str(&html[index..]);
             injected
         }
@@ -111,7 +185,11 @@ fn serve_static_file(path: PathBuf) -> Response {
 }
 
 fn content_type_for_path(path: &Path) -> &'static str {
-    match path.extension().and_then(|value| value.to_str()).unwrap_or_default() {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+    {
         "css" => "text/css; charset=utf-8",
         "js" => "application/javascript; charset=utf-8",
         "json" => "application/json; charset=utf-8",
@@ -135,16 +213,45 @@ mod tests {
     use axum::body::to_bytes;
     use axum::http::StatusCode;
 
-    use super::{inject_server_host_metadata, serve_browser_path};
+    use super::{
+        inject_server_host_metadata, serve_browser_path, ServerBrowserHostMetadata,
+        DEFAULT_INTERNAL_BASE_PATH, DEFAULT_MANAGE_BASE_PATH, DEFAULT_STUDIO_API_BASE_PATH,
+    };
 
     #[test]
     fn inject_server_host_metadata_marks_server_mode_and_base_paths() {
-        let html = inject_server_host_metadata("<html><head></head><body></body></html>");
+        let html = inject_server_host_metadata(
+            "<html><head></head><body></body></html>",
+            ServerBrowserHostMetadata {
+                mode: "server",
+                api_base_path: DEFAULT_STUDIO_API_BASE_PATH,
+                manage_base_path: DEFAULT_MANAGE_BASE_PATH,
+                internal_base_path: DEFAULT_INTERNAL_BASE_PATH,
+                browser_session_token: None,
+            },
+        );
 
         assert!(html.contains("sdkwork-claw-host-mode"));
+        assert!(html.contains("sdkwork-claw-api-base-path"));
         assert!(html.contains("sdkwork-claw-manage-base-path"));
         assert!(html.contains("sdkwork-claw-internal-base-path"));
         assert!(html.contains("content=\"server\""));
+    }
+
+    #[test]
+    fn inject_server_host_metadata_marks_desktop_combined_mode_when_requested() {
+        let html = inject_server_host_metadata(
+            "<html><head></head><body></body></html>",
+            ServerBrowserHostMetadata {
+                mode: "desktopCombined",
+                api_base_path: DEFAULT_STUDIO_API_BASE_PATH,
+                manage_base_path: DEFAULT_MANAGE_BASE_PATH,
+                internal_base_path: DEFAULT_INTERNAL_BASE_PATH,
+                browser_session_token: None,
+            },
+        );
+
+        assert!(html.contains("content=\"desktopCombined\""));
     }
 
     #[tokio::test]
@@ -160,7 +267,18 @@ mod tests {
         fs::write(assets_dir.join("app.js"), "console.log('asset ok');")
             .expect("asset file should be written");
 
-        let response = serve_browser_path(dist_dir, "/assets/app.js").await;
+        let response = serve_browser_path(
+            dist_dir,
+            "/assets/app.js",
+            ServerBrowserHostMetadata {
+                mode: "server",
+                api_base_path: DEFAULT_STUDIO_API_BASE_PATH,
+                manage_base_path: DEFAULT_MANAGE_BASE_PATH,
+                internal_base_path: DEFAULT_INTERNAL_BASE_PATH,
+                browser_session_token: None,
+            },
+        )
+        .await;
         let status = response.status();
         let content_type = response
             .headers()

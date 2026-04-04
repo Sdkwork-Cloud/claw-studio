@@ -12,6 +12,9 @@ const openClawClientByInstance = new Map<string, CachedOpenClawClientEntry>();
 
 export async function getSharedOpenClawGatewayClient(instanceId: string) {
   const instance = await studio.getInstance(instanceId);
+  if (!instance) {
+    throw new Error(`Unable to resolve OpenClaw instance: ${instanceId}`);
+  }
   const route = resolveInstanceChatRoute(instance);
   if (route.mode !== 'instanceOpenClawGatewayWs' || !route.websocketUrl) {
     throw new Error('The selected instance is not backed by an OpenClaw Gateway WebSocket.');

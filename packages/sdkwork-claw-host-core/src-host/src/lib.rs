@@ -1,5 +1,8 @@
 pub mod domain;
+pub mod host_endpoints;
 pub mod internal;
+pub mod openclaw_control_plane;
+pub mod port_allocator;
 pub mod projection;
 pub mod rollout;
 pub mod storage;
@@ -19,28 +22,39 @@ pub fn host_core_metadata() -> HostCoreMetadata {
 mod tests {
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use crate::domain::rollout::RolloutPhase;
+    use crate::host_endpoints::{
+        project_openclaw_gateway, project_openclaw_runtime, HostEndpointRegistration,
+        HostEndpointRegistry, OpenClawLifecycle,
+    };
     use crate::internal::error::{
         InternalErrorCategory, InternalErrorEnvelope, InternalErrorResolution,
     };
+    use crate::internal::node_sessions::PersistedNodeSessionCatalog;
     use crate::internal::node_sessions::{
         NodeSessionAckDesiredStateApplySummary, NodeSessionAckDesiredStateInput,
-        NodeSessionAckDesiredStateResponse, NodeSessionAdmitInput,
-        NodeSessionCloseInput, NodeSessionCloseResponse,
-        NodeSessionCompatibilityPreview, NodeSessionCompatibilityState,
+        NodeSessionAckDesiredStateResponse, NodeSessionAdmitInput, NodeSessionCloseInput,
+        NodeSessionCloseResponse, NodeSessionCompatibilityPreview, NodeSessionCompatibilityState,
         NodeSessionDesiredStateAckResult, NodeSessionDesiredStateProjectionRecord,
         NodeSessionHeartbeatInput, NodeSessionHelloInput, NodeSessionHelloNodeClaim,
         NodeSessionHelloResponseAction, NodeSessionHelloVersionManifest,
-        NodeSessionPullDesiredStateInput, NodeSessionPullDesiredStateResponse,
-        NodeSessionRegistry, NodeSessionRegistryError, NodeSessionState,
+        NodeSessionPullDesiredStateInput, NodeSessionPullDesiredStateResponse, NodeSessionRegistry,
+        NodeSessionRegistryError, NodeSessionState,
     };
+    use crate::port_allocator::{allocate_tcp_listener, PortAllocationRequest, PortRange};
     use crate::projection::compiler::{DesiredStateInput, ProjectionCompiler};
-    use crate::rollout::control_plane::{PreviewRolloutInput, RolloutControlPlane};
+    use crate::rollout::control_plane::{
+        PersistedRolloutCatalog, PreviewRolloutInput, RolloutControlPlane,
+    };
     use crate::rollout::engine::{
         preflight_target, PreflightOutcome, RolloutPolicy, RolloutPreflightTarget,
     };
-    use crate::domain::rollout::RolloutPhase;
+    use crate::storage::node_session_store::NodeSessionCatalogStore;
+    use crate::storage::rollout_store::RolloutCatalogStore;
+    use crate::storage::StorageError;
 
     #[test]
     fn internal_error_envelope_preserves_retry_guidance() {
@@ -76,6 +90,78 @@ mod tests {
         assert_eq!(first.desired_state_revision, 1);
         assert_eq!(second.desired_state_revision, 1);
         assert_eq!(first.desired_state_hash, second.desired_state_hash);
+    }
+
+    #[test]
+    fn port_allocator_preserves_requested_port_when_conflict_forces_dynamic_port() {
+        let busy_listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("busy listener");
+        let busy_port = busy_listener
+            .local_addr()
+            .expect("busy listener addr")
+            .port();
+
+        let allocation = allocate_tcp_listener(PortAllocationRequest {
+            bind_host: "127.0.0.1".to_string(),
+            requested_port: busy_port,
+            fallback_range: Some(PortRange::new(busy_port, busy_port.saturating_add(16))),
+            allow_ephemeral_fallback: true,
+        })
+        .expect("allocator should bind a fallback port");
+
+        assert_eq!(allocation.bind_host, "127.0.0.1");
+        assert_eq!(allocation.requested_port, busy_port);
+        assert_ne!(allocation.active_port, busy_port);
+        assert!(allocation.dynamic_port);
+        assert!(allocation.last_conflict_reason.is_some());
+    }
+
+    #[test]
+    fn host_endpoint_registry_projects_requested_and_active_ports_for_openclaw_resources() {
+        let mut registry = HostEndpointRegistry::default();
+        let record = registry.register(HostEndpointRegistration {
+            endpoint_id: "openclaw-gateway".to_string(),
+            bind_host: "127.0.0.1".to_string(),
+            requested_port: 18_789,
+            active_port: Some(28_789),
+            scheme: "http".to_string(),
+            base_path: Some("/v1".to_string()),
+            websocket_path: Some("/ws".to_string()),
+            loopback_only: true,
+            dynamic_port: true,
+            last_conflict_at: Some(1_717_171_717),
+            last_conflict_reason: Some("requested port busy".to_string()),
+        });
+
+        assert_eq!(record.requested_port, 18_789);
+        assert_eq!(record.active_port, Some(28_789));
+        assert_eq!(
+            record.base_url.as_deref(),
+            Some("http://127.0.0.1:28789/v1")
+        );
+        assert_eq!(
+            record.websocket_url.as_deref(),
+            Some("ws://127.0.0.1:28789/ws")
+        );
+
+        let runtime =
+            project_openclaw_runtime(Some(&record), OpenClawLifecycle::Ready, "host-core", 2_000);
+        assert_eq!(runtime.runtime_kind, "openclaw");
+        assert_eq!(runtime.requested_port, Some(18_789));
+        assert_eq!(runtime.active_port, Some(28_789));
+        assert_eq!(
+            runtime.base_url.as_deref(),
+            Some("http://127.0.0.1:28789/v1")
+        );
+
+        let gateway =
+            project_openclaw_gateway(Some(&record), OpenClawLifecycle::Ready, "host-core", 2_000);
+        assert_eq!(gateway.gateway_kind, "openclawGateway");
+        assert_eq!(gateway.requested_port, Some(18_789));
+        assert_eq!(gateway.active_port, Some(28_789));
+        assert_eq!(
+            gateway.websocket_url.as_deref(),
+            Some("ws://127.0.0.1:28789/ws")
+        );
     }
 
     #[test]
@@ -171,6 +257,12 @@ mod tests {
             .expect("start should succeed after preview");
 
         assert_eq!(started.phase, RolloutPhase::Promoting);
+        assert_eq!(
+            control_plane
+                .active_rollout_id()
+                .expect("active rollout should resolve after start"),
+            "rollout-a"
+        );
         drop(control_plane);
 
         let reopened = RolloutControlPlane::open(rollout_store_path)
@@ -185,6 +277,12 @@ mod tests {
             .expect("seeded rollout should still exist after start persistence");
 
         assert_eq!(rollout.phase, RolloutPhase::Promoting);
+        assert_eq!(
+            reopened
+                .active_rollout_id()
+                .expect("persisted active rollout should resolve"),
+            "rollout-a"
+        );
     }
 
     #[test]
@@ -224,13 +322,13 @@ mod tests {
             .expect("projected node sessions should succeed");
 
         assert_eq!(sessions.len(), 2);
-        assert!(sessions.iter().all(|session| session.state == NodeSessionState::Admitted));
+        assert!(sessions
+            .iter()
+            .all(|session| session.state == NodeSessionState::Admitted));
         assert!(sessions.iter().all(|session| {
             session.compatibility_state == NodeSessionCompatibilityState::Compatible
         }));
-        assert!(sessions
-            .iter()
-            .all(|session| session.last_seen_at == 1234));
+        assert!(sessions.iter().all(|session| session.last_seen_at == 1234));
         assert!(sessions
             .iter()
             .any(|session| session.node_id == "local-built-in"));
@@ -250,13 +348,13 @@ mod tests {
             .expect("projected node sessions should succeed");
 
         assert_eq!(sessions.len(), 2);
-        assert!(sessions.iter().all(|session| session.state == NodeSessionState::Degraded));
+        assert!(sessions
+            .iter()
+            .all(|session| session.state == NodeSessionState::Degraded));
         assert!(sessions.iter().all(|session| {
             session.compatibility_state == NodeSessionCompatibilityState::Blocked
         }));
-        assert!(sessions
-            .iter()
-            .all(|session| session.last_seen_at == 5678));
+        assert!(sessions.iter().all(|session| session.last_seen_at == 5678));
         assert!(sessions
             .iter()
             .all(|session| session.desired_state_revision.is_none()));
@@ -302,7 +400,10 @@ mod tests {
             .list_sessions()
             .expect("live node sessions should be readable");
 
-        assert_eq!(response.next_action, NodeSessionHelloResponseAction::CallAdmit);
+        assert_eq!(
+            response.next_action,
+            NodeSessionHelloResponseAction::CallAdmit
+        );
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].node_id, "local-built-in");
         assert_eq!(sessions[0].state, NodeSessionState::Pending);
@@ -654,9 +755,18 @@ mod tests {
             .iter()
             .any(|operation| operation == "ackDesiredState"));
         assert_eq!(sessions.len(), 1);
-        assert_eq!(sessions[0].last_applied_revision, Some(desired_state_revision));
-        assert_eq!(sessions[0].last_applied_hash.as_deref(), Some(desired_state_hash.as_str()));
-        assert_eq!(sessions[0].last_known_good_revision, Some(desired_state_revision));
+        assert_eq!(
+            sessions[0].last_applied_revision,
+            Some(desired_state_revision)
+        );
+        assert_eq!(
+            sessions[0].last_applied_hash.as_deref(),
+            Some(desired_state_hash.as_str())
+        );
+        assert_eq!(
+            sessions[0].last_known_good_revision,
+            Some(desired_state_revision)
+        );
         assert_eq!(
             sessions[0].last_known_good_hash.as_deref(),
             Some(desired_state_hash.as_str())
@@ -669,8 +779,10 @@ mod tests {
 
     #[test]
     fn node_session_registry_ack_desired_state_rejects_conflicting_revision() {
-        let rollout_store_path = create_test_rollout_store_path("node-session-ack-conflict-rollout");
-        let node_session_store_path = create_test_rollout_store_path("node-session-ack-conflict-runtime");
+        let rollout_store_path =
+            create_test_rollout_store_path("node-session-ack-conflict-rollout");
+        let node_session_store_path =
+            create_test_rollout_store_path("node-session-ack-conflict-runtime");
         let control_plane = RolloutControlPlane::open(rollout_store_path)
             .expect("control plane should open the test rollout store");
         let registry = NodeSessionRegistry::open(node_session_store_path)
@@ -933,8 +1045,10 @@ mod tests {
 
     #[test]
     fn node_session_registry_rejects_expired_lease_for_runtime_actions() {
-        let rollout_store_path = create_test_rollout_store_path("node-session-expired-lease-rollout");
-        let node_session_store_path = create_test_rollout_store_path("node-session-expired-lease-runtime");
+        let rollout_store_path =
+            create_test_rollout_store_path("node-session-expired-lease-rollout");
+        let node_session_store_path =
+            create_test_rollout_store_path("node-session-expired-lease-runtime");
         let control_plane = RolloutControlPlane::open(rollout_store_path)
             .expect("control plane should open the test rollout store");
         let registry = NodeSessionRegistry::open(node_session_store_path)
@@ -1118,7 +1232,8 @@ mod tests {
 
     #[test]
     fn node_session_registry_close_records_successor_hint() {
-        let node_session_store_path = create_test_rollout_store_path("node-session-close-successor");
+        let node_session_store_path =
+            create_test_rollout_store_path("node-session-close-successor");
         let registry = NodeSessionRegistry::open(node_session_store_path)
             .expect("node session registry should open the test store");
         let compatibility_preview = NodeSessionCompatibilityPreview {
@@ -1230,8 +1345,7 @@ mod tests {
 
     #[test]
     fn node_session_registry_admit_replaces_older_same_node_session() {
-        let node_session_store_path =
-            create_test_rollout_store_path("node-session-replaced-admit");
+        let node_session_store_path = create_test_rollout_store_path("node-session-replaced-admit");
         let registry = NodeSessionRegistry::open(node_session_store_path)
             .expect("node session registry should open the test store");
         let compatibility_preview = NodeSessionCompatibilityPreview {
@@ -1426,6 +1540,195 @@ mod tests {
         );
     }
 
+    #[test]
+    fn storage_spi_rollout_control_plane_can_reopen_from_shared_store() {
+        let store = Arc::new(InMemoryRolloutCatalogStore::default());
+        let control_plane = RolloutControlPlane::from_store(store.clone())
+            .expect("control plane should open from the shared in-memory store");
+
+        let preview = control_plane
+            .preview_rollout(PreviewRolloutInput {
+                rollout_id: "rollout-a".to_string(),
+                force_recompute: false,
+                include_targets: true,
+            })
+            .expect("preview should persist into the shared in-memory store");
+
+        drop(control_plane);
+
+        let reopened = RolloutControlPlane::from_store(store)
+            .expect("control plane should reopen from the shared in-memory store");
+        let list = reopened
+            .list_rollouts()
+            .expect("reopened control plane should load persisted rollouts");
+        let rollout = list
+            .items
+            .iter()
+            .find(|item| item.id == "rollout-a")
+            .expect("reopened shared store should still include rollout-a");
+
+        assert_eq!(rollout.phase, RolloutPhase::Ready);
+        assert_eq!(rollout.attempt, preview.attempt);
+    }
+
+    #[test]
+    fn storage_spi_node_session_registry_can_reopen_from_shared_store() {
+        let store = Arc::new(InMemoryNodeSessionCatalogStore::default());
+        let registry = NodeSessionRegistry::from_store(store.clone())
+            .expect("registry should open from the shared in-memory store");
+
+        let hello = registry
+            .hello(
+                NodeSessionHelloInput {
+                    boot_id: "boot-storage-spi".to_string(),
+                    node_claim: NodeSessionHelloNodeClaim {
+                        claimed_node_id: Some("local-built-in".to_string()),
+                        host_platform: Some("linux".to_string()),
+                        host_arch: Some("x64".to_string()),
+                    },
+                    version_manifest: NodeSessionHelloVersionManifest {
+                        internal_api_version: "v1".to_string(),
+                        config_projection_version: Some("v1".to_string()),
+                    },
+                    capabilities: vec![
+                        "desired-state.pull".to_string(),
+                        "runtime.apply".to_string(),
+                    ],
+                },
+                NodeSessionCompatibilityPreview {
+                    compatibility_state: NodeSessionCompatibilityState::Compatible,
+                    desired_state_revision: Some(1),
+                    desired_state_hash: Some("hash-a".to_string()),
+                    reason: None,
+                },
+                1_000,
+            )
+            .expect("hello should persist into the shared in-memory store");
+        registry
+            .admit(
+                &hello.session_id,
+                NodeSessionAdmitInput {
+                    hello_token: hello.hello_token.clone(),
+                },
+                2_000,
+            )
+            .expect("admit should persist the updated session into the shared in-memory store");
+
+        drop(registry);
+
+        let reopened = NodeSessionRegistry::from_store(store)
+            .expect("registry should reopen from the shared in-memory store");
+        let sessions = reopened
+            .list_sessions()
+            .expect("reopened registry should load persisted sessions");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].node_id, "local-built-in");
+        assert_eq!(sessions[0].state, NodeSessionState::Admitted);
+        assert_eq!(sessions[0].last_seen_at, 2_000);
+    }
+
+    #[test]
+    fn storage_spi_json_open_still_seeds_catalog_on_disk() {
+        let rollout_store_path = create_test_rollout_store_path("storage-spi-json-seed");
+
+        let control_plane = RolloutControlPlane::open(rollout_store_path.clone())
+            .expect("json-backed control plane should still seed the on-disk catalog");
+        drop(control_plane);
+
+        let raw = fs::read_to_string(&rollout_store_path)
+            .expect("json-backed control plane should seed a file");
+
+        assert!(raw.contains("\"rollouts\""));
+        assert!(raw.contains("\"rollout-a\""));
+    }
+
+    #[test]
+    fn sqlite_catalog_rollout_control_plane_persists_preview_state() {
+        let sqlite_store_path = create_test_catalog_sqlite_path("rollout-preview");
+        let control_plane = RolloutControlPlane::open_sqlite(sqlite_store_path.clone())
+            .expect("sqlite-backed control plane should open the catalog database");
+
+        let preview = control_plane
+            .preview_rollout(PreviewRolloutInput {
+                rollout_id: "rollout-a".to_string(),
+                force_recompute: false,
+                include_targets: true,
+            })
+            .expect("sqlite-backed preview should persist into the catalog database");
+        drop(control_plane);
+
+        let reopened = RolloutControlPlane::open_sqlite(sqlite_store_path)
+            .expect("sqlite-backed control plane should reopen the catalog database");
+        let list = reopened
+            .list_rollouts()
+            .expect("reopened sqlite-backed control plane should read rollouts");
+        let rollout = list
+            .items
+            .iter()
+            .find(|item| item.id == "rollout-a")
+            .expect("sqlite-backed catalog should still contain rollout-a");
+
+        assert_eq!(rollout.phase, RolloutPhase::Ready);
+        assert_eq!(rollout.attempt, preview.attempt);
+    }
+
+    #[test]
+    fn sqlite_catalog_node_session_registry_persists_live_session_state() {
+        let sqlite_store_path = create_test_catalog_sqlite_path("node-session-live-state");
+        let registry = NodeSessionRegistry::open_sqlite(sqlite_store_path.clone())
+            .expect("sqlite-backed node session registry should open the catalog database");
+
+        let hello = registry
+            .hello(
+                NodeSessionHelloInput {
+                    boot_id: "boot-sqlite".to_string(),
+                    node_claim: NodeSessionHelloNodeClaim {
+                        claimed_node_id: Some("local-built-in".to_string()),
+                        host_platform: Some("linux".to_string()),
+                        host_arch: Some("x64".to_string()),
+                    },
+                    version_manifest: NodeSessionHelloVersionManifest {
+                        internal_api_version: "v1".to_string(),
+                        config_projection_version: Some("v1".to_string()),
+                    },
+                    capabilities: vec![
+                        "desired-state.pull".to_string(),
+                        "runtime.apply".to_string(),
+                    ],
+                },
+                NodeSessionCompatibilityPreview {
+                    compatibility_state: NodeSessionCompatibilityState::Compatible,
+                    desired_state_revision: Some(1),
+                    desired_state_hash: Some("hash-a".to_string()),
+                    reason: None,
+                },
+                1_000,
+            )
+            .expect("sqlite-backed hello should persist into the catalog database");
+        registry
+            .admit(
+                &hello.session_id,
+                NodeSessionAdmitInput {
+                    hello_token: hello.hello_token.clone(),
+                },
+                2_000,
+            )
+            .expect("sqlite-backed admit should persist the live session update");
+        drop(registry);
+
+        let reopened = NodeSessionRegistry::open_sqlite(sqlite_store_path)
+            .expect("sqlite-backed node session registry should reopen the catalog database");
+        let sessions = reopened
+            .list_sessions()
+            .expect("reopened sqlite-backed node session registry should read sessions");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].node_id, "local-built-in");
+        assert_eq!(sessions[0].state, NodeSessionState::Admitted);
+        assert_eq!(sessions[0].last_seen_at, 2_000);
+    }
+
     fn create_test_rollout_store_path(label: &str) -> PathBuf {
         let unique_suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1437,5 +1740,64 @@ mod tests {
         ));
         fs::create_dir_all(&directory).expect("test rollout directory should be created");
         directory.join("rollouts.json")
+    }
+
+    fn create_test_catalog_sqlite_path(label: &str) -> PathBuf {
+        let unique_suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "sdkwork-claw-host-core-sqlite-{label}-{}-{unique_suffix}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory).expect("test sqlite directory should be created");
+        directory.join("host-state.sqlite3")
+    }
+
+    #[derive(Debug, Default)]
+    struct InMemoryRolloutCatalogStore {
+        catalog: Mutex<Option<PersistedRolloutCatalog>>,
+    }
+
+    impl RolloutCatalogStore for InMemoryRolloutCatalogStore {
+        fn load_catalog(&self) -> Result<Option<PersistedRolloutCatalog>, StorageError> {
+            Ok(self
+                .catalog
+                .lock()
+                .expect("rollout store mutex should not be poisoned")
+                .clone())
+        }
+
+        fn save_catalog(&self, catalog: &PersistedRolloutCatalog) -> Result<(), StorageError> {
+            *self
+                .catalog
+                .lock()
+                .expect("rollout store mutex should not be poisoned") = Some(catalog.clone());
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct InMemoryNodeSessionCatalogStore {
+        catalog: Mutex<Option<PersistedNodeSessionCatalog>>,
+    }
+
+    impl NodeSessionCatalogStore for InMemoryNodeSessionCatalogStore {
+        fn load_catalog(&self) -> Result<Option<PersistedNodeSessionCatalog>, StorageError> {
+            Ok(self
+                .catalog
+                .lock()
+                .expect("node session store mutex should not be poisoned")
+                .clone())
+        }
+
+        fn save_catalog(&self, catalog: &PersistedNodeSessionCatalog) -> Result<(), StorageError> {
+            *self
+                .catalog
+                .lock()
+                .expect("node session store mutex should not be poisoned") = Some(catalog.clone());
+            Ok(())
+        }
     }
 }

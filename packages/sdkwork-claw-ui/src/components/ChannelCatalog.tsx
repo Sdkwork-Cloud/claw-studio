@@ -250,15 +250,19 @@ export function ChannelCatalog({
   const regionLabels: Record<ChannelCatalogRegion, string> = {
     domestic: t('channels.page.catalog.tabs.domestic'),
     global: t('channels.page.catalog.tabs.global'),
+    all: t('channels.page.catalog.tabs.all'),
   };
   const regionCounts: Record<ChannelCatalogRegion, number> = {
     domestic: regionGroups.domestic.length,
     global: regionGroups.global.length,
+    all: regionGroups.all.length,
   };
   const regionEmptyText =
     activeRegion === 'domestic'
       ? t('channels.page.catalog.empty.domestic')
-      : t('channels.page.catalog.empty.global');
+      : activeRegion === 'global'
+        ? t('channels.page.catalog.empty.global')
+        : t('channels.page.catalog.empty.all');
 
   if (items.length === 0) {
     return <>{emptyState}</>;

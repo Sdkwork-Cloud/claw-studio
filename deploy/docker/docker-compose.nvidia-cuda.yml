@@ -1,7 +1,7 @@
 services:
   claw-server:
     env_file:
-      - deploy/profiles/nvidia-cuda.env
+      - profiles/nvidia-cuda.env
     deploy:
       resources:
         reservations:

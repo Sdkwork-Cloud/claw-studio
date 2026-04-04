@@ -129,6 +129,57 @@ runTest('sdkwork-claw-server and sdkwork-claw-host-core expose the shared server
   assert.equal(hostCorePackage.name, '@sdkwork/claw-host-core');
 });
 
+runTest('shared host runtime contracts freeze endpoint governance and canonical OpenClaw manage resources', () => {
+  const manageContractSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/manage.ts',
+  );
+  const internalContractSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/internal.ts',
+  );
+  const runtimeContractSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/contracts/runtime.ts',
+  );
+  const platformIndexSource = read('packages/sdkwork-claw-infrastructure/src/platform/index.ts');
+  const serverBrowserBridgeSource = read(
+    'packages/sdkwork-claw-infrastructure/src/platform/serverBrowserBridge.ts',
+  );
+
+  assert.match(manageContractSource, /export interface ManageHostEndpointRecord/);
+  assert.match(manageContractSource, /requestedPort:\s*number/);
+  assert.match(manageContractSource, /activePort:\s*number\s*\|\s*null/);
+  assert.match(manageContractSource, /getHostEndpoints\(\): Promise<ManageHostEndpointRecord\[]>/);
+  assert.match(manageContractSource, /getOpenClawRuntime\(\)/);
+  assert.match(manageContractSource, /getOpenClawGateway\(\)/);
+  assert.match(manageContractSource, /invokeOpenClawGateway\(/);
+  assert.match(internalContractSource, /export type HostPlatformStateStoreProjectionMode/);
+  assert.match(internalContractSource, /projectionMode:\s*HostPlatformStateStoreProjectionMode/);
+  assert.match(internalContractSource, /'metadataOnly'/);
+  assert.match(runtimeContractSource, /export interface RuntimeStartupContext/);
+  assert.match(runtimeContractSource, /hostMode:/);
+  assert.match(runtimeContractSource, /packageFamily:/);
+  assert.match(runtimeContractSource, /startupTarget:/);
+  assert.match(platformIndexSource, /ManageHostEndpointRecord/);
+  assert.match(platformIndexSource, /RuntimeStartupContext/);
+  assert.match(serverBrowserBridgeSource, /desktopCombined/);
+  assert.match(serverBrowserBridgeSource, /hostedBrowser:\s*true/);
+  assert.match(serverBrowserBridgeSource, /browserBaseUrl/);
+  assert.match(serverBrowserBridgeSource, /packageFamily:\s*config\.mode === 'server' \? 'server' : 'desktop'/);
+  assert.match(serverBrowserBridgeSource, /startupTarget:\s*config\.mode === 'server' \? 'server' : 'desktop'/);
+});
+
+runTest('desktop bundled OpenClaw runtime reuses host-core port allocation instead of ad hoc loopback scanning', () => {
+  const desktopRuntimeSource = read(
+    'packages/sdkwork-claw-desktop/src-tauri/src/framework/services/openclaw_runtime.rs',
+  );
+
+  assert.match(desktopRuntimeSource, /sdkwork_claw_host_core::port_allocator::/);
+  assert.match(desktopRuntimeSource, /allocate_tcp_listener/);
+  assert.match(desktopRuntimeSource, /PortAllocationRequest/);
+  assert.match(desktopRuntimeSource, /PortRange::new/);
+  assert.doesNotMatch(desktopRuntimeSource, /fn find_available_gateway_port\(/);
+  assert.doesNotMatch(desktopRuntimeSource, /fn is_loopback_port_available\(/);
+});
+
 runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React tree', () => {
   const createDesktopAppSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/createDesktopApp.tsx',

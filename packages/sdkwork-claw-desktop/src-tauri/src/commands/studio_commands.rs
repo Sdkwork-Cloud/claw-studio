@@ -13,6 +13,10 @@ use crate::{
     },
     state::AppState,
 };
+use sdkwork_claw_host_core::{
+    host_endpoints::{HostEndpointRecord, OpenClawGatewayProjection, OpenClawRuntimeProjection},
+    openclaw_control_plane::OpenClawGatewayInvokeRequest,
+};
 use serde_json::Value;
 
 fn list_instances_from_state(state: &AppState) -> FrameworkResult<Vec<StudioInstanceRecord>> {
@@ -549,11 +553,15 @@ pub async fn get_host_platform_status(
     let state = state.inner().clone();
     runtime::run_blocking_async("studio.get_host_platform_status", move || {
         let config = state.config_snapshot();
+        let desktop_host = state.context.desktop_host_snapshot();
+        let desktop_host_status = state.context.desktop_host_status();
         state.context.services.studio.get_host_platform_status(
             &state.paths,
             &config,
             &state.context.services.storage,
             &state.context.services.supervisor,
+            desktop_host.as_ref(),
+            desktop_host_status.as_ref(),
         )
     })
     .await
@@ -625,12 +633,96 @@ pub async fn list_node_sessions(
     let state = state.inner().clone();
     runtime::run_blocking_async("studio.list_node_sessions", move || {
         let config = state.config_snapshot();
+        let desktop_host = state.context.desktop_host_snapshot();
+        let desktop_host_status = state.context.desktop_host_status();
         state.context.services.studio.list_node_sessions(
             &state.paths,
             &config,
             &state.context.services.storage,
             &state.context.services.supervisor,
+            desktop_host.as_ref(),
+            desktop_host_status.as_ref(),
         )
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn get_host_endpoints(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<HostEndpointRecord>, String> {
+    let state = state.inner().clone();
+    runtime::run_blocking_async("studio.get_host_endpoints", move || {
+        let config = state.config_snapshot();
+        let desktop_host = state.context.desktop_host_snapshot();
+        state.context.services.studio.get_host_endpoints(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            &state.context.services.supervisor,
+            desktop_host.as_ref(),
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn get_openclaw_runtime(
+    state: tauri::State<'_, AppState>,
+) -> Result<OpenClawRuntimeProjection, String> {
+    let state = state.inner().clone();
+    runtime::run_blocking_async("studio.get_openclaw_runtime", move || {
+        let config = state.config_snapshot();
+        state.context.services.studio.get_openclaw_runtime(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            &state.context.services.supervisor,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn get_openclaw_gateway(
+    state: tauri::State<'_, AppState>,
+) -> Result<OpenClawGatewayProjection, String> {
+    let state = state.inner().clone();
+    runtime::run_blocking_async("studio.get_openclaw_gateway", move || {
+        let config = state.config_snapshot();
+        state.context.services.studio.get_openclaw_gateway(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            &state.context.services.supervisor,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn invoke_managed_openclaw_gateway(
+    state: tauri::State<'_, AppState>,
+    request: OpenClawGatewayInvokeRequest,
+) -> Result<Value, String> {
+    let state = state.inner().clone();
+    runtime::run_blocking_async("studio.invoke_managed_openclaw_gateway", move || {
+        let config = state.config_snapshot();
+        state
+            .context
+            .services
+            .studio
+            .invoke_managed_openclaw_gateway(
+                &state.paths,
+                &config,
+                &state.context.services.storage,
+                &state.context.services.supervisor,
+                request,
+            )
     })
     .await
     .map_err(|error| error.to_string())

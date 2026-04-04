@@ -27,6 +27,51 @@ function createHostStatus(
     rolloutEngineVersion: 'phase1',
     manageBasePath: '/claw/manage/v1',
     internalBasePath: '/claw/internal/v1',
+    stateStoreDriver: 'sqlite',
+    stateStore: {
+      activeProfileId: 'default-sqlite',
+      providers: [
+        {
+          id: 'sqlite',
+          label: 'SQLite',
+          availability: 'ready',
+          requiresConfiguration: false,
+          configurationKeys: [],
+          projectionMode: 'runtime',
+        },
+        {
+          id: 'postgres',
+          label: 'PostgreSQL',
+          availability: 'planned',
+          requiresConfiguration: true,
+          configurationKeys: ['postgresUrl', 'postgresSchema'],
+          projectionMode: 'metadataOnly',
+        },
+      ],
+      profiles: [
+        {
+          id: 'default-sqlite',
+          label: 'SQLite',
+          driver: 'sqlite',
+          active: true,
+          availability: 'ready',
+          path: 'C:/Users/admin/.sdkwork/crawstudio/storage/default.db',
+          connectionConfigured: false,
+          configuredKeys: ['path'],
+          projectionMode: 'runtime',
+        },
+        {
+          id: 'planned-postgres',
+          label: 'PostgreSQL',
+          driver: 'postgres',
+          active: false,
+          availability: 'planned',
+          connectionConfigured: true,
+          configuredKeys: ['postgresUrl'],
+          projectionMode: 'metadataOnly',
+        },
+      ],
+    },
     capabilityKeys: ['nodeSessions', 'rollouts'],
     updatedAt: 1_743_200_000_000,
     ...overrides,
@@ -77,6 +122,11 @@ await runTest(
     assert.equal(status.lifecycle, 'ready');
     assert.equal(status.capabilityCount, 2);
     assert.equal(status.isReady, true);
+    assert.equal(status.stateStoreDriver, 'sqlite');
+    assert.equal(status.stateStore.activeProfileId, 'default-sqlite');
+    assert.deepEqual(status.stateStore.profiles[0]?.configuredKeys, ['path']);
+    assert.equal(status.stateStore.providers[1]?.projectionMode, 'metadataOnly');
+    assert.equal(status.stateStore.profiles[1]?.projectionMode, 'metadataOnly');
     assert.deepEqual(status.capabilityKeys, ['nodeSessions', 'rollouts']);
     assert.equal(sessions[0]?.desiredStateRevision, 7);
     assert.equal(sessions[1]?.compatibilityState, 'blocked');

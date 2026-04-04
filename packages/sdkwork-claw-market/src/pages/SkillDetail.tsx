@@ -7,7 +7,7 @@ import {
   Box,
   Download,
   FileText,
-  Github,
+  GitBranch,
   Globe,
   HardDrive,
   Info,
@@ -235,7 +235,7 @@ export function SkillDetail() {
     {
       href: skill.repositoryUrl,
       label: t('market.skillDetail.links.sourceCode'),
-      icon: Github,
+      icon: GitBranch,
     },
     {
       href: skill.documentationUrl,

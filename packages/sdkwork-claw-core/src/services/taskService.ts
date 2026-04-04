@@ -475,8 +475,10 @@ export class TaskService implements ITaskService {
       return [];
     }
 
+    const channels = detail.workbench?.channels ?? [];
+
     return normalizeUniqueById(
-      detail.workbench.channels
+      channels
         .filter((channel) => channel.enabled && channel.status === 'connected')
         .map((channel) => ({
           id: channel.id,

@@ -40,6 +40,11 @@ assert.equal(
   'sync-bundled-components must export inspectOpenClawPackageMetadata',
 );
 assert.equal(
+  typeof syncModule.resolvePreparedOpenClawPackageRoots,
+  'function',
+  'sync-bundled-components must export resolvePreparedOpenClawPackageRoots',
+);
+assert.equal(
   typeof syncModule.prepareBundledOutputRootSync,
   'function',
   'sync-bundled-components must export prepareBundledOutputRootSync',
@@ -59,10 +64,35 @@ assert.equal(
   'function',
   'sync-bundled-components must export syncSourceFoundationComponentRegistrySync',
 );
+assert.equal(
+  typeof syncModule.validateStagedOpenClawPackage,
+  'function',
+  'sync-bundled-components must export validateStagedOpenClawPackage',
+);
 assert.match(
   syncModuleSource,
-  /if \(process\.argv\[1\] && path\.resolve\(process\.argv\[1\]\) === __filename\) \{\s*try \{\s*main\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s,
+  /resolveOpenClawRuntimeInstallSpecs/,
+  'sync-bundled-components must use the shared OpenClaw runtime install spec helper so supplemental runtime packages stay aligned across prepare and stage flows',
+);
+assert.match(
+  syncModuleSource,
+  /buildOpenClawRuntimeInstallEnv/,
+  'sync-bundled-components must use the shared OpenClaw runtime install env helper so staging installs disable the bundled plugin postinstall',
+);
+assert.match(
+  syncModuleSource,
+  /env:\s*buildOpenClawRuntimeInstallEnv\(commandEnv\)/,
+  'sync-bundled-components must install OpenClaw staging packages with the shared runtime install env',
+);
+assert.match(
+  syncModuleSource,
+  /if \(process\.argv\[1\] && path\.resolve\(process\.argv\[1\]\) === __filename\) \{\s*main\(\)\.catch\(\(error\) => \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\);\s*\}/s,
   'sync-bundled-components must wrap the CLI entrypoint with a top-level error handler',
+);
+assert.match(
+  syncModuleSource,
+  /validatePreparedOpenClawPackageTree/,
+  'sync-bundled-components must reuse the shared prepared OpenClaw package validation before accepting staged bundles',
 );
 const overlay = syncModule.createTauriBundleOverlayConfig({
   workspaceRootDir: 'D:\\workspace\\claw-studio',
@@ -83,6 +113,7 @@ assert.ok(
 
 for (const [resourceId, expectedSource, expectedTarget] of [
   ['bundled', 'generated/br/b/', 'generated/bundled/'],
+  ['web-dist', 'generated/br/w/', 'dist/'],
   ['openclaw-runtime', 'generated/br/o/', 'resources/openclaw/'],
 ]) {
   assert.equal(
@@ -134,6 +165,32 @@ assert.equal(
   expectedOpenClawVersion,
   'sync-bundled-components must stay aligned with the bundled OpenClaw runtime version pin',
 );
+
+{
+  const preparedRoots = syncModule.resolvePreparedOpenClawPackageRoots({
+    cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
+    openclawVersion: expectedOpenClawVersion,
+    nodeVersion: '22.16.0',
+    target: {
+      platformId: 'windows',
+      archId: 'x64',
+      nodeArchiveName(version) {
+        return `node-v${version}-win-x64.zip`;
+      },
+    },
+  });
+
+  assert.equal(
+    preparedRoots.preparedPackageRoot,
+    `D:\\workspace\\.cache\\openclaw-runtime-cache\\package\\windows-x64-openclaw-v${expectedOpenClawVersion}\\node_modules\\openclaw`,
+    'sync-bundled-components must resolve prepared OpenClaw staging roots from the runtime cache instead of src-tauri resources',
+  );
+  assert.equal(
+    preparedRoots.preparedModulesDir,
+    `D:\\workspace\\.cache\\openclaw-runtime-cache\\package\\windows-x64-openclaw-v${expectedOpenClawVersion}\\node_modules`,
+    'sync-bundled-components must reuse the cached runtime node_modules directory for prepared OpenClaw staging',
+  );
+}
 
 assert.equal(
   syncModule.shouldRefreshComponentRepository({
@@ -344,6 +401,50 @@ assert.match(
 }
 
 {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-runtime-readiness-'));
+  const packageRoot = path.join(tempRoot, 'app');
+  const modulesRoot = path.join(packageRoot, 'node_modules');
+  mkdirSync(path.join(packageRoot, 'dist'), { recursive: true });
+  mkdirSync(path.join(modulesRoot, 'openclaw'), { recursive: true });
+  writeFileSync(
+    path.join(packageRoot, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'openclaw',
+        version: expectedOpenClawVersion,
+        dependencies: {
+          koffi: '2.15.2',
+        },
+        pnpm: {
+          onlyBuiltDependencies: ['koffi'],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    path.join(packageRoot, 'openclaw.mjs'),
+    'export const openclaw = true;\n',
+    'utf8',
+  );
+
+  await assert.rejects(
+    () =>
+      syncModule.validateStagedOpenClawPackage({
+        packageRoot,
+        expectedVersion: expectedOpenClawVersion,
+        runtimeSupplementalPackages: [],
+      }),
+    /koffi/,
+    'sync-bundled-components must reject staged OpenClaw bundles whose runtime-only dependencies cannot be loaded',
+  );
+
+  rmSync(tempRoot, { recursive: true, force: true });
+}
+
+{
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-locked-copy-'));
   const sourcePath = path.join(tempRoot, 'source.txt');
   const targetPath = path.join(tempRoot, 'target.txt');
@@ -380,14 +481,14 @@ assert.match(
   const targetPath = path.join(tempRoot, 'component-registry.json');
   writeFileSync(
     targetPath,
-    `${JSON.stringify({ version: 1, components: [{ id: 'openclaw', bundledVersion: '2026.4.1+213a704b71f4' }] }, null, 2)}\n`,
+    `${JSON.stringify({ version: 1, components: [{ id: 'openclaw', bundledVersion: `${expectedOpenClawVersion}+213a704b71f4` }] }, null, 2)}\n`,
     'utf8',
   );
 
   const logLines = [];
   const result = syncModule.writeJsonWithWindowsLockFallback(
     targetPath,
-    { version: 1, components: [{ id: 'openclaw', bundledVersion: '2026.4.1+213a704b71f4' }] },
+    { version: 1, components: [{ id: 'openclaw', bundledVersion: `${expectedOpenClawVersion}+213a704b71f4` }] },
     {
       logger: (line) => {
         logLines.push(line);

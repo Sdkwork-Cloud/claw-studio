@@ -52,6 +52,20 @@ function createDefaultManagePlatform(): ManagePlatformAPI {
         `Manage rollout start is not available for the active platform bridge: ${rolloutId}`,
       );
     },
+    async getHostEndpoints() {
+      throw new Error('Manage host endpoints are not available for the active platform bridge.');
+    },
+    async getOpenClawRuntime() {
+      throw new Error('Manage OpenClaw runtime is not available for the active platform bridge.');
+    },
+    async getOpenClawGateway() {
+      throw new Error('Manage OpenClaw gateway is not available for the active platform bridge.');
+    },
+    async invokeOpenClawGateway(_request) {
+      throw new Error(
+        'Manage OpenClaw gateway invoke is not available for the active platform bridge.',
+      );
+    },
   };
 }
 
@@ -68,6 +82,11 @@ function createDefaultInternalPlatform(): InternalPlatformAPI {
         rolloutEngineVersion: 'phase1',
         manageBasePath: '/claw/manage/v1',
         internalBasePath: '/claw/internal/v1',
+        stateStore: {
+          activeProfileId: 'web-preview',
+          providers: [],
+          profiles: [],
+        },
         capabilityKeys: [],
         updatedAt: Date.now(),
       };
@@ -318,6 +337,7 @@ export const platform: PlatformAPI = {
   setStorage: (key, value) => getPlatformBridge().platform.setStorage(key, value),
   getStorage: (key) => getPlatformBridge().platform.getStorage(key),
   copy: (text) => getPlatformBridge().platform.copy(text),
+  showNotification: (notification) => getPlatformBridge().platform.showNotification(notification),
   openExternal: (url) => getPlatformBridge().platform.openExternal(url),
   supportsNativeScreenshot: () => getPlatformBridge().platform.supportsNativeScreenshot(),
   captureScreenshot: () => getPlatformBridge().platform.captureScreenshot(),
@@ -374,6 +394,11 @@ export const kernel: KernelPlatformAPI = {
     getPlatformBridge().kernel.listLocalAiProxyMessageLogs(query),
   updateLocalAiProxyMessageCapture: (enabled) =>
     invalidateKernelAfter(() => getPlatformBridge().kernel.updateLocalAiProxyMessageCapture(enabled)),
+  inspectOpenClawMirrorExport: () => getPlatformBridge().kernel.inspectOpenClawMirrorExport(),
+  exportOpenClawMirror: (request) => getPlatformBridge().kernel.exportOpenClawMirror(request),
+  inspectOpenClawMirrorImport: (sourcePath) =>
+    getPlatformBridge().kernel.inspectOpenClawMirrorImport(sourcePath),
+  importOpenClawMirror: (request) => getPlatformBridge().kernel.importOpenClawMirror(request),
 };
 
 export const runtime: RuntimePlatformAPI = {
@@ -402,6 +427,10 @@ export const manage: ManagePlatformAPI = {
   listRollouts: () => getPlatformBridge().manage.listRollouts(),
   previewRollout: (input) => getPlatformBridge().manage.previewRollout(input),
   startRollout: (rolloutId) => getPlatformBridge().manage.startRollout(rolloutId),
+  getHostEndpoints: () => getPlatformBridge().manage.getHostEndpoints(),
+  getOpenClawRuntime: () => getPlatformBridge().manage.getOpenClawRuntime(),
+  getOpenClawGateway: () => getPlatformBridge().manage.getOpenClawGateway(),
+  invokeOpenClawGateway: (request) => getPlatformBridge().manage.invokeOpenClawGateway(request),
 };
 
 export const internal: InternalPlatformAPI = {
@@ -444,8 +473,16 @@ export const studio: StudioPlatformAPI = {
     withTimedPromiseCache(studioDetailCache, id, STUDIO_DETAIL_CACHE_TTL_MS, () =>
       getPlatformBridge().studio.getInstanceDetail(id),
     ),
-  invokeOpenClawGateway: (instanceId, request, options) =>
-    getPlatformBridge().studio.invokeOpenClawGateway?.(instanceId, request, options),
+  invokeOpenClawGateway: async (instanceId, request, options) => {
+    const studioBridge = getPlatformBridge().studio;
+    if (!studioBridge.invokeOpenClawGateway) {
+      throw new Error(
+        'Studio OpenClaw gateway invoke is not available for the active platform bridge.',
+      );
+    }
+
+    return studioBridge.invokeOpenClawGateway(instanceId, request, options);
+  },
   createInstance: async (input) => {
     const instance = await getPlatformBridge().studio.createInstance(input);
     invalidateStudioCaches(instance.id);

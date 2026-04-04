@@ -52,7 +52,16 @@ export type InstanceWorkbenchSectionId =
   | 'skills'
   | 'files'
   | 'memory'
-  | 'tools';
+  | 'tools'
+  | 'config';
+
+export interface InstanceManagedOpenClawConfigInsights {
+  defaultAgentId: string | null;
+  defaultModelRef: string | null;
+  sessionsVisibility: 'self' | 'tree' | 'agent' | 'all' | null;
+  agentToAgentEnabled: boolean;
+  agentToAgentAllow: string[];
+}
 
 export type InstanceWorkbenchChannel = StudioWorkbenchChannelRecord;
 export type InstanceWorkbenchTask = StudioWorkbenchTaskRecord;
@@ -98,6 +107,7 @@ export interface InstanceWorkbenchSnapshot {
   detail: StudioInstanceDetailRecord;
   managedConfigPath?: string | null;
   managedChannels?: OpenClawChannelSnapshot[];
+  managedConfigInsights?: InstanceManagedOpenClawConfigInsights | null;
   managedWebSearchConfig?: OpenClawWebSearchConfigSnapshot | null;
   managedAuthCooldownsConfig?: OpenClawAuthCooldownsConfigSnapshot | null;
   healthScore: number;

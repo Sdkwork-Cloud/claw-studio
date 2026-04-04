@@ -1,3 +1,4 @@
+import type { HostPlatformMode } from './internal.ts';
 import type { RuntimeDesktopKernelHostInfo } from './kernel.ts';
 import type {
   LocalAiProxyRouteTestRecord,
@@ -407,9 +408,33 @@ export interface RuntimeDesktopKernelInfo {
 export type RuntimeEventUnsubscribe = () => void | Promise<void>;
 
 export type RuntimePlatformKind = 'web' | 'desktop' | 'server';
+export type RuntimePackageFamily =
+  | 'web'
+  | 'desktop'
+  | 'server'
+  | 'container'
+  | 'kubernetes';
+export type RuntimeStartupTarget =
+  | 'web'
+  | 'desktop'
+  | 'server'
+  | 'container'
+  | 'kubernetes';
+
+export interface RuntimeStartupContext {
+  hostMode: HostPlatformMode;
+  packageFamily: RuntimePackageFamily;
+  startupTarget: RuntimeStartupTarget;
+  hostedBrowser: boolean;
+  apiBasePath?: string | null;
+  manageBasePath?: string | null;
+  internalBasePath?: string | null;
+  browserBaseUrl?: string | null;
+}
 
 export interface RuntimeInfo {
   platform: RuntimePlatformKind;
+  startup?: RuntimeStartupContext | null;
   app?: RuntimeAppInfo | null;
   paths?: RuntimePathsInfo | null;
   config?: RuntimeConfigInfo | null;

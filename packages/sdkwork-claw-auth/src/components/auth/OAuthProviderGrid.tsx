@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowRight, Chrome, Github, MessageCircle, Music2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, GitBranch, Globe, MessageCircle, Music2, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { type AppAuthSocialProvider } from '@sdkwork/claw-core';
 import { LoaderCircle } from 'lucide-react';
@@ -17,11 +17,11 @@ interface OAuthProviderGridProps {
 
 function resolveProviderIcon(provider: AppAuthSocialProvider): ReactNode {
   if (provider === 'github') {
-    return <Github className="h-5 w-5" />;
+    return <GitBranch className="h-5 w-5" />;
   }
 
   if (provider === 'google') {
-    return <Chrome className="h-5 w-5" />;
+    return <Globe className="h-5 w-5" />;
   }
 
   if (provider === 'wechat') {

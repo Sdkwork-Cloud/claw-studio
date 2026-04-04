@@ -247,7 +247,7 @@ function createKernelPlatformStub({
           platform: 'windows',
           arch: 'x64',
           installSource: 'bundled',
-          configPath: 'C:/Users/admin/.sdkwork/claw-studio/config.json',
+          configPath: 'C:/Users/admin/.sdkwork/crawstudio/config.json',
           runtimeHomeDir: joinPath(runtimeInstallDir, '..'),
           runtimeInstallDir,
         },

@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -9,16 +9,18 @@ use serde::{Deserialize, Serialize};
 use crate::domain::rollout::{
     ManageRolloutCandidateRevisionSummary, ManageRolloutListResult, ManageRolloutPreview,
     ManageRolloutPreviewSummary, ManageRolloutRecord, ManageRolloutTargetPreviewRecord,
-    ManageRolloutWaveListResult, ManageRolloutWavePhase, ManageRolloutWaveRecord,
-    PreflightOutcome, RolloutPhase,
+    ManageRolloutWaveListResult, ManageRolloutWavePhase, ManageRolloutWaveRecord, PreflightOutcome,
+    RolloutPhase,
 };
 use crate::internal::node_sessions::{
-    NodeSessionCompatibilityPreview, NodeSessionDesiredStateProjectionRecord,
-    NodeSessionRecord, compatibility_preview_from_target, project_node_sessions_from_preview,
+    compatibility_preview_from_target, project_node_sessions_from_preview,
+    NodeSessionCompatibilityPreview, NodeSessionDesiredStateProjectionRecord, NodeSessionRecord,
 };
 use crate::projection::compiler::{DesiredStateInput, DesiredStateProjection, ProjectionCompiler};
-use crate::rollout::engine::{RolloutPolicy, RolloutPreflightTarget, preflight_target};
-use crate::storage::file_store::{JsonFileStoreError, load_or_seed_json_file, save_json_file};
+use crate::rollout::engine::{preflight_target, RolloutPolicy, RolloutPreflightTarget};
+use crate::storage::rollout_store::{JsonRolloutCatalogStore, RolloutCatalogStore};
+use crate::storage::sqlite_store::SqliteRolloutCatalogStore;
+use crate::storage::StorageError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreviewRolloutInput {
@@ -29,10 +31,17 @@ pub struct PreviewRolloutInput {
 
 #[derive(Debug)]
 pub enum RolloutControlPlaneError {
-    Store(JsonFileStoreError),
-    RolloutNotFound { rollout_id: String },
-    PreviewRequired { rollout_id: String },
-    RolloutBlocked { rollout_id: String, blocked_targets: usize },
+    Store(StorageError),
+    RolloutNotFound {
+        rollout_id: String,
+    },
+    PreviewRequired {
+        rollout_id: String,
+    },
+    RolloutBlocked {
+        rollout_id: String,
+        blocked_targets: usize,
+    },
 }
 
 impl Display for RolloutControlPlaneError {
@@ -58,30 +67,52 @@ impl Display for RolloutControlPlaneError {
 
 impl std::error::Error for RolloutControlPlaneError {}
 
-impl From<JsonFileStoreError> for RolloutControlPlaneError {
-    fn from(value: JsonFileStoreError) -> Self {
+impl From<StorageError> for RolloutControlPlaneError {
+    fn from(value: StorageError) -> Self {
         RolloutControlPlaneError::Store(value)
     }
 }
 
 #[derive(Debug)]
 pub struct RolloutControlPlane {
-    store_path: PathBuf,
+    store: Arc<dyn RolloutCatalogStore>,
     catalog: Mutex<PersistedRolloutCatalog>,
     compiler: ProjectionCompiler,
 }
 
 impl RolloutControlPlane {
     pub fn open(store_path: PathBuf) -> Result<Self, RolloutControlPlaneError> {
-        let catalog = load_or_seed_json_file(&store_path, seed_rollout_catalog)?;
+        Self::from_store(Arc::new(JsonRolloutCatalogStore::new(store_path)))
+    }
+
+    pub fn open_sqlite(database_path: PathBuf) -> Result<Self, RolloutControlPlaneError> {
+        Self::from_store(Arc::new(SqliteRolloutCatalogStore::new(database_path)))
+    }
+
+    pub(crate) fn from_store(
+        store: Arc<dyn RolloutCatalogStore>,
+    ) -> Result<Self, RolloutControlPlaneError> {
+        let catalog = load_or_seed_catalog(store.as_ref())?;
         let compiler = ProjectionCompiler::new();
 
         prime_compiler(&compiler, &catalog);
 
         Ok(Self {
-            store_path,
+            store,
             catalog: Mutex::new(catalog),
             compiler,
+        })
+    }
+
+    pub fn active_rollout_id(&self) -> Result<String, RolloutControlPlaneError> {
+        let catalog = self
+            .catalog
+            .lock()
+            .expect("rollout catalog mutex should not be poisoned");
+        resolve_active_rollout_id(&catalog).ok_or_else(|| {
+            RolloutControlPlaneError::RolloutNotFound {
+                rollout_id: "active".to_string(),
+            }
         })
     }
 
@@ -131,7 +162,7 @@ impl RolloutControlPlane {
                     rollout.record.attempt = generated.attempt;
                     rollout.record.target_count = generated.summary.total_targets;
                     rollout.record.updated_at = generated.generated_at;
-                    save_json_file(&self.store_path, &*catalog)?;
+                    self.store.save_catalog(&catalog)?;
                     generated
                 }
             }
@@ -142,11 +173,14 @@ impl RolloutControlPlane {
             rollout.record.attempt = generated.attempt;
             rollout.record.target_count = generated.summary.total_targets;
             rollout.record.updated_at = generated.generated_at;
-            save_json_file(&self.store_path, &*catalog)?;
+            self.store.save_catalog(&catalog)?;
             generated
         };
 
-        Ok(render_preview_response(&full_preview, input.include_targets))
+        Ok(render_preview_response(
+            &full_preview,
+            input.include_targets,
+        ))
     }
 
     pub fn list_rollout_waves(
@@ -193,7 +227,10 @@ impl RolloutControlPlane {
             force_recompute: false,
             include_targets: true,
         })?;
-        let target = preview.targets.iter().find(|target| target.node_id == node_id);
+        let target = preview
+            .targets
+            .iter()
+            .find(|target| target.node_id == node_id);
 
         Ok(compatibility_preview_from_target(target))
     }
@@ -208,11 +245,16 @@ impl RolloutControlPlane {
             force_recompute: false,
             include_targets: true,
         })?;
-        let preview_target = preview.targets.iter().find(|target| target.node_id == node_id);
+        let preview_target = preview
+            .targets
+            .iter()
+            .find(|target| target.node_id == node_id);
         let Some(preview_target) = preview_target else {
             return Ok(None);
         };
-        if preview_target.desired_state_revision.is_none() || preview_target.desired_state_hash.is_none() {
+        if preview_target.desired_state_revision.is_none()
+            || preview_target.desired_state_hash.is_none()
+        {
             return Ok(None);
         }
 
@@ -227,7 +269,11 @@ impl RolloutControlPlane {
             .ok_or_else(|| RolloutControlPlaneError::RolloutNotFound {
                 rollout_id: rollout_id.to_string(),
             })?;
-        let Some(target) = rollout.targets.iter().find(|target| target.node_id == node_id) else {
+        let Some(target) = rollout
+            .targets
+            .iter()
+            .find(|target| target.node_id == node_id)
+        else {
             return Ok(None);
         };
         let projection = self.compiler.compile(&DesiredStateInput {
@@ -265,7 +311,9 @@ impl RolloutControlPlane {
             })?;
 
         if preview.summary.blocked_targets > 0
-            && !catalog.rollouts[rollout_index].policy.allow_degraded_targets
+            && !catalog.rollouts[rollout_index]
+                .policy
+                .allow_degraded_targets
         {
             return Err(RolloutControlPlaneError::RolloutBlocked {
                 rollout_id: rollout_id.to_string(),
@@ -277,7 +325,8 @@ impl RolloutControlPlane {
         catalog.rollouts[rollout_index].record.attempt = preview.attempt;
         catalog.rollouts[rollout_index].record.target_count = preview.summary.total_targets;
         catalog.rollouts[rollout_index].record.updated_at = now_timestamp_ms();
-        save_json_file(&self.store_path, &*catalog)?;
+        catalog.active_rollout_id = Some(rollout_id.to_string());
+        self.store.save_catalog(&catalog)?;
 
         Ok(catalog.rollouts[rollout_index].record.clone())
     }
@@ -318,7 +367,11 @@ impl RolloutControlPlane {
                         semantic_payload: target.semantic_payload.clone(),
                     });
                     candidate_revisions.push(projection.desired_state_revision);
-                    targets.push(admissible_preview_target(target, preflight_outcome, projection));
+                    targets.push(admissible_preview_target(
+                        target,
+                        preflight_outcome,
+                        projection,
+                    ));
                 }
                 PreflightOutcome::AdmissibleDegraded => {
                     degraded_targets += 1;
@@ -328,7 +381,11 @@ impl RolloutControlPlane {
                         semantic_payload: target.semantic_payload.clone(),
                     });
                     candidate_revisions.push(projection.desired_state_revision);
-                    targets.push(admissible_preview_target(target, preflight_outcome, projection));
+                    targets.push(admissible_preview_target(
+                        target,
+                        preflight_outcome,
+                        projection,
+                    ));
                 }
                 blocked_outcome => {
                     blocked_targets += 1;
@@ -393,22 +450,21 @@ fn render_wave_list_response(preview: &ManageRolloutPreview) -> ManageRolloutWav
             .wave_id
             .clone()
             .unwrap_or_else(|| DEFAULT_ROLLOUT_WAVE_ID.to_string());
-        let wave_index = if let Some(existing_index) =
-            items.iter().position(|item| item.wave_id == wave_id)
-        {
-            existing_index
-        } else {
-            items.push(ManageRolloutWaveRecord {
-                wave_id: wave_id.clone(),
-                index: items.len() + 1,
-                phase: ManageRolloutWavePhase::Ready,
-                target_count: 0,
-                admissible_count: 0,
-                degraded_count: 0,
-                blocked_count: 0,
-            });
-            items.len() - 1
-        };
+        let wave_index =
+            if let Some(existing_index) = items.iter().position(|item| item.wave_id == wave_id) {
+                existing_index
+            } else {
+                items.push(ManageRolloutWaveRecord {
+                    wave_id: wave_id.clone(),
+                    index: items.len() + 1,
+                    phase: ManageRolloutWavePhase::Ready,
+                    target_count: 0,
+                    admissible_count: 0,
+                    degraded_count: 0,
+                    blocked_count: 0,
+                });
+                items.len() - 1
+            };
         let wave = items
             .get_mut(wave_index)
             .expect("wave index should resolve to a mutable record");
@@ -455,9 +511,7 @@ fn admissible_preview_target(
 fn blocked_reason(outcome: PreflightOutcome) -> String {
     match outcome {
         PreflightOutcome::BlockedByVersion => "node version is not compatible".to_string(),
-        PreflightOutcome::BlockedByCapability => {
-            "missing required rollout capability".to_string()
-        }
+        PreflightOutcome::BlockedByCapability => "missing required rollout capability".to_string(),
         PreflightOutcome::BlockedByTrust => "node trust posture blocks the rollout".to_string(),
         PreflightOutcome::BlockedByPolicy => "rollout policy blocks the target".to_string(),
         PreflightOutcome::Admissible | PreflightOutcome::AdmissibleDegraded => {
@@ -498,10 +552,24 @@ fn prime_compiler(compiler: &ProjectionCompiler, catalog: &PersistedRolloutCatal
     }
 }
 
+fn load_or_seed_catalog(
+    store: &dyn RolloutCatalogStore,
+) -> Result<PersistedRolloutCatalog, RolloutControlPlaneError> {
+    match store.load_catalog()? {
+        Some(catalog) => Ok(catalog),
+        None => {
+            let seeded = seed_rollout_catalog();
+            store.save_catalog(&seeded)?;
+            Ok(seeded)
+        }
+    }
+}
+
 fn seed_rollout_catalog() -> PersistedRolloutCatalog {
     let seeded_at = now_timestamp_ms();
 
     PersistedRolloutCatalog {
+        active_rollout_id: Some("rollout-a".to_string()),
         rollouts: vec![
             PersistedRollout {
                 record: ManageRolloutRecord {
@@ -620,8 +688,29 @@ fn now_timestamp_ms() -> u64 {
         .as_millis() as u64
 }
 
+fn resolve_active_rollout_id(catalog: &PersistedRolloutCatalog) -> Option<String> {
+    catalog
+        .active_rollout_id
+        .as_ref()
+        .filter(|rollout_id| {
+            catalog
+                .rollouts
+                .iter()
+                .any(|rollout| rollout.record.id == **rollout_id)
+        })
+        .cloned()
+        .or_else(|| {
+            catalog
+                .rollouts
+                .first()
+                .map(|rollout| rollout.record.id.clone())
+        })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct PersistedRolloutCatalog {
+pub(crate) struct PersistedRolloutCatalog {
+    #[serde(default)]
+    active_rollout_id: Option<String>,
     rollouts: Vec<PersistedRollout>,
 }
 

@@ -1,6 +1,6 @@
 {
   "page": {
-    "title": "渠道",
+    "title": "聊天通道",
     "subtitle": "将你的 OpenClaw 智能体连接到外部消息平台和 API。",
     "status": {
       "active": "已启用",
@@ -12,13 +12,13 @@
       "configure": "配置",
       "downloadApp": "下载 App",
       "enableChannel": "启用 {{name}}",
-      "openOfficialSite": "前往开放平台",
-      "saveAndEnable": "保存并启用渠道",
+      "openOfficialSite": "前往官方配置",
+      "saveAndEnable": "保存并启用通道",
       "deleteConfiguration": "删除配置",
       "saving": "保存中..."
     },
     "panel": {
-      "configuration": "渠道配置",
+      "configuration": "通道配置",
       "setupGuide": "配置指南",
       "openOfficialSite": "前往官方配置页",
       "readFullDocumentation": "查看完整文档",
@@ -26,12 +26,14 @@
     },
     "catalog": {
       "tabs": {
-        "domestic": "国内通信软件",
-        "global": "国外通信软件"
+        "domestic": "国内",
+        "global": "国外",
+        "all": "全部"
       },
       "empty": {
-        "domestic": "当前工作区暂无可配置的国内通信软件。",
-        "global": "当前工作区暂无可配置的国外通信渠道。"
+        "domestic": "当前工作区暂无可配置的国内聊天通道。",
+        "global": "当前工作区暂无可配置的国外聊天通道。",
+        "all": "当前工作区暂无可配置的聊天通道。"
       }
     }
   }

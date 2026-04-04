@@ -15,7 +15,7 @@ import { Label } from './Label';
 import { OverlaySurface } from './OverlaySurface';
 import { Textarea } from './Textarea';
 import {
-  getChannelCatalogRegion,
+  getChannelCatalogRegions,
   isChannelDownloadAppAction,
   getChannelCatalogMonogram,
   getChannelCatalogTone,
@@ -216,7 +216,10 @@ export function ChannelWorkspace({
       return;
     }
 
-    if (getChannelCatalogRegion(selectedChannel.id) !== activeRegion) {
+    if (
+      activeRegion !== 'all' &&
+      !getChannelCatalogRegions(selectedChannel.id).includes(activeRegion)
+    ) {
       onSelectedChannelIdChange(null);
     }
   }, [activeRegion, onSelectedChannelIdChange, selectedChannel]);
@@ -236,15 +239,19 @@ export function ChannelWorkspace({
   const regionLabels: Record<ChannelCatalogRegion, string> = {
     domestic: t('channels.page.catalog.tabs.domestic'),
     global: t('channels.page.catalog.tabs.global'),
+    all: t('channels.page.catalog.tabs.all'),
   };
   const regionCounts: Record<ChannelCatalogRegion, number> = {
     domestic: regionGroups.domestic.length,
     global: regionGroups.global.length,
+    all: regionGroups.all.length,
   };
   const regionEmptyText =
     activeRegion === 'domestic'
       ? t('channels.page.catalog.empty.domestic')
-      : t('channels.page.catalog.empty.global');
+      : activeRegion === 'global'
+        ? t('channels.page.catalog.empty.global')
+        : t('channels.page.catalog.empty.all');
 
   const handleOpenSelectedOfficialLink = () => {
     if (!selectedChannel || !selectedChannelOfficialLink) {

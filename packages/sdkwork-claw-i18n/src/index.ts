@@ -81,22 +81,23 @@ export async function ensureI18n(initialLanguage = resolveInitialLanguage()) {
         }
 
         i18n.use(initReactI18next);
+        const interpolation = {
+          escapeValue: false,
+          format: (value: unknown, format?: string, language?: string) => {
+            if (format === 'number' && (typeof value === 'number' || typeof value === 'bigint')) {
+              return new Intl.NumberFormat(getIntlLocale(language)).format(value);
+            }
+
+            return String(value);
+          },
+        };
         await i18n.init({
           resources: translationResources,
           lng: normalizeLanguage(initialLanguage),
           fallbackLng: defaultLanguage,
           supportedLngs: [...supportedLanguages],
           load: 'languageOnly',
-          interpolation: {
-            escapeValue: false,
-            format: (value, format, language) => {
-              if (format === 'number' && (typeof value === 'number' || typeof value === 'bigint')) {
-                return new Intl.NumberFormat(getIntlLocale(language)).format(value);
-              }
-
-              return String(value);
-            },
-          },
+          interpolation,
           detection: {
             order: ['querystring', 'cookie', 'localStorage', 'navigator', 'htmlTag'],
             lookupQuerystring: languageQueryParameter,

@@ -83,7 +83,7 @@ function createService(options: {
   userToolingFiles?: Record<string, string>;
   blockGeneralFs?: boolean;
 }) {
-  const userRoot = options.userRoot ?? 'C:/Users/admin/.sdkwork/claw-studio';
+  const userRoot = options.userRoot ?? 'C:/Users/admin/.sdkwork/crawstudio';
   const files = new Map(
     Object.entries(options.files).map(([filePath, value]) => [
       filePath.replaceAll('\\', '/'),

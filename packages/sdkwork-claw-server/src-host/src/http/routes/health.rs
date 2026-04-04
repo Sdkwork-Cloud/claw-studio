@@ -1,8 +1,4 @@
-use axum::{
-    Router,
-    http::StatusCode,
-    routing::get,
-};
+use axum::{http::StatusCode, routing::get, Router};
 
 use crate::bootstrap::ServerState;
 

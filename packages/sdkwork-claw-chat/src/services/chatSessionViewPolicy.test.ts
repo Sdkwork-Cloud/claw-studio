@@ -89,6 +89,104 @@ await runTest(
 );
 
 await runTest(
+  'resolveChatSessionViewState hides non-current global unknown and cron gateway sessions to match the openclaw control ui session picker',
+  () => {
+    const sessions = [
+      { id: 'agent:research:main' },
+      { id: 'agent:research:main:thread:claw-studio:session-1' },
+      { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+      { id: 'global:shared-session', sessionKind: 'global' },
+      { id: 'unknown:shared-session', sessionKind: 'unknown' },
+      { id: 'cron:nightly-roundup', sessionKind: 'direct' },
+      { id: 'agent:research:cron:job-1', sessionKind: 'direct' },
+    ];
+
+    assert.deepEqual(
+      resolveChatSessionViewState({
+        sessions,
+        activeSessionId: 'agent:research:main',
+        isOpenClawGateway: true,
+        openClawAgentId: 'research',
+      }),
+      {
+        visibleSessions: [
+          { id: 'agent:research:main' },
+          { id: 'agent:research:main:thread:claw-studio:session-1' },
+          { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+        ],
+        selectableSessions: [
+          { id: 'agent:research:main' },
+          { id: 'agent:research:main:thread:claw-studio:session-1' },
+          { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+        ],
+        effectiveActiveSessionId: 'agent:research:main',
+      },
+    );
+  },
+);
+
+await runTest(
+  'resolveChatSessionViewState keeps the current global or cron session visible even when those sessions are normally hidden from the gateway list',
+  () => {
+    const sessions = [
+      { id: 'agent:research:main' },
+      { id: 'agent:research:main:thread:claw-studio:session-1' },
+      { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+      { id: 'global:shared-session', sessionKind: 'global' },
+      { id: 'cron:nightly-roundup', sessionKind: 'direct' },
+    ];
+
+    assert.deepEqual(
+      resolveChatSessionViewState({
+        sessions,
+        activeSessionId: 'global:shared-session',
+        isOpenClawGateway: true,
+        openClawAgentId: 'research',
+      }),
+      {
+        visibleSessions: [
+          { id: 'agent:research:main' },
+          { id: 'agent:research:main:thread:claw-studio:session-1' },
+          { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+          { id: 'global:shared-session', sessionKind: 'global' },
+        ],
+        selectableSessions: [
+          { id: 'agent:research:main' },
+          { id: 'agent:research:main:thread:claw-studio:session-1' },
+          { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+          { id: 'global:shared-session', sessionKind: 'global' },
+        ],
+        effectiveActiveSessionId: 'global:shared-session',
+      },
+    );
+
+    assert.deepEqual(
+      resolveChatSessionViewState({
+        sessions,
+        activeSessionId: 'cron:nightly-roundup',
+        isOpenClawGateway: true,
+        openClawAgentId: 'research',
+      }),
+      {
+        visibleSessions: [
+          { id: 'agent:research:main' },
+          { id: 'agent:research:main:thread:claw-studio:session-1' },
+          { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+          { id: 'cron:nightly-roundup', sessionKind: 'direct' },
+        ],
+        selectableSessions: [
+          { id: 'agent:research:main' },
+          { id: 'agent:research:main:thread:claw-studio:session-1' },
+          { id: 'thread:claw-studio:legacy-session', sessionKind: 'direct' },
+          { id: 'cron:nightly-roundup', sessionKind: 'direct' },
+        ],
+        effectiveActiveSessionId: 'cron:nightly-roundup',
+      },
+    );
+  },
+);
+
+await runTest(
   'resolveChatSessionViewState falls back to the selected agent main session when the raw active session is hidden or outside the selected agent scope',
   () => {
     const sessions = [
@@ -236,7 +334,7 @@ await runTest(
 );
 
 await runTest(
-  'resolveGatewayVisibleSessionSyncTarget syncs the raw gateway session to the visible fallback session when the current one is hidden by agent scope',
+  'resolveGatewayVisibleSessionSyncTarget keeps the raw gateway session untouched when the current one is hidden by agent scope',
   () => {
     assert.equal(
       resolveGatewayVisibleSessionSyncTarget({
@@ -244,7 +342,7 @@ await runTest(
         activeSessionId: 'agent:research:main:thread:claw-studio:session-1',
         effectiveActiveSessionId: 'agent:ops:main',
       }),
-      'agent:ops:main',
+      null,
     );
   },
 );

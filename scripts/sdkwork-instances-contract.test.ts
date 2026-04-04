@@ -472,3 +472,226 @@ runTest('sdkwork-claw-instances keeps direct InstanceDetail i18n keys mapped in 
 
   assert.deepEqual(missingKeys, []);
 });
+
+runTest('sdkwork-claw-instances config workbench editor source avoids mojibake fallback copy', () => {
+  const editorSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigSchemaSectionEditor.tsx',
+  );
+  const fallbackEntries = new Map(
+    [...editorSource.matchAll(/(?:params|props)\.t\('', '([^']+)', '([^']+)'/g)].map((match) => [
+      match[1],
+      match[2],
+    ]),
+  );
+
+  assert.equal(fallbackEntries.get('Hide value'), '隐藏值');
+  assert.equal(fallbackEntries.get('Reveal value'), '显示值');
+  assert.equal(fallbackEntries.get('Not set'), '未设置');
+  assert.equal(fallbackEntries.get('Unsupported array schema. Use Raw mode.'), '当前数组结构请在 Raw 模式下编辑。');
+  assert.equal(fallbackEntries.get('{{count}} items'), '{{count}} 项');
+  assert.equal(fallbackEntries.get('Add item'), '新增项');
+  assert.equal(
+    fallbackEntries.get('No items yet. Add one to begin editing.'),
+    '暂无内容，新增后即可编辑。',
+  );
+  assert.equal(
+    fallbackEntries.get('No array items match the current search.'),
+    '当前搜索下没有匹配的数组项。',
+  );
+  assert.equal(fallbackEntries.get('Item {{count}}'), '第 {{count}} 项');
+  assert.equal(fallbackEntries.get('Remove item'), '删除项');
+  assert.equal(fallbackEntries.get('Custom entries'), '自定义条目');
+  assert.equal(
+    fallbackEntries.get('Keys outside the fixed schema live here.'),
+    '固定 schema 之外的动态键会显示在这里。',
+  );
+  assert.equal(fallbackEntries.get('Add entry'), '新增条目');
+  assert.equal(fallbackEntries.get('No custom entries yet.'), '当前还没有自定义条目。');
+  assert.equal(
+    fallbackEntries.get('No custom entries match the current search.'),
+    '当前搜索下没有匹配的自定义条目。',
+  );
+  assert.equal(fallbackEntries.get('Remove entry'), '删除条目');
+  assert.equal(
+    fallbackEntries.get('No configured fields in this object yet.'),
+    '当前对象还没有可编辑字段。',
+  );
+  assert.equal(
+    fallbackEntries.get('This schema shape is safer to edit in Raw mode.'),
+    '当前结构更适合在 Raw 模式中编辑。',
+  );
+  assert.equal(
+    fallbackEntries.get('Config schema is unavailable for this section.'),
+    '当前分区没有可用的配置 schema。',
+  );
+  assert.equal(
+    fallbackEntries.get('The current draft must be valid JSON5 before Config mode can edit it.'),
+    '当前草稿必须是有效的 JSON5，Config 模式才能编辑。',
+  );
+  assert.equal(
+    fallbackEntries.get(
+      'Some schema paths are too dynamic for the structured editor and are safer to edit in Raw mode.',
+    ),
+    '部分 schema 路径过于动态，结构化编辑器无法安全表达，建议改用 Raw 模式编辑。',
+  );
+  assert.equal(
+    fallbackEntries.get(
+      '{{count}} sensitive values are hidden in this section. Use reveal controls to inspect them.',
+    ),
+    '当前分区中有 {{count}} 个敏感值已隐藏，可通过显示控制查看。',
+  );
+  assert.equal(
+    fallbackEntries.get('No settings in this section match the current search.'),
+    '当前分区没有匹配搜索条件的配置项。',
+  );
+  assert.equal(
+    fallbackEntries.get('No settings are available for this section.'),
+    '当前分区没有可显示的配置项。',
+  );
+});
+
+runTest('sdkwork-claw-instances config workbench panel keeps clean fallback copy without runtime mojibake guards', () => {
+  const panelSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchPanel.tsx',
+  );
+  const fallbackEntries = [...panelSource.matchAll(/\btr\('', '([^']+)', '([^']+)'/g)].map((match) => ({
+    en: match[1],
+    zh: match[2],
+  }));
+
+  assert.doesNotMatch(panelSource, /GARBLED_ZH_FALLBACK_PATTERN/);
+  assert.doesNotMatch(panelSource, /resolveDefaultValue/);
+
+  fallbackEntries.forEach(({ en, zh }) => {
+    const isExplicitEnglishCarryover = zh === en || zh === 'Raw';
+    const hasChineseCopy = /[\u4e00-\u9fff]/.test(zh);
+
+    assert.ok(
+      isExplicitEnglishCarryover || hasChineseCopy,
+      `Expected clean zh fallback copy for "${en}", received "${zh}"`,
+    );
+  });
+});
+
+runTest('sdkwork-claw-instances raw config editor avoids strict JSON validation and calls out JSON5 support', () => {
+  const rawPanelSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchRawPanel.tsx',
+  );
+
+  assert.match(rawPanelSource, /jsonDefaults\.setDiagnosticsOptions\(\{\s*validate:\s*false\s*\}\)/);
+  assert.match(rawPanelSource, /Raw config \(JSON\/JSON5\)/);
+});
+
+runTest('sdkwork-claw-instances raw config editor protects sensitive values until explicitly revealed', () => {
+  const rawPanelSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchRawPanel.tsx',
+  );
+
+  assert.match(rawPanelSource, /rawSensitiveVisible/);
+  assert.match(rawPanelSource, /Hidden until you reveal sensitive values\./);
+  assert.match(rawPanelSource, /Use reveal to inspect and edit the raw config\./);
+});
+
+runTest('sdkwork-claw-instances config workbench exposes a root settings overview before section detail', () => {
+  const panelSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchPanel.tsx',
+  );
+  const overviewSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchOverview.tsx',
+  );
+  const presentationSource = read(
+    'packages/sdkwork-claw-instances/src/services/instanceConfigWorkbenchPresentation.ts',
+  );
+
+  assert.match(panelSource, /tr\('', 'Settings',/);
+  assert.match(panelSource, /setActiveSectionKey\(null\)/);
+  assert.match(panelSource, /InstanceConfigWorkbenchOverview/);
+  assert.match(panelSource, /buildInstanceConfigOverviewMetrics/);
+  assert.match(panelSource, /groupInstanceConfigSectionsByCategory/);
+  assert.match(panelSource, /model\.sections\.filter\(\(section\) => !schemaSectionByKey\.has\(section\.key\)\)/);
+  assert.match(overviewSource, /OpenClaw config overview/);
+  assert.match(overviewSource, /Review section groups and jump into a specific area before editing\./);
+  assert.match(overviewSource, /category\.sectionLabels\.map\(\(label\) => \(/);
+  assert.match(presentationSource, /groupInstanceConfigSectionsByCategory/);
+  assert.match(presentationSource, /buildInstanceConfigOverviewMetrics/);
+  assert.match(panelSource, /computeInstanceConfigWorkbenchDiff\(/);
+  assert.match(panelSource, /Custom sections/);
+  assert.match(panelSource, /Raw lines/);
+});
+
+runTest('sdkwork-claw-instances config workbench keeps control-ui style config actions and status coverage', () => {
+  const panelSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchPanel.tsx',
+  );
+  const navigationSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchConfigNavigation.tsx',
+  );
+  const toolbarSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchToolbar.tsx',
+  );
+  const diffSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchDiffPanel.tsx',
+  );
+  const serviceSource = read('packages/sdkwork-claw-instances/src/services/instanceService.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-instances/src/services/index.ts');
+
+  assert.match(panelSource, /InstanceConfigWorkbenchToolbar/);
+  assert.match(panelSource, /InstanceConfigWorkbenchDiffPanel/);
+  assert.match(toolbarSource, /Open', 'Open/);
+  assert.match(toolbarSource, /Apply', 'Apply/);
+  assert.match(toolbarSource, /Update', 'Update/);
+  assert.match(toolbarSource, /No changes/);
+  assert.match(navigationSource, /The current draft is invalid JSON5\./);
+  assert.match(panelSource, /Form coverage/);
+  assert.match(panelSource, /Schema version/);
+  assert.match(panelSource, /Schema generated/);
+  assert.match(toolbarSource, /Raw-only paths:/);
+  assert.match(diffSource, /Pending changes/);
+  assert.match(diffSource, /formatDiffValuePreviewWithHints\(/);
+  assert.match(diffSource, /countSensitiveConfigValues\(value, pathSegments, uiHints\) > 0/);
+  assert.match(diffSource, /setActiveSectionKey\(entry\.sectionKey\)/);
+  assert.match(diffSource, /availableSectionKeys\.has\(entry\.sectionKey\)/);
+  assert.match(diffSource, /setActiveMode\('raw'\)/);
+
+  assert.match(serviceSource, /openManagedOpenClawConfigFile/);
+  assert.match(serviceSource, /applyManagedOpenClawConfigDocument/);
+  assert.match(serviceSource, /runManagedOpenClawUpdate/);
+  assert.match(serviceSource, /openClawGatewayClient\.openConfigFile/);
+  assert.match(serviceSource, /openClawGatewayClient\.applyConfig/);
+  assert.match(serviceSource, /openClawGatewayClient\.runUpdate/);
+  assert.match(servicesIndexSource, /instanceConfigWorkbenchPresentation/);
+});
+
+runTest('sdkwork-claw-instances config workbench keeps navigation, section hero, and raw editor in dedicated focused components', () => {
+  const panelSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchPanel.tsx',
+  );
+  const navigationSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchConfigNavigation.tsx',
+  );
+  const heroSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchSectionHero.tsx',
+  );
+  const rawPanelSource = read(
+    'packages/sdkwork-claw-instances/src/components/InstanceConfigWorkbenchRawPanel.tsx',
+  );
+
+  assert.match(panelSource, /InstanceConfigWorkbenchConfigNavigation/);
+  assert.match(panelSource, /InstanceConfigWorkbenchSectionHero/);
+  assert.match(panelSource, /InstanceConfigWorkbenchRawPanel/);
+  assert.doesNotMatch(panelSource, /Search settings\.\.\./);
+  assert.doesNotMatch(panelSource, /The current draft is invalid JSON5\./);
+  assert.doesNotMatch(panelSource, /Hidden until you reveal sensitive values\./);
+  assert.match(navigationSource, /Search settings\.\.\./);
+  assert.match(navigationSource, /The current draft is invalid JSON5\./);
+  assert.match(navigationSource, /Open Raw/);
+  assert.match(navigationSource, /Dismiss/);
+  assert.match(heroSource, /Config section/);
+  assert.match(heroSource, /Custom section/);
+  assert.match(heroSource, /Hide sensitive values/);
+  assert.match(heroSource, /Reveal sensitive values/);
+  assert.match(rawPanelSource, /Raw config \(JSON\/JSON5\)/);
+  assert.match(rawPanelSource, /Hidden until you reveal sensitive values\./);
+  assert.match(rawPanelSource, /Use reveal to inspect and edit the raw config\./);
+  assert.match(rawPanelSource, /MonacoEditor/);
+});

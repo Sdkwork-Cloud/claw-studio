@@ -1,27 +1,27 @@
 use axum::{
-    Json,
     extract::{Path, State},
-    Router,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
+    Json, Router,
 };
-use serde::{Serialize, de::DeserializeOwned};
 use sdkwork_claw_host_core::{
     internal::{
         error::{InternalErrorCategory, InternalErrorEnvelope, InternalErrorResolution},
         node_sessions::{
             NodeSessionAckDesiredStateInput, NodeSessionAckDesiredStateResponse,
-            NodeSessionAdmitInput, NodeSessionAdmitResponse, NodeSessionHeartbeatInput,
-            NodeSessionHeartbeatResponse, NodeSessionHelloInput, NodeSessionHelloResponse,
-            NodeSessionCloseInput, NodeSessionCloseResponse, NodeSessionPullDesiredStateInput,
+            NodeSessionAdmitInput, NodeSessionAdmitResponse, NodeSessionCloseInput,
+            NodeSessionCloseResponse, NodeSessionHeartbeatInput, NodeSessionHeartbeatResponse,
+            NodeSessionHelloInput, NodeSessionHelloResponse, NodeSessionPullDesiredStateInput,
             NodeSessionPullDesiredStateResponse, NodeSessionRecord, NodeSessionRegistryError,
         },
     },
     rollout::control_plane::RolloutControlPlaneError,
 };
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::bootstrap::ServerState;
+use crate::http::auth::authorize_internal_request;
 use crate::http::error_response::{
     categorized_error_response, envelope_error_response, validation_error_response,
 };
@@ -31,85 +31,109 @@ pub fn internal_node_session_routes() -> Router<ServerState> {
         .route("/host-platform", get(get_host_platform_status))
         .route("/node-sessions", get(list_node_sessions))
         .route("/node-sessions:hello", post(hello_node_session))
-        .route("/node-sessions/{session_action}", post(handle_node_session_action))
+        .route(
+            "/node-sessions/{session_action}",
+            post(handle_node_session_action),
+        )
 }
 
-async fn get_host_platform_status(State(state): State<ServerState>) -> Json<HostPlatformStatusRecord> {
-    Json(HostPlatformStatusRecord {
+async fn get_host_platform_status(
+    headers: HeaderMap,
+    State(state): State<ServerState>,
+) -> Result<Json<HostPlatformStatusRecord>, Response> {
+    authorize_internal_request(&headers, &state)?;
+
+    Ok(Json(HostPlatformStatusRecord {
         mode: state.mode.to_string(),
         lifecycle: "ready".to_string(),
-        host_id: "server-local".to_string(),
-        display_name: "Server Combined Host".to_string(),
+        host_id: state.host_platform_id().to_string(),
+        display_name: state.host_platform_display_name().to_string(),
         version: state.host_platform_version(),
         desired_state_projection_version: "phase2".to_string(),
         rollout_engine_version: "phase2".to_string(),
         manage_base_path: "/claw/manage/v1".to_string(),
         internal_base_path: "/claw/internal/v1".to_string(),
-        capability_keys: vec![
-            "internal.host-platform.read".to_string(),
-            "internal.node-sessions.hello".to_string(),
-            "internal.node-sessions.admit".to_string(),
-            "internal.node-sessions.heartbeat".to_string(),
-            "internal.node-sessions.pull-desired-state".to_string(),
-            "internal.node-sessions.ack-desired-state".to_string(),
-            "internal.node-sessions.close".to_string(),
-            "internal.node-sessions.list".to_string(),
-            "manage.rollouts.list".to_string(),
-            "manage.rollouts.preview".to_string(),
-            "manage.rollouts.start".to_string(),
-        ],
+        state_store_driver: state.state_store_driver.clone(),
+        state_store: state.state_store.clone(),
+        capability_keys: state.host_platform_capability_keys(),
         updated_at: state.host_platform_updated_at(),
-    })
+    }))
 }
 
 async fn list_node_sessions(
+    headers: HeaderMap,
     State(state): State<ServerState>,
 ) -> Result<Json<Vec<NodeSessionRecord>>, Response> {
+    authorize_internal_request(&headers, &state)?;
+    let active_rollout_id = state
+        .rollout_control_plane
+        .active_rollout_id()
+        .map_err(|error| map_rollout_error(error, state.host_platform_updated_at()))?;
     let projected_sessions = state
         .rollout_control_plane
         .list_projected_node_sessions(
-            "rollout-a",
+            &active_rollout_id,
             true,
-            "server-combined",
+            state.host_platform_id(),
             state.host_platform_updated_at(),
         )
         .map_err(|error| map_rollout_error(error, state.host_platform_updated_at()))?;
     let live_sessions = state
         .node_session_registry
         .list_sessions()
-        .map_err(|error| map_node_session_registry_error(error, state.host_platform_updated_at()))?;
+        .map_err(|error| {
+            map_node_session_registry_error(error, state.host_platform_updated_at())
+        })?;
     let sessions = merge_node_sessions(projected_sessions, live_sessions);
 
     Ok(Json(sessions))
 }
 
 async fn hello_node_session(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     request_body: String,
 ) -> Result<Json<NodeSessionHelloResponse>, Response> {
+    authorize_internal_request(&headers, &state)?;
     let request = parse_internal_request_body::<NodeSessionHelloInput>(
         &request_body,
         "The node session hello request body is invalid.",
         state.host_platform_updated_at(),
     )?;
-    let claimed_node_id = request.node_claim.claimed_node_id.clone().unwrap_or_default();
+    let claimed_node_id = request
+        .node_claim
+        .claimed_node_id
+        .clone()
+        .unwrap_or_default();
+    let active_rollout_id = state
+        .rollout_control_plane
+        .active_rollout_id()
+        .map_err(|error| map_rollout_error(error, state.host_platform_updated_at()))?;
     let compatibility_preview = state
         .rollout_control_plane
-        .preview_node_session_compatibility("rollout-a", &claimed_node_id)
+        .preview_node_session_compatibility(&active_rollout_id, &claimed_node_id)
         .map_err(|error| map_rollout_error(error, state.host_platform_updated_at()))?;
     let response = state
         .node_session_registry
-        .hello(request, compatibility_preview, state.host_platform_updated_at())
-        .map_err(|error| map_node_session_registry_error(error, state.host_platform_updated_at()))?;
+        .hello(
+            request,
+            compatibility_preview,
+            state.host_platform_updated_at(),
+        )
+        .map_err(|error| {
+            map_node_session_registry_error(error, state.host_platform_updated_at())
+        })?;
 
     Ok(Json(response))
 }
 
 async fn handle_node_session_action(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     Path(session_action): Path<String>,
     request_body: String,
 ) -> Result<Response, Response> {
+    authorize_internal_request(&headers, &state)?;
     let Some((session_id, action)) = session_action.rsplit_once(':') else {
         return Err(validation_error_response(
             "invalid_request",
@@ -187,7 +211,9 @@ async fn admit_node_session(
     let response = state
         .node_session_registry
         .admit(session_id, request, state.host_platform_updated_at())
-        .map_err(|error| map_node_session_registry_error(error, state.host_platform_updated_at()))?;
+        .map_err(|error| {
+            map_node_session_registry_error(error, state.host_platform_updated_at())
+        })?;
 
     Ok(Json(response))
 }
@@ -200,7 +226,9 @@ async fn heartbeat_node_session(
     let response = state
         .node_session_registry
         .heartbeat(session_id, request, state.host_platform_updated_at())
-        .map_err(|error| map_node_session_registry_error(error, state.host_platform_updated_at()))?;
+        .map_err(|error| {
+            map_node_session_registry_error(error, state.host_platform_updated_at())
+        })?;
 
     Ok(Json(response))
 }
@@ -230,9 +258,13 @@ async fn pull_desired_state_for_node_session(
                 state.host_platform_updated_at(),
             )
         })?;
+    let active_rollout_id = state
+        .rollout_control_plane
+        .active_rollout_id()
+        .map_err(|error| map_rollout_error(error, state.host_platform_updated_at()))?;
     let desired_state = state
         .rollout_control_plane
-        .resolve_node_desired_state("rollout-a", &session.node_id)
+        .resolve_node_desired_state(&active_rollout_id, &session.node_id)
         .map_err(|error| map_rollout_error(error, state.host_platform_updated_at()))?
         .ok_or_else(|| {
             envelope_error_response(
@@ -256,7 +288,9 @@ async fn pull_desired_state_for_node_session(
             desired_state,
             state.host_platform_updated_at(),
         )
-        .map_err(|error| map_node_session_registry_error(error, state.host_platform_updated_at()))?;
+        .map_err(|error| {
+            map_node_session_registry_error(error, state.host_platform_updated_at())
+        })?;
 
     Ok(Json(response))
 }
@@ -269,7 +303,9 @@ async fn ack_desired_state_for_node_session(
     let response = state
         .node_session_registry
         .ack_desired_state(session_id, request, state.host_platform_updated_at())
-        .map_err(|error| map_node_session_registry_error(error, state.host_platform_updated_at()))?;
+        .map_err(|error| {
+            map_node_session_registry_error(error, state.host_platform_updated_at())
+        })?;
 
     Ok(Json(response))
 }
@@ -282,7 +318,9 @@ async fn close_node_session(
     let response = state
         .node_session_registry
         .close(session_id, request, state.host_platform_updated_at())
-        .map_err(|error| map_node_session_registry_error(error, state.host_platform_updated_at()))?;
+        .map_err(|error| {
+            map_node_session_registry_error(error, state.host_platform_updated_at())
+        })?;
 
     Ok(Json(response))
 }
@@ -465,6 +503,8 @@ struct HostPlatformStatusRecord {
     rollout_engine_version: String,
     manage_base_path: String,
     internal_base_path: String,
+    state_store_driver: String,
+    state_store: crate::bootstrap::ServerStateStoreSnapshot,
     capability_keys: Vec<String>,
     updated_at: u64,
 }

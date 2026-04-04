@@ -19,6 +19,7 @@ import type {
 } from '@sdkwork/app-sdk';
 import {
   clearAppSdkSessionTokens,
+  getAppSdkClientConfig,
   getAppSdkClientWithSession,
   persistAppSdkSessionTokens,
   readAppSdkSessionTokens,
@@ -212,6 +213,30 @@ function persistSession(session: AppAuthSession): AppAuthSession {
   return session;
 }
 
+function resolveAppSdkApiUrl(pathname: string): string {
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  const apiPath = `/app/v3/api${normalizedPath}`;
+  const baseUrl = getAppSdkClientConfig()?.baseUrl?.trim();
+
+  if (!baseUrl) {
+    return apiPath;
+  }
+
+  return `${baseUrl.replace(/\/+$/, '')}${apiPath}`;
+}
+
+async function postAppSdkAuthFallback<T>(pathname: string, body: unknown): Promise<T> {
+  const response = await fetch(resolveAppSdkApiUrl(pathname), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  return (await response.json()) as T;
+}
+
 export const appAuthService: IAppAuthService = {
   async login(input: AppAuthLoginInput): Promise<AppAuthSession> {
     const client = getAppSdkClientWithSession();
@@ -245,6 +270,9 @@ export const appAuthService: IAppAuthService = {
 
   async loginWithEmail(input: AppAuthEmailLoginInput): Promise<AppAuthSession> {
     const client = getAppSdkClientWithSession();
+    const authClient = client.auth as typeof client.auth & {
+      emailLogin?: (body: EmailLoginForm) => Promise<unknown>;
+    };
     const request: EmailLoginForm = {
       email: input.email.trim(),
       code: input.code.trim(),
@@ -254,7 +282,9 @@ export const appAuthService: IAppAuthService = {
       appVersion: readOptionalString(input.appVersion),
     };
     const loginData = unwrapAppSdkResponse<LoginVO>(
-      await client.auth.emailLogin(request),
+      authClient.emailLogin
+        ? await authClient.emailLogin(request)
+        : await postAppSdkAuthFallback('/auth/email/login', request),
       'Failed to complete email code login.',
     );
     return persistSession(mapSession(loginData));

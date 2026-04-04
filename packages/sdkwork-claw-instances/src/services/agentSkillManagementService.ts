@@ -73,6 +73,12 @@ export interface RemoveAgentSkillInput {
   filePath?: string | null;
 }
 
+type OpenClawInstanceDetailRecord = StudioInstanceDetailRecord & {
+  instance: StudioInstanceDetailRecord['instance'] & {
+    runtimeKind: 'openclaw';
+  };
+};
+
 function normalizePath(path?: string | null) {
   const trimmed = path?.trim();
   return trimmed ? trimmed.replace(/\\/g, '/') : null;
@@ -183,7 +189,9 @@ async function updateTrackedClawHubLockfile(params: {
   );
 }
 
-function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
+function isOpenClawDetail(
+  detail: StudioInstanceDetailRecord | null | undefined,
+): detail is OpenClawInstanceDetailRecord {
   return detail?.instance.runtimeKind === 'openclaw';
 }
 

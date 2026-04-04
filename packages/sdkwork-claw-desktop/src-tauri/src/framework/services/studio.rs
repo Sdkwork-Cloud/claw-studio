@@ -5,6 +5,7 @@ use crate::framework::{
         AppConfig, HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION,
         HOST_PLATFORM_ROLLOUT_ENGINE_VERSION,
     },
+    embedded_host_server::{EmbeddedHostRuntimeSnapshot, EmbeddedHostRuntimeStatus},
     layout::ActiveState,
     openclaw_release::bundled_openclaw_version,
     paths::AppPaths,
@@ -16,8 +17,16 @@ use crate::framework::{
     FrameworkError, Result,
 };
 use hub_installer_rs::{InstallRecord, InstallRecordStatus};
+use sdkwork_claw_server::bootstrap::{
+    ServerStateStoreProfileRecord, ServerStateStoreProviderRecord, ServerStateStoreSnapshot,
+};
 use sdkwork_claw_host_core::{
     host_core_metadata,
+    host_endpoints::{
+        project_openclaw_gateway, project_openclaw_runtime, HostEndpointRecord,
+        OpenClawGatewayProjection, OpenClawLifecycle, OpenClawRuntimeProjection,
+    },
+    openclaw_control_plane::OpenClawGatewayInvokeRequest,
     projection::compiler::{DesiredStateInput, ProjectionCompiler},
     rollout::engine::{preflight_target, PreflightOutcome, RolloutPolicy, RolloutPreflightTarget},
 };
@@ -1009,7 +1018,7 @@ impl Default for InstanceRegistryDocument {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostPlatformStatusRecord {
     pub mode: String,
@@ -1021,6 +1030,8 @@ pub struct HostPlatformStatusRecord {
     pub rollout_engine_version: String,
     pub manage_base_path: String,
     pub internal_base_path: String,
+    pub state_store_driver: String,
+    pub state_store: ServerStateStoreSnapshot,
     pub capability_keys: Vec<String>,
     pub updated_at: u64,
 }
@@ -1114,6 +1125,93 @@ pub struct InternalNodeSessionRecord {
     pub last_seen_at: u64,
 }
 
+fn build_desktop_host_state_store_snapshot(
+    paths: &AppPaths,
+) -> (String, ServerStateStoreSnapshot) {
+    let sqlite_path = paths
+        .machine_state_dir
+        .join("desktop-host")
+        .join("host-state.sqlite3")
+        .to_string_lossy()
+        .into_owned();
+
+    (
+        "sqlite".to_string(),
+        ServerStateStoreSnapshot {
+            active_profile_id: "default-sqlite".to_string(),
+            providers: vec![
+                ServerStateStoreProviderRecord {
+                    id: "json-file".to_string(),
+                    label: "JSON File Catalogs".to_string(),
+                    availability: "ready".to_string(),
+                    requires_configuration: false,
+                    configuration_keys: Vec::new(),
+                    projection_mode: "runtime".to_string(),
+                },
+                ServerStateStoreProviderRecord {
+                    id: "sqlite".to_string(),
+                    label: "SQLite Host State".to_string(),
+                    availability: "ready".to_string(),
+                    requires_configuration: false,
+                    configuration_keys: Vec::new(),
+                    projection_mode: "runtime".to_string(),
+                },
+                ServerStateStoreProviderRecord {
+                    id: "postgres".to_string(),
+                    label: "Postgres Host State".to_string(),
+                    availability: "planned".to_string(),
+                    requires_configuration: true,
+                    configuration_keys: vec![
+                        "postgresUrl".to_string(),
+                        "postgresSchema".to_string(),
+                    ],
+                    projection_mode: "metadataOnly".to_string(),
+                },
+            ],
+            profiles: vec![
+                ServerStateStoreProfileRecord {
+                    id: "default-json-file".to_string(),
+                    label: "JSON File Catalogs".to_string(),
+                    driver: "json-file".to_string(),
+                    active: false,
+                    availability: "ready".to_string(),
+                    path: Some(
+                        paths.install_root
+                            .join("rollout-catalogs.json")
+                            .to_string_lossy()
+                            .into_owned(),
+                    ),
+                    connection_configured: true,
+                    configured_keys: vec!["path".to_string()],
+                    projection_mode: "runtime".to_string(),
+                },
+                ServerStateStoreProfileRecord {
+                    id: "default-sqlite".to_string(),
+                    label: "SQLite Host State".to_string(),
+                    driver: "sqlite".to_string(),
+                    active: true,
+                    availability: "ready".to_string(),
+                    path: Some(sqlite_path),
+                    connection_configured: true,
+                    configured_keys: vec!["path".to_string()],
+                    projection_mode: "runtime".to_string(),
+                },
+                ServerStateStoreProfileRecord {
+                    id: "default-postgres".to_string(),
+                    label: "Postgres Host State".to_string(),
+                    driver: "postgres".to_string(),
+                    active: false,
+                    availability: "planned".to_string(),
+                    path: None,
+                    connection_configured: false,
+                    configured_keys: Vec::new(),
+                    projection_mode: "metadataOnly".to_string(),
+                },
+            ],
+        },
+    )
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct StudioService;
 
@@ -1149,10 +1247,12 @@ impl StudioService {
 
     pub fn get_host_platform_status(
         &self,
-        _paths: &AppPaths,
+        paths: &AppPaths,
         _config: &AppConfig,
         _storage: &StorageService,
         supervisor: &SupervisorService,
+        desktop_host: Option<&EmbeddedHostRuntimeSnapshot>,
+        desktop_host_status: Option<&EmbeddedHostRuntimeStatus>,
     ) -> Result<HostPlatformStatusRecord> {
         let metadata = host_core_metadata();
         let bundled_components = bundled_component_defaults();
@@ -1170,24 +1270,139 @@ impl StudioService {
         capability_keys.sort();
         capability_keys.dedup();
 
+        let (mode, manage_base_path, internal_base_path, state_store_driver, state_store) =
+            if let Some(snapshot) = desktop_host {
+            (
+                snapshot.mode.clone(),
+                snapshot.manage_base_path.clone(),
+                snapshot.internal_base_path.clone(),
+                snapshot.state_store_driver.clone(),
+                snapshot.state_store.clone(),
+            )
+        } else {
+            let (state_store_driver, state_store) = build_desktop_host_state_store_snapshot(paths);
+            (
+                "desktopCombined".to_string(),
+                "/claw/manage/v1".to_string(),
+                "/claw/internal/v1".to_string(),
+                state_store_driver,
+                state_store,
+            )
+        };
+        let lifecycle = match desktop_host_status {
+            Some(status) if status.lifecycle != "ready" => status.lifecycle.clone(),
+            _ if gateway_running => "ready".to_string(),
+            _ => "degraded".to_string(),
+        };
+
         Ok(HostPlatformStatusRecord {
-            mode: "desktopCombined".to_string(),
-            lifecycle: if gateway_running {
-                "ready".to_string()
-            } else {
-                "degraded".to_string()
-            },
+            mode,
+            lifecycle,
             host_id: "desktop-local".to_string(),
             display_name: "Desktop Combined Host".to_string(),
             version: format!("{}@{}", bundled_openclaw_version(), metadata.package_name),
-            desired_state_projection_version:
-                HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION.to_string(),
+            desired_state_projection_version: HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION
+                .to_string(),
             rollout_engine_version: HOST_PLATFORM_ROLLOUT_ENGINE_VERSION.to_string(),
-            manage_base_path: "/claw/manage/v1".to_string(),
-            internal_base_path: "/claw/internal/v1".to_string(),
+            manage_base_path,
+            internal_base_path,
+            state_store_driver,
+            state_store,
             capability_keys,
             updated_at: unix_timestamp_ms()?,
         })
+    }
+
+    pub fn get_host_endpoints(
+        &self,
+        _paths: &AppPaths,
+        _config: &AppConfig,
+        _storage: &StorageService,
+        supervisor: &SupervisorService,
+        desktop_host: Option<&EmbeddedHostRuntimeSnapshot>,
+    ) -> Result<Vec<HostEndpointRecord>> {
+        let mut endpoints = Vec::new();
+
+        if let Some(snapshot) = desktop_host {
+            endpoints.push(snapshot.endpoint.clone());
+        }
+
+        if let Some(gateway_endpoint) = managed_openclaw_gateway_endpoint(supervisor)? {
+            endpoints.push(gateway_endpoint);
+        }
+
+        Ok(endpoints)
+    }
+
+    pub fn get_openclaw_runtime(
+        &self,
+        _paths: &AppPaths,
+        _config: &AppConfig,
+        _storage: &StorageService,
+        supervisor: &SupervisorService,
+    ) -> Result<OpenClawRuntimeProjection> {
+        let updated_at = unix_timestamp_ms()?;
+        let endpoint = managed_openclaw_gateway_endpoint(supervisor)?;
+
+        Ok(project_openclaw_runtime(
+            endpoint.as_ref(),
+            managed_openclaw_lifecycle(supervisor)?,
+            "desktopCombined",
+            updated_at,
+        ))
+    }
+
+    pub fn get_openclaw_gateway(
+        &self,
+        _paths: &AppPaths,
+        _config: &AppConfig,
+        _storage: &StorageService,
+        supervisor: &SupervisorService,
+    ) -> Result<OpenClawGatewayProjection> {
+        let updated_at = unix_timestamp_ms()?;
+        let endpoint = managed_openclaw_gateway_endpoint(supervisor)?;
+
+        Ok(project_openclaw_gateway(
+            endpoint.as_ref(),
+            managed_openclaw_lifecycle(supervisor)?,
+            "desktopCombined",
+            updated_at,
+        ))
+    }
+
+    pub fn invoke_managed_openclaw_gateway(
+        &self,
+        _paths: &AppPaths,
+        _config: &AppConfig,
+        _storage: &StorageService,
+        supervisor: &SupervisorService,
+        request: OpenClawGatewayInvokeRequest,
+    ) -> Result<Value> {
+        let updated_at = unix_timestamp_ms()?;
+        let lifecycle = managed_openclaw_lifecycle(supervisor)?;
+
+        if lifecycle != OpenClawLifecycle::Ready {
+            return Err(FrameworkError::Conflict(
+                "managed OpenClaw gateway is not ready".to_string(),
+            ));
+        }
+
+        if !request.dry_run.unwrap_or(false) {
+            return Err(FrameworkError::Conflict(
+                "managed OpenClaw gateway invoke is not implemented for this host shell"
+                    .to_string(),
+            ));
+        }
+
+        Ok(serde_json::json!({
+            "accepted": true,
+            "tool": request.tool,
+            "action": request.action,
+            "dryRun": true,
+            "lifecycle": lifecycle.as_str(),
+            "message": "managed OpenClaw gateway dry-run accepted",
+            "updatedAt": updated_at
+        }))
     }
 
     pub fn list_rollouts(
@@ -1307,8 +1522,17 @@ impl StudioService {
         config: &AppConfig,
         storage: &StorageService,
         supervisor: &SupervisorService,
+        desktop_host: Option<&EmbeddedHostRuntimeSnapshot>,
+        desktop_host_status: Option<&EmbeddedHostRuntimeStatus>,
     ) -> Result<Vec<InternalNodeSessionRecord>> {
-        let status = self.get_host_platform_status(paths, config, storage, supervisor)?;
+        let status = self.get_host_platform_status(
+            paths,
+            config,
+            storage,
+            supervisor,
+            desktop_host,
+            desktop_host_status,
+        )?;
         let preview = self.preview_rollout(
             paths,
             config,
@@ -1330,12 +1554,16 @@ impl StudioService {
             } else {
                 "degraded".to_string()
             },
-            compatibility_state: match target.as_ref().map(|record| record.preflight_outcome.as_str())
+            compatibility_state: match target
+                .as_ref()
+                .map(|record| record.preflight_outcome.as_str())
             {
                 Some("admissible") | Some("admissibleDegraded") => "compatible".to_string(),
                 _ => "blocked".to_string(),
             },
-            desired_state_revision: target.as_ref().and_then(|record| record.desired_state_revision),
+            desired_state_revision: target
+                .as_ref()
+                .and_then(|record| record.desired_state_revision),
             desired_state_hash: target.and_then(|record| record.desired_state_hash),
             last_seen_at: unix_timestamp_ms()?,
         }])
@@ -1858,11 +2086,23 @@ impl StudioService {
                 Value::String(update.api_key_source.trim().to_string())
             },
         );
-        remove_nested_value(&mut root, &["models", "providers", provider_id, "temperature"]);
+        remove_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "temperature"],
+        );
         remove_nested_value(&mut root, &["models", "providers", provider_id, "topP"]);
-        remove_nested_value(&mut root, &["models", "providers", provider_id, "maxTokens"]);
-        remove_nested_value(&mut root, &["models", "providers", provider_id, "timeoutMs"]);
-        remove_nested_value(&mut root, &["models", "providers", provider_id, "streaming"]);
+        remove_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "maxTokens"],
+        );
+        remove_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "timeoutMs"],
+        );
+        remove_nested_value(
+            &mut root,
+            &["models", "providers", provider_id, "streaming"],
+        );
 
         let existing_models = get_nested_value(
             &root,
@@ -2985,7 +3225,11 @@ fn build_openclaw_gateway_ws_url(
 
     if let Some(base_url) = instance.base_url.as_deref() {
         if let Some(origin) = url_origin(base_url) {
-            return Some(format!("{}{}", http_origin_to_ws_origin(&origin), gateway_path));
+            return Some(format!(
+                "{}{}",
+                http_origin_to_ws_origin(&origin),
+                gateway_path
+            ));
         }
     }
 
@@ -3072,7 +3316,10 @@ fn url_origin(value: &str) -> Option<String> {
 fn url_path(value: &str) -> Option<String> {
     let (_, rest) = value.split_once("://")?;
     let (_, path_and_more) = rest.split_once('/')?;
-    let path = format!("/{}", path_and_more.split(['?', '#']).next().unwrap_or_default());
+    let path = format!(
+        "/{}",
+        path_and_more.split(['?', '#']).next().unwrap_or_default()
+    );
     let trimmed = path.trim();
     if trimmed.is_empty() {
         return None;
@@ -4504,6 +4751,41 @@ fn blocked_reason_for_outcome(outcome: PreflightOutcome) -> Option<String> {
     }
 }
 
+fn managed_openclaw_lifecycle(supervisor: &SupervisorService) -> Result<OpenClawLifecycle> {
+    if supervisor.is_openclaw_gateway_running()? {
+        Ok(OpenClawLifecycle::Ready)
+    } else if supervisor.configured_openclaw_runtime()?.is_some() {
+        Ok(OpenClawLifecycle::Stopped)
+    } else {
+        Ok(OpenClawLifecycle::Inactive)
+    }
+}
+
+fn managed_openclaw_gateway_endpoint(
+    supervisor: &SupervisorService,
+) -> Result<Option<HostEndpointRecord>> {
+    let Some(runtime) = supervisor.configured_openclaw_runtime()? else {
+        return Ok(None);
+    };
+
+    let gateway_running = supervisor.is_openclaw_gateway_running()?;
+    let active_port = gateway_running.then_some(runtime.gateway_port);
+
+    Ok(Some(HostEndpointRecord {
+        endpoint_id: "openclaw-gateway".to_string(),
+        bind_host: "127.0.0.1".to_string(),
+        requested_port: runtime.gateway_port,
+        active_port,
+        scheme: "http".to_string(),
+        base_url: active_port.map(|port| format!("http://127.0.0.1:{port}")),
+        websocket_url: active_port.map(|port| format!("ws://127.0.0.1:{port}")),
+        loopback_only: true,
+        dynamic_port: false,
+        last_conflict_at: None,
+        last_conflict_reason: None,
+    }))
+}
+
 fn unix_timestamp_ms() -> Result<u64> {
     Ok(SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -4664,7 +4946,11 @@ fn sync_openclaw_defaults_model_selection(
         return;
     };
 
-    set_nested_string(root, &["agents", "defaults", "model", "primary"], &primary_model_ref);
+    set_nested_string(
+        root,
+        &["agents", "defaults", "model", "primary"],
+        &primary_model_ref,
+    );
     match reasoning_model_id.and_then(|value| build_openclaw_model_ref(provider_id, value)) {
         Some(reasoning_model_ref) => set_nested_value(
             root,
@@ -4702,7 +4988,13 @@ fn sync_openclaw_provider_model_catalog(
         );
         set_nested_bool(
             root,
-            &["agents", "defaults", "models", model_ref.as_str(), "streaming"],
+            &[
+                "agents",
+                "defaults",
+                "models",
+                model_ref.as_str(),
+                "streaming",
+            ],
             infer_openclaw_model_catalog_streaming(model),
         );
 
@@ -4739,7 +5031,14 @@ pub(super) fn read_openclaw_provider_runtime_config(
         "params",
         "temperature",
     ];
-    let top_p_path = ["agents", "defaults", "models", model_ref.as_str(), "params", "topP"];
+    let top_p_path = [
+        "agents",
+        "defaults",
+        "models",
+        model_ref.as_str(),
+        "params",
+        "topP",
+    ];
     let max_tokens_path = [
         "agents",
         "defaults",
@@ -4768,8 +5067,7 @@ pub(super) fn read_openclaw_provider_runtime_config(
     StudioWorkbenchLLMProviderConfigRecord {
         temperature: get_nested_f64(root, &temperature_path)
             .unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TEMPERATURE),
-        top_p: get_nested_f64(root, &top_p_path)
-            .unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TOP_P),
+        top_p: get_nested_f64(root, &top_p_path).unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_TOP_P),
         max_tokens: get_nested_u32(root, &max_tokens_path)
             .unwrap_or(OPENCLAW_PROVIDER_RUNTIME_DEFAULT_MAX_TOKENS),
         timeout_ms: get_nested_u32(root, &timeout_ms_path)
@@ -4939,16 +5237,17 @@ fn get_nested_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
 #[cfg(test)]
 mod tests {
     use super::{
-        console_install_method_from_install_record, StudioConversationMessage,
-        StudioConversationMessageStatus, StudioConversationRecord, StudioConversationRole,
-        StudioCreateInstanceInput, StudioInstanceArtifactKind, StudioInstanceAuthMode,
-        StudioInstanceCapability, StudioInstanceCapabilityStatus,
-        StudioInstanceConsoleInstallMethod, StudioInstanceDataAccessMode,
-        StudioInstanceDataAccessScope, StudioInstanceDeploymentMode, StudioInstanceLifecycleOwner,
-        StudioInstanceStatus, StudioInstanceStorageStatus, StudioInstanceTransportKind,
-        StudioRuntimeKind, StudioService, StudioUpdateInstanceLlmProviderConfigInput,
-        StudioWorkbenchLLMProviderConfigRecord, DEFAULT_INSTANCE_ID, get_nested_string,
-        get_nested_value, read_json5_object,
+        EmbeddedHostRuntimeStatus,
+        console_install_method_from_install_record, get_nested_string, get_nested_value,
+        read_json5_object, StudioConversationMessage, StudioConversationMessageStatus,
+        StudioConversationRecord, StudioConversationRole, StudioCreateInstanceInput,
+        StudioInstanceArtifactKind, StudioInstanceAuthMode, StudioInstanceCapability,
+        StudioInstanceCapabilityStatus, StudioInstanceConsoleInstallMethod,
+        StudioInstanceDataAccessMode, StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
+        StudioInstanceLifecycleOwner, StudioInstanceStatus, StudioInstanceStorageStatus,
+        StudioInstanceTransportKind, StudioRuntimeKind, StudioService,
+        StudioUpdateInstanceLlmProviderConfigInput, StudioWorkbenchLLMProviderConfigRecord,
+        DEFAULT_INSTANCE_ID,
     };
     use crate::framework::{
         config::AppConfig,
@@ -4963,6 +5262,9 @@ mod tests {
     use hub_installer_rs::{
         types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
         write_install_record, InstallRecord, InstallRecordStatus,
+    };
+    use sdkwork_claw_server::bootstrap::{
+        ServerStateStoreProfileRecord, ServerStateStoreProviderRecord, ServerStateStoreSnapshot,
     };
     use serde_json::{json, Value};
     use std::{
@@ -4991,6 +5293,102 @@ mod tests {
         let service = StudioService::new();
 
         (root, paths, config, storage, service)
+    }
+
+    fn desktop_host_snapshot_fixture() -> crate::framework::embedded_host_server::EmbeddedHostRuntimeSnapshot {
+        crate::framework::embedded_host_server::EmbeddedHostRuntimeSnapshot {
+            mode: "desktopCombined".to_string(),
+            manage_base_path: "/claw/manage/v1".to_string(),
+            internal_base_path: "/claw/internal/v1".to_string(),
+            browser_base_url: "http://127.0.0.1:18797".to_string(),
+            endpoint: sdkwork_claw_host_core::host_endpoints::HostEndpointRecord {
+                endpoint_id: "claw-manage-http".to_string(),
+                bind_host: "127.0.0.1".to_string(),
+                requested_port: 18_797,
+                active_port: Some(18_797),
+                scheme: "http".to_string(),
+                base_url: Some("http://127.0.0.1:18797".to_string()),
+                websocket_url: None,
+                loopback_only: true,
+                dynamic_port: false,
+                last_conflict_at: None,
+                last_conflict_reason: None,
+            },
+            state_store_driver: "sqlite".to_string(),
+            state_store: ServerStateStoreSnapshot {
+                active_profile_id: "default-sqlite".to_string(),
+                providers: vec![ServerStateStoreProviderRecord {
+                    id: "sqlite".to_string(),
+                    label: "SQLite Host State".to_string(),
+                    availability: "ready".to_string(),
+                    requires_configuration: false,
+                    configuration_keys: Vec::new(),
+                    projection_mode: "runtime".to_string(),
+                }],
+                profiles: vec![ServerStateStoreProfileRecord {
+                    id: "default-sqlite".to_string(),
+                    label: "SQLite Host State".to_string(),
+                    driver: "sqlite".to_string(),
+                    active: true,
+                    availability: "ready".to_string(),
+                    path: Some("machine-state/desktop-host/host-state.sqlite3".to_string()),
+                    connection_configured: true,
+                    configured_keys: vec!["path".to_string()],
+                    projection_mode: "runtime".to_string(),
+                }],
+            },
+        }
+    }
+
+    #[test]
+    fn host_platform_status_projects_embedded_host_state_store_metadata() {
+        let (_root, paths, config, storage, service) = studio_context();
+        let (supervisor, _server) = configured_openclaw_supervisor(&paths);
+        let desktop_host_snapshot = desktop_host_snapshot_fixture();
+        let desktop_host_status = EmbeddedHostRuntimeStatus {
+            lifecycle: "ready".to_string(),
+            last_error: None,
+        };
+
+        let status = service
+            .get_host_platform_status(
+                &paths,
+                &config,
+                &storage,
+                &supervisor,
+                Some(&desktop_host_snapshot),
+                Some(&desktop_host_status),
+            )
+            .expect("host platform status");
+
+        assert_eq!(status.lifecycle, "ready");
+        assert_eq!(status.state_store_driver, "sqlite");
+        assert_eq!(status.state_store.active_profile_id, "default-sqlite");
+        assert_eq!(status.state_store.profiles.len(), 1);
+    }
+
+    #[test]
+    fn host_platform_status_uses_embedded_host_runtime_lifecycle_when_surface_is_not_ready() {
+        let (_root, paths, config, storage, service) = studio_context();
+        let (supervisor, _server) = configured_openclaw_supervisor(&paths);
+        let desktop_host_snapshot = desktop_host_snapshot_fixture();
+        let desktop_host_status = EmbeddedHostRuntimeStatus {
+            lifecycle: "stopped".to_string(),
+            last_error: Some("embedded desktop host stopped unexpectedly".to_string()),
+        };
+
+        let status = service
+            .get_host_platform_status(
+                &paths,
+                &config,
+                &storage,
+                &supervisor,
+                Some(&desktop_host_snapshot),
+                Some(&desktop_host_status),
+            )
+            .expect("host platform status");
+
+        assert_eq!(status.lifecycle, "stopped");
     }
 
     #[test]
@@ -6658,19 +7056,24 @@ mod tests {
         assert_eq!(params.get("temperature").and_then(Value::as_f64), Some(0.3));
         assert_eq!(params.get("topP").and_then(Value::as_f64), Some(0.95));
         assert_eq!(params.get("maxTokens").and_then(Value::as_u64), Some(12000));
-        assert_eq!(params.get("timeoutMs").and_then(Value::as_u64), Some(120000));
+        assert_eq!(
+            params.get("timeoutMs").and_then(Value::as_u64),
+            Some(120000)
+        );
         assert_eq!(params.get("streaming").and_then(Value::as_bool), Some(true));
         assert!(
-            get_nested_value(&root, &["agents", "defaults", "models", "openai/o4-mini"])
-                .is_some()
+            get_nested_value(&root, &["agents", "defaults", "models", "openai/o4-mini"]).is_some()
         );
-        assert!(
-            get_nested_value(
-                &root,
-                &["agents", "defaults", "models", "openai/text-embedding-3-large"]
-            )
-            .is_some()
-        );
+        assert!(get_nested_value(
+            &root,
+            &[
+                "agents",
+                "defaults",
+                "models",
+                "openai/text-embedding-3-large"
+            ]
+        )
+        .is_some());
     }
 
     #[test]

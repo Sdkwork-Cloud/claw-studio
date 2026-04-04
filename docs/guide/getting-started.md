@@ -6,8 +6,9 @@ This repository contains the package-based Claw Studio workspace. It includes:
 
 - a web entry package
 - a Tauri desktop entry package
+- a native Rust server package
 - a shared shell package
-- shared `core`, `types`, and `infrastructure` packages
+- shared `core`, `types`, `infrastructure`, `i18n`, and `ui` packages
 - vertical feature packages such as `chat`, `market`, `settings`, `account`, and `extensions`
 
 ## Prerequisites
@@ -25,7 +26,9 @@ If you are only working on the web shell, Node.js and `pnpm` are enough.
 pnpm install
 ```
 
-## Run The Web Workspace
+## Run The Main Host Modes
+
+### Web Workspace
 
 ```bash
 pnpm dev
@@ -33,7 +36,7 @@ pnpm dev
 
 This starts the Vite development server for `@sdkwork/claw-web` on `http://localhost:3001`.
 
-## Run The Desktop App
+### Desktop Runtime
 
 ```bash
 pnpm tauri:dev
@@ -41,15 +44,15 @@ pnpm tauri:dev
 
 The desktop package serves the shell through Vite on `127.0.0.1:1420` and then launches the Tauri application.
 
-## Run The Native Server
+### Native Server
 
 ```bash
 pnpm server:dev
 ```
 
-The server package boots the Rust host and serves the browser application through the bundled `/claw/*` control-plane routes plus the built web assets.
+The server package boots the Rust host and serves the browser application through the bundled `/claw/*` route families plus the built web assets.
 
-## Build Targets
+## Build And Verify
 
 ```bash
 pnpm build
@@ -69,19 +72,7 @@ pnpm release:plan
 pnpm release:finalize
 ```
 
-Use `pnpm check:automation` to validate release and CI workflow contracts before changing packaging automation, `pnpm release:plan` to inspect the current multi-family release matrices before packaging or CI changes, and `pnpm release:finalize` after aggregating packaged artifacts into one `release-assets/` directory.
-
-## Automated Releases
-
-Claw Studio release packaging is automated through GitHub Actions.
-
-- push a `release-*` tag to build and publish a full release
-- use the `release` workflow with `workflow_dispatch` to rebuild assets for an existing tag or ref
-- desktop release jobs package Windows, Linux, and macOS installers or bundles
-- server release jobs package native server archives for Windows, Linux, and macOS
-- container release jobs package Linux deployment bundles for CPU, NVIDIA CUDA, and AMD ROCm-oriented variants
-- kubernetes release jobs package Helm-compatible deployment bundles for Linux server targets
-- companion web and docs assets are published as a versioned archive on the same GitHub release
+Use `pnpm check:automation` to validate release and CI workflow contracts before changing packaging automation, `pnpm release:plan` to inspect the current multi-family release matrices before packaging or CI changes, and `pnpm release:finalize` after aggregating packaged artifacts into the active release asset directory. The local wrapper defaults that directory to `artifacts/release`, while GitHub workflows use `release-assets/`.
 
 ## Environment Setup
 
@@ -92,13 +83,19 @@ Important variables:
 - AI capabilities require an active OpenClaw-compatible instance and Provider Center configuration
 - `VITE_API_BASE_URL`: backend API base URL
 - `VITE_ACCESS_TOKEN`: optional backend token
-- desktop update variables such as `VITE_APP_ID` and `VITE_RELEASE_CHANNEL`
+- `VITE_APP_ID`: desktop update app id
+- `VITE_RELEASE_CHANNEL`: desktop update release channel
+- `CLAW_SERVER_HOST`: native server bind host
+- `CLAW_SERVER_PORT`: native server listen port
+- `CLAW_SERVER_DATA_DIR`: native server state directory
 
-Desktop-specific examples also exist in `packages/sdkwork-claw-desktop/.env.example`.
+Desktop-specific examples also exist in `packages/sdkwork-claw-desktop/.env.example`, and server runtime defaults live in `packages/sdkwork-claw-server/.env.example`.
 
-## Next Steps
+## Recommended Next Steps
 
-- Read [Development](/guide/development) for the daily workflow
+- Read [Application Modes](/guide/application-modes) to choose the right host shape
+- Read [Install And Deploy](/guide/install-and-deploy) for OS-specific and deployment-specific instructions
 - Read [Architecture](/core/architecture) before moving code between packages
+- Read [API Overview](/reference/api-reference) before building against the native server surface
 - Read [Release And Deployment](/core/release-and-deployment) before planning server, Docker, or Kubernetes installs
 - Read [Commands](/reference/commands) for verification and packaging scripts

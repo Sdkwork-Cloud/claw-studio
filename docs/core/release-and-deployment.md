@@ -46,9 +46,30 @@ pnpm release:package:web
 
 These commands collect family-specific assets into `artifacts/release` so they can be reviewed locally or aggregated for final release processing.
 
+Local prerequisite notes:
+
+- `pnpm release:package:desktop` only collects installers and app bundles that already exist; run `pnpm release:desktop` or `pnpm tauri:build` first.
+- `pnpm release:package:server` now auto-builds the missing native server release binary before packaging when you invoke the root local wrapper.
+- `pnpm release:package:container` packages Docker deployment assets around a Linux server binary. The root local wrapper auto-builds that binary first when it is missing. On Windows, `pnpm server:build -- --target x86_64-unknown-linux-gnu` bridges into an installed WSL distro automatically. On macOS and other non-Linux hosts, the same fallback still depends on a working Linux target toolchain.
+- `pnpm release:package:kubernetes` packages chart assets and release values, so it does not require a locally built server binary.
+
+The local wrapper defaults `release:plan`, `release:package:*`, and `release:finalize` to `artifacts/release`. CI still aggregates assets under `release-assets/`. Override the local defaults with environment variables such as:
+
+- `SDKWORK_RELEASE_TAG`
+- `SDKWORK_RELEASE_OUTPUT_DIR`
+- `SDKWORK_RELEASE_ASSETS_DIR`
+- `SDKWORK_RELEASE_TARGET`
+- `SDKWORK_RELEASE_PLATFORM`
+- `SDKWORK_RELEASE_ARCH`
+- `SDKWORK_RELEASE_ACCELERATOR`
+- `SDKWORK_RELEASE_IMAGE_REPOSITORY`
+- `SDKWORK_RELEASE_IMAGE_TAG`
+- `SDKWORK_RELEASE_IMAGE_DIGEST`
+- `SDKWORK_RELEASE_REPOSITORY`
+
 ## Release Metadata Contract
 
-Each unified release produces two top-level inventory files under `release-assets/`:
+Each unified release produces two top-level inventory files under the active release asset directory, which is `artifacts/release` for the local wrapper and `release-assets/` inside GitHub workflows:
 
 - `release-manifest.json`
 - `SHA256SUMS.txt`
@@ -77,6 +98,7 @@ For a `release-*` tag or a manual dispatch, the reusable workflow now builds:
 - desktop assets for Windows, Linux, and macOS
 - server assets for Windows, Linux, and macOS
 - container bundles for Linux `x64` and `arm64`
+- architecture-scoped OCI server images published to `ghcr.io/<owner>/claw-studio-server`
 - kubernetes bundles for Linux `x64` and `arm64`
 - CPU, NVIDIA CUDA, and AMD ROCm-oriented deployment variants where that difference lives at the deployment layer
 - a final `release-manifest.json` plus `SHA256SUMS.txt`
@@ -111,9 +133,13 @@ Container bundles package:
 - Docker Compose files
 - CPU and GPU-oriented env overlays
 
+Inside the extracted bundle, `deploy/docker-compose.yml` resolves env overlays from `deploy/profiles/*` and treats the extracted bundle root as the Docker build context.
+
 Base deployment:
 
 ```bash
+export CLAW_SERVER_MANAGE_USERNAME=claw-admin
+export CLAW_SERVER_MANAGE_PASSWORD='replace-with-a-strong-secret'
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
@@ -129,6 +155,10 @@ AMD ROCm overlay:
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.amd-rocm.yml up -d
 ```
 
+The base compose file now requires an explicit manage credential pair before it will start the
+public control plane, and the default env overlay keeps
+`CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=false`.
+
 ### Kubernetes
 
 Kubernetes bundles package:
@@ -141,8 +171,19 @@ Kubernetes bundles package:
 Typical deployment:
 
 ```bash
-helm upgrade --install claw-studio ./chart -f values.release.yaml
+helm upgrade --install claw-studio ./chart -f values.release.yaml --set auth.manageUsername=claw-admin --set auth.managePassword='replace-with-a-strong-secret'
 ```
+
+GitHub release automation publishes one OCI image per Linux architecture and then stamps each
+Kubernetes bundle with that immutable image reference. `values.release.yaml` pins `image.tag` to
+an architecture-qualified release tag such as `release-2026-04-04-01-linux-x64`, and the release
+workflow also writes `image.digest` so production clusters can pull by digest without depending on
+mutable tags. Override `image.repository` only when you mirror the published image into another
+registry, and keep `image.digest` aligned with the mirrored artifact.
+
+The chart also generates or references a Secret-backed control-plane credential set and mounts a
+PersistentVolumeClaim at `/var/lib/claw-server` so the SQLite host-state baseline survives Pod
+restarts.
 
 ## Finalization Step
 
@@ -151,7 +192,7 @@ The packaging flow is intentionally split into:
 1. family-specific package collection
 2. global release finalization
 
-The finalization step emits the final inventory and checksums after all family outputs have been aggregated into one `release-assets/` directory:
+The finalization step emits the final inventory and checksums after all family outputs have been aggregated into one release asset directory. Locally that defaults to `artifacts/release`; in GitHub workflows the same step runs against `release-assets/`:
 
 ```bash
 pnpm release:finalize

@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@sdkwork/claw-ui';
 import { useRolloutStore } from '@sdkwork/claw-core';
+import { HostRuntimeSettings } from './HostRuntimeSettings';
 import { Section } from './Shared';
 import {
   kernelCenterService,
@@ -196,10 +197,6 @@ function formatLocalAiProxyDefaultRouteValue(route: {
   return [route.name, managementLabel, route.upstreamProtocol, modelLabel].join(' | ');
 }
 
-function formatHostPlatformCapabilityValue(values: string[], emptyLabel: string) {
-  return values.length > 0 ? values.join(', ') : emptyLabel;
-}
-
 function formatRolloutPhase(
   phase: KernelCenterDashboard['rollouts']['items'][number]['phase'],
 ) {
@@ -378,20 +375,6 @@ export function KernelCenter() {
   const capabilities = dashboard?.capabilities ?? {
     readyKeys: [],
     plannedKeys: [],
-  };
-  const hostPlatform = dashboard?.hostPlatform ?? {
-    status: null,
-    modeLabel: 'Unknown',
-    lifecycleLabel: 'Unavailable',
-    hostId: null,
-    displayName: null,
-    version: null,
-    desiredStateProjectionVersion: null,
-    rolloutEngineVersion: null,
-    manageBasePath: null,
-    internalBasePath: null,
-    capabilityKeys: [],
-    capabilityCount: 0,
   };
   const resolvedRolloutItems =
     rolloutStatus === 'ready' || rolloutItems.length > 0
@@ -600,73 +583,7 @@ export function KernelCenter() {
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <Section title="Host Platform">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <ValueRow
-              label="Platform Mode"
-              value={hostPlatform.modeLabel}
-              emptyLabel={notAvailableLabel}
-            />
-            <ValueRow
-              label="Platform Lifecycle"
-              value={hostPlatform.lifecycleLabel}
-              emptyLabel={notAvailableLabel}
-            />
-            <ValueRow
-              label="Display Name"
-              value={hostPlatform.displayName}
-              emptyLabel={notAvailableLabel}
-            />
-            <ValueRow
-              label="Host ID"
-              value={hostPlatform.hostId}
-              emptyLabel={notAvailableLabel}
-              mono
-            />
-            <ValueRow
-              label="Platform Version"
-              value={hostPlatform.version}
-              emptyLabel={notAvailableLabel}
-            />
-            <ValueRow
-              label="Projection Version"
-              value={hostPlatform.desiredStateProjectionVersion}
-              emptyLabel={notAvailableLabel}
-            />
-            <ValueRow
-              label="Rollout Engine"
-              value={hostPlatform.rolloutEngineVersion}
-              emptyLabel={notAvailableLabel}
-            />
-            <ValueRow
-              label="Capability Count"
-              value={String(hostPlatform.capabilityCount)}
-              emptyLabel={notAvailableLabel}
-            />
-            <ValueRow
-              label="Manage Base Path"
-              value={hostPlatform.manageBasePath}
-              emptyLabel={notAvailableLabel}
-              mono
-            />
-            <ValueRow
-              label="Internal Base Path"
-              value={hostPlatform.internalBasePath}
-              emptyLabel={notAvailableLabel}
-              mono
-            />
-            <ValueRow
-              label="Capabilities"
-              value={formatHostPlatformCapabilityValue(hostPlatform.capabilityKeys, noneLabel)}
-              emptyLabel={noneLabel}
-            />
-            <ValueRow
-              label="Latest Rollout Sync"
-              value={formatTimestampValue(dashboard?.rollouts.latestUpdatedAt ?? null, noneLabel)}
-              emptyLabel={noneLabel}
-            />
-          </div>
-        </Section>
+        <HostRuntimeSettings dashboard={dashboard} />
 
         <Section title="Rollout Control">
           <div className="space-y-4">

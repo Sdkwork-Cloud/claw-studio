@@ -26,6 +26,10 @@ pub mod local_ai_proxy;
 pub mod local_ai_proxy_observability;
 pub mod local_ai_proxy_snapshot;
 pub mod notifications;
+pub mod openclaw_mirror;
+pub mod openclaw_mirror_export;
+pub mod openclaw_mirror_import;
+pub mod openclaw_mirror_manifest;
 pub mod openclaw_runtime;
 pub mod path_registration;
 pub mod payments;
@@ -50,6 +54,7 @@ use self::{
     kernel::{KernelDomainSnapshots, KernelService},
     local_ai_proxy::{LocalAiProxyLifecycle, LocalAiProxyService},
     notifications::NotificationService,
+    openclaw_mirror::OpenClawMirrorService,
     openclaw_runtime::OpenClawRuntimeService,
     path_registration::PathRegistrationService,
     payments::PaymentService,
@@ -77,6 +82,7 @@ pub struct FrameworkServices {
     pub payments: PaymentService,
     pub integrations: IntegrationService,
     pub permissions: PermissionService,
+    pub openclaw_mirror: OpenClawMirrorService,
     pub openclaw_runtime: OpenClawRuntimeService,
     pub local_ai_proxy: LocalAiProxyService,
     pub path_registration: PathRegistrationService,
@@ -117,6 +123,7 @@ impl FrameworkServices {
             payments: PaymentService::new(),
             integrations: IntegrationService::new(),
             permissions: PermissionService::new(),
+            openclaw_mirror: OpenClawMirrorService::new(),
             openclaw_runtime: OpenClawRuntimeService::new(),
             local_ai_proxy: LocalAiProxyService::new(),
             path_registration: PathRegistrationService::new(),
@@ -301,13 +308,16 @@ impl FrameworkServices {
     ) -> Result<DesktopKernelHostInfo> {
         self.ensure_local_ai_proxy_ready(paths, config)?;
         let configured_openclaw_runtime = self.supervisor.configured_openclaw_runtime()?;
-        if native_kernel_host_is_running(paths, configured_openclaw_runtime.as_ref())? {
+        let native_host_running =
+            native_kernel_host_is_running(paths, configured_openclaw_runtime.as_ref())?;
+        if native_host_running {
             return self.desktop_kernel_host_status(paths);
         }
-        if self
-            .kernel_host_manager
-            .ensure_running(paths, configured_openclaw_runtime.as_ref())
-            .unwrap_or(false)
+        if should_boot_desktop_kernel_via_platform_host_manager()
+            && self
+                .kernel_host_manager
+                .ensure_running(paths, configured_openclaw_runtime.as_ref())
+                .unwrap_or(false)
         {
             return self.desktop_kernel_host_status(paths);
         }
@@ -329,10 +339,13 @@ impl FrameworkServices {
     ) -> Result<DesktopKernelHostInfo> {
         self.ensure_local_ai_proxy_ready(paths, config)?;
         let configured_openclaw_runtime = self.supervisor.configured_openclaw_runtime()?;
-        if self
-            .kernel_host_manager
-            .restart(paths, configured_openclaw_runtime.as_ref())
-            .unwrap_or(false)
+        let native_host_running =
+            native_kernel_host_is_running(paths, configured_openclaw_runtime.as_ref())?;
+        if (native_host_running || should_boot_desktop_kernel_via_platform_host_manager())
+            && self
+                .kernel_host_manager
+                .restart(paths, configured_openclaw_runtime.as_ref())
+                .unwrap_or(false)
         {
             return self.desktop_kernel_host_status(paths);
         }
@@ -340,6 +353,12 @@ impl FrameworkServices {
         self.supervisor.restart_openclaw_gateway(paths)?;
         self.desktop_kernel_host_status(paths)
     }
+}
+
+fn should_boot_desktop_kernel_via_platform_host_manager() -> bool {
+    // The embedded desktop runtime must stay in the interactive user session on Windows
+    // so browser launch, plugin install, and similar OpenClaw flows behave like standalone.
+    !cfg!(windows)
 }
 
 #[cfg(test)]
@@ -356,6 +375,7 @@ mod tests {
         services::{openclaw_runtime::ActivatedOpenClawRuntime, supervisor},
     };
     use std::{
+        fs,
         net::TcpListener,
         path::PathBuf,
         sync::{Arc, Mutex},
@@ -382,6 +402,52 @@ mod tests {
                 .join("node_modules")
                 .join("openclaw")
                 .join("openclaw.mjs"),
+            home_dir: paths.openclaw_home_dir.clone(),
+            state_dir: paths.openclaw_state_dir.clone(),
+            workspace_dir: paths.openclaw_workspace_dir.clone(),
+            config_path: paths.openclaw_config_file.clone(),
+            gateway_port,
+            gateway_auth_token: "test-token".to_string(),
+        }
+    }
+
+    fn fake_supervisor_runtime(
+        paths: &crate::framework::paths::AppPaths,
+        gateway_port: u16,
+    ) -> ActivatedOpenClawRuntime {
+        let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
+        let runtime_dir = install_dir.join("runtime");
+        let cli_path = runtime_dir
+            .join("package")
+            .join("node_modules")
+            .join("openclaw")
+            .join("openclaw.mjs");
+
+        fs::create_dir_all(cli_path.parent().expect("cli parent")).expect("cli dir");
+        fs::write(
+            &paths.openclaw_config_file,
+            format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
+        )
+        .expect("config file");
+        fs::write(
+            &cli_path,
+            "import fs from 'node:fs';\n\
+             import net from 'node:net';\n\
+             const configPath = process.env.OPENCLAW_CONFIG_PATH;\n\
+             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\n\
+             const gatewayPort = Number(config.gateway?.port ?? 18789);\n\
+             const server = net.createServer();\n\
+             server.listen(gatewayPort, '127.0.0.1');\n\
+             setInterval(() => {}, 1000);\n",
+        )
+        .expect("cli file");
+
+        ActivatedOpenClawRuntime {
+            install_key: "test-gateway".to_string(),
+            install_dir,
+            runtime_dir,
+            node_path: resolve_test_node_executable(),
+            cli_path,
             home_dir: paths.openclaw_home_dir.clone(),
             state_dir: paths.openclaw_state_dir.clone(),
             workspace_dir: paths.openclaw_workspace_dir.clone(),
@@ -431,6 +497,7 @@ mod tests {
         assert_eq!(gateway.lifecycle, "stopped");
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn ensure_desktop_kernel_running_prefers_native_service_manager_before_supervisor_spawn() {
         let root = tempfile::tempdir().expect("temp dir");
@@ -470,6 +537,46 @@ mod tests {
         assert_eq!(gateway.lifecycle, "stopped");
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn ensure_desktop_kernel_running_prefers_supervisor_spawn_before_native_service_manager() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_supervisor_runtime(&paths, reserve_loopback_port());
+        let backend = Arc::new(FakeKernelHostPlatformOps::new(
+            paths.clone(),
+            runtime.gateway_port,
+        ));
+        let services = FrameworkServices::with_kernel_host_manager(
+            &paths,
+            &AppConfig::default(),
+            KernelHostServiceManager::with_backend(backend.clone()),
+        )
+        .expect("services");
+
+        services
+            .supervisor
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+        let info = services
+            .ensure_desktop_kernel_running(&paths, &AppConfig::default())
+            .expect("ensure desktop kernel");
+
+        assert_eq!(info.host.ownership, "appSupervisor");
+        assert_eq!(backend.events(), Vec::<String>::new());
+
+        let supervisor = services.supervisor.kernel_info().expect("supervisor info");
+        let gateway = supervisor
+            .services
+            .into_iter()
+            .find(|service| service.id == supervisor::SERVICE_ID_OPENCLAW_GATEWAY)
+            .expect("gateway service");
+        assert_eq!(gateway.lifecycle, "running");
+
+        services.supervisor.begin_shutdown().expect("shutdown");
+    }
+
+    #[cfg(not(windows))]
     #[test]
     fn restart_desktop_kernel_restarts_native_service_when_available() {
         let root = tempfile::tempdir().expect("temp dir");
@@ -509,6 +616,69 @@ mod tests {
                 "start".to_string(),
             ]
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn restart_desktop_kernel_restarts_supervisor_gateway_when_native_service_is_not_running() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_supervisor_runtime(&paths, reserve_loopback_port());
+        let backend = Arc::new(FakeKernelHostPlatformOps::new(
+            paths.clone(),
+            runtime.gateway_port,
+        ));
+        let services = FrameworkServices::with_kernel_host_manager(
+            &paths,
+            &AppConfig::default(),
+            KernelHostServiceManager::with_backend(backend.clone()),
+        )
+        .expect("services");
+
+        services
+            .supervisor
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+        services
+            .ensure_desktop_kernel_running(&paths, &AppConfig::default())
+            .expect("initial ensure");
+
+        let info = services
+            .restart_desktop_kernel(&paths, &AppConfig::default())
+            .expect("restart desktop kernel");
+
+        assert_eq!(info.host.ownership, "appSupervisor");
+        assert_eq!(backend.events(), Vec::<String>::new());
+
+        let supervisor = services.supervisor.kernel_info().expect("supervisor info");
+        let gateway = supervisor
+            .services
+            .into_iter()
+            .find(|service| service.id == supervisor::SERVICE_ID_OPENCLAW_GATEWAY)
+            .expect("gateway service");
+        assert_eq!(gateway.lifecycle, "running");
+
+        services.supervisor.begin_shutdown().expect("shutdown");
+    }
+
+    #[cfg(windows)]
+    fn resolve_test_node_executable() -> PathBuf {
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+            .map(|entry| entry.join("node.exe"))
+            .find(|candidate| candidate.exists())
+            .expect("node.exe should be available on PATH for desktop kernel service tests")
+    }
+
+    #[cfg(not(windows))]
+    fn resolve_test_node_executable() -> PathBuf {
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+            .map(|entry| entry.join("node"))
+            .find(|candidate| candidate.exists())
+            .expect("node should be available on PATH for desktop kernel service tests")
     }
 
     fn reserve_loopback_port() -> u16 {

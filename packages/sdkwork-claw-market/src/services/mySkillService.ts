@@ -91,6 +91,14 @@ async function loadAgentWorkbench(
   perAgentWorkbenchService: AgentWorkbenchServiceLike,
 ) {
   const workbench = await workbenchService.getInstanceWorkbench(instanceId);
+  if (!workbench) {
+    return {
+      workbench: null,
+      preferredAgent: null,
+      agentWorkbench: null,
+    };
+  }
+
   const preferredAgent = resolvePreferredAgent(workbench);
   if (!preferredAgent?.agent?.id) {
     return {

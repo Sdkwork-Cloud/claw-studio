@@ -19,7 +19,7 @@ impl NotificationService {
                 DesktopNotificationProviderInfo {
                     id: "native".to_string(),
                     label: "Native Desktop".to_string(),
-                    availability: DesktopProviderAvailability::Planned,
+                    availability: DesktopProviderAvailability::Ready,
                     transport: "native".to_string(),
                     requires_user_consent: true,
                 },
@@ -85,6 +85,11 @@ mod tests {
             .available_providers
             .iter()
             .any(|provider| provider.id == "native"
+                && provider.availability == DesktopProviderAvailability::Ready));
+        assert!(info
+            .available_providers
+            .iter()
+            .any(|provider| provider.id == "system-tray"
                 && provider.availability == DesktopProviderAvailability::Planned));
         assert!(info
             .available_providers
@@ -94,18 +99,18 @@ mod tests {
     }
 
     #[test]
-    fn native_notifications_remain_planned_until_adapters_are_wired() {
+    fn native_notifications_are_ready_once_runtime_adapters_are_wired() {
         let service = NotificationService::new();
         let info = service.kernel_info(&AppConfig::default());
 
         assert_eq!(
             info.status,
-            crate::framework::kernel::DesktopCapabilityStatus::Planned
+            crate::framework::kernel::DesktopCapabilityStatus::Ready
         );
     }
 
     #[test]
-    fn native_provider_is_not_reported_ready_before_runtime_adapter_exists() {
+    fn native_provider_is_reported_ready_after_runtime_adapter_wiring() {
         let service = NotificationService::new();
         let info = service.kernel_info(&AppConfig::default());
         let provider = info
@@ -114,6 +119,6 @@ mod tests {
             .find(|entry| entry.id == "native")
             .expect("native provider");
 
-        assert_eq!(provider.availability, DesktopProviderAvailability::Planned);
+        assert_eq!(provider.availability, DesktopProviderAvailability::Ready);
     }
 }

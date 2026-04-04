@@ -130,8 +130,42 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   );
 }) as typeof fetch;
 
+function createTestAccountService() {
+  return createAccountService({
+    getClient: () => ({
+      account: {
+        async getAccountSummary() {
+          return (await fetch('http://localhost/app/v3/api/account/summary')).json();
+        },
+        async getCash() {
+          return (await fetch('http://localhost/app/v3/api/account/cash')).json();
+        },
+        async getHistoryCash() {
+          return (await fetch('http://localhost/app/v3/api/account/cash/history')).json();
+        },
+        async recharge(body: Record<string, unknown>) {
+          return (
+            await fetch('http://localhost/app/v3/api/account/cash/recharge', {
+              method: 'POST',
+              body: JSON.stringify(body),
+            })
+          ).json();
+        },
+        async withdraw(body: Record<string, unknown>) {
+          return (
+            await fetch('http://localhost/app/v3/api/account/cash/withdraw', {
+              method: 'POST',
+              body: JSON.stringify(body),
+            })
+          ).json();
+        },
+      },
+    }),
+  });
+}
+
 await runTest('accountService reads SDK-style envelopes for summary and transactions', async () => {
-  const service = createAccountService();
+  const service = createTestAccountService();
 
   const summary = await service.getSummary();
   assert.deepEqual(summary, {
@@ -161,7 +195,7 @@ await runTest('accountService reads SDK-style envelopes for summary and transact
 });
 
 await runTest('accountService maps recharge and withdraw through the unified account SDK', async () => {
-  const service = createAccountService();
+  const service = createTestAccountService();
 
   const recharge = await service.recharge(24.5, 'wechat');
   assert.equal(recharge.id, 'recharge-1');

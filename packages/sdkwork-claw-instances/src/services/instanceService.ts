@@ -21,6 +21,7 @@ import type {
   StudioInstanceRecord,
 } from '@sdkwork/claw-types';
 import type { Instance, InstanceConfig, InstanceLLMProviderUpdate } from '../types/index.ts';
+import type { ConfigUiHints } from './openClawConfigSchemaSupport.ts';
 import {
   buildOpenClawAgentFileId,
   getArrayValue,
@@ -51,6 +52,13 @@ export interface CreateInstanceDTO {
 
 export interface UpdateInstanceDTO extends Partial<CreateInstanceDTO> {
   status?: 'online' | 'offline' | 'starting' | 'error';
+}
+
+export interface ManagedOpenClawConfigSchemaSnapshot {
+  schema: unknown;
+  uiHints: ConfigUiHints;
+  version: string | null;
+  generatedAt: string | null;
 }
 
 interface InstanceServiceDependencies {
@@ -111,10 +119,26 @@ interface InstanceServiceDependencies {
       baseHash?: string;
       config?: Record<string, unknown>;
     }>;
+    getConfigSchema(instanceId: string): Promise<{
+      schema?: unknown;
+      uiHints?: ConfigUiHints;
+      version?: string | null;
+      generatedAt?: string | null;
+    }>;
+    openConfigFile(instanceId: string): Promise<{
+      ok?: boolean;
+      path?: string;
+      error?: string;
+    }>;
     patchConfig(
       instanceId: string,
       args: { raw: string; baseHash?: string },
     ): Promise<{ ok?: boolean }>;
+    applyConfig(
+      instanceId: string,
+      args: { raw: string; baseHash?: string },
+    ): Promise<{ ok?: boolean; error?: string }>;
+    runUpdate(instanceId: string): Promise<{ ok?: boolean; error?: string }>;
   };
 }
 
@@ -356,7 +380,11 @@ function createDefaultDependencies(): InstanceServiceDependencies {
       getAgentFile: (instanceId, args) => openClawGatewayClient.getAgentFile(instanceId, args),
       setAgentFile: (instanceId, args) => openClawGatewayClient.setAgentFile(instanceId, args),
       getConfig: (instanceId) => openClawGatewayClient.getConfig(instanceId),
+      getConfigSchema: (instanceId) => openClawGatewayClient.getConfigSchema(instanceId),
+      openConfigFile: (instanceId) => openClawGatewayClient.openConfigFile(instanceId),
       patchConfig: (instanceId, args) => openClawGatewayClient.patchConfig(instanceId, args),
+      applyConfig: (instanceId, args) => openClawGatewayClient.applyConfig(instanceId, args),
+      runUpdate: (instanceId) => openClawGatewayClient.runUpdate(instanceId),
     },
   };
 }
@@ -377,6 +405,12 @@ export interface IInstanceService {
   getInstanceToken(id: string): Promise<string | undefined>;
   deleteInstance(id: string): Promise<void>;
   getInstanceLogs(id: string): Promise<string>;
+  getManagedOpenClawConfigDocument(id: string): Promise<string>;
+  updateManagedOpenClawConfigDocument(id: string, raw: string): Promise<void>;
+  getManagedOpenClawConfigSchema(id: string): Promise<ManagedOpenClawConfigSchemaSnapshot>;
+  openManagedOpenClawConfigFile(id: string): Promise<string | null>;
+  applyManagedOpenClawConfigDocument(id: string, raw: string): Promise<void>;
+  runManagedOpenClawUpdate(id: string): Promise<void>;
   getInstanceFileContent(id: string, fileId: string): Promise<string>;
   updateInstanceFileContent(id: string, fileId: string, content: string): Promise<void>;
   updateInstanceLlmProviderConfig(
@@ -435,7 +469,11 @@ class InstanceService implements IInstanceService {
   private async resolveManagedOpenClawConfig(
     id: string,
     detail?: StudioInstanceDetailRecord | null,
+    options: {
+      requireWritable?: boolean;
+    } = {},
   ) {
+    const requireWritable = options.requireWritable ?? true;
     const resolvedDetail =
       detail === undefined
         ? await this.dependencies.studioApi.getInstanceDetail(id).catch(() => null)
@@ -443,7 +481,7 @@ class InstanceService implements IInstanceService {
     if (
       !resolvedDetail ||
       resolvedDetail.instance.runtimeKind !== 'openclaw' ||
-      !resolvedDetail.lifecycle.configWritable
+      (requireWritable && !resolvedDetail.lifecycle.configWritable)
     ) {
       return null;
     }
@@ -588,6 +626,101 @@ class InstanceService implements IInstanceService {
 
   async getInstanceLogs(id: string): Promise<string> {
     return this.dependencies.studioApi.getInstanceLogs(id);
+  }
+
+  async getManagedOpenClawConfigDocument(id: string): Promise<string> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, undefined, {
+      requireWritable: false,
+    });
+
+    if (!managedConfig) {
+      throw new Error('The selected instance does not expose an attached OpenClaw config file.');
+    }
+
+    return openClawConfigService.readConfigDocument(managedConfig.configPath);
+  }
+
+  async updateManagedOpenClawConfigDocument(id: string, raw: string): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, undefined, {
+      requireWritable: true,
+    });
+
+    if (!managedConfig) {
+      throw new Error('The selected instance does not expose a writable OpenClaw config file.');
+    }
+
+    await openClawConfigService.writeConfigDocument(managedConfig.configPath, raw);
+  }
+
+  async getManagedOpenClawConfigSchema(id: string): Promise<ManagedOpenClawConfigSchemaSnapshot> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, undefined, {
+      requireWritable: false,
+    });
+
+    if (!managedConfig) {
+      throw new Error('The selected instance does not expose an attached OpenClaw config file.');
+    }
+
+    const snapshot = await this.dependencies.openClawGatewayClient.getConfigSchema(id);
+
+    return {
+      schema: snapshot?.schema ?? null,
+      uiHints: snapshot?.uiHints ?? {},
+      version: snapshot?.version ?? null,
+      generatedAt: snapshot?.generatedAt ?? null,
+    };
+  }
+
+  async openManagedOpenClawConfigFile(id: string): Promise<string | null> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, undefined, {
+      requireWritable: false,
+    });
+
+    if (!managedConfig) {
+      throw new Error('The selected instance does not expose an attached OpenClaw config file.');
+    }
+
+    const result = await this.dependencies.openClawGatewayClient.openConfigFile(id);
+    if (result?.ok === false) {
+      throw new Error(result.error || 'Failed to open the attached OpenClaw config file.');
+    }
+
+    return result?.path || managedConfig.configPath;
+  }
+
+  async applyManagedOpenClawConfigDocument(id: string, raw: string): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, undefined, {
+      requireWritable: true,
+    });
+
+    if (!managedConfig) {
+      throw new Error('The selected instance does not expose a writable OpenClaw config file.');
+    }
+
+    const snapshot = await this.dependencies.openClawGatewayClient.getConfig(id);
+    const result = await this.dependencies.openClawGatewayClient.applyConfig(id, {
+      raw,
+      baseHash: snapshot?.baseHash,
+    });
+
+    if (result?.ok === false) {
+      throw new Error(result.error || 'Failed to apply the OpenClaw config document.');
+    }
+  }
+
+  async runManagedOpenClawUpdate(id: string): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id, undefined, {
+      requireWritable: false,
+    });
+
+    if (!managedConfig) {
+      throw new Error('The selected instance does not expose an attached OpenClaw config file.');
+    }
+
+    const result = await this.dependencies.openClawGatewayClient.runUpdate(id);
+    if (result?.ok === false) {
+      throw new Error(result.error || 'Failed to start the OpenClaw update.');
+    }
   }
 
   async getInstanceFileContent(id: string, fileId: string): Promise<string> {

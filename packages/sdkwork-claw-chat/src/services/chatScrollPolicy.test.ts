@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import * as services from './index.ts';
+import {
+  isChatViewportNearBottom,
+  resolveChatAutoScrollDecision,
+} from './chatScrollPolicy.ts';
 
 function runTest(name: string, callback: () => void | Promise<void>) {
   return Promise.resolve()
@@ -16,10 +19,8 @@ function runTest(name: string, callback: () => void | Promise<void>) {
 await runTest(
   'isChatViewportNearBottom uses the same strict 450px threshold as openclaw control ui',
   () => {
-    assert.equal(typeof (services as any).isChatViewportNearBottom, 'function');
-
     assert.equal(
-      (services as any).isChatViewportNearBottom({
+      isChatViewportNearBottom({
         scrollHeight: 2_000,
         scrollTop: 1_151,
         clientHeight: 400,
@@ -27,7 +28,7 @@ await runTest(
       true,
     );
     assert.equal(
-      (services as any).isChatViewportNearBottom({
+      isChatViewportNearBottom({
         scrollHeight: 2_000,
         scrollTop: 1_150,
         clientHeight: 400,
@@ -40,10 +41,8 @@ await runTest(
 await runTest(
   'resolveChatAutoScrollDecision respects explicit user scroll-up after the initial auto-scroll',
   () => {
-    assert.equal(typeof (services as any).resolveChatAutoScrollDecision, 'function');
-
     assert.deepEqual(
-      (services as any).resolveChatAutoScrollDecision({
+      resolveChatAutoScrollDecision({
         force: true,
         hasAutoScrolled: true,
         userNearBottom: false,
@@ -64,10 +63,8 @@ await runTest(
 await runTest(
   'resolveChatAutoScrollDecision forces the initial scroll for a new session load',
   () => {
-    assert.equal(typeof (services as any).resolveChatAutoScrollDecision, 'function');
-
     assert.deepEqual(
-      (services as any).resolveChatAutoScrollDecision({
+      resolveChatAutoScrollDecision({
         force: true,
         hasAutoScrolled: false,
         userNearBottom: false,
@@ -88,10 +85,8 @@ await runTest(
 await runTest(
   'resolveChatAutoScrollDecision keeps streaming pinned when the viewport is already near the bottom',
   () => {
-    assert.equal(typeof (services as any).resolveChatAutoScrollDecision, 'function');
-
     assert.deepEqual(
-      (services as any).resolveChatAutoScrollDecision({
+      resolveChatAutoScrollDecision({
         force: false,
         hasAutoScrolled: true,
         userNearBottom: false,

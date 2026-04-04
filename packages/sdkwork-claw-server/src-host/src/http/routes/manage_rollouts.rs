@@ -1,36 +1,36 @@
 use axum::{
     extract::{Path, State},
-    Router,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
     routing::get,
+    Json, Router,
 };
-use serde::{Deserialize, Serialize};
-use sdkwork_claw_host_core::internal::error::{InternalErrorCategory, InternalErrorResolution};
 use sdkwork_claw_host_core::domain::rollout::{
     ManageRolloutListResult, ManageRolloutPreview, ManageRolloutRecord,
     ManageRolloutTargetPreviewRecord, ManageRolloutWaveListResult,
 };
+use sdkwork_claw_host_core::internal::error::{InternalErrorCategory, InternalErrorResolution};
 use sdkwork_claw_host_core::rollout::control_plane::{
     PreviewRolloutInput, RolloutControlPlaneError,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::bootstrap::ServerState;
+use crate::http::auth::authorize_manage_request;
 use crate::http::error_response::{categorized_error_response, validation_error_response};
 
 pub fn manage_rollout_routes() -> Router<ServerState> {
-    Router::new()
-        .route("/rollouts", get(list_rollouts))
-        .route(
-            "/rollouts/{*rollout_path}",
-            get(handle_rollout_get).post(handle_rollout_action),
-        )
+    Router::new().route("/rollouts", get(list_rollouts)).route(
+        "/rollouts/{*rollout_path}",
+        get(handle_rollout_get).post(handle_rollout_action),
+    )
 }
 
 async fn list_rollouts(
+    headers: HeaderMap,
     State(state): State<ServerState>,
 ) -> Result<Json<ManageRolloutListResult>, Response> {
+    authorize_manage_request(&headers, &state)?;
     state
         .rollout_control_plane
         .list_rollouts()
@@ -39,9 +39,11 @@ async fn list_rollouts(
 }
 
 async fn get_rollout(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     Path(rollout_id): Path<String>,
 ) -> Result<Json<ManageRolloutRecord>, Response> {
+    authorize_manage_request(&headers, &state)?;
     let rollouts = state
         .rollout_control_plane
         .list_rollouts()
@@ -66,9 +68,11 @@ async fn get_rollout(
 }
 
 async fn list_rollout_targets(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     Path(rollout_id): Path<String>,
 ) -> Result<Json<ManageRolloutTargetListResult>, Response> {
+    authorize_manage_request(&headers, &state)?;
     let preview = state
         .rollout_control_plane
         .preview_rollout(PreviewRolloutInput {
@@ -87,9 +91,11 @@ async fn list_rollout_targets(
 }
 
 async fn get_rollout_target(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     Path((rollout_id, node_id)): Path<(String, String)>,
 ) -> Result<Json<ManageRolloutTargetPreviewRecord>, Response> {
+    authorize_manage_request(&headers, &state)?;
     let preview = state
         .rollout_control_plane
         .preview_rollout(PreviewRolloutInput {
@@ -118,9 +124,11 @@ async fn get_rollout_target(
 }
 
 async fn list_rollout_waves(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     Path(rollout_id): Path<String>,
 ) -> Result<Json<ManageRolloutWaveListResult>, Response> {
+    authorize_manage_request(&headers, &state)?;
     state
         .rollout_control_plane
         .list_rollout_waves(&rollout_id)
@@ -129,28 +137,34 @@ async fn list_rollout_waves(
 }
 
 async fn handle_rollout_get(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     Path(rollout_path): Path<String>,
 ) -> impl IntoResponse {
+    if let Err(response) = authorize_manage_request(&headers, &state) {
+        return response;
+    }
+
     match rollout_path.split('/').collect::<Vec<_>>().as_slice() {
-        [rollout_id, "targets", node_id] => {
-            get_rollout_target(
-                State(state),
-                Path(((*rollout_id).to_string(), (*node_id).to_string())),
-            )
-            .await
-            .into_response()
-        }
+        [rollout_id, "targets", node_id] => get_rollout_target(
+            headers,
+            State(state),
+            Path(((*rollout_id).to_string(), (*node_id).to_string())),
+        )
+        .await
+        .into_response(),
         [rollout_id, "targets"] => {
-            list_rollout_targets(State(state), Path(rollout_id.to_string()))
+            list_rollout_targets(headers, State(state), Path(rollout_id.to_string()))
                 .await
                 .into_response()
         }
-        [rollout_id, "waves"] => list_rollout_waves(State(state), Path(rollout_id.to_string()))
-            .await
-            .into_response(),
+        [rollout_id, "waves"] => {
+            list_rollout_waves(headers, State(state), Path(rollout_id.to_string()))
+                .await
+                .into_response()
+        }
         [rollout_id] if !rollout_id.contains(':') => {
-            get_rollout(State(state), Path((*rollout_id).to_string()))
+            get_rollout(headers, State(state), Path((*rollout_id).to_string()))
                 .await
                 .into_response()
         }
@@ -170,10 +184,15 @@ async fn handle_rollout_get(
 }
 
 async fn handle_rollout_action(
+    headers: HeaderMap,
     State(state): State<ServerState>,
     Path(rollout_action): Path<String>,
     request_body: String,
 ) -> impl IntoResponse {
+    if let Err(response) = authorize_manage_request(&headers, &state) {
+        return response;
+    }
+
     match rollout_action.rsplit_once(':') {
         Some((rollout_id, "preview")) => preview_rollout(state, rollout_id, request_body)
             .await
@@ -270,9 +289,7 @@ fn map_rollout_error(error: RolloutControlPlaneError, now_ms: u64) -> Response {
             InternalErrorResolution::FixRequest,
             now_ms,
         ),
-        RolloutControlPlaneError::RolloutBlocked {
-            ..
-        } => categorized_error_response(
+        RolloutControlPlaneError::RolloutBlocked { .. } => categorized_error_response(
             "rollout_blocked",
             InternalErrorCategory::Compatibility,
             "The rollout is blocked by preflight policy.",

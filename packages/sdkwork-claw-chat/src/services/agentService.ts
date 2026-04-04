@@ -47,7 +47,11 @@ function paginateAgents(agents: Agent[], params: ListParams = {}): PaginatedResu
   };
 }
 
-function mapWorkbenchAgent(record: NonNullable<Awaited<ReturnType<typeof studio.getInstanceDetail>>>['workbench']['agents'][number]): Agent {
+function mapWorkbenchAgent(
+  record: NonNullable<
+    NonNullable<Awaited<ReturnType<typeof studio.getInstanceDetail>>>['workbench']
+  >['agents'][number],
+): Agent {
   return {
     ...record.agent,
   };

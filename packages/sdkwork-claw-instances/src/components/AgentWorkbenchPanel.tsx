@@ -199,7 +199,7 @@ export function AgentWorkbenchPanel({
     snapshot?.paths.skillsDirectoryPath || `${snapshot?.paths.workspacePath || '.'}/skills`;
   const canInstallSelectedAgentSkill =
     Boolean(snapshot?.agent.isDefault) && !isReadonly && skillInstallSlug.trim().length > 0;
-  const showDirectInstallNotice = Boolean(snapshot) && !snapshot.agent.isDefault;
+  const showDirectInstallNotice = snapshot ? !snapshot.agent.isDefault : false;
 
   const handleCopyCommand = async (key: string, command: string) => {
     if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {

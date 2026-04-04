@@ -178,7 +178,7 @@ fn build_paths(install_root: PathBuf, machine_root: PathBuf, user_root: PathBuf)
     let machine_staging_dir = machine_root.join("staging");
     let machine_receipts_dir = machine_root.join("receipts");
     let machine_runtime_dir = machine_root.join("runtime");
-    let managed_runtimes_dir = machine_runtime_dir.join("runtimes");
+    let managed_runtimes_dir = install_root.join("runtimes");
     let openclaw_runtime_dir = managed_runtimes_dir.join("openclaw");
     let machine_recovery_dir = machine_root.join("recovery");
     let machine_logs_dir = machine_root.join("logs");
@@ -388,15 +388,113 @@ pub fn ensure_runtime_directories(paths: &AppPaths) -> Result<()> {
         fs::create_dir_all(directory)?;
     }
 
+    migrate_legacy_openclaw_runtime_layout(paths)?;
     crate::framework::layout::initialize_machine_state(paths)?;
     crate::framework::config::load_or_create_config(paths)?;
 
     Ok(())
 }
 
+fn migrate_legacy_openclaw_runtime_layout(paths: &AppPaths) -> Result<()> {
+    let legacy_runtime_dir = paths.machine_runtime_dir.join("runtimes").join("openclaw");
+    migrate_directory_entries(&legacy_runtime_dir, &paths.openclaw_runtime_dir)
+}
+
+fn migrate_directory_entries(
+    source_dir: &std::path::Path,
+    target_dir: &std::path::Path,
+) -> Result<()> {
+    if !source_dir.exists() {
+        return Ok(());
+    }
+
+    fs::create_dir_all(target_dir)?;
+
+    for entry in fs::read_dir(source_dir)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let target_path = target_dir.join(entry.file_name());
+
+        if target_path.exists() {
+            continue;
+        }
+
+        if fs::rename(&source_path, &target_path).is_ok() {
+            continue;
+        }
+
+        copy_path_recursively(&source_path, &target_path)?;
+        remove_path_recursively(&source_path)?;
+    }
+
+    prune_empty_directory_tree(source_dir)?;
+
+    Ok(())
+}
+
+fn copy_path_recursively(
+    source_path: &std::path::Path,
+    target_path: &std::path::Path,
+) -> Result<()> {
+    let metadata = fs::symlink_metadata(source_path)?;
+    if metadata.is_dir() {
+        fs::create_dir_all(target_path)?;
+        for entry in fs::read_dir(source_path)? {
+            let entry = entry?;
+            copy_path_recursively(&entry.path(), &target_path.join(entry.file_name()))?;
+        }
+        return Ok(());
+    }
+
+    if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::copy(source_path, target_path)?;
+    Ok(())
+}
+
+fn remove_path_recursively(path: &std::path::Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.is_dir() {
+        fs::remove_dir_all(path)?;
+    } else {
+        fs::remove_file(path)?;
+    }
+
+    Ok(())
+}
+
+fn prune_empty_directory_tree(path: &std::path::Path) -> Result<()> {
+    let mut current = path.to_path_buf();
+
+    loop {
+        if !current.exists() {
+            break;
+        }
+
+        let is_empty = fs::read_dir(&current)?.next().is_none();
+        if !is_empty {
+            break;
+        }
+
+        fs::remove_dir(&current)?;
+        let Some(parent) = current.parent() else {
+            break;
+        };
+        current = parent.to_path_buf();
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::resolve_paths_for_root;
+    use super::{build_paths, ensure_runtime_directories, resolve_paths_for_root};
+    use std::fs;
 
     fn normalize(path: &std::path::Path) -> String {
         path.to_string_lossy().replace('\\', "/")
@@ -459,10 +557,8 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
 
-        assert!(normalize(&paths.managed_runtimes_dir).ends_with("machine/runtime/runtimes"));
-        assert!(
-            normalize(&paths.openclaw_runtime_dir).ends_with("machine/runtime/runtimes/openclaw")
-        );
+        assert!(normalize(&paths.managed_runtimes_dir).ends_with("install/runtimes"));
+        assert!(normalize(&paths.openclaw_runtime_dir).ends_with("install/runtimes/openclaw"));
         assert!(normalize(&paths.user_bin_dir).ends_with("user-home/bin"));
         assert!(normalize(&paths.openclaw_home_dir).ends_with("user-home/openclaw-home"));
         assert!(normalize(&paths.openclaw_state_dir).ends_with("user-home/openclaw-home/.openclaw"));
@@ -505,5 +601,90 @@ mod tests {
         assert!(machine_state_dir.join("service.json").exists());
         assert!(machine_state_dir.join("components.json").exists());
         assert!(machine_state_dir.join("upgrades.json").exists());
+    }
+
+    #[test]
+    fn migrates_legacy_openclaw_runtime_entries_into_install_root() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let install_root = root.path().join("install");
+        let machine_root = root.path().join("machine");
+        let user_root = root.path().join("user-home");
+        let legacy_install_dir = machine_root
+            .join("runtime")
+            .join("runtimes")
+            .join("openclaw")
+            .join("2026.4.1-windows-x64");
+        let legacy_marker = legacy_install_dir.join("manifest.json");
+
+        fs::create_dir_all(&legacy_install_dir).expect("legacy dir");
+        fs::write(&legacy_marker, "{\"version\":\"2026.4.1\"}\n").expect("legacy marker");
+
+        let paths = build_paths(install_root, machine_root.clone(), user_root);
+        ensure_runtime_directories(&paths).expect("paths");
+
+        let migrated_marker = paths
+            .openclaw_runtime_dir
+            .join("2026.4.1-windows-x64")
+            .join("manifest.json");
+        assert!(migrated_marker.exists());
+        assert_eq!(
+            fs::read_to_string(&migrated_marker).expect("migrated marker"),
+            "{\"version\":\"2026.4.1\"}\n"
+        );
+        assert!(!legacy_marker.exists());
+        assert!(!machine_root
+            .join("runtime")
+            .join("runtimes")
+            .join("openclaw")
+            .exists());
+    }
+
+    #[test]
+    fn preserves_current_runtime_entries_while_merging_legacy_versions() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let install_root = root.path().join("install");
+        let machine_root = root.path().join("machine");
+        let user_root = root.path().join("user-home");
+        let current_install_dir = install_root
+            .join("runtimes")
+            .join("openclaw")
+            .join("2026.4.2-windows-x64");
+        let current_marker = current_install_dir.join("manifest.json");
+        let legacy_install_dir = machine_root
+            .join("runtime")
+            .join("runtimes")
+            .join("openclaw")
+            .join("2026.4.1-windows-x64");
+        let legacy_marker = legacy_install_dir.join("manifest.json");
+
+        fs::create_dir_all(&current_install_dir).expect("current dir");
+        fs::write(&current_marker, "{\"version\":\"2026.4.2\"}\n").expect("current marker");
+        fs::create_dir_all(&legacy_install_dir).expect("legacy dir");
+        fs::write(&legacy_marker, "{\"version\":\"2026.4.1\"}\n").expect("legacy marker");
+
+        let paths = build_paths(install_root, machine_root.clone(), user_root);
+        ensure_runtime_directories(&paths).expect("paths");
+
+        assert_eq!(
+            fs::read_to_string(
+                paths
+                    .openclaw_runtime_dir
+                    .join("2026.4.2-windows-x64")
+                    .join("manifest.json")
+            )
+            .expect("current marker"),
+            "{\"version\":\"2026.4.2\"}\n"
+        );
+        assert_eq!(
+            fs::read_to_string(
+                paths
+                    .openclaw_runtime_dir
+                    .join("2026.4.1-windows-x64")
+                    .join("manifest.json")
+            )
+            .expect("legacy migrated marker"),
+            "{\"version\":\"2026.4.1\"}\n"
+        );
+        assert!(!legacy_marker.exists());
     }
 }

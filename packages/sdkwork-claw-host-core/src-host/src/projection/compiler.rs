@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
@@ -71,7 +71,8 @@ impl ProjectionCompiler {
             .expect("projection compiler mutex should not be poisoned");
 
         match projections.get(&projection.node_id) {
-            Some(existing) if existing.desired_state_revision > projection.desired_state_revision => {}
+            Some(existing)
+                if existing.desired_state_revision > projection.desired_state_revision => {}
             _ => {
                 projections.insert(projection.node_id.clone(), projection);
             }

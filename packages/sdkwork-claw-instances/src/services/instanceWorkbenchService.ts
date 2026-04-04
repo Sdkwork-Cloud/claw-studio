@@ -21,6 +21,7 @@ import type {
 } from '@sdkwork/claw-types';
 import type {
   InstanceWorkbenchAgent,
+  InstanceManagedOpenClawConfigInsights,
   InstanceWorkbenchSectionAvailability,
   InstanceWorkbenchSectionId,
   InstanceWorkbenchChannel,
@@ -848,6 +849,7 @@ function mapBackendWorkbench(
     files: mappedFiles.length,
     memory: mappedMemories.length,
     tools: mappedTools.length,
+    config: buildManagedConfigSectionCount(openClawConfigService.resolveInstanceConfigPath(detail)),
   } as const;
 
   return {
@@ -858,6 +860,7 @@ function mapBackendWorkbench(
     detail,
     managedConfigPath: openClawConfigService.resolveInstanceConfigPath(detail),
     managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
+    managedConfigInsights: buildManagedConfigInsights(managedConfigSnapshot),
     healthScore: detail.health.score,
     runtimeStatus: detail.health.status,
     connectedChannelCount,
@@ -964,6 +967,18 @@ function buildSectionAvailability(
     files: resolveCapabilityAvailability(capabilityMap.get('files')),
     memory: resolveCapabilityAvailability(capabilityMap.get('memory')),
     tools: resolveCapabilityAvailability(capabilityMap.get('tools')),
+    config:
+      counts.config > 0
+        ? {
+            status: 'ready',
+            detail:
+              'The authoritative OpenClaw config file is attached and can be inspected from this workbench.',
+          }
+        : {
+            status: 'planned',
+            detail:
+              'This instance does not currently expose an attached OpenClaw config file for structured configuration inspection.',
+          },
   };
 }
 
@@ -1134,7 +1149,15 @@ interface OpenClawGatewaySections {
   tools: InstanceWorkbenchTool[];
 }
 
-function isOpenClawDetail(detail: StudioInstanceDetailRecord | null | undefined) {
+type OpenClawInstanceDetailRecord = StudioInstanceDetailRecord & {
+  instance: StudioInstanceDetailRecord['instance'] & {
+    runtimeKind: 'openclaw';
+  };
+};
+
+function isOpenClawDetail(
+  detail: StudioInstanceDetailRecord | null | undefined,
+): detail is OpenClawInstanceDetailRecord {
   return detail?.instance.runtimeKind === 'openclaw';
 }
 
@@ -1189,6 +1212,39 @@ function buildOpenClawSectionCounts(
     files: sections.files.length,
     memory: sections.memories.length,
     tools: sections.tools.length,
+    config: 0,
+  };
+}
+
+function buildManagedConfigSectionCount(managedConfigPath: string | null | undefined) {
+  return managedConfigPath ? 1 : 0;
+}
+
+function buildManagedConfigInsights(
+  managedConfigSnapshot: ManagedOpenClawConfigSnapshot | null | undefined,
+): InstanceManagedOpenClawConfigInsights | null {
+  if (!managedConfigSnapshot) {
+    return null;
+  }
+
+  const root = managedConfigSnapshot.root;
+  const sessionsVisibility = getStringValue(root, ['tools', 'sessions', 'visibility']);
+
+  return {
+    defaultAgentId:
+      managedConfigSnapshot.agentSnapshots.find((agent) => agent.isDefault)?.id || null,
+    defaultModelRef: getStringValue(root, ['agents', 'defaults', 'model', 'primary']) || null,
+    sessionsVisibility:
+      sessionsVisibility === 'self' ||
+      sessionsVisibility === 'tree' ||
+      sessionsVisibility === 'agent' ||
+      sessionsVisibility === 'all'
+        ? sessionsVisibility
+        : null,
+    agentToAgentEnabled: Boolean(getBooleanValue(root, ['tools', 'agentToAgent', 'enabled'])),
+    agentToAgentAllow: (getArrayValue(root, ['tools', 'agentToAgent', 'allow']) || [])
+      .filter(isNonEmptyString)
+      .map((value) => value.trim()),
   };
 }
 
@@ -1231,6 +1287,7 @@ function buildOpenClawSnapshotFromSections(
         files: sections.files.length,
         memory: sections.memories.length,
         tools: sections.tools.length,
+        config: 0,
       }),
       files:
         sections.files.length > 0
@@ -1282,6 +1339,7 @@ function finalizeOpenClawSnapshot(
   managedConfigPath: string | null,
   managedConfigSnapshot: ManagedOpenClawConfigSnapshot | null,
 ): InstanceWorkbenchSnapshot {
+  const configSectionCount = buildManagedConfigSectionCount(managedConfigPath);
   const llmProviders =
     isProviderCenterManagedOpenClawDetail(detail) &&
     (managedConfigSnapshot?.providerSnapshots.length || 0) > 0
@@ -1315,10 +1373,29 @@ function finalizeOpenClawSnapshot(
     ...finalizedSnapshot,
     managedConfigPath,
     managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
+    managedConfigInsights: buildManagedConfigInsights(managedConfigSnapshot),
     managedWebSearchConfig: cloneManagedWebSearchConfig(managedConfigSnapshot?.webSearchConfig),
     managedAuthCooldownsConfig: cloneManagedAuthCooldownsConfig(
       managedConfigSnapshot?.authCooldownsConfig,
     ),
+    sectionCounts: {
+      ...finalizedSnapshot.sectionCounts,
+      config: configSectionCount,
+    },
+    sectionAvailability: {
+      ...finalizedSnapshot.sectionAvailability,
+      config: buildSectionAvailability(detail, {
+        channels: finalizedSnapshot.sectionCounts.channels,
+        cronTasks: finalizedSnapshot.sectionCounts.cronTasks,
+        llmProviders: finalizedSnapshot.sectionCounts.llmProviders,
+        agents: finalizedSnapshot.sectionCounts.agents,
+        skills: finalizedSnapshot.sectionCounts.skills,
+        files: finalizedSnapshot.sectionCounts.files,
+        memory: finalizedSnapshot.sectionCounts.memory,
+        tools: finalizedSnapshot.sectionCounts.tools,
+        config: configSectionCount,
+      }).config,
+    },
   };
 }
 
@@ -1973,6 +2050,7 @@ function buildDetailOnlyWorkbenchSnapshot(
     files: 0,
     memory: 0,
     tools: 0,
+    config: buildManagedConfigSectionCount(managedConfigPath),
   } as const;
 
   return {
@@ -1983,6 +2061,11 @@ function buildDetailOnlyWorkbenchSnapshot(
     detail,
     managedConfigPath,
     managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
+    managedConfigInsights: buildManagedConfigInsights(managedConfigSnapshot),
+    managedWebSearchConfig: cloneManagedWebSearchConfig(managedConfigSnapshot?.webSearchConfig),
+    managedAuthCooldownsConfig: cloneManagedAuthCooldownsConfig(
+      managedConfigSnapshot?.authCooldownsConfig,
+    ),
     healthScore: detail.health.score,
     runtimeStatus: detail.health.status,
     connectedChannelCount: 0,

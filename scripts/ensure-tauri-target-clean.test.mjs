@@ -196,4 +196,40 @@ withTempDir((tempDir) => {
   );
 });
 
+withTempDir((tempDir) => {
+  const srcTauriDir = path.join(tempDir, 'src-tauri');
+  const targetDir = path.join(srcTauriDir, 'target');
+
+  mkdirSync(path.join(srcTauriDir, 'resources', 'openclaw'), { recursive: true });
+  writeFileSync(path.join(srcTauriDir, 'resources', 'openclaw', '.gitkeep'), '', 'utf8');
+  writeJson(path.join(targetDir, 'dev', 'debug', 'resources', 'openclaw', 'manifest.json'), {
+    schemaVersion: 1,
+    runtimeId: 'openclaw',
+    openclawVersion: '2026.3.24',
+    nodeVersion: DEFAULT_NODE_VERSION,
+    platform: 'windows',
+    arch: 'x64',
+    nodeRelativePath: 'runtime/node/node.exe',
+    cliRelativePath: 'runtime/package/node_modules/openclaw/openclaw.mjs',
+  });
+
+  const result = ensureTauriTargetClean(srcTauriDir, {
+    env: {
+      SDKWORK_DESKTOP_TARGET_PLATFORM: 'windows',
+      SDKWORK_DESKTOP_TARGET_ARCH: 'x64',
+    },
+  });
+
+  assert.equal(
+    result.removedTarget,
+    true,
+    'stale bundled target manifests must still trigger cleanup when the source tree keeps only the openclaw placeholder',
+  );
+  assert.equal(
+    existsSync(targetDir),
+    false,
+    'stale target manifests must not survive the openclaw placeholder-only source layout',
+  );
+});
+
 console.log('ok - stale Tauri target cleanup only removes invalid permission caches');

@@ -22,21 +22,41 @@ test('release asset finalizer writes a global checksum manifest and release mani
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-'));
   const releaseAssetsDir = path.join(tempRoot, 'release-assets');
   const windowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'x64');
+  const legacyWindowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'nsis');
+  const staleArm64WindowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'arm64');
   const webDir = path.join(releaseAssetsDir, 'web');
 
   try {
     mkdirSync(windowsDir, { recursive: true });
+    mkdirSync(legacyWindowsDir, { recursive: true });
+    mkdirSync(staleArm64WindowsDir, { recursive: true });
     mkdirSync(webDir, { recursive: true });
 
     const windowsAssetPath = path.join(windowsDir, 'Claw.Studio_0.1.0_x64-setup.exe');
     const webAssetPath = path.join(webDir, 'claw-studio-web-assets-release-2026-03-31-03.tar.gz');
+    const staleLegacyWindowsAssetPath = path.join(
+      legacyWindowsDir,
+      'Claw.Studio_0.1.0_x64-setup.exe',
+    );
+    const staleTopLevelWebAssetPath = path.join(
+      releaseAssetsDir,
+      'claw-studio-web-assets-release-2026-03-20-legacy.tar.gz',
+    );
+    const staleArm64WindowsAssetPath = path.join(
+      staleArm64WindowsDir,
+      'Claw.Studio_0.1.0_arm64-setup.exe',
+    );
 
     writeFileSync(windowsAssetPath, 'windows-installer', 'utf8');
     writeFileSync(webAssetPath, 'web-assets', 'utf8');
+    writeFileSync(staleLegacyWindowsAssetPath, 'stale-desktop-installer', 'utf8');
+    writeFileSync(staleTopLevelWebAssetPath, 'stale-web-assets', 'utf8');
+    writeFileSync(staleArm64WindowsAssetPath, 'stale-arm64-installer', 'utf8');
     writeFileSync(
       path.join(windowsDir, 'release-asset-manifest.json'),
       `${JSON.stringify({
         profileId: 'claw-studio',
+        releaseTag: 'release-2026-03-31-03',
         platform: 'windows',
         arch: 'x64',
         artifacts: [
@@ -57,6 +77,7 @@ test('release asset finalizer writes a global checksum manifest and release mani
       path.join(webDir, 'release-asset-manifest.json'),
       `${JSON.stringify({
         profileId: 'claw-studio',
+        releaseTag: 'release-2026-03-31-03',
         artifacts: [
           {
             name: 'claw-studio-web-assets-release-2026-03-31-03.tar.gz',
@@ -66,6 +87,26 @@ test('release asset finalizer writes a global checksum manifest and release mani
             kind: 'archive',
             sha256: 'placeholder',
             size: 10,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(staleArm64WindowsDir, 'release-asset-manifest.json'),
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        platform: 'windows',
+        arch: 'arm64',
+        artifacts: [
+          {
+            name: 'Claw.Studio_0.1.0_arm64-setup.exe',
+            relativePath: 'desktop/windows/arm64/Claw.Studio_0.1.0_arm64-setup.exe',
+            platform: 'windows',
+            arch: 'arm64',
+            kind: 'installer',
+            sha256: 'placeholder',
+            size: 21,
           },
         ],
       }, null, 2)}\n`,
@@ -92,6 +133,18 @@ test('release asset finalizer writes a global checksum manifest and release mani
     assert.equal(manifest.releaseTag, 'release-2026-03-31-03');
     assert.equal(manifest.repository, 'Sdkwork-Cloud/claw-studio');
     assert.equal(manifest.artifacts.length, 2);
+    assert.doesNotMatch(
+      checksums,
+      /desktop\/windows\/nsis\/Claw\.Studio_0\.1\.0_x64-setup\.exe/,
+    );
+    assert.doesNotMatch(
+      checksums,
+      /claw-studio-web-assets-release-2026-03-20-legacy\.tar\.gz/,
+    );
+    assert.doesNotMatch(
+      checksums,
+      /desktop\/windows\/arm64\/Claw\.Studio_0\.1\.0_arm64-setup\.exe/,
+    );
     assert.deepEqual(
       manifest.artifacts.map((artifact) => ({
         relativePath: artifact.relativePath,

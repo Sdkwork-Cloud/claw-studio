@@ -225,6 +225,25 @@ export interface OpenClawConfigSnapshot {
   root: JsonObject;
 }
 
+export interface OpenClawConfigDocumentSection {
+  key: string;
+  kind: 'object' | 'array' | 'scalar';
+  entryCount: number;
+  fieldNames: string[];
+  formattedValue: string;
+  preview: string;
+}
+
+export interface OpenClawConfigDocumentAnalysis {
+  parseError: string | null;
+  sections: OpenClawConfigDocumentSection[];
+}
+
+export interface OpenClawParsedConfigDocument {
+  parsed: JsonObject | null;
+  parseError: string | null;
+}
+
 export interface SaveOpenClawChannelConfigurationInput {
   configPath: string;
   channelId: string;
@@ -626,6 +645,156 @@ function parseJsonObjectText(label: string, value: string | undefined) {
   }
 
   return parsed;
+}
+
+function truncateConfigDocumentPreview(value: string, maxLength = 96) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength - 1)}...`;
+}
+
+function buildConfigDocumentPreview(value: unknown) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return 'Empty list';
+    }
+
+    return truncateConfigDocumentPreview(
+      value
+        .slice(0, 3)
+        .map((entry) => {
+          if (typeof entry === 'string') {
+            return entry;
+          }
+          if (isJsonObject(entry as JsonValue | undefined)) {
+            return Object.keys(entry as JsonObject)
+              .slice(0, 2)
+              .join(', ');
+          }
+          return String(entry);
+        })
+        .filter(Boolean)
+        .join(' • '),
+    );
+  }
+
+  if (isJsonObject(value as JsonValue | undefined)) {
+    const keys = Object.keys(value as JsonObject);
+    if (keys.length === 0) {
+      return 'Empty object';
+    }
+
+    return truncateConfigDocumentPreview(keys.slice(0, 4).join(', '));
+  }
+
+  if (value == null) {
+    return 'No value';
+  }
+
+  if (typeof value === 'string') {
+    return truncateConfigDocumentPreview(value || 'Empty string');
+  }
+
+  return truncateConfigDocumentPreview(String(value));
+}
+
+function getConfigDocumentSectionKind(value: unknown): OpenClawConfigDocumentSection['kind'] {
+  if (Array.isArray(value)) {
+    return 'array';
+  }
+
+  if (isJsonObject(value as JsonValue | undefined)) {
+    return 'object';
+  }
+
+  return 'scalar';
+}
+
+function countConfigDocumentSectionEntries(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.length;
+  }
+
+  if (isJsonObject(value as JsonValue | undefined)) {
+    return Object.keys(value as JsonObject).length;
+  }
+
+  return value == null ? 0 : 1;
+}
+
+function collectConfigDocumentFieldNames(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.slice(0, 8).map((_, index) => `[${index}]`);
+  }
+
+  if (isJsonObject(value as JsonValue | undefined)) {
+    return Object.keys(value as JsonObject);
+  }
+
+  return [];
+}
+
+function formatConfigDocumentValue(value: unknown) {
+  const formatted = JSON.stringify(value, null, 2);
+  return typeof formatted === 'string' ? formatted : String(value);
+}
+
+export function analyzeOpenClawConfigDocument(raw: string): OpenClawConfigDocumentAnalysis {
+  const parsedDocument = parseOpenClawConfigDocument(raw);
+  if (!parsedDocument.parsed) {
+    return {
+      parseError: parsedDocument.parseError,
+      sections: [],
+    };
+  }
+
+  return {
+    parseError: null,
+    sections: Object.entries(parsedDocument.parsed).map(([key, value]) => ({
+      key,
+      kind: getConfigDocumentSectionKind(value),
+      entryCount: countConfigDocumentSectionEntries(value),
+      fieldNames: collectConfigDocumentFieldNames(value),
+      formattedValue: formatConfigDocumentValue(value),
+      preview: buildConfigDocumentPreview(value),
+    })),
+  };
+}
+
+export function parseOpenClawConfigDocument(raw: string): OpenClawParsedConfigDocument {
+  const normalized = raw.trim();
+  if (!normalized) {
+    return {
+      parsed: {},
+      parseError: null,
+    };
+  }
+
+  try {
+    const parsed = JSON5.parse(raw);
+    if (!isJsonObject(parsed)) {
+      return {
+        parsed: null,
+        parseError: 'OpenClaw config document must contain a top-level object.',
+      };
+    }
+
+    return {
+      parsed,
+      parseError: null,
+    };
+  } catch (error: any) {
+    return {
+      parsed: null,
+      parseError: error?.message || 'Failed to parse openclaw.json draft.',
+    };
+  }
+}
+
+export function serializeOpenClawConfigDocument(root: Record<string, unknown>) {
+  return `${JSON.stringify(root, null, 2).trimEnd()}\n`;
 }
 
 function parseChannelStringArrayValue(
@@ -2499,6 +2668,21 @@ class OpenClawConfigService {
       fields: definition.fields.map((field) => ({ ...field })),
       setupSteps: [...definition.setupSteps],
     }));
+  }
+
+  async readConfigDocument(configPath: string) {
+    return platform.readFile(normalizePath(configPath));
+  }
+
+  async writeConfigDocument(configPath: string, raw: string) {
+    const normalizedConfigPath = normalizePath(configPath);
+    const parsed = raw.trim() ? JSON5.parse(raw) : {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('OpenClaw config document must contain a top-level object.');
+    }
+
+    await platform.writeFile(normalizedConfigPath, raw);
+    invalidateOpenClawConfigSnapshot(normalizedConfigPath);
   }
 
   async resolveInstallConfigPath(input: OpenClawConfigPathInput) {

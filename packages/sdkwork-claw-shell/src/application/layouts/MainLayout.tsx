@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAppStore, useKeyboardShortcuts } from '@sdkwork/claw-core';
 import { OpenClawGatewayConnections } from '@sdkwork/claw-chat';
 import { AppHeader } from '../../components/AppHeader';
+import { ChatCronActivityNotifications } from '../../components/ChatCronActivityNotifications';
 import { CommandPalette } from '../../components/CommandPalette';
 import { GlobalTaskManager } from '../../components/GlobalTaskManager';
 import { Sidebar } from '../../components/Sidebar';
@@ -77,6 +78,7 @@ export function MainLayout() {
       </div>
       <AppHeader />
       <OpenClawGatewayConnections />
+      <ChatCronActivityNotifications />
       <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <main className="relative z-10 min-w-0 flex-1 overflow-auto scrollbar-hide bg-white/35 dark:bg-zinc-950/18">

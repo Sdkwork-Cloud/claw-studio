@@ -7,21 +7,21 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sdkwork/app-sdk": "^1.0.34",
-    "@sdkwork/core-pc-react": "workspace:*",
+    "@sdkwork/app-sdk": "workspace:^",
     "@sdkwork/claw-i18n": "workspace:*",
     "@sdkwork/claw-infrastructure": "workspace:*",
-    "fuse.js": "^7.1.0",
+    "@sdkwork/core-pc-react": "workspace:*",
+    "fuse.js": "^7.2.0",
     "json5": "^2.2.3",
-    "lucide-react": "^0.546.0",
-    "motion": "^12.35.0",
-    "react": "^19.0.0",
-    "react-i18next": "^15.7.3",
-    "react-router-dom": "^7.13.1",
-    "zustand": "^5.0.8"
+    "lucide-react": "^1.7.0",
+    "motion": "^12.38.0",
+    "react": "^19.2.4",
+    "react-i18next": "^17.0.2",
+    "react-router-dom": "^7.14.0",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.2"
   },
   "exports": {
     ".": "./src/index.ts",

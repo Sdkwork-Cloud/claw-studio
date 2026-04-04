@@ -4,6 +4,7 @@ export type {
   PlatformDialogFilter,
   PlatformFetchedRemoteUrl,
   PlatformFileEntry,
+  PlatformNotificationRequest,
   PlatformPathInfo,
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
@@ -12,6 +13,11 @@ export type {
 export type {
   HostPlatformLifecycle,
   HostPlatformMode,
+  HostPlatformStateStoreAvailability,
+  HostPlatformStateStoreProjectionMode,
+  HostPlatformStateStoreProfileRecord,
+  HostPlatformStateStoreProviderRecord,
+  HostPlatformStateStoreRecord,
   HostPlatformStatusRecord,
   InternalErrorEnvelope,
   InternalNodeCompatibilityState,
@@ -106,6 +112,10 @@ export type {
 } from './contracts/installer.ts';
 export type {
   ManagePlatformAPI,
+  ManageHostEndpointRecord,
+  ManageOpenClawGatewayInvokeRequest,
+  ManageOpenClawGatewayRecord,
+  ManageOpenClawRuntimeRecord,
   ManageRolloutCandidateRevisionSummary,
   ManageRolloutListResult,
   ManageRolloutPhase,
@@ -140,11 +150,14 @@ export type {
   RuntimeJobState,
   RuntimeJobUpdateEvent,
   RuntimeLanguagePreference,
+  RuntimePackageFamily,
   RuntimePathsInfo,
   RuntimePlatformKind,
   RuntimePlatformAPI,
   RuntimeProcessOutputEvent,
   RuntimeProcessOutputStream,
+  RuntimeStartupContext,
+  RuntimeStartupTarget,
   RuntimeStorageInfo,
   RuntimeSystemInfo,
 } from './contracts/runtime.ts';
@@ -174,6 +187,20 @@ export type {
   LocalAiProxyMessageCaptureSettings,
   LocalAiProxyMessageLogRecord,
   LocalAiProxyMessageLogsQuery,
+  OpenClawMirrorComponentKind,
+  OpenClawMirrorComponentRecord,
+  OpenClawMirrorExportPreview,
+  OpenClawMirrorExportRequest,
+  OpenClawMirrorExportResult,
+  OpenClawMirrorImportPreview,
+  OpenClawMirrorImportRequest,
+  OpenClawMirrorImportResult,
+  OpenClawMirrorManifestComponentRecord,
+  OpenClawMirrorManifestRecord,
+  OpenClawMirrorManifestRuntimeRecord,
+  OpenClawMirrorMode,
+  OpenClawMirrorRuntimeRecord,
+  OpenClawMirrorSafetySnapshotRecord,
   LocalAiProxyRequestLogRecord,
   LocalAiProxyRequestLogsQuery,
   LocalAiProxyRequestLogStatus,
@@ -220,6 +247,7 @@ export {
   configureServerBrowserPlatformBridge,
   createServerBrowserPlatformBridge,
   readServerBrowserPlatformBridgeConfig,
+  SERVER_API_BASE_PATH_META_NAME,
   SERVER_HOST_MODE_META_NAME,
   SERVER_INTERNAL_BASE_PATH_META_NAME,
   SERVER_MANAGE_BASE_PATH_META_NAME,
@@ -231,5 +259,6 @@ export { WebInternalPlatform, DEFAULT_INTERNAL_BASE_PATH } from './webInternal.t
 export { WebKernelPlatform } from './webKernel.ts';
 export { WebManagePlatform, DEFAULT_MANAGE_BASE_PATH } from './webManage.ts';
 export { WebPlatform } from './web.ts';
+export { WebHostedStudioPlatform, DEFAULT_STUDIO_API_BASE_PATH } from './webHostedStudio.ts';
 export { WebStoragePlatform } from './webStorage.ts';
 export { WebStudioPlatform } from './webStudio.ts';

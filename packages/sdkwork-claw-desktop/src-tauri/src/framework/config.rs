@@ -116,6 +116,26 @@ impl Default for EmbeddedOpenClawConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+pub struct DesktopHostConfig {
+    pub enabled: bool,
+    pub bind_host: String,
+    pub port: u16,
+    pub allow_dynamic_port: bool,
+}
+
+impl Default for DesktopHostConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            bind_host: "127.0.0.1".to_string(),
+            port: 18_797,
+            allow_dynamic_port: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ProcessConfig {
     pub default_timeout_ms: u64,
     pub max_concurrent_jobs: u32,
@@ -165,6 +185,7 @@ pub struct AppConfig {
     pub payments: PaymentConfig,
     pub integrations: IntegrationConfig,
     pub embedded_openclaw: EmbeddedOpenClawConfig,
+    pub desktop_host: DesktopHostConfig,
     pub process: ProcessConfig,
     pub component_upgrades: ComponentUpgradeConfig,
 }
@@ -184,6 +205,7 @@ impl Default for AppConfig {
             payments: PaymentConfig::default(),
             integrations: IntegrationConfig::default(),
             embedded_openclaw: EmbeddedOpenClawConfig::default(),
+            desktop_host: DesktopHostConfig::default(),
             process: ProcessConfig::default(),
             component_upgrades: ComponentUpgradeConfig::default(),
         }
@@ -227,6 +249,7 @@ pub struct PublicAppConfig {
     pub payments: PaymentConfig,
     pub integrations: IntegrationConfig,
     pub embedded_openclaw: EmbeddedOpenClawConfig,
+    pub desktop_host: DesktopHostConfig,
     pub process: ProcessConfig,
     pub component_upgrades: ComponentUpgradeConfig,
 }
@@ -271,6 +294,12 @@ impl AppConfig {
         }
         next.language = normalize_app_language_preference(&next.language).to_string();
         next.storage = next.storage.normalized();
+        if next.desktop_host.bind_host.trim().is_empty() {
+            next.desktop_host.bind_host = DesktopHostConfig::default().bind_host;
+        }
+        if next.desktop_host.port == 0 {
+            next.desktop_host.port = DesktopHostConfig::default().port;
+        }
         next
     }
 
@@ -290,6 +319,7 @@ impl AppConfig {
             payments: normalized.payments,
             integrations: normalized.integrations,
             embedded_openclaw: normalized.embedded_openclaw,
+            desktop_host: normalized.desktop_host,
             process: normalized.process,
             component_upgrades: normalized.component_upgrades,
         }
@@ -521,6 +551,39 @@ mod tests {
         assert_eq!(
             value.pointer("/componentUpgrades/defaultChannel"),
             Some(&Value::String("stable".to_string()))
+        );
+    }
+
+    #[test]
+    fn embedded_host_default_config_serializes_desktop_host_section() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+
+        write_config(&paths, &AppConfig::default()).expect("write config");
+        let saved = std::fs::read_to_string(&paths.config_file).expect("saved config");
+        let value = serde_json::from_str::<Value>(&saved).expect("json value");
+
+        assert_eq!(
+            value.pointer("/desktopHost/enabled"),
+            Some(&Value::Bool(true)),
+            "desktop host should be enabled by default so desktop combined mode boots the canonical loopback host",
+        );
+        assert_eq!(
+            value.pointer("/desktopHost/bindHost"),
+            Some(&Value::String("127.0.0.1".to_string())),
+            "desktop host should default to loopback binding",
+        );
+        assert_eq!(
+            value.pointer("/desktopHost/allowDynamicPort"),
+            Some(&Value::Bool(true)),
+            "desktop host should allow dynamic fallback when the requested loopback port is busy",
+        );
+        assert!(
+            value
+                .pointer("/desktopHost/port")
+                .and_then(Value::as_u64)
+                .is_some(),
+            "desktop host should publish a requested port in config",
         );
     }
 }

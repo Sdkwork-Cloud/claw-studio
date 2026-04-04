@@ -1,10 +1,5 @@
 use crate::framework::{FrameworkError, Result};
-use rusqlite::{
-    params,
-    params_from_iter,
-    types::Value as SqlValue,
-    Connection, OptionalExtension,
-};
+use rusqlite::{params, params_from_iter, types::Value as SqlValue, Connection, OptionalExtension};
 use std::{fs, path::PathBuf, sync::Arc};
 
 const MESSAGE_CAPTURE_ENABLED_KEY: &str = "message_capture_enabled";
@@ -407,8 +402,8 @@ impl LocalAiProxyObservabilityRepository {
             let (where_sql, parameters) = build_request_logs_where_clause(&query);
 
             let count_sql = format!("SELECT COUNT(*) FROM request_logs{where_sql}");
-            let total = connection
-                .query_row(&count_sql, params_from_iter(parameters.iter()), |row| {
+            let total =
+                connection.query_row(&count_sql, params_from_iter(parameters.iter()), |row| {
                     row.get::<_, i64>(0)
                 })?;
             let total = from_sql_u64(total, "total")?;
@@ -571,8 +566,8 @@ impl LocalAiProxyObservabilityRepository {
             let (where_sql, parameters) = build_message_logs_where_clause(&query);
 
             let count_sql = format!("SELECT COUNT(*) FROM message_logs{where_sql}");
-            let total = connection
-                .query_row(&count_sql, params_from_iter(parameters.iter()), |row| {
+            let total =
+                connection.query_row(&count_sql, params_from_iter(parameters.iter()), |row| {
                     row.get::<_, i64>(0)
                 })?;
             let total = from_sql_u64(total, "total")?;
@@ -609,16 +604,15 @@ impl LocalAiProxyObservabilityRepository {
                     let created_at = row.get::<_, i64>(2)?;
                     let message_count = row.get::<_, i64>(10)?;
                     let messages_json: String = row.get(13)?;
-                    let messages = serde_json::from_str::<Vec<LocalAiProxyLoggedMessage>>(
-                        &messages_json,
-                    )
-                    .map_err(|error| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            messages_json.len(),
-                            rusqlite::types::Type::Text,
-                            Box::new(error),
-                        )
-                    })?;
+                    let messages =
+                        serde_json::from_str::<Vec<LocalAiProxyLoggedMessage>>(&messages_json)
+                            .map_err(|error| {
+                                rusqlite::Error::FromSqlConversionFailure(
+                                    messages_json.len(),
+                                    rusqlite::types::Type::Text,
+                                    Box::new(error),
+                                )
+                            })?;
                     Ok(LocalAiProxyMessageLogRecord {
                         id: row.get(0)?,
                         request_log_id: row.get(1)?,
@@ -662,10 +656,7 @@ impl LocalAiProxyObservabilityRepository {
         })
     }
 
-    fn with_connection<T>(
-        &self,
-        operation: impl FnOnce(&Connection) -> Result<T>,
-    ) -> Result<T> {
+    fn with_connection<T>(&self, operation: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
         if let Some(parent) = self.db_path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -775,13 +766,35 @@ fn push_exact_filter(
     }
 }
 
-fn build_request_logs_where_clause(query: &LocalAiProxyRequestLogsQuery) -> (String, Vec<SqlValue>) {
+fn build_request_logs_where_clause(
+    query: &LocalAiProxyRequestLogsQuery,
+) -> (String, Vec<SqlValue>) {
     let mut where_parts = Vec::new();
     let mut parameters = Vec::new();
-    push_exact_filter(&mut where_parts, &mut parameters, "provider_id", query.provider_id.as_deref());
-    push_exact_filter(&mut where_parts, &mut parameters, "model_id", query.model_id.as_deref());
-    push_exact_filter(&mut where_parts, &mut parameters, "route_id", query.route_id.as_deref());
-    push_exact_filter(&mut where_parts, &mut parameters, "status", query.status.as_deref());
+    push_exact_filter(
+        &mut where_parts,
+        &mut parameters,
+        "provider_id",
+        query.provider_id.as_deref(),
+    );
+    push_exact_filter(
+        &mut where_parts,
+        &mut parameters,
+        "model_id",
+        query.model_id.as_deref(),
+    );
+    push_exact_filter(
+        &mut where_parts,
+        &mut parameters,
+        "route_id",
+        query.route_id.as_deref(),
+    );
+    push_exact_filter(
+        &mut where_parts,
+        &mut parameters,
+        "status",
+        query.status.as_deref(),
+    );
 
     if let Some(search) = normalize_optional_text(query.search.as_deref()) {
         let pattern = format!("%{search}%");
@@ -803,12 +816,29 @@ fn build_request_logs_where_clause(query: &LocalAiProxyRequestLogsQuery) -> (Str
     )
 }
 
-fn build_message_logs_where_clause(query: &LocalAiProxyMessageLogsQuery) -> (String, Vec<SqlValue>) {
+fn build_message_logs_where_clause(
+    query: &LocalAiProxyMessageLogsQuery,
+) -> (String, Vec<SqlValue>) {
     let mut where_parts = Vec::new();
     let mut parameters = Vec::new();
-    push_exact_filter(&mut where_parts, &mut parameters, "provider_id", query.provider_id.as_deref());
-    push_exact_filter(&mut where_parts, &mut parameters, "model_id", query.model_id.as_deref());
-    push_exact_filter(&mut where_parts, &mut parameters, "route_id", query.route_id.as_deref());
+    push_exact_filter(
+        &mut where_parts,
+        &mut parameters,
+        "provider_id",
+        query.provider_id.as_deref(),
+    );
+    push_exact_filter(
+        &mut where_parts,
+        &mut parameters,
+        "model_id",
+        query.model_id.as_deref(),
+    );
+    push_exact_filter(
+        &mut where_parts,
+        &mut parameters,
+        "route_id",
+        query.route_id.as_deref(),
+    );
 
     if let Some(search) = normalize_optional_text(query.search.as_deref()) {
         let pattern = format!("%{search}%");

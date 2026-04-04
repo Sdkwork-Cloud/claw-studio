@@ -50,6 +50,13 @@ assertPath('packages/sdkwork-claw-server/src/index.ts', 'server TypeScript entry
 assertPath('packages/sdkwork-claw-server/src-host/Cargo.toml', 'server Cargo manifest');
 assertPath('packages/sdkwork-claw-server/src-host/src/main.rs', 'server Rust entry');
 assertPath('packages/sdkwork-claw-server/src-host/src/bootstrap.rs', 'server bootstrap module');
+assertPath('packages/sdkwork-claw-server/src-host/src/cli.rs', 'server cli module');
+assertPath('packages/sdkwork-claw-server/src-host/src/config.rs', 'server config module');
+assertPath(
+  'packages/sdkwork-claw-server/src-host/src/port_governance.rs',
+  'server port governance module',
+);
+assertPath('packages/sdkwork-claw-server/src-host/src/service.rs', 'server service module');
 assertPath('packages/sdkwork-claw-server/src-host/src/http/mod.rs', 'server http module');
 assertPath('packages/sdkwork-claw-server/src-host/src/http/router.rs', 'server router module');
 assertPath(
@@ -68,6 +75,10 @@ assertPath(
 assertPath(
   'packages/sdkwork-claw-server/src-host/src/http/routes/manage_rollouts.rs',
   'server manage rollout route',
+);
+assertPath(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/manage_service.rs',
+  'server manage service route',
 );
 assertPath(
   'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
@@ -96,6 +107,11 @@ if (serverPackage?.scripts?.build !== 'node ../../scripts/run-claw-server-build.
 
 assertIncludes(
   'packages/sdkwork-claw-server/.env.example',
+  'CLAW_SERVER_CONFIG=',
+  'server env example config file variable',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/.env.example',
   'CLAW_SERVER_HOST=',
   'server env example host variable',
 );
@@ -114,7 +130,62 @@ assertIncludes(
   'CLAW_SERVER_WEB_DIST=',
   'server env example web dist variable',
 );
+assertIncludes(
+  'packages/sdkwork-claw-server/.env.example',
+  'CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=',
+  'server env example insecure public bind variable',
+);
 
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/main.rs',
+  'parse_cli_args',
+  'server cli parsing usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/main.rs',
+  'resolve_server_runtime_config',
+  'server runtime config resolution usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/main.rs',
+  'bind_server_listener',
+  'server port governance usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/cli.rs',
+  'ClawServerCliCommand',
+  'server cli command contract',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/config.rs',
+  'CLAW_SERVER_CONFIG',
+  'server config file environment support',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/port_governance.rs',
+  'dynamic_port',
+  'server requested versus active port projection',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/service.rs',
+  'project_service_manifest',
+  'server service manifest projection entry',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/service.rs',
+  'windowsService',
+  'server windows service manifest semantics',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/service.rs',
+  'ServerServiceLifecycleAction',
+  'server service lifecycle action contract',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/service.rs',
+  'execute_server_service_lifecycle_with_runtime',
+  'server service lifecycle execution entry',
+);
 assertIncludes(
   'packages/sdkwork-claw-server/src-host/src/http/mod.rs',
   'pub mod error_response;',
@@ -129,6 +200,11 @@ assertIncludes(
   'packages/sdkwork-claw-server/src-host/src/http/mod.rs',
   'pub mod openapi;',
   'server openapi route export',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/mod.rs',
+  'pub mod manage_service;',
+  'server manage service route export',
 );
 assertIncludes(
   'packages/sdkwork-claw-server/src-host/src/bootstrap.rs',
@@ -187,6 +263,31 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
+  '"/claw/manage/v1/service"',
+  'server openapi document manage service status path',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
+  '"/claw/manage/v1/service:install"',
+  'server openapi document manage service install path',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
+  '"/claw/manage/v1/service:start"',
+  'server openapi document manage service start path',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
+  '"/claw/manage/v1/service:stop"',
+  'server openapi document manage service stop path',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
+  '"/claw/manage/v1/service:restart"',
+  'server openapi document manage service restart path',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/openapi.rs',
   '"/claw/internal/v1/node-sessions"',
   'server openapi document internal node-session path',
 );
@@ -199,6 +300,16 @@ assertIncludes(
   'packages/sdkwork-claw-server/src-host/src/http/routes/manage_rollouts.rs',
   'categorized_error_response',
   'server manage routes use shared error envelopes',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/manage_service.rs',
+  'authorize_manage_request',
+  'server manage service routes use manage auth',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/http/routes/manage_service.rs',
+  'ServerServiceLifecycleAction::Install',
+  'server manage service install action mapping',
 );
 assertIncludes(
   'packages/sdkwork-claw-server/src-host/src/http/static_assets.rs',
@@ -217,8 +328,153 @@ assertIncludes(
 );
 assertIncludes(
   'packages/sdkwork-claw-server/src-host/src/main.rs',
-  'build_server_state',
-  'server state bootstrap usage',
+  'build_server_state_from_runtime_contract',
+  'server runtime-contract bootstrap usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/main.rs',
+  'project_service_manifest',
+  'server service manifest output usage',
+);
+assertIncludes(
+  'packages/sdkwork-claw-server/src-host/src/main.rs',
+  'print_service_execution_result',
+  'server service lifecycle main entry',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'claw-server print-config',
+  'server runtime docs print-config command',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'service print-manifest',
+  'server runtime docs service manifest command',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'service install',
+  'server runtime docs service install command',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'service status',
+  'server runtime docs service status command',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  '/claw/manage/v1/service',
+  'server runtime docs manage service status api',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  '/claw/manage/v1/service:start',
+  'server runtime docs manage service start api',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'CLAW_SERVER_CONFIG',
+  'server runtime docs config file environment variable',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND',
+  'server runtime docs insecure public bind variable',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'requested port',
+  'server runtime docs requested port semantics',
+);
+assertIncludes(
+  'docs/reference/claw-server-runtime.md',
+  'active port',
+  'server runtime docs active port semantics',
+);
+assertIncludes(
+  'docs/reference/environment.md',
+  'CLAW_SERVER_CONFIG',
+  'environment docs server config file variable',
+);
+assertIncludes(
+  'docs/reference/environment.md',
+  'CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND',
+  'environment docs insecure public bind variable',
+);
+assertIncludes(
+  'docs/reference/environment.md',
+  'claw-server.config.json',
+  'environment docs default server config path fallback',
+);
+assertIncludes(
+  'docs/reference/environment.md',
+  'service install',
+  'environment docs service lifecycle command note',
+);
+assertIncludes(
+  'docs/reference/environment.md',
+  '/claw/manage/v1/service',
+  'environment docs manage service api note',
+);
+assertIncludes(
+  'docs/zh-CN/reference/claw-server-runtime.md',
+  'print-config',
+  'zh-CN server runtime docs print-config command',
+);
+assertIncludes(
+  'docs/zh-CN/reference/claw-server-runtime.md',
+  'service print-manifest',
+  'zh-CN server runtime docs service manifest command',
+);
+assertIncludes(
+  'docs/zh-CN/reference/claw-server-runtime.md',
+  'service install',
+  'zh-CN server runtime docs service install command',
+);
+assertIncludes(
+  'docs/zh-CN/reference/claw-server-runtime.md',
+  'service status',
+  'zh-CN server runtime docs service status command',
+);
+assertIncludes(
+  'docs/zh-CN/reference/claw-server-runtime.md',
+  '/claw/manage/v1/service',
+  'zh-CN server runtime docs manage service status api',
+);
+assertIncludes(
+  'docs/zh-CN/reference/claw-server-runtime.md',
+  '/claw/manage/v1/service:start',
+  'zh-CN server runtime docs manage service start api',
+);
+assertIncludes(
+  'docs/zh-CN/reference/claw-server-runtime.md',
+  'CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND',
+  'zh-CN server runtime docs insecure public bind variable',
+);
+assertIncludes(
+  'docs/zh-CN/reference/environment.md',
+  'CLAW_SERVER_CONFIG',
+  'zh-CN environment docs server config file variable',
+);
+assertIncludes(
+  'docs/zh-CN/reference/environment.md',
+  'CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND',
+  'zh-CN environment docs insecure public bind variable',
+);
+assertIncludes(
+  'docs/zh-CN/reference/environment.md',
+  'claw-server.config.json',
+  'zh-CN environment docs default server config path fallback',
+);
+assertIncludes(
+  'docs/zh-CN/reference/environment.md',
+  'service install',
+  'zh-CN environment docs service lifecycle command note',
+);
+assertIncludes(
+  'docs/zh-CN/reference/environment.md',
+  '/claw/manage/v1/service',
+  'zh-CN environment docs manage service api note',
 );
 
 if (failures.length > 0) {

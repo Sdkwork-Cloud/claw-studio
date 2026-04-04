@@ -22,7 +22,7 @@ export function ProductDetail() {
 
   useEffect(() => {
     let disposed = false;
-    const productId = params.id;
+    const productId = params.id?.trim();
 
     if (!productId) {
       setProduct(null);
@@ -32,12 +32,14 @@ export function ProductDetail() {
       return;
     }
 
+    const resolvedProductId = productId;
+
     async function loadProduct() {
       setLoading(true);
       setError(null);
 
       try {
-        const currentProduct = await clawMallService.getProduct(productId);
+        const currentProduct = await clawMallService.getProduct(resolvedProductId);
         const nextRelatedProducts = await clawMallService.getRelatedProducts(
           currentProduct,
           4,
