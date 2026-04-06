@@ -511,11 +511,19 @@ export async function runLocalReleaseCommand(options = {}) {
       runServerBuildFn: options.runServerBuildFn,
     });
     packageContainerAssetsFn(context);
+    await smokeDeploymentReleaseAssetsFn({
+      ...context,
+      family: 'container',
+    });
     return context;
   }
 
   if (context.mode === 'package:kubernetes') {
     packageKubernetesAssetsFn(context);
+    await smokeDeploymentReleaseAssetsFn({
+      ...context,
+      family: 'kubernetes',
+    });
     return context;
   }
 

@@ -59,6 +59,16 @@ export function main() {
     /node scripts\/release\/local-release-command\.mjs smoke server/,
     'package.json must expose the packaged server smoke command',
   );
+  assert.match(
+    packageJson.scripts['release:smoke:container'],
+    /node scripts\/release\/local-release-command\.mjs smoke container/,
+    'package.json must expose the packaged container smoke command',
+  );
+  assert.match(
+    packageJson.scripts['release:smoke:kubernetes'],
+    /node scripts\/release\/local-release-command\.mjs smoke kubernetes/,
+    'package.json must expose the packaged kubernetes smoke command',
+  );
 
   assert.doesNotMatch(
     kubernetesValues,
@@ -101,6 +111,16 @@ export function main() {
     'server release workflow must smoke packaged server bundles before attesting and uploading artifacts',
   );
   assert.match(
+    workflow,
+    /package-release-assets\.mjs container[\s\S]*smoke-deployment-release-assets\.mjs --family container --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\} --release-assets-dir artifacts\/release/,
+    'container release workflow must smoke packaged deployment bundles before attesting and uploading artifacts',
+  );
+  assert.match(
+    workflow,
+    /package-release-assets\.mjs kubernetes[\s\S]*smoke-deployment-release-assets\.mjs --family kubernetes --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\} --release-assets-dir artifacts\/release/,
+    'kubernetes release workflow must smoke packaged chart bundles before attesting and uploading artifacts',
+  );
+  assert.match(
     packagerSource,
     /image:\s*',?\s*`  repository: \$\{normalizedImageRepository\}`[\s\S]*`  tag: \$\{normalizedImageTag\}`/s,
     'kubernetes packager must write image repository and tag into values.release.yaml',
@@ -132,6 +152,16 @@ export function main() {
   );
   assert.match(
     releaseDoc,
+    /release:smoke:container/,
+    'release and deployment docs must expose the container smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:kubernetes/,
+    'release and deployment docs must expose the kubernetes smoke command',
+  );
+  assert.match(
+    releaseDoc,
     /openClawInstallerContract/,
     'release and deployment docs must describe desktop OpenClaw installer contract metadata',
   );
@@ -144,6 +174,11 @@ export function main() {
     releaseDoc,
     /serverBundleSmoke/,
     'release and deployment docs must describe aggregated server bundle smoke metadata',
+  );
+  assert.match(
+    releaseDoc,
+    /deploymentSmoke/,
+    'release and deployment docs must describe aggregated deployment smoke metadata',
   );
   assert.match(
     releaseDoc,

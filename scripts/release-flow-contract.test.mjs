@@ -159,6 +159,7 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-claw-server-build\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-smoke-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/finalize-release-assets\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-deployment-release-assets\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-server-release-assets\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-desktop-installers\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/local-release-command\.test\.mjs/);
@@ -294,6 +295,53 @@ test('release closure contract documents and guards packaged server bundle smoke
     releaseDoc,
     /serverBundleSmoke/,
     'release documentation must describe aggregated server bundle smoke metadata',
+  );
+});
+
+test('release closure contract documents and guards deployment smoke evidence', () => {
+  const releaseClosureGuard = read('scripts/check-release-closure.mjs');
+  const releaseDoc = read('docs/core/release-and-deployment.md');
+  const reusableWorkflow = read('.github/workflows/release-reusable.yml');
+
+  assert.match(
+    releaseClosureGuard,
+    /release:smoke:container/,
+    'release closure guard must require the packaged container smoke command',
+  );
+  assert.match(
+    releaseClosureGuard,
+    /release:smoke:kubernetes/,
+    'release closure guard must require the packaged kubernetes smoke command',
+  );
+  assert.match(
+    releaseClosureGuard,
+    /deploymentSmoke/,
+    'release closure guard must protect aggregated deployment smoke metadata',
+  );
+  assert.match(
+    reusableWorkflow,
+    /container-release:[\s\S]*package-release-assets\.mjs container[\s\S]*smoke-deployment-release-assets\.mjs --family container --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\} --release-assets-dir artifacts\/release/s,
+    'container release workflow must smoke packaged deployment bundles before attesting and uploading artifacts',
+  );
+  assert.match(
+    reusableWorkflow,
+    /kubernetes-release:[\s\S]*smoke-deployment-release-assets\.mjs --family kubernetes --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --accelerator \$\{\{ matrix\.accelerator \}\} --release-assets-dir artifacts\/release/s,
+    'kubernetes release workflow must smoke packaged chart bundles before attesting and uploading artifacts',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:container/,
+    'release documentation must expose the container smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:kubernetes/,
+    'release documentation must expose the kubernetes smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /deploymentSmoke/,
+    'release documentation must describe aggregated deployment smoke metadata',
   );
 });
 

@@ -420,6 +420,9 @@ jobs:
       - name: Package container release assets
         run: node scripts/release/package-release-assets.mjs container --profile ${{ inputs.release_profile }} --release-tag ${{ needs.prepare.outputs.release_tag }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --accelerator ${{ matrix.accelerator }} --output-dir artifacts/release
 
+      - name: Smoke packaged container release assets
+        run: node scripts/release/smoke-deployment-release-assets.mjs --family container --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --accelerator ${{ matrix.accelerator }} --release-assets-dir artifacts/release
+
       - name: Resolve OCI image reference
         if: matrix.accelerator == 'cpu'
         id: oci_image
@@ -557,6 +560,12 @@ jobs:
         with:
           node-version: 22
 
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
       - name: Download published OCI image metadata
         uses: actions/download-artifact@v4
         with:
@@ -588,6 +597,9 @@ jobs:
 
       - name: Package kubernetes release assets
         run: node scripts/release/package-release-assets.mjs kubernetes --profile ${{ inputs.release_profile }} --release-tag ${{ needs.prepare.outputs.release_tag }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --accelerator ${{ matrix.accelerator }} --image-repository ${{ steps.image_metadata.outputs.image_repository }} --image-tag ${{ steps.image_metadata.outputs.image_tag }} --image-digest ${{ steps.image_metadata.outputs.image_digest }} --output-dir artifacts/release
+
+      - name: Smoke packaged kubernetes release assets
+        run: node scripts/release/smoke-deployment-release-assets.mjs --family kubernetes --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --accelerator ${{ matrix.accelerator }} --release-assets-dir artifacts/release
 
       - name: Attest kubernetes release assets
         if: ${{ needs.prepare.outputs.release_tag != '' }}

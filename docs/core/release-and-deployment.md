@@ -70,7 +70,8 @@ Local prerequisite notes:
 - `pnpm release:package:kubernetes` packages chart assets and release values, so it does not require a locally built server binary.
 - `pnpm release:smoke:desktop` re-runs only the packaged desktop installer smoke stage when you want to re-verify an already collected desktop artifact set without rebuilding bundles.
 - `pnpm release:smoke:server` re-runs only the packaged server bundle smoke stage when you want fresh runtime evidence for an existing server artifact set without rebuilding it.
-- `pnpm release:smoke:container` and `pnpm release:smoke:kubernetes` record capability-aware deployment smoke evidence. They currently emit machine-readable skipped reports when Docker, Helm, `kubectl`, or a live cluster context are unavailable.
+- `pnpm release:smoke:container` now extracts the packaged deployment bundle, runs Docker Compose against the packaged layout, and verifies `/claw/health/ready`, `/claw/manage/v1/host-endpoints`, and the bundled browser shell before persisting `release-smoke-report.json`.
+- `pnpm release:smoke:kubernetes` now renders the packaged chart with `helm template`, verifies the rendered readiness and image contracts, and uses `kubectl apply --dry-run=client` when `kubectl` is available. When Helm is unavailable, it still emits machine-readable skipped evidence instead of silently succeeding.
 
 The local wrapper defaults `release:plan`, `release:package:*`, and `release:finalize` to `artifacts/release`. CI still aggregates assets under `release-assets/`. Override the local defaults with environment variables such as:
 
@@ -116,6 +117,11 @@ Server artifacts also carry aggregated runtime evidence because a packaged serve
 
 - `serverBundleSmoke`: the aggregated packaged server runtime smoke summary lifted from `release-smoke-report.json`
 - `serverBundleSmoke.checks`: ordered readiness checks proving `/claw/health/ready`, `/claw/manage/v1/host-endpoints`, and the bundled browser shell all respond from the packaged archive
+
+Deployment artifacts also carry aggregated deployment evidence because packaging alone is not sufficient proof that the published bundle can be used safely:
+
+- `deploymentSmoke`: the aggregated deployment smoke summary lifted from `release-smoke-report.json` for `container` and `kubernetes` artifacts
+- `deploymentSmoke.checks`: ordered deployment checks proving Docker Compose startup and runtime readiness for `container`, plus rendered chart readiness and image-reference validation for `kubernetes`
 
 The persisted `desktopInstallerSmoke.installReadyLayout` object is intentionally stronger than `{ mode, installKey }`. It must prove all of the following:
 
@@ -235,6 +241,10 @@ The base compose file now requires an explicit manage credential pair before it 
 public control plane, and the default env overlay keeps
 `CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=false`.
 
+Each packaged container target now also persists `release-smoke-report.json` next to its partial
+manifest. Release finalization rejects the container artifact if Docker Compose smoke is missing,
+stale, or no longer matches the current packaged bundle.
+
 ### Kubernetes
 
 Kubernetes bundles package:
@@ -261,13 +271,18 @@ The chart also generates or references a Secret-backed control-plane credential 
 PersistentVolumeClaim at `/var/lib/claw-server` so the SQLite host-state baseline survives Pod
 restarts.
 
+Each packaged kubernetes target now also persists `release-smoke-report.json` next to its partial
+manifest. Release finalization rejects the kubernetes artifact if packaged chart rendering smoke is
+missing, stale, or no longer matches the current bundle.
+
 ## Finalization Step
 
 The packaging flow is intentionally split into:
 
 1. family-specific package collection
 2. desktop installer smoke verification for packaged desktop targets
-3. global release finalization
+3. packaged server and deployment smoke verification for server/container/kubernetes targets
+4. global release finalization
 
 The finalization step emits the final inventory and checksums after all family outputs have been aggregated into one release asset directory. Locally that defaults to `artifacts/release`; in GitHub workflows the same step runs against `release-assets/`:
 

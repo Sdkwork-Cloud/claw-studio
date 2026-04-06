@@ -352,3 +352,71 @@ test('local release helper automatically runs server smoke after packaging serve
   assert.equal(callOrder[1].context.arch, 'x64');
   assert.equal(callOrder[1].context.target, 'x86_64-unknown-linux-gnu');
 });
+
+test('local release helper automatically runs deployment smoke after packaging container and kubernetes release assets', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  const callOrder = [];
+  await helper.runLocalReleaseCommand({
+    mode: 'package:container',
+    env: {},
+    platform: 'linux',
+    arch: 'x64',
+    releaseAssetsDir: 'D:/synthetic/release-assets',
+    fileExists() {
+      return true;
+    },
+    packageContainerAssetsFn(context) {
+      callOrder.push({
+        step: 'package-container',
+        context,
+      });
+    },
+    smokeDeploymentReleaseAssetsFn: async (context) => {
+      callOrder.push({
+        step: `smoke-${context.family}`,
+        context,
+      });
+      return {
+        ok: true,
+      };
+    },
+  });
+
+  await helper.runLocalReleaseCommand({
+    mode: 'package:kubernetes',
+    env: {},
+    platform: 'linux',
+    arch: 'arm64',
+    releaseAssetsDir: 'D:/synthetic/release-assets',
+    packageKubernetesAssetsFn(context) {
+      callOrder.push({
+        step: 'package-kubernetes',
+        context,
+      });
+    },
+    smokeDeploymentReleaseAssetsFn: async (context) => {
+      callOrder.push({
+        step: `smoke-${context.family}`,
+        context,
+      });
+      return {
+        ok: true,
+      };
+    },
+  });
+
+  assert.deepEqual(
+    callOrder.map((entry) => entry.step),
+    ['package-container', 'smoke-container', 'package-kubernetes', 'smoke-kubernetes'],
+  );
+  assert.equal(callOrder[1].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
+  assert.equal(callOrder[1].context.platform, 'linux');
+  assert.equal(callOrder[1].context.arch, 'x64');
+  assert.equal(callOrder[1].context.accelerator, 'cpu');
+  assert.equal(callOrder[3].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
+  assert.equal(callOrder[3].context.platform, 'linux');
+  assert.equal(callOrder[3].context.arch, 'arm64');
+  assert.equal(callOrder[3].context.family, 'kubernetes');
+});
