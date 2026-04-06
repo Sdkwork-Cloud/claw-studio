@@ -53,6 +53,9 @@ pnpm release:package:container
 pnpm release:package:kubernetes
 pnpm release:package:web
 pnpm release:smoke:desktop
+pnpm release:smoke:server
+pnpm release:smoke:container
+pnpm release:smoke:kubernetes
 ```
 
 These commands collect family-specific assets into `artifacts/release` so they can be reviewed locally or aggregated for final release processing.
@@ -62,9 +65,12 @@ Local prerequisite notes:
 - `pnpm release:package:desktop` only collects installers and app bundles that already exist; run `pnpm release:desktop` or `pnpm tauri:build` first.
 - `pnpm release:package:desktop` now also runs the same desktop installer smoke contract used by release finalization, so each packaged desktop target persists an `installer-smoke-report.json` beside its `release-asset-manifest.json`.
 - `pnpm release:package:server` now auto-builds the missing native server release binary before packaging when you invoke the root local wrapper.
+- `pnpm release:package:server` now also runs packaged bundle-runtime smoke and persists a `release-smoke-report.json` beside the server `release-asset-manifest.json`.
 - `pnpm release:package:container` packages Docker deployment assets around a Linux server binary. The root local wrapper auto-builds that binary first when it is missing. On Windows, `pnpm server:build -- --target x86_64-unknown-linux-gnu` bridges into an installed WSL distro automatically. On macOS and other non-Linux hosts, the same fallback still depends on a working Linux target toolchain.
 - `pnpm release:package:kubernetes` packages chart assets and release values, so it does not require a locally built server binary.
 - `pnpm release:smoke:desktop` re-runs only the packaged desktop installer smoke stage when you want to re-verify an already collected desktop artifact set without rebuilding bundles.
+- `pnpm release:smoke:server` re-runs only the packaged server bundle smoke stage when you want fresh runtime evidence for an existing server artifact set without rebuilding it.
+- `pnpm release:smoke:container` and `pnpm release:smoke:kubernetes` record capability-aware deployment smoke evidence. They currently emit machine-readable skipped reports when Docker, Helm, `kubectl`, or a live cluster context are unavailable.
 
 The local wrapper defaults `release:plan`, `release:package:*`, and `release:finalize` to `artifacts/release`. CI still aggregates assets under `release-assets/`. Override the local defaults with environment variables such as:
 
@@ -105,6 +111,11 @@ Desktop artifacts carry additional machine-readable metadata because install-tim
 - `openClawInstallerContract`: the normalized desktop OpenClaw install contract stamped from the current source of truth and persisted from packaging through finalization
 - `desktopInstallerSmoke`: the aggregated desktop installer smoke summary lifted from `installer-smoke-report.json`
 - `desktopInstallerSmoke.installReadyLayout`: normalized first-launch readiness proof showing how the packaged installer leaves OpenClaw ready for startup reuse
+
+Server artifacts also carry aggregated runtime evidence because a packaged server bundle is not considered releasable until the extracted archive actually boots:
+
+- `serverBundleSmoke`: the aggregated packaged server runtime smoke summary lifted from `release-smoke-report.json`
+- `serverBundleSmoke.checks`: ordered readiness checks proving `/claw/health/ready`, `/claw/manage/v1/host-endpoints`, and the bundled browser shell all respond from the packaged archive
 
 The persisted `desktopInstallerSmoke.installReadyLayout` object is intentionally stronger than `{ mode, installKey }`. It must prove all of the following:
 
@@ -164,6 +175,8 @@ Server archives are native per-platform bundles. Each archive contains:
 - launcher scripts
 
 The bundled launcher sets `CLAW_SERVER_WEB_DIST` to the extracted `web/dist` directory so the archive can run outside the repository source tree.
+
+Each packaged server target now also persists `release-smoke-report.json` next to its partial manifest. Release finalization rejects the server artifact if that report is missing, stale, or no longer matches the current archive set.
 
 ### Container
 

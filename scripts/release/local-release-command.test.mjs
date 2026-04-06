@@ -72,6 +72,50 @@ test('local release helper resolves usable defaults for root release commands', 
   assert.equal(parsedSmokeContext.platform, 'macos');
   assert.equal(parsedSmokeContext.arch, 'arm64');
   assert.equal(parsedSmokeContext.target, 'aarch64-apple-darwin');
+
+  const parsedServerSmokeOptions = helper.parseArgs(['smoke', 'server']);
+  const parsedServerSmokeContext = helper.resolveLocalReleaseContext({
+    mode: parsedServerSmokeOptions.mode,
+    env: {},
+    platform: 'linux',
+    arch: 'x64',
+    cliOverrides: parsedServerSmokeOptions,
+  });
+
+  assert.equal(parsedServerSmokeContext.mode, 'smoke:server');
+  assert.equal(parsedServerSmokeContext.platform, 'linux');
+  assert.equal(parsedServerSmokeContext.arch, 'x64');
+  assert.equal(parsedServerSmokeContext.target, 'x86_64-unknown-linux-gnu');
+
+  const parsedContainerSmokeOptions = helper.parseArgs(['smoke', 'container']);
+  const parsedContainerSmokeContext = helper.resolveLocalReleaseContext({
+    mode: parsedContainerSmokeOptions.mode,
+    env: {},
+    platform: 'win32',
+    arch: 'x64',
+    cliOverrides: parsedContainerSmokeOptions,
+  });
+
+  assert.equal(parsedContainerSmokeContext.mode, 'smoke:container');
+  assert.equal(parsedContainerSmokeContext.platform, 'linux');
+  assert.equal(parsedContainerSmokeContext.arch, 'x64');
+  assert.equal(parsedContainerSmokeContext.target, 'x86_64-unknown-linux-gnu');
+  assert.equal(parsedContainerSmokeContext.accelerator, 'cpu');
+
+  const parsedKubernetesSmokeOptions = helper.parseArgs(['smoke', 'kubernetes']);
+  const parsedKubernetesSmokeContext = helper.resolveLocalReleaseContext({
+    mode: parsedKubernetesSmokeOptions.mode,
+    env: {},
+    platform: 'darwin',
+    arch: 'arm64',
+    cliOverrides: parsedKubernetesSmokeOptions,
+  });
+
+  assert.equal(parsedKubernetesSmokeContext.mode, 'smoke:kubernetes');
+  assert.equal(parsedKubernetesSmokeContext.platform, 'linux');
+  assert.equal(parsedKubernetesSmokeContext.arch, 'arm64');
+  assert.equal(parsedKubernetesSmokeContext.target, 'aarch64-unknown-linux-gnu');
+  assert.equal(parsedKubernetesSmokeContext.accelerator, 'cpu');
 });
 
 test('local release helper auto-builds missing server prerequisites for local server and container packaging', async () => {
@@ -156,6 +200,78 @@ test('local release helper dispatches desktop smoke through the dedicated smoke 
   assert.equal(result.mode, 'smoke:desktop');
 });
 
+test('local release helper dispatches server and deployment smoke through dedicated smoke commands', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  const smokeCalls = [];
+
+  const serverResult = await helper.runLocalReleaseCommand({
+    mode: 'smoke:server',
+    env: {},
+    platform: 'linux',
+    arch: 'x64',
+    smokeServerReleaseAssetsFn(context) {
+      smokeCalls.push({
+        family: 'server',
+        context,
+      });
+      return {
+        ok: true,
+        context,
+      };
+    },
+  });
+
+  const containerResult = await helper.runLocalReleaseCommand({
+    mode: 'smoke:container',
+    env: {},
+    platform: 'win32',
+    arch: 'x64',
+    smokeDeploymentReleaseAssetsFn(context) {
+      smokeCalls.push({
+        family: context.mode,
+        context,
+      });
+      return {
+        ok: true,
+        context,
+      };
+    },
+  });
+
+  const kubernetesResult = await helper.runLocalReleaseCommand({
+    mode: 'smoke:kubernetes',
+    env: {},
+    platform: 'darwin',
+    arch: 'arm64',
+    smokeDeploymentReleaseAssetsFn(context) {
+      smokeCalls.push({
+        family: context.mode,
+        context,
+      });
+      return {
+        ok: true,
+        context,
+      };
+    },
+  });
+
+  assert.equal(smokeCalls.length, 3);
+  assert.equal(smokeCalls[0].family, 'server');
+  assert.equal(smokeCalls[0].context.mode, 'smoke:server');
+  assert.equal(smokeCalls[0].context.target, 'x86_64-unknown-linux-gnu');
+  assert.equal(smokeCalls[1].family, 'smoke:container');
+  assert.equal(smokeCalls[1].context.platform, 'linux');
+  assert.equal(smokeCalls[1].context.accelerator, 'cpu');
+  assert.equal(smokeCalls[2].family, 'smoke:kubernetes');
+  assert.equal(smokeCalls[2].context.platform, 'linux');
+  assert.equal(smokeCalls[2].context.arch, 'arm64');
+  assert.equal(serverResult.mode, 'smoke:server');
+  assert.equal(containerResult.mode, 'smoke:container');
+  assert.equal(kubernetesResult.mode, 'smoke:kubernetes');
+});
+
 test('local release helper automatically runs desktop smoke after packaging desktop release assets', async () => {
   const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
   const helper = await import(pathToFileURL(helperPath).href);
@@ -174,6 +290,48 @@ test('local release helper automatically runs desktop smoke after packaging desk
       });
     },
     smokeDesktopInstallersFn: async (context) => {
+      callOrder.push({
+        step: 'smoke',
+        context,
+      });
+      return {
+        ok: true,
+      };
+    },
+  });
+
+  assert.deepEqual(
+    callOrder.map((entry) => entry.step),
+    ['package', 'smoke'],
+  );
+  assert.equal(callOrder[0].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
+  assert.equal(callOrder[1].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
+  assert.equal(callOrder[1].context.platform, 'linux');
+  assert.equal(callOrder[1].context.arch, 'x64');
+  assert.equal(callOrder[1].context.target, 'x86_64-unknown-linux-gnu');
+});
+
+test('local release helper automatically runs server smoke after packaging server release assets', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  const callOrder = [];
+  await helper.runLocalReleaseCommand({
+    mode: 'package:server',
+    env: {},
+    platform: 'linux',
+    arch: 'x64',
+    releaseAssetsDir: 'D:/synthetic/release-assets',
+    fileExists() {
+      return true;
+    },
+    packageServerAssetsFn(context) {
+      callOrder.push({
+        step: 'package',
+        context,
+      });
+    },
+    smokeServerReleaseAssetsFn: async (context) => {
       callOrder.push({
         step: 'smoke',
         context,

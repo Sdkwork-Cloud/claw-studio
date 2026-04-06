@@ -54,6 +54,11 @@ export function main() {
     /node scripts\/check-release-closure\.mjs/,
     'check:release-flow must execute the release closure guard',
   );
+  assert.match(
+    packageJson.scripts['release:smoke:server'],
+    /node scripts\/release\/local-release-command\.mjs smoke server/,
+    'package.json must expose the packaged server smoke command',
+  );
 
   assert.doesNotMatch(
     kubernetesValues,
@@ -91,6 +96,11 @@ export function main() {
     'desktop release workflow must smoke packaged installers before attesting and uploading artifacts',
   );
   assert.match(
+    workflow,
+    /package-release-assets\.mjs server[\s\S]*smoke-server-release-assets\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release/,
+    'server release workflow must smoke packaged server bundles before attesting and uploading artifacts',
+  );
+  assert.match(
     packagerSource,
     /image:\s*',?\s*`  repository: \$\{normalizedImageRepository\}`[\s\S]*`  tag: \$\{normalizedImageTag\}`/s,
     'kubernetes packager must write image repository and tag into values.release.yaml',
@@ -117,6 +127,11 @@ export function main() {
   );
   assert.match(
     releaseDoc,
+    /release:smoke:server/,
+    'release and deployment docs must expose the server smoke command',
+  );
+  assert.match(
+    releaseDoc,
     /openClawInstallerContract/,
     'release and deployment docs must describe desktop OpenClaw installer contract metadata',
   );
@@ -124,6 +139,11 @@ export function main() {
     releaseDoc,
     /desktopInstallerSmoke/,
     'release and deployment docs must describe aggregated desktop installer smoke metadata',
+  );
+  assert.match(
+    releaseDoc,
+    /serverBundleSmoke/,
+    'release and deployment docs must describe aggregated server bundle smoke metadata',
   );
   assert.match(
     releaseDoc,

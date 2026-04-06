@@ -46,6 +46,47 @@ function buildInstallReadyLayout({
   };
 }
 
+function buildServerSmokeReport({
+  manifestPath,
+  platform = 'linux',
+  arch = 'x64',
+  target = 'x86_64-unknown-linux-gnu',
+  artifactRelativePaths = [
+    'server/linux/x64/claw-studio-server-release-2026-04-03-08-linux-x64.tar.gz',
+  ],
+} = {}) {
+  return {
+    family: 'server',
+    platform,
+    arch,
+    target,
+    smokeKind: 'bundle-runtime',
+    status: 'passed',
+    verifiedAt: '2026-04-06T09:08:07.000Z',
+    manifestPath,
+    artifactRelativePaths,
+    launcherRelativePath: 'start-claw-server.sh',
+    runtimeBaseUrl: 'http://127.0.0.1:19797',
+    checks: [
+      {
+        id: 'health-ready',
+        status: 'passed',
+        detail: '/claw/health/ready returned 200',
+      },
+      {
+        id: 'host-endpoints',
+        status: 'passed',
+        detail: '/claw/manage/v1/host-endpoints returned canonical endpoints',
+      },
+      {
+        id: 'browser-shell',
+        status: 'passed',
+        detail: '/ returned bundled browser shell HTML',
+      },
+    ],
+  };
+}
+
 test('release asset finalizer writes a global checksum manifest and release manifest from partial package outputs', async () => {
   const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
   assert.equal(existsSync(finalizerPath), true, 'missing scripts/release/finalize-release-assets.mjs');
@@ -740,6 +781,176 @@ test('release asset finalizer infers multi-family metadata when fallback assets 
           kind: 'archive',
         },
       ],
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer lifts server bundle smoke metadata onto server artifacts', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-server-smoke-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const serverDir = path.join(releaseAssetsDir, 'server', 'linux', 'x64');
+  const serverArchiveRelativePath = 'server/linux/x64/claw-studio-server-release-2026-04-03-08-linux-x64.tar.gz';
+  const manifestPath = path.join(serverDir, 'release-asset-manifest.json');
+
+  try {
+    mkdirSync(serverDir, { recursive: true });
+    writeFileSync(
+      path.join(releaseAssetsDir, serverArchiveRelativePath),
+      'server-archive',
+      'utf8',
+    );
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-03-08',
+        platform: 'linux',
+        arch: 'x64',
+        artifacts: [
+          {
+            name: 'claw-studio-server-release-2026-04-03-08-linux-x64.tar.gz',
+            relativePath: serverArchiveRelativePath,
+            family: 'server',
+            platform: 'linux',
+            arch: 'x64',
+            kind: 'archive',
+            sha256: 'placeholder',
+            size: 14,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(serverDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildServerSmokeReport({ manifestPath }), null, 2)}\n`,
+      'utf8',
+    );
+
+    finalizer.finalizeReleaseAssets({
+      profileId: 'claw-studio',
+      releaseTag: 'release-2026-04-03-08',
+      repository: 'Sdkwork-Cloud/claw-studio',
+      releaseAssetsDir,
+    });
+
+    const manifest = JSON.parse(
+      readFileSync(path.join(releaseAssetsDir, 'release-manifest.json'), 'utf8'),
+    );
+    const serverArtifact = manifest.artifacts.find(
+      (artifact) => artifact.relativePath === serverArchiveRelativePath,
+    );
+
+    assert.deepEqual(
+      serverArtifact?.serverBundleSmoke,
+      {
+        reportRelativePath: 'server/linux/x64/release-smoke-report.json',
+        manifestRelativePath: 'server/linux/x64/release-asset-manifest.json',
+        verifiedAt: '2026-04-06T09:08:07.000Z',
+        target: 'x86_64-unknown-linux-gnu',
+        smokeKind: 'bundle-runtime',
+        status: 'passed',
+        launcherRelativePath: 'start-claw-server.sh',
+        runtimeBaseUrl: 'http://127.0.0.1:19797',
+        artifactRelativePaths: [
+          'server/linux/x64/claw-studio-server-release-2026-04-03-08-linux-x64.tar.gz',
+        ],
+        checks: [
+          {
+            id: 'health-ready',
+            status: 'passed',
+            detail: '/claw/health/ready returned 200',
+          },
+          {
+            id: 'host-endpoints',
+            status: 'passed',
+            detail: '/claw/manage/v1/host-endpoints returned canonical endpoints',
+          },
+          {
+            id: 'browser-shell',
+            status: 'passed',
+            detail: '/ returned bundled browser shell HTML',
+          },
+        ],
+      },
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer rejects server artifacts when bundle smoke evidence is missing or stale', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-server-smoke-missing-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const serverDir = path.join(releaseAssetsDir, 'server', 'linux', 'x64');
+  const serverArchiveRelativePath = 'server/linux/x64/claw-studio-server-release-2026-04-03-09-linux-x64.tar.gz';
+  const manifestPath = path.join(serverDir, 'release-asset-manifest.json');
+
+  try {
+    mkdirSync(serverDir, { recursive: true });
+    writeFileSync(
+      path.join(releaseAssetsDir, serverArchiveRelativePath),
+      'server-archive',
+      'utf8',
+    );
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-03-09',
+        platform: 'linux',
+        arch: 'x64',
+        artifacts: [
+          {
+            name: 'claw-studio-server-release-2026-04-03-09-linux-x64.tar.gz',
+            relativePath: serverArchiveRelativePath,
+            family: 'server',
+            platform: 'linux',
+            arch: 'x64',
+            kind: 'archive',
+            sha256: 'placeholder',
+            size: 14,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-03-09',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Missing server bundle smoke report/,
+    );
+
+    writeFileSync(
+      path.join(serverDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildServerSmokeReport({
+        manifestPath,
+        artifactRelativePaths: ['server/linux/x64/another-server-archive.tar.gz'],
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-03-09',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Server bundle smoke report does not match the current artifact set/,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

@@ -350,6 +350,9 @@ jobs:
       - name: Package server release assets
         run: node scripts/release/package-release-assets.mjs server --profile ${{ inputs.release_profile }} --release-tag ${{ needs.prepare.outputs.release_tag }} --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --output-dir artifacts/release
 
+      - name: Smoke packaged server release assets
+        run: node scripts/release/smoke-server-release-assets.mjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --release-assets-dir artifacts/release
+
       - name: Attest server release assets
         if: ${{ needs.prepare.outputs.release_tag != '' }}
         uses: actions/attest-build-provenance@v3

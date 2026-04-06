@@ -27,6 +27,12 @@ import {
 import {
   smokeDesktopInstallers,
 } from './smoke-desktop-installers.mjs';
+import {
+  smokeServerReleaseAssets,
+} from './smoke-server-release-assets.mjs';
+import {
+  smokeDeploymentReleaseAssets,
+} from './smoke-deployment-release-assets.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,10 +149,15 @@ function resolveMode(command, family) {
     return `package:${normalizedFamily}`;
   }
   if (normalizedCommand === 'smoke') {
-    if (normalizedFamily !== 'desktop') {
-      throw new Error('A release family is required for "smoke": desktop.');
+    if (
+      normalizedFamily !== 'desktop'
+      && normalizedFamily !== 'server'
+      && normalizedFamily !== 'container'
+      && normalizedFamily !== 'kubernetes'
+    ) {
+      throw new Error('A release family is required for "smoke": desktop, server, container, or kubernetes.');
     }
-    return 'smoke:desktop';
+    return `smoke:${normalizedFamily}`;
   }
 
   return normalizedCommand;
@@ -332,7 +343,12 @@ export function resolveLocalReleaseContext({
     env?.[RELEASE_IMAGE_DIGEST_ENV_VAR],
   );
 
-  if (normalizedMode === 'package:container' || normalizedMode === 'package:kubernetes') {
+  if (
+    normalizedMode === 'package:container'
+    || normalizedMode === 'package:kubernetes'
+    || normalizedMode === 'smoke:container'
+    || normalizedMode === 'smoke:kubernetes'
+  ) {
     const resolvedPlatform = normalizeDesktopPlatform(
       firstNonEmpty(
         cliOverrides.platform,
@@ -381,6 +397,7 @@ export function resolveLocalReleaseContext({
     normalizedMode === 'package:desktop'
     || normalizedMode === 'package:server'
     || normalizedMode === 'smoke:desktop'
+    || normalizedMode === 'smoke:server'
   ) {
     const targetSpec = resolveDesktopReleaseTarget({
       targetTriple: firstNonEmpty(
@@ -436,16 +453,27 @@ export function resolveLocalReleaseContext({
 }
 
 export async function runLocalReleaseCommand(options = {}) {
+  const cliOverrides = {
+    ...options,
+    platform: String(options.cliPlatform ?? '').trim(),
+    arch: String(options.cliArch ?? '').trim(),
+  };
   const context = resolveLocalReleaseContext({
     mode: options.mode,
     env: options.env,
-    platform: options.platform,
-    arch: options.arch,
+    platform: options.hostPlatform ?? options.platform,
+    arch: options.hostArch ?? options.arch,
     cwd: options.cwd,
-    cliOverrides: options,
+    cliOverrides,
   });
   const packageDesktopAssetsFn = options.packageDesktopAssetsFn ?? packageDesktopAssets;
+  const packageServerAssetsFn = options.packageServerAssetsFn ?? packageServerAssets;
+  const packageContainerAssetsFn = options.packageContainerAssetsFn ?? packageContainerAssets;
+  const packageKubernetesAssetsFn = options.packageKubernetesAssetsFn ?? packageKubernetesAssets;
+  const packageWebAssetsFn = options.packageWebAssetsFn ?? packageWebAssets;
   const smokeDesktopInstallersFn = options.smokeDesktopInstallersFn ?? smokeDesktopInstallers;
+  const smokeServerReleaseAssetsFn = options.smokeServerReleaseAssetsFn ?? smokeServerReleaseAssets;
+  const smokeDeploymentReleaseAssetsFn = options.smokeDeploymentReleaseAssetsFn ?? smokeDeploymentReleaseAssets;
 
   if (context.mode === 'plan') {
     const plan = createReleasePlan({
@@ -470,7 +498,8 @@ export async function runLocalReleaseCommand(options = {}) {
       resolveBinaryPath: options.resolveBinaryPath,
       runServerBuildFn: options.runServerBuildFn,
     });
-    packageServerAssets(context);
+    packageServerAssetsFn(context);
+    await smokeServerReleaseAssetsFn(context);
     return context;
   }
 
@@ -481,22 +510,35 @@ export async function runLocalReleaseCommand(options = {}) {
       resolveBinaryPath: options.resolveBinaryPath,
       runServerBuildFn: options.runServerBuildFn,
     });
-    packageContainerAssets(context);
+    packageContainerAssetsFn(context);
     return context;
   }
 
   if (context.mode === 'package:kubernetes') {
-    packageKubernetesAssets(context);
+    packageKubernetesAssetsFn(context);
     return context;
   }
 
   if (context.mode === 'package:web') {
-    packageWebAssets(context);
+    packageWebAssetsFn(context);
     return context;
   }
 
   if (context.mode === 'smoke:desktop') {
     await smokeDesktopInstallersFn(context);
+    return context;
+  }
+
+  if (context.mode === 'smoke:server') {
+    await smokeServerReleaseAssetsFn(context);
+    return context;
+  }
+
+  if (context.mode === 'smoke:container' || context.mode === 'smoke:kubernetes') {
+    await smokeDeploymentReleaseAssetsFn({
+      ...context,
+      family: context.mode.slice('smoke:'.length),
+    });
     return context;
   }
 
@@ -514,7 +556,14 @@ export async function runLocalReleaseCommand(options = {}) {
 }
 
 async function main() {
-  await runLocalReleaseCommand(parseArgs(process.argv.slice(2)));
+  const parsedOptions = parseArgs(process.argv.slice(2));
+  await runLocalReleaseCommand({
+    ...parsedOptions,
+    hostPlatform: process.platform,
+    hostArch: process.arch,
+    cliPlatform: parsedOptions.platform,
+    cliArch: parsedOptions.arch,
+  });
 }
 
 if (path.resolve(process.argv[1] ?? '') === __filename) {

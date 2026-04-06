@@ -157,7 +157,9 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-profiles\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-desktop-release-build\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/run-claw-server-build\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/release-smoke-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/finalize-release-assets\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-server-release-assets\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-desktop-installers\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/local-release-command\.test\.mjs/);
   assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
@@ -188,6 +190,9 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['release:package:kubernetes'], /node scripts\/release\/local-release-command\.mjs package kubernetes/);
   assert.match(rootPackage.scripts['release:package:web'], /node scripts\/release\/local-release-command\.mjs package web/);
   assert.match(rootPackage.scripts['release:smoke:desktop'], /node scripts\/release\/local-release-command\.mjs smoke desktop/);
+  assert.match(rootPackage.scripts['release:smoke:server'], /node scripts\/release\/local-release-command\.mjs smoke server/);
+  assert.match(rootPackage.scripts['release:smoke:container'], /node scripts\/release\/local-release-command\.mjs smoke container/);
+  assert.match(rootPackage.scripts['release:smoke:kubernetes'], /node scripts\/release\/local-release-command\.mjs smoke kubernetes/);
   assert.match(rootPackage.scripts['release:finalize'], /node scripts\/release\/local-release-command\.mjs finalize/);
   assert.match(rootPackage.scripts['server:build'], /node scripts\/run-claw-server-build\.mjs/);
 });
@@ -257,6 +262,38 @@ test('release closure contract documents and guards desktop install-ready smoke 
     releaseDoc,
     /installReadyLayout/,
     'release documentation must describe install-ready layout evidence',
+  );
+});
+
+test('release closure contract documents and guards packaged server bundle smoke evidence', () => {
+  const releaseClosureGuard = read('scripts/check-release-closure.mjs');
+  const releaseDoc = read('docs/core/release-and-deployment.md');
+  const reusableWorkflow = read('.github/workflows/release-reusable.yml');
+
+  assert.match(
+    releaseClosureGuard,
+    /release:smoke:server/,
+    'release closure guard must require the packaged server smoke command',
+  );
+  assert.match(
+    releaseClosureGuard,
+    /serverBundleSmoke/,
+    'release closure guard must protect aggregated server bundle smoke metadata',
+  );
+  assert.match(
+    reusableWorkflow,
+    /server-release:[\s\S]*package-release-assets\.mjs server[\s\S]*smoke-server-release-assets\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release/s,
+    'server release workflow must smoke packaged server bundles before attesting and uploading artifacts',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:server/,
+    'release documentation must expose the server smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /serverBundleSmoke/,
+    'release documentation must describe aggregated server bundle smoke metadata',
   );
 });
 
