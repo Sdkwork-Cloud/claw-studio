@@ -1,0 +1,51 @@
+# Shared host runtime currently requires a single replica until distributed coordination lands.
+replicaCount: 1
+
+image:
+  repository: claw-studio-server
+  tag: 0.1.0
+  digest: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 18797
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: claw.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+server:
+  host: 0.0.0.0
+  port: 18797
+  dataDir: /var/lib/claw-server
+
+auth:
+  existingSecret: ""
+  manageUsername: ""
+  managePassword: ""
+  internalUsername: ""
+  internalPassword: ""
+
+persistence:
+  enabled: true
+  mountPath: /var/lib/claw-server
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClass: ""
+
+targetArchitecture: x64
+acceleratorProfile: cpu
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

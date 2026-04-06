@@ -1,0 +1,380 @@
+import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Check, Package, Search, Settings2, Sparkles, UserCircle, X } from 'lucide-react';
+import { cn, Input, OverlaySurface } from '@sdkwork/claw-ui';
+
+export type ChatSessionContextStatusTone =
+  | 'ready'
+  | 'responding'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected';
+
+export interface ChatSessionContextDrawerOption {
+  id: string | null;
+  name: string;
+  description?: string | null;
+  avatarLabel?: string | null;
+}
+
+export interface ChatSessionContextDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  statusLabel: string;
+  statusTone: ChatSessionContextStatusTone;
+  detailItems?: string[];
+  currentChannelName?: string | null;
+  currentModelName?: string | null;
+  routeLabel?: string | null;
+  errorMessage?: string | null;
+  onOpenSettings?: () => void;
+  agentOptions: ChatSessionContextDrawerOption[];
+  selectedAgentId: string | null;
+  isAgentLoading?: boolean;
+  onSelectAgent: (agentId: string | null) => void;
+  skillOptions: ChatSessionContextDrawerOption[];
+  selectedSkillId: string | null;
+  isSkillLoading?: boolean;
+  onSelectSkill: (skillId: string | null) => void;
+}
+
+function resolveStatusClasses(statusTone: ChatSessionContextStatusTone) {
+  switch (statusTone) {
+    case 'responding':
+      return {
+        badge: 'border-primary-500/20 bg-primary-500/10 text-primary-700 dark:text-primary-300',
+        dot: 'bg-primary-500 dark:bg-primary-300',
+      };
+    case 'connected':
+      return {
+        badge: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+        dot: 'bg-emerald-500 dark:bg-emerald-300',
+      };
+    case 'reconnecting':
+      return {
+        badge: 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+        dot: 'bg-amber-500 dark:bg-amber-300',
+      };
+    case 'disconnected':
+      return {
+        badge: 'border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+        dot: 'bg-rose-500 dark:bg-rose-300',
+      };
+    default:
+      return {
+        badge: 'border-zinc-200 bg-white/90 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300',
+        dot: 'bg-zinc-400 dark:bg-zinc-500',
+      };
+  }
+}
+
+function getOptionInitials(option: ChatSessionContextDrawerOption) {
+  if (option.avatarLabel?.trim()) {
+    return option.avatarLabel.trim().slice(0, 2).toUpperCase();
+  }
+
+  return option.name.trim().slice(0, 2).toUpperCase();
+}
+
+export function ChatSessionContextDrawer({
+  isOpen,
+  onClose,
+  title,
+  statusLabel,
+  statusTone,
+  detailItems = [],
+  currentChannelName,
+  currentModelName,
+  routeLabel,
+  errorMessage,
+  onOpenSettings,
+  agentOptions,
+  selectedAgentId,
+  isAgentLoading = false,
+  onSelectAgent,
+  skillOptions,
+  selectedSkillId,
+  isSkillLoading = false,
+  onSelectSkill,
+}: ChatSessionContextDrawerProps) {
+  const { t } = useTranslation();
+  const [agentSearchQuery, setAgentSearchQuery] = useState('');
+  const [skillSearchQuery, setSkillSearchQuery] = useState('');
+  const statusClasses = resolveStatusClasses(statusTone);
+
+  const filteredAgentOptions = useMemo(() => {
+    const normalizedQuery = agentSearchQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return agentOptions;
+    }
+
+    return agentOptions.filter((option) => {
+      const haystack = [option.name, option.description ?? ''].join(' ').toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [agentOptions, agentSearchQuery]);
+
+  const filteredSkillOptions = useMemo(() => {
+    const normalizedQuery = skillSearchQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return skillOptions;
+    }
+
+    return skillOptions.filter((option) => {
+      const haystack = [option.name, option.description ?? ''].join(' ').toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [skillOptions, skillSearchQuery]);
+
+  return (
+    <OverlaySurface
+      isOpen={isOpen}
+      onClose={onClose}
+      variant="drawer"
+      className="max-w-[460px]"
+    >
+      <div className="flex items-start justify-between gap-4 border-b border-zinc-200/80 bg-zinc-50/85 px-5 py-5 dark:border-zinc-800 dark:bg-zinc-950/75 sm:px-6">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+            {t('chat.page.sessionContext')}
+          </div>
+          <h2 className="mt-2 truncate text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+            {title}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            {t('chat.page.sessionContextDescription')}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          aria-label={t('common.close')}
+          title={t('common.close')}
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        {errorMessage ? (
+          <div className="mb-5 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <section className="rounded-[26px] border border-zinc-200/80 bg-white/90 p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/90">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-600 dark:bg-primary-400/10 dark:text-primary-300">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="mt-4 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                {t('chat.page.sessionOverview')}
+              </div>
+            </div>
+            <div
+              className={cn(
+                'inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium',
+                statusClasses.badge,
+              )}
+            >
+              <span className={cn('h-2 w-2 rounded-full', statusClasses.dot)} />
+              <span>{statusLabel}</span>
+            </div>
+          </div>
+
+          {detailItems.length > 0 ? (
+            <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {detailItems.map((item, index) => (
+                <React.Fragment key={`${item}:${index}`}>
+                  {index > 0 ? (
+                    <span className="text-zinc-300 dark:text-zinc-600">/</span>
+                  ) : null}
+                  <span className="truncate">{item}</span>
+                </React.Fragment>
+              ))}
+            </div>
+          ) : null}
+
+          <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/90 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/80">
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                {t('chat.page.currentModel')}
+              </dt>
+              <dd className="mt-2 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {currentModelName || t('chat.page.noneSelected')}
+              </dd>
+            </div>
+            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/90 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/80">
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                {t('chat.page.currentChannel')}
+              </dt>
+              <dd className="mt-2 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {currentChannelName || t('chat.page.noneSelected')}
+              </dd>
+            </div>
+            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/90 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/80 sm:col-span-2">
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                {t('chat.page.routeMode')}
+              </dt>
+              <dd className="mt-2 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {routeLabel || t('chat.page.noneSelected')}
+              </dd>
+            </div>
+          </dl>
+
+          {onOpenSettings ? (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-zinc-200/80 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-primary-500 dark:hover:text-primary-300"
+            >
+              <Settings2 className="h-4 w-4" />
+              <span>{t('chat.page.configureModels')}</span>
+            </button>
+          ) : null}
+        </section>
+
+        <section className="mt-5">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+              {t('chat.page.selectAgent')}
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('chat.page.agentSelectionDescription')}
+            </p>
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input
+              type="text"
+              value={agentSearchQuery}
+              onChange={(event) => setAgentSearchQuery(event.target.value)}
+              placeholder={t('chat.page.searchAgentsPlaceholder')}
+              className="h-11 rounded-2xl border-zinc-200/80 bg-white pl-10 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900"
+            />
+          </div>
+          <div className="mt-3 space-y-2">
+            {isAgentLoading ? (
+              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                {t('common.loading')}
+              </div>
+            ) : filteredAgentOptions.length > 0 ? (
+              filteredAgentOptions.map((option) => {
+                const isSelected = option.id === selectedAgentId;
+                return (
+                  <button
+                    key={option.id ?? '__default_agent__'}
+                    type="button"
+                    onClick={() => onSelectAgent(option.id)}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
+                      isSelected
+                        ? 'border-primary-500/35 bg-primary-500/8 text-primary-700 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300'
+                        : 'border-zinc-200/80 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:bg-zinc-900/80',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold',
+                        isSelected
+                          ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300'
+                          : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                      )}
+                    >
+                      {option.id === null ? <UserCircle className="h-5 w-5" /> : getOptionInitials(option)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{option.name}</div>
+                      {option.description ? (
+                        <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                          {option.description}
+                        </div>
+                      ) : null}
+                    </div>
+                    {isSelected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                {t('chat.page.noMatchingAgents')}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-5">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+              {t('chat.page.selectSkill')}
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('chat.page.skillSelectionDescription')}
+            </p>
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input
+              type="text"
+              value={skillSearchQuery}
+              onChange={(event) => setSkillSearchQuery(event.target.value)}
+              placeholder={t('chat.page.searchSkillsPlaceholder')}
+              className="h-11 rounded-2xl border-zinc-200/80 bg-white pl-10 shadow-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-zinc-800 dark:bg-zinc-900"
+            />
+          </div>
+          <div className="mt-3 space-y-2">
+            {isSkillLoading ? (
+              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                {t('common.loading')}
+              </div>
+            ) : filteredSkillOptions.length > 0 ? (
+              filteredSkillOptions.map((option) => {
+                const isSelected = option.id === selectedSkillId;
+                return (
+                  <button
+                    key={option.id ?? '__default_skill__'}
+                    type="button"
+                    onClick={() => onSelectSkill(option.id)}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
+                      isSelected
+                        ? 'border-primary-500/35 bg-primary-500/8 text-primary-700 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-300'
+                        : 'border-zinc-200/80 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:bg-zinc-900/80',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold',
+                        isSelected
+                          ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300'
+                          : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                      )}
+                    >
+                      {option.id === null ? <Package className="h-5 w-5" /> : getOptionInitials(option)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{option.name}</div>
+                      {option.description ? (
+                        <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                          {option.description}
+                        </div>
+                      ) : null}
+                    </div>
+                    {isSelected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                {t('chat.page.noMatchingSkills')}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </OverlaySurface>
+  );
+}

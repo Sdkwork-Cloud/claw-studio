@@ -1,0 +1,860 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const rootDir = path.resolve(import.meta.dirname, '..');
+const syncModulePath = path.join(rootDir, 'scripts', 'sync-bundled-components.mjs');
+const syncModuleSource = readFileSync(syncModulePath, 'utf8');
+const syncModule = await import(pathToFileURL(syncModulePath).href);
+const expectedOpenClawVersion = syncModule.resolvePinnedOpenClawVersion({ env: {} });
+assert.equal(
+  typeof syncModule.createTauriBundleOverlayConfig,
+  'function',
+  'sync-bundled-components must export createTauriBundleOverlayConfig',
+);
+assert.equal(
+  typeof syncModule.resolveComponentRepositoryDir,
+  'function',
+  'sync-bundled-components must export resolveComponentRepositoryDir',
+);
+assert.equal(
+  typeof syncModule.resolvePinnedOpenClawVersion,
+  'function',
+  'sync-bundled-components must export resolvePinnedOpenClawVersion',
+);
+assert.equal(
+  typeof syncModule.shouldRefreshComponentRepository,
+  'function',
+  'sync-bundled-components must export shouldRefreshComponentRepository',
+);
+assert.equal(
+  typeof syncModule.removeDirectoryWithRetriesSync,
+  'function',
+  'sync-bundled-components must export removeDirectoryWithRetriesSync',
+);
+assert.equal(
+  typeof syncModule.inspectOpenClawPackageMetadata,
+  'function',
+  'sync-bundled-components must export inspectOpenClawPackageMetadata',
+);
+assert.equal(
+  typeof syncModule.resolvePreparedOpenClawPackageRoots,
+  'function',
+  'sync-bundled-components must export resolvePreparedOpenClawPackageRoots',
+);
+assert.equal(
+  typeof syncModule.resolveBundledBuildRoot,
+  'function',
+  'sync-bundled-components must export resolveBundledBuildRoot',
+);
+assert.equal(
+  typeof syncModule.pruneWindowsBundledMirrorRoots,
+  'function',
+  'sync-bundled-components must export pruneWindowsBundledMirrorRoots',
+);
+assert.equal(
+  typeof syncModule.prepareBundledOutputRootSync,
+  'function',
+  'sync-bundled-components must export prepareBundledOutputRootSync',
+);
+assert.equal(
+  typeof syncModule.copyBundledFileSync,
+  'function',
+  'sync-bundled-components must export copyBundledFileSync',
+);
+assert.equal(
+  typeof syncModule.writeJsonWithWindowsLockFallback,
+  'function',
+  'sync-bundled-components must export writeJsonWithWindowsLockFallback',
+);
+assert.equal(
+  typeof syncModule.syncSourceFoundationComponentRegistrySync,
+  'function',
+  'sync-bundled-components must export syncSourceFoundationComponentRegistrySync',
+);
+assert.equal(
+  typeof syncModule.validateStagedOpenClawPackage,
+  'function',
+  'sync-bundled-components must export validateStagedOpenClawPackage',
+);
+assert.equal(
+  typeof syncModule.ensureBundledNodeRuntimeCacheReady,
+  'function',
+  'sync-bundled-components must export ensureBundledNodeRuntimeCacheReady',
+);
+assert.match(
+  syncModuleSource,
+  /resolveOpenClawRuntimeInstallSpecs/,
+  'sync-bundled-components must use the shared OpenClaw runtime install spec helper so supplemental runtime packages stay aligned across prepare and stage flows',
+);
+assert.match(
+  syncModuleSource,
+  /buildOpenClawRuntimeInstallEnv/,
+  'sync-bundled-components must use the shared OpenClaw runtime install env helper so staging installs disable the bundled plugin postinstall',
+);
+assert.match(
+  syncModuleSource,
+  /env:\s*buildOpenClawRuntimeInstallEnv\(commandEnv\)/,
+  'sync-bundled-components must install OpenClaw staging packages with the shared runtime install env',
+);
+assert.match(
+  syncModuleSource,
+  /if \(process\.argv\[1\] && path\.resolve\(process\.argv\[1\]\) === __filename\) \{\s*main\(\)\.catch\(\(error\) => \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\);\s*\}/s,
+  'sync-bundled-components must wrap the CLI entrypoint with a top-level error handler',
+);
+assert.match(
+  syncModuleSource,
+  /validatePreparedOpenClawPackageTree/,
+  'sync-bundled-components must reuse the shared prepared OpenClaw package validation before accepting staged bundles',
+);
+const overlay = syncModule.createTauriBundleOverlayConfig({
+  workspaceRootDir: 'D:\\workspace\\claw-studio',
+  platform: 'win32',
+});
+
+assert.equal(typeof overlay, 'object');
+assert.equal(typeof overlay.bundle, 'object');
+assert.equal(typeof overlay.bundle.resources, 'object');
+
+const resources = overlay.bundle.resources;
+
+assert.ok(
+  syncModuleSource.indexOf("const desktopSrcTauriPathSegments = ['packages', 'sdkwork-claw-desktop', 'src-tauri'];") <
+    syncModuleSource.indexOf('const bundledRoot = resolveBundledBuildRoot(rootDir, process.platform);'),
+  'desktopSrcTauriPathSegments must be initialized before bundledRoot for non-Windows module loading',
+);
+
+for (const [resourceId, expectedSource, expectedTarget] of [
+  ['bundled', 'generated/br/b/', 'generated/bundled/'],
+  ['web-dist', 'generated/br/w/', 'dist/'],
+  ['openclaw-runtime', 'generated/br/o/', 'resources/openclaw/'],
+]) {
+  assert.equal(
+    resources[expectedSource],
+    expectedTarget,
+    `missing overlay bridge mapping for ${resourceId}`,
+  );
+  assert.doesNotMatch(
+    expectedSource,
+    /^[a-zA-Z]:[\\/]/,
+    `overlay bridge source must stay repo-relative for ${resourceId}`,
+  );
+  assert.equal(
+    expectedSource.includes('.sdkwork-bc'),
+    false,
+    `overlay bridge source must not expose external mirror roots for ${resourceId}`,
+  );
+}
+
+const vendoredHubInstallerRepoDir = syncModule.resolveComponentRepositoryDir({
+  component: {
+    checkoutDir: 'hub-installer',
+    repositoryDir: 'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\vendor\\hub-installer',
+  },
+  upstreamRootDir: 'D:\\workspace\\claw-studio\\.cache\\bundled-components\\upstreams',
+});
+
+assert.equal(
+  vendoredHubInstallerRepoDir,
+  'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\vendor\\hub-installer',
+  'sync-bundled-components must use the vendored hub-installer submodule as the source of truth',
+);
+
+const cachedOpenClawRepoDir = syncModule.resolveComponentRepositoryDir({
+  component: {
+    checkoutDir: 'openclaw',
+  },
+  upstreamRootDir: 'D:\\workspace\\claw-studio\\.cache\\bundled-components\\upstreams',
+});
+
+assert.equal(
+  cachedOpenClawRepoDir,
+  'D:\\workspace\\claw-studio\\.cache\\bundled-components\\upstreams\\openclaw',
+  'sync-bundled-components must continue to use cached upstream checkouts for non-vendored components',
+);
+
+const windowsBundledBuildRoot = syncModule.resolveBundledBuildRoot(
+  'D:\\workspace\\claw-studio',
+  'win32',
+  'unit-test-run',
+);
+
+assert.equal(
+  windowsBundledBuildRoot,
+  'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors\\bundled-unit-test-run',
+  'sync-bundled-components must stage Windows bundled assets into a dedicated mirror directory instead of mutating a long-lived shared bundled root in place',
+);
+
+const overriddenWindowsBundledBuildRoot = syncModule.resolveBundledBuildRoot(
+  'D:\\workspace\\claw-studio',
+  'win32',
+  'unit-test-run',
+  'D:\\workspace\\claw-studio\\.cache\\short-mirrors',
+);
+
+assert.equal(
+  overriddenWindowsBundledBuildRoot,
+  'D:\\workspace\\claw-studio\\.cache\\short-mirrors\\bundled-mirrors\\bundled-unit-test-run',
+  'sync-bundled-components must allow the Windows short mirror base directory to be overridden for restricted environments that cannot write to the drive-root mirror location',
+);
+
+{
+  const windowsMirrorBaseDir = 'D:\\.sdkwork-bc\\claw-studio';
+  const mirrorRoot = 'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors';
+  const activeBundleRoot = `${mirrorRoot}\\bundled-20260405-120000-1234`;
+  const removedMirrorPaths = [];
+  const loggedMessages = [];
+  const mirrorMtimeByPath = new Map([
+    [`${mirrorRoot}\\bundled-20260405-120000-1234`, 500],
+    [`${mirrorRoot}\\bundled-20260405-110000-1233`, 400],
+    [`${mirrorRoot}\\bundled-20260405-100000-1232`, 300],
+    [`${mirrorRoot}\\bundled-20260405-090000-1231`, 200],
+    [`${mirrorRoot}\\bundled-20260405-080000-1230`, 100],
+  ]);
+
+  const prunedMirrorPaths = syncModule.pruneWindowsBundledMirrorRoots({
+    workspaceRootDir: 'D:\\workspace\\claw-studio',
+    platform: 'win32',
+    activeBundleRoot,
+    windowsMirrorBaseDir,
+    retentionCount: 3,
+    existsImpl: () => true,
+    readdirImpl: () => [
+      { name: 'bundled-20260405-120000-1234', isDirectory: () => true },
+      { name: 'bundled-20260405-110000-1233', isDirectory: () => true },
+      { name: 'bundled-20260405-100000-1232', isDirectory: () => true },
+      { name: 'bundled-20260405-090000-1231', isDirectory: () => true },
+      { name: 'bundled-20260405-080000-1230', isDirectory: () => true },
+      { name: 'notes.txt', isDirectory: () => false },
+    ],
+    statImpl: (targetPath) => ({
+      mtimeMs: mirrorMtimeByPath.get(targetPath) ?? 0,
+    }),
+    cleanupImpl: (targetPath) => {
+      removedMirrorPaths.push(targetPath);
+    },
+    logger: (message) => {
+      loggedMessages.push(message);
+    },
+  });
+
+  assert.deepEqual(
+    prunedMirrorPaths,
+    [
+      `${mirrorRoot}\\bundled-20260405-090000-1231`,
+      `${mirrorRoot}\\bundled-20260405-080000-1230`,
+    ],
+    'sync-bundled-components must prune stale Windows bundled mirrors beyond the active mirror plus a small rollback window',
+  );
+  assert.deepEqual(
+    removedMirrorPaths,
+    prunedMirrorPaths,
+    'sync-bundled-components must delete the same stale Windows bundled mirrors that it reports as pruned',
+  );
+  assert.deepEqual(
+    loggedMessages,
+    [],
+    'sync-bundled-components must not log pruning warnings when stale Windows bundled mirrors are removed successfully',
+  );
+}
+
+assert.equal(
+  syncModule.resolvePinnedOpenClawVersion({ env: {} }),
+  expectedOpenClawVersion,
+  'sync-bundled-components must stay aligned with the bundled OpenClaw runtime version pin',
+);
+assert.match(
+  syncModuleSource,
+  /bundleManifest\.runtimeVersions\.node = DEFAULT_NODE_VERSION;/,
+  'sync-bundled-components must record the bundled node runtime version from the shared OpenClaw release config instead of process.versions.node',
+);
+assert.match(
+  syncModuleSource,
+  /inspectCachedNodeRuntimeDir/,
+  'sync-bundled-components must validate the bundled node runtime against the prepared OpenClaw runtime cache before staging it',
+);
+assert.match(
+  syncModuleSource,
+  /prepareOpenClawRuntime/,
+  'sync-bundled-components must reuse the shared OpenClaw runtime preparation flow when the bundled node runtime cache is missing or stale',
+);
+assert.doesNotMatch(
+  syncModuleSource,
+  /const nodeVersion = process\.versions\.node;/,
+  'sync-bundled-components must not derive the bundled node runtime manifest version from the local shell Node.js version',
+);
+assert.doesNotMatch(
+  syncModuleSource,
+  /copyFile\(process\.execPath,\s*bundledNodeBinaryPath\);/,
+  'sync-bundled-components must not stage the bundled node runtime from the local shell executable because that can drift from the pinned OpenClaw runtime version',
+);
+
+{
+  const inspectCalls = [];
+  const prepareCalls = [];
+  const readyTarget = {
+    platformId: 'windows',
+    archId: 'x64',
+    bundledNodePath: 'runtime/node/node.exe',
+    nodeArchiveName(version) {
+      return `node-v${version}-win-x64.zip`;
+    },
+  };
+  const readyResult = await syncModule.ensureBundledNodeRuntimeCacheReady({
+    cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
+    openclawVersion: expectedOpenClawVersion,
+    nodeVersion: '22.16.0',
+    target: readyTarget,
+    inspectCachedNodeRuntimeDirImpl: async (params) => {
+      inspectCalls.push(params);
+      return {
+        reusable: true,
+        reason: 'ready',
+        preparedNodeVersion: '22.16.0',
+      };
+    },
+    prepareOpenClawRuntimeImpl: async (params) => {
+      prepareCalls.push(params);
+    },
+  });
+
+  assert.equal(
+    readyResult.nodeSourceDir,
+    'D:\\workspace\\.cache\\openclaw-runtime-cache\\node\\windows-x64-node-v22.16.0',
+    'sync-bundled-components must stage the bundled node runtime from the prepared OpenClaw node cache root',
+  );
+  assert.equal(
+    readyResult.nodeBinaryPath,
+    'D:\\workspace\\.cache\\openclaw-runtime-cache\\node\\windows-x64-node-v22.16.0\\node.exe',
+    'sync-bundled-components must resolve the staged bundled node binary from the prepared cache instead of process.execPath',
+  );
+  assert.equal(
+    readyResult.refreshedRuntime,
+    false,
+    'sync-bundled-components must reuse a ready bundled node cache without re-running runtime preparation',
+  );
+  assert.equal(
+    inspectCalls.length,
+    1,
+    'sync-bundled-components must inspect the prepared bundled node cache before staging it',
+  );
+  assert.deepEqual(
+    prepareCalls,
+    [],
+    'sync-bundled-components must not re-run bundled runtime preparation when the prepared node cache is already reusable',
+  );
+}
+
+{
+  const prepareCalls = [];
+  const inspectResults = [
+    {
+      reusable: false,
+      reason: 'invalid',
+    },
+    {
+      reusable: true,
+      reason: 'ready',
+      preparedNodeVersion: '22.16.0',
+    },
+  ];
+
+  const refreshedResult = await syncModule.ensureBundledNodeRuntimeCacheReady({
+    cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
+    openclawVersion: expectedOpenClawVersion,
+    nodeVersion: '22.16.0',
+    target: {
+      platformId: 'windows',
+      archId: 'x64',
+      bundledNodePath: 'runtime/node/node.exe',
+      nodeArchiveName(version) {
+        return `node-v${version}-win-x64.zip`;
+      },
+    },
+    inspectCachedNodeRuntimeDirImpl: async () => inspectResults.shift(),
+    prepareOpenClawRuntimeImpl: async (params) => {
+      prepareCalls.push(params);
+    },
+  });
+
+  assert.equal(
+    refreshedResult.refreshedRuntime,
+    true,
+    'sync-bundled-components must refresh the prepared node runtime cache when the cached runtime is missing or stale',
+  );
+  assert.equal(
+    prepareCalls.length,
+    1,
+    'sync-bundled-components must invoke the shared OpenClaw runtime preparation flow when the bundled node cache is not reusable',
+  );
+  assert.equal(
+    prepareCalls[0].nodeVersion,
+    '22.16.0',
+    'sync-bundled-components must prepare the bundled node runtime using the shared pinned Node version',
+  );
+  assert.equal(
+    prepareCalls[0].openclawVersion,
+    expectedOpenClawVersion,
+    'sync-bundled-components must prepare the bundled node runtime using the shared pinned OpenClaw version',
+  );
+}
+
+{
+  const resourceFallbackResult = await syncModule.ensureBundledNodeRuntimeCacheReady({
+    cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
+    openclawVersion: expectedOpenClawVersion,
+    nodeVersion: '22.16.0',
+    target: {
+      platformId: 'windows',
+      archId: 'x64',
+      bundledNodePath: 'runtime/node/node.exe',
+      nodeArchiveName(version) {
+        return `node-v${version}-win-x64.zip`;
+      },
+    },
+    inspectCachedNodeRuntimeDirImpl: async () => ({
+      reusable: false,
+      reason: 'invalid',
+    }),
+    prepareOpenClawRuntimeImpl: async () => ({
+      resourceDir: 'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw',
+      manifest: {
+        nodeRelativePath: 'runtime/node/node.exe',
+      },
+    }),
+    inspectPreparedOpenClawRuntimeImpl: async () => ({
+      reusable: true,
+      reason: 'reused-existing',
+    }),
+  });
+
+  assert.equal(
+    resourceFallbackResult.nodeSourceDir,
+    'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw\\runtime\\node',
+    'sync-bundled-components must fall back to the validated bundled OpenClaw resource runtime when the node cache was not backfilled',
+  );
+  assert.equal(
+    resourceFallbackResult.nodeBinaryPath,
+    'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw\\runtime\\node\\node.exe',
+    'sync-bundled-components must resolve the bundled node binary from the validated prepared OpenClaw resource runtime when cache staging is unavailable',
+  );
+  assert.equal(
+    resourceFallbackResult.sourceKind,
+    'prepared-resource',
+    'sync-bundled-components must report when the bundled node runtime is sourced from the validated prepared OpenClaw resource runtime',
+  );
+}
+
+{
+  await assert.rejects(
+    () =>
+      syncModule.ensureBundledNodeRuntimeCacheReady({
+        cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
+        openclawVersion: expectedOpenClawVersion,
+        nodeVersion: '22.16.0',
+        target: {
+          platformId: 'windows',
+          archId: 'x64',
+          bundledNodePath: 'runtime/node/node.exe',
+          nodeArchiveName(version) {
+            return `node-v${version}-win-x64.zip`;
+          },
+        },
+        inspectCachedNodeRuntimeDirImpl: async () => ({
+          reusable: false,
+          reason: 'node-version-mismatch',
+          preparedNodeVersion: '22.20.0',
+        }),
+        prepareOpenClawRuntimeImpl: async () => ({
+          resourceDir: 'D:\\workspace\\claw-studio\\packages\\sdkwork-claw-desktop\\src-tauri\\resources\\openclaw',
+          manifest: {
+            nodeRelativePath: 'runtime/node/node.exe',
+          },
+        }),
+        inspectPreparedOpenClawRuntimeImpl: async () => ({
+          reusable: false,
+          reason: 'node-version-mismatch',
+          preparedNodeVersion: '22.20.0',
+        }),
+      }),
+    /22\.16\.0.*22\.20\.0|22\.20\.0.*22\.16\.0/,
+    'sync-bundled-components must fail loudly when the prepared bundled node cache still does not match the pinned OpenClaw runtime version after preparation',
+  );
+}
+
+{
+  const preparedRoots = syncModule.resolvePreparedOpenClawPackageRoots({
+    cacheDir: 'D:\\workspace\\.cache\\openclaw-runtime-cache',
+    openclawVersion: expectedOpenClawVersion,
+    nodeVersion: '22.16.0',
+    target: {
+      platformId: 'windows',
+      archId: 'x64',
+      nodeArchiveName(version) {
+        return `node-v${version}-win-x64.zip`;
+      },
+    },
+  });
+
+  assert.equal(
+    preparedRoots.preparedPackageRoot,
+    `D:\\workspace\\.cache\\openclaw-runtime-cache\\package\\windows-x64-openclaw-v${expectedOpenClawVersion}\\node_modules\\openclaw`,
+    'sync-bundled-components must resolve prepared OpenClaw staging roots from the runtime cache instead of src-tauri resources',
+  );
+  assert.equal(
+    preparedRoots.preparedModulesDir,
+    `D:\\workspace\\.cache\\openclaw-runtime-cache\\package\\windows-x64-openclaw-v${expectedOpenClawVersion}\\node_modules`,
+    'sync-bundled-components must reuse the cached runtime node_modules directory for prepared OpenClaw staging',
+  );
+}
+
+assert.equal(
+  syncModule.shouldRefreshComponentRepository({
+    componentId: 'openclaw',
+    noFetch: true,
+    desiredVersion: expectedOpenClawVersion,
+    currentVersion: '2026.3.24',
+    currentTags: ['v2026.3.24'],
+  }),
+  true,
+  'sync-bundled-components must refresh stale OpenClaw checkouts even when --no-fetch is enabled',
+);
+
+assert.equal(
+  syncModule.shouldRefreshComponentRepository({
+    componentId: 'openclaw',
+    noFetch: true,
+    desiredVersion: expectedOpenClawVersion,
+    currentVersion: expectedOpenClawVersion,
+    currentTags: [`v${expectedOpenClawVersion}`],
+  }),
+  false,
+  'sync-bundled-components must reuse OpenClaw checkouts already pinned to the bundled runtime release',
+);
+
+assert.equal(
+  syncModule.shouldRefreshComponentRepository({
+    componentId: 'openclaw',
+    noFetch: true,
+    desiredVersion: expectedOpenClawVersion,
+    currentVersion: expectedOpenClawVersion,
+    currentTags: [],
+  }),
+  false,
+  'sync-bundled-components must not require git tag inspection during --no-fetch when the checkout version already matches',
+);
+
+assert.match(
+  syncModuleSource,
+  /refs\/tags\/v\$\{desiredVersion\}/,
+  'sync-bundled-components must pin OpenClaw checkouts to the matching release tag',
+);
+
+{
+  let attempts = 0;
+  const sleepCalls = [];
+
+  syncModule.removeDirectoryWithRetriesSync('D:\\tmp\\bundled', {
+    retryCount: 3,
+    retryDelayMs: 10,
+    logger: () => {},
+    sleepImpl: (delayMs) => {
+      sleepCalls.push(delayMs);
+    },
+    removeImpl: () => {
+      attempts += 1;
+      if (attempts === 1) {
+        const error = new Error('busy directory');
+        error.code = 'ENOTEMPTY';
+        throw error;
+      }
+    },
+  });
+
+  assert.equal(
+    attempts,
+    2,
+    'sync-bundled-components must retry bundled directory cleanup after transient ENOTEMPTY failures',
+  );
+  assert.deepEqual(
+    sleepCalls,
+    [10],
+    'sync-bundled-components must back off before retrying transient bundled cleanup failures',
+  );
+}
+
+{
+  let cleanupCalls = 0;
+  const logLines = [];
+
+  syncModule.prepareBundledOutputRootSync('D:\\tmp\\bundled', {
+    cleanupImpl: () => {
+      cleanupCalls += 1;
+      const error = new Error('bundle-manifest.json is locked');
+      error.code = 'EPERM';
+      throw error;
+    },
+    logger: (line) => {
+      logLines.push(line);
+    },
+  });
+
+  assert.equal(
+    cleanupCalls,
+    1,
+    'sync-bundled-components must attempt bundled root cleanup before falling back to in-place sync',
+  );
+  assert.ok(
+    logLines.some((line) => line.includes('continuing with in-place bundle sync after cleanup fallback')),
+    'sync-bundled-components must log when it falls back to in-place bundle sync after a Windows cleanup lock',
+  );
+}
+
+{
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-source-registry-'));
+  const foundationDir = path.join(tempRoot, 'foundation', 'components');
+  mkdirSync(foundationDir, { recursive: true });
+  writeFileSync(
+    path.join(foundationDir, 'component-registry.json'),
+    `${JSON.stringify(
+      {
+        version: 1,
+        components: [
+          {
+            id: 'openclaw',
+            bundledVersion: '2026.3.24',
+          },
+          {
+            id: 'hub-installer',
+            bundledVersion: 'bundled',
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
+  const normalizedRegistry = syncModule.syncSourceFoundationComponentRegistrySync({
+    foundationDir,
+    bundledOpenClawVersion: expectedOpenClawVersion,
+  });
+  const normalizedFile = JSON.parse(
+    readFileSync(path.join(foundationDir, 'component-registry.json'), 'utf8'),
+  );
+
+  assert.equal(
+    normalizedRegistry.components.find((entry) => entry.id === 'openclaw')?.bundledVersion,
+    expectedOpenClawVersion,
+    'sync-bundled-components must normalize the source component registry to the shared OpenClaw stable version',
+  );
+  assert.deepEqual(
+    normalizedFile,
+    normalizedRegistry,
+    'sync-bundled-components must write the normalized OpenClaw source registry back to disk to prevent version drift',
+  );
+
+  rmSync(tempRoot, { recursive: true, force: true });
+}
+
+{
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-openclaw-'));
+  const packageRoot = path.join(tempRoot, 'openclaw');
+  mkdirSync(path.join(packageRoot, 'dist'), { recursive: true });
+  writeFileSync(
+    path.join(packageRoot, 'package.json'),
+    `${JSON.stringify({ name: 'openclaw', version: expectedOpenClawVersion }, null, 2)}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    path.join(packageRoot, 'dist', 'build-info.json'),
+    `${JSON.stringify(
+      {
+        version: '2026.3.24',
+        commit: '685f17460d69966be32f5409055c51a82bc0ad7e',
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    path.join(packageRoot, 'dist', 'cli-startup-metadata.json'),
+    `${JSON.stringify(
+      {
+        rootHelpText: '\n🦞 OpenClaw 2026.3.24 (685f174)\n',
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
+  const inspection = syncModule.inspectOpenClawPackageMetadata({
+    packageRoot,
+    expectedVersion: expectedOpenClawVersion,
+    expectedCommit: '213a704b71f4996dc82a583288ee53785215f627',
+  });
+
+  assert.equal(
+    inspection.fresh,
+    false,
+    'sync-bundled-components must detect stale OpenClaw dist metadata before dev staging',
+  );
+  assert.deepEqual(
+    inspection.issues,
+    [
+      'build-info-version-mismatch',
+      'build-info-commit-mismatch',
+      'cli-startup-version-mismatch',
+      'cli-startup-commit-mismatch',
+    ],
+    'sync-bundled-components must flag stale build-info and CLI startup metadata drift',
+  );
+
+  rmSync(tempRoot, { recursive: true, force: true });
+}
+
+{
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-runtime-readiness-'));
+  const packageRoot = path.join(tempRoot, 'app');
+  const modulesRoot = path.join(packageRoot, 'node_modules');
+  mkdirSync(path.join(packageRoot, 'dist'), { recursive: true });
+  mkdirSync(path.join(modulesRoot, 'openclaw'), { recursive: true });
+  writeFileSync(
+    path.join(packageRoot, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'openclaw',
+        version: expectedOpenClawVersion,
+        dependencies: {
+          koffi: '2.15.2',
+        },
+        pnpm: {
+          onlyBuiltDependencies: ['koffi'],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    path.join(packageRoot, 'openclaw.mjs'),
+    'export const openclaw = true;\n',
+    'utf8',
+  );
+
+  await assert.rejects(
+    () =>
+      syncModule.validateStagedOpenClawPackage({
+        packageRoot,
+        expectedVersion: expectedOpenClawVersion,
+        runtimeSupplementalPackages: [],
+      }),
+    /koffi/,
+    'sync-bundled-components must reject staged OpenClaw bundles whose runtime-only dependencies cannot be loaded',
+  );
+
+  rmSync(tempRoot, { recursive: true, force: true });
+}
+
+{
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-locked-copy-'));
+  const sourcePath = path.join(tempRoot, 'source.txt');
+  const targetPath = path.join(tempRoot, 'target.txt');
+  writeFileSync(sourcePath, 'same-openclaw-payload\n', 'utf8');
+  writeFileSync(targetPath, 'same-openclaw-payload\n', 'utf8');
+
+  const logLines = [];
+  const result = syncModule.copyBundledFileSync(sourcePath, targetPath, {
+    logger: (line) => {
+      logLines.push(line);
+    },
+    copyFileImpl: () => {
+      const error = new Error('avatar-placeholder.svg is locked');
+      error.code = 'EPERM';
+      throw error;
+    },
+  });
+
+  assert.deepEqual(
+    result,
+    { reusedLockedTarget: true },
+    'sync-bundled-components must reuse an equivalent locked target file instead of aborting the staged bundle sync',
+  );
+  assert.ok(
+    logLines.some((line) => line.includes('reusing existing locked bundled file')),
+    'sync-bundled-components must log when it reuses an equivalent locked file during bundle staging',
+  );
+
+  rmSync(tempRoot, { recursive: true, force: true });
+}
+
+{
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-sync-locked-json-'));
+  const targetPath = path.join(tempRoot, 'component-registry.json');
+  writeFileSync(
+    targetPath,
+    `${JSON.stringify({ version: 1, components: [{ id: 'openclaw', bundledVersion: `${expectedOpenClawVersion}+213a704b71f4` }] }, null, 2)}\n`,
+    'utf8',
+  );
+
+  const logLines = [];
+  const result = syncModule.writeJsonWithWindowsLockFallback(
+    targetPath,
+    { version: 1, components: [{ id: 'openclaw', bundledVersion: `${expectedOpenClawVersion}+213a704b71f4` }] },
+    {
+      logger: (line) => {
+        logLines.push(line);
+      },
+      writeFileImpl: () => {
+        const error = new Error('component-registry.json is locked');
+        error.code = 'EPERM';
+        throw error;
+      },
+      allowEquivalentExistingOnLock: true,
+    },
+  );
+
+  assert.deepEqual(
+    result,
+    { reusedLockedTarget: true },
+    'sync-bundled-components must tolerate a locked JSON target when it already matches the desired bundled metadata',
+  );
+  assert.ok(
+    logLines.some((line) => line.includes('reusing existing locked bundled json')),
+    'sync-bundled-components must log when it reuses equivalent locked bundled metadata',
+  );
+
+  assert.throws(
+    () =>
+      syncModule.writeJsonWithWindowsLockFallback(
+        targetPath,
+        { version: 1, components: [{ id: 'openclaw', bundledVersion: '2026.4.2+newcommit' }] },
+        {
+          writeFileImpl: () => {
+            const error = new Error('component-registry.json is locked');
+            error.code = 'EPERM';
+            throw error;
+          },
+          allowEquivalentExistingOnLock: true,
+        },
+      ),
+    /component-registry\.json is locked/,
+    'sync-bundled-components must still fail when a locked bundled metadata file is stale',
+  );
+
+  rmSync(tempRoot, { recursive: true, force: true });
+}
+
+assert.match(
+  syncModuleSource,
+  /refreshing openclaw dist for dev staging/,
+  'sync-bundled-components must rebuild stale OpenClaw dist before dev staging',
+);
+
+console.log('ok - sync-bundled-components emits short Windows Tauri bundle bridge roots');

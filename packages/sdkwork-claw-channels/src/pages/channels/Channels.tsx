@@ -1,0 +1,225 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useInstanceStore } from '@sdkwork/claw-core';
+import { openExternalUrl } from '@sdkwork/claw-infrastructure';
+import {
+  ChannelWorkspace,
+  getChannelOfficialLink,
+  type ChannelWorkspaceItem,
+} from '@sdkwork/claw-ui';
+import { Channel, channelService } from '../../services';
+
+function buildInitialFormData(channel: Channel | null) {
+  if (!channel) {
+    return {};
+  }
+
+  return channel.fields.reduce<Record<string, string>>((accumulator, field) => {
+    if (field.value !== undefined) {
+      accumulator[field.key] = field.value;
+    }
+    return accumulator;
+  }, {});
+}
+
+export function Channels() {
+  const { t } = useTranslation();
+  const { activeInstanceId } = useInstanceStore();
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const selectedChannel = useMemo(
+    () => channels.find((channel) => channel.id === selectedChannelId) || null,
+    [channels, selectedChannelId],
+  );
+
+  const channelWorkspaceItems = useMemo<ChannelWorkspaceItem[]>(
+    () =>
+      channels.map((channel) => ({
+        ...channel,
+        setupSteps: [...channel.setupGuide],
+        values: channel.fields.reduce<Record<string, string>>((accumulator, field) => {
+          accumulator[field.key] = field.value || '';
+          return accumulator;
+        }, {}),
+      })),
+    [channels],
+  );
+
+  useEffect(() => {
+    const fetchChannels = async () => {
+      if (!activeInstanceId) {
+        setChannels([]);
+        setSelectedChannelId(null);
+        setFormData({});
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const data = await channelService.getChannels(activeInstanceId);
+        setChannels(data);
+        setSelectedChannelId((current) =>
+          data.some((channel) => channel.id === current) ? current : null,
+        );
+      } catch (error) {
+        console.error('Failed to fetch channels:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchChannels();
+  }, [activeInstanceId]);
+
+  const handleSelectedChannelIdChange = (channelId: string | null) => {
+    setSelectedChannelId(channelId);
+
+    if (!channelId) {
+      setFormData({});
+      return;
+    }
+
+    const channel = channels.find((item) => item.id === channelId) || null;
+    setFormData(buildInitialFormData(channel));
+  };
+
+  const handleToggleEnable = async (channel: ChannelWorkspaceItem, nextEnabled: boolean) => {
+    if (!activeInstanceId) {
+      return;
+    }
+
+    if (nextEnabled && channel.status === 'not_configured') {
+      handleSelectedChannelIdChange(channel.id);
+      return;
+    }
+
+    try {
+      const updatedChannels = await channelService.updateChannelStatus(
+        activeInstanceId,
+        channel.id,
+        nextEnabled,
+      );
+      setChannels(updatedChannels);
+    } catch (error) {
+      console.error('Failed to update channel status:', error);
+    }
+  };
+
+  const handleFieldChange = (_channel: ChannelWorkspaceItem, key: string, value: string) => {
+    setFormData((current) => ({ ...current, [key]: value }));
+  };
+
+  const openOfficialLink = async (href: string) => {
+    await openExternalUrl(href);
+  };
+
+  const handleSave = async () => {
+    if (!selectedChannel || !activeInstanceId) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const updatedChannels = await channelService.saveChannelConfig(activeInstanceId, selectedChannel.id, formData);
+      setChannels(updatedChannels);
+      setSelectedChannelId(null);
+      setFormData({});
+    } catch (error) {
+      console.error('Failed to save channel config:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteConfig = async () => {
+    if (!selectedChannel || !activeInstanceId) {
+      return;
+    }
+
+    try {
+      const updatedChannels = await channelService.deleteChannelConfig(activeInstanceId, selectedChannel.id);
+      setChannels(updatedChannels);
+      setSelectedChannelId(null);
+      setFormData({});
+    } catch (error) {
+      console.error('Failed to delete channel config:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-8">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+      <div className="scrollbar-hide flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+              {t('channels.page.title')}
+            </h1>
+            <p className="mt-2 text-lg text-zinc-500 dark:text-zinc-400">
+              {t('channels.page.subtitle')}
+            </p>
+          </div>
+
+          <ChannelWorkspace
+            items={channelWorkspaceItems}
+            variant="management"
+            selectedChannelId={selectedChannel?.id || null}
+            valuesByChannelId={selectedChannel ? { [selectedChannel.id]: formData } : {}}
+            texts={{
+              statusActive: t('channels.page.status.active'),
+              statusConnected: t('dashboard.status.connected'),
+              statusDisconnected: t('channels.page.status.disconnected'),
+              statusNotConfigured: t('channels.page.status.notConfigured'),
+              actionConnect: t('channels.page.actions.connect'),
+              actionConfigure: t('channels.page.actions.configure'),
+              actionDownloadApp: t('channels.page.actions.downloadApp'),
+              actionOpenOfficialSite: t('channels.page.actions.openOfficialSite'),
+              actionEnableChannel: (name: string) =>
+                t('channels.page.actions.enableChannel', { name }),
+              metricConfiguredFields: t('instances.detail.instanceWorkbench.metrics.configuredFields'),
+              metricSetupSteps: t('instances.detail.instanceWorkbench.metrics.setupSteps'),
+              metricDeliveryState: t('instances.detail.instanceWorkbench.metrics.deliveryState'),
+              stateEnabled: t('instances.detail.instanceWorkbench.state.enabled'),
+              statePending: t('instances.detail.instanceWorkbench.state.pending'),
+              summaryFallback: t('channels.page.subtitle'),
+              panelEyebrow: t('channels.page.panel.configuration'),
+              setupGuideTitle: t('channels.page.panel.setupGuide'),
+              credentialsTitle: t('channels.page.panel.credentials'),
+              saveAction: t('channels.page.actions.saveAndEnable'),
+              savingAction: t('channels.page.actions.saving'),
+              deleteConfigurationAction: t('channels.page.actions.deleteConfiguration'),
+            }}
+            emptyState={
+              !activeInstanceId ? (
+                <div className="rounded-[1.5rem] border border-dashed border-zinc-300 bg-white/75 p-6 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/35 dark:text-zinc-400">
+                  {t('channels.page.subtitle')}
+                </div>
+              ) : null
+            }
+            resolveOfficialLink={(channel) => getChannelOfficialLink(channel.id)}
+            onOpenOfficialLink={(_channel, link) => void openOfficialLink(link.href)}
+            onSelectedChannelIdChange={handleSelectedChannelIdChange}
+            onFieldChange={handleFieldChange}
+            onSave={() => void handleSave()}
+            onDeleteConfiguration={() => void handleDeleteConfig()}
+            onToggleEnabled={(channel, nextEnabled) => {
+              void handleToggleEnable(channel, nextEnabled);
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,55 @@
+{
+  "eyebrow": "注册中心已连接",
+  "title": "Claw联网",
+  "subtitle": "从注册中心读取 OpenClaw 实例，并把网关连通性集中展示在一个界面里。",
+  "description": "这个基于注册中心的视图会展示已经注册到 Claw Studio 的 OpenClaw 运行时，方便你在智能体上线前核对联网状态、网关暴露情况以及路由就绪度。",
+  "refresh": "刷新注册中心",
+  "loadFailed": "加载注册中心连接状态失败",
+  "loadFailedDescription": "当前无法读取 OpenClaw 注册中心快照。",
+  "emptyTitle": "当前还没有已注册的 OpenClaw 实例",
+  "emptyDescription": "请先安装或注册一个 OpenClaw 运行时。进入注册中心后，这里会展示它的网关地址、WebSocket 入口、存储命名空间和路由就绪情况。",
+  "openInstall": "安装 OpenClaw",
+  "openInstances": "查看实例",
+  "builtInBadge": "内置",
+  "defaultBadge": "默认",
+  "notAvailable": "暂无",
+  "noDescription": "这个 OpenClaw 运行时已经出现在注册中心中，可以继续检查联网情况。",
+  "summary": {
+    "registered": "已注册运行时",
+    "online": "当前在线",
+    "gatewayReady": "网关就绪",
+    "builtIn": "内置运行时"
+  },
+  "status": {
+    "online": "在线",
+    "offline": "离线",
+    "starting": "启动中",
+    "error": "异常",
+    "syncing": "同步中"
+  },
+  "deploymentModes": {
+    "local-managed": "本地托管",
+    "local-external": "本地挂载运行时",
+    "remote": "远程运行时"
+  },
+  "transportKinds": {
+    "openclawGatewayWs": "OpenClaw 网关",
+    "zeroclawHttp": "ZeroClaw HTTP",
+    "ironclawWeb": "IronClaw Web",
+    "openaiHttp": "OpenAI HTTP",
+    "customHttp": "自定义 HTTP",
+    "customWs": "自定义 WebSocket"
+  },
+  "labels": {
+    "instanceId": "注册 ID",
+    "gateway": "网关地址",
+    "websocket": "WebSocket 地址",
+    "storage": "存储命名空间",
+    "capabilities": "能力",
+    "lastSeen": "最后在线"
+  },
+  "actions": {
+    "viewInstance": "查看实例",
+    "configureRouting": "配置路由"
+  }
+}

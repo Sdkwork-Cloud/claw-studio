@@ -1,0 +1,112 @@
+:root {
+  --vp-font-family-base: "Aptos", "Segoe UI", "Helvetica Neue", sans-serif;
+  --vp-font-family-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", monospace;
+  --vp-c-brand-1: #0f766e;
+  --vp-c-brand-2: #115e59;
+  --vp-c-brand-3: #134e4a;
+  --vp-c-brand-soft: rgba(15, 118, 110, 0.14);
+  --vp-c-bg: #fbfcfb;
+  --vp-c-bg-alt: #f2f7f5;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-divider: rgba(15, 23, 42, 0.1);
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #0f766e 0%, #1d4ed8 52%, #0f172a 100%);
+  --vp-home-hero-image-background-image: radial-gradient(circle at 30% 30%, rgba(20, 184, 166, 0.28), transparent 45%),
+    radial-gradient(circle at 72% 38%, rgba(29, 78, 216, 0.22), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(241, 245, 249, 0.82));
+  --vp-home-hero-image-filter: blur(0);
+}
+
+.dark {
+  --vp-c-brand-1: #5eead4;
+  --vp-c-brand-2: #2dd4bf;
+  --vp-c-brand-3: #14b8a6;
+  --vp-c-brand-soft: rgba(45, 212, 191, 0.18);
+  --vp-c-bg: #091018;
+  --vp-c-bg-alt: #101926;
+  --vp-c-bg-elv: #111c29;
+  --vp-c-divider: rgba(148, 163, 184, 0.18);
+  --vp-home-hero-name-background: linear-gradient(120deg, #5eead4 0%, #7dd3fc 55%, #f8fafc 100%);
+  --vp-home-hero-image-background-image: radial-gradient(circle at 30% 30%, rgba(20, 184, 166, 0.22), transparent 45%),
+    radial-gradient(circle at 72% 38%, rgba(59, 130, 246, 0.2), transparent 42%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(8, 15, 26, 0.94));
+}
+
+.VPNavBarTitle .title {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.VPFeature {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 247, 245, 0.86));
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+}
+
+.dark .VPFeature {
+  background: linear-gradient(180deg, rgba(17, 28, 41, 0.92), rgba(9, 16, 24, 0.94));
+  box-shadow: none;
+}
+
+.VPHomeHero .image-container,
+.VPHomeHero .image-bg {
+  border-radius: 28px;
+}
+
+.VPHomeHero .image-bg {
+  filter: blur(70px);
+  opacity: 0.72;
+}
+
+.VPHomeHero .main {
+  max-width: 640px;
+}
+
+.VPDoc .vp-doc h2 {
+  margin-top: 2.2rem;
+  padding-top: 0.3rem;
+}
+
+.VPDoc .vp-doc h3 {
+  margin-top: 1.5rem;
+}
+
+.site-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 1.5rem 0 2rem;
+}
+
+.site-card {
+  padding: 1.2rem;
+  border-radius: 20px;
+  border: 1px solid var(--vp-c-divider);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(245, 248, 247, 0.88));
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+}
+
+.dark .site-card {
+  background: linear-gradient(180deg, rgba(17, 28, 41, 0.9), rgba(10, 16, 24, 0.96));
+  box-shadow: none;
+}
+
+.site-card h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+}
+
+.site-card p {
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .VPHomeHero .image {
+    width: min(280px, 80vw);
+  }
+
+  .site-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@sdkwork/claw-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "cargo run --manifest-path src-host/Cargo.toml",
+    "build": "node ../../scripts/run-claw-server-build.mjs"
+  },
+  "dependencies": {
+    "@sdkwork/claw-host-core": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@sdkwork/claw-infrastructure",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@sdkwork/app-sdk": "workspace:*",
+    "@sdkwork/claw-i18n": "workspace:*",
+    "@sdkwork/claw-types": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

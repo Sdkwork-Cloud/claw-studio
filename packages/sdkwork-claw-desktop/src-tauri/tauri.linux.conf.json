@@ -1,0 +1,19 @@
+{
+  "bundle": {
+    "resources": {
+      "foundation/components/": "foundation/components/",
+      "generated/bundled/": "generated/bundled/",
+      "../dist/": "dist/",
+      "vendor/hub-installer/registry/": "vendor/hub-installer/registry/",
+      "generated/release/openclaw-resource/": "resources/openclaw/"
+    },
+    "linux": {
+      "deb": {
+        "postInstallScript": "./linux-postinstall-openclaw.sh"
+      },
+      "rpm": {
+        "postInstallScript": "./linux-postinstall-openclaw.sh"
+      }
+    }
+  }
+}

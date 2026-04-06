@@ -1,0 +1,318 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  INITIAL_DESKTOP_STARTUP_MILESTONES,
+  runDesktopBootstrapSequence,
+  type DesktopBootstrapState,
+  type DesktopBootstrapStateActions,
+} from './desktopBootstrapRuntime.ts';
+
+function createBootstrapState(): DesktopBootstrapState {
+  return {
+    milestones: { ...INITIAL_DESKTOP_STARTUP_MILESTONES },
+    status: 'booting',
+    errorMessage: null,
+    shouldRenderShell: false,
+    isSplashVisible: true,
+  };
+}
+
+function createStateActions(state: DesktopBootstrapState): DesktopBootstrapStateActions {
+  return {
+    updateMilestones(updater) {
+      state.milestones = updater(state.milestones);
+    },
+    setStatus(nextStatus) {
+      state.status = nextStatus;
+    },
+    setErrorMessage(nextMessage) {
+      state.errorMessage = nextMessage;
+    },
+    setShouldRenderShell(nextValue) {
+      state.shouldRenderShell = nextValue;
+    },
+    setIsSplashVisible(nextValue) {
+      state.isSplashVisible = nextValue;
+    },
+  };
+}
+
+function createManualTaskScheduler() {
+  let nextHandle = 1;
+  const queuedTasks = new Map<number, () => void>();
+
+  return {
+    schedule(callback: () => void) {
+      const handle = nextHandle;
+      nextHandle += 1;
+      queuedTasks.set(handle, callback);
+      return handle;
+    },
+    clear(handle: number) {
+      queuedTasks.delete(handle);
+    },
+    flushAll() {
+      const pending = [...queuedTasks.entries()];
+      queuedTasks.clear();
+      for (const [, callback] of pending) {
+        callback();
+      }
+    },
+    size() {
+      return queuedTasks.size;
+    },
+  };
+}
+
+test('desktop bootstrap runtime requests shell render only after the window, runtime, and shell bootstrap all succeed', async () => {
+  const state = createBootstrapState();
+  const actions = createStateActions(state);
+  const scheduler = createManualTaskScheduler();
+  const events: string[] = [];
+
+  const result = await runDesktopBootstrapSequence({
+    pathname: '/chat',
+    runId: 1,
+    isRunCurrent: () => true,
+    revealStartupWindow: async () => {
+      events.push('reveal-window');
+      assert.equal(state.milestones.hasWindowPresented, false);
+      assert.equal(state.shouldRenderShell, false);
+    },
+    connectDesktopRuntime: async () => {
+      events.push('connect-runtime');
+      assert.equal(state.milestones.hasWindowPresented, true);
+      assert.equal(state.milestones.hasRuntimeConnected, false);
+      assert.equal(state.shouldRenderShell, false);
+    },
+    bootstrapShellRuntime: async () => {
+      events.push('bootstrap-shell');
+      assert.equal(state.milestones.hasRuntimeConnected, true);
+      assert.equal(state.milestones.hasShellBootstrapped, false);
+      assert.equal(state.shouldRenderShell, false);
+    },
+    resolveSidebarStartupRoute(pathname) {
+      events.push(`resolve-startup-route:${pathname}`);
+      return '/chat';
+    },
+    listSidebarRoutePrefetchPaths() {
+      events.push('list-prefetch-routes');
+      return ['/chat', '/instances', '/settings'];
+    },
+    prefetchSidebarRoute(pathname) {
+      events.push(`prefetch-startup:${pathname}`);
+    },
+    prefetchSidebarRoutes(paths) {
+      events.push(`prefetch-warm:${paths.join(',')}`);
+    },
+    scheduleTask(callback) {
+      events.push('schedule-warm-prefetch');
+      return scheduler.schedule(callback);
+    },
+    clearScheduledTask(handle) {
+      events.push(`clear-task:${handle}`);
+      scheduler.clear(handle);
+    },
+    startRenderTransition(callback) {
+      events.push('start-transition');
+      callback();
+    },
+    resolveErrorMessage(error) {
+      return error instanceof Error ? error.message : String(error);
+    },
+    log(level, message) {
+      events.push(`log:${level}:${message}`);
+    },
+    actions,
+  });
+
+  assert.equal(result, 'launched');
+  assert.deepEqual(state.milestones, {
+    hasWindowPresented: true,
+    hasRuntimeConnected: true,
+    hasShellBootstrapped: true,
+    hasShellMounted: false,
+  });
+  assert.equal(state.status, 'launching');
+  assert.equal(state.errorMessage, null);
+  assert.equal(state.shouldRenderShell, true);
+  assert.equal(scheduler.size(), 1);
+  assert.equal(
+    events.includes('prefetch-warm:/instances,/settings'),
+    false,
+  );
+
+  scheduler.flushAll();
+
+  assert.equal(
+    events.includes('prefetch-warm:/instances,/settings'),
+    true,
+  );
+  assert.deepEqual(events, [
+    'reveal-window',
+    'connect-runtime',
+    'resolve-startup-route:/chat',
+    'schedule-warm-prefetch',
+    'prefetch-startup:/chat',
+    'bootstrap-shell',
+    'start-transition',
+    'list-prefetch-routes',
+    'prefetch-warm:/instances,/settings',
+  ]);
+});
+
+test('desktop bootstrap runtime enters error state and clears deferred sidebar warmup when shell bootstrap fails', async () => {
+  const state = createBootstrapState();
+  const actions = createStateActions(state);
+  const scheduler = createManualTaskScheduler();
+  const events: string[] = [];
+
+  const result = await runDesktopBootstrapSequence({
+    pathname: '/settings',
+    runId: 2,
+    isRunCurrent: () => true,
+    revealStartupWindow: async () => {
+      events.push('reveal-window');
+    },
+    connectDesktopRuntime: async () => {
+      events.push('connect-runtime');
+    },
+    bootstrapShellRuntime: async () => {
+      events.push('bootstrap-shell');
+      throw new Error('shell bootstrap failed');
+    },
+    resolveSidebarStartupRoute() {
+      return '/settings';
+    },
+    listSidebarRoutePrefetchPaths() {
+      return ['/settings', '/instances'];
+    },
+    prefetchSidebarRoute(pathname) {
+      events.push(`prefetch-startup:${pathname}`);
+    },
+    prefetchSidebarRoutes(paths) {
+      events.push(`prefetch-warm:${paths.join(',')}`);
+    },
+    scheduleTask(callback) {
+      return scheduler.schedule(callback);
+    },
+    clearScheduledTask(handle) {
+      events.push(`clear-task:${handle}`);
+      scheduler.clear(handle);
+    },
+    startRenderTransition() {
+      events.push('start-transition');
+    },
+    resolveErrorMessage(error) {
+      return error instanceof Error ? `resolved:${error.message}` : 'resolved';
+    },
+    log(level, message) {
+      events.push(`log:${level}:${message}`);
+    },
+    actions,
+  });
+
+  assert.equal(result, 'failed');
+  assert.deepEqual(state.milestones, {
+    hasWindowPresented: true,
+    hasRuntimeConnected: true,
+    hasShellBootstrapped: false,
+    hasShellMounted: false,
+  });
+  assert.equal(state.status, 'error');
+  assert.equal(state.errorMessage, 'resolved:shell bootstrap failed');
+  assert.equal(state.shouldRenderShell, false);
+  assert.equal(state.isSplashVisible, true);
+  assert.equal(scheduler.size(), 0);
+
+  scheduler.flushAll();
+
+  assert.equal(
+    events.includes('prefetch-warm:/instances'),
+    false,
+  );
+  assert.equal(
+    events.includes('start-transition'),
+    false,
+  );
+  assert.equal(
+    events.includes('log:error:Bootstrap failed.'),
+    true,
+  );
+});
+
+test('desktop bootstrap runtime stops cleanly when the run becomes stale before shell render is requested', async () => {
+  const state = createBootstrapState();
+  const actions = createStateActions(state);
+  const scheduler = createManualTaskScheduler();
+  const events: string[] = [];
+  let activeRun = true;
+
+  const result = await runDesktopBootstrapSequence({
+    pathname: '/instances',
+    runId: 3,
+    isRunCurrent: () => activeRun,
+    revealStartupWindow: async () => {
+      events.push('reveal-window');
+    },
+    connectDesktopRuntime: async () => {
+      events.push('connect-runtime');
+    },
+    bootstrapShellRuntime: async () => {
+      events.push('bootstrap-shell');
+      activeRun = false;
+    },
+    resolveSidebarStartupRoute() {
+      return '/instances';
+    },
+    listSidebarRoutePrefetchPaths() {
+      return ['/instances', '/settings'];
+    },
+    prefetchSidebarRoute(pathname) {
+      events.push(`prefetch-startup:${pathname}`);
+    },
+    prefetchSidebarRoutes(paths) {
+      events.push(`prefetch-warm:${paths.join(',')}`);
+    },
+    scheduleTask(callback) {
+      return scheduler.schedule(callback);
+    },
+    clearScheduledTask(handle) {
+      events.push(`clear-task:${handle}`);
+      scheduler.clear(handle);
+    },
+    startRenderTransition() {
+      events.push('start-transition');
+    },
+    resolveErrorMessage(error) {
+      return error instanceof Error ? error.message : String(error);
+    },
+    log(level, message) {
+      events.push(`log:${level}:${message}`);
+    },
+    actions,
+  });
+
+  assert.equal(result, 'cancelled');
+  assert.deepEqual(state.milestones, {
+    hasWindowPresented: true,
+    hasRuntimeConnected: true,
+    hasShellBootstrapped: false,
+    hasShellMounted: false,
+  });
+  assert.equal(state.status, 'booting');
+  assert.equal(state.shouldRenderShell, false);
+  assert.equal(scheduler.size(), 0);
+
+  scheduler.flushAll();
+
+  assert.equal(
+    events.includes('prefetch-warm:/settings'),
+    false,
+  );
+  assert.equal(
+    events.includes('start-transition'),
+    false,
+  );
+});

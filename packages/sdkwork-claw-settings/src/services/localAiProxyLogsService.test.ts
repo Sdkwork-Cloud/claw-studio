@@ -1,0 +1,158 @@
+import assert from 'node:assert/strict';
+import type { PaginatedResult } from '@sdkwork/claw-types';
+
+async function runTest(name: string, callback: () => Promise<void> | void) {
+  try {
+    await callback();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}
+
+await runTest('localAiProxyLogsService normalizes request and message log queries before delegating to the kernel bridge', async () => {
+  const { createLocalAiProxyLogsService } = await import('./localAiProxyLogsService.ts');
+
+  const calls: Array<{ kind: string; query: Record<string, unknown> }> = [];
+  const emptyPage: PaginatedResult<any> = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 20,
+    hasMore: false,
+  };
+
+  const service = createLocalAiProxyLogsService({
+    kernelPlatformService: {
+      listLocalAiProxyRequestLogs: async (query) => {
+        calls.push({ kind: 'requests', query });
+        return emptyPage;
+      },
+      listLocalAiProxyMessageLogs: async (query) => {
+        calls.push({ kind: 'messages', query });
+        return emptyPage;
+      },
+      updateLocalAiProxyMessageCapture: async (enabled) => ({
+        enabled,
+        updatedAt: 1743512000000,
+      }),
+      getInfo: async () =>
+        ({
+          localAiProxy: {
+            messageCaptureEnabled: false,
+          },
+        }) as any,
+    } as any,
+  });
+
+  await service.listRequestLogs({
+    page: 0,
+    pageSize: 999,
+    search: '  openai  ',
+    providerId: ' openai ',
+    status: 'all',
+  });
+  await service.listMessageLogs({
+    page: -1,
+    pageSize: 0,
+    search: '  summarize  ',
+    providerId: ' openai ',
+  });
+  const settings = await service.getMessageCaptureSettings();
+  const updated = await service.updateMessageCaptureSettings(true);
+
+  assert.deepEqual(calls, [
+    {
+      kind: 'requests',
+      query: {
+        page: 1,
+        pageSize: 100,
+        search: 'openai',
+        providerId: 'openai',
+      },
+    },
+    {
+      kind: 'messages',
+      query: {
+        page: 1,
+        pageSize: 20,
+        search: 'summarize',
+        providerId: 'openai',
+      },
+    },
+  ]);
+  assert.deepEqual(settings, {
+    enabled: false,
+    updatedAt: null,
+  });
+  assert.deepEqual(updated, {
+    enabled: true,
+    updatedAt: 1743512000000,
+  });
+});
+
+await runTest('localAiProxyLogsService preserves prompt, completion, and cache token aliases from kernel request logs', async () => {
+  const { createLocalAiProxyLogsService } = await import('./localAiProxyLogsService.ts');
+
+  const service = createLocalAiProxyLogsService({
+    kernelPlatformService: {
+      listLocalAiProxyRequestLogs: async () => ({
+        items: [
+          {
+            id: 'req_usage_1',
+            createdAt: 1743513000000,
+            routeId: 'provider-config-openai',
+            routeName: 'OpenAI',
+            providerId: 'openai',
+            clientProtocol: 'openai-compatible',
+            upstreamProtocol: 'openai-compatible',
+            endpoint: '/v1/chat/completions',
+            status: 'succeeded',
+            modelId: 'gpt-5.4',
+            baseUrl: 'https://api.openai.com/v1',
+            totalDurationMs: 810,
+            totalTokens: 12_313,
+            promptTokens: 12_307,
+            completionTokens: 6,
+            inputTokens: 12_307,
+            outputTokens: 6,
+            cacheTokens: 4_096,
+            requestMessageCount: 1,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+      }),
+      listLocalAiProxyMessageLogs: async () => ({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+      }),
+      updateLocalAiProxyMessageCapture: async (enabled) => ({
+        enabled,
+        updatedAt: 1743512000000,
+      }),
+      getInfo: async () =>
+        ({
+          localAiProxy: {
+            messageCaptureEnabled: false,
+          },
+        }) as any,
+    } as any,
+  });
+
+  const result = await service.listRequestLogs({});
+  const record = result.items[0];
+
+  assert.equal(record?.totalTokens, 12_313);
+  assert.equal(record?.promptTokens, 12_307);
+  assert.equal(record?.completionTokens, 6);
+  assert.equal(record?.inputTokens, 12_307);
+  assert.equal(record?.outputTokens, 6);
+  assert.equal(record?.cacheTokens, 4_096);
+});

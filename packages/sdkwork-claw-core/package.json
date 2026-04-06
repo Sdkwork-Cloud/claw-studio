@@ -1,0 +1,34 @@
+{
+  "name": "@sdkwork/claw-core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sdkwork/app-sdk": "workspace:^",
+    "@sdkwork/claw-i18n": "workspace:*",
+    "@sdkwork/claw-infrastructure": "workspace:*",
+    "@sdkwork/core-pc-react": "workspace:*",
+    "fuse.js": "^7.3.0",
+    "json5": "^2.2.3",
+    "lucide-react": "^1.7.0",
+    "motion": "^12.38.0",
+    "react": "^19.2.4",
+    "react-i18next": "^17.0.2",
+    "react-router-dom": "^7.14.0",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.2"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "browser": "./src/index.ts",
+      "default": "./src/node.ts"
+    },
+    "./sdk": "./src/sdk/index.ts"
+  }
+}

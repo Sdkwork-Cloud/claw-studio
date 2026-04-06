@@ -1,0 +1,11 @@
+services:
+  claw-server:
+    env_file:
+      - profiles/nvidia-cuda.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: ["gpu"]

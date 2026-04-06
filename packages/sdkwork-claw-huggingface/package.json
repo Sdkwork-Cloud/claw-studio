@@ -1,0 +1,23 @@
+{
+  "name": "@sdkwork/claw-huggingface",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@sdkwork/claw-core": "workspace:*",
+    "@sdkwork/claw-i18n": "workspace:*",
+    "@sdkwork/claw-ui": "workspace:*",
+    "@tanstack/react-virtual": "^3.13.23",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "fuse.js": "^7.3.0",
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-i18next": "^17.0.2",
+    "react-router-dom": "^7.14.0",
+    "sonner": "^2.0.7"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

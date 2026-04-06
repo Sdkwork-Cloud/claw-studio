@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "openclaw",
+      "displayName": "OpenClaw",
+      "kind": "nodeApp",
+      "bundledVersion": "2026.4.2",
+      "startupMode": "autoStart",
+      "installSubdir": "modules/openclaw/current",
+      "upgradeChannel": "stable",
+      "serviceIds": ["openclaw"]
+    },
+    {
+      "id": "zeroclaw",
+      "displayName": "ZeroClaw",
+      "kind": "binary",
+      "bundledVersion": "bundled",
+      "startupMode": "manual",
+      "installSubdir": "modules/zeroclaw/current",
+      "upgradeChannel": "stable",
+      "serviceIds": ["zeroclaw"]
+    },
+    {
+      "id": "ironclaw",
+      "displayName": "IronClaw",
+      "kind": "binary",
+      "bundledVersion": "bundled",
+      "startupMode": "manual",
+      "installSubdir": "modules/ironclaw/current",
+      "upgradeChannel": "stable",
+      "serviceIds": ["ironclaw"]
+    },
+    {
+      "id": "hub-installer",
+      "displayName": "Hub Installer",
+      "kind": "embeddedLibrary",
+      "bundledVersion": "bundled",
+      "startupMode": "embedded",
+      "installSubdir": "modules/hub-installer/current",
+      "upgradeChannel": "stable",
+      "serviceIds": []
+    }
+  ]
+}

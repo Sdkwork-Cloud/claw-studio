@@ -1,0 +1,21 @@
+services:
+  claw-server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: claw-studio-server:local
+    restart: unless-stopped
+    env_file:
+      - profiles/default.env
+    environment:
+      CLAW_SERVER_MANAGE_USERNAME: ${CLAW_SERVER_MANAGE_USERNAME:?set CLAW_SERVER_MANAGE_USERNAME before starting the public control plane}
+      CLAW_SERVER_MANAGE_PASSWORD: ${CLAW_SERVER_MANAGE_PASSWORD:?set CLAW_SERVER_MANAGE_PASSWORD before starting the public control plane}
+      CLAW_SERVER_INTERNAL_USERNAME: ${CLAW_SERVER_INTERNAL_USERNAME:-}
+      CLAW_SERVER_INTERNAL_PASSWORD: ${CLAW_SERVER_INTERNAL_PASSWORD:-}
+    ports:
+      - "18797:18797"
+    volumes:
+      - claw-server-data:/var/lib/claw-server
+
+volumes:
+  claw-server-data:

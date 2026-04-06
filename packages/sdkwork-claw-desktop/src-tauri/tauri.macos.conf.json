@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "resources": {
+      "foundation/components/": "foundation/components/",
+      "generated/bundled/": "generated/bundled/",
+      "../dist/": "dist/",
+      "vendor/hub-installer/registry/": "vendor/hub-installer/registry/",
+      "generated/release/openclaw-resource/": "resources/openclaw/"
+    },
+    "macOS": {
+      "files": {
+        "generated/release/macos-install-root/": "MacOS/"
+      }
+    }
+  }
+}

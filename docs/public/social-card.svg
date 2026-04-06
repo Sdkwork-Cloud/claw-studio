@@ -1,0 +1,46 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" rx="36" fill="#08111A"/>
+  <rect x="36" y="36" width="1128" height="558" rx="28" fill="url(#panel)"/>
+  <circle cx="918" cy="164" r="210" fill="url(#glowA)" opacity="0.55"/>
+  <circle cx="1034" cy="444" r="186" fill="url(#glowB)" opacity="0.38"/>
+  <rect x="78" y="82" width="94" height="94" rx="24" fill="url(#logo)"/>
+  <path d="M125 100V110" stroke="white" stroke-width="5" stroke-linecap="round"/>
+  <path d="M125 146V158" stroke="white" stroke-width="5" stroke-linecap="round"/>
+  <path d="M95 128H105" stroke="white" stroke-width="5" stroke-linecap="round"/>
+  <path d="M145 128H155" stroke="white" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="125" cy="128" r="18" stroke="white" stroke-width="5"/>
+  <circle cx="125" cy="128" r="6" fill="white"/>
+  <text x="78" y="268" fill="white" font-size="72" font-weight="700" font-family="Segoe UI, Arial, sans-serif">Claw Studio</text>
+  <text x="78" y="336" fill="#B8C7D9" font-size="28" font-family="Segoe UI, Arial, sans-serif">
+    Package-first workspace documentation for the shared web shell,
+  </text>
+  <text x="78" y="376" fill="#B8C7D9" font-size="28" font-family="Segoe UI, Arial, sans-serif">
+    feature packages, and Tauri desktop runtime.
+  </text>
+  <rect x="78" y="446" width="264" height="58" rx="18" fill="rgba(94,234,212,0.14)" stroke="rgba(94,234,212,0.36)"/>
+  <text x="112" y="482" fill="#5EEAD4" font-size="24" font-weight="700" font-family="Segoe UI, Arial, sans-serif">v3-aligned architecture</text>
+  <rect x="362" y="446" width="220" height="58" rx="18" fill="rgba(125,211,252,0.12)" stroke="rgba(125,211,252,0.28)"/>
+  <text x="404" y="482" fill="#7DD3FC" font-size="24" font-weight="700" font-family="Segoe UI, Arial, sans-serif">root-only imports</text>
+  <rect x="604" y="446" width="210" height="58" rx="18" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.16)"/>
+  <text x="645" y="482" fill="#F8FAFC" font-size="24" font-weight="700" font-family="Segoe UI, Arial, sans-serif">Tauri desktop</text>
+  <defs>
+    <linearGradient id="panel" x1="92" y1="66" x2="1126" y2="576" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="0.56" stop-color="#0B1320"/>
+      <stop offset="1" stop-color="#091018"/>
+    </linearGradient>
+    <linearGradient id="logo" x1="90" y1="92" x2="162" y2="170" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F766E"/>
+      <stop offset="0.52" stop-color="#1D4ED8"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(918 164) rotate(90) scale(210)">
+      <stop stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#14B8A6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1034 444) rotate(90) scale(186)">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#2563EB" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+</svg>

@@ -1,0 +1,15 @@
+export * from './installPathService';
+export * from './installerService';
+export * from './hubInstallProgressService';
+export * from './guidedInstallProviderPolicy';
+export * from './mobileAppGuideService';
+export * from './openClawBootstrapService';
+export * from './openClawInstallWizardService';
+export * from './installRecommendationService';
+export * from './installBootstrapService';
+export * from './installGuidedWizardService';
+export * from './installRecordDiscoveryService';
+export * from './openClawCatalogService';
+export * from './openClawInstallDetailService';
+export * as openClawInstallWizardService from './openClawInstallWizardService';
+export * as installGuidedWizardService from './installGuidedWizardService';

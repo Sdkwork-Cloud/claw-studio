@@ -1,0 +1,20 @@
+packages:
+  - 'packages/sdkwork-claw-*'
+  - '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed'
+  - '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim'
+  - '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/generated/server-openapi'
+  - '../sdkwork-core/sdkwork-core-pc-react'
+  - '../../spring-ai-plus-app-api/sdkwork-sdk-app/sdkwork-app-sdk-typescript'
+  - '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript'
+
+catalog:
+  '@types/react': ^19.2.14
+  '@types/react-dom': ^19.2.3
+  react: ^19.2.4
+  react-dom: ^19.2.4
+  typescript: ^6.0.2
+  vite-plugin-dts: ^4.5.4
+
+ignoredBuiltDependencies:
+  - esbuild
+  - protobufjs

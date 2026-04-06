@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "autoStartComponentIds": ["openclaw"],
+  "manualComponentIds": ["zeroclaw", "ironclaw"],
+  "embeddedComponentIds": ["hub-installer"],
+  "routerServiceIds": []
+}

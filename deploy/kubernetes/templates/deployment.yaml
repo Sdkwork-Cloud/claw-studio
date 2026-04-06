@@ -1,0 +1,76 @@
+{{- if gt (int .Values.replicaCount) 1 }}
+{{- fail "claw-studio currently supports only replicaCount=1 because the shared host runtime does not coordinate multi-replica state yet." }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+{{- $authSecretName := default (printf "%s-auth" (include "claw-studio.fullname" .)) .Values.auth.existingSecret }}
+metadata:
+  name: {{ include "claw-studio.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "claw-studio.name" . }}
+    helm.sh/chart: {{ include "claw-studio.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "claw-studio.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "claw-studio.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: claw-studio
+{{- if .Values.image.digest }}
+          image: {{ .Values.image.repository }}@{{ .Values.image.digest }}
+{{- else }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+{{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "claw-studio.fullname" . }}-config
+            - secretRef:
+                name: {{ $authSecretName }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          volumeMounts:
+{{- if .Values.persistence.enabled }}
+            - name: claw-data
+              mountPath: {{ .Values.persistence.mountPath }}
+{{- end }}
+          readinessProbe:
+            httpGet:
+              path: /claw/health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /claw/health/live
+              port: http
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+{{- if .Values.persistence.enabled }}
+        - name: claw-data
+          persistentVolumeClaim:
+            claimName: {{ include "claw-studio.fullname" . }}-data
+{{- end }}
+      nodeSelector:
+{{- if eq .Values.targetArchitecture "arm64" }}
+        kubernetes.io/arch: arm64
+{{- else }}
+        kubernetes.io/arch: amd64
+{{- end }}
+{{- range $key, $value := .Values.nodeSelector }}
+        {{ $key }}: {{ $value | quote }}
+{{- end }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}

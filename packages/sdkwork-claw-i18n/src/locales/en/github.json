@@ -1,0 +1,64 @@
+{
+  "detail": {
+    "activity": {
+      "pushedToMain": "pushed new commits to main.",
+      "twoHoursAgo": "2 hours ago"
+    },
+    "back": "Back to GitHub",
+    "downloadToLocal": "Download to local",
+    "files": {
+      "dir": "[DIR]",
+      "file": "[FILE]"
+    },
+    "notFoundBack": "Return to repositories",
+    "notFoundTitle": "Repository not found",
+    "readme": {
+      "aboutTitle": "About {{name}}",
+      "installation": "Installation",
+      "usage": "Usage",
+      "usageDescription": "Clone the repository, install dependencies, and follow the project README to get started."
+    },
+    "stats": {
+      "forks": "Forks",
+      "stars": "Stars",
+      "title": "Repository stats"
+    },
+    "tabs": {
+      "activity": "Activity",
+      "files": "Files",
+      "readme": "README"
+    },
+    "task": {
+      "downloadComplete": "Repository download complete",
+      "downloadFailed": "Repository download failed",
+      "downloadSubtitle": "Downloading repository contents",
+      "downloadTitle": "Download {{name}}"
+    },
+    "toast": {
+      "downloadFailed": "Failed to download {{name}}",
+      "downloadStarted": "Downloading {{name}}",
+      "downloadSuccess": "{{name}} downloaded"
+    },
+    "verifiedPopular": "Popular verified repository"
+  },
+  "repos": {
+    "emptyDescription": "Try a different search term or sync more sources.",
+    "emptyTitle": "No repositories found",
+    "filter": "Filter repositories",
+    "searchPlaceholder": "Search repositories, authors, or tags...",
+    "sort": "Sort repositories",
+    "subtitle": "{{count, number}} repositories ready to install",
+    "task": {
+      "installComplete": "Repository installed",
+      "installFailed": "Repository install failed",
+      "installSubtitle": "Installing from GitHub",
+      "installTitle": "Install {{name}}"
+    },
+    "title": "GitHub Repositories",
+    "toast": {
+      "installFailed": "Failed to install {{name}}",
+      "installStarted": "Installing {{name}}",
+      "installSuccess": "{{name}} installed"
+    }
+  }
+}
