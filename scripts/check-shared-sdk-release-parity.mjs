@@ -45,6 +45,14 @@ const paritySources = [
       '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
     ),
   },
+  {
+    id: 'core-pc-react',
+    label: '@sdkwork/core-pc-react',
+    localRoot: path.resolve(
+      workspaceRootDir,
+      '../sdkwork-core/sdkwork-core-pc-react',
+    ),
+  },
 ];
 
 export function normalizeBufferForParity(buffer) {

@@ -11,8 +11,8 @@
 
 1. `config/shared-sdk-release-sources.json` was still pinned to older shared SDK commits even though the synchronized GitHub refs had already advanced.
 2. The shared SDK parity script compared raw file bytes, so Windows `CRLF` local checkouts and GitHub `LF` release checkouts were reported as full-content drift.
-3. The media-account tab existed, but the default media channels still surfaced older display names (`Sdkwork Chat` and `Wehcat`) instead of the requested `SDKWORK公众号` and `微信公众号`.
-4. The release notes mentioned internal channel ids instead of user-facing media-account names.
+3. The media-account tab existed, but the default media channels still surfaced older display names (`Sdkwork Chat` and `Wehcat`) instead of the requested media-account labels for the built-in `sdkworkchat` and `wehcat` entries.
+4. The release notes mentioned internal channel ids instead of stable user-facing media-account descriptions.
 
 ## Root Cause Evidence
 
@@ -47,14 +47,12 @@ Fresh evidence gathered in this loop:
 
 ### Media-account naming alignment
 
-- Updated the built-in channel definitions in `packages/sdkwork-claw-core/src/services/openClawConfigService.ts` so the media-account defaults now surface as:
-  - `SDKWORK公众号`
-  - `微信公众号`
+- Updated the built-in channel definitions in `packages/sdkwork-claw-core/src/services/openClawConfigService.ts` so the media-account defaults now surface as the requested `sdkworkchat` and `wehcat` labels.
 - Tightened `packages/sdkwork-claw-core/src/services/openClawConfigService.test.ts` to keep those names under regression coverage.
 
 ### Release docs alignment
 
-- Updated `docs/release/release-2026-04-07-03.md` to describe the media-account channels by user-facing names and to mention the parity hardening.
+- Updated `docs/release/release-2026-04-07-03.md` to describe the media-account channels with stable rendered names and to mention the parity hardening.
 - Updated `docs/core/release-and-deployment.md` to document that shared SDK parity normalizes line endings before comparing release refs to local sources.
 
 ## Verification

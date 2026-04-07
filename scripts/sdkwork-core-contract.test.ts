@@ -398,9 +398,12 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(npmrc, /link-workspace-packages\s*=\s*true/);
   assert.match(workspaceManifest, /spring-ai-plus-app-api/);
   assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
+  assert.match(workspaceManifest, /sdkwork-core\/sdkwork-core-pc-react/);
   assert.ok(exists('config/shared-sdk-release-sources.json'));
   assert.match(sharedSdkReleaseConfig, /sdkwork-sdk-app\.git/);
   assert.match(sharedSdkReleaseConfig, /sdkwork-sdk-commons\.git/);
+  assert.match(sharedSdkReleaseConfig, /sdkwork-core\.git/);
+  assert.match(sharedSdkReleaseConfig, /core-pc-react/);
   assert.doesNotMatch(sharedSdkReleaseConfig, /"ref"\s*:\s*"main"/);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
@@ -414,8 +417,10 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(prepareGitSourcesScript, /shared-sdk-release-sources\.json/);
   assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_APP_REPO_URL/);
   assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_COMMON_REPO_URL/);
+  assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_CORE_REPO_URL/);
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
+  assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-core\.git/);
   assert.doesNotMatch(prepareGitSourcesScript, /vendor\/shared-sdk/);
   assert.doesNotMatch(prepareGitSourcesScript, /materializePackageRootFromVendoredSource/);
   assert.match(nodeTypeScriptRunner, /--experimental-transform-types/);

@@ -948,6 +948,7 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
   assert.equal(typeof helper.materializePackageRootFromMonorepo, 'function');
   assert.equal(helper.DEFAULT_SHARED_SDK_APP_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git');
   assert.equal(helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_CORE_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-core.git');
   assert.equal(helper.DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH, 'config/shared-sdk-release-sources.json');
 
   const repoRoot = path.join(rootDir, '.tmp', 'shared-sdk-layout');
@@ -1020,6 +1021,7 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
   );
   assert.equal(sharedSdkReleaseConfig.sources['app-sdk'].repoUrl, helper.DEFAULT_SHARED_SDK_APP_REPO_URL);
   assert.equal(sharedSdkReleaseConfig.sources['sdk-common'].repoUrl, helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL);
+  assert.equal(sharedSdkReleaseConfig.sources['core-pc-react'].repoUrl, helper.DEFAULT_SHARED_SDK_CORE_REPO_URL);
   assert.doesNotMatch(JSON.stringify(sharedSdkReleaseConfig), /"ref"\s*:\s*"main"/);
 
   const helperSource = read('scripts/prepare-shared-sdk-git-sources.mjs');
@@ -1041,8 +1043,10 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
   const sourceRepoRoot = path.join(tempRoot, 'source-repos');
   const appRepoRoot = path.join(sourceRepoRoot, 'sdkwork-sdk-app');
   const commonRepoRoot = path.join(sourceRepoRoot, 'sdkwork-sdk-commons');
+  const coreRepoRoot = path.join(sourceRepoRoot, 'sdkwork-core');
   const appPackageRoot = path.join(appRepoRoot, 'sdkwork-app-sdk-typescript');
   const commonPackageRoot = path.join(commonRepoRoot, 'sdkwork-sdk-common-typescript');
+  const corePackageRoot = path.join(coreRepoRoot, 'sdkwork-core-pc-react');
 
   function runGit(args, cwd) {
     const result = spawnSync('git', args, {
@@ -1055,6 +1059,7 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
 
   mkdirSync(appPackageRoot, { recursive: true });
   mkdirSync(commonPackageRoot, { recursive: true });
+  mkdirSync(corePackageRoot, { recursive: true });
   mkdirSync(path.dirname(configPath), { recursive: true });
 
   writeFileSync(
@@ -1065,6 +1070,11 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
   writeFileSync(
     path.join(commonPackageRoot, 'package.json'),
     JSON.stringify({ name: '@sdkwork/sdk-common', version: '1.0.2' }, null, 2),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(corePackageRoot, 'package.json'),
+    JSON.stringify({ name: '@sdkwork/core-pc-react', version: '0.1.0' }, null, 2),
     'utf8',
   );
 
@@ -1080,6 +1090,12 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
   runGit(['add', '.'], commonRepoRoot);
   runGit(['commit', '-m', 'seed-sdk-common'], commonRepoRoot);
 
+  runGit(['init', '--initial-branch', 'main'], coreRepoRoot);
+  runGit(['config', 'user.name', 'Codex'], coreRepoRoot);
+  runGit(['config', 'user.email', 'sdkwork@zowalk.com'], coreRepoRoot);
+  runGit(['add', '.'], coreRepoRoot);
+  runGit(['commit', '-m', 'seed-core-pc-react'], coreRepoRoot);
+
   writeFileSync(
     configPath,
     JSON.stringify(
@@ -1091,6 +1107,10 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
           },
           'sdk-common': {
             repoUrl: commonRepoRoot,
+            ref: 'main',
+          },
+          'core-pc-react': {
+            repoUrl: coreRepoRoot,
             ref: 'main',
           },
         },
@@ -1112,9 +1132,11 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
 
     const preparedAppSdk = preparedSources.find((entry) => entry.id === 'app-sdk');
     const preparedSdkCommon = preparedSources.find((entry) => entry.id === 'sdk-common');
+    const preparedCorePcReact = preparedSources.find((entry) => entry.id === 'core-pc-react');
 
     assert.equal(preparedAppSdk?.targetRef, 'main');
     assert.equal(preparedSdkCommon?.targetRef, 'main');
+    assert.equal(preparedCorePcReact?.targetRef, 'main');
     assert.equal(realpathSync(preparedAppSdk.packageRoot), realpathSync(path.join(
       tempRoot,
       'spring-ai-plus-app-api',
@@ -1127,6 +1149,12 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
       'sdkwork-sdk-commons',
       'sdkwork-sdk-common-typescript',
     )));
+    assert.equal(realpathSync(preparedCorePcReact.packageRoot), realpathSync(path.join(
+      tempRoot,
+      'apps',
+      'sdkwork-core',
+      'sdkwork-core-pc-react',
+    )));
     assert.equal(
       JSON.parse(readFileSync(path.join(preparedAppSdk.packageRoot, 'package.json'), 'utf8')).name,
       '@sdkwork/app-sdk',
@@ -1136,12 +1164,20 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
       '@sdkwork/sdk-common',
     );
     assert.equal(
+      JSON.parse(readFileSync(path.join(preparedCorePcReact.packageRoot, 'package.json'), 'utf8')).name,
+      '@sdkwork/core-pc-react',
+    );
+    assert.equal(
       preparedAppSdk?.repoUrl,
       appRepoRoot,
     );
     assert.equal(
       preparedSdkCommon?.repoUrl,
       commonRepoRoot,
+    );
+    assert.equal(
+      preparedCorePcReact?.repoUrl,
+      coreRepoRoot,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
