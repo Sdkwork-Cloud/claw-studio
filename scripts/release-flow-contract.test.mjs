@@ -44,6 +44,11 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(workflow, /push:\s*[\s\S]*tags:\s*[\s\S]*release-\*/);
   assert.match(workflow, /uses:\s*\.\/\.github\/workflows\/release-reusable\.yml/);
   assert.match(workflow, /release_profile:\s*claw-studio/);
+  assert.match(
+    workflow,
+    /permissions:\s*[\s\S]*packages:\s*write/,
+    'release caller workflow must grant packages: write to the reusable release workflow',
+  );
   assert.match(reusableWorkflow, /workflow_call:/);
   assert.match(reusableWorkflow, /concurrency:/);
   assert.match(reusableWorkflow, /packages:\s*write/);

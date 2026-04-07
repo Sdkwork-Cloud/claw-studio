@@ -3,13 +3,36 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
+import { repairPnpmFallbackLinks } from './repair-pnpm-fallback-links.mjs';
+
+function realpathOrNull(candidate) {
+  try {
+    return fs.realpathSync(candidate);
+  } catch {
+    return null;
+  }
+}
+
+export function isUsableVitepressPackageDir(candidate) {
+  if (!fs.existsSync(path.join(candidate, 'package.json'))) {
+    return false;
+  }
+
+  const resolvedDir = realpathOrNull(candidate);
+  if (!resolvedDir) {
+    return false;
+  }
+
+  return path.basename(resolvedDir) === 'vitepress';
+}
+
 function findExistingPath(candidates) {
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  return candidates.find((candidate) => isUsableVitepressPackageDir(candidate)) ?? null;
 }
 
 export function resolveVitepressPackageDir(rootDir = process.cwd()) {
   const directPackageDir = path.join(rootDir, 'node_modules', 'vitepress');
-  if (fs.existsSync(path.join(directPackageDir, 'package.json'))) {
+  if (isUsableVitepressPackageDir(directPackageDir)) {
     return directPackageDir;
   }
 
@@ -34,14 +57,14 @@ export function resolveVitepressPackageDir(rootDir = process.cwd()) {
 }
 
 export function resolveVitepressCli(rootDir = process.cwd()) {
-  return path.join(resolveVitepressPackageDir(rootDir), 'bin', 'vitepress.js');
+  return path.join(ensureVitepressPackageLink(rootDir), 'bin', 'vitepress.js');
 }
 
 export function ensureVitepressPackageLink(rootDir = process.cwd()) {
   const packageDir = resolveVitepressPackageDir(rootDir);
   const packageLinkPath = path.join(rootDir, 'node_modules', 'vitepress');
 
-  if (fs.existsSync(path.join(packageLinkPath, 'package.json'))) {
+  if (isUsableVitepressPackageDir(packageLinkPath)) {
     return packageLinkPath;
   }
 
@@ -74,12 +97,20 @@ export function maybeCleanVitepressDist(rootDir = process.cwd(), cliArgs = proce
   return distDir;
 }
 
-function main() {
-  ensureVitepressPackageLink(process.cwd());
-  maybeCleanVitepressDist(process.cwd(), process.argv.slice(2));
-  const vitepressCli = resolveVitepressCli(process.cwd());
+export async function prepareVitepressEnvironment(rootDir = process.cwd()) {
+  await repairPnpmFallbackLinks({
+    workspaceRootDir: rootDir,
+  });
+  ensureVitepressPackageLink(rootDir);
+}
+
+async function main() {
+  const rootDir = process.cwd();
+  await prepareVitepressEnvironment(rootDir);
+  maybeCleanVitepressDist(rootDir, process.argv.slice(2));
+  const vitepressCli = resolveVitepressCli(rootDir);
   const child = spawn(process.execPath, [vitepressCli, ...process.argv.slice(2)], {
-    cwd: process.cwd(),
+    cwd: rootDir,
     stdio: 'inherit',
   });
 
@@ -101,10 +132,8 @@ function main() {
 const entryUrl = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 
 if (entryUrl === import.meta.url) {
-  try {
-    main();
-  } catch (error) {
+  main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
-  }
+  });
 }

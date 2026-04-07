@@ -31,8 +31,13 @@ async function main() {
   );
   assert.match(
     source,
-    /if \(entryUrl === import\.meta\.url\) \{\s*try \{\s*main\(\);\s*\} catch \(error\) \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\s*\}/s,
+    /if \(entryUrl === import\.meta\.url\) \{\s*main\(\)\.catch\(\(error\) => \{\s*console\.error\(error instanceof Error \? error\.message : String\(error\)\);\s*process\.exit\(1\);\s*\}\);\s*\}/s,
     'expected run-vitepress to wrap the CLI entrypoint with a top-level error handler',
+  );
+  assert.match(
+    source,
+    /repairPnpmFallbackLinks/,
+    'expected run-vitepress to repair pnpm fallback links before invoking the VitePress CLI',
   );
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'claw-vitepress-'));
@@ -49,6 +54,41 @@ async function main() {
 
   maybeCleanVitepressDist(tempRoot, ['dev', 'docs']);
   assert.equal(fs.existsSync(staleFile), true, 'expected non-build mode to preserve docs dist output');
+
+  const pnpmStoreRoot = path.join(tempRoot, 'node_modules', '.pnpm');
+  const cleanPackageDir = path.join(
+    pnpmStoreRoot,
+    'vitepress@1.6.4_test-clean',
+    'node_modules',
+    'vitepress',
+  );
+  const corruptPackageDir = path.join(
+    pnpmStoreRoot,
+    'vitepress@1.6.4_test-clean',
+    'node_modules',
+    'vitepress.bak-corrupt',
+  );
+  const corruptPackageLink = path.join(tempRoot, 'node_modules', 'vitepress');
+  const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+
+  fs.mkdirSync(path.join(cleanPackageDir, 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(cleanPackageDir, 'package.json'), '{"name":"vitepress"}');
+  fs.writeFileSync(path.join(cleanPackageDir, 'bin', 'vitepress.js'), '#!/usr/bin/env node\n');
+
+  fs.mkdirSync(path.join(corruptPackageDir, 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(corruptPackageDir, 'package.json'), '{"name":"vitepress"}');
+  fs.writeFileSync(path.join(corruptPackageDir, 'bin', 'vitepress.js'), '#!/usr/bin/env node\n');
+
+  fs.mkdirSync(path.dirname(corruptPackageLink), { recursive: true });
+  fs.symlinkSync(corruptPackageDir, corruptPackageLink, linkType);
+
+  const repairedPackageLink = ensureVitepressPackageLink(tempRoot);
+
+  assert.equal(
+    fs.realpathSync(repairedPackageLink),
+    fs.realpathSync(cleanPackageDir),
+    'expected run-vitepress to replace backup-linked vitepress package paths with the canonical pnpm package link',
+  );
 
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
