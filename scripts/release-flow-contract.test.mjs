@@ -579,6 +579,18 @@ test('shared sdk package preparation resolves the workspace root consistently fr
         rootDir,
         '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
       ),
+      sharedImBackendSdkRoot: path.resolve(
+        rootDir,
+        '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/generated/server-openapi',
+      ),
+      sharedOpenchatImSdkRoot: path.resolve(
+        rootDir,
+        '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed',
+      ),
+      sharedOpenchatImWukongimAdapterRoot: path.resolve(
+        rootDir,
+        '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim',
+      ),
       mode: 'git',
     },
   );
@@ -813,6 +825,53 @@ test('shared sdk package preparation preserves existing package-local dependency
     assert.equal(
       realpathSync(path.join(sharedAppSdkRoot, 'node_modules', '@sdkwork', 'sdk-common')),
       realpathSync(sharedSdkCommonRoot),
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('shared sdk package preparation resolves pnpm virtual store packages even when pnpm shortens long directory names', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-packages.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-shared-sdk-truncated-pnpm-root-'));
+  const workspaceRoot = path.join(tempRoot, 'apps', 'claw-studio');
+  const shortenedStoreDir = path.join(
+    workspaceRoot,
+    'node_modules',
+    '.pnpm',
+    '@typescript-eslint+eslint-p_0b8888e8f4d6444f0cae34f670a09065',
+    'node_modules',
+    '@typescript-eslint',
+    'eslint-plugin',
+  );
+
+  mkdirSync(workspaceRoot, { recursive: true });
+  writeFileSync(
+    path.join(workspaceRoot, 'package.json'),
+    JSON.stringify({ name: '@sdkwork/claw-workspace' }, null, 2),
+    'utf8',
+  );
+  writeFileSync(path.join(workspaceRoot, 'pnpm-workspace.yaml'), 'packages: []\n', 'utf8');
+  mkdirSync(shortenedStoreDir, { recursive: true });
+  writeFileSync(
+    path.join(shortenedStoreDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: '@typescript-eslint/eslint-plugin',
+        version: '8.58.0',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  try {
+    assert.equal(
+      helper.resolveWorkspaceInstalledPackageRoot('@typescript-eslint/eslint-plugin', workspaceRoot),
+      shortenedStoreDir,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

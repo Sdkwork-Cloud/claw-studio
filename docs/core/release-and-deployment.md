@@ -104,7 +104,11 @@ still uses through relative workspace paths, including `@sdkwork/app-sdk`,
 `@sdkwork/im-backend-sdk`, `@openchat/sdkwork-im-sdk`, and
 `@openchat/sdkwork-im-wukongim-adapter`. The comparison normalizes text-file
 line endings so Windows `CRLF` checkouts and GitHub `LF` checkouts do not raise
-false drift. If this check fails, do not push a release tag yet.
+false drift. Shared SDK package scripts must resolve `vite`, `tsc`, and other
+build tools from package-local workspace metadata rather than hard-coded
+cross-repository `../../../node_modules/*` paths; otherwise clean-room release
+workspaces can pass parity and still fail during `Verify release inputs`. If
+this check fails, do not push a release tag yet.
 
 Before collecting artifacts, inspect the current multi-family release matrices:
 

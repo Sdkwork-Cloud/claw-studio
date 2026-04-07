@@ -14,15 +14,15 @@
     },
     "im-backend-sdk": {
       "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git",
-      "ref": "06e92a2e6a2946de05501a4d2785d7e0a4349bb9"
+      "ref": "c71a0f115c08cb164d5a857cdac15ea6d3adc006"
     },
     "openchat-im-sdk": {
       "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git",
-      "ref": "06e92a2e6a2946de05501a4d2785d7e0a4349bb9"
+      "ref": "c71a0f115c08cb164d5a857cdac15ea6d3adc006"
     },
     "openchat-im-wukongim-adapter": {
       "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git",
-      "ref": "06e92a2e6a2946de05501a4d2785d7e0a4349bb9"
+      "ref": "c71a0f115c08cb164d5a857cdac15ea6d3adc006"
     }
   }
 }

@@ -45,14 +45,29 @@
       "tag": "release-2026-04-07-05",
       "title": "Claw Studio release-2026-04-07-05",
       "date": "2026-04-07",
-      "status": "published",
-      "summary": "Release that carries forward all unpublished April 7 changes, materializes the GitHub-backed IM SDK packages required by the shared core runtime, and keeps the media-account channels aligned across local and release environments.",
+      "status": "failed",
+      "summary": "Release candidate that carried forward all unpublished April 7 changes and materialized the IM SDK package roots, but still failed before publication because the IM TypeScript package scripts depended on a monorepo-specific node_modules layout.",
       "notesFile": "release-2026-04-07-05.md",
       "carryForward": [
         "release-2026-04-07-01",
         "release-2026-04-07-02",
         "release-2026-04-07-03",
         "release-2026-04-07-04"
+      ]
+    },
+    {
+      "tag": "release-2026-04-07-06",
+      "title": "Claw Studio release-2026-04-07-06",
+      "date": "2026-04-07",
+      "status": "pending",
+      "summary": "Release candidate that carries forward every unpublished April 7 change, closes the IM SDK clean-room build gaps, and hardens shared SDK preparation across Windows and GitHub release workspaces.",
+      "notesFile": "release-2026-04-07-06.md",
+      "carryForward": [
+        "release-2026-04-07-01",
+        "release-2026-04-07-02",
+        "release-2026-04-07-03",
+        "release-2026-04-07-04",
+        "release-2026-04-07-05"
       ]
     }
   ]

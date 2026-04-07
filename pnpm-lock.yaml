@@ -90,6 +90,16 @@ importers:
       wukongimjssdk:
         specifier: ^1.3.5
         version: 1.3.5
+    devDependencies:
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+      vite:
+        specifier: 8.0.3
+        version: 8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.4)(jiti@2.6.1)(tsx@4.21.0)
+      vite-plugin-dts:
+        specifier: ^4.5.4
+        version: 4.5.4(@types/node@25.5.2)(rollup@4.60.1)(typescript@6.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.4)(jiti@2.6.1)(tsx@4.21.0))
 
   ../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed:
     dependencies:
@@ -99,6 +109,16 @@ importers:
       '@sdkwork/im-backend-sdk':
         specifier: workspace:*
         version: link:../generated/server-openapi
+    devDependencies:
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+      vite:
+        specifier: 8.0.3
+        version: 8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.4)(jiti@2.6.1)(tsx@4.21.0)
+      vite-plugin-dts:
+        specifier: ^4.5.4
+        version: 4.5.4(@types/node@25.5.2)(rollup@4.60.1)(typescript@6.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.4)(jiti@2.6.1)(tsx@4.21.0))
 
   ../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/generated/server-openapi:
     dependencies:

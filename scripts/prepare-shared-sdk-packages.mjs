@@ -56,6 +56,18 @@ export function createSharedSdkPackageContext({
       workspaceRoot,
       '../../sdk/sdkwork-sdk-commons/sdkwork-sdk-common-typescript',
     ),
+    sharedImBackendSdkRoot: path.resolve(
+      workspaceRoot,
+      '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/generated/server-openapi',
+    ),
+    sharedOpenchatImSdkRoot: path.resolve(
+      workspaceRoot,
+      '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed',
+    ),
+    sharedOpenchatImWukongimAdapterRoot: path.resolve(
+      workspaceRoot,
+      '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim',
+    ),
     mode: resolveSharedSdkMode(env),
   };
 }
@@ -147,17 +159,41 @@ export function resolveWorkspaceInstalledPackageRoot(packageName, workspaceRoot)
     .sort()
     .at(-1);
 
-  if (!matchedPackageDir) {
-    return null;
+  if (matchedPackageDir) {
+    const packageRoot = path.resolve(
+      pnpmRootDir,
+      matchedPackageDir,
+      'node_modules',
+      ...packageName.split('/'),
+    );
+    if (exists(packageRoot)) {
+      return packageRoot;
+    }
   }
 
-  const packageRoot = path.resolve(
-    pnpmRootDir,
-    matchedPackageDir,
-    'node_modules',
-    ...packageName.split('/'),
-  );
-  return exists(packageRoot) ? packageRoot : null;
+  const packageRootSegments = ['node_modules', ...packageName.split('/')];
+  const fallbackPackageRoot = fs
+    .readdirSync(pnpmRootDir)
+    .sort()
+    .map((entry) => path.resolve(pnpmRootDir, entry, ...packageRootSegments))
+    .find((candidatePackageRoot) => {
+      if (!exists(candidatePackageRoot)) {
+        return false;
+      }
+
+      const manifestPath = path.join(candidatePackageRoot, 'package.json');
+      if (!exists(manifestPath)) {
+        return false;
+      }
+
+      try {
+        return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))?.name === packageName;
+      } catch {
+        return false;
+      }
+    });
+
+  return fallbackPackageRoot ?? null;
 }
 
 export function ensurePackageDependencyLinks(
@@ -241,7 +277,10 @@ export function prepareSharedSdkPackages({
   if (
     context.mode === 'git' ||
     !exists(context.sharedSdkCommonRoot) ||
-    !exists(context.sharedAppSdkRoot)
+    !exists(context.sharedAppSdkRoot) ||
+    !exists(context.sharedImBackendSdkRoot) ||
+    !exists(context.sharedOpenchatImSdkRoot) ||
+    !exists(context.sharedOpenchatImWukongimAdapterRoot)
   ) {
     console.log('[prepare-shared-sdk-packages] Ensuring shared SDK sources are available.');
     ensureSharedSdkGitSources({
@@ -253,6 +292,10 @@ export function prepareSharedSdkPackages({
 
   assertPackageRootExists(context.sharedSdkCommonRoot, '@sdkwork/sdk-common');
   assertPackageRootExists(context.sharedAppSdkRoot, '@sdkwork/app-sdk');
+  assertPackageRootExists(context.sharedImBackendSdkRoot, '@sdkwork/im-backend-sdk');
+  assertPackageRootExists(context.sharedOpenchatImWukongimAdapterRoot, '@openchat/sdkwork-im-wukongim-adapter');
+  assertPackageRootExists(context.sharedOpenchatImSdkRoot, '@openchat/sdkwork-im-sdk');
+
   const needsSharedSdkCommonBuild = shouldBuildPackage(context.sharedSdkCommonRoot);
   ensurePackageDependencyLinks(context.sharedSdkCommonRoot, context.workspaceRoot, {
     includeDependencies: true,
@@ -268,6 +311,40 @@ export function prepareSharedSdkPackages({
     },
   });
   ensurePackageBuilt('@sdkwork/app-sdk', context.sharedAppSdkRoot, context.workspaceRoot);
+
+  const needsSharedImBackendSdkBuild = shouldBuildPackage(context.sharedImBackendSdkRoot);
+  ensurePackageDependencyLinks(context.sharedImBackendSdkRoot, context.workspaceRoot, {
+    includeDependencies: true,
+    includeDevDependencies: needsSharedImBackendSdkBuild,
+    localPackageRoots: {
+      '@sdkwork/sdk-common': context.sharedSdkCommonRoot,
+    },
+  });
+  ensurePackageBuilt('@sdkwork/im-backend-sdk', context.sharedImBackendSdkRoot, context.workspaceRoot);
+
+  const needsSharedOpenchatImWukongimAdapterBuild = shouldBuildPackage(
+    context.sharedOpenchatImWukongimAdapterRoot,
+  );
+  ensurePackageDependencyLinks(context.sharedOpenchatImWukongimAdapterRoot, context.workspaceRoot, {
+    includeDependencies: true,
+    includeDevDependencies: needsSharedOpenchatImWukongimAdapterBuild,
+  });
+  ensurePackageBuilt(
+    '@openchat/sdkwork-im-wukongim-adapter',
+    context.sharedOpenchatImWukongimAdapterRoot,
+    context.workspaceRoot,
+  );
+
+  const needsSharedOpenchatImSdkBuild = shouldBuildPackage(context.sharedOpenchatImSdkRoot);
+  ensurePackageDependencyLinks(context.sharedOpenchatImSdkRoot, context.workspaceRoot, {
+    includeDependencies: true,
+    includeDevDependencies: needsSharedOpenchatImSdkBuild,
+    localPackageRoots: {
+      '@sdkwork/im-backend-sdk': context.sharedImBackendSdkRoot,
+      '@openchat/sdkwork-im-wukongim-adapter': context.sharedOpenchatImWukongimAdapterRoot,
+    },
+  });
+  ensurePackageBuilt('@openchat/sdkwork-im-sdk', context.sharedOpenchatImSdkRoot, context.workspaceRoot);
 
   return context;
 }

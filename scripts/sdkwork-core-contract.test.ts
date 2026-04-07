@@ -394,6 +394,12 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   const nodeTypeScriptRunner = read('scripts/run-node-typescript-check.mjs');
   const prepareSharedSdkScript = read('scripts/prepare-shared-sdk-packages.mjs');
   const prepareGitSourcesScript = read('scripts/prepare-shared-sdk-git-sources.mjs');
+  const openchatImSdkPackageJson = read(
+    '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed/package.json',
+  );
+  const openchatImWukongimAdapterPackageJson = read(
+    '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim/package.json',
+  );
 
   assert.match(npmrc, /link-workspace-packages\s*=\s*true/);
   assert.match(workspaceManifest, /spring-ai-plus-app-api/);
@@ -419,6 +425,12 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"node scripts\/run-sdkwork-core-check\.mjs"/);
   assert.match(prepareSharedSdkScript, /SDKWORK_SHARED_SDK_MODE/);
   assert.match(prepareSharedSdkScript, /resolveSharedSdkMode/);
+  assert.match(prepareSharedSdkScript, /sharedImBackendSdkRoot/);
+  assert.match(prepareSharedSdkScript, /sharedOpenchatImSdkRoot/);
+  assert.match(prepareSharedSdkScript, /sharedOpenchatImWukongimAdapterRoot/);
+  assert.match(prepareSharedSdkScript, /@sdkwork\/im-backend-sdk/);
+  assert.match(prepareSharedSdkScript, /@openchat\/sdkwork-im-sdk/);
+  assert.match(prepareSharedSdkScript, /@openchat\/sdkwork-im-wukongim-adapter/);
   assert.match(prepareGitSourcesScript, /['"]clone['"]/);
   assert.match(prepareGitSourcesScript, /FETCH_HEAD/);
   assert.match(prepareGitSourcesScript, /shared-sdk-release-sources\.json/);
@@ -432,6 +444,18 @@ runTest('claw workspace keeps relative-path shared sdk development while pinning
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-im-sdk\.git/);
   assert.doesNotMatch(prepareGitSourcesScript, /vendor\/shared-sdk/);
   assert.doesNotMatch(prepareGitSourcesScript, /materializePackageRootFromVendoredSource/);
+  assert.doesNotMatch(openchatImSdkPackageJson, /\.\.\/\.\.\/\.\.\/node_modules/);
+  assert.doesNotMatch(openchatImWukongimAdapterPackageJson, /\.\.\/\.\.\/\.\.\/node_modules/);
+  assert.match(openchatImSdkPackageJson, /"build"\s*:\s*"vite build"/);
+  assert.match(openchatImSdkPackageJson, /"typecheck"\s*:\s*"tsc -p tsconfig\.build\.json --noEmit"/);
+  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"typescript"/);
+  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite"/);
+  assert.match(openchatImSdkPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite-plugin-dts"/);
+  assert.match(openchatImWukongimAdapterPackageJson, /"build"\s*:\s*"vite build"/);
+  assert.match(openchatImWukongimAdapterPackageJson, /"typecheck"\s*:\s*"tsc -p tsconfig\.build\.json --noEmit"/);
+  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"typescript"/);
+  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite"/);
+  assert.match(openchatImWukongimAdapterPackageJson, /"devDependencies"\s*:\s*\{[\s\S]*"vite-plugin-dts"/);
   assert.match(nodeTypeScriptRunner, /--experimental-transform-types/);
   assert.match(nodeTypeScriptRunner, /--disable-warning=ExperimentalWarning/);
   assert.match(nodeTypeScriptRunner, /ts-extension-loader\.mjs/);
