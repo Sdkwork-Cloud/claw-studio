@@ -53,6 +53,30 @@ const paritySources = [
       '../sdkwork-core/sdkwork-core-pc-react',
     ),
   },
+  {
+    id: 'im-backend-sdk',
+    label: '@sdkwork/im-backend-sdk',
+    localRoot: path.resolve(
+      workspaceRootDir,
+      '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/generated/server-openapi',
+    ),
+  },
+  {
+    id: 'openchat-im-sdk',
+    label: '@openchat/sdkwork-im-sdk',
+    localRoot: path.resolve(
+      workspaceRootDir,
+      '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/composed',
+    ),
+  },
+  {
+    id: 'openchat-im-wukongim-adapter',
+    label: '@openchat/sdkwork-im-wukongim-adapter',
+    localRoot: path.resolve(
+      workspaceRootDir,
+      '../openchat/sdkwork-im-sdk/sdkwork-im-sdk-typescript/adapter-wukongim',
+    ),
+  },
 ];
 
 export function normalizeBufferForParity(buffer) {

@@ -32,13 +32,27 @@
       "tag": "release-2026-04-07-04",
       "title": "Claw Studio release-2026-04-07-04",
       "date": "2026-04-07",
-      "status": "published",
-      "summary": "Release that carries forward all unpublished April 7 changes and aligns GitHub-backed shared SDK sources with local source-of-truth workspaces.",
+      "status": "failed",
+      "summary": "Release candidate that carried forward all unpublished April 7 changes but still failed before GitHub publication because the GitHub-backed release workspace did not materialize the IM SDK packages required by @sdkwork/core-pc-react.",
       "notesFile": "release-2026-04-07-04.md",
       "carryForward": [
         "release-2026-04-07-01",
         "release-2026-04-07-02",
         "release-2026-04-07-03"
+      ]
+    },
+    {
+      "tag": "release-2026-04-07-05",
+      "title": "Claw Studio release-2026-04-07-05",
+      "date": "2026-04-07",
+      "status": "published",
+      "summary": "Release that carries forward all unpublished April 7 changes, materializes the GitHub-backed IM SDK packages required by the shared core runtime, and keeps the media-account channels aligned across local and release environments.",
+      "notesFile": "release-2026-04-07-05.md",
+      "carryForward": [
+        "release-2026-04-07-01",
+        "release-2026-04-07-02",
+        "release-2026-04-07-03",
+        "release-2026-04-07-04"
       ]
     }
   ]

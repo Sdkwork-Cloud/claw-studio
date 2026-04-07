@@ -1022,6 +1022,9 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
   assert.equal(sharedSdkReleaseConfig.sources['app-sdk'].repoUrl, helper.DEFAULT_SHARED_SDK_APP_REPO_URL);
   assert.equal(sharedSdkReleaseConfig.sources['sdk-common'].repoUrl, helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL);
   assert.equal(sharedSdkReleaseConfig.sources['core-pc-react'].repoUrl, helper.DEFAULT_SHARED_SDK_CORE_REPO_URL);
+  assert.equal(sharedSdkReleaseConfig.sources['im-backend-sdk'].repoUrl, helper.DEFAULT_SHARED_IM_SDK_REPO_URL);
+  assert.equal(sharedSdkReleaseConfig.sources['openchat-im-sdk'].repoUrl, helper.DEFAULT_SHARED_IM_SDK_REPO_URL);
+  assert.equal(sharedSdkReleaseConfig.sources['openchat-im-wukongim-adapter'].repoUrl, helper.DEFAULT_SHARED_IM_SDK_REPO_URL);
   assert.doesNotMatch(JSON.stringify(sharedSdkReleaseConfig), /"ref"\s*:\s*"main"/);
 
   const helperSource = read('scripts/prepare-shared-sdk-git-sources.mjs');
@@ -1031,6 +1034,8 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
   assert.match(helperSource, /monorepoSubmodulePath/);
   assert.match(helperSource, /shared-sdk-release-sources\.json/);
   assert.match(helperSource, /FETCH_HEAD/);
+  assert.match(helperSource, /SDKWORK_SHARED_IM_SDK_REPO_URL/);
+  assert.match(helperSource, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-im-sdk\.git/);
 });
 
 test('git-backed shared sdk source helper can materialize pinned local git sources from the release config', async () => {
@@ -1044,9 +1049,13 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
   const appRepoRoot = path.join(sourceRepoRoot, 'sdkwork-sdk-app');
   const commonRepoRoot = path.join(sourceRepoRoot, 'sdkwork-sdk-commons');
   const coreRepoRoot = path.join(sourceRepoRoot, 'sdkwork-core');
+  const imRepoRoot = path.join(sourceRepoRoot, 'sdkwork-im-sdk');
   const appPackageRoot = path.join(appRepoRoot, 'sdkwork-app-sdk-typescript');
   const commonPackageRoot = path.join(commonRepoRoot, 'sdkwork-sdk-common-typescript');
   const corePackageRoot = path.join(coreRepoRoot, 'sdkwork-core-pc-react');
+  const imBackendPackageRoot = path.join(imRepoRoot, 'sdkwork-im-sdk-typescript', 'generated', 'server-openapi');
+  const openchatImPackageRoot = path.join(imRepoRoot, 'sdkwork-im-sdk-typescript', 'composed');
+  const openchatImWukongimAdapterPackageRoot = path.join(imRepoRoot, 'sdkwork-im-sdk-typescript', 'adapter-wukongim');
 
   function runGit(args, cwd) {
     const result = spawnSync('git', args, {
@@ -1060,6 +1069,9 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
   mkdirSync(appPackageRoot, { recursive: true });
   mkdirSync(commonPackageRoot, { recursive: true });
   mkdirSync(corePackageRoot, { recursive: true });
+  mkdirSync(imBackendPackageRoot, { recursive: true });
+  mkdirSync(openchatImPackageRoot, { recursive: true });
+  mkdirSync(openchatImWukongimAdapterPackageRoot, { recursive: true });
   mkdirSync(path.dirname(configPath), { recursive: true });
 
   writeFileSync(
@@ -1075,6 +1087,21 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
   writeFileSync(
     path.join(corePackageRoot, 'package.json'),
     JSON.stringify({ name: '@sdkwork/core-pc-react', version: '0.1.0' }, null, 2),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(imBackendPackageRoot, 'package.json'),
+    JSON.stringify({ name: '@sdkwork/im-backend-sdk', version: '1.0.11' }, null, 2),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(openchatImPackageRoot, 'package.json'),
+    JSON.stringify({ name: '@openchat/sdkwork-im-sdk', version: '1.0.11' }, null, 2),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(openchatImWukongimAdapterPackageRoot, 'package.json'),
+    JSON.stringify({ name: '@openchat/sdkwork-im-wukongim-adapter', version: '1.0.11' }, null, 2),
     'utf8',
   );
 
@@ -1096,6 +1123,12 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
   runGit(['add', '.'], coreRepoRoot);
   runGit(['commit', '-m', 'seed-core-pc-react'], coreRepoRoot);
 
+  runGit(['init', '--initial-branch', 'main'], imRepoRoot);
+  runGit(['config', 'user.name', 'Codex'], imRepoRoot);
+  runGit(['config', 'user.email', 'sdkwork@zowalk.com'], imRepoRoot);
+  runGit(['add', '.'], imRepoRoot);
+  runGit(['commit', '-m', 'seed-sdkwork-im-sdk'], imRepoRoot);
+
   writeFileSync(
     configPath,
     JSON.stringify(
@@ -1111,6 +1144,18 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
           },
           'core-pc-react': {
             repoUrl: coreRepoRoot,
+            ref: 'main',
+          },
+          'im-backend-sdk': {
+            repoUrl: imRepoRoot,
+            ref: 'main',
+          },
+          'openchat-im-sdk': {
+            repoUrl: imRepoRoot,
+            ref: 'main',
+          },
+          'openchat-im-wukongim-adapter': {
+            repoUrl: imRepoRoot,
             ref: 'main',
           },
         },
@@ -1133,10 +1178,18 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
     const preparedAppSdk = preparedSources.find((entry) => entry.id === 'app-sdk');
     const preparedSdkCommon = preparedSources.find((entry) => entry.id === 'sdk-common');
     const preparedCorePcReact = preparedSources.find((entry) => entry.id === 'core-pc-react');
+    const preparedImBackendSdk = preparedSources.find((entry) => entry.id === 'im-backend-sdk');
+    const preparedOpenchatImSdk = preparedSources.find((entry) => entry.id === 'openchat-im-sdk');
+    const preparedOpenchatImWukongimAdapter = preparedSources.find(
+      (entry) => entry.id === 'openchat-im-wukongim-adapter',
+    );
 
     assert.equal(preparedAppSdk?.targetRef, 'main');
     assert.equal(preparedSdkCommon?.targetRef, 'main');
     assert.equal(preparedCorePcReact?.targetRef, 'main');
+    assert.equal(preparedImBackendSdk?.targetRef, 'main');
+    assert.equal(preparedOpenchatImSdk?.targetRef, 'main');
+    assert.equal(preparedOpenchatImWukongimAdapter?.targetRef, 'main');
     assert.equal(realpathSync(preparedAppSdk.packageRoot), realpathSync(path.join(
       tempRoot,
       'spring-ai-plus-app-api',
@@ -1155,6 +1208,31 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
       'sdkwork-core',
       'sdkwork-core-pc-react',
     )));
+    assert.equal(realpathSync(preparedImBackendSdk.packageRoot), realpathSync(path.join(
+      tempRoot,
+      'apps',
+      'openchat',
+      'sdkwork-im-sdk',
+      'sdkwork-im-sdk-typescript',
+      'generated',
+      'server-openapi',
+    )));
+    assert.equal(realpathSync(preparedOpenchatImSdk.packageRoot), realpathSync(path.join(
+      tempRoot,
+      'apps',
+      'openchat',
+      'sdkwork-im-sdk',
+      'sdkwork-im-sdk-typescript',
+      'composed',
+    )));
+    assert.equal(realpathSync(preparedOpenchatImWukongimAdapter.packageRoot), realpathSync(path.join(
+      tempRoot,
+      'apps',
+      'openchat',
+      'sdkwork-im-sdk',
+      'sdkwork-im-sdk-typescript',
+      'adapter-wukongim',
+    )));
     assert.equal(
       JSON.parse(readFileSync(path.join(preparedAppSdk.packageRoot, 'package.json'), 'utf8')).name,
       '@sdkwork/app-sdk',
@@ -1168,6 +1246,18 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
       '@sdkwork/core-pc-react',
     );
     assert.equal(
+      JSON.parse(readFileSync(path.join(preparedImBackendSdk.packageRoot, 'package.json'), 'utf8')).name,
+      '@sdkwork/im-backend-sdk',
+    );
+    assert.equal(
+      JSON.parse(readFileSync(path.join(preparedOpenchatImSdk.packageRoot, 'package.json'), 'utf8')).name,
+      '@openchat/sdkwork-im-sdk',
+    );
+    assert.equal(
+      JSON.parse(readFileSync(path.join(preparedOpenchatImWukongimAdapter.packageRoot, 'package.json'), 'utf8')).name,
+      '@openchat/sdkwork-im-wukongim-adapter',
+    );
+    assert.equal(
       preparedAppSdk?.repoUrl,
       appRepoRoot,
     );
@@ -1178,6 +1268,18 @@ test('git-backed shared sdk source helper can materialize pinned local git sourc
     assert.equal(
       preparedCorePcReact?.repoUrl,
       coreRepoRoot,
+    );
+    assert.equal(
+      preparedImBackendSdk?.repoUrl,
+      imRepoRoot,
+    );
+    assert.equal(
+      preparedOpenchatImSdk?.repoUrl,
+      imRepoRoot,
+    );
+    assert.equal(
+      preparedOpenchatImWukongimAdapter?.repoUrl,
+      imRepoRoot,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

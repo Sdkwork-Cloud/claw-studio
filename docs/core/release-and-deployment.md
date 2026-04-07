@@ -100,9 +100,11 @@ pnpm check:shared-sdk-release-parity
 This check clones the pinned refs from `config/shared-sdk-release-sources.json`
 and compares them with the local sibling SDK package roots that development
 still uses through relative workspace paths, including `@sdkwork/app-sdk`,
-`@sdkwork/sdk-common`, and `@sdkwork/core-pc-react`. The comparison normalizes
-text-file line endings so Windows `CRLF` checkouts and GitHub `LF` checkouts do
-not raise false drift. If this check fails, do not push a release tag yet.
+`@sdkwork/sdk-common`, `@sdkwork/core-pc-react`,
+`@sdkwork/im-backend-sdk`, `@openchat/sdkwork-im-sdk`, and
+`@openchat/sdkwork-im-wukongim-adapter`. The comparison normalizes text-file
+line endings so Windows `CRLF` checkouts and GitHub `LF` checkouts do not raise
+false drift. If this check fails, do not push a release tag yet.
 
 Before collecting artifacts, inspect the current multi-family release matrices:
 

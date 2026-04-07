@@ -11,6 +11,18 @@
     "core-pc-react": {
       "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-core.git",
       "ref": "b30bab1f67a696e903a753000282018ace673e13"
+    },
+    "im-backend-sdk": {
+      "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git",
+      "ref": "06e92a2e6a2946de05501a4d2785d7e0a4349bb9"
+    },
+    "openchat-im-sdk": {
+      "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git",
+      "ref": "06e92a2e6a2946de05501a4d2785d7e0a4349bb9"
+    },
+    "openchat-im-wukongim-adapter": {
+      "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-im-sdk.git",
+      "ref": "06e92a2e6a2946de05501a4d2785d7e0a4349bb9"
     }
   }
 }
