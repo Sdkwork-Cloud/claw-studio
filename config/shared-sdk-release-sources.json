@@ -1,0 +1,12 @@
+{
+  "sources": {
+    "app-sdk": {
+      "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git",
+      "ref": "0c2bd7feb1da5a0dc5dae3e7db9824404893f202"
+    },
+    "sdk-common": {
+      "repoUrl": "https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git",
+      "ref": "892dd2585ebd9e40bc55653d34fd5fb91281bbda"
+    }
+  }
+}

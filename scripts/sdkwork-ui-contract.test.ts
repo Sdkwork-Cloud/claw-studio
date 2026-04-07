@@ -114,6 +114,7 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(channelCatalogSource, /showRegionTabs\?: boolean/);
   assert.match(channelCatalogSource, /ChannelRegionTabs/);
   assert.match(channelCatalogSource, /channels\.page\.catalog\.tabs\.domestic/);
+  assert.match(channelCatalogSource, /channels\.page\.catalog\.tabs\.media/);
   assert.match(channelCatalogSource, /channels\.page\.catalog\.tabs\.all/);
   assert.match(channelCatalogSource, /regionGroups\.all\.length/);
   assert.match(channelCatalogSource, /sortChannelCatalogItems/);
@@ -122,6 +123,7 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(channelWorkspaceSource, /actionDownloadApp/);
   assert.match(channelWorkspaceSource, /ChannelRegionTabs/);
   assert.match(channelWorkspaceSource, /showRegionTabs=\{false\}/);
+  assert.match(channelWorkspaceSource, /channels\.page\.catalog\.tabs\.media/);
   assert.match(channelWorkspaceSource, /channels\.page\.catalog\.tabs\.all/);
   assert.match(channelWorkspaceSource, /regionGroups\.all\.length/);
   assert.match(channelWorkspaceSource, /activeRegion !== 'all'/);
@@ -129,11 +131,12 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(channelWorkspaceSource, /setupSteps/);
   assert.match(channelWorkspaceSource, /Delete configuration/);
   assert.match(channelRegionTabsSource, /data-slot="channel-region-tabs"/);
-  assert.match(channelRegionTabsSource, /\['domestic', 'global', 'all'\]/);
+  assert.match(channelRegionTabsSource, /\['domestic', 'global', 'media', 'all'\]/);
   assert.match(channelCatalogMetaSource, /sdkworkchat/);
   assert.match(channelCatalogMetaSource, /wehcat/);
   assert.match(channelCatalogMetaSource, /clawstudio\.sdkwork\.com\/platforms\/android/);
-  assert.match(channelCatalogMetaSource, /export type ChannelCatalogRegion = 'domestic' \| 'global' \| 'all'/);
+  assert.match(channelCatalogMetaSource, /export type ChannelCatalogRegion = 'domestic' \| 'global' \| 'media' \| 'all'/);
+  assert.match(channelCatalogMetaSource, /media: T\[];/);
   assert.match(channelCatalogMetaSource, /all: T\[];/);
   assert.match(channelCatalogMetaSource, /getChannelCatalogRegion/);
   assert.match(channelCatalogMetaSource, /getChannelCatalogRegions/);
@@ -141,9 +144,11 @@ runTest('sdkwork-claw-ui is implemented locally instead of re-exporting claw-stu
   assert.match(channelCatalogMetaSource, /resolveDefaultChannelCatalogRegion/);
   assert.match(channelCatalogMetaSource, /isChannelDownloadAppAction/);
   assert.match(channelCatalogMetaSource, /export function sortChannelCatalogItems/);
-  assert.match(channelCatalogMetaSource, /sdkworkchat:\s*\{[\s\S]*regions:\s*\['domestic', 'global'\]/);
+  assert.match(channelCatalogMetaSource, /sdkworkchat:\s*\{[\s\S]*regions:\s*\['domestic', 'global', 'media'\]/);
+  assert.match(channelCatalogMetaSource, /wehcat:\s*\{[\s\S]*regions:\s*\['domestic', 'media'\]/);
   assert.match(channelCatalogMetaSource, /groups\.all\.push\(item\)/);
   assert.match(channelCatalogMetaSource, /for \(const region of regions\)/);
+  assert.match(channelCatalogMetaSource, /media: \[\]/);
   assert.match(channelCatalogMetaSource, /all: \[\]/);
   assert.match(channelCatalogMetaSource, /return 'all'/);
   assert.match(channelWorkspaceSource, /getChannelCatalogRegions/);

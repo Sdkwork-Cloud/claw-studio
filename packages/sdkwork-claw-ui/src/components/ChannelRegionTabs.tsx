@@ -17,7 +17,7 @@ export function ChannelRegionTabs({
   onChange,
   className,
 }: ChannelRegionTabsProps) {
-  const regions: ChannelCatalogRegion[] = ['domestic', 'global', 'all'];
+  const regions: ChannelCatalogRegion[] = ['domestic', 'global', 'media', 'all'];
 
   return (
     <div

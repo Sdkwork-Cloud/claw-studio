@@ -36,14 +36,14 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
     page: {
       title: string;
       catalog: {
-        tabs: Record<'domestic' | 'global' | 'all', string>;
+        tabs: Record<'domestic' | 'global' | 'media' | 'all', string>;
       };
     };
   }>('packages/sdkwork-claw-i18n/src/locales/zh/channels.json');
   const enChannels = readJson<{
     page: {
       catalog: {
-        tabs: Record<'domestic' | 'global' | 'all', string>;
+        tabs: Record<'domestic' | 'global' | 'media' | 'all', string>;
       };
     };
   }>('packages/sdkwork-claw-i18n/src/locales/en/channels.json');
@@ -94,5 +94,7 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.equal(zhChannels.page.catalog.tabs.domestic, '国内');
   assert.equal(zhChannels.page.catalog.tabs.global, '国外');
   assert.equal(zhChannels.page.catalog.tabs.all, '全部');
+  assert.equal(typeof zhChannels.page.catalog.tabs.media, 'string');
+  assert.equal(enChannels.page.catalog.tabs.media, 'Media Accounts');
   assert.equal(enChannels.page.catalog.tabs.all, 'All');
 });

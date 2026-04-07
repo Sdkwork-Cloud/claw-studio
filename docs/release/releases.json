@@ -1,0 +1,32 @@
+{
+  "releases": [
+    {
+      "tag": "release-2026-04-07-01",
+      "title": "Claw Studio release-2026-04-07-01",
+      "date": "2026-04-07",
+      "status": "failed",
+      "summary": "Initial April 7 release attempt after the OpenClaw alignment branch.",
+      "notesFile": "release-2026-04-07-01.md"
+    },
+    {
+      "tag": "release-2026-04-07-02",
+      "title": "Claw Studio release-2026-04-07-02",
+      "date": "2026-04-07",
+      "status": "failed",
+      "summary": "Second April 7 release attempt blocked by shared SDK release-source drift.",
+      "notesFile": "release-2026-04-07-02.md"
+    },
+    {
+      "tag": "release-2026-04-07-03",
+      "title": "Claw Studio release-2026-04-07-03",
+      "date": "2026-04-07",
+      "status": "published",
+      "summary": "Release candidate that carries forward unpublished April 7 changes and hardens the release pipeline.",
+      "notesFile": "release-2026-04-07-03.md",
+      "carryForward": [
+        "release-2026-04-07-01",
+        "release-2026-04-07-02"
+      ]
+    }
+  ]
+}

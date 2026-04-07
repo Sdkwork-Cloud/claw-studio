@@ -7,10 +7,14 @@ const __filename = fileURLToPath(import.meta.url);
 
 export const SHARED_SDK_APP_REPO_URL_ENV_VAR = 'SDKWORK_SHARED_SDK_APP_REPO_URL';
 export const SHARED_SDK_COMMON_REPO_URL_ENV_VAR = 'SDKWORK_SHARED_SDK_COMMON_REPO_URL';
+export const SHARED_SDK_APP_GIT_REF_ENV_VAR = 'SDKWORK_SHARED_SDK_APP_GIT_REF';
+export const SHARED_SDK_COMMON_GIT_REF_ENV_VAR = 'SDKWORK_SHARED_SDK_COMMON_GIT_REF';
 export const SHARED_SDK_GIT_REF_ENV_VAR = 'SDKWORK_SHARED_SDK_GIT_REF';
 export const SHARED_SDK_GIT_FORCE_SYNC_ENV_VAR = 'SDKWORK_SHARED_SDK_GIT_FORCE_SYNC';
+export const SHARED_SDK_RELEASE_CONFIG_PATH_ENV_VAR = 'SDKWORK_SHARED_SDK_RELEASE_CONFIG_PATH';
 export const DEFAULT_SHARED_SDK_APP_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git';
 export const DEFAULT_SHARED_SDK_COMMON_REPO_URL = 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git';
+export const DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH = 'config/shared-sdk-release-sources.json';
 
 function run(command, args, { cwd = process.cwd(), captureStdout = false } = {}) {
   const result = spawnSync(command, args, {
@@ -51,6 +55,7 @@ function createSourceSpecs(workspaceRootDir) {
       packageDirName: 'sdkwork-app-sdk-typescript',
       monorepoSubmodulePath: 'spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app',
       repoUrlEnvVar: SHARED_SDK_APP_REPO_URL_ENV_VAR,
+      refEnvVar: SHARED_SDK_APP_GIT_REF_ENV_VAR,
       defaultRepoUrl: DEFAULT_SHARED_SDK_APP_REPO_URL,
     },
     {
@@ -61,6 +66,7 @@ function createSourceSpecs(workspaceRootDir) {
       packageDirName: 'sdkwork-sdk-common-typescript',
       monorepoSubmodulePath: 'spring-ai-plus-business/sdk/sdkwork-sdk-commons',
       repoUrlEnvVar: SHARED_SDK_COMMON_REPO_URL_ENV_VAR,
+      refEnvVar: SHARED_SDK_COMMON_GIT_REF_ENV_VAR,
       defaultRepoUrl: DEFAULT_SHARED_SDK_COMMON_REPO_URL,
     },
   ];
@@ -82,9 +88,43 @@ export function resolveMonorepoPackageRoot(spec) {
   return path.join(resolveMonorepoSubmoduleRoot(spec), spec.packageDirName);
 }
 
+export function resolveSharedSdkReleaseConfigPath(workspaceRootDir, env = process.env) {
+  const configuredPath = typeof env?.[SHARED_SDK_RELEASE_CONFIG_PATH_ENV_VAR] === 'string'
+    ? env[SHARED_SDK_RELEASE_CONFIG_PATH_ENV_VAR].trim()
+    : '';
+
+  return path.resolve(
+    workspaceRootDir,
+    configuredPath.length > 0 ? configuredPath : DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH,
+  );
+}
+
+export function readSharedSdkReleaseConfig(workspaceRootDir, env = process.env) {
+  const configPath = resolveSharedSdkReleaseConfigPath(workspaceRootDir, env);
+  if (!fs.existsSync(configPath)) {
+    throw new Error(
+      `[prepare-shared-sdk-git-sources] Missing shared SDK release config at ${configPath}.`,
+    );
+  }
+
+  const rawConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const sourceMap = rawConfig?.sources;
+  if (!sourceMap || typeof sourceMap !== 'object' || Array.isArray(sourceMap)) {
+    throw new Error(
+      `[prepare-shared-sdk-git-sources] Invalid shared SDK release config at ${configPath}: missing sources map.`,
+    );
+  }
+
+  return {
+    configPath,
+    sources: sourceMap,
+  };
+}
+
 function extractRepoName(repoUrl) {
   const normalizedRepoUrl = String(repoUrl ?? '')
     .trim()
+    .replaceAll('\\', '/')
     .replace(/[?#].*$/, '')
     .replace(/\/+$/, '');
 
@@ -290,7 +330,6 @@ export function detectExistingOriginUrl(repoRoot) {
 }
 
 export function resolveRemoteDefaultBranch(repoUrl) {
-  // Equivalent git command: git ls-remote --symref <repoUrl> HEAD
   const output = run('git', ['ls-remote', '--symref', repoUrl, 'HEAD'], {
     captureStdout: true,
   });
@@ -304,12 +343,30 @@ export function resolveRemoteDefaultBranch(repoUrl) {
   );
 }
 
-function resolveRepoUrl(spec, env) {
+function readConfiguredSource(spec, workspaceRootDir, env) {
+  const { configPath, sources } = readSharedSdkReleaseConfig(workspaceRootDir, env);
+  const configuredSource = sources?.[spec.id];
+
+  if (!configuredSource || typeof configuredSource !== 'object' || Array.isArray(configuredSource)) {
+    throw new Error(
+      `[prepare-shared-sdk-git-sources] Missing ${spec.id} source in ${configPath}.`,
+    );
+  }
+
+  return configuredSource;
+}
+
+function resolveRepoUrl(spec, workspaceRootDir, env) {
   const explicitUrl = typeof env?.[spec.repoUrlEnvVar] === 'string'
     ? env[spec.repoUrlEnvVar].trim()
     : '';
   if (explicitUrl.length > 0) {
     return explicitUrl;
+  }
+
+  const configuredSource = readConfiguredSource(spec, workspaceRootDir, env);
+  if (typeof configuredSource.repoUrl === 'string' && configuredSource.repoUrl.trim().length > 0) {
+    return configuredSource.repoUrl.trim();
   }
 
   for (const checkoutRoot of [
@@ -328,8 +385,7 @@ function resolveRepoUrl(spec, env) {
   }
 
   throw new Error(
-    `[prepare-shared-sdk-git-sources] Missing ${spec.repoUrlEnvVar}. ` +
-      `Set it to the git remote that should materialize ${spec.label}.`,
+    `[prepare-shared-sdk-git-sources] Missing ${spec.repoUrlEnvVar}.`,
   );
 }
 
@@ -347,12 +403,22 @@ function resolveCurrentCheckoutRef(repoRoot) {
   }
 }
 
-function resolveTargetRef({ repoUrl, env, checkoutRoot, syncExistingRepos }) {
-  const explicitRef = typeof env?.[SHARED_SDK_GIT_REF_ENV_VAR] === 'string'
+function resolveTargetRef({ repoUrl, spec, workspaceRootDir, env, checkoutRoot, syncExistingRepos }) {
+  const explicitPerRepoRef = typeof env?.[spec.refEnvVar] === 'string' ? env[spec.refEnvVar].trim() : '';
+  if (explicitPerRepoRef.length > 0) {
+    return explicitPerRepoRef;
+  }
+
+  const configuredSource = readConfiguredSource(spec, workspaceRootDir, env);
+  if (typeof configuredSource.ref === 'string' && configuredSource.ref.trim().length > 0) {
+    return configuredSource.ref.trim();
+  }
+
+  const explicitGlobalRef = typeof env?.[SHARED_SDK_GIT_REF_ENV_VAR] === 'string'
     ? env[SHARED_SDK_GIT_REF_ENV_VAR].trim()
     : '';
-  if (explicitRef.length > 0) {
-    return explicitRef;
+  if (explicitGlobalRef.length > 0) {
+    return explicitGlobalRef;
   }
 
   if (!syncExistingRepos) {
@@ -380,24 +446,26 @@ function assertGitCheckoutIsClean(repoRoot, label) {
 
 function cloneSourceRepo({ repoRoot, repoUrl, targetRef }) {
   fs.mkdirSync(path.dirname(repoRoot), { recursive: true });
-  // Equivalent git command: git clone --depth 1 --branch <targetRef> <repoUrl> <repoRoot>
-  run('git', ['clone', '--depth', '1', '--branch', targetRef, repoUrl, repoRoot]);
+  run('git', ['clone', '--depth', '1', repoUrl, repoRoot]);
+  run('git', ['-C', repoRoot, 'fetch', '--depth', '1', 'origin', targetRef]);
+  run('git', ['-C', repoRoot, 'checkout', '--force', 'FETCH_HEAD']);
 }
 
 function syncExistingSourceRepo({ repoRoot, repoUrl, targetRef, label }) {
   assertGitCheckoutIsClean(repoRoot, label);
   run('git', ['-C', repoRoot, 'remote', 'set-url', 'origin', repoUrl]);
   run('git', ['-C', repoRoot, 'fetch', '--depth', '1', 'origin', targetRef]);
-  run('git', ['-C', repoRoot, 'checkout', '--force', targetRef]);
-  run('git', ['-C', repoRoot, 'reset', '--hard', `origin/${targetRef}`]);
+  run('git', ['-C', repoRoot, 'checkout', '--force', 'FETCH_HEAD']);
 }
 
-function ensureSourceSpecReady(spec, env, syncExistingRepos) {
-  const repoUrl = resolveRepoUrl(spec, env);
+function ensureSourceSpecReady(spec, workspaceRootDir, env, syncExistingRepos) {
+  const repoUrl = resolveRepoUrl(spec, workspaceRootDir, env);
   const checkoutRoot = resolveCheckoutRootForRepoUrl(spec, repoUrl);
   const hasGitCheckout = isGitCheckout(checkoutRoot);
   const targetRef = resolveTargetRef({
     repoUrl,
+    spec,
+    workspaceRootDir,
     env,
     checkoutRoot,
     syncExistingRepos,
@@ -454,7 +522,7 @@ export function ensureSharedSdkGitSources({
   syncExistingRepos = parseBooleanFlag(env?.CI) || parseBooleanFlag(env?.[SHARED_SDK_GIT_FORCE_SYNC_ENV_VAR]),
 } = {}) {
   return createSourceSpecs(workspaceRootDir).map((spec) => {
-    return ensureSourceSpecReady(spec, env, syncExistingRepos);
+    return ensureSourceSpecReady(spec, workspaceRootDir, env, syncExistingRepos);
   });
 }
 

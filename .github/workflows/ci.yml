@@ -19,9 +19,6 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   SDKWORK_SHARED_SDK_MODE: git
-  SDKWORK_SHARED_SDK_GIT_REF: main
-  SDKWORK_SHARED_SDK_APP_REPO_URL: https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git
-  SDKWORK_SHARED_SDK_COMMON_REPO_URL: https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git
 
 jobs:
   workspace-verify:
@@ -72,7 +69,7 @@ jobs:
             rpm \
             patchelf
 
-      - name: Prepare git-backed shared SDK sources
+      - name: Prepare shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
 
       - name: Install workspace dependencies
@@ -140,7 +137,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Prepare git-backed shared SDK sources
+      - name: Prepare shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
 
       - name: Install workspace dependencies

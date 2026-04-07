@@ -90,6 +90,19 @@ Before changing GitHub workflows, release packaging scripts, or asset finalizati
 pnpm check:automation
 ```
 
+Before pushing a release tag after shared SDK changes, compare the configured
+GitHub release sources against the local source-of-truth package roots:
+
+```bash
+pnpm check:shared-sdk-release-parity
+```
+
+This check clones the pinned refs from `config/shared-sdk-release-sources.json`
+and compares them with the local sibling SDK package roots that development
+still uses through relative workspace paths. The comparison normalizes text-file
+line endings so Windows `CRLF` checkouts and GitHub `LF` checkouts do not raise
+false drift. If this check fails, do not push a release tag yet.
+
 Before collecting artifacts, inspect the current multi-family release matrices:
 
 ```bash
@@ -142,6 +155,19 @@ The local wrapper defaults `release:plan`, `release:package:*`, and `release:fin
 - `SDKWORK_RELEASE_IMAGE_TAG`
 - `SDKWORK_RELEASE_IMAGE_DIGEST`
 - `SDKWORK_RELEASE_REPOSITORY`
+
+## Release Notes Source
+
+GitHub release notes are now repository-owned artifacts instead of auto-generated
+platform summaries.
+
+- Release metadata lives in `docs/release/releases.json`
+- Per-tag release note documents live under `docs/release/`
+- The reusable GitHub release workflow renders notes with `node scripts/release/render-release-notes.mjs --release-tag <tag> --output release-assets/release-notes.md`
+
+When a release attempt fails before GitHub publishes the release, carry the
+unpublished change log forward by referencing the earlier failed tags in the
+next successful release entry.
 
 ## Release Metadata Contract
 

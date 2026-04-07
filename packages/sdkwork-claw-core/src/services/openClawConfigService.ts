@@ -2057,24 +2057,26 @@ function buildResolvedAgentPaths(
 const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
   {
     id: 'sdkworkchat',
-    name: 'Sdkwork Chat',
-    description: 'Deliver OpenClaw conversations directly into the first-party Sdkwork Chat experience.',
+    name: 'SDKWORK公众号',
+    description:
+      'Use the built-in SDKWORK official account delivery path so OpenClaw can hand off conversations without extra credential setup.',
     setupSteps: [
-      'Download the Sdkwork Chat app or open the existing Sdkwork Chat workspace.',
-      'Sign in with your SDKWork account to receive OpenClaw conversations immediately.',
-      'Keep this channel enabled when the current runtime should hand off into Sdkwork Chat.',
+      'Open the integrated SDKWORK official account experience or install the SDKWORK client if this machine has not signed in yet.',
+      'Sign in with your SDKWORK account so the default media channel is ready immediately.',
+      'Keep this channel enabled when the current runtime should hand off into the SDKWORK official account.',
     ],
     configurationMode: 'none',
     fields: [],
   },
   {
     id: 'wehcat',
-    name: 'Wehcat',
-    description: 'Connect a WeChat official account workflow so OpenClaw can serve China-facing channels.',
+    name: '微信公众号',
+    description:
+      'Connect a WeChat official account workflow so OpenClaw can serve China-facing media channels.',
     setupSteps: [
-      'Create or manage a WeChat official account in the WeChat platform.',
+      'Create or manage a WeChat official account in the WeChat official account platform.',
       'Paste the App ID, App Secret, token, and optional AES key here.',
-      'Configure the callback URL on the WeChat side and enable the channel.',
+      'Configure the callback URL on the WeChat side and enable the official account channel.',
     ],
     fields: [
       {

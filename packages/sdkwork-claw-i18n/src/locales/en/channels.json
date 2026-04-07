@@ -28,11 +28,13 @@
       "tabs": {
         "domestic": "Domestic",
         "global": "Global",
+        "media": "Media Accounts",
         "all": "All"
       },
       "empty": {
         "domestic": "No domestic chat channels are available in this workspace.",
         "global": "No global chat channels are available in this workspace.",
+        "media": "No media account channels are available in this workspace.",
         "all": "No chat channels are available in this workspace."
       }
     }

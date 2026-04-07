@@ -29,6 +29,23 @@ test('repository exposes a mainline CI workflow for push and pull request verifi
   assert.match(workflow, /pnpm\/action-setup@/);
   assert.match(workflow, /actions\/setup-node@/);
   assert.equal(gitSourcePreparationCount, 2);
+  assert.match(workflow, /SDKWORK_SHARED_SDK_MODE:\s*git/);
+  assert.match(workflow, /Prepare shared SDK sources/);
+  assert.doesNotMatch(
+    workflow,
+    /SDKWORK_SHARED_SDK_GIT_REF:\s*main/,
+    'ci workflow must not float shared SDK materialization on a remote main branch',
+  );
+  assert.doesNotMatch(
+    workflow,
+    /SDKWORK_SHARED_SDK_APP_REPO_URL:/,
+    'ci workflow should resolve pinned shared SDK sources from repository config rather than ad hoc repo URL env vars',
+  );
+  assert.doesNotMatch(
+    workflow,
+    /SDKWORK_SHARED_SDK_COMMON_REPO_URL:/,
+    'ci workflow should resolve pinned shared SDK sources from repository config rather than ad hoc repo URL env vars',
+  );
   assert.match(workflow, /pnpm install --frozen-lockfile/);
   assert.equal(sharedSdkPreparationCount, 2);
   assert.match(workflow, /pkg-config/);

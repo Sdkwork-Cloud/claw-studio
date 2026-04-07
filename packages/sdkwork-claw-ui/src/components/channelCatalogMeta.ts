@@ -3,12 +3,13 @@ export interface ChannelOfficialLink {
   label: string;
 }
 
-export type ChannelCatalogRegion = 'domestic' | 'global' | 'all';
+export type ChannelCatalogRegion = 'domestic' | 'global' | 'media' | 'all';
 type ChannelCatalogPlacementRegion = Exclude<ChannelCatalogRegion, 'all'>;
 
 export interface ChannelCatalogRegionGroups<T> {
   domestic: T[];
   global: T[];
+  media: T[];
   all: T[];
 }
 
@@ -30,7 +31,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'SC',
     tone:
       'border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-700 dark:border-emerald-500/20 dark:from-emerald-500/15 dark:to-teal-500/15 dark:text-emerald-200',
-    regions: ['domestic', 'global'],
+    regions: ['domestic', 'global', 'media'],
     officialLink: {
       href: 'https://clawstudio.sdkwork.com/platforms/android',
       label: 'Sdkwork Chat App Download',
@@ -42,7 +43,7 @@ const channelCatalogMetaMap: Record<string, ChannelCatalogMeta> = {
     monogram: 'WC',
     tone:
       'border-green-200/80 bg-gradient-to-br from-green-50 to-lime-100 text-green-700 dark:border-green-500/20 dark:from-green-500/15 dark:to-lime-500/15 dark:text-green-200',
-    regions: ['domestic'],
+    regions: ['domestic', 'media'],
     officialLink: {
       href: 'https://mp.weixin.qq.com/',
       label: 'WeChat Official Account Platform',
@@ -234,6 +235,7 @@ export function partitionChannelCatalogItemsByRegion<
     {
       domestic: [],
       global: [],
+      media: [],
       all: [],
     },
   );
@@ -248,6 +250,10 @@ export function resolveDefaultChannelCatalogRegion<T>(
 
   if (groups.global.length > 0) {
     return 'global';
+  }
+
+  if (groups.media.length > 0) {
+    return 'media';
   }
 
   return 'all';

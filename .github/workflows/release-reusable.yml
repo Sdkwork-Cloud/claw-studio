@@ -29,9 +29,6 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   SDKWORK_SHARED_SDK_MODE: git
-  SDKWORK_SHARED_SDK_GIT_REF: main
-  SDKWORK_SHARED_SDK_APP_REPO_URL: https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git
-  SDKWORK_SHARED_SDK_COMMON_REPO_URL: https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git
 
 jobs:
   prepare:
@@ -116,7 +113,7 @@ jobs:
             rpm \
             patchelf
 
-      - name: Prepare git-backed shared SDK sources
+      - name: Prepare shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
 
       - name: Install workspace dependencies
@@ -194,7 +191,7 @@ jobs:
             patchelf \
             xvfb
 
-      - name: Prepare git-backed shared SDK sources
+      - name: Prepare shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
 
       - name: Install workspace dependencies
@@ -269,7 +266,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Prepare git-backed shared SDK sources
+      - name: Prepare shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
 
       - name: Install workspace dependencies
@@ -336,7 +333,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Prepare git-backed shared SDK sources
+      - name: Prepare shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
 
       - name: Install workspace dependencies
@@ -406,7 +403,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Prepare git-backed shared SDK sources
+      - name: Prepare shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
 
       - name: Install workspace dependencies
@@ -652,6 +649,9 @@ jobs:
       - name: Finalize release assets
         run: node scripts/release/finalize-release-assets.mjs --profile ${{ inputs.release_profile }} --release-tag ${{ needs.prepare.outputs.release_tag }} --repository ${{ github.repository }} --release-assets-dir release-assets
 
+      - name: Render release notes
+        run: node scripts/release/render-release-notes.mjs --release-tag ${{ needs.prepare.outputs.release_tag }} --output release-assets/release-notes.md
+
       - name: Attest finalized release assets
         if: ${{ needs.prepare.outputs.release_tag != '' }}
         uses: actions/attest-build-provenance@v3
@@ -663,7 +663,7 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
           name: ${{ needs.prepare.outputs.release_name }}
-          generate_release_notes: true
+          body_path: release-assets/release-notes.md
           overwrite_files: true
           fail_on_unmatched_files: true
           files: |

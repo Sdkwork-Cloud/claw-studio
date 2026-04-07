@@ -383,12 +383,13 @@ runTest('claw hosts restrict relative shared sdk aliases to source mode and keep
   }
 });
 
-runTest('claw workspace prefers workspace-linked shared sdk sources locally while allowing git-trunk release sourcing', () => {
+runTest('claw workspace keeps relative-path shared sdk development while pinning git-backed release sources in config', () => {
   const workspacePackageJson = read('package.json');
   const webPackageJson = read('packages/sdkwork-claw-web/package.json');
   const desktopPackageJson = read('packages/sdkwork-claw-desktop/package.json');
   const workspaceManifest = read('pnpm-workspace.yaml');
   const npmrc = read('.npmrc');
+  const sharedSdkReleaseConfig = read('config/shared-sdk-release-sources.json');
   const coreCheckRunner = read('scripts/run-sdkwork-core-check.mjs');
   const nodeTypeScriptRunner = read('scripts/run-node-typescript-check.mjs');
   const prepareSharedSdkScript = read('scripts/prepare-shared-sdk-packages.mjs');
@@ -397,6 +398,10 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(npmrc, /link-workspace-packages\s*=\s*true/);
   assert.match(workspaceManifest, /spring-ai-plus-app-api/);
   assert.match(workspaceManifest, /sdkwork-sdk-common-typescript/);
+  assert.ok(exists('config/shared-sdk-release-sources.json'));
+  assert.match(sharedSdkReleaseConfig, /sdkwork-sdk-app\.git/);
+  assert.match(sharedSdkReleaseConfig, /sdkwork-sdk-commons\.git/);
+  assert.doesNotMatch(sharedSdkReleaseConfig, /"ref"\s*:\s*"main"/);
   assert.match(workspacePackageJson, /"prepare:shared-sdk"\s*:\s*"node scripts\/prepare-shared-sdk-packages\.mjs"/);
   assert.match(workspacePackageJson, /"build"\s*:\s*"pnpm prepare:shared-sdk && pnpm --filter @sdkwork\/claw-web build"/);
   assert.match(webPackageJson, /"build"\s*:\s*"node \.\.\/\.\.\/scripts\/prepare-shared-sdk-packages\.mjs && node \.\.\/\.\.\/scripts\/run-vite-host\.mjs build --mode production"/);
@@ -404,14 +409,15 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(workspacePackageJson, /"check:sdkwork-core"\s*:\s*"node scripts\/run-sdkwork-core-check\.mjs"/);
   assert.match(prepareSharedSdkScript, /SDKWORK_SHARED_SDK_MODE/);
   assert.match(prepareSharedSdkScript, /resolveSharedSdkMode/);
-  assert.match(prepareSharedSdkScript, /mode === 'git'/);
-  assert.match(prepareGitSourcesScript, /git clone/);
-  assert.match(prepareGitSourcesScript, /git ls-remote --symref/);
+  assert.match(prepareGitSourcesScript, /['"]clone['"]/);
+  assert.match(prepareGitSourcesScript, /FETCH_HEAD/);
+  assert.match(prepareGitSourcesScript, /shared-sdk-release-sources\.json/);
   assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_APP_REPO_URL/);
   assert.match(prepareGitSourcesScript, /SDKWORK_SHARED_SDK_COMMON_REPO_URL/);
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
   assert.match(prepareGitSourcesScript, /https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
-  assert.match(prepareGitSourcesScript, /branch', '--show-current/);
+  assert.doesNotMatch(prepareGitSourcesScript, /vendor\/shared-sdk/);
+  assert.doesNotMatch(prepareGitSourcesScript, /materializePackageRootFromVendoredSource/);
   assert.match(nodeTypeScriptRunner, /--experimental-transform-types/);
   assert.match(nodeTypeScriptRunner, /--disable-warning=ExperimentalWarning/);
   assert.match(nodeTypeScriptRunner, /ts-extension-loader\.mjs/);

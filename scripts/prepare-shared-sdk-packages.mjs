@@ -102,7 +102,7 @@ function assertPackageRootExists(packageRoot, packageName) {
 
   throw new Error(
     `[prepare-shared-sdk-packages] Missing ${packageName} source at ${packageRoot}. ` +
-      'Clone the sibling SDK workspace locally or set SDKWORK_SHARED_SDK_MODE=git to materialize it from the remote trunk.',
+      'Restore the local shared SDK source tree or set SDKWORK_SHARED_SDK_MODE=git to materialize the pinned release checkout.',
   );
 }
 
@@ -238,8 +238,12 @@ export function prepareSharedSdkPackages({
     env,
   });
 
-  if (context.mode === 'git') {
-    console.log('[prepare-shared-sdk-packages] Ensuring git-backed shared SDK sources are available.');
+  if (
+    context.mode === 'git' ||
+    !exists(context.sharedSdkCommonRoot) ||
+    !exists(context.sharedAppSdkRoot)
+  ) {
+    console.log('[prepare-shared-sdk-packages] Ensuring shared SDK sources are available.');
     ensureSharedSdkGitSources({
       workspaceRootDir: context.workspaceRoot,
       env,

@@ -52,11 +52,24 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(reusableWorkflow, /workflow_call:/);
   assert.match(reusableWorkflow, /concurrency:/);
   assert.match(reusableWorkflow, /packages:\s*write/);
-  assert.match(reusableWorkflow, /verify-release:/);
   assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_MODE:\s*git/);
-  assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_GIT_REF:\s*main/);
-  assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_APP_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-app\.git/);
-  assert.match(reusableWorkflow, /SDKWORK_SHARED_SDK_COMMON_REPO_URL:\s*https:\/\/github\.com\/Sdkwork-Cloud\/sdkwork-sdk-commons\.git/);
+  assert.match(reusableWorkflow, /verify-release:/);
+  assert.match(reusableWorkflow, /Prepare shared SDK sources/);
+  assert.doesNotMatch(
+    reusableWorkflow,
+    /SDKWORK_SHARED_SDK_GIT_REF:\s*main/,
+    'release workflow must not float shared SDK resolution on a remote main branch',
+  );
+  assert.doesNotMatch(
+    reusableWorkflow,
+    /SDKWORK_SHARED_SDK_APP_REPO_URL:/,
+    'release workflow should be self-contained and must not require an external app SDK repo URL',
+  );
+  assert.doesNotMatch(
+    reusableWorkflow,
+    /SDKWORK_SHARED_SDK_COMMON_REPO_URL:/,
+    'release workflow should be self-contained and must not require an external common SDK repo URL',
+  );
   assert.equal(gitSourcePreparationCount, 5);
   assert.match(reusableWorkflow, /pnpm install --frozen-lockfile/);
   assert.equal(sharedSdkPreparationCount, 5);
@@ -142,10 +155,16 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   );
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs web --profile \$\{\{ inputs\.release_profile \}\}/);
   assert.match(reusableWorkflow, /node scripts\/release\/finalize-release-assets\.mjs --profile \$\{\{ inputs\.release_profile \}\}/);
+  assert.match(
+    reusableWorkflow,
+    /node scripts\/release\/render-release-notes\.mjs --release-tag \$\{\{ needs\.prepare\.outputs\.release_tag \}\} --output release-assets\/release-notes\.md/,
+  );
   assert.match(reusableWorkflow, /actions\/attest-build-provenance@v3/);
   assert.match(reusableWorkflow, /attestations:\s*write/);
   assert.match(reusableWorkflow, /id-token:\s*write/);
   assert.match(reusableWorkflow, /softprops\/action-gh-release@/);
+  assert.match(reusableWorkflow, /body_path:\s*release-assets\/release-notes\.md/);
+  assert.doesNotMatch(reusableWorkflow, /generate_release_notes:\s*true/);
   assert.match(reusableWorkflow, /CMAKE_GENERATOR:\s*Visual Studio 17 2022/);
   assert.match(reusableWorkflow, /needs:\s*\[\s*prepare,\s*verify-release\s*\]/);
   assert.match(reusableWorkflow, /-\s*server-release/);
@@ -185,9 +204,11 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-desktop-packaged-launch\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-desktop-startup-evidence\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/local-release-command\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/render-release-notes\.mjs --help/);
   assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:automation'], /pnpm check:release-flow && pnpm check:ci-flow/);
   assert.match(rootPackage.scripts['lint'], /pnpm check:automation/);
+  assert.match(rootPackage.scripts['check:shared-sdk-release-parity'], /node scripts\/check-shared-sdk-release-parity\.mjs/);
   assert.match(rootPackage.scripts['check:server'], /node scripts\/check-server-platform-foundation\.mjs/);
   assert.match(rootPackage.scripts['check:server'], /cargo test --manifest-path packages\/sdkwork-claw-server\/src-host\/Cargo\.toml/);
   assert.match(
@@ -911,10 +932,12 @@ test('git-backed shared sdk source detection resolves origin from nested directo
   }
 });
 
-test('git-backed shared sdk source helper parses monorepo submodule layouts and resolves legacy package roots', async () => {
+test('git-backed shared sdk source helper parses monorepo submodule layouts and resolves config-backed package roots', async () => {
   const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-git-sources.mjs');
   const helper = await import(pathToFileURL(helperPath).href);
 
+  assert.equal(typeof helper.resolveSharedSdkReleaseConfigPath, 'function');
+  assert.equal(typeof helper.readSharedSdkReleaseConfig, 'function');
   assert.equal(typeof helper.resolveSourcePackageContainerRoot, 'function');
   assert.equal(typeof helper.resolveSourcePackageRoot, 'function');
   assert.equal(typeof helper.resolveMonorepoSubmoduleRoot, 'function');
@@ -925,6 +948,7 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
   assert.equal(typeof helper.materializePackageRootFromMonorepo, 'function');
   assert.equal(helper.DEFAULT_SHARED_SDK_APP_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-app.git');
   assert.equal(helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL, 'https://github.com/Sdkwork-Cloud/sdkwork-sdk-commons.git');
+  assert.equal(helper.DEFAULT_SHARED_SDK_RELEASE_CONFIG_PATH, 'config/shared-sdk-release-sources.json');
 
   const repoRoot = path.join(rootDir, '.tmp', 'shared-sdk-layout');
   const spec = {
@@ -989,11 +1013,150 @@ test('git-backed shared sdk source helper parses monorepo submodule layouts and 
     'spring-ai-plus-business/spring-ai-plus-app-api/sdkwork-sdk-app',
   ]);
 
+  const sharedSdkReleaseConfig = helper.readSharedSdkReleaseConfig(rootDir);
+  assert.equal(
+    path.relative(rootDir, helper.resolveSharedSdkReleaseConfigPath(rootDir)).replaceAll('\\', '/'),
+    'config/shared-sdk-release-sources.json',
+  );
+  assert.equal(sharedSdkReleaseConfig.sources['app-sdk'].repoUrl, helper.DEFAULT_SHARED_SDK_APP_REPO_URL);
+  assert.equal(sharedSdkReleaseConfig.sources['sdk-common'].repoUrl, helper.DEFAULT_SHARED_SDK_COMMON_REPO_URL);
+  assert.doesNotMatch(JSON.stringify(sharedSdkReleaseConfig), /"ref"\s*:\s*"main"/);
+
   const helperSource = read('scripts/prepare-shared-sdk-git-sources.mjs');
   assert.match(helperSource, /submodule/);
   assert.match(helperSource, /--init/);
   assert.match(helperSource, /symlinkSync/);
   assert.match(helperSource, /monorepoSubmodulePath/);
+  assert.match(helperSource, /shared-sdk-release-sources\.json/);
+  assert.match(helperSource, /FETCH_HEAD/);
+});
+
+test('git-backed shared sdk source helper can materialize pinned local git sources from the release config', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'prepare-shared-sdk-git-sources.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-shared-sdk-'));
+  const workspaceRoot = path.join(tempRoot, 'apps', 'claw-studio');
+  const configPath = path.join(workspaceRoot, 'config', 'shared-sdk-release-sources.json');
+  const sourceRepoRoot = path.join(tempRoot, 'source-repos');
+  const appRepoRoot = path.join(sourceRepoRoot, 'sdkwork-sdk-app');
+  const commonRepoRoot = path.join(sourceRepoRoot, 'sdkwork-sdk-commons');
+  const appPackageRoot = path.join(appRepoRoot, 'sdkwork-app-sdk-typescript');
+  const commonPackageRoot = path.join(commonRepoRoot, 'sdkwork-sdk-common-typescript');
+
+  function runGit(args, cwd) {
+    const result = spawnSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout || `git ${args.join(' ')} failed`);
+  }
+
+  mkdirSync(appPackageRoot, { recursive: true });
+  mkdirSync(commonPackageRoot, { recursive: true });
+  mkdirSync(path.dirname(configPath), { recursive: true });
+
+  writeFileSync(
+    path.join(appPackageRoot, 'package.json'),
+    JSON.stringify({ name: '@sdkwork/app-sdk', version: '1.0.53' }, null, 2),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(commonPackageRoot, 'package.json'),
+    JSON.stringify({ name: '@sdkwork/sdk-common', version: '1.0.2' }, null, 2),
+    'utf8',
+  );
+
+  runGit(['init', '--initial-branch', 'main'], appRepoRoot);
+  runGit(['config', 'user.name', 'Codex'], appRepoRoot);
+  runGit(['config', 'user.email', 'sdkwork@zowalk.com'], appRepoRoot);
+  runGit(['add', '.'], appRepoRoot);
+  runGit(['commit', '-m', 'seed-app-sdk'], appRepoRoot);
+
+  runGit(['init', '--initial-branch', 'main'], commonRepoRoot);
+  runGit(['config', 'user.name', 'Codex'], commonRepoRoot);
+  runGit(['config', 'user.email', 'sdkwork@zowalk.com'], commonRepoRoot);
+  runGit(['add', '.'], commonRepoRoot);
+  runGit(['commit', '-m', 'seed-sdk-common'], commonRepoRoot);
+
+  writeFileSync(
+    configPath,
+    JSON.stringify(
+      {
+        sources: {
+          'app-sdk': {
+            repoUrl: appRepoRoot,
+            ref: 'main',
+          },
+          'sdk-common': {
+            repoUrl: commonRepoRoot,
+            ref: 'main',
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  try {
+    const preparedSources = helper.ensureSharedSdkGitSources({
+      workspaceRootDir: workspaceRoot,
+      env: {
+        [helper.SHARED_SDK_RELEASE_CONFIG_PATH_ENV_VAR]: configPath,
+      },
+      syncExistingRepos: false,
+    });
+
+    const preparedAppSdk = preparedSources.find((entry) => entry.id === 'app-sdk');
+    const preparedSdkCommon = preparedSources.find((entry) => entry.id === 'sdk-common');
+
+    assert.equal(preparedAppSdk?.targetRef, 'main');
+    assert.equal(preparedSdkCommon?.targetRef, 'main');
+    assert.equal(realpathSync(preparedAppSdk.packageRoot), realpathSync(path.join(
+      tempRoot,
+      'spring-ai-plus-app-api',
+      'sdkwork-sdk-app',
+      'sdkwork-app-sdk-typescript',
+    )));
+    assert.equal(realpathSync(preparedSdkCommon.packageRoot), realpathSync(path.join(
+      tempRoot,
+      'sdk',
+      'sdkwork-sdk-commons',
+      'sdkwork-sdk-common-typescript',
+    )));
+    assert.equal(
+      JSON.parse(readFileSync(path.join(preparedAppSdk.packageRoot, 'package.json'), 'utf8')).name,
+      '@sdkwork/app-sdk',
+    );
+    assert.equal(
+      JSON.parse(readFileSync(path.join(preparedSdkCommon.packageRoot, 'package.json'), 'utf8')).name,
+      '@sdkwork/sdk-common',
+    );
+    assert.equal(
+      preparedAppSdk?.repoUrl,
+      appRepoRoot,
+    );
+    assert.equal(
+      preparedSdkCommon?.repoUrl,
+      commonRepoRoot,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('shared sdk release parity hashing treats LF and CRLF text sources as the same content', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'check-shared-sdk-release-parity.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  assert.equal(typeof helper.hashBufferForParity, 'function');
+  assert.equal(
+    helper.hashBufferForParity(Buffer.from('export const value = 1;\n', 'utf8')),
+    helper.hashBufferForParity(Buffer.from('export const value = 1;\r\n', 'utf8')),
+  );
 });
 
 test('desktop release build runner injects the supported Visual Studio generator only on Windows', async () => {

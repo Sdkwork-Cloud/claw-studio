@@ -69,13 +69,13 @@ runTest('getChannelCatalogRegion keeps domestic channels grouped separately from
 });
 
 runTest('getChannelCatalogRegions allows Sdkwork Chat to appear in both domestic and global tabs', () => {
-  assert.deepEqual(getChannelCatalogRegions('sdkworkchat'), ['domestic', 'global']);
-  assert.deepEqual(getChannelCatalogRegions('wehcat'), ['domestic']);
+  assert.deepEqual(getChannelCatalogRegions('sdkworkchat'), ['domestic', 'global', 'media']);
+  assert.deepEqual(getChannelCatalogRegions('wehcat'), ['domestic', 'media']);
   assert.deepEqual(getChannelCatalogRegions('discord'), ['global']);
   assert.deepEqual(getChannelCatalogRegions('unknown-channel'), ['global']);
 });
 
-runTest('partitionChannelCatalogItemsByRegion builds domestic, global, and all tabs while keeping domestic as the default', () => {
+runTest('partitionChannelCatalogItemsByRegion builds domestic, global, media, and all tabs while keeping domestic as the default', () => {
   const groups = partitionChannelCatalogItemsByRegion([
     {
       id: 'discord',
@@ -109,6 +109,10 @@ runTest('partitionChannelCatalogItemsByRegion builds domestic, global, and all t
     ['sdkworkchat', 'discord'],
   );
   assert.deepEqual(
+    groups.media.map((item) => item.id),
+    ['sdkworkchat'],
+  );
+  assert.deepEqual(
     groups.all.map((item) => item.id),
     ['sdkworkchat', 'qq', 'discord'],
   );
@@ -117,6 +121,7 @@ runTest('partitionChannelCatalogItemsByRegion builds domestic, global, and all t
     resolveDefaultChannelCatalogRegion({
       domestic: [],
       global: groups.global,
+      media: groups.media,
       all: groups.all,
     }),
     'global',
@@ -125,6 +130,16 @@ runTest('partitionChannelCatalogItemsByRegion builds domestic, global, and all t
     resolveDefaultChannelCatalogRegion({
       domestic: [],
       global: [],
+      media: groups.media,
+      all: groups.all,
+    }),
+    'media',
+  );
+  assert.equal(
+    resolveDefaultChannelCatalogRegion({
+      domestic: [],
+      global: [],
+      media: [],
       all: [],
     }),
     'all',
