@@ -60,6 +60,8 @@ const OPENCLAW_DISABLE_BUNDLED_PLUGIN_POSTINSTALL_ENV =
 const OPENCLAW_RUNTIME_INSTALL_CACHE_DIRNAME = 'npm-cache';
 const OPENCLAW_RUNTIME_INSTALL_TEMP_DIRNAME = 'tmp';
 const WINDOWS_MIRROR_BASE_STATE_FILENAME = 'windows-mirror-base-dir.json';
+const WINDOWS_DRIVE_ABSOLUTE_PATH_PATTERN = /^[A-Za-z]:[\\/]/;
+const WINDOWS_UNC_PATH_PATTERN = /^(?:\\\\|\/\/)[^\\/]+[\\/][^\\/]+/;
 
 export const DEFAULT_RESOURCE_DIR = path.join(
   rootDir,
@@ -83,47 +85,97 @@ function resolveWindowsMirrorBaseDirStatePath(workspaceRootDir = rootDir) {
   );
 }
 
-function normalizeWindowsComparablePath(value) {
-  return path.win32.normalize(String(value ?? '').trim()).toLowerCase();
+function isWindowsDriveAbsolutePath(value = '') {
+  return WINDOWS_DRIVE_ABSOLUTE_PATH_PATTERN.test(String(value ?? '').trim());
 }
 
-function persistedWindowsMirrorBaseDirIsValid(workspaceRootDir = rootDir, mirrorBaseDir = '') {
-  const normalizedMirrorBaseDir = normalizeWindowsComparablePath(mirrorBaseDir);
+function isWindowsUncPath(value = '') {
+  return WINDOWS_UNC_PATH_PATTERN.test(String(value ?? '').trim());
+}
+
+export function resolveBundledResourceFsPathApi(
+  candidatePath = '',
+  platform = process.platform,
+) {
+  const normalizedPlatform = platform === 'windows' ? 'win32' : platform;
+  if (normalizedPlatform !== 'win32') {
+    return path;
+  }
+
+  const normalizedPath = String(candidatePath ?? '').trim();
+  return isWindowsDriveAbsolutePath(normalizedPath) || isWindowsUncPath(normalizedPath)
+    ? path.win32
+    : path.posix;
+}
+
+function normalizeBundledResourceComparablePath(value, platform = 'win32') {
+  const normalizedValue = String(value ?? '').trim();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  const pathApi = resolveBundledResourceFsPathApi(normalizedValue, platform);
+  const normalizedPath = pathApi.normalize(normalizedValue);
+  return pathApi === path.win32 ? normalizedPath.toLowerCase() : normalizedPath;
+}
+
+function persistedWindowsMirrorBaseDirIsValid(
+  workspaceRootDir = rootDir,
+  mirrorBaseDir = '',
+  platform = 'win32',
+) {
+  const normalizedMirrorBaseDir = normalizeBundledResourceComparablePath(
+    mirrorBaseDir,
+    platform,
+  );
   if (!normalizedMirrorBaseDir) {
     return false;
   }
 
   const allowedMirrorBaseDirs = new Set([
-    normalizeWindowsComparablePath(resolveDefaultBundledResourceMirrorBaseDir(workspaceRootDir)),
-    normalizeWindowsComparablePath(
-      resolveBundledResourceMirrorFallbackBaseDir(workspaceRootDir, 'win32'),
+    normalizeBundledResourceComparablePath(
+      resolveDefaultBundledResourceMirrorBaseDir(workspaceRootDir, platform),
+      platform,
+    ),
+    normalizeBundledResourceComparablePath(
+      resolveBundledResourceMirrorFallbackBaseDir(workspaceRootDir, platform),
+      platform,
     ),
   ]);
 
   return allowedMirrorBaseDirs.has(normalizedMirrorBaseDir);
 }
 
-function readPersistedWindowsMirrorBaseDir(workspaceRootDir = rootDir) {
+function readPersistedWindowsMirrorBaseDir(workspaceRootDir = rootDir, platform = 'win32') {
   const statePath = resolveWindowsMirrorBaseDirStatePath(workspaceRootDir);
   try {
     const state = JSON.parse(readFileSync(statePath, 'utf8'));
     const persistedMirrorBaseDir = String(state?.mirrorBaseDir ?? '').trim();
-    if (!persistedWindowsMirrorBaseDirIsValid(workspaceRootDir, persistedMirrorBaseDir)) {
+    if (!persistedWindowsMirrorBaseDirIsValid(workspaceRootDir, persistedMirrorBaseDir, platform)) {
       return '';
     }
 
-    return persistedMirrorBaseDir ? path.win32.normalize(persistedMirrorBaseDir) : '';
+    const pathApi = resolveBundledResourceFsPathApi(persistedMirrorBaseDir, platform);
+    return persistedMirrorBaseDir ? pathApi.normalize(persistedMirrorBaseDir) : '';
   } catch {
     return '';
   }
 }
 
-function resolveDefaultBundledResourceMirrorBaseDir(workspaceRootDir = rootDir) {
-  return path.win32.join(
-    path.win32.parse(workspaceRootDir).root,
-    '.sdkwork-bc',
-    path.win32.basename(workspaceRootDir),
-  );
+function resolveDefaultBundledResourceMirrorBaseDir(
+  workspaceRootDir = rootDir,
+  platform = 'win32',
+) {
+  const pathApi = resolveBundledResourceFsPathApi(workspaceRootDir, platform);
+  if (pathApi === path.win32) {
+    return path.win32.join(
+      path.win32.parse(workspaceRootDir).root,
+      '.sdkwork-bc',
+      path.win32.basename(workspaceRootDir),
+    );
+  }
+
+  return pathApi.join(workspaceRootDir, '.cache', 'short-mirrors');
 }
 
 export function resolveBundledResourceMirrorBaseDir(
@@ -138,15 +190,19 @@ export function resolveBundledResourceMirrorBaseDir(
 
   const configuredMirrorBaseDir = env.SDKWORK_WINDOWS_MIRROR_BASE_DIR;
   if (typeof configuredMirrorBaseDir === 'string' && configuredMirrorBaseDir.trim().length > 0) {
-    return path.win32.normalize(configuredMirrorBaseDir.trim());
+    const pathApi = resolveBundledResourceFsPathApi(configuredMirrorBaseDir, normalizedPlatform);
+    return pathApi.normalize(configuredMirrorBaseDir.trim());
   }
 
-  const persistedMirrorBaseDir = readPersistedWindowsMirrorBaseDir(workspaceRootDir);
+  const persistedMirrorBaseDir = readPersistedWindowsMirrorBaseDir(
+    workspaceRootDir,
+    normalizedPlatform,
+  );
   if (persistedMirrorBaseDir) {
     return persistedMirrorBaseDir;
   }
 
-  return resolveDefaultBundledResourceMirrorBaseDir(workspaceRootDir);
+  return resolveDefaultBundledResourceMirrorBaseDir(workspaceRootDir, normalizedPlatform);
 }
 
 function resolveBundledResourceMirrorFallbackBaseDir(
@@ -157,7 +213,8 @@ function resolveBundledResourceMirrorFallbackBaseDir(
     return '';
   }
 
-  return path.win32.join(workspaceRootDir, '.cache', 'short-mirrors');
+  const pathApi = resolveBundledResourceFsPathApi(workspaceRootDir, platform);
+  return pathApi.join(workspaceRootDir, '.cache', 'short-mirrors');
 }
 
 async function persistBundledResourceMirrorBaseDir(
@@ -185,11 +242,13 @@ async function persistBundledResourceMirrorBaseDir(
     return;
   }
 
+  const pathApi = resolveBundledResourceFsPathApi(normalizedMirrorBaseDir, normalizedPlatform);
+
   const statePath = resolveWindowsMirrorBaseDirStatePath(workspaceRootDir);
   await mkdirImpl(path.dirname(statePath), { recursive: true });
   await writeFileImpl(
     statePath,
-    `${JSON.stringify({ mirrorBaseDir: path.win32.normalize(normalizedMirrorBaseDir) }, null, 2)}\n`,
+    `${JSON.stringify({ mirrorBaseDir: pathApi.normalize(normalizedMirrorBaseDir) }, null, 2)}\n`,
     'utf8',
   );
 }
@@ -216,10 +275,8 @@ export function resolveBundledResourceMirrorRoot(
     );
   }
 
-  return path.win32.join(
-    windowsMirrorBaseDir,
-    resourceId,
-  );
+  const pathApi = resolveBundledResourceFsPathApi(windowsMirrorBaseDir, normalizedPlatform);
+  return pathApi.join(windowsMirrorBaseDir, resourceId);
 }
 
 export function resolvePackagedOpenClawResourceDir(
@@ -3190,8 +3247,9 @@ async function repairArchiveOnlyBundledResourceRootInPlace({
   copyImpl = cp,
 } = {}) {
   const normalizedPlatform = platform === 'windows' ? 'win32' : platform;
-  const pathApi = normalizedPlatform === 'win32' ? path.win32 : path;
-  const runtimeDir = pathApi.join(mirrorRoot, 'runtime');
+  const sourcePathApi = resolveBundledResourceFsPathApi(sourceRoot, normalizedPlatform);
+  const mirrorPathApi = resolveBundledResourceFsPathApi(mirrorRoot, normalizedPlatform);
+  const runtimeDir = mirrorPathApi.join(mirrorRoot, 'runtime');
 
   await mkdirImpl(mirrorRoot, { recursive: true });
   try {
@@ -3206,7 +3264,7 @@ async function repairArchiveOnlyBundledResourceRootInPlace({
   let mirrorManifestMatches = false;
   try {
     const mirrorManifest = JSON.parse(
-      await readFile(pathApi.join(mirrorRoot, 'manifest.json'), 'utf8'),
+      await readFile(mirrorPathApi.join(mirrorRoot, 'manifest.json'), 'utf8'),
     );
     mirrorManifestMatches = preparedOpenClawManifestMatches(mirrorManifest, expectedManifest);
   } catch {
@@ -3215,15 +3273,15 @@ async function repairArchiveOnlyBundledResourceRootInPlace({
 
   if (!mirrorManifestMatches) {
     await copyImpl(
-      pathApi.join(sourceRoot, 'manifest.json'),
-      pathApi.join(mirrorRoot, 'manifest.json'),
+      sourcePathApi.join(sourceRoot, 'manifest.json'),
+      mirrorPathApi.join(mirrorRoot, 'manifest.json'),
       { force: true },
     );
   }
 
   await copyImpl(
-    pathApi.join(sourceRoot, archiveFileName),
-    pathApi.join(mirrorRoot, archiveFileName),
+    sourcePathApi.join(sourceRoot, archiveFileName),
+    mirrorPathApi.join(mirrorRoot, archiveFileName),
     { force: true },
   );
 
@@ -3306,7 +3364,8 @@ async function syncArchiveOnlyBundledResourceRoot({
   platform = process.platform,
 }) {
   const normalizedPlatform = platform === 'windows' ? 'win32' : platform;
-  const pathApi = normalizedPlatform === 'win32' ? path.win32 : path;
+  const sourcePathApi = resolveBundledResourceFsPathApi(sourceRoot, normalizedPlatform);
+  const mirrorPathApi = resolveBundledResourceFsPathApi(mirrorRoot, normalizedPlatform);
   if (await bundledResourceArchiveMirrorIsReusable({
     mirrorRoot,
     expectedManifest: manifest,
@@ -3315,20 +3374,23 @@ async function syncArchiveOnlyBundledResourceRoot({
     return mirrorRoot;
   }
 
-  await mkdir(pathApi.dirname(mirrorRoot), { recursive: true });
+  await mkdir(mirrorPathApi.dirname(mirrorRoot), { recursive: true });
   const stagingRoot = await mkdtemp(
-    pathApi.join(pathApi.dirname(mirrorRoot), 'openclaw-release-staging-'),
+    mirrorPathApi.join(mirrorPathApi.dirname(mirrorRoot), 'openclaw-release-staging-'),
   );
 
   try {
-    await cp(pathApi.join(sourceRoot, 'manifest.json'), pathApi.join(stagingRoot, 'manifest.json'));
+    await cp(
+      sourcePathApi.join(sourceRoot, 'manifest.json'),
+      mirrorPathApi.join(stagingRoot, 'manifest.json'),
+    );
     await createArchiveImpl({
       sourceRoot,
-      archivePath: pathApi.join(stagingRoot, archiveFileName),
+      archivePath: mirrorPathApi.join(stagingRoot, archiveFileName),
       platform,
     });
     await removeDirectoryWithRetries(mirrorRoot);
-    await mkdir(pathApi.dirname(mirrorRoot), { recursive: true });
+    await mkdir(mirrorPathApi.dirname(mirrorRoot), { recursive: true });
     await rename(stagingRoot, mirrorRoot);
     return mirrorRoot;
   } catch (error) {

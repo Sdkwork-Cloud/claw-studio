@@ -1,11 +1,21 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
 const releaseConfigPath = path.join(rootDir, 'config', 'openclaw-release.json');
 const prepareRuntimeSource = readFileSync(
   path.join(rootDir, 'scripts', 'prepare-openclaw-runtime.mjs'),
+  'utf8',
+);
+const desktopBuildScriptSource = readFileSync(
+  path.join(
+    rootDir,
+    'packages',
+    'sdkwork-claw-desktop',
+    'src-tauri',
+    'build.rs',
+  ),
   'utf8',
 );
 const syncBundledSource = readFileSync(
@@ -66,20 +76,18 @@ const sourceComponentRegistry = JSON.parse(
     'utf8',
   ),
 );
-const desktopBundledManifest = JSON.parse(
-  readFileSync(
-    path.join(
-      rootDir,
-      'packages',
-      'sdkwork-claw-desktop',
-      'src-tauri',
-      'resources',
-      'openclaw',
-      'manifest.json',
-    ),
-    'utf8',
-  ),
+const desktopBundledManifestPath = path.join(
+  rootDir,
+  'packages',
+  'sdkwork-claw-desktop',
+  'src-tauri',
+  'resources',
+  'openclaw',
+  'manifest.json',
 );
+const desktopBundledManifest = existsSync(desktopBundledManifestPath)
+  ? JSON.parse(readFileSync(desktopBundledManifestPath, 'utf8'))
+  : null;
 
 assert.equal(
   releaseConfig.stableVersion,
@@ -106,21 +114,20 @@ assert.equal(
   releaseConfig.stableVersion,
   'desktop source component registry must carry the shared stable OpenClaw version for openclaw instead of a drifting placeholder',
 );
-assert.equal(
-  desktopBundledManifest.openclawVersion,
-  releaseConfig.stableVersion,
-  'desktop bundled runtime manifest must carry the shared stable OpenClaw version',
-);
-assert.equal(
-  desktopBundledManifest.nodeVersion,
-  releaseConfig.nodeVersion,
-  'desktop bundled runtime manifest must carry the shared bundled Node.js version',
-);
-
 assert.match(
   prepareRuntimeSource,
   /from '\.\/openclaw-release\.mjs'/,
   'prepare-openclaw-runtime must read OpenClaw release metadata from the shared release module',
+);
+assert.match(
+  desktopBuildScriptSource,
+  /OPENCLAW_RELEASE_CONFIG_RELATIVE_PATH:.*config\/openclaw-release\.json/s,
+  'desktop build script must read the shared OpenClaw release config during clean-clone cargo builds',
+);
+assert.match(
+  desktopBuildScriptSource,
+  /SDKWORK_BUNDLED_OPENCLAW_VERSION/,
+  'desktop build script must export the bundled OpenClaw version from shared release metadata',
 );
 assert.match(
   syncBundledSource,
@@ -167,6 +174,18 @@ assert.match(
   /openclaw_release::bundled_openclaw_version|bundled_openclaw_version\(\)/,
   'desktop Rust services must resolve the bundled OpenClaw version through the shared release metadata bridge',
 );
+if (desktopBundledManifest) {
+  assert.equal(
+    desktopBundledManifest.openclawVersion,
+    releaseConfig.stableVersion,
+    'desktop bundled runtime manifest must carry the shared stable OpenClaw version when prepared runtime resources exist',
+  );
+  assert.equal(
+    desktopBundledManifest.nodeVersion,
+    releaseConfig.nodeVersion,
+    'desktop bundled runtime manifest must carry the shared bundled Node.js version when prepared runtime resources exist',
+  );
+}
 assert.deepEqual(
   readdirSync(rootDir).filter(
     (entry) =>

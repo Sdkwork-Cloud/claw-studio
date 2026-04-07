@@ -40,6 +40,7 @@ import {
   resolvePackagedOpenClawInstallRootLayoutDir,
   resolvePackagedOpenClawResourceDir,
   resolveRequestedOpenClawTarget,
+  resolveBundledResourceFsPathApi,
   syncWindowsPackagedOpenClawAliasRoot,
   stageDownloadedNativeRuntimeAsset,
   syncPackagedOpenClawReleaseArtifacts,
@@ -145,6 +146,30 @@ try {
     );
   }
 
+  const posixMirrorBaseDir = resolveBundledResourceMirrorBaseDir(
+    '/tmp/workspace/claw-studio',
+    {},
+    'win32',
+  );
+  if (posixMirrorBaseDir !== '/tmp/workspace/claw-studio/.cache/short-mirrors') {
+    throw new Error(
+      `Expected resolveBundledResourceMirrorBaseDir to preserve a host-accessible POSIX base dir when targeting win32 from a POSIX workspace, received ${posixMirrorBaseDir}`,
+    );
+  }
+
+  const configuredPosixMirrorBaseDir = resolveBundledResourceMirrorBaseDir(
+    '/tmp/workspace/claw-studio',
+    {
+      SDKWORK_WINDOWS_MIRROR_BASE_DIR: '/tmp/windows-resource-mirrors',
+    },
+    'win32',
+  );
+  if (configuredPosixMirrorBaseDir !== '/tmp/windows-resource-mirrors') {
+    throw new Error(
+      `Expected resolveBundledResourceMirrorBaseDir to preserve explicit POSIX mirror base dirs when targeting win32, received ${configuredPosixMirrorBaseDir}`,
+    );
+  }
+
   const windowsMirrorRootForWindows = resolveBundledResourceMirrorRoot(
     'D:\\workspace\\claw-studio',
     'openclaw',
@@ -158,6 +183,47 @@ try {
   if (windowsMirrorRootForWindows !== windowsMirrorRootForWin32) {
     throw new Error(
       `Expected resolveBundledResourceMirrorRoot to normalize platform=windows to the same short mirror root as win32, received ${windowsMirrorRootForWindows} vs ${windowsMirrorRootForWin32}`,
+    );
+  }
+
+  const posixMirrorRoot = resolveBundledResourceMirrorRoot(
+    '/tmp/workspace/claw-studio',
+    'openclaw',
+    'win32',
+  );
+  if (posixMirrorRoot !== '/tmp/workspace/claw-studio/.cache/short-mirrors/openclaw') {
+    throw new Error(
+      `Expected resolveBundledResourceMirrorRoot to preserve a host-accessible POSIX mirror root when targeting win32 from a POSIX workspace, received ${posixMirrorRoot}`,
+    );
+  }
+
+  const configuredPosixMirrorRoot = resolveBundledResourceMirrorRoot(
+    '/tmp/workspace/claw-studio',
+    'openclaw',
+    'win32',
+    '/tmp/windows-resource-mirrors',
+  );
+  if (configuredPosixMirrorRoot !== '/tmp/windows-resource-mirrors/openclaw') {
+    throw new Error(
+      `Expected resolveBundledResourceMirrorRoot to preserve explicit POSIX mirror roots when targeting win32, received ${configuredPosixMirrorRoot}`,
+    );
+  }
+
+  if (typeof resolveBundledResourceFsPathApi !== 'function') {
+    throw new Error('Expected prepare-openclaw-runtime to export resolveBundledResourceFsPathApi');
+  }
+
+  const posixFsPathApi = resolveBundledResourceFsPathApi('/tmp/source-runtime', 'win32');
+  if (posixFsPathApi.join('/tmp/source-runtime', 'manifest.json') !== '/tmp/source-runtime/manifest.json') {
+    throw new Error(
+      `Expected resolveBundledResourceFsPathApi to keep POSIX host paths untouched when targeting win32, received ${posixFsPathApi.join('/tmp/source-runtime', 'manifest.json')}`,
+    );
+  }
+
+  const windowsFsPathApi = resolveBundledResourceFsPathApi('D:\\source-runtime', 'win32');
+  if (windowsFsPathApi.join('D:\\source-runtime', 'manifest.json') !== 'D:\\source-runtime\\manifest.json') {
+    throw new Error(
+      `Expected resolveBundledResourceFsPathApi to keep Windows host paths on win32 semantics, received ${windowsFsPathApi.join('D:\\source-runtime', 'manifest.json')}`,
     );
   }
 
