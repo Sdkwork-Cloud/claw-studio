@@ -27,6 +27,26 @@ function read(relativePath) {
   return readFileSync(path.join(rootDir, relativePath), 'utf8');
 }
 
+test('desktop release inputs keep the Windows Tauri installer config under version control', () => {
+  const trackedFiles = spawnSync(
+    'git',
+    ['ls-files', 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json'],
+    {
+      cwd: rootDir,
+      encoding: 'utf8',
+      shell: false,
+    },
+  );
+
+  assert.equal(trackedFiles.error, undefined);
+  assert.equal(trackedFiles.status, 0);
+  assert.match(
+    trackedFiles.stdout,
+    /packages\/sdkwork-claw-desktop\/src-tauri\/tauri\.windows\.conf\.json/,
+    'release verification must not depend on an untracked local tauri.windows.conf.json file',
+  );
+});
+
 test('repository exposes a cross-platform claw-studio release workflow', () => {
   const workflowPath = path.join(rootDir, '.github', 'workflows', 'release.yml');
   const reusableWorkflowPath = path.join(rootDir, '.github', 'workflows', 'release-reusable.yml');

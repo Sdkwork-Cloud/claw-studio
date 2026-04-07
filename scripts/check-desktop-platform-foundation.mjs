@@ -91,6 +91,7 @@ const requiredPaths = [
   ['packages/sdkwork-claw-core/src/stores/useUpdateStore.ts', 'desktop update state store'],
   ['packages/sdkwork-claw-desktop/src-tauri/Cargo.toml', 'desktop Cargo manifest'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json', 'desktop Tauri config'],
+  ['packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json', 'desktop Windows Tauri config'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json', 'desktop Linux Tauri config'],
   ['packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json', 'desktop macOS Tauri config'],
   ['packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh', 'desktop Linux OpenClaw postinstall hook'],

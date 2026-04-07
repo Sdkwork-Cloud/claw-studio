@@ -5,6 +5,17 @@ import { pathToFileURL } from 'node:url';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
 
+function toExpectedWslPath(pathValue) {
+  const normalizedPath = path.resolve(pathValue);
+  const driveLetterMatch = normalizedPath.match(/^([A-Za-z]):[\\/](.*)$/);
+  if (!driveLetterMatch) {
+    return normalizedPath.replaceAll('\\', '/');
+  }
+
+  const [, driveLetter, remainder = ''] = driveLetterMatch;
+  return `/mnt/${driveLetter.toLowerCase()}/${remainder.replaceAll('\\', '/')}`;
+}
+
 test('server build helper creates a default release cargo plan', async () => {
   const modulePath = path.join(rootDir, 'scripts', 'run-claw-server-build.mjs');
   const helper = await import(pathToFileURL(modulePath).href);
@@ -86,7 +97,7 @@ test('server build helper routes Windows-hosted Linux targets through WSL when a
   );
   assert.match(
     plan.args[5],
-    /cd '\/mnt\/d\/javasource\/spring-ai-plus\/spring-ai-plus-business\/apps\/claw-studio\/packages\/sdkwork-claw-server'/,
+    new RegExp(`cd '${toExpectedWslPath(path.join(rootDir, 'packages', 'sdkwork-claw-server'))}'`),
   );
   assert.match(plan.args[5], /export SDKWORK_SERVER_TARGET='x86_64-unknown-linux-gnu'/);
 });

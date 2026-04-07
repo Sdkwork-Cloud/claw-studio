@@ -20,6 +20,9 @@ import {
 import {
   readDesktopReleaseAssetManifest,
 } from './smoke-desktop-installers.mjs';
+import {
+  resolveCliPath,
+} from './path-inputs.mjs';
 
 export {
   CAPTURED_DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
@@ -253,7 +256,7 @@ export async function smokeDesktopStartupEvidence({
     arch: releaseArch,
   });
   const sourceEvidencePath = String(startupEvidencePath ?? '').trim().length > 0
-    ? path.resolve(startupEvidencePath)
+    ? resolveCliPath(startupEvidencePath)
     : canonicalEvidencePath;
   const evidence = readDesktopStartupEvidence(sourceEvidencePath);
   validateDesktopStartupEvidence(evidence, sourceEvidencePath);
@@ -319,16 +322,16 @@ export function parseArgs(argv) {
       continue;
     }
     if (token === '--release-assets-dir') {
-      options.releaseAssetsDir = path.resolve(readOptionValue(argv, index, '--release-assets-dir'));
+      options.releaseAssetsDir = resolveCliPath(
+        readOptionValue(argv, index, '--release-assets-dir'),
+      );
       index += 1;
       continue;
     }
     if (token === '--startup-evidence-path') {
-      options.startupEvidencePath = path.resolve(readOptionValue(
-        argv,
-        index,
-        '--startup-evidence-path',
-      ));
+      options.startupEvidencePath = resolveCliPath(
+        readOptionValue(argv, index, '--startup-evidence-path'),
+      );
       index += 1;
     }
   }

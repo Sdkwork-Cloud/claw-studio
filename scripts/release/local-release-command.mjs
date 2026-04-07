@@ -39,6 +39,9 @@ import {
 import {
   smokeDeploymentReleaseAssets,
 } from './smoke-deployment-release-assets.mjs';
+import {
+  resolveCliPath,
+} from './path-inputs.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -317,21 +320,21 @@ export function resolveLocalReleaseContext({
     env?.[RELEASE_GIT_REF_ENV_VAR],
     `refs/tags/${releaseTag}`,
   );
-  const outputDir = path.resolve(
-    cwd,
+  const outputDir = resolveCliPath(
     firstNonEmpty(
       cliOverrides.outputDir,
       env?.[RELEASE_OUTPUT_DIR_ENV_VAR],
       path.join('artifacts', 'release'),
     ),
-  );
-  const releaseAssetsDir = path.resolve(
     cwd,
+  );
+  const releaseAssetsDir = resolveCliPath(
     firstNonEmpty(
       cliOverrides.releaseAssetsDir,
       env?.[RELEASE_ASSETS_DIR_ENV_VAR],
       path.join('artifacts', 'release'),
     ),
+    cwd,
   );
   const repository = firstNonEmpty(
     cliOverrides.repository,
@@ -361,9 +364,7 @@ export function resolveLocalReleaseContext({
     cliOverrides.startupEvidencePath,
     env?.[RELEASE_DESKTOP_STARTUP_EVIDENCE_PATH_ENV_VAR],
   );
-  const resolvedStartupEvidencePath = startupEvidencePath
-    ? path.resolve(cwd, startupEvidencePath)
-    : '';
+  const resolvedStartupEvidencePath = resolveCliPath(startupEvidencePath, cwd);
 
   if (
     normalizedMode === 'package:container'

@@ -252,6 +252,7 @@ test('desktop packaged launch smoke captures packaged startup evidence and forwa
     const result = await smoke.smokeDesktopPackagedLaunch({
       releaseAssetsDir,
       platform: 'windows',
+      hostPlatform: 'windows',
       arch: 'x64',
       target: 'x86_64-pc-windows-msvc',
       prepareDesktopPackagedLaunchFn: async ({ releasePlatform, releaseArch, artifact }) => {

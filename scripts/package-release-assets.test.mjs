@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
 
@@ -37,10 +37,117 @@ function parseTarOctal(buffer) {
   return Number.parseInt(trimmed, 8);
 }
 
+function formatTarOctal(value, width) {
+  return `${value.toString(8).padStart(width - 2, '0')}\0 `;
+}
+
+function createTarHeader({
+  name,
+  size,
+  type = '0',
+  prefix = '',
+} = {}) {
+  const header = Buffer.alloc(512, 0);
+  Buffer.from(String(name ?? '').slice(0, 100), 'utf8').copy(header, 0);
+  Buffer.from(formatTarOctal(0o644, 8), 'utf8').copy(header, 100);
+  Buffer.from(formatTarOctal(0, 8), 'utf8').copy(header, 108);
+  Buffer.from(formatTarOctal(0, 8), 'utf8').copy(header, 116);
+  Buffer.from(formatTarOctal(size, 12), 'utf8').copy(header, 124);
+  Buffer.from(formatTarOctal(0, 12), 'utf8').copy(header, 136);
+  header.fill(0x20, 148, 156);
+  header.write(String(type ?? '0').slice(0, 1), 156, 1, 'utf8');
+  Buffer.from('ustar\0', 'utf8').copy(header, 257);
+  Buffer.from('00', 'utf8').copy(header, 263);
+  Buffer.from(String(prefix ?? '').slice(0, 155), 'utf8').copy(header, 345);
+
+  let checksum = 0;
+  for (const value of header.values()) {
+    checksum += value;
+  }
+  Buffer.from(formatTarOctal(checksum, 8), 'utf8').copy(header, 148);
+
+  return header;
+}
+
+function createTarRecord({
+  name,
+  content = '',
+  type = '0',
+  prefix = '',
+} = {}) {
+  const contentBuffer = Buffer.isBuffer(content)
+    ? content
+    : Buffer.from(String(content ?? ''), 'utf8');
+  const header = createTarHeader({
+    name,
+    size: contentBuffer.length,
+    type,
+    prefix,
+  });
+  const paddingSize = (512 - (contentBuffer.length % 512)) % 512;
+  return Buffer.concat([
+    header,
+    contentBuffer,
+    Buffer.alloc(paddingSize, 0),
+  ]);
+}
+
+function buildPaxField(key, value) {
+  const body = `${key}=${value}\n`;
+  let length = body.length + 3;
+
+  while (true) {
+    const record = `${length} ${body}`;
+    if (record.length === length) {
+      return record;
+    }
+    length = record.length;
+  }
+}
+
+function createTarGzArchiveBuffer(records = []) {
+  return gzipSync(Buffer.concat([
+    ...records,
+    Buffer.alloc(1024, 0),
+  ]));
+}
+
+function parsePaxHeaders(content) {
+  const headers = new Map();
+  const source = content.toString('utf8');
+  let offset = 0;
+
+  while (offset < source.length) {
+    const separatorIndex = source.indexOf(' ', offset);
+    if (separatorIndex === -1) {
+      break;
+    }
+
+    const length = Number.parseInt(source.slice(offset, separatorIndex), 10);
+    if (!Number.isFinite(length) || length <= 0) {
+      break;
+    }
+
+    const record = source.slice(separatorIndex + 1, offset + length - 1);
+    const equalsIndex = record.indexOf('=');
+    if (equalsIndex !== -1) {
+      headers.set(
+        record.slice(0, equalsIndex),
+        record.slice(equalsIndex + 1),
+      );
+    }
+
+    offset += length;
+  }
+
+  return headers;
+}
+
 function readTarGzEntries(archivePath) {
   const archiveBuffer = gunzipSync(readFileSync(archivePath));
   const entries = new Map();
   let offset = 0;
+  let pendingPathOverride = '';
 
   while (offset + 512 <= archiveBuffer.length) {
     const header = archiveBuffer.subarray(offset, offset + 512);
@@ -56,17 +163,62 @@ function readTarGzEntries(archivePath) {
     const typeFlag = header.subarray(156, 157).toString('utf8').replace(/\0.*$/, '');
     const contentStart = offset + 512;
     const contentEnd = contentStart + size;
+    const content = archiveBuffer.subarray(contentStart, contentEnd);
 
-    entries.set(fullName, {
+    if (typeFlag === 'x') {
+      pendingPathOverride = parsePaxHeaders(content).get('path') ?? pendingPathOverride;
+      offset = contentStart + Math.ceil(size / 512) * 512;
+      continue;
+    }
+    if (typeFlag === 'L') {
+      pendingPathOverride = content.toString('utf8').replace(/\0.*$/, '');
+      offset = contentStart + Math.ceil(size / 512) * 512;
+      continue;
+    }
+
+    entries.set(pendingPathOverride || fullName, {
       type: typeFlag || '0',
-      content: archiveBuffer.subarray(contentStart, contentEnd),
+      content,
     });
+    pendingPathOverride = '';
 
     offset = contentStart + Math.ceil(size / 512) * 512;
   }
 
   return entries;
 }
+
+test('readTarGzEntries preserves PAX long-path metadata for nested release bundle files', () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-tar-pax-'));
+  const archivePath = path.join(tempRoot, 'bundle.tar.gz');
+  const longPath = 'claw-studio-container-bundle-release-2026-04-03-03-linux-x64-nvidia-cuda/deploy/docker-compose.nvidia-cuda.yml';
+
+  try {
+    writeFileSync(
+      archivePath,
+      createTarGzArchiveBuffer([
+        createTarRecord({
+          name: 'PaxHeaders/long-path',
+          type: 'x',
+          content: buildPaxField('path', longPath),
+        }),
+        createTarRecord({
+          name: 'docker-compose.nvidia-cuda.yml',
+          content: 'services:\n  claw-studio:\n    image: claw\n',
+        }),
+      ]),
+    );
+
+    const entries = readTarGzEntries(archivePath);
+    assert.equal(entries.has(longPath), true);
+    assert.match(
+      entries.get(longPath).content.toString('utf8'),
+      /claw-studio/,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 
 function normalizeArchivePath(pathValue) {
   const normalized = String(pathValue ?? '').replaceAll('\\', '/');

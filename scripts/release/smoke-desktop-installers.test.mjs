@@ -117,6 +117,116 @@ function buildInstallReadyLayout({
   };
 }
 
+test('desktop installer smoke module can be imported without vendored hub-installer dist when installer functions are injected', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
+  const originalSource = readFileSync(smokePath, 'utf8');
+  const tempModulePath = path.join(
+    rootDir,
+    'scripts',
+    'release',
+    `smoke-desktop-installers.injected-${process.pid}-${Date.now()}.mjs`,
+  );
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-injected-import-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const installerRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
+
+  try {
+    writeFileSync(
+      tempModulePath,
+      originalSource.replaceAll(
+        'vendor/hub-installer/dist/index.mjs',
+        'vendor/hub-installer/dist/__missing__/index.mjs',
+      ),
+      'utf8',
+    );
+
+    const smoke = await import(`${pathToFileURL(tempModulePath).href}?cacheBust=${Date.now()}`);
+
+    writeArtifactFile(releaseAssetsDir, installerRelativePath);
+    writeDesktopManifest({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      artifacts: [
+        {
+          name: 'Claw Studio_0.1.0_x64-setup.exe',
+          relativePath: installerRelativePath,
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          sha256: 'synthetic',
+          size: readFileSync(path.join(releaseAssetsDir, installerRelativePath)).length,
+        },
+      ],
+    });
+
+    const result = await smoke.smokeDesktopInstallers({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      verifyDesktopOpenClawReleaseAssetsFn: async () => ({
+        installReadyLayout: buildInstallReadyLayout({
+          mode: 'simulated-prewarm',
+          installKey: '2026.4.7-windows-x64',
+        }),
+      }),
+      detectFormatFn(source) {
+        return path.extname(source).slice(1).toLowerCase();
+      },
+      createInstallPlanFn: async (request) => ({
+        request,
+        steps: [
+          {
+            id: 'install-exe',
+            description: 'synthetic windows install',
+            command: 'installer.exe',
+          },
+        ],
+        notes: [],
+      }),
+    });
+
+    assert.equal(result.installPlans.length, 1);
+    assert.equal(result.installPlans[0].artifact.relativePath, installerRelativePath);
+  } finally {
+    rmSync(tempModulePath, { force: true });
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop installer smoke resolves hub-installer bindings on demand when default vendor dist is required', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  assert.equal(typeof smoke.resolveHubInstallerBindings, 'function');
+
+  const fakeEntryPath = path.join(rootDir, 'tmp', 'hub-installer', 'dist', 'index.mjs');
+  const callOrder = [];
+  const bindings = await smoke.resolveHubInstallerBindings({
+    ensureHubInstallerDistReadyFn: async () => {
+      callOrder.push('prepare');
+      return fakeEntryPath;
+    },
+    loadHubInstallerModuleFn: async ({ entryPath }) => {
+      callOrder.push('load');
+      assert.equal(entryPath, fakeEntryPath);
+      return {
+        createInstallPlan: async () => ({
+          request: { dryRun: true },
+          steps: [],
+          notes: [],
+        }),
+        detectFormat: () => 'exe',
+      };
+    },
+  });
+
+  assert.deepEqual(callOrder, ['prepare', 'load']);
+  assert.equal(typeof bindings.createInstallPlanFn, 'function');
+  assert.equal(typeof bindings.detectFormatFn, 'function');
+});
+
 test('desktop installer smoke creates dry-run install plans for Windows installers after OpenClaw verification', async () => {
   const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
   const smoke = await import(pathToFileURL(smokePath).href);

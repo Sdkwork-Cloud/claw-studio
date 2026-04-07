@@ -59,8 +59,8 @@
       "tag": "release-2026-04-07-06",
       "title": "Claw Studio release-2026-04-07-06",
       "date": "2026-04-07",
-      "status": "pending",
-      "summary": "Release candidate that carries forward every unpublished April 7 change, closes the IM SDK clean-room build gaps, and hardens shared SDK preparation across Windows and GitHub release workspaces.",
+      "status": "failed",
+      "summary": "Release candidate that carried forward every unpublished April 7 change and closed the IM SDK clean-room build gaps, but still failed before publication because the remaining release smoke flow was not yet portable across Windows and Linux clean-room hosts.",
       "notesFile": "release-2026-04-07-06.md",
       "carryForward": [
         "release-2026-04-07-01",
@@ -68,6 +68,22 @@
         "release-2026-04-07-03",
         "release-2026-04-07-04",
         "release-2026-04-07-05"
+      ]
+    },
+    {
+      "tag": "release-2026-04-07-07",
+      "title": "Claw Studio release-2026-04-07-07",
+      "date": "2026-04-07",
+      "status": "pending",
+      "summary": "Release candidate that carries forward every unpublished April 7 change, closes the remaining cross-platform clean-room release smoke gaps, and is ready for GitHub publication.",
+      "notesFile": "release-2026-04-07-07.md",
+      "carryForward": [
+        "release-2026-04-07-01",
+        "release-2026-04-07-02",
+        "release-2026-04-07-03",
+        "release-2026-04-07-04",
+        "release-2026-04-07-05",
+        "release-2026-04-07-06"
       ]
     }
   ]

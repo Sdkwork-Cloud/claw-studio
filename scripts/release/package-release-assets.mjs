@@ -30,6 +30,9 @@ import {
   DEFAULT_RELEASE_PROFILE_ID,
   resolveReleaseProfile,
 } from './release-profiles.mjs';
+import {
+  resolveCliPath,
+} from './path-inputs.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -519,7 +522,7 @@ export function parseArgs(argv) {
     }
 
     if (token === '--output-dir') {
-      options.outputDir = path.resolve(readOptionValue(rest, index, '--output-dir'));
+      options.outputDir = resolveCliPath(readOptionValue(rest, index, '--output-dir'));
       index += 1;
       continue;
     }

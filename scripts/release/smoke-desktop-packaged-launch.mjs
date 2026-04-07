@@ -27,6 +27,9 @@ import {
 import {
   smokeDesktopStartupEvidence,
 } from './smoke-desktop-startup-evidence.mjs';
+import {
+  resolveCliPath,
+} from './path-inputs.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -877,7 +880,9 @@ export function parseArgs(argv) {
       continue;
     }
     if (token === '--release-assets-dir') {
-      options.releaseAssetsDir = path.resolve(readOptionValue(argv, index, '--release-assets-dir'));
+      options.releaseAssetsDir = resolveCliPath(
+        readOptionValue(argv, index, '--release-assets-dir'),
+      );
       index += 1;
     }
   }
