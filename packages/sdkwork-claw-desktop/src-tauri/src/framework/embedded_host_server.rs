@@ -12,12 +12,15 @@ use crate::framework::{
     FrameworkError, Result,
 };
 use sdkwork_claw_host_core::{
-    host_endpoints::HostEndpointRecord,
+    host_endpoints::{
+        HostEndpointRecord, HostEndpointRegistration, HostEndpointRegistry, OpenClawLifecycle,
+    },
     port_allocator::{allocate_tcp_listener, PortAllocationRequest},
 };
 use sdkwork_claw_host_studio::{
-    build_typed_studio_public_api_provider, StudioOpenClawGatewayInvokeOptions,
-    StudioOpenClawGatewayInvokeRequest, StudioPublicApiProvider, TypedStudioPublicApiBackend,
+    build_default_studio_public_api_provider, build_typed_studio_public_api_provider,
+    StudioOpenClawGatewayInvokeOptions, StudioOpenClawGatewayInvokeRequest,
+    StudioPublicApiProvider, TypedStudioPublicApiBackend,
 };
 use sdkwork_claw_server::{
     bootstrap::{
@@ -322,6 +325,109 @@ fn mark_embedded_host_runtime_failed(
     write_embedded_host_runtime_status(runtime_status, "degraded", Some(message.into()));
 }
 
+fn openclaw_lifecycle_from_projection(value: &str) -> OpenClawLifecycle {
+    match value {
+        "ready" => OpenClawLifecycle::Ready,
+        "starting" => OpenClawLifecycle::Starting,
+        "degraded" | "error" => OpenClawLifecycle::Degraded,
+        "stopping" => OpenClawLifecycle::Stopping,
+        "stopped" | "offline" => OpenClawLifecycle::Stopped,
+        _ => OpenClawLifecycle::Inactive,
+    }
+}
+
+fn endpoint_path_from_record_url(
+    url: Option<&str>,
+    scheme: &str,
+    host: &str,
+    port: Option<u16>,
+) -> Option<String> {
+    let port = port?;
+    let url = url?.trim();
+    if url.is_empty() {
+        return None;
+    }
+
+    let prefix = format!("{scheme}://{host}:{port}");
+    match url.strip_prefix(&prefix) {
+        Some("") | None => None,
+        Some(path) => Some(path.to_string()),
+    }
+}
+
+fn build_desktop_openclaw_control_plane(
+    manage_openclaw_provider: &ManageOpenClawProviderHandle,
+) -> Result<sdkwork_claw_host_core::openclaw_control_plane::OpenClawControlPlane> {
+    let updated_at = 0;
+    let endpoints = manage_openclaw_provider
+        .list_host_endpoints(updated_at)
+        .map_err(FrameworkError::Internal)?;
+    let runtime = manage_openclaw_provider
+        .get_runtime(updated_at)
+        .map_err(FrameworkError::Internal)?;
+    let gateway = manage_openclaw_provider
+        .get_gateway(updated_at)
+        .map_err(FrameworkError::Internal)?;
+
+    let mut registry = HostEndpointRegistry::default();
+    for endpoint in endpoints {
+        let websocket_scheme = match endpoint.scheme.as_str() {
+            "https" => "wss",
+            "http" => "ws",
+            other => other,
+        };
+        registry.register(HostEndpointRegistration {
+            endpoint_id: endpoint.endpoint_id.clone(),
+            bind_host: endpoint.bind_host.clone(),
+            requested_port: endpoint.requested_port,
+            active_port: endpoint.active_port,
+            scheme: endpoint.scheme.clone(),
+            base_path: endpoint_path_from_record_url(
+                endpoint.base_url.as_deref(),
+                endpoint.scheme.as_str(),
+                endpoint.bind_host.as_str(),
+                endpoint.active_port,
+            ),
+            websocket_path: endpoint_path_from_record_url(
+                endpoint.websocket_url.as_deref(),
+                websocket_scheme,
+                endpoint.bind_host.as_str(),
+                endpoint.active_port,
+            ),
+            loopback_only: endpoint.loopback_only,
+            dynamic_port: endpoint.dynamic_port,
+            last_conflict_at: endpoint.last_conflict_at,
+            last_conflict_reason: endpoint.last_conflict_reason.clone(),
+        });
+    }
+
+    let managed_by = if !runtime.managed_by.trim().is_empty() {
+        runtime.managed_by.clone()
+    } else if !gateway.managed_by.trim().is_empty() {
+        gateway.managed_by.clone()
+    } else {
+        "claw-desktop".to_string()
+    };
+
+    let mut control_plane =
+        sdkwork_claw_host_core::openclaw_control_plane::OpenClawControlPlane::inactive(managed_by)
+            .with_host_endpoints(registry);
+    if let Some(endpoint_id) = runtime.endpoint_id {
+        control_plane = control_plane.with_runtime_endpoint(
+            endpoint_id,
+            openclaw_lifecycle_from_projection(runtime.lifecycle.as_str()),
+        );
+    }
+    if let Some(endpoint_id) = gateway.endpoint_id {
+        control_plane = control_plane.with_gateway_endpoint(
+            endpoint_id,
+            openclaw_lifecycle_from_projection(gateway.lifecycle.as_str()),
+        );
+    }
+
+    Ok(control_plane)
+}
+
 fn build_embedded_host_server_state(
     paths: &AppPaths,
     config: &AppConfig,
@@ -372,15 +478,7 @@ fn build_embedded_host_server_state(
         },
     );
     server_state.auth.browser_session_token = Some(Uuid::new_v4().simple().to_string());
-    let shared_workbench_api = server_state.studio_public_api.clone().ok_or_else(|| {
-        FrameworkError::Internal(
-            "desktop embedded host is missing the shared studio public api provider".to_string(),
-        )
-    })?;
     server_state.set_mode(DESKTOP_EMBEDDED_HOST_MODE);
-    server_state.studio_public_api = Some(build_typed_studio_public_api_provider(
-        DesktopStudioPublicApiBackend::new(paths, config, supervisor, shared_workbench_api),
-    ));
 
     let endpoint = server_state
         .openclaw_control_plane
@@ -420,8 +518,22 @@ fn build_embedded_host_server_state(
         runtime_data_dir,
         web_dist_dir,
     };
-    server_state.manage_openclaw_provider =
+    let manage_openclaw_provider =
         build_desktop_manage_openclaw_provider(paths, config, supervisor, snapshot.clone());
+    let desktop_openclaw_control_plane = Arc::new(build_desktop_openclaw_control_plane(
+        &manage_openclaw_provider,
+    )?);
+    let shared_workbench_api = build_default_studio_public_api_provider(
+        snapshot.runtime_data_dir.clone(),
+        desktop_openclaw_control_plane.clone(),
+    )
+    .map_err(FrameworkError::Internal)?;
+
+    server_state.openclaw_control_plane = desktop_openclaw_control_plane;
+    server_state.manage_openclaw_provider = manage_openclaw_provider;
+    server_state.studio_public_api = Some(build_typed_studio_public_api_provider(
+        DesktopStudioPublicApiBackend::new(paths, config, supervisor, shared_workbench_api),
+    ));
 
     Ok((server_state, snapshot))
 }
@@ -633,7 +745,11 @@ impl TypedStudioPublicApiBackend for DesktopStudioPublicApiBackend {
             return Ok(None);
         };
         if let Some(shared_detail) = self.shared_workbench_api.get_instance_detail(id)? {
-            if let Some(workbench) = shared_detail.get("workbench").cloned() {
+            if let Some(workbench) = shared_detail
+                .get("workbench")
+                .filter(|value| !value.is_null())
+                .cloned()
+            {
                 detail_record.workbench =
                     Some(serde_json::from_value(workbench).map_err(|error| {
                         format!("deserialize shared studio workbench: {error}")
@@ -870,12 +986,7 @@ impl ManageOpenClawProvider for DesktopManageOpenClawProvider {
         String,
     > {
         self.studio
-            .get_openclaw_runtime(
-                &self.paths,
-                &self.config,
-                &self.storage,
-                &self.supervisor,
-            )
+            .get_openclaw_runtime(&self.paths, &self.config, &self.storage, &self.supervisor)
             .map(|mut projection| {
                 projection.updated_at = updated_at;
                 projection
@@ -891,12 +1002,7 @@ impl ManageOpenClawProvider for DesktopManageOpenClawProvider {
         String,
     > {
         self.studio
-            .get_openclaw_gateway(
-                &self.paths,
-                &self.config,
-                &self.storage,
-                &self.supervisor,
-            )
+            .get_openclaw_gateway(&self.paths, &self.config, &self.storage, &self.supervisor)
             .map(|mut projection| {
                 projection.updated_at = updated_at;
                 projection
@@ -947,9 +1053,8 @@ mod tests {
         mark_embedded_host_runtime_failed, new_embedded_host_runtime_status,
         resolve_embedded_host_web_dist_dir, resolve_embedded_host_web_dist_dir_with_manifest_dir,
         start_embedded_host_server, wait_for_embedded_host_startup, DesktopStudioPublicApiBackend,
-        EmbeddedHostRuntimeSnapshot, EmbeddedHostServerHandle,
-        DESKTOP_EMBEDDED_HOST_API_BASE_PATH, DESKTOP_EMBEDDED_HOST_DEFAULT_BIND_HOST,
-        DESKTOP_EMBEDDED_HOST_MODE,
+        EmbeddedHostRuntimeSnapshot, EmbeddedHostServerHandle, DESKTOP_EMBEDDED_HOST_API_BASE_PATH,
+        DESKTOP_EMBEDDED_HOST_DEFAULT_BIND_HOST, DESKTOP_EMBEDDED_HOST_MODE,
     };
     use crate::framework::{
         config::AppConfig,
@@ -966,11 +1071,11 @@ mod tests {
         },
         FrameworkError,
     };
+    use sdkwork_claw_host_core::host_endpoints::HostEndpointRecord;
     use sdkwork_claw_host_studio::{
         StudioOpenClawGatewayInvokeOptions, StudioOpenClawGatewayInvokeRequest,
         StudioPublicApiProvider, TypedStudioPublicApiBackend,
     };
-    use sdkwork_claw_host_core::host_endpoints::HostEndpointRecord;
     use sdkwork_claw_server::bootstrap::ServerStateStoreSnapshot;
     use serde_json::Value;
     use std::{
@@ -1516,7 +1621,8 @@ mod tests {
     }
 
     #[test]
-    fn desktop_backend_detail_projects_built_in_instance_as_online_when_supervisor_reports_running() {
+    fn desktop_backend_detail_projects_built_in_instance_as_online_when_supervisor_reports_running()
+    {
         let (_root, backend) = desktop_backend_fixture();
 
         let detail = backend

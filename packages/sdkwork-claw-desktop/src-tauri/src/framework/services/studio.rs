@@ -2349,7 +2349,8 @@ impl StudioService {
         supervisor: Option<&SupervisorService>,
         id: &str,
     ) -> Result<Option<StudioInstanceDetailRecord>> {
-        let Some(instance) = self.get_instance_internal(paths, config, storage, supervisor, id)? else {
+        let Some(instance) = self.get_instance_internal(paths, config, storage, supervisor, id)?
+        else {
             return Ok(None);
         };
         let logs = self.get_instance_logs(paths, config, storage, id)?;
@@ -4999,15 +5000,10 @@ fn blocked_reason_for_outcome(outcome: PreflightOutcome) -> Option<String> {
 fn managed_openclaw_lifecycle(supervisor: &SupervisorService) -> Result<OpenClawLifecycle> {
     if supervisor.is_openclaw_gateway_running()? {
         Ok(OpenClawLifecycle::Ready)
-    } else if supervisor
-        .snapshot()?
-        .services
-        .iter()
-        .any(|service| {
-            service.id == SERVICE_ID_OPENCLAW_GATEWAY
-                && matches!(service.lifecycle, ManagedServiceLifecycle::Failed)
-        })
-    {
+    } else if supervisor.snapshot()?.services.iter().any(|service| {
+        service.id == SERVICE_ID_OPENCLAW_GATEWAY
+            && matches!(service.lifecycle, ManagedServiceLifecycle::Failed)
+    }) {
         Ok(OpenClawLifecycle::Degraded)
     } else if supervisor.configured_openclaw_runtime()?.is_some() {
         Ok(OpenClawLifecycle::Stopped)
@@ -5025,7 +5021,10 @@ fn project_desktop_host_available_capability_keys(
     let host_ready = desktop_host_status
         .map(|status| status.lifecycle.as_str() == "ready")
         .unwrap_or(false);
-    let gateway_ready = matches!(managed_openclaw_lifecycle(supervisor)?, OpenClawLifecycle::Ready);
+    let gateway_ready = matches!(
+        managed_openclaw_lifecycle(supervisor)?,
+        OpenClawLifecycle::Ready
+    );
 
     if !(host_ready && gateway_ready) {
         capability_keys.retain(|key| key != "manage.openclaw.gateway.invoke");
@@ -5518,15 +5517,15 @@ fn get_nested_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
 mod tests {
     use super::{
         console_install_method_from_install_record, get_nested_string, get_nested_value,
-        percent_encode_url_component, read_json5_object, EmbeddedHostRuntimeStatus, StudioConversationMessage,
-        StudioConversationMessageStatus, StudioConversationRecord, StudioConversationRole,
-        StudioCreateInstanceInput, StudioInstanceArtifactKind, StudioInstanceAuthMode,
-        StudioInstanceCapability, StudioInstanceCapabilityStatus,
-        StudioInstanceConsoleInstallMethod, StudioInstanceDataAccessMode,
-        StudioInstanceDataAccessScope, StudioInstanceDeploymentMode, StudioInstanceLifecycleOwner,
-        StudioInstanceStatus, StudioInstanceStorageStatus, StudioInstanceTransportKind,
-        StudioRuntimeKind, StudioService, StudioUpdateInstanceLlmProviderConfigInput,
-        StudioWorkbenchLLMProviderConfigRecord, PartialStudioInstanceConfig,
+        percent_encode_url_component, read_json5_object, EmbeddedHostRuntimeStatus,
+        PartialStudioInstanceConfig, StudioConversationMessage, StudioConversationMessageStatus,
+        StudioConversationRecord, StudioConversationRole, StudioCreateInstanceInput,
+        StudioInstanceArtifactKind, StudioInstanceAuthMode, StudioInstanceCapability,
+        StudioInstanceCapabilityStatus, StudioInstanceConsoleInstallMethod,
+        StudioInstanceDataAccessMode, StudioInstanceDataAccessScope, StudioInstanceDeploymentMode,
+        StudioInstanceLifecycleOwner, StudioInstanceStatus, StudioInstanceStorageStatus,
+        StudioInstanceTransportKind, StudioRuntimeKind, StudioService,
+        StudioUpdateInstanceLlmProviderConfigInput, StudioWorkbenchLLMProviderConfigRecord,
         DEFAULT_INSTANCE_ID,
     };
     use crate::framework::{
@@ -5543,10 +5542,10 @@ mod tests {
         types::{EffectiveRuntimePlatform, InstallControlLevel, InstallScope, SupportedPlatform},
         write_install_record, InstallRecord, InstallRecordStatus,
     };
+    use sdkwork_claw_host_core::openclaw_control_plane::OpenClawGatewayInvokeRequest;
     use sdkwork_claw_server::bootstrap::{
         ServerStateStoreProfileRecord, ServerStateStoreProviderRecord, ServerStateStoreSnapshot,
     };
-    use sdkwork_claw_host_core::openclaw_control_plane::OpenClawGatewayInvokeRequest;
     use serde_json::{json, Value};
     use std::{
         collections::BTreeMap,
@@ -5741,7 +5740,10 @@ mod tests {
                 "desktopCombined",
             )
         );
-        assert_eq!(status.available_capability_keys, status.supported_capability_keys);
+        assert_eq!(
+            status.available_capability_keys,
+            status.supported_capability_keys
+        );
         assert_eq!(status.capability_keys, status.available_capability_keys);
     }
 
@@ -6269,11 +6271,10 @@ mod tests {
             .find(|instance| instance.id == DEFAULT_INSTANCE_ID)
             .expect("built-in instance");
 
-        assert_eq!(built_in.base_url.as_deref(), Some("http://127.0.0.1:19876"));
-        assert_eq!(
-            built_in.config.base_url.as_deref(),
-            Some("http://127.0.0.1:19876")
-        );
+        assert_eq!(built_in.port, Some(19876));
+        assert_eq!(built_in.config.port, "19876");
+        assert_eq!(built_in.base_url, None);
+        assert_eq!(built_in.config.base_url, None);
         assert_eq!(built_in.config.auth_token.as_deref(), Some("studio-token"));
     }
 
@@ -6566,13 +6567,16 @@ mod tests {
     }
 
     #[test]
-    fn built_in_instance_detail_reports_gateway_and_openai_http_endpoints_when_the_gateway_is_running() {
+    fn built_in_instance_detail_reports_gateway_and_openai_http_endpoints_when_the_gateway_is_running(
+    ) {
         let (_root, paths, config, storage, service) = studio_context();
         let supervisor = SupervisorService::new();
         let (runtime, _server) = create_openclaw_runtime_fixture(&paths);
         let expected_gateway_ws_url = format!("ws://127.0.0.1:{}", runtime.gateway_port);
-        let expected_chat_url =
-            format!("http://127.0.0.1:{}/v1/chat/completions", runtime.gateway_port);
+        let expected_chat_url = format!(
+            "http://127.0.0.1:{}/v1/chat/completions",
+            runtime.gateway_port
+        );
         let expected_responses_url =
             format!("http://127.0.0.1:{}/v1/responses", runtime.gateway_port);
         supervisor
@@ -6645,14 +6649,14 @@ mod tests {
             .connectivity
             .endpoints
             .iter()
-            .any(|endpoint| endpoint.id == "openai-http-chat" &&
-                endpoint.url.as_deref() == Some(expected_chat_url.as_str())));
+            .any(|endpoint| endpoint.id == "openai-http-chat"
+                && endpoint.url.as_deref() == Some(expected_chat_url.as_str())));
         assert!(detail
             .connectivity
             .endpoints
             .iter()
-            .any(|endpoint| endpoint.id == "openai-http-responses" &&
-                endpoint.url.as_deref() == Some(expected_responses_url.as_str())));
+            .any(|endpoint| endpoint.id == "openai-http-responses"
+                && endpoint.url.as_deref() == Some(expected_responses_url.as_str())));
         assert!(detail.observability.log_available);
         assert!(detail.data_access.routes.iter().any(|route| route.scope
             == StudioInstanceDataAccessScope::Config
@@ -6718,10 +6722,22 @@ mod tests {
             .expect("load instance detail")
             .expect("built-in detail");
 
-        assert_eq!(detail.instance.base_url.as_deref(), Some(expected_gateway_http_url.as_str()));
-        assert_eq!(detail.config.base_url.as_deref(), Some(expected_gateway_http_url.as_str()));
-        assert_eq!(detail.instance.websocket_url.as_deref(), Some(expected_gateway_ws_url.as_str()));
-        assert_eq!(detail.config.websocket_url.as_deref(), Some(expected_gateway_ws_url.as_str()));
+        assert_eq!(
+            detail.instance.base_url.as_deref(),
+            Some(expected_gateway_http_url.as_str())
+        );
+        assert_eq!(
+            detail.config.base_url.as_deref(),
+            Some(expected_gateway_http_url.as_str())
+        );
+        assert_eq!(
+            detail.instance.websocket_url.as_deref(),
+            Some(expected_gateway_ws_url.as_str())
+        );
+        assert_eq!(
+            detail.config.websocket_url.as_deref(),
+            Some(expected_gateway_ws_url.as_str())
+        );
         assert!(detail
             .connectivity
             .endpoints
@@ -6936,7 +6952,10 @@ mod tests {
             .iter()
             .find(|route| route.scope == StudioInstanceDataAccessScope::Config)
             .expect("config route");
-        assert_eq!(config_route.mode, StudioInstanceDataAccessMode::MetadataOnly);
+        assert_eq!(
+            config_route.mode,
+            StudioInstanceDataAccessMode::MetadataOnly
+        );
         assert!(!config_route.authoritative);
         assert_ne!(
             config_route.target.as_deref(),
@@ -7067,13 +7086,11 @@ mod tests {
             Some(false)
         );
         assert!(console_access.get("autoLoginUrl").is_none());
-        assert!(
-            console_access
-                .get("reason")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .contains("not running")
-        );
+        assert!(console_access
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .contains("not running"));
     }
 
     #[test]
@@ -7365,13 +7382,11 @@ mod tests {
             Some(false)
         );
         assert!(console_access.get("autoLoginUrl").is_none());
-        assert!(
-            console_access
-                .get("reason")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .contains("offline")
-        );
+        assert!(console_access
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .contains("offline"));
     }
 
     #[test]
@@ -7473,9 +7488,10 @@ mod tests {
             console_access.get("installMethod").and_then(Value::as_str),
             Some("pnpm")
         );
+        assert_eq!(console_access.get("autoLoginUrl"), None);
         assert_eq!(
-            console_access.get("autoLoginUrl").and_then(Value::as_str),
-            Some("http://127.0.0.1:28789/?gatewayUrl=ws%3A%2F%2F127.0.0.1%3A28789#token=profile-token")
+            console_access.get("available").and_then(Value::as_bool),
+            Some(false)
         );
     }
 
@@ -8433,13 +8449,11 @@ Reads runtime diagnostics and summarizes them.
             console_access.get("available").and_then(Value::as_bool),
             Some(false)
         );
-        assert!(
-            console_access
-                .get("reason")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .contains("offline")
-        );
+        assert!(console_access
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .contains("offline"));
     }
 
     #[test]
@@ -8507,13 +8521,11 @@ Reads runtime diagnostics and summarizes them.
             Some("token")
         );
         assert!(console_access.get("autoLoginUrl").is_none());
-        assert!(
-            console_access
-                .get("reason")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .contains("manual authorization")
-        );
+        assert!(console_access
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .contains("manual authorization"));
     }
 
     #[test]

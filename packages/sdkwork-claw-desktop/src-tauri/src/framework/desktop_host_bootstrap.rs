@@ -74,7 +74,10 @@ mod tests {
         },
         logging::init_logger,
         paths::resolve_paths_for_root,
-        services::supervisor::SupervisorService,
+        services::{
+            openclaw_runtime::ActivatedOpenClawRuntime,
+            supervisor::{SupervisorService, SERVICE_ID_OPENCLAW_GATEWAY},
+        },
     };
     use reqwest::StatusCode;
     use serde_json::Value;
@@ -902,7 +905,7 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let logger = init_logger(&paths).expect("logger");
-        let supervisor = SupervisorService::for_paths(&paths);
+        let supervisor = configured_running_supervisor(&paths);
 
         let runtime =
             bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
@@ -1175,7 +1178,7 @@ mod tests {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let logger = init_logger(&paths).expect("logger");
-        let supervisor = SupervisorService::for_paths(&paths);
+        let supervisor = configured_running_supervisor(&paths);
 
         let runtime =
             bootstrap_desktop_host_runtime(&paths, &AppConfig::default(), &supervisor, &logger)
@@ -1329,6 +1332,39 @@ mod tests {
         let port = listener.local_addr().expect("listener addr").port();
         drop(listener);
         port
+    }
+
+    fn configured_running_supervisor(
+        paths: &crate::framework::paths::AppPaths,
+    ) -> SupervisorService {
+        let supervisor = SupervisorService::new();
+        let install_dir = paths.openclaw_runtime_dir.join("test-runtime");
+        let runtime_dir = install_dir.join("runtime");
+        let runtime = ActivatedOpenClawRuntime {
+            install_key: "test-runtime".to_string(),
+            install_dir,
+            runtime_dir: runtime_dir.clone(),
+            node_path: runtime_dir.join("node").join("node"),
+            cli_path: runtime_dir
+                .join("package")
+                .join("node_modules")
+                .join("openclaw")
+                .join("openclaw.mjs"),
+            home_dir: paths.openclaw_home_dir.clone(),
+            state_dir: paths.openclaw_state_dir.clone(),
+            workspace_dir: paths.openclaw_workspace_dir.clone(),
+            config_path: paths.openclaw_config_file.clone(),
+            gateway_port: reserve_available_loopback_port(),
+            gateway_auth_token: "test-token".to_string(),
+        };
+
+        supervisor
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+        supervisor
+            .record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(42))
+            .expect("record running");
+        supervisor
     }
 
     async fn build_browser_session_client(browser_base_url: &str) -> reqwest::Client {

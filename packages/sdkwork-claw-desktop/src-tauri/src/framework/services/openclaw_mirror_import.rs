@@ -4134,6 +4134,14 @@ mod tests {
         );
     }
 
+    fn create_gateway_runtime_cli_script(paths: &AppPaths) -> String {
+        format!(
+            "import fs from 'node:fs';\nimport path from 'node:path';\nimport http from 'node:http';\nconst args = process.argv.slice(2);\nconst markerPath = {};\nif (args[0] === 'doctor') {{\n  fs.mkdirSync(path.dirname(markerPath), {{ recursive: true }});\n  fs.writeFileSync(markerPath, JSON.stringify({{ args }}));\n  process.exit(0);\n}}\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nif (args[0] === 'gateway' && args[1] === 'health') {{\n  process.stdout.write(JSON.stringify({{ ok: true, result: {{ status: 'ok' }} }}));\n  process.exit(0);\n}}\nif (args[0] !== 'gateway') {{\n  process.stderr.write(`unexpected args: ${{args.join(' ')}}`);\n  process.exit(1);\n}}\nconst expectedAuthorization = `Bearer ${{process.env.OPENCLAW_GATEWAY_TOKEN ?? ''}}`;\nconst server = http.createServer((req, res) => {{\n  if (req.url !== '/tools/invoke' || req.method !== 'POST') {{\n    res.writeHead(404, {{ 'content-type': 'application/json' }});\n    res.end(JSON.stringify({{ ok: false, error: {{ message: 'unexpected path' }} }}));\n    return;\n  }}\n  if ((req.headers.authorization ?? '') !== expectedAuthorization) {{\n    res.writeHead(401, {{ 'content-type': 'application/json' }});\n    res.end(JSON.stringify({{ ok: false, error: {{ message: 'unauthorized' }} }}));\n    return;\n  }}\n  let body = '';\n  req.setEncoding('utf8');\n  req.on('data', (chunk) => {{ body += chunk; }});\n  req.on('end', () => {{\n    const payload = body.trim() ? JSON.parse(body) : {{}};\n    if (payload.tool !== 'cron' || payload.action !== 'status') {{\n      res.writeHead(404, {{ 'content-type': 'application/json' }});\n      res.end(JSON.stringify({{ ok: false, error: {{ message: `unexpected method ${{payload.tool ?? 'missing'}}.${{payload.action ?? 'missing'}}` }} }}));\n      return;\n    }}\n    res.writeHead(200, {{ 'content-type': 'application/json' }});\n    res.end(JSON.stringify({{ ok: true, result: {{ method: 'cron.status' }} }}));\n  }});\n}});\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n",
+            serde_json::to_string(&doctor_marker_path(paths).to_string_lossy().into_owned())
+                .expect("doctor marker path json"),
+        )
+    }
+
     #[cfg(windows)]
     fn create_gateway_runtime(paths: &AppPaths, gateway_port: u16) -> ActivatedOpenClawRuntime {
         let install_dir = paths.openclaw_runtime_dir.join("test-gateway");
@@ -4151,17 +4159,7 @@ mod tests {
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
-        fs::write(
-            &cli_path,
-            format!(
-                "import fs from 'node:fs';\nimport path from 'node:path';\nimport net from 'node:net';\nconst args = process.argv.slice(2);\nconst markerPath = {};\nif (args[0] === 'doctor') {{\n  fs.mkdirSync(path.dirname(markerPath), {{ recursive: true }});\n  fs.writeFileSync(markerPath, JSON.stringify({{ args }}));\n  process.exit(0);\n}}\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst server = net.createServer();\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n",
-                serde_json::to_string(
-                    &doctor_marker_path(paths).to_string_lossy().into_owned()
-                )
-                .expect("doctor marker path json"),
-            ),
-        )
-        .expect("cli file");
+        fs::write(&cli_path, create_gateway_runtime_cli_script(paths)).expect("cli file");
 
         ActivatedOpenClawRuntime {
             install_key: "test-gateway".to_string(),
@@ -4195,17 +4193,7 @@ mod tests {
             format!("{{\n  \"gateway\": {{\n    \"port\": {gateway_port}\n  }}\n}}\n"),
         )
         .expect("config file");
-        fs::write(
-            &cli_path,
-            format!(
-                "import fs from 'node:fs';\nimport path from 'node:path';\nimport net from 'node:net';\nconst args = process.argv.slice(2);\nconst markerPath = {};\nif (args[0] === 'doctor') {{\n  fs.mkdirSync(path.dirname(markerPath), {{ recursive: true }});\n  fs.writeFileSync(markerPath, JSON.stringify({{ args }}));\n  process.exit(0);\n}}\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst server = net.createServer();\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {{}}, 1000);\n",
-                serde_json::to_string(
-                    &doctor_marker_path(paths).to_string_lossy().into_owned()
-                )
-                .expect("doctor marker path json"),
-            ),
-        )
-        .expect("cli file");
+        fs::write(&cli_path, create_gateway_runtime_cli_script(paths)).expect("cli file");
 
         ActivatedOpenClawRuntime {
             install_key: "test-gateway".to_string(),
