@@ -2,6 +2,7 @@ import {
   buildDeviceAuthPayload,
   isNonRecoverableAuthError,
   OPENCLAW_GATEWAY_PROTOCOL_VERSION,
+  type OpenClawGatewayAgentEvent,
   OpenClawGatewayRequestError,
   readConnectErrorRecoveryAdvice,
   resolveGatewayErrorDetailCode,
@@ -34,6 +35,7 @@ type ConnectionWaiter = {
 };
 
 type ListenerMap = {
+  agent: (event: OpenClawGatewayAgentEvent) => void;
   connection: (event: OpenClawGatewayConnectionEvent) => void;
   chat: (event: OpenClawGatewayChatEvent) => void;
   gap: (event: OpenClawGatewayGapEvent) => void;
@@ -477,6 +479,7 @@ export class OpenClawGatewayClient {
   private readonly listeners: {
     [K in ListenerKey]: Set<ListenerMap[K]>;
   } = {
+    agent: new Set(),
     connection: new Set(),
     chat: new Set(),
     gap: new Set(),
@@ -670,12 +673,20 @@ export class OpenClawGatewayClient {
     });
   }
 
+  private emit(event: 'agent', payload: OpenClawGatewayAgentEvent): void;
   private emit(event: 'connection', payload: OpenClawGatewayConnectionEvent): void;
   private emit(event: 'chat', payload: OpenClawGatewayChatEvent): void;
   private emit(event: 'gap', payload: OpenClawGatewayGapEvent): void;
   private emit(event: 'session.message', payload: OpenClawGatewaySessionMessageEvent): void;
   private emit(event: 'sessions.changed', payload: unknown): void;
   private emit(event: ListenerKey, payload: unknown) {
+    if (event === 'agent') {
+      for (const listener of this.listeners.agent) {
+        listener(payload as OpenClawGatewayAgentEvent);
+      }
+      return;
+    }
+
     if (event === 'connection') {
       for (const listener of this.listeners.connection) {
         listener(payload as OpenClawGatewayConnectionEvent);
@@ -960,6 +971,10 @@ export class OpenClawGatewayClient {
 
       if (eventFrame.event === 'chat') {
         this.emit('chat', eventFrame.payload as OpenClawGatewayChatEvent);
+      }
+
+      if (eventFrame.event === 'agent') {
+        this.emit('agent', eventFrame.payload as OpenClawGatewayAgentEvent);
       }
 
       if (eventFrame.event === 'session.message') {

@@ -3,7 +3,12 @@ import { Check, Globe, Laptop, Moon, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { type LanguagePreference, type ThemeColor, useAppStore } from '@sdkwork/claw-core';
-import { LANGUAGE_LABELS, supportedLanguages } from '@sdkwork/claw-i18n';
+import {
+  LANGUAGE_LABELS,
+  hasDedicatedTranslationBundle,
+  resolveTranslationBundleSourceLanguage,
+  supportedLanguages,
+} from '@sdkwork/claw-i18n';
 import {
   Checkbox,
   Select,
@@ -104,6 +109,7 @@ export function GeneralSettings() {
     { id: 'channels', label: t('sidebar.channels') },
     { id: 'tasks', label: t('sidebar.cronTasks') },
     { id: 'dashboard', label: t('sidebar.dashboard') },
+    { id: 'usage', label: t('sidebar.usage') },
     { id: 'market', label: t('sidebar.market') },
     { id: 'agents', label: t('sidebar.agentMarket') },
     { id: 'mall', label: t('sidebar.clawMall') },
@@ -118,6 +124,12 @@ export function GeneralSettings() {
     { id: 'nodes', label: t('sidebar.nodes') },
     { id: 'instances', label: t('sidebar.instances') },
   ];
+  const explicitLanguagePreference =
+    languagePreference !== 'system' ? languagePreference : null;
+  const explicitLanguageFallback =
+    explicitLanguagePreference && !hasDedicatedTranslationBundle(explicitLanguagePreference)
+      ? LANGUAGE_LABELS[resolveTranslationBundleSourceLanguage(explicitLanguagePreference)]
+      : null;
 
   return (
     <div className="space-y-8">
@@ -253,12 +265,31 @@ export function GeneralSettings() {
                     </SelectItem>
                     {supportedLanguages.map((supportedLanguage) => (
                       <SelectItem key={supportedLanguage} value={supportedLanguage}>
-                        {LANGUAGE_LABELS[supportedLanguage]}
+                        <div className="flex flex-col py-0.5 text-left">
+                          <span>{LANGUAGE_LABELS[supportedLanguage]}</span>
+                          {!hasDedicatedTranslationBundle(supportedLanguage) ? (
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {t('settings.general.languageFallbackTo', {
+                                language:
+                                  LANGUAGE_LABELS[
+                                    resolveTranslationBundleSourceLanguage(supportedLanguage)
+                                  ],
+                              })}
+                            </span>
+                          ) : null}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              {explicitLanguageFallback ? (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('settings.general.languageFallbackTo', {
+                    language: explicitLanguageFallback,
+                  })}
+                </p>
+              ) : null}
             </div>
           </Section>
 

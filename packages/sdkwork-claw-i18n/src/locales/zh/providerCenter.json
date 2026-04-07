@@ -142,6 +142,11 @@
       "selectionTitle": "路由角色",
       "selectionDescription": "从当前模型列表中选择默认聊天、推理和向量模型。",
       "runtimeDescription": "不用离开当前编辑器，就可以细调投影后的运行时行为。"
+      ,"requestOverridesTitle": "请求覆写",
+      "requestOverridesDescription": "使用 JSON5 直接编写 headers、auth、proxy 与 TLS 请求级配置，确保这些设置能完整穿过本地代理投影链路。",
+      "requestOverrides": "覆写草稿",
+      "requestOverridesPlaceholder": "{\n  headers: {\n    \"cf-aig-authorization\": \"Bearer ${CF_AIG_TOKEN}\",\n  },\n}",
+      "requestOverridesHint": "使用 JSON5。当前支持的顶级字段为 `headers`、`auth`、`proxy` 和 `tls`。"
     },
     "apply": {
       "title": "快速应用路由配置",

@@ -31,9 +31,12 @@ await runTest(
 
     assert.match(hostRuntimeSettingsSource, /data-slot="host-runtime-settings"/);
     assert.match(hostRuntimeSettingsSource, /data-slot="host-runtime-endpoints-table"/);
-    assert.match(hostRuntimeSettingsSource, />Requested Port</);
-    assert.match(hostRuntimeSettingsSource, />Active Port</);
-    assert.match(hostRuntimeSettingsSource, />Conflict</);
+    assert.match(hostRuntimeSettingsSource, /hostRuntimeContract/);
+    assert.match(hostRuntimeSettingsSource, /distributionFamily/);
+    assert.match(hostRuntimeSettingsSource, /deploymentFamily/);
+    assert.match(hostRuntimeSettingsSource, /stateStoreDriver/);
+    assert.match(hostRuntimeSettingsSource, /runtimeDataDir/);
+    assert.match(hostRuntimeSettingsSource, /webDistDir/);
     assert.match(hostRuntimeSettingsSource, /browserBaseUrl/);
     assert.match(kernelCenterSource, /import \{ HostRuntimeSettings \} from '\.\/HostRuntimeSettings';/);
     assert.match(kernelCenterSource, /<HostRuntimeSettings dashboard=\{dashboard\} \/>/);

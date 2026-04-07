@@ -159,6 +159,7 @@ await runTest(
     const sdkworkOption = options.find((option) => option.id === 'sdkwork');
     const geminiOption = options.find((option) => option.id === 'gemini');
     const metaOption = options.find((option) => option.id === 'meta');
+    const cloudflareOption = options.find((option) => option.id === 'cloudflare-ai-gateway');
 
     assert.ok(sdkworkOption);
     assert.equal(sdkworkOption.label, 'SDKWork');
@@ -185,6 +186,98 @@ await runTest(
     assert.equal(metaOption.clientProtocol, 'openai-compatible');
     assert.equal(metaOption.upstreamProtocol, 'openai-compatible');
     assert.equal(metaOption.baseUrl, 'https://ai.sdkwork.com');
+
+    assert.ok(cloudflareOption);
+    assert.equal(cloudflareOption?.providerId, 'cloudflare-ai-gateway');
+    assert.equal(cloudflareOption?.vendor, 'Cloudflare');
+    assert.equal(cloudflareOption?.clientProtocol, 'anthropic');
+    assert.equal(cloudflareOption?.upstreamProtocol, 'anthropic');
+    assert.equal(
+      cloudflareOption?.baseUrl,
+      'https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/anthropic',
+    );
+
+    const fireworksOption = options.find((option) => option.id === 'fireworks');
+    const mantleOption = options.find((option) => option.id === 'amazon-bedrock-mantle');
+    const groqOption = options.find((option) => option.id === 'groq');
+    const ollamaOption = options.find((option) => option.id === 'ollama');
+    const sglangOption = options.find((option) => option.id === 'sglang');
+    const vercelOption = options.find((option) => option.id === 'vercel-ai-gateway');
+    const togetherOption = options.find((option) => option.id === 'together');
+    const litellmOption = options.find((option) => option.id === 'litellm');
+    const kiloOption = options.find((option) => option.id === 'kilocode');
+    const vllmOption = options.find((option) => option.id === 'vllm');
+    const veniceOption = options.find((option) => option.id === 'venice');
+
+    assert.ok(fireworksOption);
+    assert.equal(fireworksOption?.providerId, 'fireworks');
+    assert.equal(fireworksOption?.vendor, 'Fireworks AI');
+    assert.equal(fireworksOption?.clientProtocol, 'openai-compatible');
+    assert.equal(fireworksOption?.upstreamProtocol, 'openai-compatible');
+    assert.equal(fireworksOption?.baseUrl, 'https://api.fireworks.ai/inference/v1');
+
+    assert.ok(mantleOption);
+    assert.equal(mantleOption?.providerId, 'amazon-bedrock-mantle');
+    assert.equal(mantleOption?.vendor, 'Amazon Web Services');
+    assert.equal(mantleOption?.clientProtocol, 'openai-compatible');
+    assert.equal(mantleOption?.upstreamProtocol, 'openai-compatible');
+    assert.equal(
+      mantleOption?.baseUrl,
+      'https://bedrock-mantle.us-east-1.api.aws/v1',
+    );
+
+    assert.ok(groqOption);
+    assert.equal(groqOption?.providerId, 'groq');
+    assert.equal(groqOption?.vendor, 'Groq');
+    assert.equal(groqOption?.clientProtocol, 'openai-compatible');
+    assert.equal(groqOption?.upstreamProtocol, 'openai-compatible');
+    assert.equal(groqOption?.baseUrl, 'https://api.groq.com/openai/v1');
+
+    assert.ok(ollamaOption);
+    assert.equal(ollamaOption?.providerId, 'ollama');
+    assert.equal(ollamaOption?.vendor, 'Ollama');
+    assert.equal(ollamaOption?.clientProtocol, 'openai-compatible');
+    assert.equal(ollamaOption?.upstreamProtocol, 'ollama');
+    assert.equal(ollamaOption?.baseUrl, 'http://127.0.0.1:11434');
+
+    assert.ok(sglangOption);
+    assert.equal(sglangOption?.providerId, 'sglang');
+    assert.equal(sglangOption?.vendor, 'SGLang');
+    assert.equal(sglangOption?.clientProtocol, 'openai-compatible');
+    assert.equal(sglangOption?.upstreamProtocol, 'openai-compatible');
+    assert.equal(sglangOption?.baseUrl, 'http://127.0.0.1:30000/v1');
+
+    assert.ok(vercelOption);
+    assert.equal(vercelOption?.providerId, 'vercel-ai-gateway');
+    assert.equal(vercelOption?.vendor, 'Vercel');
+    assert.equal(vercelOption?.clientProtocol, 'anthropic');
+    assert.equal(vercelOption?.upstreamProtocol, 'anthropic');
+    assert.equal(vercelOption?.baseUrl, 'https://ai-gateway.vercel.sh');
+
+    assert.ok(togetherOption);
+    assert.equal(togetherOption?.providerId, 'together');
+    assert.equal(togetherOption?.vendor, 'Together AI');
+    assert.equal(togetherOption?.baseUrl, 'https://api.together.xyz/v1');
+
+    assert.ok(litellmOption);
+    assert.equal(litellmOption?.providerId, 'litellm');
+    assert.equal(litellmOption?.vendor, 'LiteLLM');
+    assert.equal(litellmOption?.baseUrl, 'http://localhost:4000');
+
+    assert.ok(kiloOption);
+    assert.equal(kiloOption?.providerId, 'kilocode');
+    assert.equal(kiloOption?.vendor, 'Kilo Code');
+    assert.equal(kiloOption?.baseUrl, 'https://api.kilo.ai/api/gateway/');
+
+    assert.ok(vllmOption);
+    assert.equal(vllmOption?.providerId, 'vllm');
+    assert.equal(vllmOption?.vendor, 'vLLM');
+    assert.equal(vllmOption?.baseUrl, 'http://127.0.0.1:8000/v1');
+
+    assert.ok(veniceOption);
+    assert.equal(veniceOption?.providerId, 'venice');
+    assert.equal(veniceOption?.vendor, 'Venice AI');
+    assert.equal(veniceOption?.baseUrl, 'https://api.venice.ai/api/v1');
   },
 );
 
@@ -205,10 +298,10 @@ await runTest(
       'google',
       'xai',
       'azure-openai',
+      'ollama',
+      'amazon-bedrock-mantle',
       'openrouter',
-      'deepseek',
-      'minimax',
-      'moonshot',
+      'fireworks',
     ]);
   },
 );
@@ -312,5 +405,58 @@ await runTest(
     assert.deepEqual(listProviderConfigModelRows(state), [
       { id: 'gpt-5.4-extended', name: 'GPT-5.4 extended' },
     ]);
+  },
+);
+
+await runTest(
+  'provider config editor policy round-trips request overrides through the editor form state',
+  () => {
+    const state = createProviderConfigFormState({
+      config: {
+        temperature: 0.2,
+        topP: 1,
+        maxTokens: 8192,
+        timeoutMs: 60000,
+        streaming: true,
+        request: {
+          headers: {
+            'cf-aig-authorization': 'Bearer cf-gateway-secret',
+            'x-openai-client': 'claw-studio',
+          },
+          auth: {
+            mode: 'authorization-bearer',
+            token: '${CF_AIG_TOKEN}',
+          },
+        },
+      },
+    });
+
+    assert.match(state.requestOverridesDraft, /cf-aig-authorization/);
+    assert.match(state.requestOverridesDraft, /authorization-bearer/);
+
+    const draft = createProviderConfigDraftFromForm({
+      ...state,
+      requestOverridesDraft: `{
+  headers: {
+    "cf-aig-authorization": "Bearer cf-gateway-secret",
+    "x-openai-client": "claw-studio",
+  },
+  proxy: {
+    mode: "explicit-proxy",
+    url: "http://127.0.0.1:8080",
+  },
+}`,
+    });
+
+    assert.deepEqual(draft.config.request, {
+      headers: {
+        'cf-aig-authorization': 'Bearer cf-gateway-secret',
+        'x-openai-client': 'claw-studio',
+      },
+      proxy: {
+        mode: 'explicit-proxy',
+        url: 'http://127.0.0.1:8080',
+      },
+    });
   },
 );

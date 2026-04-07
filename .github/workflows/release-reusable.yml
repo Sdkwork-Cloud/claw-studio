@@ -191,7 +191,8 @@ jobs:
             libxkbcommon-dev \
             pkg-config \
             rpm \
-            patchelf
+            patchelf \
+            xvfb
 
       - name: Prepare git-backed shared SDK sources
         run: node scripts/prepare-shared-sdk-git-sources.mjs
@@ -227,6 +228,9 @@ jobs:
 
       - name: Smoke packaged desktop installers
         run: node scripts/release/smoke-desktop-installers.mjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --release-assets-dir artifacts/release
+
+      - name: Smoke packaged desktop launch startup
+        run: node scripts/release/smoke-desktop-packaged-launch.mjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --target ${{ matrix.target }} --release-assets-dir artifacts/release
 
       - name: Attest desktop release assets
         if: ${{ needs.prepare.outputs.release_tag != '' }}

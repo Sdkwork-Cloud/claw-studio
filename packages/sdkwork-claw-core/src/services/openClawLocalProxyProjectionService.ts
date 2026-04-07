@@ -1,10 +1,15 @@
 import type { RuntimeDesktopKernelInfo } from '@sdkwork/claw-infrastructure';
-import type { LocalAiProxyClientProtocol, LocalAiProxyRouteRecord } from '@sdkwork/claw-types';
+import type {
+  LocalAiProxyClientProtocol,
+  LocalAiProxyRouteRecord,
+  StudioWorkbenchLLMProviderRequestOverridesRecord,
+} from '@sdkwork/claw-types';
 import {
   LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY,
   normalizeLocalAiProxyRouteRecords,
   selectDefaultLocalAiProxyRoute,
 } from './localAiProxyRouteService.ts';
+import { normalizeOpenClawProviderRequestOverrides } from './openClawProviderRuntimeConfigService.ts';
 
 export const OPENCLAW_LOCAL_PROXY_PROVIDER_ID = 'sdkwork-local-proxy';
 export const OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY = LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY;
@@ -28,6 +33,7 @@ export interface OpenClawLocalProxyProjectionProvider {
     maxTokens?: number;
     timeoutMs?: number;
     streaming: boolean;
+    request?: StudioWorkbenchLLMProviderRequestOverridesRecord;
   };
 }
 
@@ -122,6 +128,7 @@ export function createOpenClawLocalProxyProjection(input: {
     maxTokens?: number;
     timeoutMs?: number;
     streaming?: boolean;
+    request?: StudioWorkbenchLLMProviderRequestOverridesRecord;
   };
 }): OpenClawLocalProxyProjection {
   const sourceRoute = selectProjectedLocalAiProxyRoute(
@@ -155,6 +162,7 @@ export function createOpenClawLocalProxyProjection(input: {
   if (!proxyBaseUrl) {
     throw new Error('A local proxy base URL is required for OpenClaw projection.');
   }
+  const request = normalizeOpenClawProviderRequestOverrides(input.runtimeConfig?.request);
 
   return {
     sourceRoute,
@@ -178,6 +186,7 @@ export function createOpenClawLocalProxyProjection(input: {
           typeof input.runtimeConfig?.streaming === 'boolean'
             ? input.runtimeConfig.streaming
             : true,
+        ...(request ? { request } : {}),
       },
     },
     selection: {

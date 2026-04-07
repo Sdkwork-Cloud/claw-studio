@@ -1309,6 +1309,298 @@ await runTest(
 );
 
 await runTest(
+  'saveOpenClawWebFetchConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  async () => {
+    const fileCalls: string[] = [];
+    const gatewaySnapshotCalls: string[] = [];
+    const gatewayWriteCalls: Array<[string, { raw: string; baseHash?: string }]> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+      },
+      openClawGatewayClient: {
+        getConfig: async (instanceId: string) => {
+          gatewaySnapshotCalls.push(instanceId);
+          return {
+            baseHash: 'hash-web-fetch',
+            config: {
+              plugins: {
+                entries: {
+                  firecrawl: {
+                    config: {
+                      webSearch: {
+                        apiKey: 'fc-search-live',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          };
+        },
+        setConfig: async (instanceId: string, args) => {
+          gatewayWriteCalls.push([instanceId, args]);
+          return {
+            ok: true,
+          };
+        },
+      },
+      openClawConfigService: {
+        saveWebFetchConfiguration: async () => {
+          fileCalls.push('saveWebFetchConfiguration');
+          throw new Error('platform web fetch save should not be used when gateway is ready');
+        },
+      },
+    });
+
+    await service.saveOpenClawWebFetchConfig('managed-openclaw', {
+      enabled: true,
+      maxChars: 42000,
+      maxCharsCap: 64000,
+      maxResponseBytes: 2500000,
+      timeoutSeconds: 28,
+      cacheTtlMinutes: 9,
+      maxRedirects: 4,
+      readability: false,
+      userAgent: 'SDKWork Fetch Bot/1.0',
+      fallbackProviderConfig: {
+        providerId: 'firecrawl',
+        apiKeySource: 'fc-live',
+        baseUrl: 'https://api.firecrawl.dev',
+        advancedConfig: `{
+  "onlyMainContent": true,
+  "maxAgeMs": 86400000,
+  "timeoutSeconds": 60
+}`,
+      },
+    });
+
+    assert.deepEqual(gatewaySnapshotCalls, ['managed-openclaw']);
+    assert.equal(gatewayWriteCalls.length, 1);
+    assert.deepEqual(fileCalls, []);
+    assert.equal(gatewayWriteCalls[0]?.[1].baseHash, 'hash-web-fetch');
+    assert.deepEqual(requireParsedOpenClawConfig(gatewayWriteCalls[0]![1].raw), {
+      tools: {
+        web: {
+          fetch: {
+            enabled: true,
+            maxChars: 42000,
+            maxCharsCap: 64000,
+            maxResponseBytes: 2500000,
+            timeoutSeconds: 28,
+            cacheTtlMinutes: 9,
+            maxRedirects: 4,
+            readability: false,
+            userAgent: 'SDKWork Fetch Bot/1.0',
+          },
+        },
+      },
+      plugins: {
+        entries: {
+          firecrawl: {
+            config: {
+              webSearch: {
+                apiKey: 'fc-search-live',
+              },
+              webFetch: {
+                apiKey: 'fc-live',
+                baseUrl: 'https://api.firecrawl.dev',
+                onlyMainContent: true,
+                maxAgeMs: 86400000,
+                timeoutSeconds: 60,
+              },
+            },
+          },
+        },
+      },
+    });
+  },
+);
+
+await runTest(
+  'saveOpenClawXSearchConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  async () => {
+    const fileCalls: string[] = [];
+    const gatewaySnapshotCalls: string[] = [];
+    const gatewayWriteCalls: Array<[string, { raw: string; baseHash?: string }]> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+      },
+      openClawGatewayClient: {
+        getConfig: async (instanceId: string) => {
+          gatewaySnapshotCalls.push(instanceId);
+          return {
+            baseHash: 'hash-x-search',
+            config: {
+              plugins: {
+                entries: {
+                  xai: {
+                    config: {
+                      webSearch: {
+                        model: 'grok-4-fast',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          };
+        },
+        setConfig: async (instanceId: string, args) => {
+          gatewayWriteCalls.push([instanceId, args]);
+          return {
+            ok: true,
+          };
+        },
+      },
+      openClawConfigService: {
+        saveXSearchConfiguration: async () => {
+          fileCalls.push('saveXSearchConfiguration');
+          throw new Error('platform x_search save should not be used when gateway is ready');
+        },
+      },
+    });
+
+    await service.saveOpenClawXSearchConfig('managed-openclaw', {
+      enabled: true,
+      apiKeySource: 'xai-live',
+      model: 'grok-4-1-fast-non-reasoning',
+      inlineCitations: false,
+      maxTurns: 3,
+      timeoutSeconds: 45,
+      cacheTtlMinutes: 18,
+      advancedConfig: `{
+  "userTag": "internal-research"
+}`,
+    });
+
+    assert.deepEqual(gatewaySnapshotCalls, ['managed-openclaw']);
+    assert.equal(gatewayWriteCalls.length, 1);
+    assert.deepEqual(fileCalls, []);
+    assert.equal(gatewayWriteCalls[0]?.[1].baseHash, 'hash-x-search');
+    assert.deepEqual(requireParsedOpenClawConfig(gatewayWriteCalls[0]![1].raw), {
+      plugins: {
+        entries: {
+          xai: {
+            config: {
+              webSearch: {
+                model: 'grok-4-fast',
+                apiKey: 'xai-live',
+              },
+              xSearch: {
+                enabled: true,
+                model: 'grok-4-1-fast-non-reasoning',
+                inlineCitations: false,
+                maxTurns: 3,
+                timeoutSeconds: 45,
+                cacheTtlMinutes: 18,
+                userTag: 'internal-research',
+              },
+            },
+          },
+        },
+      },
+    });
+  },
+);
+
+await runTest(
+  'saveOpenClawWebSearchNativeCodexConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  async () => {
+    const fileCalls: string[] = [];
+    const gatewaySnapshotCalls: string[] = [];
+    const gatewayWriteCalls: Array<[string, { raw: string; baseHash?: string }]> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+      },
+      openClawGatewayClient: {
+        getConfig: async (instanceId: string) => {
+          gatewaySnapshotCalls.push(instanceId);
+          return {
+            baseHash: 'hash-codex-search',
+            config: {
+              tools: {
+                web: {
+                  search: {
+                    enabled: true,
+                    provider: 'searxng',
+                    maxResults: 10,
+                    timeoutSeconds: 45,
+                    cacheTtlMinutes: 20,
+                  },
+                },
+              },
+            },
+          };
+        },
+        setConfig: async (instanceId: string, args) => {
+          gatewayWriteCalls.push([instanceId, args]);
+          return {
+            ok: true,
+          };
+        },
+      },
+      openClawConfigService: {
+        saveWebSearchNativeCodexConfiguration: async () => {
+          fileCalls.push('saveWebSearchNativeCodexConfiguration');
+          throw new Error('platform native codex search save should not be used when gateway is ready');
+        },
+      },
+    });
+
+    await service.saveOpenClawWebSearchNativeCodexConfig('managed-openclaw', {
+      enabled: true,
+      mode: 'cached',
+      allowedDomains: ['example.com', 'openai.com'],
+      contextSize: 'high',
+      userLocation: {
+        country: 'US',
+        city: 'New York',
+        timezone: 'America/New_York',
+      },
+      advancedConfig: `{
+  "reasoningEffort": "medium"
+}`,
+    });
+
+    assert.deepEqual(gatewaySnapshotCalls, ['managed-openclaw']);
+    assert.equal(gatewayWriteCalls.length, 1);
+    assert.deepEqual(fileCalls, []);
+    assert.equal(gatewayWriteCalls[0]?.[1].baseHash, 'hash-codex-search');
+    assert.deepEqual(requireParsedOpenClawConfig(gatewayWriteCalls[0]![1].raw), {
+      tools: {
+        web: {
+          search: {
+            enabled: true,
+            provider: 'searxng',
+            maxResults: 10,
+            timeoutSeconds: 45,
+            cacheTtlMinutes: 20,
+            openaiCodex: {
+              enabled: true,
+              mode: 'cached',
+              allowedDomains: ['example.com', 'openai.com'],
+              contextSize: 'high',
+              userLocation: {
+                country: 'US',
+                city: 'New York',
+                timezone: 'America/New_York',
+              },
+              reasoningEffort: 'medium',
+            },
+          },
+        },
+      },
+    });
+  },
+);
+
+await runTest(
   'saveOpenClawAuthCooldownsConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
   async () => {
     const fileCalls: string[] = [];
@@ -1369,6 +1661,83 @@ await runTest(
           billingBackoffHours: 5,
           billingMaxHours: 24,
           failureWindowHours: 36,
+        },
+      },
+    });
+  },
+);
+
+await runTest(
+  'saveOpenClawDreamingConfig saves the managed config through the OpenClaw gateway when the managed gateway is ready',
+  async () => {
+    const fileCalls: string[] = [];
+    const gatewaySnapshotCalls: string[] = [];
+    const gatewayWriteCalls: Array<[string, { raw: string; baseHash?: string }]> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () =>
+          createManagedConfigBackedOpenClawDetail('managed-openclaw'),
+      },
+      openClawGatewayClient: {
+        getConfig: async (instanceId: string) => {
+          gatewaySnapshotCalls.push(instanceId);
+          return {
+            baseHash: 'hash-dreaming',
+            config: {
+              plugins: {
+                entries: {
+                  'memory-core': {
+                    enabled: true,
+                    config: {
+                      journal: {
+                        retentionDays: 30,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          };
+        },
+        setConfig: async (instanceId: string, args) => {
+          gatewayWriteCalls.push([instanceId, args]);
+          return {
+            ok: true,
+          };
+        },
+      },
+      openClawConfigService: {
+        saveDreamingConfiguration: async () => {
+          fileCalls.push('saveDreamingConfiguration');
+          throw new Error('platform dreaming save should not be used when gateway is ready');
+        },
+      },
+    });
+
+    await service.saveOpenClawDreamingConfig('managed-openclaw', {
+      enabled: true,
+      frequency: '0 3 * * *',
+    });
+
+    assert.deepEqual(gatewaySnapshotCalls, ['managed-openclaw']);
+    assert.equal(gatewayWriteCalls.length, 1);
+    assert.deepEqual(fileCalls, []);
+    assert.equal(gatewayWriteCalls[0]?.[1].baseHash, 'hash-dreaming');
+    assert.deepEqual(requireParsedOpenClawConfig(gatewayWriteCalls[0]![1].raw), {
+      plugins: {
+        entries: {
+          'memory-core': {
+            enabled: true,
+            config: {
+              journal: {
+                retentionDays: 30,
+              },
+              dreaming: {
+                enabled: true,
+                frequency: '0 3 * * *',
+              },
+            },
+          },
         },
       },
     });
@@ -2106,6 +2475,7 @@ await runTest('updateInstanceLlmProviderConfig patches remote OpenClaw provider 
           maxTokens: null,
           timeoutMs: null,
           streaming: null,
+          request: null,
           models: [
             {
               id: 'gpt-5.4',
@@ -2175,6 +2545,158 @@ await runTest('updateInstanceLlmProviderConfig patches remote OpenClaw provider 
     },
   });
 });
+
+await runTest(
+  'updateInstanceLlmProviderConfig patches remote OpenClaw provider request overrides through the gateway client',
+  async () => {
+    const patches: Array<{ instanceId: string; args: { raw: string; baseHash?: string } }> = [];
+    const service = createInstanceService({
+      studioApi: {
+        getInstanceDetail: async () => createOpenClawDetail('remote-openclaw-request'),
+      },
+      openClawGatewayClient: {
+        getConfig: async () => ({
+          baseHash: 'hash-request',
+          config: {
+            models: {
+              providers: {
+                openai: {
+                  baseUrl: 'https://old.example.com/v1',
+                  apiKey: '${OLD_KEY}',
+                  models: [
+                    {
+                      id: 'gpt-5.4',
+                      name: 'gpt-5.4',
+                      role: 'primary',
+                    },
+                  ],
+                },
+              },
+            },
+            agents: {
+              defaults: {
+                model: {
+                  primary: 'openai/gpt-5.4',
+                },
+                models: {
+                  'openai/gpt-5.4': {
+                    alias: 'gpt-5.4',
+                    params: {
+                      temperature: 0.2,
+                      topP: 1,
+                      maxTokens: 4096,
+                      timeoutMs: 60000,
+                      streaming: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        patchConfig: async (instanceId, args) => {
+          patches.push({ instanceId, args });
+          return {
+            ok: true,
+          };
+        },
+      },
+    });
+
+    await service.updateInstanceLlmProviderConfig('remote-openclaw-request', 'openai', {
+      endpoint: 'https://api.openai.com/v1',
+      apiKeySource: '${OPENAI_API_KEY}',
+      defaultModelId: 'gpt-5.4',
+      reasoningModelId: undefined,
+      embeddingModelId: undefined,
+      config: {
+        temperature: 0.25,
+        topP: 0.8,
+        maxTokens: 12000,
+        timeoutMs: 90000,
+        streaming: true,
+        request: {
+          headers: {
+            'OpenAI-Organization': 'org_live',
+          },
+          auth: {
+            mode: 'authorization-bearer',
+            token: '${OPENAI_API_KEY}',
+          },
+          proxy: {
+            mode: 'explicit-proxy',
+            url: 'http://127.0.0.1:8080',
+          },
+          tls: {
+            insecureSkipVerify: true,
+            serverName: 'api.openai.internal',
+          },
+        },
+      },
+    });
+
+    assert.equal(patches.length, 1);
+    assert.deepEqual(JSON.parse(patches[0]!.args.raw), {
+      models: {
+        providers: {
+          openai: {
+            baseUrl: 'https://api.openai.com/v1',
+            apiKey: '${OPENAI_API_KEY}',
+            temperature: null,
+            topP: null,
+            maxTokens: null,
+            timeoutMs: null,
+            streaming: null,
+            request: {
+              headers: {
+                'OpenAI-Organization': 'org_live',
+              },
+              auth: {
+                mode: 'authorization-bearer',
+                token: '${OPENAI_API_KEY}',
+              },
+              proxy: {
+                mode: 'explicit-proxy',
+                url: 'http://127.0.0.1:8080',
+              },
+              tls: {
+                insecureSkipVerify: true,
+                serverName: 'api.openai.internal',
+              },
+            },
+            models: [
+              {
+                id: 'gpt-5.4',
+                name: 'gpt-5.4',
+                role: 'primary',
+              },
+            ],
+          },
+        },
+      },
+      agents: {
+        defaults: {
+          model: {
+            primary: 'openai/gpt-5.4',
+          },
+          models: {
+            'openai/gpt-5.4': {
+              alias: 'gpt-5.4',
+              streaming: true,
+              params: {
+                temperature: 0.25,
+                topP: 0.8,
+                maxTokens: 12000,
+                timeoutMs: 90000,
+                streaming: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  },
+);
 
 await runTest('createInstanceLlmProvider rejects config-backed OpenClaw provider creation and keeps Provider Center as the control plane', async () => {
   const service = createInstanceService({

@@ -21,6 +21,7 @@ import {
   Plus,
   Power,
   RefreshCw,
+  Save,
   Server,
   Settings,
   Sparkles,
@@ -71,9 +72,16 @@ import { InstanceFilesWorkspace } from '../components/InstanceFilesWorkspace';
 import { InstanceLLMConfigPanel } from '../components/InstanceLLMConfigPanel';
 import {
   buildInstanceActionCapabilities,
+  buildInstanceMemoryWorkbenchState,
+  buildOpenClawDreamingSaveInput,
   buildOpenClawProviderWorkspaceState,
+  createOpenClawDreamingFormState,
+  formatOpenClawProviderRequestOverridesDraft,
+  isDreamDiaryMemoryEntry,
   mergeLazyLoadedWorkbenchFiles,
   mergeLazyLoadedWorkbenchMemories,
+  type OpenClawDreamingFormState,
+  parseOpenClawProviderRequestOverridesDraft,
   shouldLazyLoadInstanceWorkbenchFiles,
   shouldLazyLoadInstanceWorkbenchMemory,
 } from '../services';
@@ -115,6 +123,7 @@ interface OpenClawProviderFormState {
   reasoningModelId: string;
   embeddingModelId: string;
   modelsText: string;
+  requestOverridesText: string;
 }
 
 interface OpenClawProviderModelFormState {
@@ -135,6 +144,46 @@ interface OpenClawWebSearchProviderFormState {
   apiKeySource: string;
   baseUrl: string;
   model: string;
+  advancedConfig: string;
+}
+
+interface OpenClawXSearchFormState {
+  enabled: boolean;
+  apiKeySource: string;
+  model: string;
+  inlineCitations: boolean;
+  maxTurns: string;
+  timeoutSeconds: string;
+  cacheTtlMinutes: string;
+  advancedConfig: string;
+}
+
+interface OpenClawWebSearchNativeCodexFormState {
+  enabled: boolean;
+  mode: string;
+  allowedDomains: string;
+  contextSize: string;
+  userLocationCountry: string;
+  userLocationCity: string;
+  userLocationTimezone: string;
+  advancedConfig: string;
+}
+
+interface OpenClawWebFetchSharedFormState {
+  enabled: boolean;
+  maxChars: string;
+  maxCharsCap: string;
+  maxResponseBytes: string;
+  timeoutSeconds: string;
+  cacheTtlMinutes: string;
+  maxRedirects: string;
+  readability: boolean;
+  userAgent: string;
+}
+
+interface OpenClawWebFetchFallbackFormState {
+  apiKeySource: string;
+  baseUrl: string;
   advancedConfig: string;
 }
 
@@ -473,6 +522,7 @@ function createEmptyProviderForm(): OpenClawProviderFormState {
     reasoningModelId: '',
     embeddingModelId: '',
     modelsText: '',
+    requestOverridesText: '',
   };
 }
 
@@ -532,6 +582,74 @@ function createWebSearchProviderFormState(
     baseUrl: provider?.baseUrl || '',
     model: provider?.model || '',
     advancedConfig: provider?.advancedConfig || '',
+  };
+}
+
+function createXSearchFormState(
+  config: InstanceWorkbenchSnapshot['managedXSearchConfig'] | null | undefined,
+): OpenClawXSearchFormState | null {
+  if (!config) {
+    return null;
+  }
+
+  return {
+    enabled: config.enabled,
+    apiKeySource: config.apiKeySource,
+    model: config.model,
+    inlineCitations: config.inlineCitations,
+    maxTurns: String(config.maxTurns),
+    timeoutSeconds: String(config.timeoutSeconds),
+    cacheTtlMinutes: String(config.cacheTtlMinutes),
+    advancedConfig: config.advancedConfig,
+  };
+}
+
+function createWebSearchNativeCodexFormState(
+  config: InstanceWorkbenchSnapshot['managedWebSearchNativeCodexConfig'] | null | undefined,
+): OpenClawWebSearchNativeCodexFormState | null {
+  if (!config) {
+    return null;
+  }
+
+  return {
+    enabled: config.enabled,
+    mode: config.mode,
+    allowedDomains: config.allowedDomains.join('\n'),
+    contextSize: config.contextSize,
+    userLocationCountry: config.userLocation.country,
+    userLocationCity: config.userLocation.city,
+    userLocationTimezone: config.userLocation.timezone,
+    advancedConfig: config.advancedConfig,
+  };
+}
+
+function createWebFetchSharedFormState(
+  config: InstanceWorkbenchSnapshot['managedWebFetchConfig'] | null | undefined,
+): OpenClawWebFetchSharedFormState | null {
+  if (!config) {
+    return null;
+  }
+
+  return {
+    enabled: config.enabled,
+    maxChars: String(config.maxChars),
+    maxCharsCap: String(config.maxCharsCap),
+    maxResponseBytes: String(config.maxResponseBytes),
+    timeoutSeconds: String(config.timeoutSeconds),
+    cacheTtlMinutes: String(config.cacheTtlMinutes),
+    maxRedirects: String(config.maxRedirects),
+    readability: config.readability,
+    userAgent: config.userAgent,
+  };
+}
+
+function createWebFetchFallbackFormState(
+  config: InstanceWorkbenchSnapshot['managedWebFetchConfig'] | null | undefined,
+): OpenClawWebFetchFallbackFormState {
+  return {
+    apiKeySource: config?.fallbackProvider.apiKeySource || '',
+    baseUrl: config?.fallbackProvider.baseUrl || '',
+    advancedConfig: config?.fallbackProvider.advancedConfig || '',
   };
 }
 
@@ -641,6 +759,7 @@ export function InstanceDetail() {
   const [isWorkbenchMemoryLoading, setIsWorkbenchMemoryLoading] = useState(false);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, InstanceLLMProviderUpdate>>({});
+  const [providerRequestDrafts, setProviderRequestDrafts] = useState<Record<string, string>>({});
   const [isSavingProviderConfig, setIsSavingProviderConfig] = useState(false);
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
   const [providerDialogDraft, setProviderDialogDraft] = useState<OpenClawProviderFormState>(
@@ -664,10 +783,26 @@ export function InstanceDetail() {
     useState<Record<string, OpenClawWebSearchProviderFormState>>({});
   const [webSearchError, setWebSearchError] = useState<string | null>(null);
   const [isSavingWebSearch, setIsSavingWebSearch] = useState(false);
+  const [xSearchDraft, setXSearchDraft] = useState<OpenClawXSearchFormState | null>(null);
+  const [xSearchError, setXSearchError] = useState<string | null>(null);
+  const [isSavingXSearch, setIsSavingXSearch] = useState(false);
+  const [webSearchNativeCodexDraft, setWebSearchNativeCodexDraft] =
+    useState<OpenClawWebSearchNativeCodexFormState | null>(null);
+  const [webSearchNativeCodexError, setWebSearchNativeCodexError] = useState<string | null>(null);
+  const [isSavingWebSearchNativeCodex, setIsSavingWebSearchNativeCodex] = useState(false);
+  const [webFetchSharedDraft, setWebFetchSharedDraft] =
+    useState<OpenClawWebFetchSharedFormState | null>(null);
+  const [webFetchFallbackDraft, setWebFetchFallbackDraft] =
+    useState<OpenClawWebFetchFallbackFormState>(createWebFetchFallbackFormState(null));
+  const [webFetchError, setWebFetchError] = useState<string | null>(null);
+  const [isSavingWebFetch, setIsSavingWebFetch] = useState(false);
   const [authCooldownsDraft, setAuthCooldownsDraft] =
     useState<OpenClawAuthCooldownsFormState | null>(null);
   const [authCooldownsError, setAuthCooldownsError] = useState<string | null>(null);
   const [isSavingAuthCooldowns, setIsSavingAuthCooldowns] = useState(false);
+  const [dreamingDraft, setDreamingDraft] = useState<OpenClawDreamingFormState | null>(null);
+  const [dreamingError, setDreamingError] = useState<string | null>(null);
+  const [isSavingDreaming, setIsSavingDreaming] = useState(false);
   const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedAgentWorkbench, setSelectedAgentWorkbench] =
@@ -733,6 +868,7 @@ export function InstanceDetail() {
     if (providers.length === 0) {
       setSelectedProviderId(null);
       setProviderDrafts({});
+      setProviderRequestDrafts({});
       return;
     }
 
@@ -740,6 +876,7 @@ export function InstanceDetail() {
       current && providers.some((provider) => provider.id === current) ? current : providers[0].id,
     );
     setProviderDrafts({});
+    setProviderRequestDrafts({});
   }, [workbench?.llmProviders]);
 
   useEffect(() => {
@@ -796,6 +933,62 @@ export function InstanceDetail() {
     setAuthCooldownsDraft(createAuthCooldownsFormState(managedAuthCooldownsConfig));
     setAuthCooldownsError(null);
   }, [workbench?.managedAuthCooldownsConfig]);
+
+  useEffect(() => {
+    const managedDreamingConfig = workbench?.managedDreamingConfig || null;
+
+    if (!managedDreamingConfig) {
+      setDreamingDraft(null);
+      setDreamingError(null);
+      return;
+    }
+
+    setDreamingDraft(createOpenClawDreamingFormState(managedDreamingConfig));
+    setDreamingError(null);
+  }, [workbench?.managedDreamingConfig]);
+
+  useEffect(() => {
+    const managedXSearchConfig = workbench?.managedXSearchConfig || null;
+
+    if (!managedXSearchConfig) {
+      setXSearchDraft(null);
+      setXSearchError(null);
+      return;
+    }
+
+    setXSearchDraft(createXSearchFormState(managedXSearchConfig));
+    setXSearchError(null);
+  }, [workbench?.managedXSearchConfig]);
+
+  useEffect(() => {
+    const managedWebSearchNativeCodexConfig = workbench?.managedWebSearchNativeCodexConfig || null;
+
+    if (!managedWebSearchNativeCodexConfig) {
+      setWebSearchNativeCodexDraft(null);
+      setWebSearchNativeCodexError(null);
+      return;
+    }
+
+    setWebSearchNativeCodexDraft(
+      createWebSearchNativeCodexFormState(managedWebSearchNativeCodexConfig),
+    );
+    setWebSearchNativeCodexError(null);
+  }, [workbench?.managedWebSearchNativeCodexConfig]);
+
+  useEffect(() => {
+    const managedWebFetchConfig = workbench?.managedWebFetchConfig || null;
+
+    if (!managedWebFetchConfig) {
+      setWebFetchSharedDraft(null);
+      setWebFetchFallbackDraft(createWebFetchFallbackFormState(null));
+      setWebFetchError(null);
+      return;
+    }
+
+    setWebFetchSharedDraft(createWebFetchSharedFormState(managedWebFetchConfig));
+    setWebFetchFallbackDraft(createWebFetchFallbackFormState(managedWebFetchConfig));
+    setWebFetchError(null);
+  }, [workbench?.managedWebFetchConfig]);
 
   useEffect(() => {
     const agents = workbench?.agents || [];
@@ -880,6 +1073,7 @@ export function InstanceDetail() {
     setIsWorkbenchMemoryLoading(false);
     setIsProviderDialogOpen(false);
     setProviderDialogDraft(createEmptyProviderForm());
+    setProviderRequestDrafts({});
     setIsProviderModelDialogOpen(false);
     setProviderModelDialogDraft(createEmptyProviderModelForm());
     setProviderModelDeleteId(null);
@@ -889,9 +1083,18 @@ export function InstanceDetail() {
     setWebSearchProviderDrafts({});
     setWebSearchError(null);
     setIsSavingWebSearch(false);
+    setXSearchDraft(null);
+    setXSearchError(null);
+    setIsSavingXSearch(false);
+    setWebSearchNativeCodexDraft(null);
+    setWebSearchNativeCodexError(null);
+    setIsSavingWebSearchNativeCodex(false);
     setAuthCooldownsDraft(null);
     setAuthCooldownsError(null);
     setIsSavingAuthCooldowns(false);
+    setDreamingDraft(null);
+    setDreamingError(null);
+    setIsSavingDreaming(false);
     setIsAgentDialogOpen(false);
     setSelectedAgentId(null);
     setSelectedAgentWorkbench(null);
@@ -909,7 +1112,11 @@ export function InstanceDetail() {
   const managedConfigPath = workbench?.managedConfigPath || null;
   const managedChannels = workbench?.managedChannels || [];
   const managedWebSearchConfig = workbench?.managedWebSearchConfig || null;
+  const managedXSearchConfig = workbench?.managedXSearchConfig || null;
+  const managedWebSearchNativeCodexConfig = workbench?.managedWebSearchNativeCodexConfig || null;
+  const managedWebFetchConfig = workbench?.managedWebFetchConfig || null;
   const managedAuthCooldownsConfig = workbench?.managedAuthCooldownsConfig || null;
+  const managedDreamingConfig = workbench?.managedDreamingConfig || null;
   const consoleAccess = detail?.consoleAccess || null;
   const actionCapabilities = buildInstanceActionCapabilities(instance, detail);
   const isOpenClawConfigWritable =
@@ -926,15 +1133,24 @@ export function InstanceDetail() {
   const canEditManagedWebSearch = Boolean(
     id && isOpenClawConfigWritable && managedWebSearchConfig?.providers.length,
   );
+  const canEditManagedXSearch = Boolean(id && isOpenClawConfigWritable && managedXSearchConfig);
+  const canEditManagedWebSearchNativeCodex = Boolean(
+    id && isOpenClawConfigWritable && managedWebSearchNativeCodexConfig,
+  );
+  const canEditManagedWebFetch = Boolean(
+    id && isOpenClawConfigWritable && managedWebFetchConfig,
+  );
   const canEditManagedAuthCooldowns = Boolean(
     id && isOpenClawConfigWritable && managedAuthCooldownsConfig,
   );
+  const canEditManagedDreaming = Boolean(id && isOpenClawConfigWritable && managedDreamingConfig);
   const providerWorkspaceState = buildOpenClawProviderWorkspaceState(detail);
   const isProviderConfigReadonly = providerWorkspaceState.isProviderConfigReadonly;
   const canManageOpenClawProviders = providerWorkspaceState.canManageProviderCatalog;
   const canOpenOpenClawConsole = Boolean(
     consoleAccess?.available && (consoleAccess.autoLoginUrl || consoleAccess.url),
   );
+  const memoryWorkbenchState = buildInstanceMemoryWorkbenchState(workbench);
   const historyTask = historyTaskId ? workbench?.tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? taskExecutionsById[historyTaskId] || [] : [];
 
@@ -973,6 +1189,14 @@ export function InstanceDetail() {
     () => parseProviderModelsText(providerDialogDraft.modelsText),
     [providerDialogDraft.modelsText],
   );
+  const providerDialogRequestParseError = useMemo(() => {
+    try {
+      parseOpenClawProviderRequestOverridesDraft(providerDialogDraft.requestOverridesText);
+      return null;
+    } catch (error: any) {
+      return error?.message || t('instances.detail.instanceWorkbench.llmProviders.requestOverridesInvalid');
+    }
+  }, [providerDialogDraft.requestOverridesText, t]);
   const availableAgentModelOptions = useMemo(
     () => {
       const options = new Map<string, { value: string; label: string }>();
@@ -1002,6 +1226,26 @@ export function InstanceDetail() {
         config: { ...selectedProvider.config },
       }
     : null;
+  const selectedProviderRequestBaseline = selectedProvider
+    ? formatOpenClawProviderRequestOverridesDraft(selectedProvider.config.request)
+    : '';
+  const selectedProviderRequestDraft = selectedProvider
+    ? Object.prototype.hasOwnProperty.call(providerRequestDrafts, selectedProvider.id)
+      ? providerRequestDrafts[selectedProvider.id] || ''
+      : selectedProviderRequestBaseline
+    : '';
+  const selectedProviderRequestParseError = useMemo(() => {
+    if (!selectedProvider) {
+      return null;
+    }
+
+    try {
+      parseOpenClawProviderRequestOverridesDraft(selectedProviderRequestDraft);
+      return null;
+    } catch (error: any) {
+      return error?.message || t('instances.detail.instanceWorkbench.llmProviders.requestOverridesInvalid');
+    }
+  }, [selectedProvider, selectedProviderRequestDraft, t]);
   const selectedManagedChannelDraft = selectedManagedChannel
     ? managedChannelDrafts[selectedManagedChannel.id] || selectedManagedChannel.values
     : null;
@@ -1148,7 +1392,7 @@ export function InstanceDetail() {
   const hasPendingProviderChanges = Boolean(
     selectedProvider &&
       selectedProviderDraft &&
-      JSON.stringify(selectedProviderDraft) !==
+      (JSON.stringify(selectedProviderDraft) !==
         JSON.stringify({
           endpoint: selectedProvider.endpoint,
           apiKeySource: selectedProvider.apiKeySource,
@@ -1156,7 +1400,8 @@ export function InstanceDetail() {
           reasoningModelId: selectedProvider.reasoningModelId,
           embeddingModelId: selectedProvider.embeddingModelId,
           config: selectedProvider.config,
-        }),
+        }) ||
+        selectedProviderRequestDraft !== selectedProviderRequestBaseline),
   );
   const editorTheme =
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
@@ -1208,6 +1453,17 @@ export function InstanceDetail() {
     }));
   };
 
+  const handleProviderRequestOverridesChange = (value: string) => {
+    if (isProviderConfigReadonly || !selectedProvider) {
+      return;
+    }
+
+    setProviderRequestDrafts((current) => ({
+      ...current,
+      [selectedProvider.id]: value,
+    }));
+  };
+
   const handleResetProviderDraft = () => {
     if (isProviderConfigReadonly || !selectedProvider) {
       return;
@@ -1224,6 +1480,10 @@ export function InstanceDetail() {
         config: { ...selectedProvider.config },
       },
     }));
+    setProviderRequestDrafts((current) => ({
+      ...current,
+      [selectedProvider.id]: formatOpenClawProviderRequestOverridesDraft(selectedProvider.config.request),
+    }));
   };
 
   const handleSaveProviderConfig = async () => {
@@ -1231,9 +1491,23 @@ export function InstanceDetail() {
       return;
     }
 
+    let requestOverrides;
+    try {
+      requestOverrides = parseOpenClawProviderRequestOverridesDraft(selectedProviderRequestDraft);
+    } catch (error: any) {
+      toast.error(error?.message || t('instances.detail.instanceWorkbench.llmProviders.requestOverridesInvalid'));
+      return;
+    }
+
     setIsSavingProviderConfig(true);
     try {
-      await instanceService.updateInstanceLlmProviderConfig(id, selectedProvider.id, selectedProviderDraft);
+      await instanceService.updateInstanceLlmProviderConfig(id, selectedProvider.id, {
+        ...selectedProviderDraft,
+        config: {
+          ...selectedProviderDraft.config,
+          request: requestOverrides,
+        },
+      });
       toast.success(t('instances.detail.instanceWorkbench.llmProviders.saved'));
       await loadWorkbench(id);
     } catch (error: any) {
@@ -1285,6 +1559,14 @@ export function InstanceDetail() {
       return;
     }
 
+    let requestOverrides;
+    try {
+      requestOverrides = parseOpenClawProviderRequestOverridesDraft(providerDialogDraft.requestOverridesText);
+    } catch (error: any) {
+      toast.error(error?.message || t('instances.detail.instanceWorkbench.llmProviders.requestOverridesInvalid'));
+      return;
+    }
+
     const providerInput: OpenClawProviderInput = {
       id: providerId,
       channelId: providerId,
@@ -1292,7 +1574,10 @@ export function InstanceDetail() {
       apiKey: providerDialogDraft.apiKeySource.trim(),
       baseUrl: providerDialogDraft.endpoint.trim(),
       models,
-      config: createDefaultProviderRuntimeConfig(),
+      config: {
+        ...createDefaultProviderRuntimeConfig(),
+        request: requestOverrides,
+      },
     };
 
     setIsSavingProviderDialog(true);
@@ -1806,6 +2091,221 @@ export function InstanceDetail() {
     }
   };
 
+  const handleXSearchDraftChange = (
+    key: keyof OpenClawXSearchFormState,
+    value: string | boolean,
+  ) => {
+    setXSearchError(null);
+    setXSearchDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
+  };
+
+  const handleSaveXSearchConfig = async () => {
+    if (!id || !xSearchDraft) {
+      return;
+    }
+
+    const maxTurns = Number.parseInt(xSearchDraft.maxTurns, 10);
+    const timeoutSeconds = Number.parseInt(xSearchDraft.timeoutSeconds, 10);
+    const cacheTtlMinutes = Number.parseInt(xSearchDraft.cacheTtlMinutes, 10);
+
+    if (!Number.isFinite(maxTurns) || maxTurns <= 0) {
+      setXSearchError(t('instances.detail.instanceWorkbench.xSearch.errors.maxTurnsInvalid'));
+      return;
+    }
+    if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+      setXSearchError(t('instances.detail.instanceWorkbench.xSearch.errors.timeoutInvalid'));
+      return;
+    }
+    if (!Number.isFinite(cacheTtlMinutes) || cacheTtlMinutes <= 0) {
+      setXSearchError(t('instances.detail.instanceWorkbench.xSearch.errors.cacheTtlInvalid'));
+      return;
+    }
+
+    setIsSavingXSearch(true);
+    setXSearchError(null);
+    try {
+      await instanceService.saveOpenClawXSearchConfig(id, {
+        enabled: xSearchDraft.enabled,
+        apiKeySource: xSearchDraft.apiKeySource,
+        model: xSearchDraft.model,
+        inlineCitations: xSearchDraft.inlineCitations,
+        maxTurns,
+        timeoutSeconds,
+        cacheTtlMinutes,
+        advancedConfig: xSearchDraft.advancedConfig,
+      });
+      toast.success(t('instances.detail.instanceWorkbench.xSearch.toasts.saved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      setXSearchError(error?.message || t('instances.detail.instanceWorkbench.xSearch.toasts.saveFailed'));
+    } finally {
+      setIsSavingXSearch(false);
+    }
+  };
+
+  const handleWebSearchNativeCodexDraftChange = (
+    key: keyof OpenClawWebSearchNativeCodexFormState,
+    value: string | boolean,
+  ) => {
+    setWebSearchNativeCodexError(null);
+    setWebSearchNativeCodexDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
+  };
+
+  const handleSaveWebSearchNativeCodexConfig = async () => {
+    if (!id || !webSearchNativeCodexDraft) {
+      return;
+    }
+
+    const allowedDomains = [
+      ...new Set(
+        webSearchNativeCodexDraft.allowedDomains
+          .split(/\r?\n|,/)
+          .map((entry) => entry.trim())
+          .filter(Boolean),
+      ),
+    ];
+
+    setIsSavingWebSearchNativeCodex(true);
+    setWebSearchNativeCodexError(null);
+    try {
+      await instanceService.saveOpenClawWebSearchNativeCodexConfig(id, {
+        enabled: webSearchNativeCodexDraft.enabled,
+        mode: webSearchNativeCodexDraft.mode,
+        allowedDomains,
+        contextSize: webSearchNativeCodexDraft.contextSize,
+        userLocation: {
+          country: webSearchNativeCodexDraft.userLocationCountry,
+          city: webSearchNativeCodexDraft.userLocationCity,
+          timezone: webSearchNativeCodexDraft.userLocationTimezone,
+        },
+        advancedConfig: webSearchNativeCodexDraft.advancedConfig,
+      });
+      toast.success(t('instances.detail.instanceWorkbench.webSearchNativeCodex.toasts.saved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      setWebSearchNativeCodexError(
+        error?.message ||
+          t('instances.detail.instanceWorkbench.webSearchNativeCodex.toasts.saveFailed'),
+      );
+    } finally {
+      setIsSavingWebSearchNativeCodex(false);
+    }
+  };
+
+  const handleWebFetchSharedDraftChange = (
+    key: keyof OpenClawWebFetchSharedFormState,
+    value: string | boolean,
+  ) => {
+    setWebFetchError(null);
+    setWebFetchSharedDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
+  };
+
+  const handleWebFetchFallbackDraftChange = (
+    key: keyof OpenClawWebFetchFallbackFormState,
+    value: string,
+  ) => {
+    setWebFetchError(null);
+    setWebFetchFallbackDraft((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const handleSaveWebFetchConfig = async () => {
+    if (!id || !webFetchSharedDraft) {
+      return;
+    }
+
+    const maxChars = Number.parseInt(webFetchSharedDraft.maxChars, 10);
+    const maxCharsCap = Number.parseInt(webFetchSharedDraft.maxCharsCap, 10);
+    const maxResponseBytes = Number.parseInt(webFetchSharedDraft.maxResponseBytes, 10);
+    const timeoutSeconds = Number.parseInt(webFetchSharedDraft.timeoutSeconds, 10);
+    const cacheTtlMinutes = Number.parseInt(webFetchSharedDraft.cacheTtlMinutes, 10);
+    const maxRedirects = Number.parseInt(webFetchSharedDraft.maxRedirects, 10);
+
+    if (!Number.isFinite(maxChars) || maxChars <= 0) {
+      setWebFetchError(t('instances.detail.instanceWorkbench.webFetch.errors.maxCharsInvalid'));
+      return;
+    }
+    if (!Number.isFinite(maxCharsCap) || maxCharsCap <= 0) {
+      setWebFetchError(t('instances.detail.instanceWorkbench.webFetch.errors.maxCharsCapInvalid'));
+      return;
+    }
+    if (!Number.isFinite(maxResponseBytes) || maxResponseBytes <= 0) {
+      setWebFetchError(t('instances.detail.instanceWorkbench.webFetch.errors.maxResponseBytesInvalid'));
+      return;
+    }
+    if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+      setWebFetchError(t('instances.detail.instanceWorkbench.webFetch.errors.timeoutInvalid'));
+      return;
+    }
+    if (!Number.isFinite(cacheTtlMinutes) || cacheTtlMinutes <= 0) {
+      setWebFetchError(t('instances.detail.instanceWorkbench.webFetch.errors.cacheTtlInvalid'));
+      return;
+    }
+    if (!Number.isFinite(maxRedirects) || maxRedirects <= 0) {
+      setWebFetchError(t('instances.detail.instanceWorkbench.webFetch.errors.maxRedirectsInvalid'));
+      return;
+    }
+
+    setIsSavingWebFetch(true);
+    setWebFetchError(null);
+    try {
+      await instanceService.saveOpenClawWebFetchConfig(id, {
+        enabled: webFetchSharedDraft.enabled,
+        maxChars,
+        maxCharsCap,
+        maxResponseBytes,
+        timeoutSeconds,
+        cacheTtlMinutes,
+        maxRedirects,
+        readability: webFetchSharedDraft.readability,
+        userAgent: webFetchSharedDraft.userAgent,
+        fallbackProviderConfig: {
+          providerId: 'firecrawl',
+          apiKeySource: webFetchFallbackDraft.apiKeySource,
+          baseUrl: webFetchFallbackDraft.baseUrl,
+          advancedConfig: webFetchFallbackDraft.advancedConfig,
+        },
+      });
+      toast.success(t('instances.detail.instanceWorkbench.webFetch.toasts.saved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      setWebFetchError(
+        error?.message || t('instances.detail.instanceWorkbench.webFetch.toasts.saveFailed'),
+      );
+    } finally {
+      setIsSavingWebFetch(false);
+    }
+  };
+
   const handleAuthCooldownsDraftChange = (
     key: keyof OpenClawAuthCooldownsFormState,
     value: string,
@@ -1901,6 +2401,46 @@ export function InstanceDetail() {
       );
     } finally {
       setIsSavingAuthCooldowns(false);
+    }
+  };
+
+  const handleDreamingDraftChange = (
+    key: keyof OpenClawDreamingFormState,
+    value: string | boolean,
+  ) => {
+    setDreamingError(null);
+    setDreamingDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
+  };
+
+  const handleSaveDreamingConfig = async () => {
+    if (!id || !dreamingDraft) {
+      return;
+    }
+
+    setIsSavingDreaming(true);
+    setDreamingError(null);
+    try {
+      await instanceService.saveOpenClawDreamingConfig(
+        id,
+        buildOpenClawDreamingSaveInput(dreamingDraft),
+      );
+      toast.success(t('instances.detail.instanceWorkbench.dreaming.toasts.saved'));
+      await loadWorkbench(id, { withSpinner: false });
+    } catch (error: any) {
+      setDreamingError(
+        error?.message || t('instances.detail.instanceWorkbench.dreaming.toasts.saveFailed'),
+      );
+    } finally {
+      setIsSavingDreaming(false);
     }
   };
 
@@ -3049,6 +3589,32 @@ export function InstanceDetail() {
                   rows={6}
                 />
               </label>
+              <label className="block md:col-span-2">
+                <Label className="mb-2">
+                  {t('instances.detail.instanceWorkbench.llmProviders.requestOverrides')}
+                </Label>
+                <Textarea
+                  value={providerDialogDraft.requestOverridesText}
+                  onChange={(event) =>
+                    setProviderDialogDraft((current) => ({
+                      ...current,
+                      requestOverridesText: event.target.value,
+                    }))
+                  }
+                  placeholder={t('instances.detail.instanceWorkbench.llmProviders.requestOverridesPlaceholder')}
+                  rows={8}
+                  className="font-mono text-xs"
+                />
+                {providerDialogRequestParseError ? (
+                  <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">
+                    {providerDialogRequestParseError}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.llmProviders.requestOverridesHint')}
+                  </p>
+                )}
+              </label>
               <label className="block">
                 <Label className="mb-2">{t('instances.detail.instanceWorkbench.llmProviders.defaultModel')}</Label>
                 <Select
@@ -3131,7 +3697,10 @@ export function InstanceDetail() {
               <Button variant="outline" onClick={() => setIsProviderDialogOpen(false)}>
                 {t('common.cancel')}
               </Button>
-              <Button onClick={() => void handleSubmitProviderDialog()} disabled={isSavingProviderDialog}>
+              <Button
+                onClick={() => void handleSubmitProviderDialog()}
+                disabled={isSavingProviderDialog || Boolean(providerDialogRequestParseError)}
+              >
                 {isSavingProviderDialog ? t('common.loading') : t('common.save')}
               </Button>
             </DialogFooter>
@@ -3442,7 +4011,10 @@ export function InstanceDetail() {
                   readonlyMessage={t('instances.detail.instanceWorkbench.llmProviders.readonlyNotice')}
                   onOpenProviderCenter={() => navigate('/settings?tab=api')}
                   openProviderCenterLabel={t('providerCenter.page.title')}
+                  requestOverridesText={selectedProviderRequestDraft}
+                  requestOverridesError={selectedProviderRequestParseError}
                   onFieldChange={handleProviderFieldChange}
+                  onRequestOverridesChange={handleProviderRequestOverridesChange}
                   onConfigChange={handleProviderConfigChange}
                   onReset={handleResetProviderDraft}
                   onSave={handleSaveProviderConfig}
@@ -3577,54 +4149,180 @@ export function InstanceDetail() {
       );
     }
 
-    if (!workbench || workbench.memories.length === 0) {
+    if (memoryWorkbenchState.isEmpty || !workbench) {
       return renderSectionAvailability('memory', 'instances.detail.instanceWorkbench.empty.memory');
     }
 
     return (
-      <WorkbenchRowList>
-        {workbench.memories.map((entry, index) => (
-          <WorkbenchRow key={entry.id} isLast={index === workbench.memories.length - 1}>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
-                  {t(`instances.detail.instanceWorkbench.memoryTypes.${entry.type}`)}
-                </span>
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                    entry.retention === 'expiring' ? getDangerBadge('restricted') : getStatusBadge('ready')
-                  }`}
-                >
+      <div className="space-y-6">
+        {managedDreamingConfig && dreamingDraft ? renderManagedDreamingPanel() : null}
+
+        {memoryWorkbenchState.hasMemoryEntries ? (
+          <WorkbenchRowList>
+            {workbench.memories.map((entry, index) => (
+              <WorkbenchRow key={entry.id} isLast={index === workbench.memories.length - 1}>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-zinc-950/[0.04] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                      {t(`instances.detail.instanceWorkbench.memoryTypes.${entry.type}`)}
+                    </span>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                        entry.retention === 'expiring'
+                          ? getDangerBadge('restricted')
+                          : getStatusBadge('ready')
+                      }`}
+                    >
+                      {t(`instances.detail.instanceWorkbench.retention.${entry.retention}`)}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                    {entry.title}
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {entry.summary}
+                  </p>
+                  {isDreamDiaryMemoryEntry(entry) ? (
+                    <div className="mt-4 rounded-[1.25rem] border border-zinc-200/70 bg-zinc-50/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                        {t('instances.detail.instanceWorkbench.dreaming.diaryReader')}
+                      </div>
+                      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6 text-zinc-700 dark:text-zinc-200">
+                        {entry.content}
+                      </pre>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.memorySource')}
+                    value={t(`instances.detail.instanceWorkbench.memorySources.${entry.source}`)}
+                  />
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.memoryTokens')}
+                    value={entry.tokens}
+                  />
+                  <RowMetric
+                    label={t('instances.detail.instanceWorkbench.metrics.updatedAt')}
+                    value={entry.updatedAt}
+                  />
+                </div>
+                <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
                   {t(`instances.detail.instanceWorkbench.retention.${entry.retention}`)}
-                </span>
+                </div>
+              </WorkbenchRow>
+            ))}
+          </WorkbenchRowList>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderManagedDreamingPanel = () => {
+    if (!managedDreamingConfig || !dreamingDraft) {
+      return null;
+    }
+
+    const latestDreamDiaryEntry = memoryWorkbenchState.dreamDiaryEntries[0] || null;
+
+    return (
+      <div className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full bg-primary-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">
+                {t('instances.detail.instanceWorkbench.dreaming.badge')}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {formatWorkbenchLabel('managedFile')}
+              </span>
+            </div>
+            <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {t('instances.detail.instanceWorkbench.dreaming.title')}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.dreaming.description')}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => void handleSaveDreamingConfig()}
+              disabled={!canEditManagedDreaming || isSavingDreaming}
+            >
+              {isSavingDreaming ? t('common.loading') : t('common.save')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.55fr)]">
+          <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-zinc-200/70 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {t('instances.detail.instanceWorkbench.dreaming.fields.enabled')}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                      {t('instances.detail.instanceWorkbench.dreaming.enabledDescription')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={dreamingDraft.enabled}
+                    onCheckedChange={(checked) => handleDreamingDraftChange('enabled', checked)}
+                    disabled={!canEditManagedDreaming}
+                  />
+                </div>
               </div>
-              <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                {entry.title}
-              </h3>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                {entry.summary}
-              </p>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.dreaming.fields.frequency')}</Label>
+                <Input
+                  value={dreamingDraft.frequency}
+                  onChange={(event) => handleDreamingDraftChange('frequency', event.target.value)}
+                  disabled={!canEditManagedDreaming}
+                  placeholder={t('instances.detail.instanceWorkbench.dreaming.placeholders.frequency')}
+                />
+              </div>
             </div>
-            <div className="flex flex-wrap gap-5">
+
+            <p className="mt-4 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.dreaming.note')}
+            </p>
+
+            {dreamingError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {dreamingError}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="grid gap-4">
               <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.memorySource')}
-                value={t(`instances.detail.instanceWorkbench.memorySources.${entry.source}`)}
+                label={t('instances.detail.instanceWorkbench.dreaming.metrics.status')}
+                value={
+                  dreamingDraft.enabled
+                    ? t('instances.detail.instanceWorkbench.state.enabled')
+                    : t('instances.detail.instanceWorkbench.dreaming.values.disabled')
+                }
               />
               <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.memoryTokens')}
-                value={entry.tokens}
+                label={t('instances.detail.instanceWorkbench.dreaming.metrics.frequency')}
+                value={
+                  dreamingDraft.frequency.trim() ||
+                  t('instances.detail.instanceWorkbench.dreaming.values.upstreamDefault')
+                }
               />
               <RowMetric
-                label={t('instances.detail.instanceWorkbench.metrics.updatedAt')}
-                value={entry.updatedAt}
+                label={t('instances.detail.instanceWorkbench.dreaming.metrics.lastDreamDiary')}
+                value={latestDreamDiaryEntry?.updatedAt || '--'}
               />
             </div>
-            <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
-              {t(`instances.detail.instanceWorkbench.retention.${entry.retention}`)}
-            </div>
-          </WorkbenchRow>
-        ))}
-      </WorkbenchRowList>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -3844,6 +4542,565 @@ export function InstanceDetail() {
     );
   };
 
+  const renderManagedWebFetchPanel = () => {
+    if (!managedWebFetchConfig || !webFetchSharedDraft) {
+      return null;
+    }
+
+    return (
+      <div className="overflow-hidden rounded-[1.75rem] border border-zinc-200/70 bg-white/95 shadow-[0_20px_70px_-55px_rgba(15,23,42,0.45)] dark:border-zinc-800 dark:bg-zinc-950/55">
+        <div className="border-b border-zinc-200/70 bg-zinc-950/[0.03] px-6 py-5 dark:border-zinc-800 dark:bg-white/[0.02]">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex rounded-full border border-zinc-200 bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.webFetch.badge')}
+              </span>
+              <h3 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                {t('instances.detail.instanceWorkbench.webFetch.title')}
+              </h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.webFetch.description')}
+              </p>
+            </div>
+            <Button
+              onClick={() => void handleSaveWebFetchConfig()}
+              disabled={!canEditManagedWebFetch || isSavingWebFetch}
+              className="rounded-full px-5"
+            >
+              {isSavingWebFetch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {isSavingWebFetch
+                ? t('instances.detail.actions.saving')
+                : t('instances.detail.actions.saveConfiguration')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-6 px-6 py-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.webFetch.fields.enabled')}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.webFetch.enabledDescription')}
+                  </p>
+                </div>
+                <Switch
+                  checked={webFetchSharedDraft.enabled}
+                  onCheckedChange={(checked) => handleWebFetchSharedDraftChange('enabled', checked)}
+                  disabled={!canEditManagedWebFetch}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.webFetch.fields.readability')}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {t('instances.detail.instanceWorkbench.webFetch.readabilityDescription')}
+                  </p>
+                </div>
+                <Switch
+                  checked={webFetchSharedDraft.readability}
+                  onCheckedChange={(checked) => handleWebFetchSharedDraftChange('readability', checked)}
+                  disabled={!canEditManagedWebFetch}
+                />
+              </div>
+            </div>
+
+            <RowMetric
+              label={t('instances.detail.instanceWorkbench.webFetch.metrics.fallbackProvider')}
+              value={managedWebFetchConfig.fallbackProvider.name}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-2">
+              <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.maxChars')}</Label>
+              <Input
+                value={webFetchSharedDraft.maxChars}
+                onChange={(event) => handleWebFetchSharedDraftChange('maxChars', event.target.value)}
+                disabled={!canEditManagedWebFetch}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.maxCharsCap')}</Label>
+              <Input
+                value={webFetchSharedDraft.maxCharsCap}
+                onChange={(event) => handleWebFetchSharedDraftChange('maxCharsCap', event.target.value)}
+                disabled={!canEditManagedWebFetch}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.maxResponseBytes')}</Label>
+              <Input
+                value={webFetchSharedDraft.maxResponseBytes}
+                onChange={(event) => handleWebFetchSharedDraftChange('maxResponseBytes', event.target.value)}
+                disabled={!canEditManagedWebFetch}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.timeoutSeconds')}</Label>
+              <Input
+                value={webFetchSharedDraft.timeoutSeconds}
+                onChange={(event) => handleWebFetchSharedDraftChange('timeoutSeconds', event.target.value)}
+                disabled={!canEditManagedWebFetch}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.cacheTtlMinutes')}</Label>
+              <Input
+                value={webFetchSharedDraft.cacheTtlMinutes}
+                onChange={(event) => handleWebFetchSharedDraftChange('cacheTtlMinutes', event.target.value)}
+                disabled={!canEditManagedWebFetch}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.maxRedirects')}</Label>
+              <Input
+                value={webFetchSharedDraft.maxRedirects}
+                onChange={(event) => handleWebFetchSharedDraftChange('maxRedirects', event.target.value)}
+                disabled={!canEditManagedWebFetch}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2 xl:col-span-3">
+              <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.userAgent')}</Label>
+              <Input
+                value={webFetchSharedDraft.userAgent}
+                onChange={(event) => handleWebFetchSharedDraftChange('userAgent', event.target.value)}
+                disabled={!canEditManagedWebFetch}
+                placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.userAgent')}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                  {t('instances.detail.instanceWorkbench.webFetch.providerPanel')}
+                </div>
+                <h4 className="mt-2 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                  {managedWebFetchConfig.fallbackProvider.name}
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  {managedWebFetchConfig.fallbackProvider.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.apiKeySource')}</Label>
+                <Input
+                  value={webFetchFallbackDraft.apiKeySource}
+                  onChange={(event) => handleWebFetchFallbackDraftChange('apiKeySource', event.target.value)}
+                  disabled={!canEditManagedWebFetch}
+                  placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.apiKeySource')}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.baseUrl')}</Label>
+                <Input
+                  value={webFetchFallbackDraft.baseUrl}
+                  onChange={(event) => handleWebFetchFallbackDraftChange('baseUrl', event.target.value)}
+                  disabled={!canEditManagedWebFetch}
+                  placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.baseUrl')}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.webFetch.fields.advancedConfig')}</Label>
+                <Textarea
+                  value={webFetchFallbackDraft.advancedConfig}
+                  onChange={(event) => handleWebFetchFallbackDraftChange('advancedConfig', event.target.value)}
+                  disabled={!canEditManagedWebFetch}
+                  rows={8}
+                  placeholder={t('instances.detail.instanceWorkbench.webFetch.placeholders.advancedConfig')}
+                />
+                <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                  {t('instances.detail.instanceWorkbench.webFetch.advancedDescription')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {webFetchError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+              {webFetchError}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
+  const renderManagedWebSearchNativeCodexPanel = () => {
+    if (!managedWebSearchNativeCodexConfig || !webSearchNativeCodexDraft) {
+      return null;
+    }
+
+    const allowedDomains = webSearchNativeCodexDraft.allowedDomains
+      .split(/\r?\n|,/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    return (
+      <div className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full bg-primary-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">
+                {t('instances.detail.instanceWorkbench.webSearchNativeCodex.badge')}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {formatWorkbenchLabel('managedFile')}
+              </span>
+            </div>
+            <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {t('instances.detail.instanceWorkbench.webSearchNativeCodex.title')}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.webSearchNativeCodex.description')}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => void handleSaveWebSearchNativeCodexConfig()}
+              disabled={!canEditManagedWebSearchNativeCodex || isSavingWebSearchNativeCodex}
+            >
+              {isSavingWebSearchNativeCodex ? t('common.loading') : t('common.save')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-zinc-200/70 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.enabled')}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                      {t('instances.detail.instanceWorkbench.webSearchNativeCodex.enabledDescription')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={webSearchNativeCodexDraft.enabled}
+                    onCheckedChange={(checked) =>
+                      handleWebSearchNativeCodexDraftChange('enabled', checked)
+                    }
+                    disabled={!canEditManagedWebSearchNativeCodex}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.mode')}</Label>
+                <Input
+                  value={webSearchNativeCodexDraft.mode}
+                  onChange={(event) =>
+                    handleWebSearchNativeCodexDraftChange('mode', event.target.value)
+                  }
+                  disabled={!canEditManagedWebSearchNativeCodex}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.mode')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  {t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.contextSize')}
+                </Label>
+                <Input
+                  value={webSearchNativeCodexDraft.contextSize}
+                  onChange={(event) =>
+                    handleWebSearchNativeCodexDraftChange('contextSize', event.target.value)
+                  }
+                  disabled={!canEditManagedWebSearchNativeCodex}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.contextSize')}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>
+                  {t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.allowedDomains')}
+                </Label>
+                <Textarea
+                  value={webSearchNativeCodexDraft.allowedDomains}
+                  onChange={(event) =>
+                    handleWebSearchNativeCodexDraftChange('allowedDomains', event.target.value)
+                  }
+                  disabled={!canEditManagedWebSearchNativeCodex}
+                  rows={5}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.allowedDomains')}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-4">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.webSearchNativeCodex.metrics.mode')}
+                value={webSearchNativeCodexDraft.mode || '--'}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.webSearchNativeCodex.metrics.allowedDomains')}
+                value={String(allowedDomains.length)}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>
+                  {t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.userLocationCountry')}
+                </Label>
+                <Input
+                  value={webSearchNativeCodexDraft.userLocationCountry}
+                  onChange={(event) =>
+                    handleWebSearchNativeCodexDraftChange('userLocationCountry', event.target.value)
+                  }
+                  disabled={!canEditManagedWebSearchNativeCodex}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.userLocationCountry')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  {t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.userLocationCity')}
+                </Label>
+                <Input
+                  value={webSearchNativeCodexDraft.userLocationCity}
+                  onChange={(event) =>
+                    handleWebSearchNativeCodexDraftChange('userLocationCity', event.target.value)
+                  }
+                  disabled={!canEditManagedWebSearchNativeCodex}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.userLocationCity')}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>
+                  {t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.userLocationTimezone')}
+                </Label>
+                <Input
+                  value={webSearchNativeCodexDraft.userLocationTimezone}
+                  onChange={(event) =>
+                    handleWebSearchNativeCodexDraftChange('userLocationTimezone', event.target.value)
+                  }
+                  disabled={!canEditManagedWebSearchNativeCodex}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.userLocationTimezone')}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>
+                  {t('instances.detail.instanceWorkbench.webSearchNativeCodex.fields.advancedConfig')}
+                </Label>
+                <Textarea
+                  value={webSearchNativeCodexDraft.advancedConfig}
+                  onChange={(event) =>
+                    handleWebSearchNativeCodexDraftChange('advancedConfig', event.target.value)
+                  }
+                  disabled={!canEditManagedWebSearchNativeCodex}
+                  rows={7}
+                  placeholder={t('instances.detail.instanceWorkbench.webSearchNativeCodex.placeholders.advancedConfig')}
+                />
+                <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                  {t('instances.detail.instanceWorkbench.webSearchNativeCodex.advancedDescription')}
+                </p>
+              </div>
+            </div>
+
+            {webSearchNativeCodexError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {webSearchNativeCodexError}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderManagedXSearchPanel = () => {
+    if (!managedXSearchConfig || !xSearchDraft) {
+      return null;
+    }
+
+    return (
+      <div className="rounded-[1.8rem] border border-zinc-200/70 bg-white/80 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-950/35">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-full bg-primary-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">
+                {t('instances.detail.instanceWorkbench.xSearch.badge')}
+              </span>
+              <span className="rounded-full bg-zinc-950/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300">
+                {formatWorkbenchLabel('managedFile')}
+              </span>
+            </div>
+            <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {t('instances.detail.instanceWorkbench.xSearch.title')}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.xSearch.description')}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => void handleSaveXSearchConfig()}
+              disabled={!canEditManagedXSearch || isSavingXSearch}
+            >
+              {isSavingXSearch ? t('common.loading') : t('common.save')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-zinc-200/70 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {t('instances.detail.instanceWorkbench.xSearch.fields.enabled')}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                      {t('instances.detail.instanceWorkbench.xSearch.enabledDescription')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={xSearchDraft.enabled}
+                    onCheckedChange={(checked) => handleXSearchDraftChange('enabled', checked)}
+                    disabled={!canEditManagedXSearch}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-200/70 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      {t('instances.detail.instanceWorkbench.xSearch.fields.inlineCitations')}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                      {t('instances.detail.instanceWorkbench.xSearch.inlineCitationsDescription')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={xSearchDraft.inlineCitations}
+                    onCheckedChange={(checked) =>
+                      handleXSearchDraftChange('inlineCitations', checked)
+                    }
+                    disabled={!canEditManagedXSearch}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.xSearch.fields.apiKeySource')}</Label>
+                <Input
+                  value={xSearchDraft.apiKeySource}
+                  onChange={(event) => handleXSearchDraftChange('apiKeySource', event.target.value)}
+                  disabled={!canEditManagedXSearch}
+                  placeholder={t('instances.detail.instanceWorkbench.xSearch.placeholders.apiKeySource')}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.xSearch.fields.model')}</Label>
+                <Input
+                  value={xSearchDraft.model}
+                  onChange={(event) => handleXSearchDraftChange('model', event.target.value)}
+                  disabled={!canEditManagedXSearch}
+                  placeholder={t('instances.detail.instanceWorkbench.xSearch.placeholders.model')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.xSearch.fields.maxTurns')}</Label>
+                <Input
+                  value={xSearchDraft.maxTurns}
+                  onChange={(event) => handleXSearchDraftChange('maxTurns', event.target.value)}
+                  disabled={!canEditManagedXSearch}
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t('instances.detail.instanceWorkbench.xSearch.fields.timeoutSeconds')}</Label>
+                <Input
+                  value={xSearchDraft.timeoutSeconds}
+                  onChange={(event) =>
+                    handleXSearchDraftChange('timeoutSeconds', event.target.value)
+                  }
+                  disabled={!canEditManagedXSearch}
+                  inputMode="numeric"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('instances.detail.instanceWorkbench.xSearch.fields.cacheTtlMinutes')}</Label>
+                <Input
+                  value={xSearchDraft.cacheTtlMinutes}
+                  onChange={(event) =>
+                    handleXSearchDraftChange('cacheTtlMinutes', event.target.value)
+                  }
+                  disabled={!canEditManagedXSearch}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-4">
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.xSearch.metrics.sharedAuth')}
+                value={xSearchDraft.apiKeySource.trim() || '--'}
+              />
+              <RowMetric
+                label={t('instances.detail.instanceWorkbench.xSearch.metrics.model')}
+                value={xSearchDraft.model.trim() || '--'}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[1.4rem] border border-zinc-200/70 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="space-y-2">
+              <Label>{t('instances.detail.instanceWorkbench.xSearch.fields.advancedConfig')}</Label>
+              <Textarea
+                value={xSearchDraft.advancedConfig}
+                onChange={(event) => handleXSearchDraftChange('advancedConfig', event.target.value)}
+                disabled={!canEditManagedXSearch}
+                rows={10}
+                placeholder={t('instances.detail.instanceWorkbench.xSearch.placeholders.advancedConfig')}
+              />
+              <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                {t('instances.detail.instanceWorkbench.xSearch.advancedDescription')}
+              </p>
+            </div>
+
+            {xSearchError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {xSearchError}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderManagedAuthCooldownsPanel = () => {
     if (!managedAuthCooldownsConfig || !authCooldownsDraft) {
       return null;
@@ -4003,9 +5260,21 @@ export function InstanceDetail() {
   const renderToolsSection = () => {
     const hasRuntimeTools = Boolean(workbench && workbench.tools.length > 0);
     const hasManagedAuthCooldowns = Boolean(managedAuthCooldownsConfig && authCooldownsDraft);
+    const hasManagedWebFetch = Boolean(managedWebFetchConfig && webFetchSharedDraft);
     const hasManagedWebSearch = Boolean(managedWebSearchConfig && managedWebSearchConfig.providers.length > 0);
+    const hasManagedXSearch = Boolean(managedXSearchConfig && xSearchDraft);
+    const hasManagedWebSearchNativeCodex = Boolean(
+      managedWebSearchNativeCodexConfig && webSearchNativeCodexDraft,
+    );
 
-    if (!hasRuntimeTools && !hasManagedAuthCooldowns && !hasManagedWebSearch) {
+    if (
+      !hasRuntimeTools &&
+      !hasManagedAuthCooldowns &&
+      !hasManagedWebFetch &&
+      !hasManagedWebSearch &&
+      !hasManagedXSearch &&
+      !hasManagedWebSearchNativeCodex
+    ) {
       return renderSectionAvailability('tools', 'instances.detail.instanceWorkbench.empty.tools');
     }
 
@@ -4013,6 +5282,9 @@ export function InstanceDetail() {
       <div className="space-y-6">
         {hasManagedAuthCooldowns ? renderManagedAuthCooldownsPanel() : null}
         {hasManagedWebSearch ? renderManagedWebSearchPanel() : null}
+        {hasManagedWebSearchNativeCodex ? renderManagedWebSearchNativeCodexPanel() : null}
+        {hasManagedXSearch ? renderManagedXSearchPanel() : null}
+        {hasManagedWebFetch ? renderManagedWebFetchPanel() : null}
 
         {hasRuntimeTools ? (
           <WorkbenchRowList>

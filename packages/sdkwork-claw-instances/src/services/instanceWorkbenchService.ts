@@ -50,6 +50,8 @@ function createRuntimeDependencyOverrides(): InstanceWorkbenchServiceDependencyO
       searchMemory: (instanceId, args) => openClawGatewayClient.searchMemory(instanceId, args),
       getDoctorMemoryStatus: (instanceId, args) =>
         openClawGatewayClient.getDoctorMemoryStatus(instanceId, args),
+      getDoctorMemoryDreamDiary: (instanceId, args) =>
+        openClawGatewayClient.getDoctorMemoryDreamDiary(instanceId, args),
       listWorkbenchCronJobs: (instanceId) => openClawGatewayClient.listWorkbenchCronJobs(instanceId),
       listWorkbenchCronRuns: (instanceId, taskId) =>
         openClawGatewayClient.listWorkbenchCronRuns(instanceId, taskId),

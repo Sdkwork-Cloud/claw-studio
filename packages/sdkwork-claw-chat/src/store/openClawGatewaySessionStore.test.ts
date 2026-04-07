@@ -29,6 +29,7 @@ async function waitFor(check: () => boolean, timeoutMs = 1_000) {
 }
 
 type ListenerRegistry = {
+  agent: Array<(payload: Record<string, unknown>) => void>;
   chat: Array<(payload: Record<string, unknown>) => void>;
   connection: Array<(payload: Record<string, unknown>) => void>;
   gap: Array<(payload: { expected: number; received: number }) => void>;
@@ -38,6 +39,7 @@ type ListenerRegistry = {
 
 class MockGatewayClient implements OpenClawGatewayClientLike {
   readonly listeners: ListenerRegistry = {
+    agent: [],
     chat: [],
     connection: [],
     gap: [],
@@ -248,6 +250,12 @@ class MockGatewayClient implements OpenClawGatewayClientLike {
     }
   }
 
+  emitAgent(payload: Record<string, unknown>) {
+    for (const listener of this.listeners.agent) {
+      listener(payload);
+    }
+  }
+
   emitSessionsChanged(payload: unknown) {
     for (const listener of this.listeners['sessions.changed']) {
       listener(payload);
@@ -338,6 +346,171 @@ class MockGatewayClient implements OpenClawGatewayClientLike {
     this.connectHello = value;
   }
 }
+
+await runTest(
+  'openclaw gateway session store streams agent tool events into a single live tool card message',
+  async () => {
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-a.json',
+        count: 0,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [],
+      },
+      {},
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 900,
+      createSessionKey(instanceId) {
+        return `claw-studio:${instanceId}:draft-agent-tools`;
+      },
+    });
+
+    await store.hydrateInstance('instance-a');
+    const draft = store.createDraftSession('instance-a', 'OpenClaw A');
+
+    await store.sendMessage({
+      instanceId: 'instance-a',
+      sessionId: draft.id,
+      content: 'search for gateway docs',
+      model: 'OpenClaw A',
+    });
+
+    client.emitAgent({
+      sessionKey: draft.id,
+      runId: 'run-1',
+      stream: 'tool',
+      data: {
+        phase: 'start',
+        toolCallId: 'tool-web-search',
+        name: 'web_search',
+        args: {
+          query: 'openclaw gateway docs',
+        },
+      },
+    });
+
+    let session = store.getSnapshot('instance-a').sessions.find((entry) => entry.id === draft.id);
+    assert.ok(session);
+    assert.deepEqual(
+      session?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        runId: message.runId ?? null,
+        toolCards:
+          message.toolCards?.map((toolCard) => ({
+            kind: toolCard.kind,
+            name: toolCard.name,
+            detail: toolCard.detail ?? null,
+            preview: toolCard.preview ?? null,
+          })) ?? [],
+      })),
+      [
+        {
+          role: 'user',
+          content: 'search for gateway docs',
+          runId: null,
+          toolCards: [],
+        },
+        {
+          role: 'tool',
+          content: '',
+          runId: 'run-1',
+          toolCards: [
+            {
+              kind: 'call',
+              name: 'web_search',
+              detail: 'openclaw gateway docs',
+              preview: null,
+            },
+          ],
+        },
+      ],
+    );
+
+    client.emitAgent({
+      sessionKey: draft.id,
+      runId: 'run-1',
+      stream: 'tool',
+      data: {
+        phase: 'update',
+        toolCallId: 'tool-web-search',
+        name: 'web_search',
+        partialResult: 'docs.openclaw.ai/tools/web',
+      },
+    });
+
+    session = store.getSnapshot('instance-a').sessions.find((entry) => entry.id === draft.id);
+    assert.ok(session);
+    assert.deepEqual(
+      session?.messages.at(-1)?.toolCards?.map((toolCard) => ({
+        kind: toolCard.kind,
+        name: toolCard.name,
+        detail: toolCard.detail ?? null,
+        preview: toolCard.preview ?? null,
+      })),
+      [
+        {
+          kind: 'call',
+          name: 'web_search',
+          detail: 'openclaw gateway docs',
+          preview: null,
+        },
+        {
+          kind: 'result',
+          name: 'web_search',
+          detail: null,
+          preview: 'docs.openclaw.ai/tools/web',
+        },
+      ],
+    );
+
+    client.emitAgent({
+      sessionKey: draft.id,
+      runId: 'run-1',
+      stream: 'tool',
+      data: {
+        phase: 'result',
+        toolCallId: 'tool-web-search',
+        name: 'web_search',
+        result: 'Found docs.openclaw.ai/tools/web',
+      },
+    });
+
+    session = store.getSnapshot('instance-a').sessions.find((entry) => entry.id === draft.id);
+    assert.ok(session);
+    assert.deepEqual(
+      session?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        preview:
+          message.toolCards?.map((toolCard) => toolCard.preview ?? toolCard.detail ?? null) ?? [],
+      })),
+      [
+        {
+          role: 'user',
+          content: 'search for gateway docs',
+          preview: [],
+        },
+        {
+          role: 'tool',
+          content: '',
+          preview: ['openclaw gateway docs', 'Found docs.openclaw.ai/tools/web'],
+        },
+      ],
+    );
+    assert.equal(session?.lastMessagePreview, 'Found docs.openclaw.ai/tools/web');
+  },
+);
 
 await runTest(
   'openclaw gateway session store ignores delta events from another run while a session is still streaming',
@@ -583,6 +756,10 @@ await runTest(
             updatedAt: 220,
             kind: 'direct',
             model: 'OpenClaw A',
+            thinkingLevel: 'high',
+            fastMode: true,
+            verboseLevel: 'full',
+            reasoningLevel: 'on',
           },
           {
             key: sessionB,
@@ -590,6 +767,10 @@ await runTest(
             updatedAt: 210,
             kind: 'direct',
             model: 'OpenClaw A',
+            thinkingLevel: 'low',
+            fastMode: false,
+            verboseLevel: 'off',
+            reasoningLevel: 'off',
           },
         ],
       },
@@ -666,7 +847,10 @@ await runTest(
     assert.equal(snapshot.syncState, 'error');
     assert.match(snapshot.lastError ?? '', /operator\.read/);
     assert.deepEqual(session?.messages, []);
-    assert.equal(session?.thinkingLevel, null);
+    assert.equal(session?.thinkingLevel, 'high');
+    assert.equal(session?.fastMode, true);
+    assert.equal(session?.verboseLevel, 'full');
+    assert.equal(session?.reasoningLevel, 'on');
   },
 );
 
@@ -1122,6 +1306,94 @@ await runTest(
 );
 
 await runTest(
+  'openclaw gateway session store suppresses assistant commentary chat events until the final answer arrives',
+  async () => {
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-a.json',
+        count: 0,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [],
+      },
+      {},
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 441,
+      createSessionKey(instanceId) {
+        return `claw-studio:${instanceId}:draft-commentary-phase`;
+      },
+    });
+
+    await store.hydrateInstance('instance-a');
+    const draft = store.createDraftSession('instance-a', 'OpenClaw A');
+    await store.sendMessage({
+      instanceId: 'instance-a',
+      sessionId: draft.id,
+      content: 'user message',
+      model: 'OpenClaw A',
+    });
+
+    client.emitChat({
+      runId: 'run-1',
+      sessionKey: draft.id,
+      state: 'delta',
+      message: {
+        role: 'assistant',
+        phase: 'commentary',
+        content: [{ type: 'text', text: 'Planning the next steps before replying.' }],
+      },
+    });
+
+    let snapshot = store.getSnapshot('instance-a');
+    let session = snapshot.sessions.find((entry) => entry.id === draft.id);
+    assert.ok(session);
+    assert.deepEqual(
+      session?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      [{ role: 'user', content: 'user message' }],
+    );
+
+    client.emitChat({
+      runId: 'run-1',
+      sessionKey: draft.id,
+      state: 'final',
+      message: {
+        role: 'assistant',
+        phase: 'final_answer',
+        content: [{ type: 'text', text: 'real reply' }],
+      },
+    });
+
+    await waitFor(() => client.historyCalls.filter((entry) => entry === draft.id).length === 1);
+
+    snapshot = store.getSnapshot('instance-a');
+    session = snapshot.sessions.find((entry) => entry.id === draft.id);
+    assert.ok(session);
+    assert.deepEqual(
+      session?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      [
+        { role: 'user', content: 'user message' },
+        { role: 'assistant', content: 'real reply' },
+      ],
+    );
+  },
+);
+
+await runTest(
   'openclaw gateway session store ignores assistant NO_REPLY transcript updates',
   async () => {
     const sessionId = 'claw-studio:instance-a:session-no-reply-transcript';
@@ -1377,6 +1649,326 @@ await runTest(
       {
         key: 'claw-studio:instance-a:session-1',
         model: null,
+      },
+    ]);
+
+    await store.setSessionThinkingLevel({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      thinkingLevel: 'high',
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.thinkingLevel,
+      'high',
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+    ]);
+
+    await store.setSessionThinkingLevel({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      thinkingLevel: null,
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.thinkingLevel,
+      null,
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: null,
+      },
+    ]);
+
+    await store.setSessionFastMode({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      fastMode: true,
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.fastMode,
+      true,
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: true,
+      },
+    ]);
+
+    await store.setSessionFastMode({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      fastMode: null,
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.fastMode,
+      null,
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: true,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: null,
+      },
+    ]);
+
+    await store.setSessionVerboseLevel({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      verboseLevel: 'full',
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.verboseLevel,
+      'full',
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: true,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        verboseLevel: 'full',
+      },
+    ]);
+
+    await store.setSessionVerboseLevel({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      verboseLevel: null,
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.verboseLevel,
+      null,
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: true,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        verboseLevel: 'full',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        verboseLevel: null,
+      },
+    ]);
+
+    await store.setSessionReasoningLevel({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      reasoningLevel: 'stream',
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.reasoningLevel,
+      'stream',
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: true,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        verboseLevel: 'full',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        verboseLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        reasoningLevel: 'stream',
+      },
+    ]);
+
+    await store.setSessionReasoningLevel({
+      instanceId: 'instance-a',
+      sessionId: 'claw-studio:instance-a:session-1',
+      reasoningLevel: null,
+    });
+    snapshotA = store.getSnapshot('instance-a');
+    assert.equal(
+      snapshotA.sessions.find((session) => session.id === 'claw-studio:instance-a:session-1')
+        ?.reasoningLevel,
+      null,
+    );
+    assert.deepEqual(clientA.patchCalls, [
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: 'openai/gpt-4.1',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        model: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: 'high',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        thinkingLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: true,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        fastMode: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        verboseLevel: 'full',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        verboseLevel: null,
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        reasoningLevel: 'stream',
+      },
+      {
+        key: 'claw-studio:instance-a:session-1',
+        reasoningLevel: null,
       },
     ]);
 
@@ -3512,6 +4104,136 @@ await runTest(
 
     await waitFor(() => client.subscribeSessionMessagesCalls.length === 2);
     assert.deepEqual(client.subscribeSessionMessagesCalls, [sessionId, sessionId]);
+  },
+);
+
+await runTest(
+  'openclaw gateway session store hydrates session override metadata from sessions.list and preserves it when history omits those fields',
+  async () => {
+    const sessionId = 'claw-studio:instance-a:session-metadata';
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-a.json',
+        count: 1,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [
+          {
+            key: sessionId,
+            label: 'Metadata Session',
+            updatedAt: 220,
+            kind: 'direct',
+            model: 'OpenClaw A',
+            thinkingLevel: 'medium',
+            fastMode: true,
+            verboseLevel: 'full',
+            reasoningLevel: 'on',
+          },
+        ],
+      },
+      {
+        [sessionId]: {
+          messages: [
+            {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'history without override echo' }],
+              timestamp: 220,
+            },
+          ],
+        },
+      },
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 400,
+    });
+
+    await store.hydrateInstance('instance-a');
+
+    const session = store.getSnapshot('instance-a').sessions.find((entry) => entry.id === sessionId);
+    assert.ok(session);
+    assert.equal(session?.thinkingLevel, 'medium');
+    assert.equal(session?.fastMode, true);
+    assert.equal(session?.verboseLevel, 'full');
+    assert.equal(session?.reasoningLevel, 'on');
+    assert.deepEqual(
+      session?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      [{ role: 'assistant', content: 'history without override echo' }],
+    );
+  },
+);
+
+await runTest(
+  'openclaw gateway session store updates session override metadata from live session.message payloads',
+  async () => {
+    const sessionId = 'claw-studio:instance-a:session-live-metadata';
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-a.json',
+        count: 1,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [
+          {
+            key: sessionId,
+            label: 'Live Metadata Session',
+            updatedAt: 220,
+            kind: 'direct',
+            model: 'OpenClaw A',
+          },
+        ],
+      },
+      {
+        [sessionId]: {
+          messages: [],
+        },
+      },
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 450,
+    });
+
+    await store.hydrateInstance('instance-a');
+    await waitFor(() => client.subscribeSessionMessagesCalls.includes(sessionId));
+
+    client.emitSessionMessage({
+      sessionKey: sessionId,
+      messageId: 'msg-live-metadata',
+      thinkingLevel: 'high',
+      fastMode: false,
+      verboseLevel: 'on',
+      reasoningLevel: 'stream',
+      message: {
+        id: 'msg-live-metadata',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'live metadata update' }],
+      },
+    });
+
+    const session = store.getSnapshot('instance-a').sessions.find((entry) => entry.id === sessionId);
+    assert.ok(session);
+    assert.equal(session?.thinkingLevel, 'high');
+    assert.equal(session?.fastMode, false);
+    assert.equal(session?.verboseLevel, 'on');
+    assert.equal(session?.reasoningLevel, 'stream');
   },
 );
 

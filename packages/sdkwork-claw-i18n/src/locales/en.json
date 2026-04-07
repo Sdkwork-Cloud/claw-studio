@@ -48,6 +48,7 @@
     "channels": "Channels",
     "cronTasks": "Cron Tasks",
     "appStore": "App Store",
+    "usage": "Usage",
     "extensions": "Extensions",
     "community": "Classifieds",
     "githubRepos": "GitHub Repos",
@@ -227,6 +228,7 @@
       "languageRegion": "Language & Region",
       "language": "Language",
       "languageDescription": "Select your preferred language.",
+      "languageFallbackTo": "Currently falls back to {{language}} translations.",
       "sidebarNavigation": "Sidebar Navigation",
       "sidebarDescription": "Choose which items to display in the sidebar.",
       "startup": "Startup",
@@ -364,6 +366,20 @@
           "lifecycle": "Lifecycle",
           "browserAccess": "Browser Access",
           "browserBaseUrl": "Browser Base URL",
+          "hostMode": "Host Mode",
+          "distributionFamily": "Distribution Family",
+          "deploymentFamily": "Deployment Family",
+          "acceleratorProfile": "Accelerator Profile",
+          "descriptorBrowserBaseUrl": "Contract Browser URL",
+          "descriptorEndpointId": "Contract Endpoint ID",
+          "stateStoreDriver": "State Store Driver",
+          "stateStoreProfileId": "State Store Profile",
+          "requestedPort": "Contract Requested Port",
+          "activePort": "Contract Active Port",
+          "loopbackOnly": "Loopback Only",
+          "dynamicPort": "Dynamic Port",
+          "runtimeDataDir": "Runtime Data Dir",
+          "webDistDir": "Web Dist Dir",
           "displayName": "Display Name",
           "hostId": "Host ID",
           "managePath": "Manage Path",
@@ -957,6 +973,10 @@
         "title": "Go to Dashboard",
         "subtitle": "Open the operator control plane"
       },
+      "usage": {
+        "title": "Go to Usage",
+        "subtitle": "Inspect gateway session usage, costs, and detail timelines"
+      },
       "apps": {
         "title": "Go to App Store",
         "subtitle": "Browse AI applications"
@@ -1419,6 +1439,107 @@
       "operatorsDescription": "Capability cards keep agent focus, automation fit, and execution range visible for the team.",
       "delivery": "Delivery model",
       "deliveryDescription": "Channel readiness stays visible so approvals, alerts, and summaries can leave the workspace when needed."
+    },
+    "usage": {
+      "page": {
+        "title": "Gateway Usage",
+        "description": "Review OpenClaw gateway session usage, costs, compatibility fallback state, and per-session detail from one shared workspace.",
+        "loading": "Loading usage workspace",
+        "emptyTitle": "No OpenClaw gateway is available",
+        "emptyDescription": "Add or start an OpenClaw-backed instance before reviewing usage and cost evidence.",
+        "noSnapshot": "Usage snapshot unavailable"
+      },
+      "actions": {
+        "openInstances": "Open instances"
+      },
+      "filters": {
+        "instance": "Instance",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "timeZone": "Time zone",
+        "timeZoneLocal": "Local time",
+        "timeZoneUtc": "UTC",
+        "search": "Search sessions",
+        "searchPlaceholder": "Filter by session, model, agent, or channel",
+        "query": "Query filters",
+        "queryPlaceholder": "Try provider:anthropic tool:grep minTokens:1000",
+        "applyQuery": "Apply query",
+        "clearQuery": "Clear query",
+        "sort": "Sort sessions",
+        "sortRecent": "Most recent",
+        "sortTokens": "Most tokens",
+        "sortCost": "Highest cost",
+        "sortMessages": "Most messages",
+        "sortErrors": "Most errors",
+        "selectedDays": "{{count}} days selected",
+        "selectedSessions": "{{count}} sessions selected",
+        "visibleColumns": "Visible columns",
+        "logRoles": "Log roles",
+        "logTools": "Log tools",
+        "logHasTools": "Only entries with tools",
+        "logQuery": "Log search",
+        "logQueryPlaceholder": "Filter log content",
+        "clearLogFilters": "Clear log filters",
+        "refresh": "Refresh",
+        "invalidRange": "End date must be on or after the start date."
+      },
+      "summary": {
+        "updatedAt": "Updated",
+        "compatibility": "Compatibility"
+      },
+      "compatibility": {
+        "dateInterpretation": "Date interpretation enabled",
+        "legacyNoDateInterpretation": "Legacy gateway fallback"
+      },
+      "sections": {
+        "sessions": "Sessions",
+        "sessionsDescription": "Inspect session-level volume, cost concentration, and error distribution before drilling into one conversation.",
+        "dailyBreakdown": "Daily breakdown",
+        "dailyBreakdownDescription": "Compare daily usage and cost totals against message and error activity.",
+        "sessionDetail": "Session detail",
+        "sessionDetailDescription": "Keep the active session context, model choice, provider, and timing evidence visible.",
+        "sessionTimeline": "Session timeline",
+        "sessionTimelineDescription": "Review token and cost movement across the selected session timeline.",
+        "sessionLogs": "Session logs",
+        "sessionLogsDescription": "Inspect the raw session usage log stream returned by the OpenClaw gateway."
+      },
+      "metrics": {
+        "totalTokens": "Total tokens",
+        "totalCost": "Total cost",
+        "sessionCount": "Sessions",
+        "errorCount": "Errors"
+      },
+      "labels": {
+        "gateway": "Gateway",
+        "version": "Version",
+        "noVersion": "Unknown",
+        "sessionKey": "Session",
+        "sessionId": "Session ID",
+        "model": "Model",
+        "provider": "Provider",
+        "agent": "Agent",
+        "channel": "Channel",
+        "messages": "Messages",
+        "toolCalls": "Tool calls",
+        "errors": "Errors",
+        "tokens": "Tokens",
+        "cost": "Cost",
+        "inputTokens": "Input tokens",
+        "missingCostEntries": "Missing cost entries",
+        "lastActivity": "Last activity",
+        "duration": "Duration",
+        "logTime": "Time",
+        "cumulativeTokens": "Cumulative tokens",
+        "cumulativeCost": "Cumulative cost",
+        "noSessions": "No sessions matched the current filters.",
+        "noDailyBreakdown": "No daily usage data is available for the selected range.",
+        "noSessionSelected": "Select a session to inspect detail, timeline, and logs.",
+        "refineSessionSelection": "Select a single session to inspect detail, timeline, and logs.",
+        "noTimeline": "No timeline points are available for the selected session.",
+        "noLogs": "No session logs are available for the selected session.",
+        "noLogTools": "No tool invocations were detected in the current log stream.",
+        "noMatchingLogs": "No log entries matched the current log filters."
+      }
     }
   },
   "apps": {
@@ -1623,6 +1744,44 @@
       "noneSelected": "Not set",
       "routeMode": "Route Mode",
       "configureModels": "Configure models",
+      "thinkingLevel": "Thinking Level",
+      "thinkingLevelDescription": "Choose how much extra reasoning the OpenClaw gateway should use for this session.",
+      "thinkingLevelPlaceholder": "Select a thinking level",
+      "thinkingLevelDefault": "Use runtime default",
+      "thinkingLevelDefaultResolved": "Default ({{level}})",
+      "sessionControlInherit": "Inherit runtime default",
+      "fastMode": "Fast Mode",
+      "fastModeDescription": "Prefer faster, less deliberate responses for this session when the upstream runtime supports it.",
+      "fastModePlaceholder": "Select a fast mode",
+      "fastModes": {
+        "off": "Off",
+        "on": "On"
+      },
+      "verboseLevel": "Verbose Output",
+      "verboseLevelDescription": "Control how much extra progress and status detail OpenClaw should return for this session.",
+      "verboseLevelPlaceholder": "Select a verbose level",
+      "verboseLevels": {
+        "off": "Off",
+        "on": "On",
+        "full": "Full"
+      },
+      "reasoningLevel": "Reasoning Output",
+      "reasoningLevelDescription": "Choose whether reasoning content stays hidden, appears after the answer, or streams when the upstream channel supports it.",
+      "reasoningLevelPlaceholder": "Select a reasoning output mode",
+      "reasoningLevels": {
+        "off": "Off",
+        "on": "On",
+        "stream": "Stream (Telegram)"
+      },
+      "thinkingLevels": {
+        "off": "Off",
+        "on": "On",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "adaptive": "Adaptive"
+      },
       "agentSelectionDescription": "Choose which agent workflow should receive new turns in this conversation.",
       "skillSelectionDescription": "Apply a focused skill preset or keep the conversation in general mode.",
       "noMatchingAgents": "No matching agents found.",
@@ -2856,6 +3015,78 @@
         "paused": "Paused",
         "failed": "Failed"
       },
+      "runtime": {
+        "eyebrow": "OpenClaw Runtime",
+        "title": "Detached tasks and Task Flow",
+        "description": "Inspect the latest OpenClaw runtime ledger for detached background tasks and orchestration flows without leaving the task studio.",
+        "cards": {
+          "runtimeTasks": "Runtime Tasks",
+          "taskFlows": "Task Flows",
+          "activeCount": "{{count}} active"
+        },
+        "taskBoard": {
+          "title": "Runtime task board",
+          "description": "Recent detached task runs exposed by the latest OpenClaw tasks surface.",
+          "unsupportedTitle": "Runtime task board unavailable",
+          "unsupportedBody": "This connected runtime does not expose the latest detached task board yet.",
+          "empty": "No detached runtime tasks have been reported by this instance yet.",
+          "summaryFallback": "No runtime summary was provided for this task.",
+          "detail": {
+            "description": "Inspect detached task detail fields returned by OpenClaw tasks.show.",
+            "unavailable": "Runtime task details are unavailable for this runtime.",
+            "loadFailed": "Runtime task details could not be loaded."
+          }
+        },
+        "taskFlows": {
+          "title": "Task Flow board",
+          "description": "Recent Task Flow records, including goal, current step, and live orchestration state from the latest OpenClaw task-flow surface.",
+          "unsupportedTitle": "Task Flow board unavailable",
+          "unsupportedBody": "This connected runtime does not expose the latest Task Flow surface yet.",
+          "empty": "No Task Flow records have been reported by this instance yet.",
+          "summaryFallback": "No flow summary was provided for this record."
+        },
+        "detail": {
+          "description": "Inspect detail-only Task Flow fields returned by OpenClaw tasks.flow.show.",
+          "payloadSummary": "Summary",
+          "taskSummary": "Task summary",
+          "blocked": "Blocked",
+          "wait": "Wait",
+          "state": "State",
+          "statePayload": "State payload",
+          "waitPayload": "Wait payload",
+          "linkedTasksTitle": "Linked tasks",
+          "linkedTasksDescription": "Tasks linked to this Task Flow according to OpenClaw tasks.flow.show.",
+          "linkedTasksEmpty": "No linked tasks were returned for this Task Flow.",
+          "session": "Session",
+          "agent": "Agent",
+          "error": "Error",
+          "unavailable": "Task Flow details are unavailable for this runtime.",
+          "loadFailed": "Task Flow details could not be loaded."
+        },
+        "fields": {
+          "runId": "Run ID",
+          "sourceId": "Source ID",
+          "childSession": "Child session",
+          "flow": "Flow",
+          "createdAt": "Created",
+          "startedAt": "Started",
+          "finishedAt": "Finished",
+          "lastEventAt": "Last event",
+          "updatedAt": "Updated",
+          "currentStep": "Current step",
+          "cleanupAfter": "Cleanup after",
+          "deliveryStatus": "Delivery",
+          "notifyPolicy": "Notify",
+          "owner": "Owner",
+          "parentTask": "Parent task",
+          "requesterOrigin": "Requester origin",
+          "result": "Result",
+          "cancelRequestedAt": "Cancel requested",
+          "revision": "Revision",
+          "activity": "Activity",
+          "flowId": "Flow ID"
+        }
+      },
       "empty": {
         "title": "No scheduled tasks yet",
         "description": "Create your first task to automate recurring analysis, summaries, and delivery workflows.",
@@ -3904,7 +4135,7 @@
           "description": "Manage the shared OpenClaw web-search runtime settings and the provider-specific plugin config that powers search results.",
           "enabledDescription": "Toggle the shared web-search capability for this instance.",
           "providerPanel": "Provider Config",
-          "advancedDescription": "Advanced JSON is merged under the selected provider's plugins.entries.<provider>.config.webSearch object.",
+          "advancedDescription": "Advanced JSON is merged under the selected provider's canonical OpenClaw plugin webSearch config root.",
           "fields": {
             "enabled": "Enabled",
             "provider": "Active Provider",
@@ -3937,6 +4168,120 @@
           "toasts": {
             "saved": "Web search configuration saved.",
             "saveFailed": "Failed to save web search configuration."
+          }
+        },
+        "webFetch": {
+          "badge": "Managed Web Fetch",
+          "title": "Web Fetch Configuration",
+          "description": "Manage the shared OpenClaw web_fetch runtime settings and the Firecrawl fallback config used when readable extraction needs provider-assisted fetch recovery.",
+          "enabledDescription": "Toggle the shared web_fetch capability for this instance.",
+          "readabilityDescription": "Use Readability extraction before falling back to Firecrawl.",
+          "providerPanel": "Fallback Provider",
+          "advancedDescription": "Advanced JSON is merged under plugins.entries.firecrawl.config.webFetch after the API key and base URL fields are applied.",
+          "fields": {
+            "enabled": "Enabled",
+            "readability": "Readability",
+            "maxChars": "Max Chars",
+            "maxCharsCap": "Max Chars Cap",
+            "maxResponseBytes": "Max Response Bytes",
+            "timeoutSeconds": "Timeout (s)",
+            "cacheTtlMinutes": "Cache TTL (min)",
+            "maxRedirects": "Max Redirects",
+            "userAgent": "User-Agent Override",
+            "apiKeySource": "API Key",
+            "baseUrl": "Base URL",
+            "advancedConfig": "Advanced JSON"
+          },
+          "metrics": {
+            "fallbackProvider": "Fallback Provider"
+          },
+          "placeholders": {
+            "userAgent": "Leave blank to use the OpenClaw runtime default",
+            "apiKeySource": "fc-...",
+            "baseUrl": "https://api.firecrawl.dev",
+            "advancedConfig": "{\n  \"onlyMainContent\": true,\n  \"maxAgeMs\": 86400000\n}"
+          },
+          "errors": {
+            "maxCharsInvalid": "Max chars must be a positive number.",
+            "maxCharsCapInvalid": "Max chars cap must be a positive number.",
+            "maxResponseBytesInvalid": "Max response bytes must be a positive number.",
+            "timeoutInvalid": "Timeout must be a positive number.",
+            "cacheTtlInvalid": "Cache TTL must be a positive number.",
+            "maxRedirectsInvalid": "Max redirects must be a positive number."
+          },
+          "toasts": {
+            "saved": "Web fetch configuration saved.",
+            "saveFailed": "Failed to save web fetch configuration."
+          }
+        },
+        "xSearch": {
+          "badge": "Managed x_search",
+          "title": "X Search Configuration",
+          "description": "Control the first-class xAI x_search tool and its shared XAI API key wiring without dropping back to raw openclaw.json edits.",
+          "enabledDescription": "Toggle the bundled x_search tool for this instance.",
+          "inlineCitationsDescription": "Return inline citations in x_search responses when the provider supports them.",
+          "advancedDescription": "Advanced JSON is merged under plugins.entries.xai.config.xSearch after the managed fields are applied. The API key is stored under the shared xAI webSearch auth root.",
+          "fields": {
+            "enabled": "Enabled",
+            "inlineCitations": "Inline Citations",
+            "apiKeySource": "Shared XAI API Key",
+            "model": "Model",
+            "maxTurns": "Max Turns",
+            "timeoutSeconds": "Timeout (s)",
+            "cacheTtlMinutes": "Cache TTL (min)",
+            "advancedConfig": "Advanced JSON"
+          },
+          "metrics": {
+            "sharedAuth": "Shared Auth",
+            "model": "Model"
+          },
+          "placeholders": {
+            "apiKeySource": "xai-...",
+            "model": "grok-4-1-fast-non-reasoning",
+            "advancedConfig": "{\n  \"userTag\": \"internal-research\"\n}"
+          },
+          "errors": {
+            "maxTurnsInvalid": "Max turns must be a positive number.",
+            "timeoutInvalid": "Timeout must be a positive number.",
+            "cacheTtlInvalid": "Cache TTL must be a positive number."
+          },
+          "toasts": {
+            "saved": "x_search configuration saved.",
+            "saveFailed": "Failed to save x_search configuration."
+          }
+        },
+        "webSearchNativeCodex": {
+          "badge": "Native Codex Search",
+          "title": "OpenAI Codex Native Search",
+          "description": "Manage tools.web.search.openaiCodex so Codex-capable models can switch onto native provider search while managed web_search remains available for non-Codex paths.",
+          "enabledDescription": "Enable the provider-native Codex web_search bridge for Codex-capable models.",
+          "advancedDescription": "Advanced JSON is merged under tools.web.search.openaiCodex after the managed fields are applied.",
+          "fields": {
+            "enabled": "Enabled",
+            "mode": "Mode",
+            "contextSize": "Context Size",
+            "allowedDomains": "Allowed Domains",
+            "userLocationCountry": "User Location Country",
+            "userLocationCity": "User Location City",
+            "userLocationTimezone": "User Location Timezone",
+            "advancedConfig": "Advanced JSON"
+          },
+          "metrics": {
+            "mode": "Mode",
+            "allowedDomains": "Allowed Domains"
+          },
+          "placeholders": {
+            "mode": "cached",
+            "contextSize": "high",
+            "allowedDomains": "example.com\nopenai.com",
+            "userLocationCountry": "US",
+            "userLocationCity": "New York",
+            "userLocationTimezone": "America/New_York",
+            "advancedConfig": "{\n  \"reasoningEffort\": \"medium\"\n}"
+          },
+          "toasts": {
+            "saved": "Native Codex search configuration saved.",
+            "saveFailed": "Failed to save native Codex search configuration."
           }
         },
         "authCooldowns": {
@@ -3973,6 +4318,34 @@
           "toasts": {
             "saved": "Auth cooldown settings saved.",
             "saveFailed": "Failed to save auth cooldown settings."
+          }
+        },
+        "dreaming": {
+          "badge": "Managed Dreaming",
+          "title": "Dreaming & Dream Diary",
+          "description": "Manage plugins.entries.memory-core.config.dreaming and inspect whether the runtime is writing Dream Diary entries back into the memory surface.",
+          "enabledDescription": "Toggle OpenClaw dreaming for this instance.",
+          "note": "Leave cadence blank to keep the upstream OpenClaw dreaming schedule.",
+          "diaryReader": "Dream Diary Reader",
+          "fields": {
+            "enabled": "Enabled",
+            "frequency": "Dream Cadence"
+          },
+          "placeholders": {
+            "frequency": "0 3 * * *"
+          },
+          "metrics": {
+            "status": "Status",
+            "frequency": "Cadence",
+            "lastDreamDiary": "Dream Diary Updated"
+          },
+          "values": {
+            "disabled": "Disabled",
+            "upstreamDefault": "Upstream default"
+          },
+          "toasts": {
+            "saved": "Dreaming configuration saved.",
+            "saveFailed": "Failed to save dreaming configuration."
           }
         },
         "summary": {
@@ -4109,6 +4482,11 @@
           "on": "On",
           "off": "Off",
           "streamingDescription": "Enable token streaming for runtime responses and live previews.",
+          "requestOverrides": "Request Overrides",
+          "requestOverridesDescription": "Edit the official models.providers.<provider>.request transport override surface as JSON5.",
+          "requestOverridesHint": "Supported keys: headers, auth, proxy, and tls.",
+          "requestOverridesPlaceholder": "{\n  auth: {\n    mode: \"authorization-bearer\",\n    token: \"${OPENAI_API_KEY}\"\n  }\n}",
+          "requestOverridesInvalid": "Request overrides must be valid JSON5.",
           "saveConfig": "Save Provider",
           "saving": "Saving...",
           "revertConfig": "Revert Config",
@@ -4340,7 +4718,8 @@
           "runbook": "Runbook",
           "conversation": "Conversation",
           "fact": "Fact",
-          "artifact": "Artifact"
+          "artifact": "Artifact",
+          "dream": "Dream"
         },
         "memorySources": {
           "operator": "Operator",
@@ -6772,7 +7151,12 @@
         "maxTokens": "Max Tokens",
         "timeoutMs": "Timeout (ms)",
         "streaming": "Streaming",
-        "streamingHint": "Enable streaming responses for the projected route runtime."
+        "streamingHint": "Enable streaming responses for the projected route runtime.",
+        "requestOverridesTitle": "Request Overrides",
+        "requestOverridesDescription": "Author raw JSON5 request metadata for headers, auth, proxy, and TLS handling that must survive the local proxy projection pipeline.",
+        "requestOverrides": "Overrides Draft",
+        "requestOverridesPlaceholder": "{\n  headers: {\n    \"cf-aig-authorization\": \"Bearer ${CF_AIG_TOKEN}\",\n  },\n}",
+        "requestOverridesHint": "Use JSON5. Supported top-level keys are `headers`, `auth`, `proxy`, and `tls`."
       },
       "apply": {
         "title": "Quick Apply Route Config",

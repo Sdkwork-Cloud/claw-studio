@@ -122,6 +122,9 @@ runTest('sdkwork-claw-tasks shared manager binds cron agent selection to the con
   assert.match(managerSource, /openClawAgentCatalogService\.getCatalog\(instanceId\)/);
   assert.match(dataSource, /getAgentCatalog:\s*\(instanceId:\s*string\)\s*=>\s*Promise<OpenClawAgentCatalog>/);
   assert.match(dataSource, /input\.getAgentCatalog\(input\.instanceId\)/);
+  assert.match(managerSource, /taskRuntimeService\.getOverview\(instanceId\)/);
+  assert.match(dataSource, /getTaskRuntimeOverview:\s*\(instanceId:\s*string\)\s*=>\s*Promise<TaskRuntimeOverview>/);
+  assert.match(dataSource, /input\.getTaskRuntimeOverview\(input\.instanceId\)/);
   assert.match(managerSource, /buildTaskAgentSelectState/);
   assert.match(managerSource, /DEFAULT_TASK_AGENT_SELECT_VALUE/);
   assert.match(
@@ -132,6 +135,177 @@ runTest('sdkwork-claw-tasks shared manager binds cron agent selection to the con
   assert.match(managerSource, /agentIdCatalogHelp/);
   assert.match(coreServiceSource, /readOpenClawConfigSnapshot\(configPath\)\.catch\(\(\) => null\)/);
   assert.match(coreServiceSource, /buildTaskAgentSelectState/);
+});
+
+runTest('sdkwork-claw-tasks runtime board copy is wired for the latest OpenClaw task and task-flow surfaces', () => {
+  const managerSource = read('packages/sdkwork-claw-commons/src/components/CronTasksManager.tsx');
+  const en = readJson<{ tasks: { page: { runtime?: Record<string, unknown> } } }>(
+    'packages/sdkwork-claw-i18n/src/locales/en.json',
+  );
+  const zh = readJson<{ tasks: { page: { runtime?: Record<string, unknown> } } }>(
+    'packages/sdkwork-claw-i18n/src/locales/zh.json',
+  );
+
+  const enRuntime = en.tasks.page.runtime;
+  const zhRuntime = zh.tasks.page.runtime;
+
+  assert.match(managerSource, /tasks\.page\.runtime\.taskBoard\.title/);
+  assert.match(managerSource, /tasks\.page\.runtime\.taskFlows\.title/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.currentStep/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.notifyPolicy/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.owner/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.requesterOrigin/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.cancelRequestedAt/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.flowId/);
+  assert.match(managerSource, /function openRuntimeTaskDetail\(/);
+  assert.match(managerSource, /taskRuntimeService\.getRuntimeTaskDetail\(/);
+  assert.match(managerSource, /renderRuntimeTaskDetailOverlay\(/);
+  assert.match(managerSource, /function openTaskFlowDetail\(/);
+  assert.match(managerSource, /taskRuntimeService\.getTaskFlowDetail\(/);
+  assert.match(managerSource, /tasks\.page\.runtime\.taskBoard\.detail\.description/);
+  assert.match(managerSource, /tasks\.page\.runtime\.taskBoard\.detail\.unavailable/);
+  assert.match(managerSource, /tasks\.page\.runtime\.taskBoard\.detail\.loadFailed/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.description/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.payloadSummary/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.taskSummary/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.blocked/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.wait/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.state/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.statePayload/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.waitPayload/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.linkedTasksTitle/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.linkedTasksDescription/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.linkedTasksEmpty/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.session/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.agent/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.error/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.unavailable/);
+  assert.match(managerSource, /tasks\.page\.runtime\.detail\.loadFailed/);
+  assert.match(managerSource, /taskFlowDetail\.startedAt/);
+  assert.match(managerSource, /taskFlowDetail\.finishedAt/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.sourceId/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.deliveryStatus/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.createdAt/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.startedAt/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.finishedAt/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.lastEventAt/);
+  assert.match(managerSource, /item\.deliveryStatus/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.cleanupAfter/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.parentTask/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.result/);
+  assert.match(managerSource, /tasks\.page\.runtime\.fields\.childSession/);
+  assert.match(managerSource, /runtimeTaskDetail\.createdAt/);
+  assert.match(managerSource, /runtimeTaskDetail\.startedAt/);
+  assert.match(managerSource, /runtimeTaskDetail\.finishedAt/);
+  assert.match(managerSource, /task\.createdAt/);
+  assert.match(managerSource, /task\.startedAt/);
+  assert.match(managerSource, /task\.finishedAt/);
+  assert.match(managerSource, /formatTaskFlowLinkedTaskCleanupAfter/);
+  assert.match(managerSource, /getTaskFlowLinkedTaskSourceId/);
+  assert.match(managerSource, /getTaskFlowLinkedTaskParentTaskId/);
+  assert.match(managerSource, /getTaskFlowLinkedTaskSummary/);
+  assert.match(managerSource, /formatTaskFlowLinkedTaskResult/);
+  assert.match(managerSource, /getTaskFlowLinkedTaskRequesterSession/);
+  assert.match(managerSource, /task\.childSessionKey/);
+
+  assert.equal(typeof enRuntime?.title, 'string');
+  assert.equal(typeof enRuntime?.description, 'string');
+  assert.equal(typeof enRuntime?.taskBoard, 'object');
+  assert.equal(typeof enRuntime?.taskFlows, 'object');
+  assert.equal(
+    typeof ((enRuntime?.taskBoard as Record<string, unknown>)?.detail as Record<string, unknown>)?.description,
+    'string',
+  );
+  assert.equal(
+    typeof ((enRuntime?.taskBoard as Record<string, unknown>)?.detail as Record<string, unknown>)?.unavailable,
+    'string',
+  );
+  assert.equal(
+    typeof ((enRuntime?.taskBoard as Record<string, unknown>)?.detail as Record<string, unknown>)?.loadFailed,
+    'string',
+  );
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.currentStep, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.notifyPolicy, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.owner, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.requesterOrigin, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.cancelRequestedAt, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.cleanupAfter, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.createdAt, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.startedAt, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.deliveryStatus, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.finishedAt, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.lastEventAt, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.parentTask, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.result, 'string');
+  assert.equal(typeof (enRuntime?.fields as Record<string, unknown>)?.sourceId, 'string');
+
+  assert.equal(typeof zhRuntime?.title, 'string');
+  assert.equal(typeof zhRuntime?.description, 'string');
+  assert.equal(typeof zhRuntime?.taskBoard, 'object');
+  assert.equal(typeof zhRuntime?.taskFlows, 'object');
+  assert.equal(
+    typeof ((zhRuntime?.taskBoard as Record<string, unknown>)?.detail as Record<string, unknown>)?.description,
+    'string',
+  );
+  assert.equal(
+    typeof ((zhRuntime?.taskBoard as Record<string, unknown>)?.detail as Record<string, unknown>)?.unavailable,
+    'string',
+  );
+  assert.equal(
+    typeof ((zhRuntime?.taskBoard as Record<string, unknown>)?.detail as Record<string, unknown>)?.loadFailed,
+    'string',
+  );
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.currentStep, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.notifyPolicy, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.owner, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.requesterOrigin, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.cancelRequestedAt, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.cleanupAfter, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.createdAt, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.startedAt, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.deliveryStatus, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.finishedAt, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.lastEventAt, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.parentTask, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.result, 'string');
+  assert.equal(typeof (zhRuntime?.fields as Record<string, unknown>)?.sourceId, 'string');
+
+  const enDetail = (enRuntime?.detail as Record<string, unknown>) || null;
+  const zhDetail = (zhRuntime?.detail as Record<string, unknown>) || null;
+
+  assert.equal(typeof enDetail?.description, 'string');
+  assert.equal(typeof enDetail?.payloadSummary, 'string');
+  assert.equal(typeof enDetail?.taskSummary, 'string');
+  assert.equal(typeof enDetail?.blocked, 'string');
+  assert.equal(typeof enDetail?.wait, 'string');
+  assert.equal(typeof enDetail?.state, 'string');
+  assert.equal(typeof enDetail?.statePayload, 'string');
+  assert.equal(typeof enDetail?.waitPayload, 'string');
+  assert.equal(typeof enDetail?.linkedTasksTitle, 'string');
+  assert.equal(typeof enDetail?.linkedTasksDescription, 'string');
+  assert.equal(typeof enDetail?.linkedTasksEmpty, 'string');
+  assert.equal(typeof enDetail?.session, 'string');
+  assert.equal(typeof enDetail?.agent, 'string');
+  assert.equal(typeof enDetail?.error, 'string');
+  assert.equal(typeof enDetail?.unavailable, 'string');
+  assert.equal(typeof enDetail?.loadFailed, 'string');
+
+  assert.equal(typeof zhDetail?.description, 'string');
+  assert.equal(typeof zhDetail?.payloadSummary, 'string');
+  assert.equal(typeof zhDetail?.taskSummary, 'string');
+  assert.equal(typeof zhDetail?.blocked, 'string');
+  assert.equal(typeof zhDetail?.wait, 'string');
+  assert.equal(typeof zhDetail?.state, 'string');
+  assert.equal(typeof zhDetail?.statePayload, 'string');
+  assert.equal(typeof zhDetail?.waitPayload, 'string');
+  assert.equal(typeof zhDetail?.linkedTasksTitle, 'string');
+  assert.equal(typeof zhDetail?.linkedTasksDescription, 'string');
+  assert.equal(typeof zhDetail?.linkedTasksEmpty, 'string');
+  assert.equal(typeof zhDetail?.session, 'string');
+  assert.equal(typeof zhDetail?.agent, 'string');
+  assert.equal(typeof zhDetail?.error, 'string');
+  assert.equal(typeof zhDetail?.unavailable, 'string');
+  assert.equal(typeof zhDetail?.loadFailed, 'string');
 });
 
 runTest('sdkwork-claw-tasks shared manager uses compact label-control rows in the task editor', () => {

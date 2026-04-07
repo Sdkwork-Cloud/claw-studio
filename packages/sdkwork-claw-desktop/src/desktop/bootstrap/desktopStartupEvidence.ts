@@ -1,0 +1,232 @@
+import type {
+  HostPlatformStatusRecord,
+  ManageHostEndpointRecord,
+  ManageOpenClawGatewayRecord,
+  ManageOpenClawRuntimeRecord,
+  RuntimeAppInfo,
+  RuntimePathsInfo,
+  StudioInstanceRecord,
+} from '@sdkwork/claw-infrastructure';
+import type {
+  DesktopHostedRuntimeDescriptor,
+  DesktopHostedRuntimeReadinessEvidence,
+  DesktopHostedRuntimeReadinessSnapshot,
+} from '../desktopHostedBridge';
+
+export const DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH =
+  'diagnostics/desktop-startup-evidence.json';
+
+export type DesktopStartupEvidenceStatus = 'passed' | 'failed';
+export type DesktopStartupEvidencePhase =
+  | 'runtime-ready'
+  | 'shell-mounted'
+  | 'runtime-readiness-failed'
+  | 'shell-render-failed';
+
+export interface DesktopStartupEvidenceDescriptor {
+  mode: DesktopHostedRuntimeDescriptor['mode'];
+  lifecycle: DesktopHostedRuntimeDescriptor['lifecycle'];
+  apiBasePath: string;
+  manageBasePath: string;
+  internalBasePath: string;
+  browserBaseUrl: string;
+  lastError: string | null;
+  endpointId: string | null;
+  requestedPort: number | null;
+  activePort: number | null;
+  loopbackOnly: boolean | null;
+  dynamicPort: boolean | null;
+  stateStoreDriver: string | null;
+  stateStoreProfileId: string | null;
+  runtimeDataDir: string | null;
+  webDistDir: string | null;
+}
+
+export interface DesktopStartupEvidencePaths {
+  dataDir: string;
+  logsDir: string;
+  machineLogsDir: string;
+  mainLogFile: string;
+}
+
+export interface DesktopStartupEvidenceBuiltInInstance {
+  id: string;
+  name: string;
+  version: string;
+  runtimeKind: StudioInstanceRecord['runtimeKind'];
+  deploymentMode: StudioInstanceRecord['deploymentMode'];
+  transportKind: StudioInstanceRecord['transportKind'];
+  status: StudioInstanceRecord['status'];
+  baseUrl: string | null;
+  websocketUrl: string | null;
+  isBuiltIn: boolean;
+  isDefault: boolean;
+}
+
+export interface DesktopStartupEvidenceErrorSummary {
+  message: string;
+  cause: string | null;
+}
+
+export interface DesktopStartupEvidenceDocument {
+  version: 1;
+  status: DesktopStartupEvidenceStatus;
+  phase: DesktopStartupEvidencePhase;
+  runId: number;
+  durationMs: number;
+  recordedAt: string;
+  app: RuntimeAppInfo | null;
+  paths: DesktopStartupEvidencePaths | null;
+  descriptor: DesktopStartupEvidenceDescriptor | null;
+  hostPlatformStatus: HostPlatformStatusRecord | null;
+  hostEndpoints: ManageHostEndpointRecord[];
+  openClawRuntime: ManageOpenClawRuntimeRecord | null;
+  openClawGateway: ManageOpenClawGatewayRecord | null;
+  builtInInstance: DesktopStartupEvidenceBuiltInInstance | null;
+  readinessEvidence: DesktopHostedRuntimeReadinessEvidence | null;
+  error: DesktopStartupEvidenceErrorSummary | null;
+}
+
+export function sanitizeDesktopStartupDescriptor(
+  descriptor: DesktopHostedRuntimeDescriptor | null | undefined,
+): DesktopStartupEvidenceDescriptor | null {
+  if (!descriptor) {
+    return null;
+  }
+
+  return {
+    mode: descriptor.mode,
+    lifecycle: descriptor.lifecycle,
+    apiBasePath: descriptor.apiBasePath,
+    manageBasePath: descriptor.manageBasePath,
+    internalBasePath: descriptor.internalBasePath,
+    browserBaseUrl: descriptor.browserBaseUrl,
+    lastError: descriptor.lastError ?? null,
+    endpointId: descriptor.endpointId ?? null,
+    requestedPort: descriptor.requestedPort ?? null,
+    activePort: descriptor.activePort ?? null,
+    loopbackOnly: descriptor.loopbackOnly ?? null,
+    dynamicPort: descriptor.dynamicPort ?? null,
+    stateStoreDriver: descriptor.stateStoreDriver ?? null,
+    stateStoreProfileId: descriptor.stateStoreProfileId ?? null,
+    runtimeDataDir: descriptor.runtimeDataDir ?? null,
+    webDistDir: descriptor.webDistDir ?? null,
+  };
+}
+
+export function sanitizeDesktopStartupPaths(
+  paths: RuntimePathsInfo | null | undefined,
+): DesktopStartupEvidencePaths | null {
+  if (!paths) {
+    return null;
+  }
+
+  return {
+    dataDir: paths.dataDir,
+    logsDir: paths.logsDir,
+    machineLogsDir: paths.machineLogsDir,
+    mainLogFile: paths.mainLogFile,
+  };
+}
+
+export function sanitizeDesktopStartupBuiltInInstance(
+  instance: StudioInstanceRecord | null | undefined,
+): DesktopStartupEvidenceBuiltInInstance | null {
+  if (!instance) {
+    return null;
+  }
+
+  return {
+    id: instance.id,
+    name: instance.name,
+    version: instance.version,
+    runtimeKind: instance.runtimeKind,
+    deploymentMode: instance.deploymentMode,
+    transportKind: instance.transportKind,
+    status: instance.status,
+    baseUrl: instance.baseUrl ?? null,
+    websocketUrl: instance.websocketUrl ?? null,
+    isBuiltIn: instance.isBuiltIn,
+    isDefault: instance.isDefault,
+  };
+}
+
+function summarizeStartupError(
+  error: unknown,
+): DesktopStartupEvidenceErrorSummary | null {
+  if (typeof error === 'undefined' || error === null) {
+    return null;
+  }
+
+  if (error instanceof Error) {
+    const cause =
+      typeof error.cause === 'string'
+        ? error.cause
+        : error.cause instanceof Error
+          ? error.cause.message
+          : error.cause == null
+            ? null
+            : String(error.cause);
+
+    return {
+      message: error.message || String(error),
+      cause,
+    };
+  }
+
+  return {
+    message: String(error),
+    cause: null,
+  };
+}
+
+export function buildDesktopStartupEvidenceDocument({
+  status,
+  phase,
+  runId,
+  durationMs,
+  appInfo = null,
+  appPaths = null,
+  readinessSnapshot = null,
+  error = null,
+  recordedAt = new Date().toISOString(),
+}: {
+  status: DesktopStartupEvidenceStatus;
+  phase: DesktopStartupEvidencePhase;
+  runId: number;
+  durationMs: number;
+  appInfo?: RuntimeAppInfo | null;
+  appPaths?: RuntimePathsInfo | null;
+  readinessSnapshot?: DesktopHostedRuntimeReadinessSnapshot | null;
+  error?: unknown;
+  recordedAt?: string;
+}): DesktopStartupEvidenceDocument {
+  const builtInInstance =
+    readinessSnapshot?.instances.find((instance) => instance.id === 'local-built-in')
+    ?? null;
+
+  return {
+    version: 1,
+    status,
+    phase,
+    runId,
+    durationMs: Math.max(0, Math.trunc(durationMs)),
+    recordedAt,
+    app: appInfo ?? null,
+    paths: sanitizeDesktopStartupPaths(appPaths),
+    descriptor: sanitizeDesktopStartupDescriptor(readinessSnapshot?.descriptor),
+    hostPlatformStatus: readinessSnapshot?.hostPlatformStatus ?? null,
+    hostEndpoints: readinessSnapshot?.hostEndpoints ?? [],
+    openClawRuntime: readinessSnapshot?.openClawRuntime ?? null,
+    openClawGateway: readinessSnapshot?.openClawGateway ?? null,
+    builtInInstance: sanitizeDesktopStartupBuiltInInstance(builtInInstance),
+    readinessEvidence: readinessSnapshot?.evidence ?? null,
+    error: summarizeStartupError(error),
+  };
+}
+
+export function serializeDesktopStartupEvidence(
+  document: DesktopStartupEvidenceDocument,
+): string {
+  return `${JSON.stringify(document, null, 2)}\n`;
+}

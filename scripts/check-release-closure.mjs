@@ -50,9 +50,24 @@ export function main() {
     'missing docs/reports/2026-04-05-unified-rust-host-deployment-bootstrap-smoke.md',
   );
   assert.match(
+    packageJson.scripts['check:multi-mode'],
+    /pnpm check:desktop && pnpm check:server && pnpm check:sdkwork-host-runtime && pnpm check:desktop-openclaw-runtime && pnpm check:release-flow/,
+    'package.json must expose the unified multi-mode verification command',
+  );
+  assert.match(
     packageJson.scripts['check:release-flow'],
     /node scripts\/check-release-closure\.mjs/,
     'check:release-flow must execute the release closure guard',
+  );
+  assert.match(
+    packageJson.scripts['release:smoke:desktop-packaged-launch'],
+    /node scripts\/release\/smoke-desktop-packaged-launch\.mjs/,
+    'package.json must expose the dedicated desktop packaged launch smoke command',
+  );
+  assert.match(
+    packageJson.scripts['release:smoke:desktop-startup'],
+    /node scripts\/release\/smoke-desktop-startup-evidence\.mjs/,
+    'package.json must expose the dedicated desktop startup smoke command',
   );
   assert.match(
     packageJson.scripts['release:smoke:server'],
@@ -102,8 +117,18 @@ export function main() {
   );
   assert.match(
     workflow,
+    /desktop-release:[\s\S]*apt-get install -y[\s\S]*xvfb/s,
+    'desktop release workflow must install xvfb so Linux packaged launch smoke can run headlessly',
+  );
+  assert.match(
+    workflow,
     /package-release-assets\.mjs desktop[\s\S]*--output-dir artifacts\/release[\s\S]*smoke-desktop-installers\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release/,
     'desktop release workflow must smoke packaged installers before attesting and uploading artifacts',
+  );
+  assert.match(
+    workflow,
+    /smoke-desktop-installers\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release[\s\S]*smoke-desktop-packaged-launch\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release/,
+    'desktop release workflow must smoke packaged launch startup after installer smoke and before attesting artifacts',
   );
   assert.match(
     workflow,
@@ -137,6 +162,16 @@ export function main() {
   );
   assert.match(
     releaseDoc,
+    /check:multi-mode/,
+    'release and deployment docs must expose the unified multi-mode verification command',
+  );
+  assert.match(
+    releaseDoc,
+    /versionSourcesAligned/,
+    'release and deployment docs must explain OpenClaw version-source alignment separately from upgrade readiness',
+  );
+  assert.match(
+    releaseDoc,
     /release tag/i,
     'release and deployment docs must describe the kubernetes image release tag contract',
   );
@@ -144,6 +179,16 @@ export function main() {
     releaseDoc,
     /release:smoke:desktop/,
     'release and deployment docs must expose the desktop smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:desktop-packaged-launch/,
+    'release and deployment docs must expose the desktop packaged launch smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:desktop-startup/,
+    'release and deployment docs must expose the desktop startup smoke command',
   );
   assert.match(
     releaseDoc,
@@ -172,6 +217,11 @@ export function main() {
   );
   assert.match(
     releaseDoc,
+    /desktopStartupSmoke/,
+    'release and deployment docs must describe aggregated desktop startup smoke metadata',
+  );
+  assert.match(
+    releaseDoc,
     /serverBundleSmoke/,
     'release and deployment docs must describe aggregated server bundle smoke metadata',
   );
@@ -184,6 +234,11 @@ export function main() {
     releaseDoc,
     /installReadyLayout/,
     'release and deployment docs must describe install-ready desktop layout evidence',
+  );
+  assert.match(
+    releaseDoc,
+    /desktop-startup-evidence\.json/,
+    'release and deployment docs must describe the captured desktop startup evidence artifact desktop-startup-evidence.json',
   );
   assert.match(
     releaseDoc,

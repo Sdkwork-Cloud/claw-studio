@@ -6,8 +6,10 @@ import {
   OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
   OPENCLAW_LOCAL_PROXY_PROVIDER_ID,
   createOpenClawLocalProxyProjection,
+  createDefaultOpenClawProviderRuntimeConfig,
   createProviderRoutingCatalogService,
   kernelPlatformService,
+  normalizeOpenClawProviderRuntimeConfig,
   normalizeLegacyProviderId,
   openClawConfigService,
   providerRoutingCatalogService,
@@ -131,35 +133,10 @@ export interface ProviderConfigCenterServiceOverrides {
   now?: () => number;
 }
 
-function createDefaultRuntimeConfig(): OpenClawProviderRuntimeConfig {
-  return {
-    temperature: 0.2,
-    topP: 1,
-    maxTokens: 8192,
-    timeoutMs: 60000,
-    streaming: true,
-  };
-}
-
-function normalizeFiniteNumber(value: unknown, fallback: number) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
 function normalizeRuntimeConfig(
   input?: Partial<OpenClawProviderRuntimeConfig> | null,
 ): OpenClawProviderRuntimeConfig {
-  const defaults = createDefaultRuntimeConfig();
-
-  return {
-    temperature: normalizeFiniteNumber(input?.temperature, defaults.temperature),
-    topP: normalizeFiniteNumber(input?.topP, defaults.topP),
-    maxTokens: Math.max(1, Math.round(normalizeFiniteNumber(input?.maxTokens, defaults.maxTokens))),
-    timeoutMs: Math.max(
-      1000,
-      Math.round(normalizeFiniteNumber(input?.timeoutMs, defaults.timeoutMs)),
-    ),
-    streaming: typeof input?.streaming === 'boolean' ? input.streaming : defaults.streaming,
-  };
+  return normalizeOpenClawProviderRuntimeConfig(input);
 }
 
 function normalizeProviderId(providerId: string | undefined | null) {
@@ -270,7 +247,7 @@ function createPresetDraft(input: ProviderConfigDraft): ProviderConfigDraft {
     isDefault: false,
     managedBy: 'user',
     exposeTo: input.exposeTo || ['openclaw'],
-    config: createDefaultRuntimeConfig(),
+    config: createDefaultOpenClawProviderRuntimeConfig(),
   });
 }
 
@@ -375,6 +352,29 @@ function createCuratedPresets(): ProviderConfigPreset[] {
       }),
     },
     {
+      id: 'cloudflare-ai-gateway',
+      label: 'Cloudflare AI Gateway',
+      description:
+        'Cloudflare AI Gateway Anthropic-compatible preset with the official gateway URL shape and Claude Sonnet 4.5 starter model. Add optional cf-aig-authorization headers through Request Overrides when gateway auth is enabled.',
+      draft: createPresetDraft({
+        presetId: 'cloudflare-ai-gateway',
+        name: 'Cloudflare AI Gateway',
+        providerId: 'cloudflare-ai-gateway',
+        clientProtocol: 'anthropic',
+        upstreamProtocol: 'anthropic',
+        upstreamBaseUrl: 'https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/anthropic',
+        apiKey: '',
+        defaultModelId: 'cloudflare-ai-gateway/claude-sonnet-4-5',
+        reasoningModelId: 'cloudflare-ai-gateway/claude-sonnet-4-5',
+        models: [
+          {
+            id: 'cloudflare-ai-gateway/claude-sonnet-4-5',
+            name: 'Claude Sonnet 4.5 (Cloudflare AI Gateway)',
+          },
+        ],
+      }),
+    },
+    {
       id: 'gemini',
       label: 'Gemini',
       description: 'Google Gemini native route preset.',
@@ -411,6 +411,42 @@ function createCuratedPresets(): ProviderConfigPreset[] {
         models: [
           { id: 'grok-4', name: 'Grok 4' },
           { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast Reasoning' },
+        ],
+      }),
+    },
+    {
+      id: 'groq',
+      label: 'Groq',
+      description:
+        'Groq OpenAI-compatible route preset with the official Llama 3.3 70B Versatile starter model.',
+      draft: createPresetDraft({
+        presetId: 'groq',
+        name: 'Groq',
+        providerId: 'groq',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.groq.com/openai/v1',
+        apiKey: '',
+        defaultModelId: 'llama-3.3-70b-versatile',
+        models: [{ id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' }],
+      }),
+    },
+    {
+      id: 'ollama',
+      label: 'Ollama',
+      description:
+        'Ollama native local-runtime preset aligned with the official OpenClaw provider guide and localhost deployment default.',
+      draft: createPresetDraft({
+        presetId: 'ollama',
+        name: 'Ollama',
+        providerId: 'ollama',
+        upstreamProtocol: 'ollama',
+        upstreamBaseUrl: 'http://127.0.0.1:11434',
+        apiKey: 'ollama-local',
+        defaultModelId: 'glm-4.7-flash',
+        models: [
+          { id: 'glm-4.7-flash', name: 'GLM 4.7 Flash' },
+          { id: 'gpt-oss:20b', name: 'GPT-OSS 20B' },
+          { id: 'nomic-embed-text', name: 'nomic-embed-text' },
         ],
       }),
     },
@@ -493,6 +529,168 @@ function createCuratedPresets(): ProviderConfigPreset[] {
           { id: 'anthropic/claude-3.7-sonnet', name: 'Anthropic Claude 3.7 Sonnet' },
           { id: 'google/gemini-2.5-pro', name: 'Google Gemini 2.5 Pro' },
         ],
+      }),
+    },
+    {
+      id: 'vercel-ai-gateway',
+      label: 'Vercel AI Gateway',
+      description:
+        'Vercel AI Gateway Anthropic-compatible preset with the official Claude Opus 4.6 starter model and multi-provider gateway examples.',
+      draft: createPresetDraft({
+        presetId: 'vercel-ai-gateway',
+        name: 'Vercel AI Gateway',
+        providerId: 'vercel-ai-gateway',
+        clientProtocol: 'anthropic',
+        upstreamProtocol: 'anthropic',
+        upstreamBaseUrl: 'https://ai-gateway.vercel.sh',
+        apiKey: '',
+        defaultModelId: 'anthropic/claude-opus-4.6',
+        reasoningModelId: 'anthropic/claude-opus-4.6',
+        models: [
+          { id: 'anthropic/claude-opus-4.6', name: 'Anthropic Claude Opus 4.6' },
+          { id: 'openai/gpt-5.4', name: 'OpenAI GPT-5.4' },
+          { id: 'xai/grok-4-fast-reasoning', name: 'xAI Grok 4 Fast Reasoning' },
+        ],
+      }),
+    },
+    {
+      id: 'litellm',
+      label: 'LiteLLM',
+      description:
+        'LiteLLM gateway preset aligned with the official local proxy example for a localhost deployment.',
+      draft: createPresetDraft({
+        presetId: 'litellm',
+        name: 'LiteLLM',
+        providerId: 'litellm',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'http://localhost:4000',
+        apiKey: '',
+        defaultModelId: 'claude-opus-4-6',
+        models: [
+          { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
+          { id: 'gpt-4o', name: 'GPT-4o' },
+        ],
+      }),
+    },
+    {
+      id: 'together',
+      label: 'Together',
+      description:
+        'Together AI OpenAI-compatible route preset with the official Kimi K2.5 starter model.',
+      draft: createPresetDraft({
+        presetId: 'together',
+        name: 'Together',
+        providerId: 'together',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.together.xyz/v1',
+        apiKey: '',
+        defaultModelId: 'moonshotai/Kimi-K2.5',
+        models: [
+          { id: 'moonshotai/Kimi-K2.5', name: 'Kimi K2.5' },
+          { id: 'zai-org/GLM-4.7', name: 'GLM-4.7' },
+        ],
+      }),
+    },
+    {
+      id: 'fireworks',
+      label: 'Fireworks',
+      description:
+        'Fireworks OpenAI-compatible preset with the bundled Kimi K2.5 Turbo Fire Pass starter model.',
+      draft: createPresetDraft({
+        presetId: 'fireworks',
+        name: 'Fireworks',
+        providerId: 'fireworks',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.fireworks.ai/inference/v1',
+        apiKey: '',
+        defaultModelId: 'fireworks/accounts/fireworks/routers/kimi-k2p5-turbo',
+        models: [
+          {
+            id: 'fireworks/accounts/fireworks/routers/kimi-k2p5-turbo',
+            name: 'Kimi K2.5 Turbo (Fire Pass)',
+          },
+        ],
+      }),
+    },
+    {
+      id: 'amazon-bedrock-mantle',
+      label: 'Amazon Bedrock Mantle',
+      description:
+        'Amazon Bedrock Mantle OpenAI-compatible preset with the documented us-east-1 manual configuration sample.',
+      draft: createPresetDraft({
+        presetId: 'amazon-bedrock-mantle',
+        name: 'Amazon Bedrock Mantle',
+        providerId: 'amazon-bedrock-mantle',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://bedrock-mantle.us-east-1.api.aws/v1',
+        apiKey: '',
+        defaultModelId: 'gpt-oss-120b',
+        reasoningModelId: 'gpt-oss-120b',
+        models: [{ id: 'gpt-oss-120b', name: 'GPT-OSS 120B' }],
+      }),
+    },
+    {
+      id: 'kilocode',
+      label: 'Kilo Code',
+      description:
+        'Kilo Gateway OpenAI-compatible preset with the official auto-routing starter model.',
+      draft: createPresetDraft({
+        presetId: 'kilocode',
+        name: 'Kilo Code',
+        providerId: 'kilocode',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.kilo.ai/api/gateway/',
+        apiKey: '',
+        defaultModelId: 'kilo/auto',
+        models: [{ id: 'kilo/auto', name: 'Kilo Auto' }],
+      }),
+    },
+    {
+      id: 'venice',
+      label: 'Venice',
+      description:
+        'Venice AI OpenAI-compatible preset with the current Kimi K2.5 starter model from the official docs.',
+      draft: createPresetDraft({
+        presetId: 'venice',
+        name: 'Venice',
+        providerId: 'venice',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'https://api.venice.ai/api/v1',
+        apiKey: '',
+        defaultModelId: 'kimi-k2-5',
+        models: [{ id: 'kimi-k2-5', name: 'Kimi K2.5' }],
+      }),
+    },
+    {
+      id: 'vllm',
+      label: 'vLLM',
+      description:
+        'vLLM local OpenAI-compatible preset with the official localhost endpoint and placeholder API key.',
+      draft: createPresetDraft({
+        presetId: 'vllm',
+        name: 'vLLM',
+        providerId: 'vllm',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'http://127.0.0.1:8000/v1',
+        apiKey: 'vllm-local',
+        defaultModelId: '',
+        models: [],
+      }),
+    },
+    {
+      id: 'sglang',
+      label: 'SGLang',
+      description:
+        'SGLang local OpenAI-compatible preset with the official localhost endpoint and placeholder API key.',
+      draft: createPresetDraft({
+        presetId: 'sglang',
+        name: 'SGLang',
+        providerId: 'sglang',
+        upstreamProtocol: 'openai-compatible',
+        upstreamBaseUrl: 'http://127.0.0.1:30000/v1',
+        apiKey: 'sglang-local',
+        defaultModelId: '',
+        models: [],
       }),
     },
     {

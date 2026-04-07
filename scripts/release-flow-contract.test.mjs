@@ -79,8 +79,18 @@ test('repository exposes a cross-platform claw-studio release workflow', () => {
   assert.match(reusableWorkflow, /node scripts\/release\/package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\}/);
   assert.match(
     reusableWorkflow,
+    /desktop-release:[\s\S]*apt-get install -y[\s\S]*xvfb/s,
+    'desktop release workflow must install xvfb so Linux packaged launch smoke can run headlessly',
+  );
+  assert.match(
+    reusableWorkflow,
     /desktop-release:[\s\S]*package-release-assets\.mjs desktop --profile \$\{\{ inputs\.release_profile \}\} --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --output-dir artifacts\/release[\s\S]*smoke-desktop-installers\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release/s,
     'desktop release workflow must smoke packaged installers before attesting and uploading artifacts',
+  );
+  assert.match(
+    reusableWorkflow,
+    /desktop-release:[\s\S]*smoke-desktop-installers\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release[\s\S]*smoke-desktop-packaged-launch\.mjs --platform \$\{\{ matrix\.platform \}\} --arch \$\{\{ matrix\.arch \}\} --target \$\{\{ matrix\.target \}\} --release-assets-dir artifacts\/release[\s\S]*actions\/attest-build-provenance@v3/s,
+    'desktop release workflow must smoke packaged launch startup after installer smoke and before attesting artifacts',
   );
   assert.match(reusableWorkflow, /server-release:/);
   assert.match(reusableWorkflow, /container-release:/);
@@ -150,6 +160,11 @@ test('root package exposes release helper scripts for desktop and asset packagin
   const rootPackage = JSON.parse(read('package.json'));
   const releaseClosureScriptPath = path.join(rootDir, 'scripts', 'check-release-closure.mjs');
 
+  assert.match(
+    rootPackage.scripts['check:multi-mode'],
+    /pnpm check:desktop && pnpm check:server && pnpm check:sdkwork-host-runtime && pnpm check:desktop-openclaw-runtime && pnpm check:release-flow/,
+    'root package must expose one unified multi-mode verification command for desktop, server, deployment runtime, OpenClaw readiness, and release packaging',
+  );
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-flow-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release-deployment-contract\.test\.mjs/);
   assert.equal(existsSync(releaseClosureScriptPath), true, 'missing scripts/check-release-closure.mjs');
@@ -162,6 +177,8 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-deployment-release-assets\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-server-release-assets\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-desktop-installers\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-desktop-packaged-launch\.test\.mjs/);
+  assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/smoke-desktop-startup-evidence\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/local-release-command\.test\.mjs/);
   assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
   assert.match(rootPackage.scripts['check:automation'], /pnpm check:release-flow && pnpm check:ci-flow/);
@@ -191,6 +208,8 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['release:package:kubernetes'], /node scripts\/release\/local-release-command\.mjs package kubernetes/);
   assert.match(rootPackage.scripts['release:package:web'], /node scripts\/release\/local-release-command\.mjs package web/);
   assert.match(rootPackage.scripts['release:smoke:desktop'], /node scripts\/release\/local-release-command\.mjs smoke desktop/);
+  assert.match(rootPackage.scripts['release:smoke:desktop-packaged-launch'], /node scripts\/release\/smoke-desktop-packaged-launch\.mjs/);
+  assert.match(rootPackage.scripts['release:smoke:desktop-startup'], /node scripts\/release\/smoke-desktop-startup-evidence\.mjs/);
   assert.match(rootPackage.scripts['release:smoke:server'], /node scripts\/release\/local-release-command\.mjs smoke server/);
   assert.match(rootPackage.scripts['release:smoke:container'], /node scripts\/release\/local-release-command\.mjs smoke container/);
   assert.match(rootPackage.scripts['release:smoke:kubernetes'], /node scripts\/release\/local-release-command\.mjs smoke kubernetes/);
@@ -243,11 +262,51 @@ test('release closure contract documents and guards desktop install-ready smoke 
     /installReadyLayout/,
     'release closure guard must protect install-ready layout evidence',
   );
+  assert.match(
+    releaseClosureGuard,
+    /release:smoke:desktop-packaged-launch/,
+    'release closure guard must expose the dedicated desktop packaged launch smoke command',
+  );
+  assert.match(
+    releaseClosureGuard,
+    /release:smoke:desktop-startup/,
+    'release closure guard must expose the dedicated desktop startup smoke command',
+  );
+  assert.match(
+    releaseClosureGuard,
+    /desktopStartupSmoke/,
+    'release closure guard must protect aggregated desktop startup smoke metadata when it exists',
+  );
+  assert.match(
+    releaseClosureGuard,
+    /desktop-startup-evidence\.json/,
+    'release closure guard must protect the captured desktop startup evidence path',
+  );
 
+  assert.match(
+    releaseDoc,
+    /check:multi-mode/,
+    'release documentation must expose the unified multi-mode verification command',
+  );
+  assert.match(
+    releaseDoc,
+    /versionSourcesAligned/,
+    'release documentation must explain when OpenClaw version sources are internally aligned even if no upgrade should run yet',
+  );
   assert.match(
     releaseDoc,
     /release:smoke:desktop/,
     'release documentation must expose the desktop smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:desktop-packaged-launch/,
+    'release documentation must expose the desktop packaged launch smoke command',
+  );
+  assert.match(
+    releaseDoc,
+    /release:smoke:desktop-startup/,
+    'release documentation must expose the desktop startup smoke command',
   );
   assert.match(
     releaseDoc,
@@ -263,6 +322,16 @@ test('release closure contract documents and guards desktop install-ready smoke 
     releaseDoc,
     /installReadyLayout/,
     'release documentation must describe install-ready layout evidence',
+  );
+  assert.match(
+    releaseDoc,
+    /desktopStartupSmoke/,
+    'release documentation must describe aggregated desktop startup smoke metadata',
+  );
+  assert.match(
+    releaseDoc,
+    /desktop-startup-evidence\.json/,
+    'release documentation must describe the captured desktop startup evidence artifact',
   );
 });
 

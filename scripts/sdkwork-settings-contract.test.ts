@@ -86,8 +86,11 @@ runTest('sdkwork-claw-settings parity checks use the shared Node TypeScript runn
   );
   assert.match(settingsCheckRunner, /runNodeTypeScriptChecks/);
   assert.match(settingsCheckRunner, /kernelCenterView\.test\.ts/);
+  assert.match(settingsCheckRunner, /hostRuntimeSettings\.test\.ts/);
+  assert.match(settingsCheckRunner, /kernelCenterService\.test\.ts/);
   assert.match(settingsCheckRunner, /settingsService\.test\.ts/);
   assert.match(settingsCheckRunner, /providerConfigCenterService\.test\.ts/);
+  assert.match(settingsCheckRunner, /providerConfigEditorPolicy\.test\.ts/);
   assert.match(settingsCheckRunner, /sdkwork-settings-contract\.test\.ts/);
   assert.match(nodeTypeScriptRunner, /ts-extension-loader\.mjs/);
 });
@@ -163,6 +166,8 @@ runTest('sdkwork-claw-settings keeps Provider Center fully localized in Chinese 
   const providerCenterSource = read('packages/sdkwork-claw-settings/src/ProviderConfigCenter.tsx');
   const zhLocale = readLocale('zh');
   const providerCenterLocale = getLocaleValue(zhLocale, 'providerCenter');
+  const enLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/en/providerCenter.json');
+  const zhLocaleSource = read('packages/sdkwork-claw-i18n/src/locales/zh/providerCenter.json');
 
   assert.match(settingsSource, /resolveSettingsContentShellClassName\(activeTab\)/);
   assert.doesNotMatch(providerCenterSource, /max-w-\[1500px\]/);
@@ -194,6 +199,16 @@ runTest('sdkwork-claw-settings keeps Provider Center fully localized in Chinese 
     getLocaleValue(zhLocale, 'providerCenter.toasts.saved'),
     '路由配置已保存。',
   );
+  assert.match(enLocaleSource, /"requestOverridesTitle"\s*:/);
+  assert.match(enLocaleSource, /"requestOverridesDescription"\s*:/);
+  assert.match(enLocaleSource, /"requestOverrides"\s*:/);
+  assert.match(enLocaleSource, /"requestOverridesPlaceholder"\s*:/);
+  assert.match(enLocaleSource, /"requestOverridesHint"\s*:/);
+  assert.match(zhLocaleSource, /"requestOverridesTitle"\s*:/);
+  assert.match(zhLocaleSource, /"requestOverridesDescription"\s*:/);
+  assert.match(zhLocaleSource, /"requestOverrides"\s*:/);
+  assert.match(zhLocaleSource, /"requestOverridesPlaceholder"\s*:/);
+  assert.match(zhLocaleSource, /"requestOverridesHint"\s*:/);
   assert.ok(
     !JSON.stringify(providerCenterLocale).includes('????'),
     'Provider Center zh locale should not contain placeholder question-mark copy',
@@ -212,6 +227,13 @@ runTest('sdkwork-claw-settings renders Provider Center route editing in a sideba
   assert.match(editorSheetSource, /data-slot="provider-center-model-list-row"/);
   assert.match(editorSheetSource, /appendProviderConfigModelRow/);
   assert.match(editorSheetSource, /moveProviderConfigModelRow/);
+  assert.match(editorSheetSource, /data-slot="provider-center-request-overrides"/);
+  assert.match(editorSheetSource, /value=\{draft\.requestOverridesDraft\}/);
+  assert.match(editorSheetSource, /providerCenter\.dialogs\.editor\.requestOverridesTitle/);
+  assert.match(editorSheetSource, /providerCenter\.dialogs\.editor\.requestOverridesDescription/);
+  assert.match(editorSheetSource, /providerCenter\.dialogs\.editor\.requestOverrides/);
+  assert.match(editorSheetSource, /providerCenter\.dialogs\.editor\.requestOverridesPlaceholder/);
+  assert.match(editorSheetSource, /providerCenter\.dialogs\.editor\.requestOverridesHint/);
   assert.doesNotMatch(editorSheetSource, /value=\{draft\.modelsText\}/);
   assert.doesNotMatch(editorSheetSource, /<Label>\{t\('providerCenter\.dialogs\.editor\.modelId'\)\}<\/Label>/);
   assert.doesNotMatch(editorSheetSource, /<Label>\{t\('providerCenter\.dialogs\.editor\.modelName'\)\}<\/Label>/);
@@ -316,13 +338,20 @@ runTest('general, security, and data settings use wide responsive workspace layo
   const generalSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
   const securitySource = read('packages/sdkwork-claw-settings/src/SecuritySettings.tsx');
   const dataPrivacySource = read('packages/sdkwork-claw-settings/src/DataPrivacySettings.tsx');
+  const enLocale = readLocale('en');
+  const zhIndexSource = read('packages/sdkwork-claw-i18n/src/locales/zh/index.ts');
 
   assert.match(generalSource, /xl:grid-cols/);
+  assert.match(generalSource, /resolveTranslationBundleSourceLanguage/);
+  assert.match(generalSource, /hasDedicatedTranslationBundle/);
+  assert.match(generalSource, /settings\.general\.languageFallbackTo/);
   assert.match(securitySource, /xl:grid-cols/);
   assert.match(dataPrivacySource, /xl:grid-cols/);
   assert.doesNotMatch(generalSource, /2xl:grid-cols/);
   assert.doesNotMatch(securitySource, /2xl:grid-cols/);
   assert.doesNotMatch(securitySource, /max-w-md/);
+  assert.notEqual(getLocaleValue(enLocale, 'settings.general.languageFallbackTo'), undefined);
+  assert.match(zhIndexSource, /languageFallbackTo/);
 });
 
 runTest('data privacy settings keep the workspace visible while preferences load or if the fetch fails', () => {
@@ -355,9 +384,13 @@ runTest('sdkwork-claw-settings exports Kernel Center through package and service
   const indexSource = read('packages/sdkwork-claw-settings/src/index.ts');
   const servicesIndexSource = read('packages/sdkwork-claw-settings/src/services/index.ts');
   const kernelCenterSource = read('packages/sdkwork-claw-settings/src/KernelCenter.tsx');
+  const hostRuntimeSettingsSource = read('packages/sdkwork-claw-settings/src/HostRuntimeSettings.tsx');
   const enLocale = readLocale('en');
   const zhLocale = readLocale('zh');
-  const directKeys = [...kernelCenterSource.matchAll(/\bt\('([^']+)'\)/g)].map((match) => match[1]);
+  const directKeys = [
+    ...kernelCenterSource.matchAll(/\bt\('([^']+)'\)/g),
+    ...hostRuntimeSettingsSource.matchAll(/\bt\('([^']+)'\)/g),
+  ].map((match) => match[1]);
   const uniqueKeys = [...new Set(directKeys)].sort();
   const missingKeys = uniqueKeys.filter(
     (key) => getLocaleValue(enLocale, key) === undefined || getLocaleValue(zhLocale, key) === undefined,
@@ -378,6 +411,8 @@ runTest('sdkwork-claw-settings exports Kernel Center through package and service
   assert.match(kernelCenterSource, /settings\.kernelCenter\.fields\.serviceManager/);
   assert.match(kernelCenterSource, /settings\.kernelCenter\.capabilityRollup\.ready/);
   assert.match(kernelCenterSource, /settings\.kernelCenter\.bundles\.supervisor/);
+  assert.match(hostRuntimeSettingsSource, /settings\.kernelCenter\.hostRuntime\.cards\.hostMode/);
+  assert.match(hostRuntimeSettingsSource, /settings\.kernelCenter\.hostRuntime\.cards\.runtimeDataDir/);
   assert.doesNotMatch(kernelCenterSource, /The built-in OpenClaw kernel is treated as mandatory product/);
   assert.doesNotMatch(kernelCenterSource, /Failed to load kernel status\./);
   assert.deepEqual(missingKeys, []);

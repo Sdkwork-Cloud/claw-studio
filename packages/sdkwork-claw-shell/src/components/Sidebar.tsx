@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+  Activity,
   Blocks,
   BrainCircuit,
   BriefcaseBusiness,
@@ -167,6 +168,7 @@ export function Sidebar() {
         { id: 'channels', to: '/channels', icon: Hash, label: t('sidebar.channels') },
         { id: 'tasks', to: '/tasks', icon: CalendarClock, label: t('sidebar.cronTasks') },
         { id: 'dashboard', to: '/dashboard', icon: LayoutDashboard, label: t('sidebar.dashboard') },
+        { id: 'usage', to: '/usage', icon: Activity, label: t('sidebar.usage') },
       ],
     },
     {

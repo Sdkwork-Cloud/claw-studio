@@ -141,7 +141,12 @@
       "maxTokens": "Max Tokens",
       "timeoutMs": "Timeout (ms)",
       "streaming": "Streaming",
-      "streamingHint": "Enable streaming responses for the projected route runtime."
+      "streamingHint": "Enable streaming responses for the projected route runtime.",
+      "requestOverridesTitle": "Request Overrides",
+      "requestOverridesDescription": "Author raw JSON5 request metadata for headers, auth, proxy, and TLS handling that must survive the local proxy projection pipeline.",
+      "requestOverrides": "Overrides Draft",
+      "requestOverridesPlaceholder": "{\n  headers: {\n    \"cf-aig-authorization\": \"Bearer ${CF_AIG_TOKEN}\",\n  },\n}",
+      "requestOverridesHint": "Use JSON5. Supported top-level keys are `headers`, `auth`, `proxy`, and `tls`."
     },
     "apply": {
       "title": "Quick Apply Route Config",

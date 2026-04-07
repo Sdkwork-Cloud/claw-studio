@@ -39,6 +39,7 @@ await runTest(
       {
         role: 'assistant',
         text: 'Visible answer',
+        phase: null,
         reasoning: 'Plan A',
         toolCards: [],
       },
@@ -70,6 +71,7 @@ await runTest(
       {
         role: 'tool',
         text: '',
+        phase: null,
         reasoning: null,
         toolCards: [
           {
@@ -116,8 +118,34 @@ await runTest(
       {
         role: 'user',
         text: 'Hello from the external channel',
+        phase: null,
         reasoning: null,
         senderLabel: 'Iris',
+        toolCards: [],
+      },
+    );
+  },
+);
+
+await runTest(
+  'resolveOpenClawMessagePresentation suppresses assistant commentary text while preserving phase metadata',
+  () => {
+    assert.deepEqual(
+      resolveOpenClawMessagePresentation({
+        role: 'assistant',
+        phase: 'commentary',
+        content: [
+          {
+            type: 'text',
+            text: 'Planning the next steps before the final answer.',
+          },
+        ],
+      }),
+      {
+        role: 'assistant',
+        text: '',
+        phase: 'commentary',
+        reasoning: null,
         toolCards: [],
       },
     );

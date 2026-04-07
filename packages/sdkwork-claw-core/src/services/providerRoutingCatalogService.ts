@@ -15,6 +15,7 @@ import {
   normalizeLocalAiProxyRouteRecords,
 } from './localAiProxyRouteService.ts';
 import { normalizeLegacyProviderId } from './legacyProviderCompat.ts';
+import { normalizeOpenClawProviderRuntimeConfig } from './openClawProviderRuntimeConfigService.ts';
 
 export const PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE = 'studio.provider-center';
 const DEFAULT_SQLITE_PROFILE_ID = 'default-sqlite';
@@ -99,6 +100,14 @@ const providerChannelCatalog: ProviderRoutingChannelDefinition[] = [
     modelFamily: 'Claude 3.7 / 4',
   },
   {
+    id: 'cloudflare-ai-gateway',
+    name: 'Cloudflare AI Gateway',
+    vendor: 'Cloudflare',
+    description:
+      'Anthropic-compatible Cloudflare AI Gateway routing with optional gateway-auth headers, caching, and provider analytics in front of Claude traffic.',
+    modelFamily: 'Claude / Anthropic Gateway',
+  },
+  {
     id: 'google',
     name: 'Google',
     vendor: 'Google DeepMind',
@@ -113,6 +122,22 @@ const providerChannelCatalog: ProviderRoutingChannelDefinition[] = [
     description:
       'Grok-oriented proxies for fast conversational and reasoning-heavy traffic.',
     modelFamily: 'Grok 2 / 3',
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    vendor: 'Groq',
+    description:
+      'OpenAI-compatible Groq LPU inference for low-latency open-source model traffic and fast agent loops.',
+    modelFamily: 'Llama / Gemma / Whisper',
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    vendor: 'Ollama',
+    description:
+      'Native Ollama local-runtime routing for on-device and self-hosted open-source model traffic without forcing the OpenAI compatibility layer.',
+    modelFamily: 'GLM / GPT-OSS / Llama / Gemma',
   },
   {
     id: 'meta',
@@ -145,6 +170,14 @@ const providerChannelCatalog: ProviderRoutingChannelDefinition[] = [
     description:
       'Bedrock-native Nova routes for enterprise scaling, governance, and multimodal orchestration.',
     modelFamily: 'Nova Pro / Nova Micro',
+  },
+  {
+    id: 'amazon-bedrock-mantle',
+    name: 'Amazon Bedrock Mantle',
+    vendor: 'Amazon Web Services',
+    description:
+      'Mantle OpenAI-compatible Bedrock routing with automatic model discovery and bearer-token or IAM-backed auth.',
+    modelFamily: 'GPT-OSS / Qwen / Kimi / GLM',
   },
   {
     id: 'microsoft',
@@ -193,6 +226,70 @@ const providerChannelCatalog: ProviderRoutingChannelDefinition[] = [
     description:
       'Multi-vendor gateway routing across OpenAI, Anthropic, Google, and partner model lanes.',
     modelFamily: 'Multi-vendor frontier mix',
+  },
+  {
+    id: 'vercel-ai-gateway',
+    name: 'Vercel AI Gateway',
+    vendor: 'Vercel',
+    description:
+      'Anthropic-compatible Vercel AI Gateway routing with shared access to Anthropic, OpenAI, xAI, and other provider lanes.',
+    modelFamily: 'Anthropic / OpenAI / xAI',
+  },
+  {
+    id: 'litellm',
+    name: 'LiteLLM',
+    vendor: 'LiteLLM',
+    description:
+      'Self-hosted or managed model gateway routing that normalizes many upstream providers behind one OpenAI-compatible endpoint.',
+    modelFamily: 'Claude / GPT / Gemini / Multi-provider',
+  },
+  {
+    id: 'together',
+    name: 'Together',
+    vendor: 'Together AI',
+    description:
+      'Together AI hosted inference lanes for open-weight and partner frontier models through an OpenAI-compatible API.',
+    modelFamily: 'Kimi / GLM / Llama',
+  },
+  {
+    id: 'fireworks',
+    name: 'Fireworks',
+    vendor: 'Fireworks AI',
+    description:
+      'Fireworks open-weight and routed-model lanes exposed through an OpenAI-compatible inference endpoint.',
+    modelFamily: 'Kimi / Qwen / Gemma',
+  },
+  {
+    id: 'kilocode',
+    name: 'Kilo Code',
+    vendor: 'Kilo Code',
+    description:
+      'Kilo Gateway routing with automatic model selection and OpenAI-compatible agent access.',
+    modelFamily: 'Auto / Claude / GPT / Gemini',
+  },
+  {
+    id: 'venice',
+    name: 'Venice',
+    vendor: 'Venice AI',
+    description:
+      'Privacy-focused Venice AI inference through an OpenAI-compatible endpoint for chat and reasoning workloads.',
+    modelFamily: 'Kimi / Claude / Qwen',
+  },
+  {
+    id: 'vllm',
+    name: 'vLLM',
+    vendor: 'vLLM',
+    description:
+      'Self-hosted OpenAI-compatible serving for local or private-cluster large language model deployments.',
+    modelFamily: 'Self-hosted OSS models',
+  },
+  {
+    id: 'sglang',
+    name: 'SGLang',
+    vendor: 'SGLang',
+    description:
+      'Self-hosted OpenAI-compatible serving for local or cluster GPU deployments backed by the SGLang runtime.',
+    modelFamily: 'Self-hosted OSS models',
   },
   {
     id: 'zhipu',
@@ -296,35 +393,10 @@ export function listKnownProviderRoutingChannels(): ProviderRoutingChannelDefini
   return providerChannelCatalog.map((channel) => ({ ...channel }));
 }
 
-function createDefaultRuntimeConfig(): ProviderRoutingRuntimeConfig {
-  return {
-    temperature: 0.2,
-    topP: 1,
-    maxTokens: 8192,
-    timeoutMs: 60000,
-    streaming: true,
-  };
-}
-
-function normalizeFiniteNumber(value: unknown, fallback: number) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
 function normalizeRuntimeConfig(
   input?: Partial<ProviderRoutingRuntimeConfig> | null,
 ): ProviderRoutingRuntimeConfig {
-  const defaults = createDefaultRuntimeConfig();
-
-  return {
-    temperature: normalizeFiniteNumber(input?.temperature, defaults.temperature),
-    topP: normalizeFiniteNumber(input?.topP, defaults.topP),
-    maxTokens: Math.max(1, Math.round(normalizeFiniteNumber(input?.maxTokens, defaults.maxTokens))),
-    timeoutMs: Math.max(
-      1000,
-      Math.round(normalizeFiniteNumber(input?.timeoutMs, defaults.timeoutMs)),
-    ),
-    streaming: typeof input?.streaming === 'boolean' ? input.streaming : defaults.streaming,
-  };
+  return normalizeOpenClawProviderRuntimeConfig(input);
 }
 
 function slugify(value: string) {

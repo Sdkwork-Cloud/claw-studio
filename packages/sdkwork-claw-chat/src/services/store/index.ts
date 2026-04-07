@@ -7,6 +7,7 @@ export {
   type OpenClawGatewayGapEvent,
 } from '../openclaw/openClawGatewayClient.ts';
 export type {
+  OpenClawGatewayAgentEvent,
   OpenClawGatewayChatEvent,
   OpenClawGatewayChatHistoryResult,
   OpenClawGatewayHelloOk,

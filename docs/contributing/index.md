@@ -66,6 +66,7 @@ pnpm check:desktop
 If your change touches native server behavior, Docker or Kubernetes deployment bundles, or release metadata, also run:
 
 ```bash
+pnpm check:multi-mode
 pnpm check:server
 ```
 

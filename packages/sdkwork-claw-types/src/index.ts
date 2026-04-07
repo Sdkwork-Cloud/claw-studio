@@ -104,6 +104,7 @@ export type LocalAiProxyClientProtocol =
 
 export type LocalAiProxyUpstreamProtocol =
   | LocalAiProxyClientProtocol
+  | 'ollama'
   | 'azure-openai'
   | 'openrouter'
   | 'sdkwork';
@@ -935,12 +936,50 @@ export interface StudioWorkbenchLLMProviderModelRecord {
   contextWindow: string;
 }
 
+export type StudioWorkbenchLLMProviderRequestAuthMode =
+  | 'provider-default'
+  | 'authorization-bearer'
+  | 'header';
+
+export interface StudioWorkbenchLLMProviderRequestAuthRecord {
+  mode: StudioWorkbenchLLMProviderRequestAuthMode;
+  token?: string;
+  headerName?: string;
+  value?: string;
+  prefix?: string;
+}
+
+export interface StudioWorkbenchLLMProviderRequestTlsRecord {
+  ca?: string;
+  cert?: string;
+  key?: string;
+  passphrase?: string;
+  serverName?: string;
+  insecureSkipVerify?: boolean;
+}
+
+export type StudioWorkbenchLLMProviderRequestProxyMode = 'env-proxy' | 'explicit-proxy';
+
+export interface StudioWorkbenchLLMProviderRequestProxyRecord {
+  mode: StudioWorkbenchLLMProviderRequestProxyMode;
+  url?: string;
+  tls?: StudioWorkbenchLLMProviderRequestTlsRecord;
+}
+
+export interface StudioWorkbenchLLMProviderRequestOverridesRecord {
+  headers?: Record<string, string>;
+  auth?: StudioWorkbenchLLMProviderRequestAuthRecord;
+  proxy?: StudioWorkbenchLLMProviderRequestProxyRecord;
+  tls?: StudioWorkbenchLLMProviderRequestTlsRecord;
+}
+
 export interface StudioWorkbenchLLMProviderConfigRecord {
   temperature: number;
   topP: number;
   maxTokens: number;
   timeoutMs: number;
   streaming: boolean;
+  request?: StudioWorkbenchLLMProviderRequestOverridesRecord;
 }
 
 export interface StudioWorkbenchLLMProviderRecord {
@@ -1008,8 +1047,9 @@ export interface StudioWorkbenchFileRecord {
 export interface StudioWorkbenchMemoryEntryRecord {
   id: string;
   title: string;
-  type: 'runbook' | 'conversation' | 'fact' | 'artifact';
+  type: 'runbook' | 'conversation' | 'fact' | 'artifact' | 'dream';
   summary: string;
+  content?: string;
   source: 'operator' | 'agent' | 'system' | 'task';
   updatedAt: string;
   retention: 'pinned' | 'rolling' | 'expiring';

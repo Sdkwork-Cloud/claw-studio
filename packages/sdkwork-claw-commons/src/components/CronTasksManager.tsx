@@ -31,9 +31,11 @@ import {
   getActionTypeFromExecutionContent,
   isTaskThinkingLevel,
   openClawAgentCatalogService,
+  taskRuntimeService,
   type OpenClawAgentCatalog,
   serializeTaskSchedule,
   supportsTaskToolAllowlistConfig,
+  type TaskRuntimeOverview,
   taskService,
   taskThinkingLevels,
   type Task,
@@ -73,11 +75,49 @@ import {
 } from '@sdkwork/claw-ui';
 import { toast } from 'sonner';
 import { loadTaskStudioSnapshot } from './cronTasksManagerData.ts';
+import {
+  formatTaskFlowLinkedTaskCleanupAfter,
+  formatTaskFlowLinkedTaskResult,
+  formatTaskFlowDetailPayload,
+  getTaskFlowLinkedTaskParentTaskId,
+  getTaskFlowLinkedTaskRequesterSession,
+  getTaskFlowLinkedTaskSourceId,
+  formatTaskFlowRequesterOrigin,
+  formatTaskFlowTaskSummary,
+  formatTaskFlowActivity,
+  getTaskFlowLinkedTaskSummary,
+  getTaskFlowBlockedSummary,
+  getTaskFlowCardSummary,
+  isActiveRuntimeStatus,
+} from './taskRuntimeFlowMeta.ts';
 
 type TaskRouteIntent =
   | { mode: 'create' }
   | { mode: 'edit'; taskId: string }
   | null;
+
+type RuntimeTaskBoardRecord = TaskRuntimeOverview['taskBoard']['items'][number];
+type RuntimeTaskFlowRecord = TaskRuntimeOverview['taskFlows']['items'][number];
+type RuntimeTaskDetailRecord = NonNullable<Awaited<ReturnType<typeof taskRuntimeService.getRuntimeTaskDetail>>>;
+type TaskFlowDetailRecord = NonNullable<Awaited<ReturnType<typeof taskRuntimeService.getTaskFlowDetail>>>;
+
+interface RuntimeTaskDetailState {
+  isOpen: boolean;
+  isLoading: boolean;
+  lookup: string | null;
+  title: string | null;
+  detail: RuntimeTaskDetailRecord | null;
+  error: string | null;
+}
+
+interface TaskFlowDetailState {
+  isOpen: boolean;
+  isLoading: boolean;
+  lookup: string | null;
+  title: string | null;
+  detail: TaskFlowDetailRecord | null;
+  error: string | null;
+}
 
 const fieldSectionMap: Record<TaskFormErrorKey, TaskCreateSectionId> = {
   name: 'basicInfo',
@@ -98,6 +138,73 @@ function addPendingId(ids: string[], id: string) {
 
 function removePendingId(ids: string[], id: string) {
   return ids.filter((item) => item !== id);
+}
+
+function createEmptyTaskRuntimeOverview(): TaskRuntimeOverview {
+  return {
+    openClawRuntime: false,
+    taskBoard: {
+      supported: false,
+      message: null,
+      items: [],
+    },
+    taskFlows: {
+      supported: false,
+      message: null,
+      items: [],
+    },
+  };
+}
+
+function createEmptyTaskFlowDetailState(): TaskFlowDetailState {
+  return {
+    isOpen: false,
+    isLoading: false,
+    lookup: null,
+    title: null,
+    detail: null,
+    error: null,
+  };
+}
+
+function createEmptyRuntimeTaskDetailState(): RuntimeTaskDetailState {
+  return {
+    isOpen: false,
+    isLoading: false,
+    lookup: null,
+    title: null,
+    detail: null,
+    error: null,
+  };
+}
+
+function formatRuntimeLabel(value?: string | null) {
+  if (!value?.trim()) {
+    return '-';
+  }
+
+  return value
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function getRuntimeStatusBadgeClass(status?: string | null) {
+  switch ((status || '').trim().toLowerCase()) {
+    case 'running':
+    case 'active':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200';
+    case 'queued':
+    case 'pending':
+    case 'blocked':
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200';
+    case 'failed':
+    case 'error':
+    case 'cancelled':
+      return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200';
+    default:
+      return 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-200';
+  }
 }
 
 function readTaskRouteIntent(): TaskRouteIntent {
@@ -255,6 +362,9 @@ export function CronTasksManager({
   const { t } = useTranslation();
   const activeInstanceId = instanceId;
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskRuntimeOverview, setTaskRuntimeOverview] = useState<TaskRuntimeOverview>(
+    createEmptyTaskRuntimeOverview(),
+  );
   const [executionsByTaskId, setExecutionsByTaskId] = useState<Record<string, TaskExecutionHistoryEntry[]>>({});
   const [deliveryChannels, setDeliveryChannels] = useState<TaskDeliveryChannelOption[]>([]);
   const [agentCatalog, setAgentCatalog] = useState<OpenClawAgentCatalog>({
@@ -267,6 +377,12 @@ export function CronTasksManager({
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [historyTaskId, setHistoryTaskId] = useState<string | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [runtimeTaskDetailState, setRuntimeTaskDetailState] = useState<RuntimeTaskDetailState>(
+    createEmptyRuntimeTaskDetailState(),
+  );
+  const [taskFlowDetailState, setTaskFlowDetailState] = useState<TaskFlowDetailState>(
+    createEmptyTaskFlowDetailState(),
+  );
   const [isEditorResourcesLoading, setIsEditorResourcesLoading] = useState(false);
   const [isSavingEditor, setIsSavingEditor] = useState(false);
   const [cloningTaskIds, setCloningTaskIds] = useState<string[]>([]);
@@ -286,6 +402,8 @@ export function CronTasksManager({
   const schedulePreview = buildSchedulePreview(taskForm);
   const historyTask = historyTaskId ? tasks.find((task) => task.id === historyTaskId) || null : null;
   const historyEntries = historyTaskId ? executionsByTaskId[historyTaskId] || [] : [];
+  const runtimeTaskDetail = runtimeTaskDetailState.detail;
+  const taskFlowDetail = taskFlowDetailState.detail;
   const readyToSave = Boolean(activeInstanceId) && workspaceState.readiness.ready;
   const channelNameMap = Object.fromEntries(
     deliveryChannels.map((channel) => [channel.id, channel.name]),
@@ -324,6 +442,8 @@ export function CronTasksManager({
     setEditorMode(null);
     setEditingTaskId(null);
     setHistoryTaskId(null);
+    setRuntimeTaskDetailState(createEmptyRuntimeTaskDetailState());
+    setTaskFlowDetailState(createEmptyTaskFlowDetailState());
     setTaskForm(createDefaultTaskFormValues());
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
@@ -331,6 +451,7 @@ export function CronTasksManager({
     setIsEditorResourcesLoading(false);
     setEditorResourcesInstanceId(null);
     editorResourcesRequestRef.current = null;
+    setTaskRuntimeOverview(createEmptyTaskRuntimeOverview());
     setAgentCatalog({
       agents: [],
       defaultAgentId: null,
@@ -345,6 +466,7 @@ export function CronTasksManager({
   ) {
     if (!activeInstanceId) {
       setTasks([]);
+      setTaskRuntimeOverview(createEmptyTaskRuntimeOverview());
       setExecutionsByTaskId({});
       setDeliveryChannels([]);
       setAgentCatalog({
@@ -368,6 +490,7 @@ export function CronTasksManager({
         includeEditorResources: options.includeEditorResources,
         historyTaskIds: historyTaskId ? [historyTaskId] : [],
         getTasks: (instanceId) => taskService.getTasks(instanceId),
+        getTaskRuntimeOverview: (instanceId) => taskRuntimeService.getOverview(instanceId),
         listDeliveryChannels: (instanceId) =>
           taskService.listDeliveryChannels(instanceId).catch(() => {
             toast.error(t('tasks.page.toasts.failedToLoadChannels'));
@@ -390,6 +513,7 @@ export function CronTasksManager({
 
       startTransition(() => {
         setTasks(snapshot.tasks);
+        setTaskRuntimeOverview(snapshot.taskRuntimeOverview);
         if (options.includeEditorResources) {
           setDeliveryChannels(snapshot.deliveryChannels);
           setAgentCatalog(snapshot.agentCatalog);
@@ -592,6 +716,116 @@ export function CronTasksManager({
     setTaskForm(createDefaultTaskFormValues());
     setAttemptedSave(false);
     setActiveCreateSection('basicInfo');
+  }
+
+  function closeTaskFlowDetail() {
+    setTaskFlowDetailState(createEmptyTaskFlowDetailState());
+  }
+
+  function closeRuntimeTaskDetail() {
+    setRuntimeTaskDetailState(createEmptyRuntimeTaskDetailState());
+  }
+
+  async function openRuntimeTaskDetail(task: RuntimeTaskBoardRecord) {
+    if (!activeInstanceId) {
+      return;
+    }
+
+    const instanceId = activeInstanceId;
+    const lookup = task.id;
+    const title = task.id;
+    setTaskFlowDetailState(createEmptyTaskFlowDetailState());
+    setRuntimeTaskDetailState({
+      isOpen: true,
+      isLoading: true,
+      lookup,
+      title,
+      detail: null,
+      error: null,
+    });
+
+    try {
+      const detail = await taskRuntimeService.getRuntimeTaskDetail(instanceId, lookup);
+      if (activeInstanceIdRef.current !== instanceId) {
+        return;
+      }
+
+      setRuntimeTaskDetailState({
+        isOpen: true,
+        isLoading: false,
+        lookup,
+        title: detail?.title || detail?.label || detail?.id || title,
+        detail,
+        error: detail ? null : t('tasks.page.runtime.taskBoard.detail.unavailable'),
+      });
+    } catch (error) {
+      if (activeInstanceIdRef.current !== instanceId) {
+        return;
+      }
+
+      setRuntimeTaskDetailState({
+        isOpen: true,
+        isLoading: false,
+        lookup,
+        title,
+        detail: null,
+        error:
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : t('tasks.page.runtime.taskBoard.detail.loadFailed'),
+      });
+    }
+  }
+
+  async function openTaskFlowDetail(flow: RuntimeTaskFlowRecord) {
+    if (!activeInstanceId) {
+      return;
+    }
+
+    const instanceId = activeInstanceId;
+    const lookup = flow.lookupKey || flow.id;
+    const title = flow.lookupKey || flow.id;
+    setRuntimeTaskDetailState(createEmptyRuntimeTaskDetailState());
+    setTaskFlowDetailState({
+      isOpen: true,
+      isLoading: true,
+      lookup,
+      title,
+      detail: null,
+      error: null,
+    });
+
+    try {
+      const detail = await taskRuntimeService.getTaskFlowDetail(instanceId, lookup);
+      if (activeInstanceIdRef.current !== instanceId) {
+        return;
+      }
+
+      setTaskFlowDetailState({
+        isOpen: true,
+        isLoading: false,
+        lookup,
+        title: detail?.lookupKey || detail?.id || title,
+        detail,
+        error: detail ? null : t('tasks.page.runtime.detail.unavailable'),
+      });
+    } catch (error) {
+      if (activeInstanceIdRef.current !== instanceId) {
+        return;
+      }
+
+      setTaskFlowDetailState({
+        isOpen: true,
+        isLoading: false,
+        lookup,
+        title,
+        detail: null,
+        error:
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : t('tasks.page.runtime.detail.loadFailed'),
+      });
+    }
   }
 
   async function openHistoryDrawer(task: Task) {
@@ -1452,6 +1686,487 @@ export function CronTasksManager({
     );
   }
 
+  function renderTaskRuntimeSection() {
+    if (!activeInstanceId || !taskRuntimeOverview.openClawRuntime) {
+      return null;
+    }
+
+    const runtimeTasks = taskRuntimeOverview.taskBoard.items.slice(0, 6);
+    const taskFlows = taskRuntimeOverview.taskFlows.items.slice(0, 6);
+    const activeRuntimeTasks = taskRuntimeOverview.taskBoard.items.filter((item) =>
+      isActiveRuntimeStatus(item.status),
+    ).length;
+    const activeTaskFlows = taskRuntimeOverview.taskFlows.items.filter((item) =>
+      isActiveRuntimeStatus(item.state),
+    ).length;
+
+    return (
+      <section className="rounded-[32px] border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {t('tasks.page.runtime.eyebrow')}
+            </div>
+            <h2 className="mt-2 text-2xl font-bold text-zinc-950 dark:text-zinc-50">
+              {t('tasks.page.runtime.title')}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('tasks.page.runtime.description')}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('tasks.page.runtime.cards.runtimeTasks')}
+              </div>
+              <div className="mt-2 text-3xl font-black tracking-tight text-zinc-950 dark:text-zinc-50">
+                {taskRuntimeOverview.taskBoard.items.length}
+              </div>
+              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {t('tasks.page.runtime.cards.activeCount', { count: activeRuntimeTasks })}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                {t('tasks.page.runtime.cards.taskFlows')}
+              </div>
+              <div className="mt-2 text-3xl font-black tracking-tight text-zinc-950 dark:text-zinc-50">
+                {taskRuntimeOverview.taskFlows.items.length}
+              </div>
+              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {t('tasks.page.runtime.cards.activeCount', { count: activeTaskFlows })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+                  {t('tasks.page.runtime.taskBoard.title')}
+                </h3>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('tasks.page.runtime.taskBoard.description')}
+                </p>
+              </div>
+            </div>
+
+            {!taskRuntimeOverview.taskBoard.supported ? (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                <div className="font-semibold">{t('tasks.page.runtime.taskBoard.unsupportedTitle')}</div>
+                <div className="mt-1 leading-6">
+                  {taskRuntimeOverview.taskBoard.message || t('tasks.page.runtime.taskBoard.unsupportedBody')}
+                </div>
+              </div>
+            ) : runtimeTasks.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 px-4 py-8 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                {t('tasks.page.runtime.taskBoard.empty')}
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {runtimeTasks.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-zinc-200/80 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/90">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{item.id}</span>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+                          getRuntimeStatusBadgeClass(item.status),
+                        )}
+                      >
+                        {formatRuntimeLabel(item.status)}
+                      </span>
+                      {item.kind ? (
+                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                          {formatRuntimeLabel(item.kind)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                      {item.summary || t('tasks.page.runtime.taskBoard.summaryFallback')}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button variant="ghost" onClick={() => void openRuntimeTaskDetail(item)}>
+                        <History className="h-4 w-4" />
+                        {t('tasks.page.history.details')}
+                      </Button>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-zinc-500 dark:text-zinc-400 sm:grid-cols-2">
+                      <div>{t('tasks.page.runtime.fields.runId')}: {item.runId || '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.deliveryStatus')}: {item.deliveryStatus ? formatRuntimeLabel(item.deliveryStatus) : '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.childSession')}: {item.childSessionKey || '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.flow')}: {item.flowLookupKey || item.flowId || '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.lastEventAt')}: {item.updatedAt || '-'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+                  {t('tasks.page.runtime.taskFlows.title')}
+                </h3>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('tasks.page.runtime.taskFlows.description')}
+                </p>
+              </div>
+            </div>
+
+            {!taskRuntimeOverview.taskFlows.supported ? (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                <div className="font-semibold">{t('tasks.page.runtime.taskFlows.unsupportedTitle')}</div>
+                <div className="mt-1 leading-6">
+                  {taskRuntimeOverview.taskFlows.message || t('tasks.page.runtime.taskFlows.unsupportedBody')}
+                </div>
+              </div>
+            ) : taskFlows.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 px-4 py-8 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                {t('tasks.page.runtime.taskFlows.empty')}
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {taskFlows.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-zinc-200/80 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/90">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{item.lookupKey || item.id}</span>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+                          getRuntimeStatusBadgeClass(item.state),
+                        )}
+                      >
+                        {formatRuntimeLabel(item.state)}
+                      </span>
+                      {item.syncMode ? (
+                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                          {formatRuntimeLabel(item.syncMode)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                      {getTaskFlowCardSummary(item, t('tasks.page.runtime.taskFlows.summaryFallback'))}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button variant="ghost" onClick={() => void openTaskFlowDetail(item)}>
+                        <History className="h-4 w-4" />
+                        {t('tasks.page.history.details')}
+                      </Button>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-zinc-500 dark:text-zinc-400 sm:grid-cols-2">
+                      <div>{t('tasks.page.runtime.fields.currentStep')}: {item.currentStep || '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.notifyPolicy')}: {item.notifyPolicy ? formatRuntimeLabel(item.notifyPolicy) : '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.owner')}: {item.ownerKey || '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.requesterOrigin')}: {formatTaskFlowRequesterOrigin(item.requesterOrigin)}</div>
+                      <div>{t('tasks.page.runtime.fields.cancelRequestedAt')}: {item.cancelRequestedAt || '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.revision')}: {item.revision ?? '-'}</div>
+                      <div>{t('tasks.page.runtime.fields.activity')}: {formatTaskFlowActivity(item)}</div>
+                      <div>{t('tasks.page.runtime.fields.flowId')}: {item.id}</div>
+                      <div>{t('tasks.page.runtime.fields.updatedAt')}: {item.updatedAt || '-'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renderRuntimeTaskDetailOverlay() {
+    const runtimeTaskSummary = getTaskFlowLinkedTaskSummary(runtimeTaskDetail);
+    const runtimeTaskTitle = runtimeTaskDetail?.title?.trim() || null;
+    const runtimeTaskResult = formatTaskFlowLinkedTaskResult(runtimeTaskDetail);
+    const runtimeTaskSourceId = getTaskFlowLinkedTaskSourceId(runtimeTaskDetail);
+    const runtimeTaskParentTaskId = getTaskFlowLinkedTaskParentTaskId(runtimeTaskDetail);
+    const runtimeTaskRequesterSession = getTaskFlowLinkedTaskRequesterSession(runtimeTaskDetail);
+    const runtimeTaskCleanupAfter = formatTaskFlowLinkedTaskCleanupAfter(runtimeTaskDetail);
+    const showRuntimeTaskTitle = runtimeTaskTitle && runtimeTaskSummary !== runtimeTaskTitle;
+
+    return (
+      <OverlaySurface
+        isOpen={runtimeTaskDetailState.isOpen}
+        onClose={closeRuntimeTaskDetail}
+        className="max-w-3xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-200/80 px-6 py-5 dark:border-zinc-800">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {t('tasks.page.history.details')}
+            </div>
+            <h2 className="mt-2 text-xl font-bold text-zinc-950 dark:text-zinc-50">
+              {runtimeTaskDetailState.title || '-'}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('tasks.page.runtime.taskBoard.detail.description')}
+            </p>
+          </div>
+          <Button variant="ghost" onClick={closeRuntimeTaskDetail}>
+            <X className="h-4 w-4" />
+            {t('common.close')}
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {runtimeTaskDetailState.isLoading ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-4 py-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t('common.loading')}
+            </div>
+          ) : runtimeTaskDetailState.error ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+              {runtimeTaskDetailState.error}
+            </div>
+          ) : runtimeTaskDetail ? (
+            <div className="space-y-5">
+              <div className="rounded-[28px] border border-zinc-200/80 bg-white/90 p-5 dark:border-zinc-800 dark:bg-zinc-900/90">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                    {runtimeTaskDetail.id}
+                  </span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+                      getRuntimeStatusBadgeClass(runtimeTaskDetail.status),
+                    )}
+                  >
+                    {formatRuntimeLabel(runtimeTaskDetail.status)}
+                  </span>
+                  {runtimeTaskDetail.runtime ? (
+                    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                      {formatRuntimeLabel(runtimeTaskDetail.runtime)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  {runtimeTaskSummary}
+                </div>
+                {showRuntimeTaskTitle ? (
+                  <div className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                    {runtimeTaskTitle}
+                  </div>
+                ) : null}
+                <div className="mt-4 grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 md:grid-cols-2">
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.runId')}:</span> {runtimeTaskDetail.runId || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.sourceId')}:</span> {runtimeTaskSourceId}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.owner')}:</span> {runtimeTaskDetail.ownerKey || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.childSession')}:</span> {runtimeTaskDetail.childSessionKey || '-'}</div>
+                  {runtimeTaskRequesterSession ? (
+                    <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.session')}:</span> {runtimeTaskRequesterSession}</div>
+                  ) : null}
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.parentTask')}:</span> {runtimeTaskParentTaskId}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.agent')}:</span> {runtimeTaskDetail.agentId || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.flowId')}:</span> {runtimeTaskDetail.flowId || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.deliveryStatus')}:</span> {runtimeTaskDetail.deliveryStatus ? formatRuntimeLabel(runtimeTaskDetail.deliveryStatus) : '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.notifyPolicy')}:</span> {runtimeTaskDetail.notifyPolicy ? formatRuntimeLabel(runtimeTaskDetail.notifyPolicy) : '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.result')}:</span> {runtimeTaskResult === '-' ? '-' : formatRuntimeLabel(runtimeTaskResult)}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.createdAt')}:</span> {runtimeTaskDetail.createdAt || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.startedAt')}:</span> {runtimeTaskDetail.startedAt || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.finishedAt')}:</span> {runtimeTaskDetail.finishedAt || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.cleanupAfter')}:</span> {runtimeTaskCleanupAfter}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.lastEventAt')}:</span> {runtimeTaskDetail.updatedAt || runtimeTaskDetail.startedAt || runtimeTaskDetail.createdAt || '-'}</div>
+                  {runtimeTaskDetail.error ? (
+                    <div className="md:col-span-2"><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.error')}:</span> {runtimeTaskDetail.error}</div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-zinc-300 px-4 py-6 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+              {t('tasks.page.runtime.taskBoard.detail.unavailable')}
+            </div>
+          )}
+        </div>
+      </OverlaySurface>
+    );
+  }
+
+  function renderTaskFlowDetailOverlay() {
+    function renderPayloadCard(label: string, value: unknown) {
+      if (typeof value === 'undefined') {
+        return null;
+      }
+
+      return (
+        <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
+          <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{label}</div>
+          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            {t('tasks.page.runtime.detail.payloadSummary')}: {formatTaskFlowDetailPayload(value)}
+          </div>
+          <pre className="mt-3 overflow-x-auto rounded-2xl bg-zinc-950 px-4 py-3 text-xs leading-6 text-zinc-100">
+            {JSON.stringify(value, null, 2)}
+          </pre>
+        </div>
+      );
+    }
+
+    return (
+      <OverlaySurface
+        isOpen={taskFlowDetailState.isOpen}
+        onClose={closeTaskFlowDetail}
+        className="max-w-3xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-200/80 px-6 py-5 dark:border-zinc-800">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {t('tasks.page.history.details')}
+            </div>
+            <h2 className="mt-2 text-xl font-bold text-zinc-950 dark:text-zinc-50">
+              {taskFlowDetailState.title || '-'}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {t('tasks.page.runtime.detail.description')}
+            </p>
+          </div>
+          <Button variant="ghost" onClick={closeTaskFlowDetail}>
+            <X className="h-4 w-4" />
+            {t('common.close')}
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {taskFlowDetailState.isLoading ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-4 py-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t('common.loading')}
+            </div>
+          ) : taskFlowDetailState.error ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+              {taskFlowDetailState.error}
+            </div>
+          ) : taskFlowDetail ? (
+            <div className="space-y-5">
+              <div className="rounded-[28px] border border-zinc-200/80 bg-white/90 p-5 dark:border-zinc-800 dark:bg-zinc-900/90">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                    {taskFlowDetail.lookupKey || taskFlowDetail.id}
+                  </span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+                      getRuntimeStatusBadgeClass(taskFlowDetail.state),
+                    )}
+                  >
+                    {formatRuntimeLabel(taskFlowDetail.state)}
+                  </span>
+                  {taskFlowDetail.syncMode ? (
+                    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                      {formatRuntimeLabel(taskFlowDetail.syncMode)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  {getTaskFlowCardSummary(
+                    taskFlowDetail,
+                    t('tasks.page.runtime.taskFlows.summaryFallback'),
+                  )}
+                </div>
+                <div className="mt-4 grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 md:grid-cols-2">
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.flow')}:</span> {taskFlowDetail.lookupKey || taskFlowDetail.id}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.flowId')}:</span> {taskFlowDetail.id}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.owner')}:</span> {taskFlowDetail.ownerKey || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.requesterOrigin')}:</span> {formatTaskFlowRequesterOrigin(taskFlowDetail.requesterOrigin)}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.notifyPolicy')}:</span> {taskFlowDetail.notifyPolicy ? formatRuntimeLabel(taskFlowDetail.notifyPolicy) : '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.currentStep')}:</span> {taskFlowDetail.currentStep || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.taskSummary')}:</span> {formatTaskFlowTaskSummary(taskFlowDetail.taskSummary)}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.blocked')}:</span> {getTaskFlowBlockedSummary(taskFlowDetail.blocked) || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.wait')}:</span> {formatTaskFlowDetailPayload(taskFlowDetail.waitPayload)}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.state')}:</span> {formatTaskFlowDetailPayload(taskFlowDetail.statePayload)}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.cancelRequestedAt')}:</span> {taskFlowDetail.cancelRequestedAt || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.startedAt')}:</span> {taskFlowDetail.startedAt || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.finishedAt')}:</span> {taskFlowDetail.finishedAt || '-'}</div>
+                  <div><span className="font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.fields.updatedAt')}:</span> {taskFlowDetail.updatedAt || '-'}</div>
+                </div>
+              </div>
+
+              {renderPayloadCard(t('tasks.page.runtime.detail.statePayload'), taskFlowDetail.statePayload)}
+              {renderPayloadCard(t('tasks.page.runtime.detail.waitPayload'), taskFlowDetail.waitPayload)}
+
+              <div className="rounded-[28px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
+                <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{t('tasks.page.runtime.detail.linkedTasksTitle')}</div>
+                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('tasks.page.runtime.detail.linkedTasksDescription')}
+                </div>
+                {taskFlowDetail.tasks.length === 0 ? (
+                  <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 px-4 py-6 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    {t('tasks.page.runtime.detail.linkedTasksEmpty')}
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {taskFlowDetail.tasks.map((task) => {
+                      const cleanupAfter = formatTaskFlowLinkedTaskCleanupAfter(task);
+                      const taskSummary = getTaskFlowLinkedTaskSummary(task);
+                      const taskTitle = task.title?.trim() || null;
+                      const taskResult = formatTaskFlowLinkedTaskResult(task);
+                      const sourceId = getTaskFlowLinkedTaskSourceId(task);
+                      const parentTaskId = getTaskFlowLinkedTaskParentTaskId(task);
+                      const requesterSession = getTaskFlowLinkedTaskRequesterSession(task);
+                      const showTitle = taskTitle && taskSummary !== taskTitle;
+
+                      return (
+                        <div key={task.id} className="rounded-2xl border border-zinc-200/80 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/90">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{task.id}</span>
+                            <span
+                              className={cn(
+                                'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+                                getRuntimeStatusBadgeClass(task.status),
+                              )}
+                            >
+                              {formatRuntimeLabel(task.status)}
+                            </span>
+                            {task.runtime ? (
+                              <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                                {formatRuntimeLabel(task.runtime)}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                            {taskSummary}
+                          </div>
+                          {showTitle ? (
+                            <div className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                              {taskTitle}
+                            </div>
+                          ) : null}
+                          <div className="mt-3 grid gap-2 text-xs text-zinc-500 dark:text-zinc-400 sm:grid-cols-2">
+                            <div>{t('tasks.page.runtime.fields.runId')}: {task.runId || '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.sourceId')}: {sourceId}</div>
+                            <div>{t('tasks.page.runtime.fields.parentTask')}: {parentTaskId}</div>
+                            <div>{t('tasks.page.runtime.fields.childSession')}: {task.childSessionKey || '-'}</div>
+                            {requesterSession ? <div>{t('tasks.page.runtime.detail.session')}: {requesterSession}</div> : null}
+                            <div>{t('tasks.page.runtime.detail.agent')}: {task.agentId || '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.createdAt')}: {task.createdAt || '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.startedAt')}: {task.startedAt || '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.finishedAt')}: {task.finishedAt || '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.lastEventAt')}: {task.updatedAt || task.startedAt || task.createdAt || '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.cleanupAfter')}: {cleanupAfter}</div>
+                            <div>{t('tasks.page.runtime.fields.deliveryStatus')}: {task.deliveryStatus ? formatRuntimeLabel(task.deliveryStatus) : '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.notifyPolicy')}: {task.notifyPolicy ? formatRuntimeLabel(task.notifyPolicy) : '-'}</div>
+                            <div>{t('tasks.page.runtime.fields.result')}: {taskResult === '-' ? '-' : formatRuntimeLabel(taskResult)}</div>
+                            {task.error ? <div className="sm:col-span-2">{t('tasks.page.runtime.detail.error')}: {task.error}</div> : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-zinc-300 px-4 py-6 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+              {t('tasks.page.runtime.detail.unavailable')}
+            </div>
+          )}
+        </div>
+      </OverlaySurface>
+    );
+  }
+
   function renderMainContent() {
     if (isLoading) {
       return (
@@ -1656,6 +2371,8 @@ export function CronTasksManager({
             </div>
           </div>
 
+          {renderTaskRuntimeSection()}
+
           {!activeInstanceId ? (
             <div className="rounded-[1.5rem] border border-zinc-200/70 bg-white/75 px-6 py-12 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950/35">
               <Clock className="mx-auto h-10 w-10 text-primary-500 dark:text-primary-300" />
@@ -1761,6 +2478,8 @@ export function CronTasksManager({
               </div>
             ))}
           </section>
+
+          {renderTaskRuntimeSection()}
 
           {!activeInstanceId ? (
             <section className="rounded-[32px] border border-zinc-200/80 bg-white p-14 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -1944,9 +2663,11 @@ export function CronTasksManager({
                 </div>
               </div>
             </div>
-          </div>
+      </div>
         </div>
       </OverlaySurface>
+      {renderRuntimeTaskDetailOverlay()}
+      {renderTaskFlowDetailOverlay()}
       <TaskExecutionHistoryDrawer
         isOpen={Boolean(historyTask)}
         onClose={() => setHistoryTaskId(null)}

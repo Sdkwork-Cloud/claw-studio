@@ -24,13 +24,25 @@ import type { RuntimeLanguagePreference } from '@sdkwork/claw-infrastructure';
 import { getDesktopWindow, isTauriRuntime } from '../runtime';
 import {
   getAppInfo,
+  getAppPaths,
   isDesktopHostedRuntimeReadinessError,
   probeDesktopHostedRuntimeReadiness,
   setAppLanguage,
+  writeTextFile,
+  type DesktopAppInfo,
+  type DesktopAppPaths,
+  type DesktopHostedRuntimeReadinessSnapshot,
 } from '../tauriBridge';
 import { DesktopProviders } from '../providers/DesktopProviders';
 import { DesktopStartupScreen } from './DesktopStartupScreen';
 import { DesktopTrayRouteBridge } from './DesktopTrayRouteBridge';
+import {
+  buildDesktopStartupEvidenceDocument,
+  DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
+  serializeDesktopStartupEvidence,
+  type DesktopStartupEvidencePhase,
+  type DesktopStartupEvidenceStatus,
+} from './desktopStartupEvidence';
 import {
   getStartupMinimumWaitMs,
   getStartupProgressModel,
@@ -56,6 +68,12 @@ interface DesktopBootstrapAppProps {
 }
 
 type StartupLogLevel = 'info' | 'warn' | 'error';
+
+interface DesktopStartupEvidenceContext {
+  appInfo: DesktopAppInfo | null;
+  appPaths: DesktopAppPaths | null;
+  readinessSnapshot: DesktopHostedRuntimeReadinessSnapshot | null;
+}
 
 function resolveErrorMessage(error: unknown, language: StartupAppearanceSnapshot['language']) {
   const fallback =
@@ -206,6 +224,8 @@ export function DesktopBootstrapApp({
   const bootRunIdRef = useRef(0);
   const splashHandoffRunIdRef = useRef(0);
   const stageLogSignatureRef = useRef('');
+  const startupEvidenceContextRef = useRef<DesktopStartupEvidenceContext | null>(null);
+  const startupEvidenceSignatureRef = useRef('');
 
   const stage = useMemo(
     () => resolveStartupBootstrapStage(milestones),
@@ -223,6 +243,70 @@ export function DesktopBootstrapApp({
   const logStartup = useEffectEvent(
     (level: StartupLogLevel, message: string, details?: unknown, runId = bootRunIdRef.current) => {
       writeStartupLog(level, runId, Math.max(0, Date.now() - startedAtRef.current), message, details);
+    },
+  );
+
+  const persistStartupEvidence = useEffectEvent(
+    async ({
+      status,
+      phase,
+      appInfo,
+      appPaths,
+      readinessSnapshot,
+      error,
+      runId = bootRunIdRef.current,
+    }: {
+      status: DesktopStartupEvidenceStatus;
+      phase: DesktopStartupEvidencePhase;
+      appInfo?: DesktopAppInfo | null;
+      appPaths?: DesktopAppPaths | null;
+      readinessSnapshot?: DesktopHostedRuntimeReadinessSnapshot | null;
+      error?: unknown;
+      runId?: number;
+    }) => {
+      if (!isTauriRuntime()) {
+        return;
+      }
+
+      const context = startupEvidenceContextRef.current;
+      const document = buildDesktopStartupEvidenceDocument({
+        status,
+        phase,
+        runId,
+        durationMs: Date.now() - startedAtRef.current,
+        appInfo: appInfo ?? context?.appInfo ?? null,
+        appPaths: appPaths ?? context?.appPaths ?? null,
+        readinessSnapshot: readinessSnapshot ?? context?.readinessSnapshot ?? null,
+        error,
+      });
+      const signature = `${document.runId}:${document.status}:${document.phase}`;
+
+      if (startupEvidenceSignatureRef.current === signature) {
+        return;
+      }
+
+      try {
+        await writeTextFile(
+          DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
+          serializeDesktopStartupEvidence(document),
+        );
+        startupEvidenceSignatureRef.current = signature;
+        logStartup('info', 'Persisted desktop startup evidence.', {
+          evidencePath: DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
+          status: document.status,
+          phase: document.phase,
+          descriptorBrowserBaseUrl: document.descriptor?.browserBaseUrl ?? null,
+          builtInInstanceStatus: document.builtInInstance?.status ?? null,
+          readinessReady: document.readinessEvidence?.ready ?? null,
+        }, runId);
+      } catch (persistenceError) {
+        logStartup('warn', 'Persisting desktop startup evidence failed.', {
+          evidencePath: DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
+          status,
+          phase,
+          error: persistenceError,
+        }, runId);
+      }
     },
   );
 
@@ -282,7 +366,14 @@ export function DesktopBootstrapApp({
   }, [stage, status]);
 
   const handleShellRenderError = useEffectEvent((error: Error) => {
+    const runId = bootRunIdRef.current;
     logStartup('error', 'Shell render failed.', error);
+    void persistStartupEvidence({
+      status: 'failed',
+      phase: 'shell-render-failed',
+      error,
+      runId,
+    });
     bootRunIdRef.current += 1;
     setStatus('error');
     setErrorMessage(resolveErrorMessage(error, appearance.language));
@@ -329,6 +420,11 @@ export function DesktopBootstrapApp({
       }
 
       logStartup('info', 'Shell first paint confirmed.', undefined, runId);
+      void persistStartupEvidence({
+        status: 'passed',
+        phase: 'shell-mounted',
+        runId,
+      });
       setMilestones((current) =>
         current.hasShellMounted ? current : { ...current, hasShellMounted: true },
       );
@@ -374,11 +470,26 @@ export function DesktopBootstrapApp({
   });
 
   const connectDesktopRuntime = useEffectEvent(async () => {
+    let appInfo: DesktopAppInfo | null = null;
+    let appPaths: DesktopAppPaths | null = null;
+
     logStartup('info', 'Connecting desktop runtime via app.getInfo() and hosted runtime readiness probe.', {
       isTauriRuntime: isTauriRuntime(),
     });
-    const appInfo = await getAppInfo();
+    [appInfo, appPaths] = await Promise.all([getAppInfo(), getAppPaths()]);
+    startupEvidenceContextRef.current = {
+      appInfo,
+      appPaths,
+      readinessSnapshot: null,
+    };
     logStartup('info', 'app.getInfo() resolved.', appInfo);
+    logStartup('info', 'app.getPaths() resolved.', appPaths
+      ? {
+        dataDir: appPaths.dataDir,
+        logsDir: appPaths.logsDir,
+        mainLogFile: appPaths.mainLogFile,
+      }
+      : null);
 
     if (isTauriRuntime() && !appInfo) {
       logStartup('error', 'Desktop runtime probe returned an empty payload.');
@@ -431,6 +542,11 @@ export function DesktopBootstrapApp({
         },
       });
       const builtInInstance = hostedRuntimeReadiness.instances.find((instance) => instance.id === 'local-built-in');
+      startupEvidenceContextRef.current = {
+        appInfo,
+        appPaths,
+        readinessSnapshot: hostedRuntimeReadiness,
+      };
       logStartup('info', 'Hosted desktop runtime readiness probe resolved.', {
         descriptorBrowserBaseUrl: hostedRuntimeReadiness.descriptor.browserBaseUrl,
         descriptorEndpointId: hostedRuntimeReadiness.descriptor.endpointId ?? null,
@@ -457,12 +573,24 @@ export function DesktopBootstrapApp({
         builtInInstanceWebsocketUrl: builtInInstance?.websocketUrl ?? null,
         readinessEvidence: hostedRuntimeReadiness.evidence,
       });
+      await persistStartupEvidence({
+        status: 'passed',
+        phase: 'runtime-ready',
+        appInfo,
+        appPaths,
+        readinessSnapshot: hostedRuntimeReadiness,
+      });
     } catch (error) {
       if (isDesktopHostedRuntimeReadinessError(error)) {
         const readinessError = error;
         const builtInInstance = readinessError.snapshot.instances.find(
           (instance) => instance.id === 'local-built-in',
         );
+        startupEvidenceContextRef.current = {
+          appInfo,
+          appPaths,
+          readinessSnapshot: readinessError.snapshot,
+        };
         logStartup('error', 'Hosted desktop runtime readiness probe failed.', {
           descriptorBrowserBaseUrl: readinessError.snapshot.descriptor.browserBaseUrl,
           descriptorEndpointId: readinessError.snapshot.descriptor.endpointId ?? null,
@@ -491,6 +619,14 @@ export function DesktopBootstrapApp({
           error: readinessError.message,
           cause: readinessError.cause,
         });
+        await persistStartupEvidence({
+          status: 'failed',
+          phase: 'runtime-readiness-failed',
+          appInfo,
+          appPaths,
+          readinessSnapshot: readinessError.snapshot,
+          error: readinessError,
+        });
       }
 
       throw error;
@@ -505,6 +641,8 @@ export function DesktopBootstrapApp({
 
     startedAtRef.current = Date.now();
     stageLogSignatureRef.current = '';
+    startupEvidenceContextRef.current = null;
+    startupEvidenceSignatureRef.current = '';
     setMilestones(INITIAL_DESKTOP_STARTUP_MILESTONES);
     setStatus('booting');
     setErrorMessage(null);

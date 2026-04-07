@@ -1,5 +1,6 @@
 export * from './agentService.ts';
 export * from './chatService.ts';
+export * from './chatThinkingLevelOptions.ts';
 export * from './chatComposerAttachments.ts';
 export * from './chatComposerStatusPresentation.ts';
 export * from './chatConversationBodyState.ts';

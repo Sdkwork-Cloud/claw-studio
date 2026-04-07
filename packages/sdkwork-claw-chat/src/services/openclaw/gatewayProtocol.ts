@@ -69,6 +69,25 @@ export type OpenClawGatewayChatEvent = {
   stopReason?: string;
 };
 
+export type OpenClawGatewayAgentToolEventData = {
+  phase?: 'start' | 'update' | 'result' | string;
+  toolCallId?: string;
+  name?: string;
+  args?: unknown;
+  partialResult?: unknown;
+  result?: unknown;
+  isError?: boolean;
+  [key: string]: unknown;
+};
+
+export type OpenClawGatewayAgentEvent = {
+  sessionKey: string;
+  runId?: string;
+  stream?: string;
+  data?: OpenClawGatewayAgentToolEventData | Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 export type OpenClawGatewaySessionMessageEvent = {
   sessionKey: string;
   message?: unknown;
@@ -77,6 +96,9 @@ export type OpenClawGatewaySessionMessageEvent = {
   modelProvider?: string | null;
   model?: string | null;
   thinkingLevel?: string | null;
+  fastMode?: boolean | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
   parentSessionKey?: string | null;
   spawnedBy?: unknown;
   inputTokens?: number | null;
@@ -125,6 +147,9 @@ export type OpenClawGatewaySessionsListResult = {
 export type OpenClawGatewayChatHistoryResult = {
   messages?: unknown[];
   thinkingLevel?: string | null;
+  fastMode?: boolean | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
 };
 
 export type OpenClawGatewayModelEntry = {

@@ -749,7 +749,7 @@
         "description": "Manage the shared OpenClaw web-search runtime settings and the provider-specific plugin config that powers search results.",
         "enabledDescription": "Toggle the shared web-search capability for this instance.",
         "providerPanel": "Provider Config",
-        "advancedDescription": "Advanced JSON is merged under the selected provider's plugins.entries.<provider>.config.webSearch object.",
+        "advancedDescription": "Advanced JSON is merged under the selected provider's canonical OpenClaw plugin webSearch config root.",
         "fields": {
           "enabled": "Enabled",
           "provider": "Active Provider",
@@ -782,6 +782,120 @@
         "toasts": {
           "saved": "Web search configuration saved.",
           "saveFailed": "Failed to save web search configuration."
+        }
+      },
+      "webFetch": {
+        "badge": "Managed Web Fetch",
+        "title": "Web Fetch Configuration",
+        "description": "Manage the shared OpenClaw web_fetch runtime settings and the Firecrawl fallback config used when readable extraction needs provider-assisted fetch recovery.",
+        "enabledDescription": "Toggle the shared web_fetch capability for this instance.",
+        "readabilityDescription": "Use Readability extraction before falling back to Firecrawl.",
+        "providerPanel": "Fallback Provider",
+        "advancedDescription": "Advanced JSON is merged under plugins.entries.firecrawl.config.webFetch after the API key and base URL fields are applied.",
+        "fields": {
+          "enabled": "Enabled",
+          "readability": "Readability",
+          "maxChars": "Max Chars",
+          "maxCharsCap": "Max Chars Cap",
+          "maxResponseBytes": "Max Response Bytes",
+          "timeoutSeconds": "Timeout (s)",
+          "cacheTtlMinutes": "Cache TTL (min)",
+          "maxRedirects": "Max Redirects",
+          "userAgent": "User-Agent Override",
+          "apiKeySource": "API Key",
+          "baseUrl": "Base URL",
+          "advancedConfig": "Advanced JSON"
+        },
+        "metrics": {
+          "fallbackProvider": "Fallback Provider"
+        },
+        "placeholders": {
+          "userAgent": "Leave blank to use the OpenClaw runtime default",
+          "apiKeySource": "fc-...",
+          "baseUrl": "https://api.firecrawl.dev",
+          "advancedConfig": "{\n  \"onlyMainContent\": true,\n  \"maxAgeMs\": 86400000\n}"
+        },
+        "errors": {
+          "maxCharsInvalid": "Max chars must be a positive number.",
+          "maxCharsCapInvalid": "Max chars cap must be a positive number.",
+          "maxResponseBytesInvalid": "Max response bytes must be a positive number.",
+          "timeoutInvalid": "Timeout must be a positive number.",
+          "cacheTtlInvalid": "Cache TTL must be a positive number.",
+          "maxRedirectsInvalid": "Max redirects must be a positive number."
+        },
+        "toasts": {
+          "saved": "Web fetch configuration saved.",
+          "saveFailed": "Failed to save web fetch configuration."
+        }
+      },
+      "xSearch": {
+        "badge": "Managed x_search",
+        "title": "X Search Configuration",
+        "description": "Control the first-class xAI x_search tool and its shared XAI API key wiring without dropping back to raw openclaw.json edits.",
+        "enabledDescription": "Toggle the bundled x_search tool for this instance.",
+        "inlineCitationsDescription": "Return inline citations in x_search responses when the provider supports them.",
+        "advancedDescription": "Advanced JSON is merged under plugins.entries.xai.config.xSearch after the managed fields are applied. The API key is stored under the shared xAI webSearch auth root.",
+        "fields": {
+          "enabled": "Enabled",
+          "inlineCitations": "Inline Citations",
+          "apiKeySource": "Shared XAI API Key",
+          "model": "Model",
+          "maxTurns": "Max Turns",
+          "timeoutSeconds": "Timeout (s)",
+          "cacheTtlMinutes": "Cache TTL (min)",
+          "advancedConfig": "Advanced JSON"
+        },
+        "metrics": {
+          "sharedAuth": "Shared Auth",
+          "model": "Model"
+        },
+        "placeholders": {
+          "apiKeySource": "xai-...",
+          "model": "grok-4-1-fast-non-reasoning",
+          "advancedConfig": "{\n  \"userTag\": \"internal-research\"\n}"
+        },
+        "errors": {
+          "maxTurnsInvalid": "Max turns must be a positive number.",
+          "timeoutInvalid": "Timeout must be a positive number.",
+          "cacheTtlInvalid": "Cache TTL must be a positive number."
+        },
+        "toasts": {
+          "saved": "x_search configuration saved.",
+          "saveFailed": "Failed to save x_search configuration."
+        }
+      },
+      "webSearchNativeCodex": {
+        "badge": "Native Codex Search",
+        "title": "OpenAI Codex Native Search",
+        "description": "Manage tools.web.search.openaiCodex so Codex-capable models can switch onto native provider search while managed web_search remains available for non-Codex paths.",
+        "enabledDescription": "Enable the provider-native Codex web_search bridge for Codex-capable models.",
+        "advancedDescription": "Advanced JSON is merged under tools.web.search.openaiCodex after the managed fields are applied.",
+        "fields": {
+          "enabled": "Enabled",
+          "mode": "Mode",
+          "contextSize": "Context Size",
+          "allowedDomains": "Allowed Domains",
+          "userLocationCountry": "User Location Country",
+          "userLocationCity": "User Location City",
+          "userLocationTimezone": "User Location Timezone",
+          "advancedConfig": "Advanced JSON"
+        },
+        "metrics": {
+          "mode": "Mode",
+          "allowedDomains": "Allowed Domains"
+        },
+        "placeholders": {
+          "mode": "cached",
+          "contextSize": "high",
+          "allowedDomains": "example.com\nopenai.com",
+          "userLocationCountry": "US",
+          "userLocationCity": "New York",
+          "userLocationTimezone": "America/New_York",
+          "advancedConfig": "{\n  \"reasoningEffort\": \"medium\"\n}"
+        },
+        "toasts": {
+          "saved": "Native Codex search configuration saved.",
+          "saveFailed": "Failed to save native Codex search configuration."
         }
       },
       "authCooldowns": {
@@ -818,6 +932,34 @@
         "toasts": {
           "saved": "Auth cooldown settings saved.",
           "saveFailed": "Failed to save auth cooldown settings."
+        }
+      },
+      "dreaming": {
+        "badge": "Managed Dreaming",
+        "title": "Dreaming & Dream Diary",
+        "description": "Manage plugins.entries.memory-core.config.dreaming and inspect whether the runtime is writing Dream Diary entries back into the memory surface.",
+        "enabledDescription": "Toggle OpenClaw dreaming for this instance.",
+        "note": "Leave cadence blank to keep the upstream OpenClaw dreaming schedule.",
+        "diaryReader": "Dream Diary Reader",
+        "fields": {
+          "enabled": "Enabled",
+          "frequency": "Dream Cadence"
+        },
+        "placeholders": {
+          "frequency": "0 3 * * *"
+        },
+        "metrics": {
+          "status": "Status",
+          "frequency": "Cadence",
+          "lastDreamDiary": "Dream Diary Updated"
+        },
+        "values": {
+          "disabled": "Disabled",
+          "upstreamDefault": "Upstream default"
+        },
+        "toasts": {
+          "saved": "Dreaming configuration saved.",
+          "saveFailed": "Failed to save dreaming configuration."
         }
       },
       "summary": {
@@ -954,6 +1096,11 @@
         "on": "On",
         "off": "Off",
         "streamingDescription": "Enable token streaming for runtime responses and live previews.",
+        "requestOverrides": "Request Overrides",
+        "requestOverridesDescription": "Edit the official models.providers.<provider>.request transport override surface as JSON5.",
+        "requestOverridesHint": "Supported keys: headers, auth, proxy, and tls.",
+        "requestOverridesPlaceholder": "{\n  auth: {\n    mode: \"authorization-bearer\",\n    token: \"${OPENAI_API_KEY}\"\n  }\n}",
+        "requestOverridesInvalid": "Request overrides must be valid JSON5.",
         "saveConfig": "Save Provider",
         "saving": "Saving...",
         "revertConfig": "Revert Config",
@@ -1185,7 +1332,8 @@
         "runbook": "Runbook",
         "conversation": "Conversation",
         "fact": "Fact",
-        "artifact": "Artifact"
+        "artifact": "Artifact",
+        "dream": "Dream"
       },
       "memorySources": {
         "operator": "Operator",

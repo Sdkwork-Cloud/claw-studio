@@ -7,12 +7,20 @@ import type {
   OpenClawAgentSnapshot,
   OpenClawAuthCooldownsConfigSnapshot,
   OpenClawChannelSnapshot,
+  OpenClawWebFetchConfigSnapshot,
+  OpenClawWebSearchNativeCodexConfigSnapshot,
+  OpenClawXSearchConfigSnapshot,
   SaveOpenClawAuthCooldownsConfigurationInput,
+  SaveOpenClawDreamingConfigurationInput,
   OpenClawAgentInput,
   OpenClawModelSelection,
   OpenClawProviderInput,
   OpenClawProviderModelInput,
+  OpenClawDreamingConfigSnapshot,
+  SaveOpenClawWebFetchConfigurationInput,
+  SaveOpenClawWebSearchNativeCodexConfigurationInput,
   OpenClawWebSearchConfigSnapshot,
+  SaveOpenClawXSearchConfigurationInput,
   SaveOpenClawWebSearchConfigurationInput,
 } from '@sdkwork/claw-core';
 import {
@@ -20,7 +28,11 @@ import {
   saveOpenClawAgentInConfigDocument,
   saveOpenClawAuthCooldownsConfigInDocument,
   saveOpenClawChannelConfigInDocument,
+  saveOpenClawDreamingConfigInDocument,
+  saveOpenClawWebFetchConfigInDocument,
+  saveOpenClawWebSearchNativeCodexConfigInDocument,
   saveOpenClawWebSearchConfigInDocument,
+  saveOpenClawXSearchConfigInDocument,
   serializeOpenClawConfigDocument,
   setOpenClawChannelEnabledInDocument,
 } from '@sdkwork/claw-core';
@@ -183,9 +195,21 @@ export interface InstanceServiceDependencies {
     saveWebSearchConfiguration(
       input: SaveOpenClawWebSearchConfigurationInput,
     ): Promise<OpenClawWebSearchConfigSnapshot>;
+    saveXSearchConfiguration(
+      input: SaveOpenClawXSearchConfigurationInput,
+    ): Promise<OpenClawXSearchConfigSnapshot>;
+    saveWebSearchNativeCodexConfiguration(
+      input: SaveOpenClawWebSearchNativeCodexConfigurationInput,
+    ): Promise<OpenClawWebSearchNativeCodexConfigSnapshot>;
+    saveWebFetchConfiguration(
+      input: SaveOpenClawWebFetchConfigurationInput,
+    ): Promise<OpenClawWebFetchConfigSnapshot>;
     saveAuthCooldownsConfiguration(
       input: SaveOpenClawAuthCooldownsConfigurationInput,
     ): Promise<OpenClawAuthCooldownsConfigSnapshot>;
+    saveDreamingConfiguration(
+      input: SaveOpenClawDreamingConfigurationInput,
+    ): Promise<OpenClawDreamingConfigSnapshot>;
     setChannelEnabled(args: {
       configPath: string;
       channelId: string;
@@ -351,6 +375,112 @@ function buildOpenClawRuntimeParamsPatch(update: InstanceLLMProviderUpdate) {
   };
 }
 
+function buildOpenClawRequestOverridesPatch(
+  request: InstanceLLMProviderUpdate['config']['request'],
+) {
+  if (!request) {
+    return null;
+  }
+
+  const nextPatch: Record<string, unknown> = {};
+
+  const headers = Object.fromEntries(
+    Object.entries(request.headers || {}).flatMap(([key, value]) => {
+      const normalizedKey = key.trim();
+      const normalizedValue = value.trim();
+      return normalizedKey && normalizedValue ? [[normalizedKey, normalizedValue]] : [];
+    }),
+  );
+  if (Object.keys(headers).length > 0) {
+    nextPatch.headers = headers;
+  }
+
+  if (request.auth) {
+    const authPatch: Record<string, unknown> = {
+      mode: request.auth.mode,
+    };
+    if (request.auth.mode === 'authorization-bearer') {
+      const token = request.auth.token?.trim() || '';
+      if (token) {
+        authPatch.token = token;
+      }
+    }
+    if (request.auth.mode === 'header') {
+      const headerName = request.auth.headerName?.trim() || '';
+      const value = request.auth.value?.trim() || '';
+      const prefix = request.auth.prefix?.trim() || '';
+      if (headerName) {
+        authPatch.headerName = headerName;
+      }
+      if (value) {
+        authPatch.value = value;
+      }
+      if (prefix) {
+        authPatch.prefix = prefix;
+      }
+    }
+    nextPatch.auth = authPatch;
+  }
+
+  const buildTlsPatch = (
+    tls: NonNullable<NonNullable<InstanceLLMProviderUpdate['config']['request']>['tls']> | undefined,
+  ) => {
+    if (!tls) {
+      return null;
+    }
+
+    const nextTlsPatch: Record<string, unknown> = {};
+    const ca = tls.ca?.trim() || '';
+    const cert = tls.cert?.trim() || '';
+    const key = tls.key?.trim() || '';
+    const passphrase = tls.passphrase?.trim() || '';
+    const serverName = tls.serverName?.trim() || '';
+
+    if (ca) {
+      nextTlsPatch.ca = ca;
+    }
+    if (cert) {
+      nextTlsPatch.cert = cert;
+    }
+    if (key) {
+      nextTlsPatch.key = key;
+    }
+    if (passphrase) {
+      nextTlsPatch.passphrase = passphrase;
+    }
+    if (serverName) {
+      nextTlsPatch.serverName = serverName;
+    }
+    if (typeof tls.insecureSkipVerify === 'boolean') {
+      nextTlsPatch.insecureSkipVerify = tls.insecureSkipVerify;
+    }
+
+    return Object.keys(nextTlsPatch).length > 0 ? nextTlsPatch : null;
+  };
+
+  if (request.proxy) {
+    const proxyPatch: Record<string, unknown> = {
+      mode: request.proxy.mode,
+    };
+    const url = request.proxy.url?.trim() || '';
+    if (url) {
+      proxyPatch.url = url;
+    }
+    const proxyTlsPatch = buildTlsPatch(request.proxy.tls);
+    if (proxyTlsPatch) {
+      proxyPatch.tls = proxyTlsPatch;
+    }
+    nextPatch.proxy = proxyPatch;
+  }
+
+  const tlsPatch = buildTlsPatch(request.tls);
+  if (tlsPatch) {
+    nextPatch.tls = tlsPatch;
+  }
+
+  return Object.keys(nextPatch).length > 0 ? nextPatch : null;
+}
+
 function buildRemoteOpenClawProviderConfigPatch(
   providerId: string,
   update: InstanceLLMProviderUpdate,
@@ -413,6 +543,7 @@ function buildRemoteOpenClawProviderConfigPatch(
           maxTokens: null,
           timeoutMs: null,
           streaming: null,
+          request: buildOpenClawRequestOverridesPatch(update.config.request),
           models: nextModels,
         },
       },
@@ -498,8 +629,17 @@ function createDefaultDependencies(): InstanceServiceDependencies {
         createMissingAsyncDependency('openClawConfigService.saveChannelConfiguration'),
       saveWebSearchConfiguration:
         createMissingAsyncDependency('openClawConfigService.saveWebSearchConfiguration'),
+      saveXSearchConfiguration:
+        createMissingAsyncDependency('openClawConfigService.saveXSearchConfiguration'),
+      saveWebSearchNativeCodexConfiguration: createMissingAsyncDependency(
+        'openClawConfigService.saveWebSearchNativeCodexConfiguration',
+      ),
+      saveWebFetchConfiguration:
+        createMissingAsyncDependency('openClawConfigService.saveWebFetchConfiguration'),
       saveAuthCooldownsConfiguration:
         createMissingAsyncDependency('openClawConfigService.saveAuthCooldownsConfiguration'),
+      saveDreamingConfiguration:
+        createMissingAsyncDependency('openClawConfigService.saveDreamingConfiguration'),
       setChannelEnabled: createMissingAsyncDependency('openClawConfigService.setChannelEnabled'),
     },
   };
@@ -569,9 +709,25 @@ export interface IInstanceService {
     id: string,
     input: Omit<SaveOpenClawWebSearchConfigurationInput, 'configPath'>,
   ): Promise<void>;
+  saveOpenClawXSearchConfig(
+    id: string,
+    input: Omit<SaveOpenClawXSearchConfigurationInput, 'configPath'>,
+  ): Promise<void>;
+  saveOpenClawWebSearchNativeCodexConfig(
+    id: string,
+    input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configPath'>,
+  ): Promise<void>;
+  saveOpenClawWebFetchConfig(
+    id: string,
+    input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configPath'>,
+  ): Promise<void>;
   saveOpenClawAuthCooldownsConfig(
     id: string,
     input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
+  ): Promise<void>;
+  saveOpenClawDreamingConfig(
+    id: string,
+    input: Omit<SaveOpenClawDreamingConfigurationInput, 'configPath'>,
   ): Promise<void>;
   setOpenClawChannelEnabled(id: string, channelId: string, enabled: boolean): Promise<void>;
 }
@@ -1339,6 +1495,75 @@ class InstanceService implements IInstanceService {
     });
   }
 
+  async saveOpenClawXSearchConfig(
+    id: string,
+    input: Omit<SaveOpenClawXSearchConfigurationInput, 'configPath'>,
+  ): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    if (
+      await this.saveManagedOpenClawConfigWithGateway(id, managedConfig, (currentRaw) =>
+        saveOpenClawXSearchConfigInDocument(currentRaw, input),
+      )
+    ) {
+      return;
+    }
+
+    await this.dependencies.openClawConfigService.saveXSearchConfiguration({
+      configPath: managedConfig.configPath,
+      ...input,
+    });
+  }
+
+  async saveOpenClawWebSearchNativeCodexConfig(
+    id: string,
+    input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configPath'>,
+  ): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    if (
+      await this.saveManagedOpenClawConfigWithGateway(id, managedConfig, (currentRaw) =>
+        saveOpenClawWebSearchNativeCodexConfigInDocument(currentRaw, input),
+      )
+    ) {
+      return;
+    }
+
+    await this.dependencies.openClawConfigService.saveWebSearchNativeCodexConfiguration({
+      configPath: managedConfig.configPath,
+      ...input,
+    });
+  }
+
+  async saveOpenClawWebFetchConfig(
+    id: string,
+    input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configPath'>,
+  ): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    if (
+      await this.saveManagedOpenClawConfigWithGateway(id, managedConfig, (currentRaw) =>
+        saveOpenClawWebFetchConfigInDocument(currentRaw, input),
+      )
+    ) {
+      return;
+    }
+
+    await this.dependencies.openClawConfigService.saveWebFetchConfiguration({
+      configPath: managedConfig.configPath,
+      ...input,
+    });
+  }
+
   async saveOpenClawAuthCooldownsConfig(
     id: string,
     input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
@@ -1357,6 +1582,29 @@ class InstanceService implements IInstanceService {
     }
 
     await this.dependencies.openClawConfigService.saveAuthCooldownsConfiguration({
+      configPath: managedConfig.configPath,
+      ...input,
+    });
+  }
+
+  async saveOpenClawDreamingConfig(
+    id: string,
+    input: Omit<SaveOpenClawDreamingConfigurationInput, 'configPath'>,
+  ): Promise<void> {
+    const managedConfig = await this.resolveManagedOpenClawConfig(id);
+    if (!managedConfig) {
+      throw new Error('Writable OpenClaw config file is not available for this instance.');
+    }
+
+    if (
+      await this.saveManagedOpenClawConfigWithGateway(id, managedConfig, (currentRaw) =>
+        saveOpenClawDreamingConfigInDocument(currentRaw, input),
+      )
+    ) {
+      return;
+    }
+
+    await this.dependencies.openClawConfigService.saveDreamingConfiguration({
       configPath: managedConfig.configPath,
       ...input,
     });

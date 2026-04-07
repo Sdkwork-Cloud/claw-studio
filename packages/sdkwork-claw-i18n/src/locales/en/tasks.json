@@ -8,6 +8,78 @@
       "paused": "Paused",
       "failed": "Failed"
     },
+    "runtime": {
+      "eyebrow": "OpenClaw Runtime",
+      "title": "Detached tasks and Task Flow",
+      "description": "Inspect the latest OpenClaw runtime ledger for detached background tasks and orchestration flows without leaving the task studio.",
+      "cards": {
+        "runtimeTasks": "Runtime Tasks",
+        "taskFlows": "Task Flows",
+        "activeCount": "{{count}} active"
+      },
+      "taskBoard": {
+        "title": "Runtime task board",
+        "description": "Recent detached task runs exposed by the latest OpenClaw tasks surface.",
+        "unsupportedTitle": "Runtime task board unavailable",
+        "unsupportedBody": "This connected runtime does not expose the latest detached task board yet.",
+        "empty": "No detached runtime tasks have been reported by this instance yet.",
+        "summaryFallback": "No runtime summary was provided for this task.",
+        "detail": {
+          "description": "Inspect detached task detail fields returned by OpenClaw tasks.show.",
+          "unavailable": "Runtime task details are unavailable for this runtime.",
+          "loadFailed": "Runtime task details could not be loaded."
+        }
+      },
+      "taskFlows": {
+        "title": "Task Flow board",
+        "description": "Recent Task Flow records, including goal, current step, and live orchestration state from the latest OpenClaw task-flow surface.",
+        "unsupportedTitle": "Task Flow board unavailable",
+        "unsupportedBody": "This connected runtime does not expose the latest Task Flow surface yet.",
+        "empty": "No Task Flow records have been reported by this instance yet.",
+        "summaryFallback": "No flow summary was provided for this record."
+      },
+      "detail": {
+        "description": "Inspect detail-only Task Flow fields returned by OpenClaw tasks.flow.show.",
+        "payloadSummary": "Summary",
+        "taskSummary": "Task summary",
+        "blocked": "Blocked",
+        "wait": "Wait",
+        "state": "State",
+        "statePayload": "State payload",
+        "waitPayload": "Wait payload",
+        "linkedTasksTitle": "Linked tasks",
+        "linkedTasksDescription": "Tasks linked to this Task Flow according to OpenClaw tasks.flow.show.",
+        "linkedTasksEmpty": "No linked tasks were returned for this Task Flow.",
+        "session": "Session",
+        "agent": "Agent",
+        "error": "Error",
+        "unavailable": "Task Flow details are unavailable for this runtime.",
+        "loadFailed": "Task Flow details could not be loaded."
+      },
+      "fields": {
+        "runId": "Run ID",
+        "sourceId": "Source ID",
+        "childSession": "Child session",
+        "flow": "Flow",
+        "createdAt": "Created",
+        "startedAt": "Started",
+        "finishedAt": "Finished",
+        "lastEventAt": "Last event",
+        "updatedAt": "Updated",
+        "currentStep": "Current step",
+        "cleanupAfter": "Cleanup after",
+        "deliveryStatus": "Delivery",
+        "notifyPolicy": "Notify",
+        "owner": "Owner",
+        "parentTask": "Parent task",
+        "requesterOrigin": "Requester origin",
+        "result": "Result",
+        "cancelRequestedAt": "Cancel requested",
+        "revision": "Revision",
+        "activity": "Activity",
+        "flowId": "Flow ID"
+      }
+    },
     "empty": {
       "title": "No scheduled tasks yet",
       "description": "Create your first task to automate recurring analysis, summaries, and delivery workflows.",

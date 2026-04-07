@@ -68,7 +68,12 @@ import {
 type ManagedOpenClawAgentSnapshot = ManagedOpenClawConfigSnapshot['agentSnapshots'][number];
 type ManagedOpenClawChannelSnapshot = ManagedOpenClawConfigSnapshot['channelSnapshots'][number];
 type ManagedOpenClawWebSearchConfig = ManagedOpenClawConfigSnapshot['webSearchConfig'];
+type ManagedOpenClawXSearchConfig = ManagedOpenClawConfigSnapshot['xSearchConfig'];
+type ManagedOpenClawWebSearchNativeCodexConfig =
+  ManagedOpenClawConfigSnapshot['webSearchNativeCodexConfig'];
+type ManagedOpenClawWebFetchConfig = ManagedOpenClawConfigSnapshot['webFetchConfig'];
 type ManagedOpenClawAuthCooldownsConfig = ManagedOpenClawConfigSnapshot['authCooldownsConfig'];
+type ManagedOpenClawDreamingConfig = ManagedOpenClawConfigSnapshot['dreamingConfig'];
 type RegistryInstanceRecord =
   NonNullable<Awaited<ReturnType<InstanceWorkbenchServiceDependencies['instanceService']['getInstanceById']>>>;
 type RegistryInstanceConfig =
@@ -166,8 +171,51 @@ function cloneManagedWebSearchConfig(
   };
 }
 
+function cloneManagedXSearchConfig(
+  config: ManagedOpenClawXSearchConfig | null | undefined,
+) {
+  return config ? { ...config } : null;
+}
+
+function cloneManagedWebSearchNativeCodexConfig(
+  config: ManagedOpenClawWebSearchNativeCodexConfig | null | undefined,
+) {
+  if (!config) {
+    return null;
+  }
+
+  return {
+    ...config,
+    allowedDomains: [...config.allowedDomains],
+    userLocation: {
+      ...config.userLocation,
+    },
+  };
+}
+
+function cloneManagedWebFetchConfig(
+  config: ManagedOpenClawWebFetchConfig | null | undefined,
+) {
+  if (!config) {
+    return null;
+  }
+
+  return {
+    ...config,
+    fallbackProvider: {
+      ...config.fallbackProvider,
+    },
+  };
+}
+
 function cloneManagedAuthCooldownsConfig(
   config: ManagedOpenClawAuthCooldownsConfig | null | undefined,
+) {
+  return config ? { ...config } : null;
+}
+
+function cloneManagedDreamingConfig(
+  config: ManagedOpenClawDreamingConfig | null | undefined,
 ) {
   return config ? { ...config } : null;
 }
@@ -1076,6 +1124,10 @@ export interface InstanceWorkbenchServiceDependencies {
       instanceId: string,
       args?: Record<string, unknown>,
     ): Promise<Record<string, unknown>>;
+    getDoctorMemoryDreamDiary(
+      instanceId: string,
+      args?: Record<string, unknown>,
+    ): Promise<Record<string, unknown>>;
     listWorkbenchCronJobs(instanceId: string): Promise<InstanceWorkbenchTask[]>;
     listWorkbenchCronRuns(
       instanceId: string,
@@ -1186,6 +1238,49 @@ function createEmptyManagedOpenClawConfigSnapshot(configPath = '') {
       cacheTtlMinutes: 0,
       providers: [],
     },
+    xSearchConfig: {
+      enabled: false,
+      apiKeySource: '',
+      model: '',
+      inlineCitations: false,
+      maxTurns: 2,
+      timeoutSeconds: 30,
+      cacheTtlMinutes: 15,
+      advancedConfig: '',
+    },
+    webFetchConfig: {
+      enabled: true,
+      maxChars: 50000,
+      maxCharsCap: 50000,
+      maxResponseBytes: 2000000,
+      timeoutSeconds: 30,
+      cacheTtlMinutes: 15,
+      maxRedirects: 3,
+      readability: true,
+      userAgent: '',
+      fallbackProvider: {
+        providerId: 'firecrawl' as const,
+        name: 'Firecrawl Fetch',
+        description: 'Use Firecrawl as the OpenClaw web_fetch fallback provider.',
+        apiKeySource: '',
+        baseUrl: '',
+        advancedConfig: '',
+        supportsApiKey: true,
+        supportsBaseUrl: true,
+      },
+    },
+    webSearchNativeCodexConfig: {
+      enabled: false,
+      mode: 'cached',
+      allowedDomains: [],
+      contextSize: '',
+      userLocation: {
+        country: '',
+        city: '',
+        timezone: '',
+      },
+      advancedConfig: '',
+    },
     authCooldownsConfig: {
       rateLimitedProfileRotations: null,
       overloadedProfileRotations: null,
@@ -1193,6 +1288,10 @@ function createEmptyManagedOpenClawConfigSnapshot(configPath = '') {
       billingBackoffHours: null,
       billingMaxHours: null,
       failureWindowHours: null,
+    },
+    dreamingConfig: {
+      enabled: false,
+      frequency: '',
     },
     root: {},
   };
@@ -1309,6 +1408,8 @@ function createDefaultDependencies(): InstanceWorkbenchServiceDependencies {
       searchMemory: createMissingAsyncDependency('openClawGatewayClient.searchMemory'),
       getDoctorMemoryStatus:
         createMissingAsyncDependency('openClawGatewayClient.getDoctorMemoryStatus'),
+      getDoctorMemoryDreamDiary:
+        createMissingAsyncDependency('openClawGatewayClient.getDoctorMemoryDreamDiary'),
       listWorkbenchCronJobs:
         createMissingAsyncDependency('openClawGatewayClient.listWorkbenchCronJobs'),
       listWorkbenchCronRuns:
@@ -1558,8 +1659,16 @@ function finalizeOpenClawSnapshot(
     managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
     managedConfigInsights: buildManagedConfigInsights(managedConfigSnapshot),
     managedWebSearchConfig: cloneManagedWebSearchConfig(managedConfigSnapshot?.webSearchConfig),
+    managedXSearchConfig: cloneManagedXSearchConfig(managedConfigSnapshot?.xSearchConfig),
+    managedWebSearchNativeCodexConfig: cloneManagedWebSearchNativeCodexConfig(
+      managedConfigSnapshot?.webSearchNativeCodexConfig,
+    ),
+    managedWebFetchConfig: cloneManagedWebFetchConfig(managedConfigSnapshot?.webFetchConfig),
     managedAuthCooldownsConfig: cloneManagedAuthCooldownsConfig(
       managedConfigSnapshot?.authCooldownsConfig,
+    ),
+    managedDreamingConfig: cloneManagedDreamingConfig(
+      managedConfigSnapshot?.dreamingConfig,
     ),
     sectionCounts: {
       ...finalizedSnapshot.sectionCounts,
@@ -2246,8 +2355,16 @@ function buildDetailOnlyWorkbenchSnapshot(
     managedChannels: managedConfigSnapshot?.channelSnapshots.map(cloneManagedChannel),
     managedConfigInsights: buildManagedConfigInsights(managedConfigSnapshot),
     managedWebSearchConfig: cloneManagedWebSearchConfig(managedConfigSnapshot?.webSearchConfig),
+    managedXSearchConfig: cloneManagedXSearchConfig(managedConfigSnapshot?.xSearchConfig),
+    managedWebSearchNativeCodexConfig: cloneManagedWebSearchNativeCodexConfig(
+      managedConfigSnapshot?.webSearchNativeCodexConfig,
+    ),
+    managedWebFetchConfig: cloneManagedWebFetchConfig(managedConfigSnapshot?.webFetchConfig),
     managedAuthCooldownsConfig: cloneManagedAuthCooldownsConfig(
       managedConfigSnapshot?.authCooldownsConfig,
+    ),
+    managedDreamingConfig: cloneManagedDreamingConfig(
+      managedConfigSnapshot?.dreamingConfig,
     ),
     healthScore: detail.health.score,
     runtimeStatus: detail.health.status,
@@ -2929,17 +3046,63 @@ function formatRuntimeMemoryLineRange(entry: Record<string, unknown>) {
   return `${start ?? end}`;
 }
 
+function extractDreamDiaryContent(dreamDiaryResult: Record<string, unknown> | null) {
+  const inlineContent =
+    getStringValue(dreamDiaryResult, ['content']) ||
+    getStringValue(dreamDiaryResult, ['text']) ||
+    getStringValue(dreamDiaryResult, ['markdown']) ||
+    getStringValue(dreamDiaryResult, ['body']);
+  if (inlineContent) {
+    return inlineContent;
+  }
+
+  const lines = (getArrayValue(dreamDiaryResult, ['lines']) || [])
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        return entry;
+      }
+      if (!isRecord(entry)) {
+        return '';
+      }
+      return getStringValue(entry, ['text']) || getStringValue(entry, ['line']) || '';
+    })
+    .filter(Boolean);
+
+  return lines.join('\n');
+}
+
 function buildOpenClawRuntimeMemories(
   doctorStatus: Record<string, unknown> | null,
   searchResult: OpenClawMemorySearchResult | null,
+  dreamDiaryResult: Record<string, unknown> | null,
+  configSnapshot: GatewayOpenClawConfigSnapshot | null,
 ): InstanceWorkbenchMemoryEntry[] {
   const results = (searchResult?.results || []).filter(isRecord);
   const provider = getStringValue(doctorStatus, ['provider']);
   const agentId = getStringValue(doctorStatus, ['agentId']);
   const embeddingOk = getBooleanValue(doctorStatus, ['embedding', 'ok']);
   const embeddingError = getStringValue(doctorStatus, ['embedding', 'error']);
+  const dreamingEnabled = getBooleanValue(doctorStatus, ['dreaming', 'enabled']);
+  const dreamingFrequency =
+    getStringValue(doctorStatus, ['dreaming', 'frequency']) ||
+    getStringValue(configSnapshot?.config, [
+      'plugins',
+      'entries',
+      'memory-core',
+      'config',
+      'dreaming',
+      'frequency',
+    ]);
+  const dreamDiaryContent = extractDreamDiaryContent(dreamDiaryResult);
+  const dreamDiaryPath = getStringValue(dreamDiaryResult, ['path']) || 'dreams.md';
+  const dreamDiaryUpdatedAt =
+    getStringValue(dreamDiaryResult, ['updatedAt']) ||
+    getStringValue(dreamDiaryResult, ['updated_at']) ||
+    getStringValue(doctorStatus, ['dreaming', 'lastRunAt']) ||
+    'Live';
   const searchDisabled = searchResult?.disabled === true;
-  const hasRuntimeSnapshot = Boolean(doctorStatus) || results.length > 0 || searchDisabled;
+  const hasRuntimeSnapshot =
+    Boolean(doctorStatus) || results.length > 0 || searchDisabled || Boolean(dreamDiaryContent);
 
   if (!hasRuntimeSnapshot) {
     return [];
@@ -2959,6 +3122,14 @@ function buildOpenClawRuntimeMemories(
   }
   if (searchDisabled) {
     statusParts.push('Semantic recall disabled');
+  }
+  if (dreamingEnabled === true) {
+    statusParts.push('Dreaming enabled');
+  } else if (dreamingEnabled === false) {
+    statusParts.push('Dreaming disabled');
+  }
+  if (dreamingFrequency) {
+    statusParts.push(`Frequency=${dreamingFrequency}`);
   }
   if (results.length > 0) {
     statusParts.push(`${results.length} indexed hit${results.length === 1 ? '' : 's'} available`);
@@ -3017,6 +3188,24 @@ function buildOpenClawRuntimeMemories(
       tokens: tokenEstimate(summary),
     });
   });
+
+  if (dreamDiaryContent) {
+    const summary = [dreamDiaryPath, summarizeMarkdown(dreamDiaryContent, 220)]
+      .filter((part) => part && part.trim())
+      .join('. ');
+
+    entries.push({
+      id: 'memory-dream-diary',
+      title: 'Dream Diary',
+      type: 'dream',
+      content: dreamDiaryContent,
+      summary,
+      source: 'system',
+      updatedAt: dreamDiaryUpdatedAt,
+      retention: 'rolling',
+      tokens: tokenEstimate(dreamDiaryContent),
+    });
+  }
 
   return entries;
 }
@@ -3390,24 +3579,35 @@ class InstanceWorkbenchService {
       return [];
     }
 
-    const [configSnapshot, memoryFiles, doctorMemoryStatus, runtimeSearchResult] = await Promise.all([
-      this.dependencies.openClawGatewayClient.getConfig(instanceId).catch(() => null),
-      effectiveAgents.length > 0
-        ? buildOpenClawMemoryFiles(instanceId, effectiveAgents, this.dependencies).catch(() => [])
-        : Promise.resolve([] as InstanceWorkbenchFile[]),
-      effectiveAgents.length > 0
-        ? this.dependencies.openClawGatewayClient.getDoctorMemoryStatus(instanceId).catch(() => null)
-        : Promise.resolve(null),
-      effectiveAgents.length > 0
-        ? this.dependencies.openClawGatewayClient
-            .searchMemory(instanceId, {
-              query: 'recent work decisions runbook',
-              maxResults: 6,
-            })
-            .catch(() => null)
-        : Promise.resolve(null),
-    ]);
-    const runtimeMemories = buildOpenClawRuntimeMemories(doctorMemoryStatus, runtimeSearchResult);
+    const [configSnapshot, memoryFiles, doctorMemoryStatus, runtimeSearchResult, dreamDiaryResult] =
+      await Promise.all([
+        this.dependencies.openClawGatewayClient.getConfig(instanceId).catch(() => null),
+        effectiveAgents.length > 0
+          ? buildOpenClawMemoryFiles(instanceId, effectiveAgents, this.dependencies).catch(() => [])
+          : Promise.resolve([] as InstanceWorkbenchFile[]),
+        effectiveAgents.length > 0
+          ? this.dependencies.openClawGatewayClient.getDoctorMemoryStatus(instanceId).catch(() => null)
+          : Promise.resolve(null),
+        effectiveAgents.length > 0
+          ? this.dependencies.openClawGatewayClient
+              .searchMemory(instanceId, {
+                query: 'recent work decisions runbook',
+                maxResults: 6,
+              })
+              .catch(() => null)
+          : Promise.resolve(null),
+        effectiveAgents.length > 0
+          ? this.dependencies.openClawGatewayClient
+              .getDoctorMemoryDreamDiary(instanceId)
+              .catch(() => null)
+          : Promise.resolve(null),
+      ]);
+    const runtimeMemories = buildOpenClawRuntimeMemories(
+      doctorMemoryStatus,
+      runtimeSearchResult,
+      dreamDiaryResult,
+      configSnapshot,
+    );
 
     if (runtimeMemories.some((entry) => entry.id.startsWith('memory-runtime-hit-'))) {
       return runtimeMemories;

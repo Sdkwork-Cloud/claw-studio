@@ -305,7 +305,23 @@ await runTest('providerConfigCenterService persists proxy route records in the s
     },
   });
 
-  const saved = await service.saveProviderConfig(createDraft());
+  const saved = await service.saveProviderConfig(
+    createDraft({
+      config: {
+        temperature: 0.2,
+        topP: 1,
+        maxTokens: 12000,
+        timeoutMs: 120000,
+        streaming: true,
+        request: {
+          headers: {
+            'cf-aig-authorization': 'Bearer cf-gateway-secret',
+            'x-openai-client': 'claw-studio',
+          },
+        },
+      },
+    }),
+  );
   const listed = await service.listProviderConfigs();
 
   assert.equal(saved.providerId, 'openai');
@@ -317,6 +333,12 @@ await runTest('providerConfigCenterService persists proxy route records in the s
   assert.equal(saved.managedBy, 'user');
   assert.equal(saved.id.startsWith('provider-config-openai-'), true);
   assert.equal(saved.upstreamBaseUrl, 'https://api.openai.com/v1');
+  assert.deepEqual(saved.config.request, {
+    headers: {
+      'cf-aig-authorization': 'Bearer cf-gateway-secret',
+      'x-openai-client': 'claw-studio',
+    },
+  });
   assert.deepEqual(putCalls, [
     {
       profileId: 'default-sqlite',
@@ -341,6 +363,10 @@ await runTest('providerConfigCenterService persists proxy route records in the s
   assert.equal(
     listed.find((record) => record.id === saved.id)?.embeddingModelId,
     'text-embedding-3-large',
+  );
+  assert.deepEqual(
+    listed.find((record) => record.id === saved.id)?.config.request,
+    saved.config.request,
   );
 });
 
@@ -547,6 +573,152 @@ await runTest(
   assert.equal(baichuanPreset.draft.defaultModelId, '');
   assert.deepEqual(baichuanPreset.draft.models, []);
 });
+
+await runTest(
+  'providerConfigCenterService exposes curated Fireworks and Amazon Bedrock Mantle presets aligned with upstream endpoints',
+  async () => {
+    const service = createProviderConfigCenterService();
+    const presets = service.listPresets();
+    const fireworksPreset = presets.find((preset) => preset.id === 'fireworks');
+    const mantlePreset = presets.find((preset) => preset.id === 'amazon-bedrock-mantle');
+
+    assert.ok(fireworksPreset);
+    assert.equal(fireworksPreset?.draft.providerId, 'fireworks');
+    assert.equal(fireworksPreset?.draft.clientProtocol, 'openai-compatible');
+    assert.equal(fireworksPreset?.draft.upstreamProtocol, 'openai-compatible');
+    assert.equal(fireworksPreset?.draft.upstreamBaseUrl, 'https://api.fireworks.ai/inference/v1');
+    assert.equal(
+      fireworksPreset?.draft.defaultModelId,
+      'fireworks/accounts/fireworks/routers/kimi-k2p5-turbo',
+    );
+    assert.ok(
+      fireworksPreset?.draft.models.some(
+        (model) => model.id === 'fireworks/accounts/fireworks/routers/kimi-k2p5-turbo',
+      ),
+    );
+
+    assert.ok(mantlePreset);
+    assert.equal(mantlePreset?.draft.providerId, 'amazon-bedrock-mantle');
+    assert.equal(mantlePreset?.draft.clientProtocol, 'openai-compatible');
+    assert.equal(mantlePreset?.draft.upstreamProtocol, 'openai-compatible');
+    assert.equal(
+      mantlePreset?.draft.upstreamBaseUrl,
+      'https://bedrock-mantle.us-east-1.api.aws/v1',
+    );
+    assert.equal(mantlePreset?.draft.defaultModelId, 'gpt-oss-120b');
+    assert.deepEqual(mantlePreset?.draft.models, [
+      {
+        id: 'gpt-oss-120b',
+        name: 'GPT-OSS 120B',
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'providerConfigCenterService exposes additional official proxy and gateway presets aligned with the latest OpenClaw provider docs',
+  async () => {
+    const service = createProviderConfigCenterService();
+    const presets = service.listPresets();
+    const cloudflarePreset = presets.find((preset) => preset.id === 'cloudflare-ai-gateway');
+    const groqPreset = presets.find((preset) => preset.id === 'groq');
+    const ollamaPreset = presets.find((preset) => preset.id === 'ollama');
+    const sglangPreset = presets.find((preset) => preset.id === 'sglang');
+    const vercelPreset = presets.find((preset) => preset.id === 'vercel-ai-gateway');
+    const togetherPreset = presets.find((preset) => preset.id === 'together');
+    const litellmPreset = presets.find((preset) => preset.id === 'litellm');
+    const kiloPreset = presets.find((preset) => preset.id === 'kilocode');
+    const vllmPreset = presets.find((preset) => preset.id === 'vllm');
+    const venicePreset = presets.find((preset) => preset.id === 'venice');
+
+    assert.ok(cloudflarePreset);
+    assert.equal(cloudflarePreset?.draft.providerId, 'cloudflare-ai-gateway');
+    assert.equal(cloudflarePreset?.draft.clientProtocol, 'anthropic');
+    assert.equal(cloudflarePreset?.draft.upstreamProtocol, 'anthropic');
+    assert.equal(
+      cloudflarePreset?.draft.upstreamBaseUrl,
+      'https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/anthropic',
+    );
+    assert.equal(
+      cloudflarePreset?.draft.defaultModelId,
+      'cloudflare-ai-gateway/claude-sonnet-4-5',
+    );
+    assert.ok(
+      cloudflarePreset?.draft.models.some(
+        (model) => model.id === 'cloudflare-ai-gateway/claude-sonnet-4-5',
+      ),
+    );
+
+    assert.ok(groqPreset);
+    assert.equal(groqPreset?.draft.providerId, 'groq');
+    assert.equal(groqPreset?.draft.upstreamBaseUrl, 'https://api.groq.com/openai/v1');
+    assert.equal(groqPreset?.draft.defaultModelId, 'llama-3.3-70b-versatile');
+    assert.ok(
+      groqPreset?.draft.models.some((model) => model.id === 'llama-3.3-70b-versatile'),
+    );
+
+    assert.ok(ollamaPreset);
+    assert.equal(ollamaPreset?.draft.providerId, 'ollama');
+    assert.equal(ollamaPreset?.draft.clientProtocol, 'openai-compatible');
+    assert.equal(ollamaPreset?.draft.upstreamProtocol, 'ollama');
+    assert.equal(ollamaPreset?.draft.upstreamBaseUrl, 'http://127.0.0.1:11434');
+    assert.equal(ollamaPreset?.draft.apiKey, 'ollama-local');
+    assert.equal(ollamaPreset?.draft.defaultModelId, 'glm-4.7-flash');
+    assert.ok(
+      ollamaPreset?.draft.models.some((model) => model.id === 'glm-4.7-flash'),
+    );
+
+    assert.ok(sglangPreset);
+    assert.equal(sglangPreset?.draft.providerId, 'sglang');
+    assert.equal(sglangPreset?.draft.upstreamBaseUrl, 'http://127.0.0.1:30000/v1');
+    assert.equal(sglangPreset?.draft.apiKey, 'sglang-local');
+    assert.equal(sglangPreset?.draft.defaultModelId, '');
+    assert.deepEqual(sglangPreset?.draft.models, []);
+
+    assert.ok(vercelPreset);
+    assert.equal(vercelPreset?.draft.providerId, 'vercel-ai-gateway');
+    assert.equal(vercelPreset?.draft.clientProtocol, 'anthropic');
+    assert.equal(vercelPreset?.draft.upstreamProtocol, 'anthropic');
+    assert.equal(vercelPreset?.draft.upstreamBaseUrl, 'https://ai-gateway.vercel.sh');
+    assert.equal(vercelPreset?.draft.defaultModelId, 'anthropic/claude-opus-4.6');
+    assert.ok(
+      vercelPreset?.draft.models.some((model) => model.id === 'anthropic/claude-opus-4.6'),
+    );
+
+    assert.ok(togetherPreset);
+    assert.equal(togetherPreset?.draft.providerId, 'together');
+    assert.equal(togetherPreset?.draft.upstreamBaseUrl, 'https://api.together.xyz/v1');
+    assert.equal(togetherPreset?.draft.defaultModelId, 'moonshotai/Kimi-K2.5');
+    assert.ok(
+      togetherPreset?.draft.models.some((model) => model.id === 'moonshotai/Kimi-K2.5'),
+    );
+
+    assert.ok(litellmPreset);
+    assert.equal(litellmPreset?.draft.providerId, 'litellm');
+    assert.equal(litellmPreset?.draft.upstreamBaseUrl, 'http://localhost:4000');
+    assert.equal(litellmPreset?.draft.defaultModelId, 'claude-opus-4-6');
+    assert.ok(litellmPreset?.draft.models.some((model) => model.id === 'gpt-4o'));
+
+    assert.ok(kiloPreset);
+    assert.equal(kiloPreset?.draft.providerId, 'kilocode');
+    assert.equal(kiloPreset?.draft.upstreamBaseUrl, 'https://api.kilo.ai/api/gateway/');
+    assert.equal(kiloPreset?.draft.defaultModelId, 'kilo/auto');
+    assert.deepEqual(kiloPreset?.draft.models, [{ id: 'kilo/auto', name: 'Kilo Auto' }]);
+
+    assert.ok(vllmPreset);
+    assert.equal(vllmPreset?.draft.providerId, 'vllm');
+    assert.equal(vllmPreset?.draft.upstreamBaseUrl, 'http://127.0.0.1:8000/v1');
+    assert.equal(vllmPreset?.draft.apiKey, 'vllm-local');
+    assert.equal(vllmPreset?.draft.defaultModelId, '');
+    assert.deepEqual(vllmPreset?.draft.models, []);
+
+    assert.ok(venicePreset);
+    assert.equal(venicePreset?.draft.providerId, 'venice');
+    assert.equal(venicePreset?.draft.upstreamBaseUrl, 'https://api.venice.ai/api/v1');
+    assert.equal(venicePreset?.draft.defaultModelId, 'kimi-k2-5');
+    assert.ok(venicePreset?.draft.models.some((model) => model.id === 'kimi-k2-5'));
+  },
+);
 
 await runTest('providerConfigCenterService synthesizes a system default route when storage is empty', async () => {
   const service = createProviderConfigCenterService({
@@ -767,7 +939,21 @@ await runTest('providerConfigCenterService applies a saved provider config throu
     schemaVersion: 1,
     createdAt: 1,
     updatedAt: 1,
-    ...createDraft(),
+    ...createDraft({
+      config: {
+        temperature: 0.2,
+        topP: 1,
+        maxTokens: 12000,
+        timeoutMs: 120000,
+        streaming: true,
+        request: {
+          headers: {
+            'cf-aig-authorization': 'Bearer cf-gateway-secret',
+            'x-openai-client': 'claw-studio',
+          },
+        },
+      },
+    }),
   } satisfies ProviderConfigRecord;
   const service = createProviderConfigCenterService({
     storageApi: {
@@ -890,6 +1076,12 @@ await runTest('providerConfigCenterService applies a saved provider config throu
             maxTokens: 12000,
             timeoutMs: 120000,
             streaming: true,
+            request: {
+              headers: {
+                'cf-aig-authorization': 'Bearer cf-gateway-secret',
+                'x-openai-client': 'claw-studio',
+              },
+            },
           },
         },
         selection: {

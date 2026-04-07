@@ -16,6 +16,58 @@ This keeps one tag and one workflow while still giving desktop users, server ope
 
 ## Local Verification And Packaging
 
+When a change touches cross-mode runtime authority or delivery behavior and you
+need one decisive gate instead of a manual checklist, run the unified multi-mode
+verification command from the workspace root:
+
+```bash
+pnpm check:multi-mode
+```
+
+`pnpm check:multi-mode` chains the current desktop runtime contract, native
+server contract, unified host-runtime authority smoke contract, bundled
+OpenClaw readiness checks, and release-flow packaging contracts. Treat it as
+the highest-signal local gate for "desktop + server + docker/kubernetes release
+surfaces still close correctly together".
+
+Before changing desktop embedded-host bootstrap, desktop hosted browser
+authority, or packaged startup behavior, verify the current desktop runtime
+contract from the workspace root:
+
+```bash
+pnpm check:desktop
+```
+
+`pnpm check:desktop` now enforces both the renderer-side desktop hosted-runtime
+regression suite and focused Rust embedded-host bootstrap regressions for the
+structured browser bootstrap descriptor plus canonical hosted route families.
+
+Before attempting to upgrade the bundled desktop OpenClaw runtime to a newer
+upstream tag, verify upgrade readiness from the workspace root:
+
+```bash
+pnpm check:desktop-openclaw-runtime
+pnpm exec node scripts/openclaw-upgrade-readiness.mjs <target-version>
+```
+
+Interpret the readiness output before touching `config/openclaw-release.json` or
+the bundled manifest files:
+
+- `versionSourcesAligned: true` means the configured release source, bundled
+  manifest, generated manifest, prepared runtime, and local upstream checkout
+  all agree on the same OpenClaw version baseline.
+- `readyToUpgrade: true` means the local checkout, local tag, and local offline
+  asset inputs are present for a real upgrade attempt.
+- `readyToUpgrade: false` means do not change bundled runtime version sources
+  yet.
+- `versionSourcesAligned: true` and `readyToUpgrade: false` can both be correct
+  at the same time. That state means the current bundled baseline is internally
+  consistent, but the workspace is not prepared for a future retargeting step
+  yet.
+- If `localUpstreamDirtyCheck` is `unavailable` in the Node diagnostic, run
+  `git -C .cache/bundled-components/upstreams/openclaw status --short`
+  separately before refreshing the upstream checkout.
+
 Before changing native server behavior, deployment bundles, or release metadata, verify the current server runtime contract from the workspace root:
 
 ```bash
@@ -53,6 +105,8 @@ pnpm release:package:container
 pnpm release:package:kubernetes
 pnpm release:package:web
 pnpm release:smoke:desktop
+pnpm release:smoke:desktop-packaged-launch -- --platform <platform> --arch <arch> --target <target>
+pnpm release:smoke:desktop-startup -- --platform <platform> --arch <arch> --startup-evidence-path <path-to-desktop-startup-evidence.json>
 pnpm release:smoke:server
 pnpm release:smoke:container
 pnpm release:smoke:kubernetes
@@ -64,14 +118,16 @@ Local prerequisite notes:
 
 - `pnpm release:package:desktop` only collects installers and app bundles that already exist; run `pnpm release:desktop` or `pnpm tauri:build` first.
 - `pnpm release:package:desktop` now also runs the same desktop installer smoke contract used by release finalization, so each packaged desktop target persists an `installer-smoke-report.json` beside its `release-asset-manifest.json`.
+- `pnpm release:smoke:desktop` now re-runs the packaged desktop installer smoke and then closes the launched-session check for the same target. When `--startup-evidence-path` is omitted it launches the canonical packaged desktop artifact for that platform, waits until `desktop-startup-evidence.json` reaches `status=passed` and `phase=shell-mounted`, and then writes `desktop-startup-smoke-report.json`. When `--startup-evidence-path` is provided it imports that external evidence instead of launching the package.
+- `pnpm release:smoke:desktop-packaged-launch` launches the canonical packaged desktop artifact for the requested target, captures isolated packaged-session startup evidence, and forwards that evidence into the canonical startup smoke report writer. On Linux it automatically falls back to `xvfb-run` when no desktop display is available.
+- `pnpm release:smoke:desktop-startup` validates only the captured launched-session startup evidence and copies that evidence into the canonical release asset path when you provide `--startup-evidence-path`.
 - `pnpm release:package:server` now auto-builds the missing native server release binary before packaging when you invoke the root local wrapper.
 - `pnpm release:package:server` now also runs packaged bundle-runtime smoke and persists a `release-smoke-report.json` beside the server `release-asset-manifest.json`.
 - `pnpm release:package:container` packages Docker deployment assets around a Linux server binary. The root local wrapper auto-builds that binary first when it is missing. On Windows, `pnpm server:build -- --target x86_64-unknown-linux-gnu` bridges into an installed WSL distro automatically. On macOS and other non-Linux hosts, the same fallback still depends on a working Linux target toolchain.
 - `pnpm release:package:kubernetes` packages chart assets and release values, so it does not require a locally built server binary.
-- `pnpm release:smoke:desktop` re-runs only the packaged desktop installer smoke stage when you want to re-verify an already collected desktop artifact set without rebuilding bundles.
 - `pnpm release:smoke:server` re-runs only the packaged server bundle smoke stage when you want fresh runtime evidence for an existing server artifact set without rebuilding it.
-- `pnpm release:smoke:container` now extracts the packaged deployment bundle, runs Docker Compose against the packaged layout, and verifies `/claw/health/ready`, `/claw/manage/v1/host-endpoints`, and the bundled browser shell before persisting `release-smoke-report.json`.
-- `pnpm release:smoke:kubernetes` now renders the packaged chart with `helm template`, verifies the rendered readiness and image contracts, and uses `kubectl apply --dry-run=client` when `kubectl` is available. When Helm is unavailable, it still emits machine-readable skipped evidence instead of silently succeeding.
+- `pnpm release:smoke:container` now extracts the packaged deployment bundle, verifies that the packaged runtime profile keeps `CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=false` and `CLAW_SERVER_DATA_DIR=/var/lib/claw-server`, verifies that the packaged Docker Compose layout requires explicit manage credentials and persists `/var/lib/claw-server`, runs Docker Compose against that packaged layout, requires Docker to report the packaged services healthy, and then verifies `/claw/health/ready`, `/claw/manage/v1/host-endpoints`, and the bundled browser shell before persisting `release-smoke-report.json`.
+- `pnpm release:smoke:kubernetes` now renders the packaged chart with `helm template`, requires immutable image metadata from `release-metadata.json`, verifies the rendered readiness, Secret-backed credential wiring, and `/var/lib/claw-server` PersistentVolumeClaim contract, and uses `kubectl apply --dry-run=client` when `kubectl` is available. When Helm is unavailable, it still emits machine-readable skipped evidence instead of silently succeeding.
 
 The local wrapper defaults `release:plan`, `release:package:*`, and `release:finalize` to `artifacts/release`. CI still aggregates assets under `release-assets/`. Override the local defaults with environment variables such as:
 
@@ -112,6 +168,8 @@ Desktop artifacts carry additional machine-readable metadata because install-tim
 - `openClawInstallerContract`: the normalized desktop OpenClaw install contract stamped from the current source of truth and persisted from packaging through finalization
 - `desktopInstallerSmoke`: the aggregated desktop installer smoke summary lifted from `installer-smoke-report.json`
 - `desktopInstallerSmoke.installReadyLayout`: normalized first-launch readiness proof showing how the packaged installer leaves OpenClaw ready for startup reuse
+- `desktopStartupSmoke`: the aggregated launched-session desktop runtime smoke summary lifted from `desktop-startup-smoke-report.json` when that evidence has been captured for the artifact
+- `desktopStartupSmoke.capturedEvidenceRelativePath`: the preserved path of the captured `diagnostics/desktop-startup-evidence.json` launch record inside the release asset directory
 
 Server artifacts also carry aggregated runtime evidence because a packaged server bundle is not considered releasable until the extracted archive actually boots:
 
@@ -121,7 +179,7 @@ Server artifacts also carry aggregated runtime evidence because a packaged serve
 Deployment artifacts also carry aggregated deployment evidence because packaging alone is not sufficient proof that the published bundle can be used safely:
 
 - `deploymentSmoke`: the aggregated deployment smoke summary lifted from `release-smoke-report.json` for `container` and `kubernetes` artifacts
-- `deploymentSmoke.checks`: ordered deployment checks proving Docker Compose startup and runtime readiness for `container`, plus rendered chart readiness and image-reference validation for `kubernetes`
+- `deploymentSmoke.checks`: ordered deployment checks proving packaged container runtime-profile, Docker Compose credential and persistence contracts, Compose startup, container health, and runtime readiness for `container`, plus rendered chart image-reference, readiness, Secret wiring, and persistent-storage validation for `kubernetes`
 
 The persisted `desktopInstallerSmoke.installReadyLayout` object is intentionally stronger than `{ mode, installKey }`. It must prove all of the following:
 
@@ -281,14 +339,17 @@ The packaging flow is intentionally split into:
 
 1. family-specific package collection
 2. desktop installer smoke verification for packaged desktop targets
-3. packaged server and deployment smoke verification for server/container/kubernetes targets
-4. global release finalization
+3. launched-session desktop startup smoke verification from a real packaged desktop run for every desktop target
+4. packaged server and deployment smoke verification for server/container/kubernetes targets
+5. global release finalization
 
 The finalization step emits the final inventory and checksums after all family outputs have been aggregated into one release asset directory. Locally that defaults to `artifacts/release`; in GitHub workflows the same step runs against `release-assets/`:
 
 ```bash
 pnpm release:finalize
 ```
+
+Finalization now requires `desktop-startup-smoke-report.json` beside every desktop partial manifest. It lifts that launched-session evidence onto the matching desktop artifact as `desktopStartupSmoke` and rejects desktop release assets when the packaged launch report or its captured `diagnostics/desktop-startup-evidence.json` evidence is missing, stale, or no longer matches the current artifact set.
 
 ## GPU Variant Model
 

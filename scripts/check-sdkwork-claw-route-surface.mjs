@@ -51,6 +51,7 @@ const shellRoutes = extractRoutes(read(shellRoutesPath));
 const v5Routes = readRouteSurfaceBaseline(v5RouteSurfaceBaselinePath);
 const approvedTemplateExtensions = new Set([
   '/dashboard',
+  '/usage',
   '/login/oauth/callback/:provider',
   '/model-purchase',
   '/points',

@@ -3,6 +3,7 @@ import type {
   HostPlatformStatusRecord,
   ManageRolloutListResult,
   RuntimeDesktopKernelInfo,
+  RuntimeInfo,
 } from '@sdkwork/claw-infrastructure';
 import type { KernelPlatformSnapshot } from '@sdkwork/claw-core';
 import {
@@ -350,6 +351,39 @@ function createRolloutListResult(
   };
 }
 
+function createRuntimeInfo(
+  overrides: Partial<RuntimeInfo> = {},
+): RuntimeInfo {
+  return {
+    platform: 'desktop',
+    startup: {
+      hostMode: 'desktopCombined',
+      distributionFamily: 'desktop',
+      deploymentFamily: 'bareMetal',
+      acceleratorProfile: null,
+      hostedBrowser: true,
+      apiBasePath: '/claw/api',
+      manageBasePath: '/claw/manage/v1',
+      internalBasePath: '/claw/internal/v1',
+      browserBaseUrl: 'http://127.0.0.1:18797',
+      hostEndpointId: 'claw-manage-http',
+      hostRequestedPort: 18797,
+      hostActivePort: 18797,
+      hostLoopbackOnly: true,
+      hostDynamicPort: false,
+      stateStoreDriver: 'sqlite',
+      stateStoreProfileId: 'default-sqlite',
+      runtimeDataDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+      webDistDir: 'C:/Program Files/Claw Studio/resources/web-dist',
+    },
+    app: null,
+    paths: null,
+    config: null,
+    system: null,
+    ...overrides,
+  };
+}
+
 await runTest('kernelCenterService composes kernel status, host ownership, and storage into a dashboard model', async () => {
   const { createKernelCenterService } = await import('./kernelCenterService.ts');
 
@@ -425,6 +459,9 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
         ],
       }),
     },
+    runtimeApi: {
+      getRuntimeInfo: async () => createRuntimeInfo(),
+    },
   });
 
   const dashboard = await service.getDashboard();
@@ -483,6 +520,20 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
   assert.equal(dashboard.hostRuntime.modeLabel, 'Desktop Combined');
   assert.equal(dashboard.hostRuntime.browserManagementAvailable, true);
   assert.equal(dashboard.hostRuntime.browserManagementLabel, 'Embedded Browser Management');
+  assert.equal(dashboard.hostRuntimeContract.hostMode, 'desktopCombined');
+  assert.equal(dashboard.hostRuntimeContract.distributionFamily, 'desktop');
+  assert.equal(dashboard.hostRuntimeContract.deploymentFamily, 'bareMetal');
+  assert.equal(dashboard.hostRuntimeContract.acceleratorProfile, null);
+  assert.equal(dashboard.hostRuntimeContract.browserBaseUrl, 'http://127.0.0.1:18797');
+  assert.equal(dashboard.hostRuntimeContract.hostEndpointId, 'claw-manage-http');
+  assert.equal(dashboard.hostRuntimeContract.hostRequestedPort, 18797);
+  assert.equal(dashboard.hostRuntimeContract.hostActivePort, 18797);
+  assert.equal(dashboard.hostRuntimeContract.hostLoopbackOnly, true);
+  assert.equal(dashboard.hostRuntimeContract.hostDynamicPort, false);
+  assert.equal(dashboard.hostRuntimeContract.stateStoreDriver, 'sqlite');
+  assert.equal(dashboard.hostRuntimeContract.stateStoreProfileId, 'default-sqlite');
+  assert.equal(dashboard.hostRuntimeContract.runtimeDataDir, 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home');
+  assert.equal(dashboard.hostRuntimeContract.webDistDir, 'C:/Program Files/Claw Studio/resources/web-dist');
   assert.equal(dashboard.hostEndpoints.totalEndpoints, 2);
   assert.equal(dashboard.hostEndpoints.conflictedEndpoints, 1);
   assert.equal(dashboard.hostEndpoints.browserBaseUrl, 'http://127.0.0.1:18797');
@@ -529,6 +580,9 @@ await runTest(
         drafts: 0,
       }),
     },
+    runtimeApi: {
+      getRuntimeInfo: async () => ({ platform: 'desktop', startup: null }),
+    },
   });
 
   const ensured = await service.ensureRunning();
@@ -542,6 +596,9 @@ await runTest(
   assert.equal(ensured.hostRuntime.lifecycleLabel, 'Degraded');
   assert.equal(ensured.hostRuntime.browserManagementAvailable, false);
   assert.equal(ensured.hostRuntime.browserManagementLabel, 'Host Runtime Available');
+  assert.equal(ensured.hostRuntimeContract.hostMode, null);
+  assert.equal(ensured.hostRuntimeContract.stateStoreDriver, null);
+  assert.equal(ensured.hostRuntimeContract.runtimeDataDir, null);
   assert.equal(ensured.hostEndpoints.totalEndpoints, 0);
   assert.equal(ensured.hostEndpoints.rows.length, 0);
   assert.equal(ensured.hostEndpoints.browserBaseUrl, null);

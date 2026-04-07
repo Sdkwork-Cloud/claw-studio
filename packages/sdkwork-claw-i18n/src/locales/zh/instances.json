@@ -704,7 +704,7 @@
         "description": "管理 OpenClaw 为当前实例暴露的共享网页搜索能力及其 Provider 绑定。",
         "enabledDescription": "为该实例切换共享网页搜索能力。",
         "providerPanel": "Provider 配置",
-        "advancedDescription": "高级 JSON 会合并到所选 Provider 的 plugins.entries.<provider>.config.webSearch 对象下。",
+        "advancedDescription": "高级 JSON 会合并到所选 Provider 对应的 OpenClaw 插件 webSearch 配置根中。",
         "fields": {
           "enabled": "启用",
           "provider": "当前 Provider",
@@ -737,6 +737,120 @@
         "toasts": {
           "saved": "网页搜索配置已保存。",
           "saveFailed": "保存网页搜索配置失败。"
+        }
+      },
+      "webFetch": {
+        "badge": "网页抓取",
+        "title": "网页抓取",
+        "description": "管理 OpenClaw 共享 web_fetch 运行时配置，以及在可读性提取失败时用于回退的 Firecrawl 配置。",
+        "enabledDescription": "为该实例切换共享 web_fetch 能力。",
+        "readabilityDescription": "优先使用 Readability 提取正文，失败后再回退到 Firecrawl。",
+        "providerPanel": "回退 Provider",
+        "advancedDescription": "高级 JSON 会在应用 API Key 与 Base URL 字段后，合并到 plugins.entries.firecrawl.config.webFetch 下。",
+        "fields": {
+          "enabled": "启用",
+          "readability": "Readability",
+          "maxChars": "最大字符数",
+          "maxCharsCap": "最大字符上限",
+          "maxResponseBytes": "最大响应字节数",
+          "timeoutSeconds": "超时（秒）",
+          "cacheTtlMinutes": "缓存 TTL（分钟）",
+          "maxRedirects": "最大重定向次数",
+          "userAgent": "User-Agent 覆盖",
+          "apiKeySource": "API Key",
+          "baseUrl": "Base URL",
+          "advancedConfig": "高级 JSON"
+        },
+        "metrics": {
+          "fallbackProvider": "回退 Provider"
+        },
+        "placeholders": {
+          "userAgent": "留空以使用 OpenClaw 运行时默认值",
+          "apiKeySource": "fc-...",
+          "baseUrl": "https://api.firecrawl.dev",
+          "advancedConfig": "{\n  \"onlyMainContent\": true,\n  \"maxAgeMs\": 86400000\n}"
+        },
+        "errors": {
+          "maxCharsInvalid": "最大字符数必须是大于 0 的数字。",
+          "maxCharsCapInvalid": "最大字符上限必须是大于 0 的数字。",
+          "maxResponseBytesInvalid": "最大响应字节数必须是大于 0 的数字。",
+          "timeoutInvalid": "超时时间必须是大于 0 的数字。",
+          "cacheTtlInvalid": "缓存 TTL 必须是大于 0 的数字。",
+          "maxRedirectsInvalid": "最大重定向次数必须是大于 0 的数字。"
+        },
+        "toasts": {
+          "saved": "网页抓取配置已保存。",
+          "saveFailed": "保存网页抓取配置失败。"
+        }
+      },
+      "xSearch": {
+        "badge": "管理型 x_search",
+        "title": "X Search 配置",
+        "description": "管理 OpenClaw 一等支持的 xAI x_search 工具及其共享的 XAI API Key，无需再回退到原始 openclaw.json 手动编辑。",
+        "enabledDescription": "为当前实例启用或停用内置 x_search 工具。",
+        "inlineCitationsDescription": "当提供方支持时，在 x_search 返回结果中附带内联引用。",
+        "advancedDescription": "高级 JSON 会在应用托管字段后合并到 plugins.entries.xai.config.xSearch 下。API Key 会写入共享的 xAI webSearch 认证配置。",
+        "fields": {
+          "enabled": "启用",
+          "inlineCitations": "内联引用",
+          "apiKeySource": "共享 XAI API Key",
+          "model": "模型",
+          "maxTurns": "最大轮次",
+          "timeoutSeconds": "超时（秒）",
+          "cacheTtlMinutes": "缓存 TTL（分钟）",
+          "advancedConfig": "高级 JSON"
+        },
+        "metrics": {
+          "sharedAuth": "共享认证",
+          "model": "模型"
+        },
+        "placeholders": {
+          "apiKeySource": "xai-...",
+          "model": "grok-4-1-fast-non-reasoning",
+          "advancedConfig": "{\n  \"userTag\": \"internal-research\"\n}"
+        },
+        "errors": {
+          "maxTurnsInvalid": "最大轮次必须是正数。",
+          "timeoutInvalid": "超时时间必须是正数。",
+          "cacheTtlInvalid": "缓存 TTL 必须是正数。"
+        },
+        "toasts": {
+          "saved": "x_search 配置已保存。",
+          "saveFailed": "保存 x_search 配置失败。"
+        }
+      },
+      "webSearchNativeCodex": {
+        "badge": "原生 Codex 搜索",
+        "title": "OpenAI Codex 原生搜索",
+        "description": "管理 tools.web.search.openaiCodex，让支持 Codex 的模型切换到提供方原生搜索，同时保留非 Codex 路径下的托管 web_search。",
+        "enabledDescription": "为支持 Codex 的模型启用提供方原生 web_search 桥接。",
+        "advancedDescription": "高级 JSON 会在应用托管字段后合并到 tools.web.search.openaiCodex 下。",
+        "fields": {
+          "enabled": "启用",
+          "mode": "模式",
+          "contextSize": "上下文规模",
+          "allowedDomains": "允许域名",
+          "userLocationCountry": "用户位置国家",
+          "userLocationCity": "用户位置城市",
+          "userLocationTimezone": "用户位置时区",
+          "advancedConfig": "高级 JSON"
+        },
+        "metrics": {
+          "mode": "模式",
+          "allowedDomains": "允许域名"
+        },
+        "placeholders": {
+          "mode": "cached",
+          "contextSize": "high",
+          "allowedDomains": "example.com\nopenai.com",
+          "userLocationCountry": "US",
+          "userLocationCity": "New York",
+          "userLocationTimezone": "America/New_York",
+          "advancedConfig": "{\n  \"reasoningEffort\": \"medium\"\n}"
+        },
+        "toasts": {
+          "saved": "原生 Codex 搜索配置已保存。",
+          "saveFailed": "保存原生 Codex 搜索配置失败。"
         }
       },
       "authCooldowns": {
@@ -773,6 +887,34 @@
         "toasts": {
           "saved": "认证冷却配置已保存。",
           "saveFailed": "保存认证冷却配置失败。"
+        }
+      },
+      "dreaming": {
+        "badge": "\u6258\u7ba1\u68a6\u5883",
+        "title": "\u68a6\u5883\u4e0e Dream Diary",
+        "description": "\u7ba1\u7406 plugins.entries.memory-core.config.dreaming\uff0c\u5e76\u67e5\u770b\u8fd0\u884c\u65f6\u662f\u5426\u5df2\u5c06 Dream Diary \u5199\u56de\u5230\u5f53\u524d\u8bb0\u5fc6\u9762\u677f\u3002",
+        "enabledDescription": "\u4e3a\u5f53\u524d\u5b9e\u4f8b\u542f\u7528\u6216\u505c\u7528 OpenClaw dreaming\u3002",
+        "note": "\u5c06\u8c03\u5ea6\u4fdd\u6301\u4e3a\u7a7a\uff0c\u5373\u53ef\u7ee7\u7eed\u4f7f\u7528 OpenClaw \u4e0a\u6e38\u9ed8\u8ba4\u7684 dreaming \u5468\u671f\u3002",
+        "diaryReader": "Dream Diary \u9605\u8bfb\u5668",
+        "fields": {
+          "enabled": "\u542f\u7528",
+          "frequency": "\u68a6\u5883\u8c03\u5ea6"
+        },
+        "placeholders": {
+          "frequency": "0 3 * * *"
+        },
+        "metrics": {
+          "status": "\u72b6\u6001",
+          "frequency": "\u8c03\u5ea6",
+          "lastDreamDiary": "Dream Diary \u66f4\u65b0\u65f6\u95f4"
+        },
+        "values": {
+          "disabled": "\u5df2\u505c\u7528",
+          "upstreamDefault": "\u4e0a\u6e38\u9ed8\u8ba4"
+        },
+        "toasts": {
+          "saved": "\u68a6\u5883\u914d\u7f6e\u5df2\u4fdd\u5b58\u3002",
+          "saveFailed": "\u4fdd\u5b58\u68a6\u5883\u914d\u7f6e\u5931\u8d25\u3002"
         }
       },
       "summary": {
@@ -909,6 +1051,11 @@
         "on": "开",
         "off": "关",
         "streamingDescription": "为运行时响应和实时预览启用 Token 流式输出。",
+        "requestOverrides": "请求覆盖",
+        "requestOverridesDescription": "以 JSON5 编辑官方 models.providers.<provider>.request 传输层覆盖配置。",
+        "requestOverridesHint": "支持的字段：headers、auth、proxy 和 tls。",
+        "requestOverridesPlaceholder": "{\n  auth: {\n    mode: \"authorization-bearer\",\n    token: \"${OPENAI_API_KEY}\"\n  }\n}",
+        "requestOverridesInvalid": "请求覆盖配置必须是合法的 JSON5。",
         "saveConfig": "保存提供方",
         "saving": "保存中...",
         "revertConfig": "恢复配置",
@@ -1140,6 +1287,7 @@
         "conversation": "对话",
         "fact": "事实",
         "artifact": "产物"
+        ,"dream": "\u68a6\u5883"
       },
       "memorySources": {
         "operator": "操作员",

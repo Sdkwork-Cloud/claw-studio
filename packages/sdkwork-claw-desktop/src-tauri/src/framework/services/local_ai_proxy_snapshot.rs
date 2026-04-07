@@ -617,7 +617,12 @@ fn normalize_client_protocol(value: Option<&Value>) -> Option<String> {
 fn normalize_upstream_protocol(value: Option<&Value>) -> Option<String> {
     let normalized = normalize_string(value)?;
     match normalized.as_str() {
-        "openai-compatible" | "anthropic" | "gemini" | "azure-openai" | "openrouter"
+        "openai-compatible"
+        | "anthropic"
+        | "gemini"
+        | "ollama"
+        | "azure-openai"
+        | "openrouter"
         | "sdkwork" => Some(normalized),
         _ => None,
     }
@@ -711,6 +716,7 @@ fn infer_upstream_protocol(provider_id: &str) -> String {
     match provider_id {
         "anthropic" => "anthropic".to_string(),
         "google" | "gemini" => "gemini".to_string(),
+        "ollama" => "ollama".to_string(),
         "azure" | "azure-openai" => "azure-openai".to_string(),
         "openrouter" => "openrouter".to_string(),
         "sdkwork" => "sdkwork".to_string(),
@@ -1059,5 +1065,34 @@ mod tests {
 
         assert_eq!(route.client_protocol, "anthropic");
         assert_eq!(route.upstream_protocol, "sdkwork");
+    }
+
+    #[test]
+    fn local_ai_proxy_snapshot_preserves_native_ollama_upstream_routes() {
+        let route = parse_route_snapshot(
+            r#"{
+  "id": "route-ollama-native",
+  "name": "Ollama Native",
+  "enabled": true,
+  "isDefault": true,
+  "managedBy": "user",
+  "clientProtocol": "openai-compatible",
+  "upstreamProtocol": "ollama",
+  "providerId": "ollama",
+  "upstreamBaseUrl": "http://127.0.0.1:11434",
+  "apiKey": "ollama-local",
+  "defaultModelId": "glm-4.7-flash",
+  "models": [
+    { "id": "glm-4.7-flash", "name": "GLM 4.7 Flash" }
+  ],
+  "exposeTo": ["openclaw"]
+}"#,
+        )
+        .expect("parse ollama route snapshot");
+
+        assert_eq!(route.client_protocol, "openai-compatible");
+        assert_eq!(route.upstream_protocol, "ollama");
+        assert_eq!(route.provider_id, "ollama");
+        assert_eq!(route.upstream_base_url, "http://127.0.0.1:11434");
     }
 }

@@ -9,7 +9,9 @@ import type {
   ManageRolloutListResult,
   ManageRolloutRecord,
   RuntimeDesktopKernelInfo,
+  RuntimeInfo,
 } from '@sdkwork/claw-infrastructure';
+import { runtime } from '@sdkwork/claw-infrastructure';
 
 export type KernelCenterStatusTone = 'healthy' | 'degraded' | 'warning';
 
@@ -34,6 +36,22 @@ export interface KernelCenterDashboard {
     capabilityCount: number;
   };
   hostRuntime: HostRuntimeModeSummary;
+  hostRuntimeContract: {
+    hostMode: string | null;
+    distributionFamily: string | null;
+    deploymentFamily: string | null;
+    acceleratorProfile: string | null;
+    browserBaseUrl: string | null;
+    hostEndpointId: string | null;
+    hostRequestedPort: number | null;
+    hostActivePort: number | null;
+    hostLoopbackOnly: boolean | null;
+    hostDynamicPort: boolean | null;
+    stateStoreDriver: string | null;
+    stateStoreProfileId: string | null;
+    runtimeDataDir: string | null;
+    webDistDir: string | null;
+  };
   hostEndpoints: HostPortSettingsSummary;
   rollouts: {
     items: ManageRolloutRecord[];
@@ -125,6 +143,10 @@ interface KernelCenterHostPortSettingsService {
   getSummary(): Promise<HostPortSettingsSummary>;
 }
 
+interface KernelCenterRuntimeApi {
+  getRuntimeInfo(): Promise<RuntimeInfo>;
+}
+
 interface KernelCenterRolloutService {
   list(): Promise<ManageRolloutListResult>;
   summarizePhases(result: ManageRolloutListResult): RolloutPhaseCounts;
@@ -135,6 +157,7 @@ export interface KernelCenterServiceOverrides {
   hostPlatformService?: Partial<KernelCenterHostPlatformService>;
   hostRuntimeModeService?: Partial<KernelCenterHostRuntimeModeService>;
   hostPortSettingsService?: Partial<KernelCenterHostPortSettingsService>;
+  runtimeApi?: Partial<KernelCenterRuntimeApi>;
   rolloutService?: Partial<KernelCenterRolloutService>;
 }
 
@@ -143,6 +166,7 @@ interface KernelCenterServiceDependencies {
   hostPlatformService: KernelCenterHostPlatformService;
   hostRuntimeModeService: KernelCenterHostRuntimeModeService;
   hostPortSettingsService: KernelCenterHostPortSettingsService;
+  runtimeApi: KernelCenterRuntimeApi;
   rolloutService: KernelCenterRolloutService;
 }
 
@@ -331,6 +355,11 @@ function createDependencies(
       return (await loadClawCoreModule()).hostPortSettingsService.getSummary();
     },
   };
+  const defaultRuntimeApi: KernelCenterRuntimeApi = {
+    async getRuntimeInfo() {
+      return runtime.getRuntimeInfo();
+    },
+  };
   const defaultRolloutService: KernelCenterRolloutService = {
     async list() {
       return (await loadClawCoreModule()).rolloutService.list();
@@ -395,6 +424,9 @@ function createDependencies(
       getSummary:
         overrides.hostPortSettingsService?.getSummary ?? defaultHostPortSettingsService.getSummary,
     },
+    runtimeApi: {
+      getRuntimeInfo: overrides.runtimeApi?.getRuntimeInfo ?? defaultRuntimeApi.getRuntimeInfo,
+    },
     rolloutService: {
       list: overrides.rolloutService?.list ?? defaultRolloutService.list,
       summarizePhases:
@@ -444,9 +476,31 @@ function unwrapSettledResult<T>(
   throw new Error(`${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
 }
 
+function mapHostRuntimeContract(runtimeInfo: RuntimeInfo | null) {
+  const startup = runtimeInfo?.startup ?? null;
+
+  return {
+    hostMode: startup?.hostMode ?? null,
+    distributionFamily: startup?.distributionFamily ?? null,
+    deploymentFamily: startup?.deploymentFamily ?? null,
+    acceleratorProfile: startup?.acceleratorProfile ?? null,
+    browserBaseUrl: startup?.browserBaseUrl ?? null,
+    hostEndpointId: startup?.hostEndpointId ?? null,
+    hostRequestedPort: startup?.hostRequestedPort ?? null,
+    hostActivePort: startup?.hostActivePort ?? null,
+    hostLoopbackOnly: startup?.hostLoopbackOnly ?? null,
+    hostDynamicPort: startup?.hostDynamicPort ?? null,
+    stateStoreDriver: startup?.stateStoreDriver ?? null,
+    stateStoreProfileId: startup?.stateStoreProfileId ?? null,
+    runtimeDataDir: startup?.runtimeDataDir ?? null,
+    webDistDir: startup?.webDistDir ?? null,
+  };
+}
+
 function mapDashboard(
   snapshot: KernelPlatformSnapshot | null,
   info: RuntimeDesktopKernelInfo | null,
+  runtimeInfo: RuntimeInfo | null,
   hostPlatformStatus: HostPlatformSnapshot | null,
   hostRuntime: HostRuntimeModeSummary,
   hostEndpoints: HostPortSettingsSummary,
@@ -486,6 +540,7 @@ function mapDashboard(
       capabilityCount: hostPlatformStatus?.capabilityCount ?? 0,
     },
     hostRuntime,
+    hostRuntimeContract: mapHostRuntimeContract(runtimeInfo),
     hostEndpoints,
     rollouts: {
       items: rolloutResult.items,
@@ -570,6 +625,7 @@ export function createKernelCenterService(
       hostPlatformStatusResult,
       hostRuntimeResult,
       hostEndpointsResult,
+      runtimeInfoResult,
       rolloutResultResult,
     ] = await Promise.allSettled([
       snapshotPromise,
@@ -577,6 +633,7 @@ export function createKernelCenterService(
       dependencies.hostPlatformService.getStatus(),
       dependencies.hostRuntimeModeService.getSummary(),
       dependencies.hostPortSettingsService.getSummary(),
+      dependencies.runtimeApi.getRuntimeInfo(),
       dependencies.rolloutService.list(),
     ]);
     const snapshot = unwrapSettledResult(snapshotResult, 'Failed to load kernel status');
@@ -593,6 +650,10 @@ export function createKernelCenterService(
       hostEndpointsResult.status === 'fulfilled'
         ? hostEndpointsResult.value
         : EMPTY_HOST_PORT_SETTINGS_SUMMARY;
+    const runtimeInfo =
+      runtimeInfoResult.status === 'fulfilled'
+        ? runtimeInfoResult.value
+        : null;
     const rolloutResult = unwrapSettledResult(
       rolloutResultResult,
       'Failed to load rollout status',
@@ -601,6 +662,7 @@ export function createKernelCenterService(
     return mapDashboard(
       snapshot,
       info,
+      runtimeInfo,
       hostPlatformStatus,
       hostRuntime,
       hostEndpoints,

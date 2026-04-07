@@ -28,6 +28,12 @@ import {
   smokeDesktopInstallers,
 } from './smoke-desktop-installers.mjs';
 import {
+  smokeDesktopStartupEvidence,
+} from './smoke-desktop-startup-evidence.mjs';
+import {
+  smokeDesktopPackagedLaunch,
+} from './smoke-desktop-packaged-launch.mjs';
+import {
   smokeServerReleaseAssets,
 } from './smoke-server-release-assets.mjs';
 import {
@@ -59,6 +65,8 @@ const RELEASE_IMAGE_REPOSITORY_ENV_VAR = 'SDKWORK_RELEASE_IMAGE_REPOSITORY';
 const RELEASE_IMAGE_TAG_ENV_VAR = 'SDKWORK_RELEASE_IMAGE_TAG';
 const RELEASE_IMAGE_DIGEST_ENV_VAR = 'SDKWORK_RELEASE_IMAGE_DIGEST';
 const RELEASE_REPOSITORY_ENV_VAR = 'SDKWORK_RELEASE_REPOSITORY';
+const RELEASE_DESKTOP_STARTUP_EVIDENCE_PATH_ENV_VAR =
+  'SDKWORK_RELEASE_DESKTOP_STARTUP_EVIDENCE_PATH';
 
 function readOptionValue(argv, index, flag) {
   const next = argv[index + 1];
@@ -185,6 +193,7 @@ export function parseArgs(argv) {
     imageTag: '',
     imageDigest: '',
     repository: '',
+    startupEvidencePath: '',
   };
   const startIndex =
     command === 'package' || command === 'smoke'
@@ -270,6 +279,12 @@ export function parseArgs(argv) {
     if (token === '--repository') {
       options.repository = readOptionValue(tokens, index, '--repository');
       index += 1;
+      continue;
+    }
+
+    if (token === '--startup-evidence-path') {
+      options.startupEvidencePath = readOptionValue(tokens, index, '--startup-evidence-path');
+      index += 1;
     }
   }
 
@@ -342,6 +357,13 @@ export function resolveLocalReleaseContext({
     cliOverrides.imageDigest,
     env?.[RELEASE_IMAGE_DIGEST_ENV_VAR],
   );
+  const startupEvidencePath = firstNonEmpty(
+    cliOverrides.startupEvidencePath,
+    env?.[RELEASE_DESKTOP_STARTUP_EVIDENCE_PATH_ENV_VAR],
+  );
+  const resolvedStartupEvidencePath = startupEvidencePath
+    ? path.resolve(cwd, startupEvidencePath)
+    : '';
 
   if (
     normalizedMode === 'package:container'
@@ -390,6 +412,7 @@ export function resolveLocalReleaseContext({
       imageRepository,
       imageTag,
       imageDigest,
+      startupEvidencePath: '',
     };
   }
 
@@ -431,6 +454,7 @@ export function resolveLocalReleaseContext({
       imageRepository,
       imageTag,
       imageDigest,
+      startupEvidencePath: resolvedStartupEvidencePath,
     };
   }
 
@@ -449,6 +473,7 @@ export function resolveLocalReleaseContext({
     imageRepository,
     imageTag,
     imageDigest,
+    startupEvidencePath: resolvedStartupEvidencePath,
   };
 }
 
@@ -472,6 +497,10 @@ export async function runLocalReleaseCommand(options = {}) {
   const packageKubernetesAssetsFn = options.packageKubernetesAssetsFn ?? packageKubernetesAssets;
   const packageWebAssetsFn = options.packageWebAssetsFn ?? packageWebAssets;
   const smokeDesktopInstallersFn = options.smokeDesktopInstallersFn ?? smokeDesktopInstallers;
+  const smokeDesktopStartupEvidenceFn =
+    options.smokeDesktopStartupEvidenceFn ?? smokeDesktopStartupEvidence;
+  const smokeDesktopPackagedLaunchFn =
+    options.smokeDesktopPackagedLaunchFn ?? smokeDesktopPackagedLaunch;
   const smokeServerReleaseAssetsFn = options.smokeServerReleaseAssetsFn ?? smokeServerReleaseAssets;
   const smokeDeploymentReleaseAssetsFn = options.smokeDeploymentReleaseAssetsFn ?? smokeDeploymentReleaseAssets;
 
@@ -488,6 +517,7 @@ export async function runLocalReleaseCommand(options = {}) {
   if (context.mode === 'package:desktop') {
     packageDesktopAssetsFn(context);
     await smokeDesktopInstallersFn(context);
+    await smokeDesktopPackagedLaunchFn(context);
     return context;
   }
 
@@ -534,6 +564,11 @@ export async function runLocalReleaseCommand(options = {}) {
 
   if (context.mode === 'smoke:desktop') {
     await smokeDesktopInstallersFn(context);
+    if (context.startupEvidencePath) {
+      await smokeDesktopStartupEvidenceFn(context);
+    } else {
+      await smokeDesktopPackagedLaunchFn(context);
+    }
     return context;
   }
 

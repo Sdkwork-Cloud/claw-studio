@@ -33,9 +33,23 @@ export const languageQueryParameter = LANGUAGE_QUERY_PARAMETER;
 export const resolveRequestLanguage = detectRequestLanguage;
 export { normalizeLanguage, parseCookieValue, getLanguageFromCookieString };
 
+const englishTranslationBundle = { translation: en } as const;
+const chineseTranslationBundle = { translation: zh } as const;
+
 export const translationResources = {
-  en: { translation: en },
-  zh: { translation: zh },
+  en: englishTranslationBundle,
+  zh: chineseTranslationBundle,
+  'zh-TW': chineseTranslationBundle,
+  fr: englishTranslationBundle,
+  de: englishTranslationBundle,
+  'pt-BR': englishTranslationBundle,
+  ja: englishTranslationBundle,
+  ko: englishTranslationBundle,
+  es: englishTranslationBundle,
+  tr: englishTranslationBundle,
+  uk: englishTranslationBundle,
+  pl: englishTranslationBundle,
+  id: englishTranslationBundle,
 } as const;
 
 let initialization: Promise<typeof i18n> | null = null;
@@ -96,7 +110,7 @@ export async function ensureI18n(initialLanguage = resolveInitialLanguage()) {
           lng: normalizeLanguage(initialLanguage),
           fallbackLng: defaultLanguage,
           supportedLngs: [...supportedLanguages],
-          load: 'languageOnly',
+          load: 'currentOnly',
           interpolation,
           detection: {
             order: ['querystring', 'cookie', 'localStorage', 'navigator', 'htmlTag'],

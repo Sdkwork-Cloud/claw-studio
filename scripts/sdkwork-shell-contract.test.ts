@@ -328,6 +328,31 @@ runTest('sdkwork-claw-shell defers optional header and dialog feature surfaces u
   assert.doesNotMatch(shellIndexSource, /export \{ InstanceSwitcher \} from '\.\/components\/InstanceSwitcher';/);
 });
 
+runTest('sdkwork-claw-shell exposes the shared usage workspace across routes, sidebar, settings, prefetch, and command palette', () => {
+  const routesSource = read('packages/sdkwork-claw-shell/src/application/router/AppRoutes.tsx');
+  const routePathsSource = read('packages/sdkwork-claw-shell/src/application/router/routePaths.ts');
+  const routePrefetchSource = read('packages/sdkwork-claw-shell/src/application/router/routePrefetch.ts');
+  const sidebarSource = read('packages/sdkwork-claw-shell/src/components/Sidebar.tsx');
+  const settingsSource = read('packages/sdkwork-claw-settings/src/GeneralSettings.tsx');
+  const commandPaletteSource = read('packages/sdkwork-claw-shell/src/components/commandPaletteCommands.ts');
+
+  assert.match(routePathsSource, /USAGE: '\/usage'/);
+  assert.match(
+    routesSource,
+    /const UsageWorkspace = lazy\(\(\) =>[\s\S]*import\('@sdkwork\/claw-dashboard'\)[\s\S]*module\.UsageWorkspace/,
+  );
+  assert.match(routesSource, /path="\/usage"/);
+  assert.match(routesSource, /<UsageWorkspace \/>/);
+  assert.match(routePrefetchSource, /\['\/usage', \(\) => import\('@sdkwork\/claw-dashboard'\)\]/);
+  assert.match(sidebarSource, /id: 'usage'/);
+  assert.match(sidebarSource, /to: '\/usage'/);
+  assert.match(sidebarSource, /label: t\('sidebar\.usage'\)/);
+  assert.match(settingsSource, /id: 'usage', label: t\('sidebar\.usage'\)/);
+  assert.match(commandPaletteSource, /id: 'nav-usage'/);
+  assert.match(commandPaletteSource, /commandPalette\.commands\.usage\.title/);
+  assert.match(commandPaletteSource, /navigate\('\/usage'\)/);
+});
+
 runTest('sdkwork-claw-shell keeps the dual-host provider stack', () => {
   const providersSource = read('packages/sdkwork-claw-shell/src/application/providers/AppProviders.tsx');
   const languageManagerSource = read('packages/sdkwork-claw-shell/src/application/providers/LanguageManager.tsx');

@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict';
 import { loadTaskStudioSnapshot } from './cronTasksManagerData.ts';
 
+function createTaskRuntimeOverview() {
+  return {
+    openClawRuntime: false,
+    taskBoard: {
+      supported: false,
+      message: null,
+      items: [],
+    },
+    taskFlows: {
+      supported: false,
+      message: null,
+      items: [],
+    },
+  };
+}
+
 function runTest(name: string, fn: () => Promise<void> | void) {
   return Promise.resolve()
     .then(fn)
@@ -19,6 +35,7 @@ await runTest('initial task snapshot skips execution history prefetch when no hi
   const snapshot = await loadTaskStudioSnapshot({
     instanceId: 'instance-a',
     getTasks: async () => [{ id: 'task-1' }, { id: 'task-2' }] as any[],
+    getTaskRuntimeOverview: async () => createTaskRuntimeOverview() as any,
     listDeliveryChannels: async () => [],
     getAgentCatalog: async () => ({
       agents: [],
@@ -41,6 +58,7 @@ await runTest('task snapshot only fetches execution history for explicitly reque
     instanceId: 'instance-a',
     historyTaskIds: ['task-2'],
     getTasks: async () => [{ id: 'task-1' }, { id: 'task-2' }] as any[],
+    getTaskRuntimeOverview: async () => createTaskRuntimeOverview() as any,
     listDeliveryChannels: async () => [],
     getAgentCatalog: async () => ({
       agents: [],
@@ -64,6 +82,7 @@ await runTest('task snapshot can skip editor resources during list-first hydrati
     instanceId: 'instance-a',
     includeEditorResources: false,
     getTasks: async () => [{ id: 'task-1' }] as any[],
+    getTaskRuntimeOverview: async () => createTaskRuntimeOverview() as any,
     listDeliveryChannels: async () => {
       deliveryChannelCalls += 1;
       return [] as any[];

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
   createProviderRoutingCatalogService,
+  listKnownProviderRoutingChannels,
 } from './providerRoutingCatalogService.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
@@ -13,6 +14,84 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
     throw error;
   }
 }
+
+await runTest(
+  'provider routing catalog exposes official Fireworks and Amazon Bedrock Mantle channels',
+  () => {
+    const channels = listKnownProviderRoutingChannels();
+    const fireworksChannel = channels.find((channel) => channel.id === 'fireworks');
+    const mantleChannel = channels.find((channel) => channel.id === 'amazon-bedrock-mantle');
+
+    assert.ok(fireworksChannel);
+    assert.equal(fireworksChannel?.name, 'Fireworks');
+    assert.equal(fireworksChannel?.vendor, 'Fireworks AI');
+    assert.match(fireworksChannel?.modelFamily ?? '', /Kimi|Qwen|Gemma/);
+
+    assert.ok(mantleChannel);
+    assert.equal(mantleChannel?.name, 'Amazon Bedrock Mantle');
+    assert.equal(mantleChannel?.vendor, 'Amazon Web Services');
+    assert.match(mantleChannel?.description ?? '', /Mantle/i);
+  },
+);
+
+await runTest(
+  'provider routing catalog exposes additional official proxy and gateway providers from the current OpenClaw directory',
+  () => {
+    const channels = listKnownProviderRoutingChannels();
+    const cloudflareChannel = channels.find((channel) => channel.id === 'cloudflare-ai-gateway');
+    const groqChannel = channels.find((channel) => channel.id === 'groq');
+    const ollamaChannel = channels.find((channel) => channel.id === 'ollama');
+    const sglangChannel = channels.find((channel) => channel.id === 'sglang');
+    const vercelChannel = channels.find((channel) => channel.id === 'vercel-ai-gateway');
+    const togetherChannel = channels.find((channel) => channel.id === 'together');
+    const litellmChannel = channels.find((channel) => channel.id === 'litellm');
+    const kiloChannel = channels.find((channel) => channel.id === 'kilocode');
+    const vllmChannel = channels.find((channel) => channel.id === 'vllm');
+    const veniceChannel = channels.find((channel) => channel.id === 'venice');
+
+    assert.ok(cloudflareChannel);
+    assert.equal(cloudflareChannel?.vendor, 'Cloudflare');
+    assert.match(cloudflareChannel?.description ?? '', /Anthropic|Gateway|header/i);
+    assert.match(cloudflareChannel?.modelFamily ?? '', /Claude/i);
+
+    assert.ok(groqChannel);
+    assert.equal(groqChannel?.vendor, 'Groq');
+    assert.match(groqChannel?.description ?? '', /OpenAI-compatible|LPU|open-source/i);
+
+    assert.ok(ollamaChannel);
+    assert.equal(ollamaChannel?.vendor, 'Ollama');
+    assert.match(ollamaChannel?.description ?? '', /native API|local|open-source/i);
+    assert.match(ollamaChannel?.modelFamily ?? '', /GLM|GPT-OSS|Llama/i);
+
+    assert.ok(sglangChannel);
+    assert.equal(sglangChannel?.vendor, 'SGLang');
+    assert.match(sglangChannel?.description ?? '', /OpenAI-compatible|self-hosted|local/i);
+
+    assert.ok(vercelChannel);
+    assert.equal(vercelChannel?.vendor, 'Vercel');
+    assert.match(vercelChannel?.description ?? '', /Anthropic|gateway|models/i);
+
+    assert.ok(togetherChannel);
+    assert.equal(togetherChannel?.vendor, 'Together AI');
+    assert.match(togetherChannel?.modelFamily ?? '', /Kimi|GLM|Llama/);
+
+    assert.ok(litellmChannel);
+    assert.equal(litellmChannel?.vendor, 'LiteLLM');
+    assert.match(litellmChannel?.description ?? '', /gateway|routing/i);
+
+    assert.ok(kiloChannel);
+    assert.equal(kiloChannel?.vendor, 'Kilo Code');
+    assert.match(kiloChannel?.modelFamily ?? '', /Auto|Claude|GPT|Gemini/);
+
+    assert.ok(vllmChannel);
+    assert.equal(vllmChannel?.vendor, 'vLLM');
+    assert.match(vllmChannel?.description ?? '', /OpenAI-compatible|self-hosted/i);
+
+    assert.ok(veniceChannel);
+    assert.equal(veniceChannel?.vendor, 'Venice AI');
+    assert.match(veniceChannel?.modelFamily ?? '', /Kimi|Claude|Qwen/);
+  },
+);
 
 await runTest(
   'provider routing catalog reads configured routes from storage and derives route-aware channel counts',
@@ -308,6 +387,12 @@ await runTest(
         maxTokens: 24000,
         timeoutMs: 90000,
         streaming: false,
+        request: {
+          headers: {
+            'cf-aig-authorization': 'Bearer cf-gateway-secret',
+            'x-openai-client': 'claw-studio',
+          },
+        },
       },
     });
 
@@ -322,10 +407,20 @@ await runTest(
       maxTokens: 24000,
       timeoutMs: 90000,
       streaming: false,
+      request: {
+        headers: {
+          'cf-aig-authorization': 'Bearer cf-gateway-secret',
+          'x-openai-client': 'claw-studio',
+        },
+      },
     });
     assert.equal(records.length, 3);
     assert.equal(records.some((record) => record.id === saved.id), true);
     assert.deepEqual(records.find((record) => record.id === saved.id)?.config, saved.config);
+    assert.deepEqual(
+      JSON.parse(store.values().next().value as string).config?.request,
+      saved.config.request,
+    );
     assert.equal(
       records.some(
         (record) => record.clientProtocol === 'anthropic' && record.managedBy === 'system-default',

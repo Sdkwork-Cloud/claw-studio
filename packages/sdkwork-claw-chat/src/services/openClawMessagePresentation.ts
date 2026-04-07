@@ -10,6 +10,7 @@ export type OpenClawToolCard = {
 export type OpenClawMessagePresentation = {
   role: OpenClawMessagePresentationRole;
   text: string;
+  phase: string | null;
   reasoning: string | null;
   senderLabel?: string | null;
   toolCards: OpenClawToolCard[];
@@ -90,6 +91,11 @@ function unwrapMessagePayload(payload: unknown): unknown {
 
 function normalizeContentType(value: unknown) {
   return typeof value === 'string' ? value.toLowerCase() : '';
+}
+
+function normalizeAssistantPhase(value: unknown) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return normalized || null;
 }
 
 function isToolCallContentType(value: unknown) {
@@ -419,12 +425,31 @@ function extractSenderLabel(payload: unknown) {
   return typeof record?.text === 'string' ? extractInboundSenderLabel(record.text) : null;
 }
 
-function normalizeUserVisibleText(rawText: string, role: OpenClawMessagePresentationRole) {
+function extractAssistantPhase(payload: unknown) {
+  const record = asRecord(unwrapMessagePayload(payload));
+  return normalizeAssistantPhase(
+    record?.phase ??
+    record?.messagePhase ??
+    record?.message_phase ??
+    asRecord(record?.meta)?.phase ??
+    asRecord(record?.__openclaw)?.phase,
+  );
+}
+
+function normalizeUserVisibleText(
+  rawText: string,
+  role: OpenClawMessagePresentationRole,
+  phase: string | null,
+) {
   if (!rawText.trim()) {
     return '';
   }
 
   if (role === 'assistant') {
+    if (phase === 'commentary') {
+      return '';
+    }
+
     return stripAssistantInternalScaffolding(rawText);
   }
 
@@ -589,7 +614,8 @@ export function resolveOpenClawMessagePresentation(payload: unknown): OpenClawMe
   const rawText = extractRawText(payload);
   const toolCards = extractToolCards(payload);
   const preliminaryRole = resolveRole(payload, rawText, toolCards);
-  const normalizedText = normalizeUserVisibleText(rawText, preliminaryRole);
+  const phase = preliminaryRole === 'assistant' ? extractAssistantPhase(payload) : null;
+  const normalizedText = normalizeUserVisibleText(rawText, preliminaryRole, phase);
   const role = resolveRole(payload, normalizedText, toolCards);
   const reasoning = extractReasoning(payload);
   const senderLabel = role === 'user' ? extractSenderLabel(payload) : null;
@@ -597,6 +623,7 @@ export function resolveOpenClawMessagePresentation(payload: unknown): OpenClawMe
   return {
     role,
     text: role === 'tool' && isJsonLikeText(normalizedText) ? '' : normalizedText,
+    phase,
     reasoning,
     ...(senderLabel ? { senderLabel } : {}),
     toolCards,

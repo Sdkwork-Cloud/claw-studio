@@ -47,6 +47,7 @@ const OPENCLAW_LOCAL_PROXY_PROVIDER_GEMINI_API: &str = "google-generative-ai";
 const OPENCLAW_LOCAL_PROXY_PROVIDER_AUTH: &str = "api-key";
 const ANTHROPIC_CLIENT_PROTOCOL: &str = "anthropic";
 const GEMINI_CLIENT_PROTOCOL: &str = "gemini";
+const OLLAMA_UPSTREAM_PROTOCOL: &str = "ollama";
 const ANTHROPIC_VERSION_HEADER: &str = "anthropic-version";
 const ANTHROPIC_BETA_HEADER: &str = "anthropic-beta";
 const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -1402,10 +1403,12 @@ fn extract_token_usage(payload: &Value) -> LocalAiProxyTokenUsage {
     let input_tokens = value_u64(payload, "/usage/prompt_tokens")
         .or_else(|| value_u64(payload, "/usage/input_tokens"))
         .or_else(|| value_u64(payload, "/usageMetadata/promptTokenCount"))
+        .or_else(|| value_u64(payload, "/prompt_eval_count"))
         .unwrap_or(0);
     let output_tokens = value_u64(payload, "/usage/completion_tokens")
         .or_else(|| value_u64(payload, "/usage/output_tokens"))
         .or_else(|| value_u64(payload, "/usageMetadata/candidatesTokenCount"))
+        .or_else(|| value_u64(payload, "/eval_count"))
         .unwrap_or(0);
     let anthropic_cache_tokens = value_u64(payload, "/usage/cache_creation_input_tokens")
         .unwrap_or(0)
@@ -1493,6 +1496,7 @@ async fn probe_route_async(route: &LocalAiProxyRouteSnapshot) -> LocalAiProxyRou
         match route.upstream_protocol.as_str() {
             "anthropic" => probe_anthropic_route(&client, route).await,
             "gemini" => probe_gemini_route(&client, route).await,
+            OLLAMA_UPSTREAM_PROTOCOL => probe_ollama_route(&client, route).await,
             _ => probe_openai_compatible_route(&client, route).await,
         }
     };
@@ -1592,6 +1596,27 @@ async fn probe_gemini_route(
                 "generationConfig": {
                     "maxOutputTokens": 1,
                 }
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .map_err(|error| format!("route probe upstream request failed: {error}"))?;
+    ensure_probe_response_success(response).await
+}
+
+async fn probe_ollama_route(
+    client: &reqwest::Client,
+    route: &LocalAiProxyRouteSnapshot,
+) -> StdResult<(), String> {
+    let response = client
+        .post(build_ollama_upstream_request_url(route, "/api/chat"))
+        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+        .body(
+            json!({
+                "model": route.default_model_id,
+                "messages": [{ "role": "user", "content": "ping" }],
+                "stream": false,
             })
             .to_string(),
         )
@@ -1730,6 +1755,9 @@ async fn openai_compatible_passthrough_handler(
         "gemini" => {
             return gemini_openai_compatible_handler(state, route, endpoint_suffix, body).await
         }
+        OLLAMA_UPSTREAM_PROTOCOL => {
+            return ollama_openai_compatible_handler(state, route, endpoint_suffix, body).await
+        }
         _ => {}
     }
 
@@ -1788,6 +1816,195 @@ async fn openai_compatible_passthrough_handler(
         build_buffered_upstream_response(response).await
     }
     .await;
+
+    record_proxy_route_outcome(&state, route, started_at.elapsed(), &result);
+    record_proxy_request_log(&state, &audit_context, started_at.elapsed(), &result);
+    result.map(|outcome| outcome.response)
+}
+
+async fn ollama_openai_compatible_handler(
+    state: LocalAiProxyAppState,
+    route: &LocalAiProxyRouteSnapshot,
+    endpoint_suffix: &str,
+    body: Bytes,
+) -> ProxyHttpResult<Response> {
+    let stream_endpoint = openai_stream_endpoint_for_suffix(endpoint_suffix).ok();
+    let started_at = Instant::now();
+    let audit_context =
+        build_request_audit_context(route, &format!("/v1/{endpoint_suffix}"), &body);
+    let result = match endpoint_suffix {
+        "chat/completions" => {
+            let payload = parse_json_body(&body)?;
+            let streaming = is_openai_stream_request(&payload);
+            let requested_model_id = resolve_request_model_id(route, &payload)?;
+            let request_body = build_ollama_request_from_openai_chat(route, &payload)?;
+            let response = state
+                .client
+                .post(build_ollama_upstream_request_url(route, "/api/chat"))
+                .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+                .body(request_body.to_string())
+                .send()
+                .await
+                .map_err(|error| {
+                    proxy_error(
+                        StatusCode::BAD_GATEWAY,
+                        &format!("Local AI proxy upstream request failed: {error}"),
+                    )
+                })?;
+
+            if !response.status().is_success() {
+                build_buffered_upstream_response(response).await
+            } else if streaming {
+                let status = response.status();
+                let observability = state.observability.clone();
+                let observability_repo = state.observability_repo.clone();
+                let route_id = route.id.clone();
+                let request_audit_context = audit_context.clone();
+                let request_started_at = started_at.clone();
+                Ok(ProxyRouteOutcome {
+                    response: build_translated_openai_jsonl_response(
+                        status,
+                        response,
+                        OpenAiTranslatedStreamState::new(
+                            stream_endpoint.unwrap_or(OpenAiStreamEndpoint::ChatCompletions),
+                            requested_model_id,
+                            "chatcmpl-local-proxy",
+                        ),
+                        handle_ollama_openai_stream_frame,
+                        started_at.clone(),
+                        move |usage, ttft_ms, response_text| {
+                            record_proxy_route_usage_adjustment(&observability, &route_id, &usage);
+                            record_completed_stream_request_log(
+                                &observability_repo,
+                                request_audit_context,
+                                status,
+                                request_started_at,
+                                usage,
+                                ttft_ms,
+                                response_text,
+                            );
+                        },
+                    )
+                    .await?,
+                    status,
+                    usage: LocalAiProxyTokenUsage::default(),
+                    error: None,
+                    response_preview: None,
+                    response_body: None,
+                })
+            } else {
+                let status = response.status();
+                let upstream_body = parse_json_response(response).await?;
+                build_json_outcome(
+                    status,
+                    build_openai_chat_completion_from_ollama(route, &upstream_body),
+                    extract_token_usage(&upstream_body),
+                )
+            }
+        }
+        "responses" => {
+            let payload = parse_json_body(&body)?;
+            let streaming = is_openai_stream_request(&payload);
+            let requested_model_id = resolve_request_model_id(route, &payload)?;
+            let request_body = build_ollama_request_from_openai_response(route, &payload)?;
+            let response = state
+                .client
+                .post(build_ollama_upstream_request_url(route, "/api/chat"))
+                .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+                .body(request_body.to_string())
+                .send()
+                .await
+                .map_err(|error| {
+                    proxy_error(
+                        StatusCode::BAD_GATEWAY,
+                        &format!("Local AI proxy upstream request failed: {error}"),
+                    )
+                })?;
+
+            if !response.status().is_success() {
+                build_buffered_upstream_response(response).await
+            } else if streaming {
+                let status = response.status();
+                let observability = state.observability.clone();
+                let observability_repo = state.observability_repo.clone();
+                let route_id = route.id.clone();
+                let request_audit_context = audit_context.clone();
+                let request_started_at = started_at.clone();
+                Ok(ProxyRouteOutcome {
+                    response: build_translated_openai_jsonl_response(
+                        status,
+                        response,
+                        OpenAiTranslatedStreamState::new(
+                            stream_endpoint.unwrap_or(OpenAiStreamEndpoint::Responses),
+                            requested_model_id,
+                            "resp-local-proxy",
+                        ),
+                        handle_ollama_openai_stream_frame,
+                        started_at.clone(),
+                        move |usage, ttft_ms, response_text| {
+                            record_proxy_route_usage_adjustment(&observability, &route_id, &usage);
+                            record_completed_stream_request_log(
+                                &observability_repo,
+                                request_audit_context,
+                                status,
+                                request_started_at,
+                                usage,
+                                ttft_ms,
+                                response_text,
+                            );
+                        },
+                    )
+                    .await?,
+                    status,
+                    usage: LocalAiProxyTokenUsage::default(),
+                    error: None,
+                    response_preview: None,
+                    response_body: None,
+                })
+            } else {
+                let status = response.status();
+                let upstream_body = parse_json_response(response).await?;
+                build_json_outcome(
+                    status,
+                    build_openai_response_from_ollama(route, &upstream_body),
+                    extract_token_usage(&upstream_body),
+                )
+            }
+        }
+        "embeddings" => {
+            let payload = parse_json_body(&body)?;
+            let request_body = build_ollama_request_from_openai_embeddings(route, &payload)?;
+            let response = state
+                .client
+                .post(build_ollama_upstream_request_url(route, "/api/embed"))
+                .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+                .body(request_body.to_string())
+                .send()
+                .await
+                .map_err(|error| {
+                    proxy_error(
+                        StatusCode::BAD_GATEWAY,
+                        &format!("Local AI proxy upstream request failed: {error}"),
+                    )
+                })?;
+
+            if !response.status().is_success() {
+                build_buffered_upstream_response(response).await
+            } else {
+                let status = response.status();
+                let upstream_body = parse_json_response(response).await?;
+                build_json_outcome(
+                    status,
+                    build_openai_embeddings_from_ollama(&upstream_body),
+                    extract_token_usage(&upstream_body),
+                )
+            }
+        }
+        _ => Err(proxy_error(
+            StatusCode::NOT_IMPLEMENTED,
+            &format!("Unsupported OpenAI-compatible endpoint: {endpoint_suffix}"),
+        )),
+    };
 
     record_proxy_route_outcome(&state, route, started_at.elapsed(), &result);
     record_proxy_request_log(&state, &audit_context, started_at.elapsed(), &result);
@@ -2879,6 +3096,34 @@ fn parse_sse_frame(frame: &str) -> Option<ParsedSseEvent> {
     })
 }
 
+fn drain_json_line_payloads(buffer: &mut String) -> Vec<Value> {
+    *buffer = buffer.replace("\r\n", "\n");
+    let mut frames = Vec::new();
+
+    while let Some(index) = buffer.find('\n') {
+        let frame_text = buffer[..index].trim().to_string();
+        *buffer = buffer[index + 1..].to_string();
+        if frame_text.is_empty() {
+            continue;
+        }
+        if let Ok(payload) = serde_json::from_str::<Value>(&frame_text) {
+            frames.push(payload);
+        }
+    }
+
+    frames
+}
+
+fn flush_json_line_payload(buffer: &mut String) -> Option<Value> {
+    *buffer = buffer.replace("\r\n", "\n");
+    let trailing = buffer.trim();
+    if trailing.is_empty() {
+        return None;
+    }
+
+    serde_json::from_str::<Value>(trailing).ok()
+}
+
 async fn build_translated_openai_sse_response<F, G>(
     status: StatusCode,
     response: reqwest::Response,
@@ -2949,6 +3194,80 @@ where
             proxy_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 &format!("Local AI proxy failed to build translated SSE response: {error}"),
+            )
+        })
+}
+
+async fn build_translated_openai_jsonl_response<F, G>(
+    status: StatusCode,
+    response: reqwest::Response,
+    mut state: OpenAiTranslatedStreamState,
+    mut map_frame: F,
+    request_started_at: Instant,
+    on_complete: G,
+) -> ProxyHttpResult<Response>
+where
+    F: FnMut(&mut OpenAiTranslatedStreamState, Value) -> Vec<Bytes> + Send + 'static,
+    G: FnOnce(LocalAiProxyTokenUsage, Option<u64>, Option<String>) + Send + 'static,
+{
+    let stream = async_stream::stream! {
+        let mut upstream = response;
+        let mut buffer = String::new();
+        let mut first_chunk_latency_ms = None;
+        let mut on_complete = Some(on_complete);
+
+        loop {
+            match upstream.chunk().await {
+                Ok(Some(chunk)) => {
+                    buffer.push_str(&String::from_utf8_lossy(&chunk));
+                    for frame in drain_json_line_payloads(&mut buffer) {
+                        for translated_chunk in map_frame(&mut state, frame) {
+                            if first_chunk_latency_ms.is_none() {
+                                first_chunk_latency_ms =
+                                    Some(duration_to_ms(request_started_at.elapsed()));
+                            }
+                            yield Ok::<Bytes, std::io::Error>(translated_chunk);
+                        }
+                    }
+                }
+                Ok(None) => break,
+                Err(_) => break,
+            }
+        }
+
+        if let Some(frame) = flush_json_line_payload(&mut buffer) {
+            for translated_chunk in map_frame(&mut state, frame) {
+                if first_chunk_latency_ms.is_none() {
+                    first_chunk_latency_ms = Some(duration_to_ms(request_started_at.elapsed()));
+                }
+                yield Ok::<Bytes, std::io::Error>(translated_chunk);
+            }
+        }
+
+        for translated_chunk in state.complete(None) {
+            if first_chunk_latency_ms.is_none() {
+                first_chunk_latency_ms = Some(duration_to_ms(request_started_at.elapsed()));
+            }
+            yield Ok::<Bytes, std::io::Error>(translated_chunk);
+        }
+
+        if let Some(on_complete) = on_complete.take() {
+            on_complete(
+                state.usage.clone(),
+                first_chunk_latency_ms,
+                trim_optional_text(&state.accumulated_text),
+            );
+        }
+    };
+
+    Response::builder()
+        .status(status)
+        .header(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"))
+        .body(Body::from_stream(stream))
+        .map_err(|error| {
+            proxy_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &format!("Local AI proxy failed to build translated JSONL response: {error}"),
             )
         })
 }
@@ -3042,6 +3361,36 @@ fn handle_gemini_openai_stream_frame(
             .and_then(Value::as_str),
     );
     if finish_reason.is_some() {
+        events.extend(state.complete(finish_reason));
+    }
+
+    events
+}
+
+fn handle_ollama_openai_stream_frame(
+    state: &mut OpenAiTranslatedStreamState,
+    payload: Value,
+) -> Vec<Bytes> {
+    let mut events = Vec::new();
+    state.update_model(payload.get("model").and_then(Value::as_str));
+    state.merge_usage_from_payload(&payload);
+
+    let text = extract_ollama_response_text(&payload);
+    if !text.is_empty() {
+        events.extend(state.push_text_delta(&text));
+    }
+
+    let has_tool_calls = payload
+        .pointer("/message/tool_calls")
+        .and_then(Value::as_array)
+        .map(|items| !items.is_empty())
+        .unwrap_or(false);
+    if payload.get("done").and_then(Value::as_bool).unwrap_or(false) {
+        let finish_reason = if has_tool_calls {
+            Some("tool_calls")
+        } else {
+            map_ollama_done_reason(payload.get("done_reason").and_then(Value::as_str))
+        };
         events.extend(state.complete(finish_reason));
     }
 
@@ -3477,6 +3826,127 @@ fn build_gemini_request_from_openai_embeddings(payload: &Value) -> ProxyHttpResu
     }))
 }
 
+fn build_ollama_messages(
+    system: Option<String>,
+    conversation: Vec<(String, String)>,
+) -> Vec<Value> {
+    let mut messages = Vec::new();
+    if let Some(system) = system.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
+        messages.push(json!({
+            "role": "system",
+            "content": system,
+        }));
+    }
+
+    for (role, content) in conversation {
+        messages.push(json!({
+            "role": role,
+            "content": content,
+        }));
+    }
+
+    messages
+}
+
+fn build_ollama_request_options(payload: &Value) -> Option<Value> {
+    let mut options = serde_json::Map::new();
+    if let Some(value) = payload.get("temperature").and_then(Value::as_f64) {
+        options.insert("temperature".to_string(), Value::from(value));
+    }
+    if let Some(value) = payload.get("top_p").and_then(Value::as_f64) {
+        options.insert("top_p".to_string(), Value::from(value));
+    }
+
+    let max_tokens = read_request_max_tokens(payload, 8192);
+    if max_tokens > 0 {
+        options.insert("num_predict".to_string(), Value::from(max_tokens));
+    }
+
+    (!options.is_empty()).then(|| Value::Object(options))
+}
+
+fn build_ollama_request_from_openai_chat(
+    route: &LocalAiProxyRouteSnapshot,
+    payload: &Value,
+) -> ProxyHttpResult<Value> {
+    let model_id = resolve_request_model_id(route, payload)?;
+    let (system, conversation) = extract_openai_chat_conversation(payload)?;
+    let mut root = serde_json::Map::new();
+    root.insert("model".to_string(), Value::String(model_id));
+    root.insert(
+        "messages".to_string(),
+        Value::Array(build_ollama_messages(system, conversation)),
+    );
+    root.insert(
+        "stream".to_string(),
+        Value::Bool(is_openai_stream_request(payload)),
+    );
+    if let Some(options) = build_ollama_request_options(payload) {
+        root.insert("options".to_string(), options);
+    }
+    if let Some(tools) = payload.get("tools").cloned() {
+        root.insert("tools".to_string(), tools);
+    }
+
+    Ok(Value::Object(root))
+}
+
+fn build_ollama_request_from_openai_response(
+    route: &LocalAiProxyRouteSnapshot,
+    payload: &Value,
+) -> ProxyHttpResult<Value> {
+    let model_id = resolve_request_model_id(route, payload)?;
+    let (system, conversation) = extract_openai_response_conversation(payload)?;
+    let mut root = serde_json::Map::new();
+    root.insert("model".to_string(), Value::String(model_id));
+    root.insert(
+        "messages".to_string(),
+        Value::Array(build_ollama_messages(system, conversation)),
+    );
+    root.insert(
+        "stream".to_string(),
+        Value::Bool(is_openai_stream_request(payload)),
+    );
+    if let Some(options) = build_ollama_request_options(payload) {
+        root.insert("options".to_string(), options);
+    }
+    if let Some(tools) = payload.get("tools").cloned() {
+        root.insert("tools".to_string(), tools);
+    }
+
+    Ok(Value::Object(root))
+}
+
+fn build_ollama_request_from_openai_embeddings(
+    route: &LocalAiProxyRouteSnapshot,
+    payload: &Value,
+) -> ProxyHttpResult<Value> {
+    let model_id = resolve_request_model_id(route, payload)?;
+    let input = payload.get("input").ok_or_else(|| {
+        proxy_error(
+            StatusCode::BAD_REQUEST,
+            "OpenAI embeddings requests must include an input field.",
+        )
+    })?;
+
+    let normalized_input = match input {
+        Value::String(_) | Value::Array(_) => input.clone(),
+        _ => extract_openai_text_content(input)
+            .map(Value::String)
+            .ok_or_else(|| {
+                proxy_error(
+                    StatusCode::BAD_REQUEST,
+                    "OpenAI embeddings requests must include a non-empty text input.",
+                )
+            })?,
+    };
+
+    Ok(json!({
+        "model": model_id,
+        "input": normalized_input,
+    }))
+}
+
 fn extract_anthropic_response_text(payload: &Value) -> String {
     payload
         .get("content")
@@ -3639,6 +4109,141 @@ fn build_openai_embeddings_from_gemini(upstream_body: &Value) -> Value {
     })
 }
 
+fn extract_ollama_response_text(payload: &Value) -> String {
+    payload
+        .pointer("/message/content")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_default()
+}
+
+fn build_openai_tool_calls_from_ollama(payload: &Value) -> Vec<Value> {
+    payload
+        .pointer("/message/tool_calls")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .enumerate()
+                .filter_map(|(index, entry)| {
+                    let name = entry
+                        .pointer("/function/name")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())?;
+                    let arguments = entry
+                        .pointer("/function/arguments")
+                        .cloned()
+                        .unwrap_or_else(|| Value::Object(Default::default()));
+                    Some(json!({
+                        "id": format!("call-local-proxy-{index}"),
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "arguments": serde_json::to_string(&arguments).unwrap_or_else(|_| "{}".to_string()),
+                        }
+                    }))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn map_ollama_done_reason(reason: Option<&str>) -> Option<&'static str> {
+    match reason.unwrap_or_default() {
+        "length" => Some("length"),
+        "stop" | "tool_calls" => Some("stop"),
+        "" => None,
+        _ => Some("stop"),
+    }
+}
+
+fn build_openai_chat_completion_from_ollama(
+    route: &LocalAiProxyRouteSnapshot,
+    upstream_body: &Value,
+) -> Value {
+    let content = extract_ollama_response_text(upstream_body);
+    let usage = extract_token_usage(upstream_body);
+    let tool_calls = build_openai_tool_calls_from_ollama(upstream_body);
+    let finish_reason = if !tool_calls.is_empty() {
+        "tool_calls"
+    } else {
+        map_ollama_done_reason(upstream_body.get("done_reason").and_then(Value::as_str))
+            .unwrap_or("stop")
+    };
+    let mut message = json!({
+        "role": "assistant",
+        "content": content,
+    });
+    if !tool_calls.is_empty() {
+        message["tool_calls"] = Value::Array(tool_calls);
+        if extract_ollama_response_text(upstream_body).is_empty() {
+            message["content"] = Value::Null;
+        }
+    }
+
+    json!({
+        "id": "chatcmpl-local-proxy",
+        "object": "chat.completion",
+        "created": 0,
+        "model": upstream_body.get("model").and_then(Value::as_str).unwrap_or(route.default_model_id.as_str()),
+        "choices": [{
+            "index": 0,
+            "message": message,
+            "finish_reason": finish_reason,
+        }],
+        "usage": {
+            "prompt_tokens": usage.input_tokens,
+            "completion_tokens": usage.output_tokens,
+            "total_tokens": usage.total_tokens,
+        }
+    })
+}
+
+fn build_openai_response_from_ollama(
+    route: &LocalAiProxyRouteSnapshot,
+    upstream_body: &Value,
+) -> Value {
+    let usage = extract_token_usage(upstream_body);
+    let mut response = json!({
+        "id": "resp-local-proxy",
+        "object": "response",
+        "model": upstream_body.get("model").and_then(Value::as_str).unwrap_or(route.default_model_id.as_str()),
+        "output": [{
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "output_text",
+                "text": extract_ollama_response_text(upstream_body),
+                "annotations": []
+            }]
+        }]
+    });
+    if let Some(response_usage) = build_openai_response_usage(&usage) {
+        response["usage"] = response_usage;
+    }
+    response
+}
+
+fn build_openai_embeddings_from_ollama(upstream_body: &Value) -> Value {
+    let embedding = upstream_body
+        .pointer("/embeddings/0")
+        .cloned()
+        .or_else(|| upstream_body.get("embedding").cloned())
+        .unwrap_or_else(|| Value::Array(Vec::new()));
+
+    json!({
+        "object": "list",
+        "data": [{
+            "object": "embedding",
+            "index": 0,
+            "embedding": embedding,
+        }]
+    })
+}
+
 fn infer_gemini_default_api_version(base_url: &str) -> &'static str {
     let trimmed = base_url.trim().trim_end_matches('/');
     if trimmed.ends_with("/v1") {
@@ -3706,6 +4311,17 @@ fn normalize_gemini_upstream_base_url(base_url: &str, api_version: &str) -> Stri
     }
 
     format!("{trimmed}/{api_version}")
+}
+
+fn build_ollama_upstream_request_url(
+    route: &LocalAiProxyRouteSnapshot,
+    endpoint_suffix: &str,
+) -> String {
+    format!(
+        "{}/{}",
+        route.upstream_base_url.trim().trim_end_matches('/'),
+        endpoint_suffix.trim_start_matches('/')
+    )
 }
 
 fn build_health(
@@ -5857,6 +6473,283 @@ mod tests {
     }
 
     #[test]
+    fn local_ai_proxy_openai_chat_completions_translate_to_ollama_upstream() {
+        let upstream = TestUpstreamServer::start();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let service = LocalAiProxyService::new();
+        let snapshot = LocalAiProxySnapshot {
+            schema_version: 1,
+            bind_host: "127.0.0.1".to_string(),
+            requested_port: 0,
+            auth_token: LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY.to_string(),
+            default_route_id: "route-ollama-openai".to_string(),
+            routes: vec![LocalAiProxyRouteSnapshot {
+                id: "route-ollama-openai".to_string(),
+                name: "Ollama via OpenAI".to_string(),
+                enabled: true,
+                is_default: true,
+                managed_by: "user".to_string(),
+                client_protocol: "openai-compatible".to_string(),
+                upstream_protocol: "ollama".to_string(),
+                provider_id: "ollama".to_string(),
+                upstream_base_url: upstream.base_url.clone(),
+                api_key: "ollama-local".to_string(),
+                default_model_id: "glm-4.7-flash".to_string(),
+                reasoning_model_id: None,
+                embedding_model_id: Some("nomic-embed-text".to_string()),
+                models: vec![
+                    LocalAiProxyModelSnapshot {
+                        id: "glm-4.7-flash".to_string(),
+                        name: "GLM 4.7 Flash".to_string(),
+                    },
+                    LocalAiProxyModelSnapshot {
+                        id: "nomic-embed-text".to_string(),
+                        name: "nomic-embed-text".to_string(),
+                    },
+                ],
+                notes: None,
+                expose_to: vec!["openclaw".to_string()],
+                runtime_config: Default::default(),
+            }],
+        };
+
+        let health = service
+            .start(&paths, snapshot)
+            .expect("start local ai proxy");
+        let response = request_json(
+            "POST",
+            &format!("{}/chat/completions", health.base_url),
+            Some(LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY),
+            Some(json!({
+                "model": "glm-4.7-flash",
+                "messages": [
+                    { "role": "system", "content": "You are a concise assistant." },
+                    { "role": "user", "content": "hello ollama through openai" }
+                ],
+                "max_tokens": 512,
+            })),
+        );
+
+        let capture = upstream.capture();
+        assert_eq!(capture.path.as_deref(), Some("/api/chat"));
+        assert_eq!(capture.authorization, None);
+        assert_eq!(capture.body["model"], "glm-4.7-flash");
+        assert_eq!(capture.body["messages"][0]["role"], "system");
+        assert_eq!(
+            capture.body["messages"][0]["content"],
+            "You are a concise assistant."
+        );
+        assert_eq!(capture.body["messages"][1]["role"], "user");
+        assert_eq!(
+            capture.body["messages"][1]["content"],
+            "hello ollama through openai"
+        );
+        assert_eq!(
+            response["choices"][0]["message"]["content"],
+            "ollama proxied response"
+        );
+        assert_eq!(response["usage"]["prompt_tokens"], 10);
+        assert_eq!(response["usage"]["completion_tokens"], 8);
+
+        service.stop().expect("stop local ai proxy");
+    }
+
+    #[test]
+    fn local_ai_proxy_openai_chat_completions_translate_to_ollama_upstream_streaming() {
+        let upstream = TestUpstreamServer::start();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let service = LocalAiProxyService::new();
+        let snapshot = LocalAiProxySnapshot {
+            schema_version: 1,
+            bind_host: "127.0.0.1".to_string(),
+            requested_port: 0,
+            auth_token: LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY.to_string(),
+            default_route_id: "route-ollama-openai".to_string(),
+            routes: vec![LocalAiProxyRouteSnapshot {
+                id: "route-ollama-openai".to_string(),
+                name: "Ollama via OpenAI".to_string(),
+                enabled: true,
+                is_default: true,
+                managed_by: "user".to_string(),
+                client_protocol: "openai-compatible".to_string(),
+                upstream_protocol: "ollama".to_string(),
+                provider_id: "ollama".to_string(),
+                upstream_base_url: upstream.base_url.clone(),
+                api_key: "ollama-local".to_string(),
+                default_model_id: "glm-4.7-flash".to_string(),
+                reasoning_model_id: None,
+                embedding_model_id: None,
+                models: vec![LocalAiProxyModelSnapshot {
+                    id: "glm-4.7-flash".to_string(),
+                    name: "GLM 4.7 Flash".to_string(),
+                }],
+                notes: None,
+                expose_to: vec!["openclaw".to_string()],
+                runtime_config: Default::default(),
+            }],
+        };
+
+        let health = service
+            .start(&paths, snapshot)
+            .expect("start local ai proxy");
+        let (first_chunk_latency, content_type, body) = request_streaming_response(
+            &format!("{}/chat/completions", health.base_url),
+            Some(LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY),
+            json!({
+                "model": "glm-4.7-flash",
+                "messages": [
+                    { "role": "user", "content": "hello ollama streaming" }
+                ],
+                "stream": true,
+            }),
+        );
+
+        let capture = upstream.capture();
+        assert_eq!(capture.path.as_deref(), Some("/api/chat"));
+        assert!(
+            first_chunk_latency < Duration::from_millis(650),
+            "expected first translated chunk before upstream tail finished, got {:?}",
+            first_chunk_latency
+        );
+        assert!(content_type.starts_with("text/event-stream"));
+        assert!(body.contains("\"object\":\"chat.completion.chunk\""));
+        assert!(body.contains("ollama stream chunk 1"));
+        assert!(body.contains("ollama stream chunk 2"));
+        assert!(body.contains("[DONE]"));
+
+        service.stop().expect("stop local ai proxy");
+    }
+
+    #[test]
+    fn local_ai_proxy_openai_responses_translate_to_ollama_upstream_preserves_usage() {
+        let upstream = TestUpstreamServer::start();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let service = LocalAiProxyService::new();
+        let snapshot = LocalAiProxySnapshot {
+            schema_version: 1,
+            bind_host: "127.0.0.1".to_string(),
+            requested_port: 0,
+            auth_token: LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY.to_string(),
+            default_route_id: "route-ollama-openai".to_string(),
+            routes: vec![LocalAiProxyRouteSnapshot {
+                id: "route-ollama-openai".to_string(),
+                name: "Ollama via OpenAI".to_string(),
+                enabled: true,
+                is_default: true,
+                managed_by: "user".to_string(),
+                client_protocol: "openai-compatible".to_string(),
+                upstream_protocol: "ollama".to_string(),
+                provider_id: "ollama".to_string(),
+                upstream_base_url: upstream.base_url.clone(),
+                api_key: "ollama-local".to_string(),
+                default_model_id: "glm-4.7-flash".to_string(),
+                reasoning_model_id: None,
+                embedding_model_id: None,
+                models: vec![LocalAiProxyModelSnapshot {
+                    id: "glm-4.7-flash".to_string(),
+                    name: "GLM 4.7 Flash".to_string(),
+                }],
+                notes: None,
+                expose_to: vec!["openclaw".to_string()],
+                runtime_config: Default::default(),
+            }],
+        };
+
+        let health = service
+            .start(&paths, snapshot)
+            .expect("start local ai proxy");
+        let response = request_json(
+            "POST",
+            &format!("{}/responses", health.base_url),
+            Some(LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY),
+            Some(json!({
+                "model": "glm-4.7-flash",
+                "input": "hello ollama response",
+            })),
+        );
+
+        let capture = upstream.capture();
+        assert_eq!(capture.path.as_deref(), Some("/api/chat"));
+        assert_eq!(capture.body["messages"][0]["role"], "user");
+        assert_eq!(capture.body["messages"][0]["content"], "hello ollama response");
+        assert_eq!(
+            response["output"][0]["content"][0]["text"],
+            "ollama proxied response"
+        );
+        assert_eq!(response["usage"]["input_tokens"], 10);
+        assert_eq!(response["usage"]["output_tokens"], 8);
+
+        service.stop().expect("stop local ai proxy");
+    }
+
+    #[test]
+    fn local_ai_proxy_openai_embeddings_translate_to_ollama_upstream() {
+        let upstream = TestUpstreamServer::start();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let service = LocalAiProxyService::new();
+        let snapshot = LocalAiProxySnapshot {
+            schema_version: 1,
+            bind_host: "127.0.0.1".to_string(),
+            requested_port: 0,
+            auth_token: LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY.to_string(),
+            default_route_id: "route-ollama-openai".to_string(),
+            routes: vec![LocalAiProxyRouteSnapshot {
+                id: "route-ollama-openai".to_string(),
+                name: "Ollama via OpenAI".to_string(),
+                enabled: true,
+                is_default: true,
+                managed_by: "user".to_string(),
+                client_protocol: "openai-compatible".to_string(),
+                upstream_protocol: "ollama".to_string(),
+                provider_id: "ollama".to_string(),
+                upstream_base_url: upstream.base_url.clone(),
+                api_key: "ollama-local".to_string(),
+                default_model_id: "glm-4.7-flash".to_string(),
+                reasoning_model_id: None,
+                embedding_model_id: Some("nomic-embed-text".to_string()),
+                models: vec![
+                    LocalAiProxyModelSnapshot {
+                        id: "glm-4.7-flash".to_string(),
+                        name: "GLM 4.7 Flash".to_string(),
+                    },
+                    LocalAiProxyModelSnapshot {
+                        id: "nomic-embed-text".to_string(),
+                        name: "nomic-embed-text".to_string(),
+                    },
+                ],
+                notes: None,
+                expose_to: vec!["openclaw".to_string()],
+                runtime_config: Default::default(),
+            }],
+        };
+
+        let health = service
+            .start(&paths, snapshot)
+            .expect("start local ai proxy");
+        let response = request_json(
+            "POST",
+            &format!("{}/embeddings", health.base_url),
+            Some(LOCAL_AI_PROXY_DEFAULT_CLIENT_API_KEY),
+            Some(json!({
+                "model": "nomic-embed-text",
+                "input": "embedding request for ollama",
+            })),
+        );
+
+        let capture = upstream.capture();
+        assert_eq!(capture.path.as_deref(), Some("/api/embed"));
+        assert_eq!(capture.body["model"], "nomic-embed-text");
+        assert_eq!(capture.body["input"], "embedding request for ollama");
+        assert_eq!(response["data"][0]["embedding"][0], 0.12);
+
+        service.stop().expect("stop local ai proxy");
+    }
+
+    #[test]
     fn local_ai_proxy_openai_responses_translate_to_anthropic_upstream_streaming() {
         let upstream = TestUpstreamServer::start();
         let root = tempfile::tempdir().expect("temp dir");
@@ -7613,6 +8506,112 @@ mod tests {
                         )
                     }
 
+                    async fn ollama_chat_handler(
+                        State(capture): State<Arc<Mutex<Option<UpstreamCapture>>>>,
+                        headers: HeaderMap,
+                        uri: axum::http::Uri,
+                        Json(body): Json<Value>,
+                    ) -> axum::response::Response {
+                        let stream = body
+                            .get("stream")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false);
+                        *capture.lock().expect("capture") = Some(UpstreamCapture {
+                            path: uri.path_and_query().map(|value| value.to_string()),
+                            authorization: headers
+                                .get("authorization")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            x_api_key: headers
+                                .get("x-api-key")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            x_goog_api_key: headers
+                                .get("x-goog-api-key")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            anthropic_version: headers
+                                .get("anthropic-version")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            body,
+                        });
+
+                        if stream {
+                            let stream = async_stream::stream! {
+                                yield Ok::<Bytes, std::io::Error>(Bytes::from(
+                                    "{\"model\":\"glm-4.7-flash\",\"message\":{\"role\":\"assistant\",\"content\":\"ollama stream chunk 1\"},\"done\":false}\n",
+                                ));
+                                tokio::time::sleep(Duration::from_millis(900)).await;
+                                yield Ok::<Bytes, std::io::Error>(Bytes::from(
+                                    "{\"model\":\"glm-4.7-flash\",\"message\":{\"role\":\"assistant\",\"content\":\"ollama stream chunk 2\"},\"done\":false}\n",
+                                ));
+                                yield Ok::<Bytes, std::io::Error>(Bytes::from(
+                                    "{\"model\":\"glm-4.7-flash\",\"message\":{\"role\":\"assistant\",\"content\":\"\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":10,\"eval_count\":8}\n",
+                                ));
+                            };
+
+                            return axum::response::Response::builder()
+                                .status(StatusCode::OK)
+                                .header("content-type", "application/x-ndjson")
+                                .body(axum::body::Body::from_stream(stream))
+                                .expect("ollama stream response");
+                        }
+
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "model": "glm-4.7-flash",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "ollama proxied response"
+                                },
+                                "done": true,
+                                "done_reason": "stop",
+                                "prompt_eval_count": 10,
+                                "eval_count": 8
+                            })),
+                        )
+                            .into_response()
+                    }
+
+                    async fn ollama_embed_handler(
+                        State(capture): State<Arc<Mutex<Option<UpstreamCapture>>>>,
+                        headers: HeaderMap,
+                        uri: axum::http::Uri,
+                        Json(body): Json<Value>,
+                    ) -> impl IntoResponse {
+                        *capture.lock().expect("capture") = Some(UpstreamCapture {
+                            path: uri.path_and_query().map(|value| value.to_string()),
+                            authorization: headers
+                                .get("authorization")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            x_api_key: headers
+                                .get("x-api-key")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            x_goog_api_key: headers
+                                .get("x-goog-api-key")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            anthropic_version: headers
+                                .get("anthropic-version")
+                                .and_then(|value| value.to_str().ok())
+                                .map(|value| value.to_string()),
+                            body,
+                        });
+
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "model": "nomic-embed-text",
+                                "embeddings": [[0.12, 0.34, 0.56]],
+                                "prompt_eval_count": 5
+                            })),
+                        )
+                    }
+
                     let router = Router::new()
                         .route("/v1/chat/completions", post(chat_handler))
                         .route("/openai/v1/chat/completions", post(chat_handler))
@@ -7639,6 +8638,8 @@ mod tests {
                             "/v1beta/models/text-embedding-004:embedContent",
                             post(gemini_embed_handler),
                         )
+                        .route("/api/chat", post(ollama_chat_handler))
+                        .route("/api/embed", post(ollama_embed_handler))
                         .with_state(state);
                     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
                         .await

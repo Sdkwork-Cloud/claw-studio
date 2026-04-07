@@ -1,5 +1,6 @@
 import type {
   OpenClawAgentCatalog,
+  TaskRuntimeOverview,
   Task,
   TaskDeliveryChannelOption,
   TaskExecutionHistoryEntry,
@@ -10,6 +11,7 @@ export interface LoadTaskStudioSnapshotInput {
   historyTaskIds?: string[];
   includeEditorResources?: boolean;
   getTasks: (instanceId: string) => Promise<Task[]>;
+  getTaskRuntimeOverview: (instanceId: string) => Promise<TaskRuntimeOverview>;
   listDeliveryChannels: (instanceId: string) => Promise<TaskDeliveryChannelOption[]>;
   getAgentCatalog: (instanceId: string) => Promise<OpenClawAgentCatalog>;
   listTaskExecutions: (taskId: string) => Promise<TaskExecutionHistoryEntry[]>;
@@ -17,6 +19,7 @@ export interface LoadTaskStudioSnapshotInput {
 
 export interface TaskStudioSnapshot {
   tasks: Task[];
+  taskRuntimeOverview: TaskRuntimeOverview;
   deliveryChannels: TaskDeliveryChannelOption[];
   agentCatalog: OpenClawAgentCatalog;
   executionsByTaskId: Record<string, TaskExecutionHistoryEntry[]>;
@@ -26,8 +29,9 @@ export async function loadTaskStudioSnapshot(
   input: LoadTaskStudioSnapshotInput,
 ): Promise<TaskStudioSnapshot> {
   const includeEditorResources = input.includeEditorResources !== false;
-  const [tasks, deliveryChannels, agentCatalog] = await Promise.all([
+  const [tasks, taskRuntimeOverview, deliveryChannels, agentCatalog] = await Promise.all([
     input.getTasks(input.instanceId),
+    input.getTaskRuntimeOverview(input.instanceId),
     includeEditorResources
       ? input.listDeliveryChannels(input.instanceId)
       : Promise.resolve([] as TaskDeliveryChannelOption[]),
@@ -50,6 +54,7 @@ export async function loadTaskStudioSnapshot(
 
   return {
     tasks,
+    taskRuntimeOverview,
     deliveryChannels,
     agentCatalog,
     executionsByTaskId: Object.fromEntries(historyEntries) as Record<

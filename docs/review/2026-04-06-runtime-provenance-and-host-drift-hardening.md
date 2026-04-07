@@ -146,3 +146,122 @@ The main remaining gaps are:
    - Linux package/postinstall layout
    - macOS staged `.app` / resource layout
 4. Continue the review loop in `/docs/review/` after each iteration so the defect list, design decisions, and verification evidence stay synchronized.
+
+## 2026-04-06 Follow-up Update: Operator Diagnostics Surface Closed
+
+The highest-priority remaining gap from this review is now closed in a later
+same-day iteration.
+
+### What changed
+
+The shared Settings / Kernel Center surface now exposes the hosted runtime
+provenance fields that previously only existed in runtime contracts and startup
+logs:
+
+- host mode
+- distribution family
+- deployment family
+- accelerator profile
+- descriptor browser base URL
+- descriptor endpoint id
+- state store driver / profile id
+- requested and active port
+- loopback and dynamic-port flags
+- runtime data directory
+- web dist directory
+
+The implementation keeps the runtime startup contract as the single source of
+truth by projecting `runtime.getRuntimeInfo().startup` through
+`packages/sdkwork-claw-settings/src/services/kernelCenterService.ts` into
+`HostRuntimeSettings.tsx`, instead of duplicating host-governance state inside a
+second settings-only model.
+
+### Evidence
+
+The follow-up iteration added or strengthened:
+
+- `packages/sdkwork-claw-settings/src/services/kernelCenterService.test.ts`
+- `packages/sdkwork-claw-settings/src/hostRuntimeSettings.test.ts`
+- `scripts/sdkwork-settings-contract.test.ts`
+- localized root and section settings dictionaries for English and Chinese
+
+Verified successfully with:
+
+- `node scripts/run-sdkwork-settings-check.mjs`
+- `pnpm.cmd lint`
+- `pnpm.cmd build`
+- `pnpm.cmd check:desktop`
+- `pnpm.cmd check:server`
+
+## 2026-04-06 Follow-up Update: Adjacent Gaps Revalidated
+
+Two additional items listed as open in the earlier snapshot are no longer
+current blockers:
+
+1. The previously reported `openClawConfigService.readConfigDocument` dependency
+   concern is already wired in the runtime wrapper at
+   `packages/sdkwork-claw-instances/src/services/instanceService.ts`, and the
+   config workbench read/write/gateway fallback behavior is covered by
+   `packages/sdkwork-claw-instances/src/services/instanceService.test.ts`.
+2. The local AI proxy token-accounting runtime gap was separately closed in
+   `docs/review/2026-04-06-local-ai-proxy-token-accounting-hardening.md`; what
+   remains there is broader launched-session evidence, not the source-level
+   extraction or log-persistence bug.
+
+Fresh revalidation executed after this follow-up update:
+
+- `node --input-type=module -e "import('./scripts/run-node-typescript-check.mjs').then(({ runNodeTypeScriptChecks }) => runNodeTypeScriptChecks(['packages/sdkwork-claw-instances/src/services/instanceService.test.ts']))"`
+
+## Updated Remaining Gaps
+
+After the follow-up iteration, the meaningful remaining risks are:
+
+1. real packaged first-launch smoke on Windows, Linux, and macOS outside the
+   synthetic contract tests
+2. launched-session evidence that proves built-in OpenClaw process, gateway,
+   websocket, and config workbench readiness converge in one real desktop run
+3. broader cross-host validation that desktop/server/docker/k8s consume the
+   same hosted-runtime and request-log contracts where intended
+
+## 2026-04-06 Follow-up Update: Mandatory Desktop Gate Now Includes Rust Embedded-Host Bootstrap Evidence
+
+Another same-day follow-up closed an additional verification gap in the desktop
+architecture gate.
+
+### What changed
+
+The root `check:desktop` command now executes the Rust desktop embedded-host
+bootstrap regressions that prove the packaged browser bootstrap descriptor and
+canonical hosted route families are actually served by the Tauri host:
+
+- `embedded_host_bootstrap_exposes_structured_browser_bootstrap_descriptor`
+- `embedded_host_bootstrap_exposes_canonical_server_route_families`
+
+The mandatory desktop gate now runs those focused `cargo test` commands against
+`packages/sdkwork-claw-desktop/src-tauri/Cargo.toml` inside an isolated
+`target/check-desktop` directory so the regression suite does not depend on a
+shared Cargo lock with unrelated native builds.
+
+The regression contract in
+`scripts/desktop-hosted-runtime-regression-contract.test.mjs` was also
+strengthened so the desktop gate fails if those Rust bootstrap tests are
+removed, and it explicitly rejects `cargo ... -- --exact` filtering that would
+appear green while silently skipping the intended test path.
+
+### Evidence
+
+Verified successfully with:
+
+- `node scripts/desktop-hosted-runtime-regression-contract.test.mjs`
+- `cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml --target-dir target/check-desktop embedded_host_bootstrap_exposes_structured_browser_bootstrap_descriptor`
+- `cargo test --manifest-path packages/sdkwork-claw-desktop/src-tauri/Cargo.toml --target-dir target/check-desktop embedded_host_bootstrap_exposes_canonical_server_route_families`
+- `pnpm.cmd check:desktop`
+- `pnpm.cmd lint`
+
+### Impact On Remaining Gaps
+
+This does not eliminate the need for real packaged first-launch or live launched
+desktop evidence, but it does remove a previously missing source-controlled
+proof layer: desktop startup verification now includes the Rust host's real
+embedded bootstrap surfaces instead of relying only on renderer-side readiness
+tests and release-layout contracts.

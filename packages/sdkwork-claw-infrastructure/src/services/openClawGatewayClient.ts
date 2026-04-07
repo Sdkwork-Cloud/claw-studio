@@ -451,6 +451,7 @@ export interface OpenClawResolveExecApprovalArgs extends OpenClawGatewayMethodAr
 export const OPENCLAW_GATEWAY_OFFICIAL_METHODS = [
   'health',
   'doctor.memory.status',
+  'doctor.memory.dreamDiary',
   'logs.tail',
   'channels.status',
   'channels.logout',
@@ -544,6 +545,14 @@ export const OPENCLAW_GATEWAY_OFFICIAL_METHODS = [
   'cron.remove',
   'cron.run',
   'cron.runs',
+  'tasks.list',
+  'tasks.show',
+  'tasks.cancel',
+  'tasks.audit',
+  'tasks.maintenance',
+  'tasks.flow.list',
+  'tasks.flow.show',
+  'tasks.flow.cancel',
   'gateway.identity.get',
   'system-presence',
   'system-event',
@@ -587,6 +596,18 @@ const OPENCLAW_GATEWAY_METHOD_OVERRIDES: Partial<
   'sessions.usage.logs': {
     tool: 'sessions',
     action: 'usage.logs',
+  },
+  'tasks.flow.list': {
+    tool: 'tasks',
+    action: 'flow.list',
+  },
+  'tasks.flow.show': {
+    tool: 'tasks',
+    action: 'flow.show',
+  },
+  'tasks.flow.cancel': {
+    tool: 'tasks',
+    action: 'flow.cancel',
   },
   'web.login.start': {
     tool: 'web',
@@ -767,6 +788,109 @@ export interface OpenClawCronRunResult {
   reason?: string;
 }
 
+export interface OpenClawRuntimeTaskRecord {
+  id: string;
+  kind?: string;
+  status?: string;
+  summary?: string;
+  deliveryStatus?: string;
+  notifyPolicy?: string;
+  runId?: string;
+  childSessionKey?: string;
+  requesterSessionKey?: string;
+  flowId?: string;
+  flowLookupKey?: string;
+  flowState?: string;
+  flowSyncMode?: string;
+  flowRevision?: number;
+  startedAt?: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  error?: string;
+  raw: Record<string, unknown>;
+}
+
+export interface OpenClawTaskFlowRequesterOriginRecord {
+  channel?: string;
+  to?: string;
+  accountId?: string;
+  threadId?: string | number;
+}
+
+export interface OpenClawTaskFlowRecord {
+  id: string;
+  lookupKey?: string;
+  state?: string;
+  ownerKey?: string;
+  requesterOrigin?: OpenClawTaskFlowRequesterOriginRecord;
+  notifyPolicy?: string;
+  goal?: string;
+  currentStep?: string;
+  cancelRequestedAt?: string;
+  syncMode?: string;
+  revision?: number;
+  taskCount?: number;
+  activeTaskCount?: number;
+  summary?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  raw: Record<string, unknown>;
+}
+
+export interface OpenClawTaskFlowBlockedRecord {
+  taskId?: string;
+  summary?: string;
+}
+
+export interface OpenClawTaskFlowTaskSummary {
+  total?: number;
+  active?: number;
+  terminal?: number;
+  failures?: number;
+  byStatus?: Record<string, number>;
+  byRuntime?: Record<string, number>;
+}
+
+export interface OpenClawTaskFlowLinkedTaskRecord {
+  id: string;
+  runtime?: string;
+  sourceId?: string;
+  sessionKey?: string;
+  ownerKey?: string;
+  scope?: string;
+  childSessionKey?: string;
+  flowId?: string;
+  parentTaskId?: string;
+  agentId?: string;
+  runId?: string;
+  label?: string;
+  title?: string;
+  status?: string;
+  deliveryStatus?: string;
+  notifyPolicy?: string;
+  createdAt?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  cleanupAfter?: string;
+  progressSummary?: string;
+  terminalSummary?: string;
+  terminalOutcome?: string;
+  error?: string;
+  raw: Record<string, unknown>;
+}
+
+export type OpenClawRuntimeTaskDetailRecord = OpenClawTaskFlowLinkedTaskRecord;
+
+export interface OpenClawTaskFlowDetailRecord extends OpenClawTaskFlowRecord {
+  statePayload?: unknown;
+  waitPayload?: unknown;
+  blocked?: OpenClawTaskFlowBlockedRecord;
+  tasks: OpenClawTaskFlowLinkedTaskRecord[];
+  taskSummary?: OpenClawTaskFlowTaskSummary;
+}
+
 export interface OpenClawGatewayClientDependencies {
   fetchImpl?: typeof fetch;
   getInstanceDetail?: (instanceId: string) => Promise<StudioInstanceDetailRecord | null>;
@@ -806,8 +930,16 @@ function trimTrailingSlashes(value: string) {
   return value.replace(/\/+$/, '');
 }
 
+function cloneJsonValue<T>(value: T): T {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function cloneJsonRecord(value: Record<string, unknown>) {
-  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+  return cloneJsonValue(value);
 }
 
 function normalizeEndpoint(detail: StudioInstanceDetailRecord | null): string | null {
@@ -1266,6 +1398,425 @@ function normalizeCronRunCollection(result: unknown): OpenClawCronRunRecord[] {
   return [];
 }
 
+function readFirstString(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (isNonEmptyString(value)) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function readFirstNumber(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function toOptionalIsoTimestamp(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return toIsoString(value);
+  }
+
+  if (!isNonEmptyString(value)) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  const parsed = Date.parse(normalized);
+  if (Number.isNaN(parsed)) {
+    return undefined;
+  }
+
+  return new Date(parsed).toISOString();
+}
+
+function readFirstTimestamp(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = toOptionalIsoTimestamp(record[key]);
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeRuntimeTask(value: unknown): OpenClawRuntimeTaskRecord | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const flowRecord = isRecord(value.flow)
+    ? value.flow
+    : isRecord(value.taskFlow)
+      ? value.taskFlow
+      : null;
+  const id = readFirstString(value, ['id', 'taskId']);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    kind: readFirstString(value, ['kind', 'runtime', 'taskKind']),
+    status: readFirstString(value, ['status', 'state']),
+    summary: readFirstString(value, ['summary', 'message', 'title']),
+    deliveryStatus: readFirstString(value, ['deliveryStatus']),
+    notifyPolicy: readFirstString(value, ['notifyPolicy', 'deliveryPolicy']),
+    runId: readFirstString(value, ['runId']),
+    childSessionKey: readFirstString(value, ['childSessionKey', 'sessionKey']),
+    requesterSessionKey: readFirstString(value, ['requesterSessionKey', 'ownerSessionKey']),
+    flowId:
+      readFirstString(value, ['flowId', 'taskFlowId']) ||
+      (flowRecord ? readFirstString(flowRecord, ['id', 'flowId']) : undefined),
+    flowLookupKey:
+      readFirstString(value, ['flowLookupKey']) ||
+      (flowRecord ? readFirstString(flowRecord, ['lookupKey', 'flowLookupKey']) : undefined),
+    flowState:
+      readFirstString(value, ['flowState']) ||
+      (flowRecord ? readFirstString(flowRecord, ['state', 'status']) : undefined),
+    flowSyncMode:
+      readFirstString(value, ['flowSyncMode']) ||
+      (flowRecord ? readFirstString(flowRecord, ['syncMode']) : undefined),
+    flowRevision:
+      readFirstNumber(value, ['flowRevision']) ??
+      (flowRecord ? readFirstNumber(flowRecord, ['revision']) : undefined),
+    startedAt: readFirstTimestamp(value, ['startedAt', 'startedAtMs', 'createdAt', 'createdAtMs']),
+    updatedAt: readFirstTimestamp(value, ['updatedAt', 'updatedAtMs', 'lastUpdatedAt', 'lastUpdatedAtMs']),
+    finishedAt: readFirstTimestamp(value, ['finishedAt', 'finishedAtMs', 'endedAt', 'endedAtMs']),
+    error: readFirstString(value, ['error', 'lastError']),
+    raw: cloneJsonRecord(value),
+  };
+}
+
+function normalizeRuntimeTaskCollection(result: unknown): OpenClawRuntimeTaskRecord[] {
+  if (Array.isArray(result)) {
+    return result.map(normalizeRuntimeTask).filter(Boolean) as OpenClawRuntimeTaskRecord[];
+  }
+
+  if (isRecord(result)) {
+    const candidates = [result.items, result.tasks];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate.map(normalizeRuntimeTask).filter(Boolean) as OpenClawRuntimeTaskRecord[];
+      }
+    }
+
+    const single = normalizeRuntimeTask(result);
+    if (single) {
+      return [single];
+    }
+  }
+
+  return [];
+}
+
+function normalizeTaskFlow(value: unknown): OpenClawTaskFlowRecord | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = readFirstString(value, ['id', 'flowId']);
+  if (!id) {
+    return null;
+  }
+
+  const taskIds = Array.isArray(value.taskIds)
+    ? value.taskIds.filter((entry): entry is string => isNonEmptyString(entry))
+    : [];
+  const activeTaskIds = Array.isArray(value.activeTaskIds)
+    ? value.activeTaskIds.filter((entry): entry is string => isNonEmptyString(entry))
+    : [];
+  const taskSummary = isRecord(value.taskSummary) ? value.taskSummary : null;
+
+  const taskCount =
+    readFirstNumber(value, ['taskCount', 'totalTaskCount']) ??
+    (taskSummary ? readFirstNumber(taskSummary, ['total']) : undefined);
+  const activeTaskCount =
+    readFirstNumber(value, ['activeTaskCount']) ??
+    (taskSummary ? readFirstNumber(taskSummary, ['active']) : undefined);
+  const derivedTaskCount = taskIds.length > 0 ? taskIds.length : undefined;
+  const derivedActiveTaskCount = activeTaskIds.length > 0 ? activeTaskIds.length : undefined;
+  const requesterOrigin = normalizeTaskFlowRequesterOrigin(value.requesterOrigin);
+
+  return {
+    id,
+    lookupKey: readFirstString(value, ['lookupKey', 'flowLookupKey', 'key']),
+    state: readFirstString(value, ['state', 'status']),
+    ownerKey: readFirstString(value, ['ownerKey']),
+    ...(requesterOrigin ? { requesterOrigin } : {}),
+    notifyPolicy: readFirstString(value, ['notifyPolicy', 'deliveryPolicy']),
+    goal: readFirstString(value, ['goal']),
+    currentStep: readFirstString(value, ['currentStep']),
+    cancelRequestedAt: readFirstTimestamp(value, ['cancelRequestedAt']),
+    syncMode: readFirstString(value, ['syncMode', 'mode']),
+    revision: readFirstNumber(value, ['revision', 'rev']),
+    taskCount: taskCount ?? derivedTaskCount,
+    activeTaskCount: activeTaskCount ?? derivedActiveTaskCount,
+    summary: readFirstString(value, ['summary', 'title', 'reason']),
+    startedAt: readFirstTimestamp(value, ['startedAt', 'startedAtMs', 'createdAt', 'createdAtMs']),
+    updatedAt: readFirstTimestamp(value, ['updatedAt', 'updatedAtMs', 'lastUpdatedAt', 'lastUpdatedAtMs']),
+    finishedAt: readFirstTimestamp(value, ['finishedAt', 'finishedAtMs', 'endedAt', 'endedAtMs']),
+    raw: cloneJsonRecord(value),
+  };
+}
+
+function normalizeTaskFlowCollection(result: unknown): OpenClawTaskFlowRecord[] {
+  if (Array.isArray(result)) {
+    return result.map(normalizeTaskFlow).filter(Boolean) as OpenClawTaskFlowRecord[];
+  }
+
+  if (isRecord(result)) {
+    const candidates = [result.items, result.flows];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate.map(normalizeTaskFlow).filter(Boolean) as OpenClawTaskFlowRecord[];
+      }
+    }
+
+    const single = normalizeTaskFlow(result);
+    if (single) {
+      return [single];
+    }
+  }
+
+  return [];
+}
+
+function normalizeTaskFlowRequesterOrigin(
+  value: unknown,
+): OpenClawTaskFlowRequesterOriginRecord | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const channel = readFirstString(value, ['channel']);
+  const to = readFirstString(value, ['to']);
+  const accountId = readFirstString(value, ['accountId']);
+  const threadIdText = readFirstString(value, ['threadId']);
+  const threadIdNumber = threadIdText ? undefined : readFirstNumber(value, ['threadId']);
+
+  if (!channel && !to && !accountId && threadIdText == null && threadIdNumber == null) {
+    return undefined;
+  }
+
+  return {
+    ...(channel ? { channel } : {}),
+    ...(to ? { to } : {}),
+    ...(accountId ? { accountId } : {}),
+    ...(threadIdText != null
+      ? { threadId: threadIdText }
+      : threadIdNumber != null
+        ? { threadId: threadIdNumber }
+        : {}),
+  };
+}
+
+function readNumberMap(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).filter(
+    ([key, entryValue]) =>
+      isNonEmptyString(key) && typeof entryValue === 'number' && Number.isFinite(entryValue),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(entries) as Record<string, number>;
+}
+
+function normalizeTaskFlowTaskSummary(value: unknown): OpenClawTaskFlowTaskSummary | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const total = readFirstNumber(value, ['total']);
+  const active = readFirstNumber(value, ['active']);
+  const terminal = readFirstNumber(value, ['terminal']);
+  const failures = readFirstNumber(value, ['failures']);
+  const byStatus = readNumberMap(value.byStatus);
+  const byRuntime = readNumberMap(value.byRuntime);
+
+  if (
+    total === undefined &&
+    active === undefined &&
+    terminal === undefined &&
+    failures === undefined &&
+    byStatus === undefined &&
+    byRuntime === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(total !== undefined ? { total } : {}),
+    ...(active !== undefined ? { active } : {}),
+    ...(terminal !== undefined ? { terminal } : {}),
+    ...(failures !== undefined ? { failures } : {}),
+    ...(byStatus ? { byStatus } : {}),
+    ...(byRuntime ? { byRuntime } : {}),
+  };
+}
+
+function normalizeTaskFlowLinkedTask(value: unknown): OpenClawTaskFlowLinkedTaskRecord | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = readFirstString(value, ['id', 'taskId']);
+  if (!id) {
+    return null;
+  }
+
+  const runtime = readFirstString(value, ['runtime', 'kind']);
+  const sourceId = readFirstString(value, ['sourceId']);
+  const sessionKey = readFirstString(value, ['sessionKey', 'requesterSessionKey']);
+  const ownerKey = readFirstString(value, ['ownerKey']);
+  const scope = readFirstString(value, ['scope', 'scopeKind']);
+  const childSessionKey = readFirstString(value, ['childSessionKey']);
+  const flowId = readFirstString(value, ['flowId', 'taskFlowId']);
+  const parentTaskId = readFirstString(value, ['parentTaskId']);
+  const agentId = readFirstString(value, ['agentId']);
+  const runId = readFirstString(value, ['runId']);
+  const label = readFirstString(value, ['label']);
+  const title = readFirstString(value, ['title', 'task', 'summary', 'message']);
+  const status = readFirstString(value, ['status', 'state']);
+  const deliveryStatus = readFirstString(value, ['deliveryStatus']);
+  const notifyPolicy = readFirstString(value, ['notifyPolicy', 'deliveryPolicy']);
+  const createdAt = readFirstTimestamp(value, ['createdAt', 'createdAtMs']);
+  const startedAt = readFirstTimestamp(value, ['startedAt', 'startedAtMs']);
+  const updatedAt = readFirstTimestamp(value, ['lastEventAt', 'lastEventAtMs', 'updatedAt', 'updatedAtMs']);
+  const finishedAt = readFirstTimestamp(value, ['endedAt', 'endedAtMs', 'finishedAt', 'finishedAtMs']);
+  const cleanupAfter = readFirstTimestamp(value, ['cleanupAfter', 'cleanupAfterMs']);
+  const progressSummary = readFirstString(value, ['progressSummary']);
+  const terminalSummary = readFirstString(value, ['terminalSummary']);
+  const terminalOutcome = readFirstString(value, ['terminalOutcome']);
+  const error = readFirstString(value, ['error', 'lastError']);
+
+  return {
+    id,
+    ...(runtime ? { runtime } : {}),
+    ...(sourceId ? { sourceId } : {}),
+    ...(sessionKey ? { sessionKey } : {}),
+    ...(ownerKey ? { ownerKey } : {}),
+    ...(scope ? { scope } : {}),
+    ...(childSessionKey ? { childSessionKey } : {}),
+    ...(flowId ? { flowId } : {}),
+    ...(parentTaskId ? { parentTaskId } : {}),
+    ...(agentId ? { agentId } : {}),
+    ...(runId ? { runId } : {}),
+    ...(label ? { label } : {}),
+    ...(title ? { title } : {}),
+    ...(status ? { status } : {}),
+    ...(deliveryStatus ? { deliveryStatus } : {}),
+    ...(notifyPolicy ? { notifyPolicy } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    ...(startedAt ? { startedAt } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+    ...(finishedAt ? { finishedAt } : {}),
+    ...(cleanupAfter ? { cleanupAfter } : {}),
+    ...(progressSummary ? { progressSummary } : {}),
+    ...(terminalSummary ? { terminalSummary } : {}),
+    ...(terminalOutcome ? { terminalOutcome } : {}),
+    ...(error ? { error } : {}),
+    raw: cloneJsonRecord(value),
+  };
+}
+
+function normalizeRuntimeTaskDetail(value: unknown): OpenClawRuntimeTaskDetailRecord | null {
+  const detail = normalizeTaskFlowLinkedTask(value);
+  if (!detail) {
+    return null;
+  }
+
+  return {
+    ...detail,
+    finishedAt: detail.finishedAt ?? undefined,
+  };
+}
+
+function normalizeTaskFlowLinkedTaskCollection(result: unknown): OpenClawTaskFlowLinkedTaskRecord[] {
+  if (Array.isArray(result)) {
+    return result
+      .map(normalizeTaskFlowLinkedTask)
+      .filter(Boolean) as OpenClawTaskFlowLinkedTaskRecord[];
+  }
+
+  if (isRecord(result)) {
+    const candidates = [result.items, result.tasks];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate
+          .map(normalizeTaskFlowLinkedTask)
+          .filter(Boolean) as OpenClawTaskFlowLinkedTaskRecord[];
+      }
+    }
+
+    const single = normalizeTaskFlowLinkedTask(result);
+    if (single) {
+      return [single];
+    }
+  }
+
+  return [];
+}
+
+function normalizeTaskFlowDetail(value: unknown): OpenClawTaskFlowDetailRecord | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const base = normalizeTaskFlow(value);
+  if (!base) {
+    return null;
+  }
+
+  const taskSummary = normalizeTaskFlowTaskSummary(value.taskSummary);
+  const tasks = normalizeTaskFlowLinkedTaskCollection(value.tasks);
+  const blockedRecord = isRecord(value.blocked) ? value.blocked : value;
+  const blockedTaskId = readFirstString(blockedRecord, ['taskId', 'blockedTaskId']);
+  const blockedSummary = readFirstString(blockedRecord, ['summary', 'blockedSummary']);
+  const hasExplicitStatus = Object.prototype.hasOwnProperty.call(value, 'status');
+
+  return {
+    ...base,
+    taskCount: base.taskCount ?? taskSummary?.total ?? (tasks.length > 0 ? tasks.length : undefined),
+    activeTaskCount: base.activeTaskCount ?? taskSummary?.active,
+    ...(hasExplicitStatus && Object.prototype.hasOwnProperty.call(value, 'state')
+      ? {
+          statePayload: cloneJsonValue(value.state),
+        }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'wait')
+      ? {
+          waitPayload: cloneJsonValue(value.wait),
+        }
+      : {}),
+    ...(blockedTaskId || blockedSummary
+      ? {
+          blocked: {
+            ...(blockedTaskId ? { taskId: blockedTaskId } : {}),
+            ...(blockedSummary ? { summary: blockedSummary } : {}),
+          },
+        }
+      : {}),
+    tasks,
+    ...(taskSummary ? { taskSummary } : {}),
+    raw: cloneJsonRecord(value),
+  };
+}
+
 function normalizeModelCollection(result: unknown): OpenClawModelRecord[] {
   if (Array.isArray(result)) {
     return result.filter(isRecord) as OpenClawModelRecord[];
@@ -1701,6 +2252,40 @@ export function createOpenClawGatewayClient(
     });
   }
 
+  async function listRuntimeTasks(instanceId: string) {
+    const result = await invokeOfficialMethod<unknown>(instanceId, 'tasks.list', {});
+    return normalizeRuntimeTaskCollection(result);
+  }
+
+  async function listTaskFlows(instanceId: string) {
+    const result = await invokeOfficialMethod<unknown>(instanceId, 'tasks.flow.list', {});
+    return normalizeTaskFlowCollection(result);
+  }
+
+  async function getRuntimeTaskDetail(instanceId: string, lookup: string) {
+    const result = await invokeOfficialMethod<unknown>(instanceId, 'tasks.show', {
+      lookup,
+    });
+    const detail = normalizeRuntimeTaskDetail(result);
+    if (!detail) {
+      throw new Error('OpenClaw runtime task detail response was invalid.');
+    }
+
+    return detail;
+  }
+
+  async function getTaskFlowDetail(instanceId: string, lookup: string) {
+    const result = await invokeOfficialMethod<unknown>(instanceId, 'tasks.flow.show', {
+      lookup,
+    });
+    const detail = normalizeTaskFlowDetail(result);
+    if (!detail) {
+      throw new Error('OpenClaw task flow detail response was invalid.');
+    }
+
+    return detail;
+  }
+
   async function getSessionStatus(
     instanceId: string,
     args: OpenClawSessionStatusArgs = {},
@@ -1945,6 +2530,13 @@ export function createOpenClawGatewayClient(
     args: OpenClawGatewayMethodArgs = {},
   ) {
     return invokeOfficialMethod(instanceId, 'doctor.memory.status', args);
+  }
+
+  async function getDoctorMemoryDreamDiary(
+    instanceId: string,
+    args: OpenClawGatewayMethodArgs = {},
+  ) {
+    return invokeOfficialMethod(instanceId, 'doctor.memory.dreamDiary', args);
   }
 
   async function getTtsProviders(instanceId: string, args: OpenClawGatewayMethodArgs = {}) {
@@ -2399,6 +2991,7 @@ export function createOpenClawGatewayClient(
     setAgentFile,
     getHealth,
     getDoctorMemoryStatus,
+    getDoctorMemoryDreamDiary,
     getStatus,
     logoutChannel,
     getUsageStatus,
@@ -2479,6 +3072,10 @@ export function createOpenClawGatewayClient(
     updateCronJob,
     removeCronJob,
     runCronJob,
+    listRuntimeTasks,
+    listTaskFlows,
+    getRuntimeTaskDetail,
+    getTaskFlowDetail,
     getGatewayIdentity,
     getSystemPresence,
     emitSystemEvent,

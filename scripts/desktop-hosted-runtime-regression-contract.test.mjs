@@ -23,6 +23,21 @@ assert.match(
   /packages\/sdkwork-claw-desktop\/src\/desktop\/bootstrap\/DesktopBootstrapApp\.test\.ts/,
   'check:desktop must execute the desktop bootstrap readiness regression suite',
 );
+assert.match(
+  desktopCheckScript,
+  /packages\/sdkwork-claw-desktop\/src\/desktop\/bootstrap\/desktopStartupEvidence\.test\.ts/,
+  'check:desktop must execute the desktop startup evidence regression suite',
+);
+assert.match(
+  desktopCheckScript,
+  /cargo test --manifest-path packages\/sdkwork-claw-desktop\/src-tauri\/Cargo\.toml(?: [^&]+)? embedded_host_bootstrap_exposes_structured_browser_bootstrap_descriptor/,
+  'check:desktop must execute the Rust embedded host bootstrap descriptor regression',
+);
+assert.match(
+  desktopCheckScript,
+  /cargo test --manifest-path packages\/sdkwork-claw-desktop\/src-tauri\/Cargo\.toml(?: [^&]+)? embedded_host_bootstrap_exposes_canonical_server_route_families/,
+  'check:desktop must execute the Rust embedded host canonical route regression',
+);
 assert.doesNotMatch(
   desktopCheckScript,
   /node --test .*desktopHostRuntimeResolver\.test\.ts/,
@@ -32,6 +47,16 @@ assert.doesNotMatch(
   desktopCheckScript,
   /node --test .*DesktopBootstrapApp\.test\.ts/,
   'desktop bootstrap regressions must run without node --test subprocess spawning',
+);
+assert.doesNotMatch(
+  desktopCheckScript,
+  /embedded_host_bootstrap_exposes_structured_browser_bootstrap_descriptor -- --exact/,
+  'desktop embedded host bootstrap descriptor regressions must not use cargo --exact filtering that skips the target test path',
+);
+assert.doesNotMatch(
+  desktopCheckScript,
+  /embedded_host_bootstrap_exposes_canonical_server_route_families -- --exact/,
+  'desktop embedded host canonical route regressions must not use cargo --exact filtering that skips the target test path',
 );
 
 console.log(

@@ -1,4 +1,12 @@
 import { getPlatformBridge, platform } from '@sdkwork/claw-infrastructure';
+import type {
+  StudioWorkbenchLLMProviderRequestAuthMode,
+  StudioWorkbenchLLMProviderRequestAuthRecord,
+  StudioWorkbenchLLMProviderRequestOverridesRecord,
+  StudioWorkbenchLLMProviderRequestProxyMode,
+  StudioWorkbenchLLMProviderRequestProxyRecord,
+  StudioWorkbenchLLMProviderRequestTlsRecord,
+} from '@sdkwork/claw-types';
 import {
   normalizeLegacyProviderId,
   normalizeLegacyProviderModelRef,
@@ -96,6 +104,14 @@ export interface OpenClawChannelSnapshot {
   fields: OpenClawChannelFieldDefinition[];
 }
 
+const OPENCLAW_CHANNEL_CONTEXT_VISIBILITY_FIELD: OpenClawChannelFieldDefinition = {
+  key: 'contextVisibility',
+  label: 'Context Visibility',
+  placeholder: 'allowlist_quote',
+  helpText:
+    'Optional per-channel context visibility policy, for example quote, none, or allowlist_quote.',
+};
+
 export interface OpenClawWebSearchProviderSnapshot {
   id: string;
   name: string;
@@ -118,6 +134,56 @@ export interface OpenClawWebSearchConfigSnapshot {
   providers: OpenClawWebSearchProviderSnapshot[];
 }
 
+export interface OpenClawXSearchConfigSnapshot {
+  enabled: boolean;
+  apiKeySource: string;
+  model: string;
+  inlineCitations: boolean;
+  maxTurns: number;
+  timeoutSeconds: number;
+  cacheTtlMinutes: number;
+  advancedConfig: string;
+}
+
+export interface OpenClawWebSearchNativeCodexUserLocationSnapshot {
+  country: string;
+  city: string;
+  timezone: string;
+}
+
+export interface OpenClawWebSearchNativeCodexConfigSnapshot {
+  enabled: boolean;
+  mode: string;
+  allowedDomains: string[];
+  contextSize: string;
+  userLocation: OpenClawWebSearchNativeCodexUserLocationSnapshot;
+  advancedConfig: string;
+}
+
+export interface OpenClawWebFetchFallbackProviderSnapshot {
+  providerId: 'firecrawl';
+  name: string;
+  description: string;
+  apiKeySource: string;
+  baseUrl: string;
+  advancedConfig: string;
+  supportsApiKey: boolean;
+  supportsBaseUrl: boolean;
+}
+
+export interface OpenClawWebFetchConfigSnapshot {
+  enabled: boolean;
+  maxChars: number;
+  maxCharsCap: number;
+  maxResponseBytes: number;
+  timeoutSeconds: number;
+  cacheTtlMinutes: number;
+  maxRedirects: number;
+  readability: boolean;
+  userAgent: string;
+  fallbackProvider: OpenClawWebFetchFallbackProviderSnapshot;
+}
+
 export interface OpenClawAuthCooldownsConfigSnapshot {
   rateLimitedProfileRotations: number | null;
   overloadedProfileRotations: number | null;
@@ -125,6 +191,11 @@ export interface OpenClawAuthCooldownsConfigSnapshot {
   billingBackoffHours: number | null;
   billingMaxHours: number | null;
   failureWindowHours: number | null;
+}
+
+export interface OpenClawDreamingConfigSnapshot {
+  enabled: boolean;
+  frequency: string;
 }
 
 export interface OpenClawProviderSnapshot {
@@ -157,7 +228,19 @@ export interface OpenClawProviderRuntimeConfig {
   maxTokens: number;
   timeoutMs: number;
   streaming: boolean;
+  request?: StudioWorkbenchLLMProviderRequestOverridesRecord;
 }
+
+const OPENCLAW_PROVIDER_REQUEST_AUTH_MODES: readonly StudioWorkbenchLLMProviderRequestAuthMode[] = [
+  'provider-default',
+  'authorization-bearer',
+  'header',
+];
+
+const OPENCLAW_PROVIDER_REQUEST_PROXY_MODES: readonly StudioWorkbenchLLMProviderRequestProxyMode[] = [
+  'env-proxy',
+  'explicit-proxy',
+];
 
 export type OpenClawAgentParamValue = string | number | boolean;
 export type OpenClawAgentParamSource = 'agent' | 'defaults';
@@ -221,7 +304,11 @@ export interface OpenClawConfigSnapshot {
   agentSnapshots: OpenClawAgentSnapshot[];
   channelSnapshots: OpenClawChannelSnapshot[];
   webSearchConfig: OpenClawWebSearchConfigSnapshot;
+  xSearchConfig: OpenClawXSearchConfigSnapshot;
+  webSearchNativeCodexConfig: OpenClawWebSearchNativeCodexConfigSnapshot;
+  webFetchConfig: OpenClawWebFetchConfigSnapshot;
   authCooldownsConfig: OpenClawAuthCooldownsConfigSnapshot;
+  dreamingConfig: OpenClawDreamingConfigSnapshot;
   root: JsonObject;
 }
 
@@ -280,6 +367,47 @@ export interface SaveOpenClawWebSearchConfigurationInput {
   };
 }
 
+export interface SaveOpenClawXSearchConfigurationInput {
+  configPath: string;
+  enabled: boolean;
+  apiKeySource?: string;
+  model?: string;
+  inlineCitations: boolean;
+  maxTurns: number;
+  timeoutSeconds: number;
+  cacheTtlMinutes: number;
+  advancedConfig?: string;
+}
+
+export interface SaveOpenClawWebSearchNativeCodexConfigurationInput {
+  configPath: string;
+  enabled: boolean;
+  mode?: string;
+  allowedDomains: string[];
+  contextSize?: string;
+  userLocation?: Partial<OpenClawWebSearchNativeCodexUserLocationSnapshot>;
+  advancedConfig?: string;
+}
+
+export interface SaveOpenClawWebFetchConfigurationInput {
+  configPath: string;
+  enabled: boolean;
+  maxChars: number;
+  maxCharsCap: number;
+  maxResponseBytes: number;
+  timeoutSeconds: number;
+  cacheTtlMinutes: number;
+  maxRedirects: number;
+  readability: boolean;
+  userAgent?: string;
+  fallbackProviderConfig: {
+    providerId: 'firecrawl';
+    apiKeySource?: string;
+    baseUrl?: string;
+    advancedConfig?: string;
+  };
+}
+
 export interface SaveOpenClawAuthCooldownsConfigurationInput {
   configPath: string;
   rateLimitedProfileRotations?: number;
@@ -288,6 +416,12 @@ export interface SaveOpenClawAuthCooldownsConfigurationInput {
   billingBackoffHours?: number;
   billingMaxHours?: number;
   failureWindowHours?: number;
+}
+
+export interface SaveOpenClawDreamingConfigurationInput {
+  configPath: string;
+  enabled: boolean;
+  frequency?: string;
 }
 
 function normalizePath(path: string) {
@@ -303,6 +437,16 @@ const OPENCLAW_CONFIG_SNAPSHOT_CACHE_TTL_MS = 2_000;
 const DEFAULT_WEB_SEARCH_MAX_RESULTS = 5;
 const DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS = 30;
 const DEFAULT_WEB_SEARCH_CACHE_TTL_MINUTES = 15;
+const DEFAULT_X_SEARCH_MAX_TURNS = 2;
+const DEFAULT_X_SEARCH_TIMEOUT_SECONDS = 30;
+const DEFAULT_X_SEARCH_CACHE_TTL_MINUTES = 15;
+const DEFAULT_WEB_SEARCH_NATIVE_CODEX_MODE = 'cached';
+const DEFAULT_WEB_FETCH_MAX_CHARS = 50_000;
+const DEFAULT_WEB_FETCH_MAX_CHARS_CAP = 50_000;
+const DEFAULT_WEB_FETCH_MAX_RESPONSE_BYTES = 2_000_000;
+const DEFAULT_WEB_FETCH_TIMEOUT_SECONDS = 30;
+const DEFAULT_WEB_FETCH_CACHE_TTL_MINUTES = 15;
+const DEFAULT_WEB_FETCH_MAX_REDIRECTS = 3;
 
 interface OpenClawConfigSnapshotCacheEntry {
   expiresAt: number;
@@ -316,6 +460,7 @@ interface OpenClawConfigRootCacheEntry {
 
 interface OpenClawWebSearchProviderDefinition {
   id: string;
+  pluginId: string;
   name: string;
   description: string;
   supportsApiKey: boolean;
@@ -633,6 +778,15 @@ function setOptionalWholeNumber(
   target[key] = Math.max(minimum, Math.round(value));
 }
 
+function setOptionalBoolean(target: JsonObject, key: string, value: boolean | undefined) {
+  if (typeof value !== 'boolean') {
+    delete target[key];
+    return;
+  }
+
+  target[key] = value;
+}
+
 function parseJsonObjectText(label: string, value: string | undefined) {
   const normalized = value?.trim() || '';
   if (!normalized) {
@@ -859,12 +1013,60 @@ export function saveOpenClawWebSearchConfigInDocument(
   });
 }
 
+export function saveOpenClawXSearchConfigInDocument(
+  raw: string,
+  input: Omit<SaveOpenClawXSearchConfigurationInput, 'configPath'>,
+) {
+  return mutateOpenClawConfigDocument(raw, (root) => {
+    updateXSearchConfig(root, {
+      configPath: '',
+      ...input,
+    });
+  });
+}
+
+export function saveOpenClawWebSearchNativeCodexConfigInDocument(
+  raw: string,
+  input: Omit<SaveOpenClawWebSearchNativeCodexConfigurationInput, 'configPath'>,
+) {
+  return mutateOpenClawConfigDocument(raw, (root) => {
+    updateWebSearchNativeCodexConfig(root, {
+      configPath: '',
+      ...input,
+    });
+  });
+}
+
+export function saveOpenClawWebFetchConfigInDocument(
+  raw: string,
+  input: Omit<SaveOpenClawWebFetchConfigurationInput, 'configPath'>,
+) {
+  return mutateOpenClawConfigDocument(raw, (root) => {
+    updateWebFetchConfig(root, {
+      configPath: '',
+      ...input,
+    });
+  });
+}
+
 export function saveOpenClawAuthCooldownsConfigInDocument(
   raw: string,
   input: Omit<SaveOpenClawAuthCooldownsConfigurationInput, 'configPath'>,
 ) {
   return mutateOpenClawConfigDocument(raw, (root) => {
     updateAuthCooldownsConfig(root, {
+      configPath: '',
+      ...input,
+    });
+  });
+}
+
+export function saveOpenClawDreamingConfigInDocument(
+  raw: string,
+  input: Omit<SaveOpenClawDreamingConfigurationInput, 'configPath'>,
+) {
+  return mutateOpenClawConfigDocument(raw, (root) => {
+    updateDreamingConfig(root, {
       configPath: '',
       ...input,
     });
@@ -1221,16 +1423,273 @@ function writeAgentParams(
   target.params = nextParams;
 }
 
+function readStringRecord(root: JsonObject | null | undefined) {
+  if (!root) {
+    return undefined;
+  }
+
+  const nextRecord = Object.fromEntries(
+    Object.entries(root).flatMap(([key, value]) => {
+      const nextValue = readScalar(value);
+      return nextValue ? [[key, nextValue]] : [];
+    }),
+  );
+
+  return Object.keys(nextRecord).length > 0 ? nextRecord : undefined;
+}
+
+function writeStringRecord(target: JsonObject, key: string, value: Record<string, string> | undefined) {
+  const nextRecord = Object.fromEntries(
+    Object.entries(value || {}).flatMap(([entryKey, entryValue]) => {
+      const normalizedKey = entryKey.trim();
+      const normalizedValue = entryValue.trim();
+      return normalizedKey && normalizedValue ? [[normalizedKey, normalizedValue]] : [];
+    }),
+  );
+
+  if (Object.keys(nextRecord).length === 0) {
+    delete target[key];
+    return;
+  }
+
+  target[key] = nextRecord;
+}
+
+function readProviderRequestTls(
+  value: JsonValue | undefined,
+): StudioWorkbenchLLMProviderRequestTlsRecord | undefined {
+  const root = readObject(value);
+  if (!root) {
+    return undefined;
+  }
+
+  const nextTls: StudioWorkbenchLLMProviderRequestTlsRecord = {};
+  const ca = readScalar(root.ca);
+  const cert = readScalar(root.cert);
+  const key = readScalar(root.key);
+  const passphrase = readScalar(root.passphrase);
+  const serverName = readScalar(root.serverName);
+
+  if (ca) {
+    nextTls.ca = ca;
+  }
+  if (cert) {
+    nextTls.cert = cert;
+  }
+  if (key) {
+    nextTls.key = key;
+  }
+  if (passphrase) {
+    nextTls.passphrase = passphrase;
+  }
+  if (serverName) {
+    nextTls.serverName = serverName;
+  }
+  if (typeof root.insecureSkipVerify === 'boolean') {
+    nextTls.insecureSkipVerify = root.insecureSkipVerify;
+  }
+
+  return Object.values(nextTls).some((entry) => entry !== undefined) ? nextTls : undefined;
+}
+
+function writeProviderRequestTls(
+  value: StudioWorkbenchLLMProviderRequestTlsRecord | undefined,
+): JsonObject | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const nextRoot: JsonObject = {};
+  setOptionalScalar(nextRoot, 'ca', value.ca);
+  setOptionalScalar(nextRoot, 'cert', value.cert);
+  setOptionalScalar(nextRoot, 'key', value.key);
+  setOptionalScalar(nextRoot, 'passphrase', value.passphrase);
+  setOptionalScalar(nextRoot, 'serverName', value.serverName);
+  setOptionalBoolean(nextRoot, 'insecureSkipVerify', value.insecureSkipVerify);
+
+  return Object.keys(nextRoot).length > 0 ? nextRoot : undefined;
+}
+
+function readProviderRequestAuth(
+  value: JsonValue | undefined,
+): StudioWorkbenchLLMProviderRequestAuthRecord | undefined {
+  const root = readObject(value);
+  if (!root) {
+    return undefined;
+  }
+
+  const mode = readScalar(root.mode) as StudioWorkbenchLLMProviderRequestAuthMode;
+  if (!OPENCLAW_PROVIDER_REQUEST_AUTH_MODES.includes(mode)) {
+    return undefined;
+  }
+
+  const nextAuth: StudioWorkbenchLLMProviderRequestAuthRecord = {
+    mode,
+  };
+  if (mode === 'authorization-bearer') {
+    const token = readScalar(root.token);
+    if (token) {
+      nextAuth.token = token;
+    }
+  }
+  if (mode === 'header') {
+    const headerName = readScalar(root.headerName);
+    const value = readScalar(root.value);
+    const prefix = readScalar(root.prefix);
+    if (headerName) {
+      nextAuth.headerName = headerName;
+    }
+    if (value) {
+      nextAuth.value = value;
+    }
+    if (prefix) {
+      nextAuth.prefix = prefix;
+    }
+  }
+
+  return nextAuth;
+}
+
+function writeProviderRequestAuth(
+  value: StudioWorkbenchLLMProviderRequestAuthRecord | undefined,
+): JsonObject | undefined {
+  if (!value || !OPENCLAW_PROVIDER_REQUEST_AUTH_MODES.includes(value.mode)) {
+    return undefined;
+  }
+
+  const nextRoot: JsonObject = {
+    mode: value.mode,
+  };
+  if (value.mode === 'authorization-bearer') {
+    setOptionalScalar(nextRoot, 'token', value.token);
+  }
+  if (value.mode === 'header') {
+    setOptionalScalar(nextRoot, 'headerName', value.headerName);
+    setOptionalScalar(nextRoot, 'value', value.value);
+    setOptionalScalar(nextRoot, 'prefix', value.prefix);
+  }
+
+  return nextRoot;
+}
+
+function readProviderRequestProxy(
+  value: JsonValue | undefined,
+): StudioWorkbenchLLMProviderRequestProxyRecord | undefined {
+  const root = readObject(value);
+  if (!root) {
+    return undefined;
+  }
+
+  const mode = readScalar(root.mode) as StudioWorkbenchLLMProviderRequestProxyMode;
+  if (!OPENCLAW_PROVIDER_REQUEST_PROXY_MODES.includes(mode)) {
+    return undefined;
+  }
+
+  const nextProxy: StudioWorkbenchLLMProviderRequestProxyRecord = {
+    mode,
+  };
+  if (mode === 'explicit-proxy') {
+    const url = readScalar(root.url);
+    if (url) {
+      nextProxy.url = url;
+    }
+  }
+  const tls = readProviderRequestTls(root.tls);
+  if (tls) {
+    nextProxy.tls = tls;
+  }
+
+  return nextProxy;
+}
+
+function writeProviderRequestProxy(
+  value: StudioWorkbenchLLMProviderRequestProxyRecord | undefined,
+): JsonObject | undefined {
+  if (!value || !OPENCLAW_PROVIDER_REQUEST_PROXY_MODES.includes(value.mode)) {
+    return undefined;
+  }
+
+  const nextRoot: JsonObject = {
+    mode: value.mode,
+  };
+  if (value.mode === 'explicit-proxy') {
+    setOptionalScalar(nextRoot, 'url', value.url);
+  }
+  const tls = writeProviderRequestTls(value.tls);
+  if (tls) {
+    nextRoot.tls = tls;
+  }
+
+  return nextRoot;
+}
+
+function readProviderRequestConfig(
+  providerRoot: JsonObject,
+): StudioWorkbenchLLMProviderRequestOverridesRecord | undefined {
+  const requestRoot = readObject(providerRoot.request);
+  if (!requestRoot) {
+    return undefined;
+  }
+
+  const headers = readStringRecord(readObject(requestRoot.headers));
+  const auth = readProviderRequestAuth(requestRoot.auth);
+  const proxy = readProviderRequestProxy(requestRoot.proxy);
+  const tls = readProviderRequestTls(requestRoot.tls);
+
+  return headers || auth || proxy || tls
+    ? {
+        ...(headers ? { headers } : {}),
+        ...(auth ? { auth } : {}),
+        ...(proxy ? { proxy } : {}),
+        ...(tls ? { tls } : {}),
+      }
+    : undefined;
+}
+
+function writeProviderRequestConfig(
+  providerRoot: JsonObject,
+  request: StudioWorkbenchLLMProviderRequestOverridesRecord | undefined,
+) {
+  if (!request) {
+    delete providerRoot.request;
+    return;
+  }
+
+  const requestRoot: JsonObject = {};
+  writeStringRecord(requestRoot, 'headers', request.headers);
+  const auth = writeProviderRequestAuth(request.auth);
+  if (auth) {
+    requestRoot.auth = auth;
+  }
+  const proxy = writeProviderRequestProxy(request.proxy);
+  if (proxy) {
+    requestRoot.proxy = proxy;
+  }
+  const tls = writeProviderRequestTls(request.tls);
+  if (tls) {
+    requestRoot.tls = tls;
+  }
+
+  if (Object.keys(requestRoot).length === 0) {
+    delete providerRoot.request;
+    return;
+  }
+
+  providerRoot.request = requestRoot;
+}
+
 function readProviderRuntimeConfig(
   root: JsonObject,
   providerKey: string,
   modelId: string | undefined,
+  providerRoot?: JsonObject,
 ): OpenClawProviderRuntimeConfig {
   const defaultsModelsRoot = readObject(readObject(readObject(root.agents)?.defaults)?.models) || {};
   const modelRoot = modelId
     ? readObject(defaultsModelsRoot[buildModelRef(providerKey, modelId)])
     : undefined;
   const modelParams = modelRoot ? readAgentParams(modelRoot.params) : {};
+  const request = providerRoot ? readProviderRequestConfig(providerRoot) : undefined;
 
   return {
     temperature: readNumber(modelParams.temperature, 0.2),
@@ -1238,6 +1697,7 @@ function readProviderRuntimeConfig(
     maxTokens: readNumber(modelParams.maxTokens, 8192),
     timeoutMs: readNumber(modelParams.timeoutMs, 60000),
     streaming: readBoolean(modelParams.streaming, true),
+    ...(request ? { request } : {}),
   };
 }
 
@@ -1964,6 +2424,7 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
 const OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS: OpenClawWebSearchProviderDefinition[] = [
   {
     id: 'brave',
+    pluginId: 'brave',
     name: 'Brave Search',
     description: 'Use Brave Search as the OpenClaw web search provider.',
     supportsApiKey: true,
@@ -1971,55 +2432,8 @@ const OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS: OpenClawWebSearchProviderDefinit
     supportsModel: false,
   },
   {
-    id: 'google',
-    name: 'Google Search',
-    description: 'Use Google web search through the official OpenClaw adapter.',
-    supportsApiKey: true,
-    supportsBaseUrl: false,
-    supportsModel: false,
-  },
-  {
-    id: 'xai',
-    name: 'xAI Search',
-    description: 'Use xAI web search through the official OpenClaw adapter.',
-    supportsApiKey: true,
-    supportsBaseUrl: false,
-    supportsModel: false,
-  },
-  {
-    id: 'moonshot',
-    name: 'Moonshot Search',
-    description: 'Use Moonshot as the active OpenClaw web search provider.',
-    supportsApiKey: true,
-    supportsBaseUrl: false,
-    supportsModel: false,
-  },
-  {
-    id: 'perplexity',
-    name: 'Perplexity Search',
-    description: 'Use Perplexity for grounded web-search results.',
-    supportsApiKey: true,
-    supportsBaseUrl: false,
-    supportsModel: true,
-  },
-  {
-    id: 'firecrawl',
-    name: 'Firecrawl Search',
-    description: 'Use Firecrawl search and extraction as the web search provider.',
-    supportsApiKey: true,
-    supportsBaseUrl: false,
-    supportsModel: false,
-  },
-  {
-    id: 'tavily',
-    name: 'Tavily Search',
-    description: 'Use Tavily as the OpenClaw web search provider.',
-    supportsApiKey: true,
-    supportsBaseUrl: false,
-    supportsModel: false,
-  },
-  {
     id: 'duckduckgo',
+    pluginId: 'duckduckgo',
     name: 'DuckDuckGo Search',
     description: 'Use DuckDuckGo without additional provider credentials.',
     supportsApiKey: false,
@@ -2027,7 +2441,62 @@ const OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS: OpenClawWebSearchProviderDefinit
     supportsModel: false,
   },
   {
+    id: 'exa',
+    pluginId: 'exa',
+    name: 'Exa Search',
+    description: 'Use Exa as the active OpenClaw web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: false,
+  },
+  {
+    id: 'firecrawl',
+    pluginId: 'firecrawl',
+    name: 'Firecrawl Search',
+    description: 'Use Firecrawl search and extraction as the web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: true,
+    supportsModel: false,
+  },
+  {
+    id: 'gemini',
+    pluginId: 'google',
+    name: 'Gemini Search',
+    description: 'Use Gemini web search through the official OpenClaw adapter.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: true,
+  },
+  {
+    id: 'grok',
+    pluginId: 'xai',
+    name: 'Grok Search',
+    description: 'Use Grok web search through the official OpenClaw adapter.',
+    supportsApiKey: true,
+    supportsBaseUrl: false,
+    supportsModel: true,
+  },
+  {
+    id: 'kimi',
+    pluginId: 'moonshot',
+    name: 'Kimi Search',
+    description: 'Use Kimi as the active OpenClaw web search provider.',
+    supportsApiKey: true,
+    supportsBaseUrl: true,
+    supportsModel: true,
+  },
+  {
+    id: 'perplexity',
+    pluginId: 'perplexity',
+    name: 'Perplexity Search',
+    description: 'Use Perplexity for grounded web-search results.',
+    supportsApiKey: true,
+    supportsBaseUrl: true,
+    supportsModel: true,
+  },
+  {
     id: 'searxng',
+    pluginId: 'searxng',
     name: 'SearXNG',
     description: 'Use a self-hosted SearXNG endpoint as the web search provider.',
     supportsApiKey: false,
@@ -2035,23 +2504,62 @@ const OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS: OpenClawWebSearchProviderDefinit
     supportsModel: false,
   },
   {
-    id: 'exa',
-    name: 'Exa Search',
-    description: 'Use Exa as the active OpenClaw web search provider.',
+    id: 'tavily',
+    pluginId: 'tavily',
+    name: 'Tavily Search',
+    description: 'Use Tavily as the OpenClaw web search provider.',
     supportsApiKey: true,
-    supportsBaseUrl: false,
+    supportsBaseUrl: true,
     supportsModel: false,
   },
 ];
 
+function resolveChannelDefinition(
+  definition: OpenClawChannelDefinition,
+): OpenClawChannelDefinition {
+  const fields = definition.fields.map((field) => ({ ...field }));
+  const shouldExposeContextVisibility = definition.id !== 'sdkworkchat';
+
+  if (
+    shouldExposeContextVisibility &&
+    !fields.some((field) => field.key === OPENCLAW_CHANNEL_CONTEXT_VISIBILITY_FIELD.key)
+  ) {
+    fields.push({ ...OPENCLAW_CHANNEL_CONTEXT_VISIBILITY_FIELD });
+  }
+
+  return {
+    ...definition,
+    setupSteps: [...definition.setupSteps],
+    fields,
+  };
+}
+
+function listResolvedChannelDefinitions() {
+  return OPENCLAW_CHANNEL_DEFINITIONS.map(resolveChannelDefinition);
+}
+
 function getChannelDefinition(channelId: string) {
-  return OPENCLAW_CHANNEL_DEFINITIONS.find((definition) => definition.id === channelId) || null;
+  return (
+    listResolvedChannelDefinitions().find((definition) => definition.id === channelId) || null
+  );
 }
 
 function getWebSearchProviderDefinition(providerId: string) {
   return (
-    OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS.find((definition) => definition.id === providerId) ||
+    OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS.find(
+      (definition) => definition.id === normalizeWebSearchProviderId(providerId),
+    ) ||
     null
+  );
+}
+
+function getPluginConfigRoot(root: JsonObject, pluginId: string) {
+  return (
+    readObject(
+      readObject(
+        readObject(readObject(root.plugins)?.entries)?.[pluginId],
+      )?.config,
+    ) || null
   );
 }
 
@@ -2117,7 +2625,7 @@ function buildChannelSnapshots(root: JsonObject): OpenClawChannelSnapshot[] {
       ? (root.channels as JsonObject)
       : {};
 
-  return OPENCLAW_CHANNEL_DEFINITIONS.map((definition) => {
+  return listResolvedChannelDefinitions().map((definition) => {
     const channelConfig =
       channelsRoot[definition.id] &&
       typeof channelsRoot[definition.id] === 'object' &&
@@ -2163,39 +2671,62 @@ function readWebSearchRoot(root: JsonObject) {
   return readObject(readObject(readObject(root.tools)?.web)?.search) || null;
 }
 
-function getPluginWebSearchRoot(root: JsonObject, providerId: string) {
-  return (
-    readObject(
-      readObject(
-        readObject(
-          readObject(readObject(root.plugins)?.entries)?.[providerId],
-        )?.config,
-      )?.webSearch,
-    ) || null
-  );
+function normalizeWebSearchProviderId(providerId: string) {
+  const normalizedProviderId = providerId.trim().toLowerCase();
+  switch (normalizedProviderId) {
+    case 'google':
+      return 'gemini';
+    case 'xai':
+      return 'grok';
+    case 'moonshot':
+      return 'kimi';
+    default:
+      return normalizedProviderId;
+  }
 }
 
-function buildWebSearchProviderAdvancedConfig(root: JsonObject) {
+function getPluginEntryConfigRoot(root: JsonObject, providerId: string) {
+  const pluginId = getWebSearchProviderDefinition(providerId)?.pluginId ?? normalizeWebSearchProviderId(providerId);
+  return getPluginConfigRoot(root, pluginId);
+}
+
+function getPluginWebSearchAuthRoot(root: JsonObject, providerId: string) {
+  return readObject(getPluginEntryConfigRoot(root, providerId)?.webSearch) || null;
+}
+
+function getPluginWebSearchSettingsRoot(root: JsonObject, providerId: string) {
+  return readObject(getPluginEntryConfigRoot(root, providerId)?.webSearch) || null;
+}
+
+function buildWebSearchProviderAdvancedConfig(
+  root: JsonObject,
+  definition: OpenClawWebSearchProviderDefinition,
+) {
   const nextRoot = cloneJsonObject(root);
   delete nextRoot.apiKey;
-  delete nextRoot.baseUrl;
-  delete nextRoot.model;
+  if (definition.supportsBaseUrl) {
+    delete nextRoot.baseUrl;
+  }
+  if (definition.supportsModel) {
+    delete nextRoot.model;
+  }
 
   return Object.keys(nextRoot).length > 0 ? stringifyJson5(nextRoot, 2) : '';
 }
 
 function buildWebSearchProviderSnapshots(root: JsonObject): OpenClawWebSearchProviderSnapshot[] {
   return OPENCLAW_WEB_SEARCH_PROVIDER_DEFINITIONS.map((definition) => {
-    const providerRoot = getPluginWebSearchRoot(root, definition.id) || {};
+    const providerAuthRoot = getPluginWebSearchAuthRoot(root, definition.id) || {};
+    const providerSettingsRoot = getPluginWebSearchSettingsRoot(root, definition.id) || {};
 
     return {
       id: definition.id,
       name: definition.name,
       description: definition.description,
-      apiKeySource: readScalar(providerRoot.apiKey),
-      baseUrl: readScalar(providerRoot.baseUrl),
-      model: readScalar(providerRoot.model),
-      advancedConfig: buildWebSearchProviderAdvancedConfig(providerRoot),
+      apiKeySource: readScalar(providerAuthRoot.apiKey),
+      baseUrl: readScalar(providerSettingsRoot.baseUrl),
+      model: readScalar(providerSettingsRoot.model),
+      advancedConfig: buildWebSearchProviderAdvancedConfig(providerSettingsRoot, definition),
       supportsApiKey: definition.supportsApiKey,
       supportsBaseUrl: definition.supportsBaseUrl,
       supportsModel: definition.supportsModel,
@@ -2208,11 +2739,129 @@ function buildWebSearchConfigSnapshot(root: JsonObject): OpenClawWebSearchConfig
 
   return {
     enabled: readBoolean(searchRoot.enabled, true),
-    provider: readScalar(searchRoot.provider).trim(),
+    provider: normalizeWebSearchProviderId(readScalar(searchRoot.provider)),
     maxResults: readNumber(searchRoot.maxResults, DEFAULT_WEB_SEARCH_MAX_RESULTS),
     timeoutSeconds: readNumber(searchRoot.timeoutSeconds, DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS),
     cacheTtlMinutes: readNumber(searchRoot.cacheTtlMinutes, DEFAULT_WEB_SEARCH_CACHE_TTL_MINUTES),
     providers: buildWebSearchProviderSnapshots(root),
+  };
+}
+
+function readLegacyXSearchRoot(root: JsonObject) {
+  return readObject(readObject(readObject(root.tools)?.web)?.x_search) || null;
+}
+
+function getPluginXSearchConfigRoot(root: JsonObject) {
+  return readObject(getPluginConfigRoot(root, 'xai')?.xSearch) || null;
+}
+
+function readXSearchRoot(root: JsonObject) {
+  return getPluginXSearchConfigRoot(root) || readLegacyXSearchRoot(root) || null;
+}
+
+function buildXSearchAdvancedConfig(root: JsonObject) {
+  const nextRoot = cloneJsonObject(root);
+  delete nextRoot.enabled;
+  delete nextRoot.model;
+  delete nextRoot.inlineCitations;
+  delete nextRoot.maxTurns;
+  delete nextRoot.timeoutSeconds;
+  delete nextRoot.cacheTtlMinutes;
+
+  return Object.keys(nextRoot).length > 0 ? stringifyJson5(nextRoot, 2) : '';
+}
+
+function buildXSearchConfigSnapshot(root: JsonObject): OpenClawXSearchConfigSnapshot {
+  const xSearchRoot = readXSearchRoot(root) || {};
+  const xaiWebSearchRoot = getPluginWebSearchAuthRoot(root, 'grok') || {};
+
+  return {
+    enabled: readBoolean(xSearchRoot.enabled, false),
+    apiKeySource: readScalar(xaiWebSearchRoot.apiKey),
+    model: readScalar(xSearchRoot.model),
+    inlineCitations: readBoolean(xSearchRoot.inlineCitations, false),
+    maxTurns: readNumber(xSearchRoot.maxTurns, DEFAULT_X_SEARCH_MAX_TURNS),
+    timeoutSeconds: readNumber(xSearchRoot.timeoutSeconds, DEFAULT_X_SEARCH_TIMEOUT_SECONDS),
+    cacheTtlMinutes: readNumber(xSearchRoot.cacheTtlMinutes, DEFAULT_X_SEARCH_CACHE_TTL_MINUTES),
+    advancedConfig: buildXSearchAdvancedConfig(xSearchRoot),
+  };
+}
+
+function getWebSearchNativeCodexRoot(root: JsonObject) {
+  return readObject(readWebSearchRoot(root)?.openaiCodex) || null;
+}
+
+function buildWebSearchNativeCodexAdvancedConfig(root: JsonObject) {
+  const nextRoot = cloneJsonObject(root);
+  delete nextRoot.enabled;
+  delete nextRoot.mode;
+  delete nextRoot.allowedDomains;
+  delete nextRoot.contextSize;
+  delete nextRoot.userLocation;
+
+  return Object.keys(nextRoot).length > 0 ? stringifyJson5(nextRoot, 2) : '';
+}
+
+function buildWebSearchNativeCodexConfigSnapshot(
+  root: JsonObject,
+): OpenClawWebSearchNativeCodexConfigSnapshot {
+  const openaiCodexRoot = getWebSearchNativeCodexRoot(root) || {};
+  const userLocationRoot = readObject(openaiCodexRoot.userLocation) || {};
+
+  return {
+    enabled: readBoolean(openaiCodexRoot.enabled, false),
+    mode: readScalar(openaiCodexRoot.mode) || DEFAULT_WEB_SEARCH_NATIVE_CODEX_MODE,
+    allowedDomains: readStringArray(openaiCodexRoot.allowedDomains),
+    contextSize: readScalar(openaiCodexRoot.contextSize),
+    userLocation: {
+      country: readScalar(userLocationRoot.country),
+      city: readScalar(userLocationRoot.city),
+      timezone: readScalar(userLocationRoot.timezone),
+    },
+    advancedConfig: buildWebSearchNativeCodexAdvancedConfig(openaiCodexRoot),
+  };
+}
+
+function readWebFetchRoot(root: JsonObject) {
+  return readObject(readObject(readObject(root.tools)?.web)?.fetch) || null;
+}
+
+function getPluginWebFetchConfigRoot(root: JsonObject) {
+  return readObject(getPluginConfigRoot(root, 'firecrawl')?.webFetch) || null;
+}
+
+function buildWebFetchFallbackAdvancedConfig(root: JsonObject) {
+  const nextRoot = cloneJsonObject(root);
+  delete nextRoot.apiKey;
+  delete nextRoot.baseUrl;
+
+  return Object.keys(nextRoot).length > 0 ? stringifyJson5(nextRoot, 2) : '';
+}
+
+function buildWebFetchConfigSnapshot(root: JsonObject): OpenClawWebFetchConfigSnapshot {
+  const fetchRoot = readWebFetchRoot(root) || {};
+  const firecrawlRoot = getPluginWebFetchConfigRoot(root) || {};
+
+  return {
+    enabled: readBoolean(fetchRoot.enabled, true),
+    maxChars: readNumber(fetchRoot.maxChars, DEFAULT_WEB_FETCH_MAX_CHARS),
+    maxCharsCap: readNumber(fetchRoot.maxCharsCap, DEFAULT_WEB_FETCH_MAX_CHARS_CAP),
+    maxResponseBytes: readNumber(fetchRoot.maxResponseBytes, DEFAULT_WEB_FETCH_MAX_RESPONSE_BYTES),
+    timeoutSeconds: readNumber(fetchRoot.timeoutSeconds, DEFAULT_WEB_FETCH_TIMEOUT_SECONDS),
+    cacheTtlMinutes: readNumber(fetchRoot.cacheTtlMinutes, DEFAULT_WEB_FETCH_CACHE_TTL_MINUTES),
+    maxRedirects: readNumber(fetchRoot.maxRedirects, DEFAULT_WEB_FETCH_MAX_REDIRECTS),
+    readability: readBoolean(fetchRoot.readability, true),
+    userAgent: readScalar(fetchRoot.userAgent),
+    fallbackProvider: {
+      providerId: 'firecrawl',
+      name: 'Firecrawl Fetch',
+      description: 'Use Firecrawl as the OpenClaw web_fetch fallback provider.',
+      apiKeySource: readScalar(firecrawlRoot.apiKey),
+      baseUrl: readScalar(firecrawlRoot.baseUrl),
+      advancedConfig: buildWebFetchFallbackAdvancedConfig(firecrawlRoot),
+      supportsApiKey: true,
+      supportsBaseUrl: true,
+    },
   };
 }
 
@@ -2230,6 +2879,19 @@ function buildAuthCooldownsConfigSnapshot(root: JsonObject): OpenClawAuthCooldow
     billingBackoffHours: readOptionalNumber(cooldownsRoot.billingBackoffHours),
     billingMaxHours: readOptionalNumber(cooldownsRoot.billingMaxHours),
     failureWindowHours: readOptionalNumber(cooldownsRoot.failureWindowHours),
+  };
+}
+
+function readDreamingRoot(root: JsonObject) {
+  return readObject(getPluginConfigRoot(root, 'memory-core')?.dreaming) || null;
+}
+
+function buildDreamingConfigSnapshot(root: JsonObject): OpenClawDreamingConfigSnapshot {
+  const dreamingRoot = readDreamingRoot(root) || {};
+
+  return {
+    enabled: readBoolean(dreamingRoot.enabled, false),
+    frequency: readScalar(dreamingRoot.frequency),
   };
 }
 
@@ -2267,7 +2929,7 @@ function buildProviderSnapshots(root: JsonObject): OpenClawProviderSnapshot[] {
       isEmbeddingModel(readScalar(model.id), readScalar(model.name)),
     )?.id;
     const status = readScalar(provider.apiKey).trim() ? 'ready' : 'configurationRequired';
-    const config = readProviderRuntimeConfig(root, providerKey, defaultModelId);
+    const config = readProviderRuntimeConfig(root, providerKey, defaultModelId, provider);
 
     return [
       {
@@ -2319,6 +2981,11 @@ function resolveOpenClawProviderAdapter(channelId: string) {
     case 'anthropic':
       return {
         api: 'anthropic-messages',
+        auth: 'api-key',
+      };
+    case 'ollama':
+      return {
+        api: 'ollama',
         auth: 'api-key',
       };
     case 'gemini':
@@ -2378,6 +3045,7 @@ function updateProviderConfig(
 
   syncModelCatalog(root);
   writeProviderRuntimeConfig(root, providerKey, selection.defaultModelId, provider.config);
+  writeProviderRequestConfig(providerRoot, provider.config?.request);
   pruneModelReferences(root);
 }
 
@@ -2421,18 +3089,47 @@ function updateChannelConfig(root: JsonObject, input: SaveOpenClawChannelConfigu
     ((definition.configurationMode || 'required') === 'none' ? true : configuredFieldCount > 0);
 }
 
-function ensurePluginWebSearchRoot(root: JsonObject, providerId: string) {
+function ensurePluginWebSearchRoots(root: JsonObject, providerId: string) {
+  const definition = getWebSearchProviderDefinition(providerId);
+  if (!definition) {
+    throw new Error(`Unsupported OpenClaw web search provider: ${providerId}`);
+  }
+
   const pluginsRoot = ensureObject(root, 'plugins');
   const entriesRoot = ensureObject(pluginsRoot, 'entries');
-  const entryRoot = ensureObject(entriesRoot, providerId);
+  const entryRoot = ensureObject(entriesRoot, definition.pluginId);
   const configRoot = ensureObject(entryRoot, 'config');
+  const settingsRootKey = 'webSearch';
+  const authRootKey = 'webSearch';
 
   return {
+    pluginId: definition.pluginId,
     pluginsRoot,
     entriesRoot,
     entryRoot,
     configRoot,
-    webSearchRoot: ensureObject(configRoot, 'webSearch'),
+    authRootKey,
+    authRoot: ensureObject(configRoot, authRootKey),
+    settingsRootKey,
+    settingsRoot: ensureObject(configRoot, settingsRootKey),
+  };
+}
+
+function ensurePluginWebFetchRoots(root: JsonObject) {
+  const pluginsRoot = ensureObject(root, 'plugins');
+  const entriesRoot = ensureObject(pluginsRoot, 'entries');
+  const entryRoot = ensureObject(entriesRoot, 'firecrawl');
+  const configRoot = ensureObject(entryRoot, 'config');
+  const settingsRootKey = 'webFetch';
+
+  return {
+    pluginId: 'firecrawl',
+    pluginsRoot,
+    entriesRoot,
+    entryRoot,
+    configRoot,
+    settingsRootKey,
+    settingsRoot: ensureObject(configRoot, settingsRootKey),
   };
 }
 
@@ -2440,45 +3137,179 @@ function updateWebSearchConfig(root: JsonObject, input: SaveOpenClawWebSearchCon
   const toolsRoot = ensureObject(root, 'tools');
   const webRoot = ensureObject(toolsRoot, 'web');
   const searchRoot = ensureObject(webRoot, 'search');
+  const providerId = normalizeWebSearchProviderId(input.provider);
   searchRoot.enabled = input.enabled;
-  setOptionalScalar(searchRoot, 'provider', input.provider);
+  setOptionalScalar(searchRoot, 'provider', providerId);
   setOptionalFiniteNumber(searchRoot, 'maxResults', input.maxResults);
   setOptionalFiniteNumber(searchRoot, 'timeoutSeconds', input.timeoutSeconds);
   setOptionalFiniteNumber(searchRoot, 'cacheTtlMinutes', input.cacheTtlMinutes);
 
-  const definition = getWebSearchProviderDefinition(input.providerConfig.providerId);
+  const providerConfigId = normalizeWebSearchProviderId(input.providerConfig.providerId);
+  const definition = getWebSearchProviderDefinition(providerConfigId);
   if (!definition) {
     throw new Error(`Unsupported OpenClaw web search provider: ${input.providerConfig.providerId}`);
   }
 
   const advancedRoot = parseJsonObjectText('Advanced Config', input.providerConfig.advancedConfig);
   const {
+    pluginId,
     pluginsRoot,
     entriesRoot,
     entryRoot,
     configRoot,
-    webSearchRoot,
-  } = ensurePluginWebSearchRoot(root, input.providerConfig.providerId);
+    authRootKey,
+    authRoot,
+    settingsRootKey,
+    settingsRoot,
+  } = ensurePluginWebSearchRoots(root, providerConfigId);
 
-  for (const key of Object.keys(webSearchRoot)) {
-    delete webSearchRoot[key];
+  for (const key of Object.keys(settingsRoot)) {
+    delete settingsRoot[key];
   }
 
-  Object.assign(webSearchRoot, advancedRoot);
+  Object.assign(settingsRoot, advancedRoot);
 
   if (definition.supportsApiKey) {
-    setOptionalScalar(webSearchRoot, 'apiKey', input.providerConfig.apiKeySource);
+    if (authRoot !== settingsRoot) {
+      for (const key of Object.keys(authRoot)) {
+        delete authRoot[key];
+      }
+    }
+    setOptionalScalar(authRoot, 'apiKey', input.providerConfig.apiKeySource);
   }
   if (definition.supportsBaseUrl) {
-    setOptionalScalar(webSearchRoot, 'baseUrl', input.providerConfig.baseUrl);
+    setOptionalScalar(settingsRoot, 'baseUrl', input.providerConfig.baseUrl);
   }
   if (definition.supportsModel) {
-    setOptionalScalar(webSearchRoot, 'model', input.providerConfig.model);
+    setOptionalScalar(settingsRoot, 'model', input.providerConfig.model);
   }
 
+  deleteIfEmptyObject(configRoot, settingsRootKey);
+  if (authRootKey !== settingsRootKey) {
+    deleteIfEmptyObject(configRoot, authRootKey);
+  }
+  deleteIfEmptyObject(entryRoot, 'config');
+  deleteIfEmptyObject(entriesRoot, pluginId);
+  deleteIfEmptyObject(pluginsRoot, 'entries');
+  deleteIfEmptyObject(root, 'plugins');
+}
+
+function updateXSearchConfig(root: JsonObject, input: SaveOpenClawXSearchConfigurationInput) {
+  const advancedRoot = parseJsonObjectText('Advanced Config', input.advancedConfig);
+  const pluginsRoot = ensureObject(root, 'plugins');
+  const entriesRoot = ensureObject(pluginsRoot, 'entries');
+  const entryRoot = ensureObject(entriesRoot, 'xai');
+  const configRoot = ensureObject(entryRoot, 'config');
+  const webSearchRoot = ensureObject(configRoot, 'webSearch');
+  const xSearchRoot = ensureObject(configRoot, 'xSearch');
+
+  for (const key of Object.keys(xSearchRoot)) {
+    delete xSearchRoot[key];
+  }
+
+  Object.assign(xSearchRoot, advancedRoot);
+  xSearchRoot.enabled = input.enabled;
+  xSearchRoot.inlineCitations = input.inlineCitations;
+  setOptionalScalar(xSearchRoot, 'model', input.model);
+  setOptionalWholeNumber(xSearchRoot, 'maxTurns', input.maxTurns);
+  setOptionalFiniteNumber(xSearchRoot, 'timeoutSeconds', input.timeoutSeconds);
+  setOptionalFiniteNumber(xSearchRoot, 'cacheTtlMinutes', input.cacheTtlMinutes);
+  setOptionalScalar(webSearchRoot, 'apiKey', input.apiKeySource);
+
+  const toolsRoot = readObject(root.tools);
+  const webRoot = toolsRoot ? readObject(toolsRoot.web) : null;
+  if (webRoot) {
+    delete webRoot.x_search;
+    deleteIfEmptyObject(toolsRoot!, 'web');
+    deleteIfEmptyObject(root, 'tools');
+  }
+
+  deleteIfEmptyObject(configRoot, 'xSearch');
   deleteIfEmptyObject(configRoot, 'webSearch');
   deleteIfEmptyObject(entryRoot, 'config');
-  deleteIfEmptyObject(entriesRoot, input.providerConfig.providerId);
+  deleteIfEmptyObject(entriesRoot, 'xai');
+  deleteIfEmptyObject(pluginsRoot, 'entries');
+  deleteIfEmptyObject(root, 'plugins');
+}
+
+function updateWebSearchNativeCodexConfig(
+  root: JsonObject,
+  input: SaveOpenClawWebSearchNativeCodexConfigurationInput,
+) {
+  const advancedRoot = parseJsonObjectText('Advanced Config', input.advancedConfig);
+  const toolsRoot = ensureObject(root, 'tools');
+  const webRoot = ensureObject(toolsRoot, 'web');
+  const searchRoot = ensureObject(webRoot, 'search');
+  const openaiCodexRoot = ensureObject(searchRoot, 'openaiCodex');
+
+  for (const key of Object.keys(openaiCodexRoot)) {
+    delete openaiCodexRoot[key];
+  }
+
+  Object.assign(openaiCodexRoot, advancedRoot);
+  openaiCodexRoot.enabled = input.enabled;
+  setOptionalScalar(
+    openaiCodexRoot,
+    'mode',
+    input.mode?.trim() || DEFAULT_WEB_SEARCH_NATIVE_CODEX_MODE,
+  );
+  setStringArray(openaiCodexRoot, 'allowedDomains', input.allowedDomains || []);
+  setOptionalScalar(openaiCodexRoot, 'contextSize', input.contextSize);
+
+  const userLocationRoot = ensureObject(openaiCodexRoot, 'userLocation');
+  setOptionalScalar(userLocationRoot, 'country', input.userLocation?.country);
+  setOptionalScalar(userLocationRoot, 'city', input.userLocation?.city);
+  setOptionalScalar(userLocationRoot, 'timezone', input.userLocation?.timezone);
+  deleteIfEmptyObject(openaiCodexRoot, 'userLocation');
+
+  deleteIfEmptyObject(searchRoot, 'openaiCodex');
+  deleteIfEmptyObject(webRoot, 'search');
+  deleteIfEmptyObject(toolsRoot, 'web');
+  deleteIfEmptyObject(root, 'tools');
+}
+
+function updateWebFetchConfig(root: JsonObject, input: SaveOpenClawWebFetchConfigurationInput) {
+  const toolsRoot = ensureObject(root, 'tools');
+  const webRoot = ensureObject(toolsRoot, 'web');
+  const fetchRoot = ensureObject(webRoot, 'fetch');
+
+  fetchRoot.enabled = input.enabled;
+  setOptionalFiniteNumber(fetchRoot, 'maxChars', input.maxChars);
+  setOptionalFiniteNumber(fetchRoot, 'maxCharsCap', input.maxCharsCap);
+  setOptionalFiniteNumber(fetchRoot, 'maxResponseBytes', input.maxResponseBytes);
+  setOptionalFiniteNumber(fetchRoot, 'timeoutSeconds', input.timeoutSeconds);
+  setOptionalFiniteNumber(fetchRoot, 'cacheTtlMinutes', input.cacheTtlMinutes);
+  setOptionalFiniteNumber(fetchRoot, 'maxRedirects', input.maxRedirects);
+  fetchRoot.readability = input.readability;
+  setOptionalScalar(fetchRoot, 'userAgent', input.userAgent);
+
+  const providerId = input.fallbackProviderConfig.providerId.trim().toLowerCase();
+  if (providerId !== 'firecrawl') {
+    throw new Error(`Unsupported OpenClaw web fetch fallback provider: ${input.fallbackProviderConfig.providerId}`);
+  }
+
+  const advancedRoot = parseJsonObjectText('Advanced Config', input.fallbackProviderConfig.advancedConfig);
+  const {
+    pluginId,
+    pluginsRoot,
+    entriesRoot,
+    entryRoot,
+    configRoot,
+    settingsRootKey,
+    settingsRoot,
+  } = ensurePluginWebFetchRoots(root);
+
+  for (const key of Object.keys(settingsRoot)) {
+    delete settingsRoot[key];
+  }
+
+  Object.assign(settingsRoot, advancedRoot);
+  setOptionalScalar(settingsRoot, 'apiKey', input.fallbackProviderConfig.apiKeySource);
+  setOptionalScalar(settingsRoot, 'baseUrl', input.fallbackProviderConfig.baseUrl);
+
+  deleteIfEmptyObject(configRoot, settingsRootKey);
+  deleteIfEmptyObject(entryRoot, 'config');
+  deleteIfEmptyObject(entriesRoot, pluginId);
   deleteIfEmptyObject(pluginsRoot, 'entries');
   deleteIfEmptyObject(root, 'plugins');
 }
@@ -2496,6 +3327,27 @@ function updateAuthCooldownsConfig(root: JsonObject, input: SaveOpenClawAuthCool
 
   deleteIfEmptyObject(authRoot, 'cooldowns');
   deleteIfEmptyObject(root, 'auth');
+}
+
+function updateDreamingConfig(root: JsonObject, input: SaveOpenClawDreamingConfigurationInput) {
+  const pluginsRoot = ensureObject(root, 'plugins');
+  const entriesRoot = ensureObject(pluginsRoot, 'entries');
+  const entryRoot = ensureObject(entriesRoot, 'memory-core');
+  const configRoot = ensureObject(entryRoot, 'config');
+  const dreamingRoot = ensureObject(configRoot, 'dreaming');
+
+  for (const key of Object.keys(dreamingRoot)) {
+    delete dreamingRoot[key];
+  }
+
+  dreamingRoot.enabled = input.enabled;
+  setOptionalScalar(dreamingRoot, 'frequency', input.frequency?.trim() || '');
+
+  deleteIfEmptyObject(configRoot, 'dreaming');
+  deleteIfEmptyObject(entryRoot, 'config');
+  deleteIfEmptyObject(entriesRoot, 'memory-core');
+  deleteIfEmptyObject(pluginsRoot, 'entries');
+  deleteIfEmptyObject(root, 'plugins');
 }
 
 function updateSkillEntry(root: JsonObject, input: SaveOpenClawSkillEntryInput) {
@@ -2751,11 +3603,7 @@ function configureMultiAgentSupport(
 
 class OpenClawConfigService {
   getChannelDefinitions() {
-    return OPENCLAW_CHANNEL_DEFINITIONS.map((definition) => ({
-      ...definition,
-      fields: definition.fields.map((field) => ({ ...field })),
-      setupSteps: [...definition.setupSteps],
-    }));
+    return listResolvedChannelDefinitions();
   }
 
   async readConfigDocument(configPath: string) {
@@ -2851,7 +3699,11 @@ class OpenClawConfigService {
         agentSnapshots: buildAgentSnapshots(root, normalizedConfigPath),
         channelSnapshots: buildChannelSnapshots(root),
         webSearchConfig: buildWebSearchConfigSnapshot(root),
+        xSearchConfig: buildXSearchConfigSnapshot(root),
+        webSearchNativeCodexConfig: buildWebSearchNativeCodexConfigSnapshot(root),
+        webFetchConfig: buildWebFetchConfigSnapshot(root),
         authCooldownsConfig: buildAuthCooldownsConfigSnapshot(root),
+        dreamingConfig: buildDreamingConfigSnapshot(root),
         root,
       }))
       .then((snapshot) => {
@@ -3062,12 +3914,46 @@ class OpenClawConfigService {
     return buildWebSearchConfigSnapshot(root);
   }
 
+  async saveXSearchConfiguration(input: SaveOpenClawXSearchConfigurationInput) {
+    const root = await readConfigRoot(input.configPath);
+    updateXSearchConfig(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildXSearchConfigSnapshot(root);
+  }
+
+  async saveWebSearchNativeCodexConfiguration(
+    input: SaveOpenClawWebSearchNativeCodexConfigurationInput,
+  ) {
+    const root = await readConfigRoot(input.configPath);
+    updateWebSearchNativeCodexConfig(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildWebSearchNativeCodexConfigSnapshot(root);
+  }
+
+  async saveWebFetchConfiguration(input: SaveOpenClawWebFetchConfigurationInput) {
+    const root = await readConfigRoot(input.configPath);
+    updateWebFetchConfig(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildWebFetchConfigSnapshot(root);
+  }
+
   async saveAuthCooldownsConfiguration(input: SaveOpenClawAuthCooldownsConfigurationInput) {
     const root = await readConfigRoot(input.configPath);
     updateAuthCooldownsConfig(root, input);
     await writeConfigRoot(input.configPath, root);
 
     return buildAuthCooldownsConfigSnapshot(root);
+  }
+
+  async saveDreamingConfiguration(input: SaveOpenClawDreamingConfigurationInput) {
+    const root = await readConfigRoot(input.configPath);
+    updateDreamingConfig(root, input);
+    await writeConfigRoot(input.configPath, root);
+
+    return buildDreamingConfigSnapshot(root);
   }
 
   async deleteSkillEntry(input: DeleteOpenClawSkillEntryInput) {

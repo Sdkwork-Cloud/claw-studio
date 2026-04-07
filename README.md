@@ -63,6 +63,7 @@ pnpm server:build
 ```bash
 pnpm dev           # start the web shell
 pnpm build         # build the web package
+pnpm check:multi-mode # validate desktop, server, OpenClaw runtime, and release packaging together
 pnpm check:server  # validate the native Rust server runtime
 pnpm check:automation # validate release and CI automation contracts
 pnpm server:build  # build the native Rust server
@@ -238,6 +239,7 @@ pnpm docs:build
 If your change touches native server behavior, Docker packaging, Kubernetes bundles, or release metadata, also run:
 
 ```bash
+pnpm check:multi-mode
 pnpm check:server
 ```
 

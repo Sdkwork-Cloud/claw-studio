@@ -1,5 +1,6 @@
 import type { ElementType } from 'react';
 import {
+  Activity,
   BrainCircuit,
   BriefcaseBusiness,
   Code,
@@ -61,6 +62,14 @@ export function buildCommandPaletteCommands({
       icon: LayoutDashboard,
       category: t('commandPalette.categories.navigation'),
       action: () => navigate('/dashboard'),
+    },
+    {
+      id: 'nav-usage',
+      title: t('commandPalette.commands.usage.title'),
+      subtitle: t('commandPalette.commands.usage.subtitle'),
+      icon: Activity,
+      category: t('commandPalette.categories.navigation'),
+      action: () => navigate('/usage'),
     },
     {
       id: 'nav-apps',

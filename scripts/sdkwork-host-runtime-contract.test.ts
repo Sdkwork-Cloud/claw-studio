@@ -264,6 +264,9 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   const desktopBootstrapRuntimeSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopBootstrapRuntime.ts',
   );
+  const desktopStartupEvidenceSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopStartupEvidence.ts',
+  );
   const connectDesktopRuntimeBody = desktopBootstrapAppSource.match(
     /const connectDesktopRuntime = useEffectEvent\(async \(\) => \{([\s\S]*?)\n  }\);/,
   )?.[1];
@@ -271,7 +274,16 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   assert.match(createDesktopAppSource, /<DesktopBootstrapApp/);
   assert.match(desktopBootstrapAppSource, /bootstrapShellRuntime/);
   assert.match(desktopBootstrapAppSource, /getAppInfo/);
+  assert.match(desktopBootstrapAppSource, /getAppPaths/);
+  assert.match(desktopBootstrapAppSource, /writeTextFile/);
   assert.match(desktopBootstrapAppSource, /runDesktopBootstrapSequence/);
+  assert.match(desktopBootstrapAppSource, /DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH/);
+  assert.match(
+    desktopStartupEvidenceSource,
+    /export const DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH =\s*'diagnostics\/desktop-startup-evidence\.json';/,
+  );
+  assert.match(desktopStartupEvidenceSource, /sanitizeDesktopStartupDescriptor/);
+  assert.doesNotMatch(desktopStartupEvidenceSource, /browserSessionToken:/);
   assert.match(desktopHostedBridgeSource, /export interface DesktopHostedRuntimeReadinessEvidence/);
   assert.match(desktopHostedBridgeSource, /buildDesktopHostedRuntimeReadinessEvidence/);
   assert.match(desktopHostedBridgeSource, /gatewayWebsocketReady:/);
@@ -283,6 +295,7 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   assert.doesNotMatch(desktopBootstrapAppSource, /@sdkwork\/claw-i18n/);
   assert.ok(connectDesktopRuntimeBody);
   assert.match(connectDesktopRuntimeBody, /getAppInfo\(/);
+  assert.match(connectDesktopRuntimeBody, /getAppPaths\(/);
   assert.doesNotMatch(
     connectDesktopRuntimeBody,
     /getDesktopKernelInfo\(/,
@@ -333,6 +346,14 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     connectDesktopRuntimeBody,
+    /phase:\s*'runtime-ready'/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /phase:\s*'runtime-readiness-failed'/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
     /readinessEvidence:\s*readinessError\.snapshot\.evidence/,
   );
   assert.match(
@@ -358,6 +379,10 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   assert.match(
     desktopBootstrapAppSource,
     /readinessEvidence:\s*hostedRuntimeReadiness\.evidence/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /writeTextFile\(\s*DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH/,
   );
   assert.match(
     desktopBootstrapRuntimeSource,

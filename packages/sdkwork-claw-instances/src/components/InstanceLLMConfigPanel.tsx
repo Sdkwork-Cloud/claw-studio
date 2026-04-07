@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Textarea,
 } from '@sdkwork/claw-ui';
 import type { InstanceLLMProviderUpdate, InstanceWorkbenchLLMProvider } from '../types';
 
@@ -23,10 +24,13 @@ interface InstanceLLMConfigPanelProps {
   readonlyMessage?: string;
   onOpenProviderCenter?: () => void;
   openProviderCenterLabel?: string;
+  requestOverridesText: string;
+  requestOverridesError?: string | null;
   onFieldChange: (
     field: 'endpoint' | 'apiKeySource' | 'defaultModelId' | 'reasoningModelId' | 'embeddingModelId',
     value: string,
   ) => void;
+  onRequestOverridesChange: (value: string) => void;
   onConfigChange: (
     field: keyof InstanceLLMProviderUpdate['config'],
     value: number | boolean,
@@ -44,7 +48,10 @@ export function InstanceLLMConfigPanel({
   readonlyMessage,
   onOpenProviderCenter,
   openProviderCenterLabel,
+  requestOverridesText,
+  requestOverridesError,
   onFieldChange,
+  onRequestOverridesChange,
   onConfigChange,
   onReset,
   onSave,
@@ -304,6 +311,30 @@ export function InstanceLLMConfigPanel({
             />
           </label>
         </div>
+
+        <div className="rounded-[1.4rem] bg-zinc-950/[0.03] p-4 dark:bg-white/[0.04]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+            <Settings className="h-4 w-4" />
+            {t('instances.detail.instanceWorkbench.llmProviders.requestOverrides')}
+          </div>
+          <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            {t('instances.detail.instanceWorkbench.llmProviders.requestOverridesDescription')}
+          </p>
+          <Textarea
+            value={requestOverridesText}
+            disabled={isReadonly}
+            onChange={(event) => onRequestOverridesChange(event.target.value)}
+            placeholder={t('instances.detail.instanceWorkbench.llmProviders.requestOverridesPlaceholder')}
+            className="mt-4 min-h-[10rem] rounded-2xl bg-white px-4 py-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-950"
+          />
+          {requestOverridesError ? (
+            <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{requestOverridesError}</p>
+          ) : (
+            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+              {t('instances.detail.instanceWorkbench.llmProviders.requestOverridesHint')}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -318,7 +349,7 @@ export function InstanceLLMConfigPanel({
         </Button>
         <Button
           onClick={onSave}
-          disabled={isReadonly || !hasPendingChanges || isSaving}
+          disabled={isReadonly || !hasPendingChanges || isSaving || Boolean(requestOverridesError)}
           className="rounded-2xl px-4 py-3"
         >
           {isSaving ? (

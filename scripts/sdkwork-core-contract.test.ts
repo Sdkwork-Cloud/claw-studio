@@ -29,6 +29,7 @@ function runTest(name: string, fn: () => void) {
 runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exporting claw-studio-business', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-core/package.json');
   const indexSource = read('packages/sdkwork-claw-core/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-core/src/services/index.ts');
 
   assert.ok(exists('packages/sdkwork-claw-core/src/components/CommandPalette.tsx'));
   assert.ok(exists('packages/sdkwork-claw-core/src/components/Sidebar.tsx'));
@@ -51,6 +52,7 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.ok(exists('packages/sdkwork-claw-core/src/services/communityService.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/services/accountService.ts'));
   assert.ok(exists('packages/sdkwork-claw-core/src/services/settingsService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-core/src/services/openClawProviderRequestDraftService.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-business']);
   assert.ok(!pkg.dependencies?.['@google/genai']);
@@ -66,6 +68,7 @@ runTest('sdkwork-claw-core exposes local stores and hooks instead of re-exportin
   assert.doesNotMatch(indexSource, /\.\/components\/Sidebar\.tsx/);
   assert.match(indexSource, /\.\/lib\/llmService/);
   assert.match(indexSource, /openClawConfigService/);
+  assert.match(servicesIndexSource, /openClawProviderRequestDraftService/);
   assert.match(indexSource, /useAppStore/);
   assert.match(indexSource, /useKeyboardShortcuts/);
 });
@@ -112,6 +115,7 @@ runTest('sdkwork-claw-core package exposes a browser root entry and a Node-safe 
   assert.match(nodeServicesSource, /\.\.\/accountService\.ts/);
   assert.match(nodeServicesSource, /\.\.\/settingsService\.ts/);
   assert.match(nodeServicesSource, /\.\.\/openClawConfigService\.ts/);
+  assert.match(nodeServicesSource, /\.\.\/openClawProviderRequestDraftService\.ts/);
   assert.match(nodeServicesSource, /\.\.\/providerRoutingCatalogService\.ts/);
   assert.doesNotMatch(nodeEntrySource, /CommandPalette/);
   assert.doesNotMatch(nodeEntrySource, /DesktopWindowControls/);
@@ -415,7 +419,10 @@ runTest('claw workspace prefers workspace-linked shared sdk sources locally whil
   assert.match(coreCheckRunner, /sdkwork-core-contract\.test\.ts/);
   assert.match(coreCheckRunner, /accountService\.test\.ts/);
   assert.match(coreCheckRunner, /communityService\.test\.ts/);
+  assert.match(coreCheckRunner, /openClawProviderRequestDraftService\.test\.ts/);
   assert.match(coreCheckRunner, /openClawAgentCatalogService\.test\.ts/);
+  assert.match(coreCheckRunner, /openClawConfigService\.test\.ts/);
+  assert.match(coreCheckRunner, /providerRoutingCatalogService\.test\.ts/);
   assert.match(coreCheckRunner, /settingsService\.test\.ts/);
   assert.doesNotMatch(coreCheckRunner, /tsx/);
   assert.match(workspacePackageJson, /"check:sdkwork-auth"\s*:\s*"node scripts\/run-sdkwork-auth-check\.mjs"/);

@@ -7,6 +7,7 @@ import zh from './locales/zh/index.ts';
 import {
   APP_STORE_STORAGE_KEY,
   DEFAULT_LANGUAGE,
+  LANGUAGE_LABELS,
   I18N_STORAGE_KEY,
   SUPPORTED_LANGUAGES,
   detectBrowserLanguage,
@@ -18,9 +19,11 @@ import {
   formatRelativeTime,
   formatTime,
   getAppStoreLanguageFromSnapshot,
+  hasDedicatedTranslationBundle,
   localizeValue,
   localizedText,
   normalizeLanguage,
+  resolveTranslationBundleSourceLanguage,
   resolveLocalizedText,
   translationResources,
 } from './index.ts';
@@ -53,6 +56,24 @@ function flattenKeys(value: unknown, prefix = ''): string[] {
   });
 }
 
+function collectStrings(value: unknown, results: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectStrings(item, results));
+    return results;
+  }
+
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => collectStrings(item, results));
+    return results;
+  }
+
+  if (typeof value === 'string') {
+    results.push(value);
+  }
+
+  return results;
+}
+
 function collectWorkspaceFiles(directory: string, results: string[] = []) {
   for (const entry of readdirSync(directory)) {
     const nextPath = join(directory, entry);
@@ -75,16 +96,64 @@ function collectWorkspaceFiles(directory: string, results: string[] = []) {
   return results;
 }
 
-await runTest('supported languages are limited to english and simplified chinese', () => {
-  assert.deepEqual(SUPPORTED_LANGUAGES, ['en', 'zh']);
+await runTest('supported languages mirror the current OpenClaw control-ui language surface', () => {
+  assert.deepEqual(SUPPORTED_LANGUAGES, [
+    'en',
+    'zh',
+    'zh-TW',
+    'fr',
+    'de',
+    'pt-BR',
+    'ja',
+    'ko',
+    'es',
+    'tr',
+    'uk',
+    'pl',
+    'id',
+  ]);
   assert.equal(DEFAULT_LANGUAGE, 'en');
 });
 
-await runTest('normalizeLanguage collapses locale variants and rejects unsupported values', () => {
+await runTest('normalizeLanguage collapses locale variants onto the supported app language set', () => {
   assert.equal(normalizeLanguage('en-US'), 'en');
   assert.equal(normalizeLanguage('zh-CN'), 'zh');
-  assert.equal(normalizeLanguage('ja-JP'), 'en');
+  assert.equal(normalizeLanguage('zh-Hant-TW'), 'zh-TW');
+  assert.equal(normalizeLanguage('fr-CA'), 'fr');
+  assert.equal(normalizeLanguage('de-AT'), 'de');
+  assert.equal(normalizeLanguage('pt-PT'), 'pt-BR');
+  assert.equal(normalizeLanguage('ja-JP'), 'ja');
+  assert.equal(normalizeLanguage('ko-KR'), 'ko');
+  assert.equal(normalizeLanguage('es-MX'), 'es');
+  assert.equal(normalizeLanguage('tr-TR'), 'tr');
+  assert.equal(normalizeLanguage('uk-UA'), 'uk');
+  assert.equal(normalizeLanguage('pl-PL'), 'pl');
+  assert.equal(normalizeLanguage('id-ID'), 'id');
   assert.equal(normalizeLanguage(undefined), 'en');
+});
+
+await runTest('language metadata exposes native labels and truthful translation-bundle sourcing', () => {
+  assert.equal(LANGUAGE_LABELS.en, 'English');
+  assert.equal(LANGUAGE_LABELS.zh, '\u7b80\u4f53\u4e2d\u6587');
+  assert.equal(LANGUAGE_LABELS['zh-TW'], '\u7e41\u9ad4\u4e2d\u6587');
+  assert.equal(LANGUAGE_LABELS['pt-BR'], 'Portugu\u00eas (Brasil)');
+  assert.equal(LANGUAGE_LABELS.ja, '\u65e5\u672c\u8a9e');
+  assert.equal(LANGUAGE_LABELS.ko, '\ud55c\uad6d\uc5b4');
+  assert.equal(LANGUAGE_LABELS.es, 'Espa\u00f1ol');
+  assert.equal(LANGUAGE_LABELS.pl, 'Polski');
+  assert.equal(LANGUAGE_LABELS.id, 'Bahasa Indonesia');
+
+  assert.equal(resolveTranslationBundleSourceLanguage('en'), 'en');
+  assert.equal(resolveTranslationBundleSourceLanguage('zh-CN'), 'zh');
+  assert.equal(resolveTranslationBundleSourceLanguage('zh-TW'), 'zh');
+  assert.equal(resolveTranslationBundleSourceLanguage('pt-BR'), 'en');
+  assert.equal(resolveTranslationBundleSourceLanguage('ja-JP'), 'en');
+
+  assert.equal(hasDedicatedTranslationBundle('en'), true);
+  assert.equal(hasDedicatedTranslationBundle('zh'), true);
+  assert.equal(hasDedicatedTranslationBundle('zh-TW'), false);
+  assert.equal(hasDedicatedTranslationBundle('pt-BR'), false);
+  assert.equal(hasDedicatedTranslationBundle('ja'), false);
 });
 
 await runTest('getAppStoreLanguageFromSnapshot safely parses persisted Zustand state', () => {
@@ -161,20 +230,27 @@ await runTest(
 
 await runTest('request language detection falls back cleanly to the default language', () => {
   assert.equal(detectRequestLanguage('zh-CN,zh;q=0.9,en;q=0.8'), 'zh');
-  assert.equal(detectRequestLanguage('ja-JP,ja;q=0.9'), 'en');
+  assert.equal(detectRequestLanguage('zh-Hant-TW,zh;q=0.9,en;q=0.8'), 'zh-TW');
+  assert.equal(detectRequestLanguage('pt-PT,pt;q=0.9,en;q=0.8'), 'pt-BR');
+  assert.equal(detectRequestLanguage('ja-JP,ja;q=0.9'), 'ja');
   assert.equal(detectRequestLanguage(undefined), 'en');
 });
 
-await runTest('ensureI18n exposes both resource bundles and shared utility keys', async () => {
-  const instance = await ensureI18n('zh-CN');
+await runTest('ensureI18n exposes both translated bundles and fallback language bundles', async () => {
+  const instance = await ensureI18n('pt-BR');
 
   assert.equal(instance.hasResourceBundle('en', 'translation'), true);
   assert.equal(instance.hasResourceBundle('zh', 'translation'), true);
-  assert.equal(instance.language, 'zh');
+  assert.equal(instance.hasResourceBundle('pt-BR', 'translation'), true);
+  assert.equal(instance.hasResourceBundle('zh-TW', 'translation'), true);
+  assert.equal(instance.language, 'pt-BR');
   assert.equal(translationResources.en.translation.account.title, 'Account & Wallet');
+  assert.equal(translationResources.fr.translation.account.title, 'Account & Wallet');
+  assert.equal(translationResources['pt-BR'].translation.account.title, 'Account & Wallet');
   assert.equal(typeof translationResources.en.translation.account.confirmRecharge, 'string');
   assert.equal(typeof translationResources.zh.translation.account.confirmRecharge, 'string');
   assert.equal(typeof translationResources.zh.translation.account.title, 'string');
+  assert.equal(typeof translationResources['zh-TW'].translation.account.title, 'string');
 });
 
 await runTest('i18n interpolation formats numeric counts using the active locale', async () => {
@@ -190,6 +266,50 @@ await runTest('i18n interpolation formats numeric counts using the active locale
 
 await runTest('english and chinese locale key sets remain aligned', () => {
   assert.deepEqual(flattenKeys(en).sort(), flattenKeys(zh).sort());
+});
+
+await runTest('chinese usage locale keeps the shared OpenClaw workspace strings readable', () => {
+  assert.equal(zh.sidebar.usage, '\u7f51\u5173\u7528\u91cf');
+  assert.equal(
+    zh.commandPalette.commands.usage.title,
+    '\u6253\u5f00\u7f51\u5173\u7528\u91cf',
+  );
+  assert.equal(
+    zh.dashboard.usage.page.title,
+    '\u7f51\u5173\u7528\u91cf',
+  );
+  assert.equal(
+    zh.dashboard.usage.filters.query,
+    '\u67e5\u8be2\u7b5b\u9009',
+  );
+  assert.equal(
+    zh.dashboard.usage.labels.noMatchingLogs,
+    '\u6ca1\u6709\u65e5\u5fd7\u6761\u76ee\u5339\u914d\u5f53\u524d\u65e5\u5fd7\u7b5b\u9009\u6761\u4ef6\u3002',
+  );
+});
+
+await runTest('critical chinese feature domains stay readable and free of known mojibake markers', () => {
+  assert.equal(
+    zh.providerCenter.page.title,
+    '\u6a21\u578b\u914d\u7f6e\u4e2d\u5fc3',
+  );
+  assert.equal(
+    zh.settings.general.title,
+    '\u901a\u7528',
+  );
+  assert.equal(
+    zh.tasks.page.title,
+    '\u5b9a\u65f6\u4efb\u52a1',
+  );
+
+  const suspiciousPattern = /[ÃÂæçèéêëîïðñòóôõöøùúûüýþÿ]|閫|瀹|鏉|鍒|锟|鈥|é–|ç€|å®¸|æµ/u;
+  const suspiciousStrings = [
+    ...collectStrings(zh.providerCenter).map((value) => `providerCenter:${value}`),
+    ...collectStrings(zh.settings).map((value) => `settings:${value}`),
+    ...collectStrings(zh.tasks).map((value) => `tasks:${value}`),
+  ].filter((value) => suspiciousPattern.test(value));
+
+  assert.deepEqual(suspiciousStrings, []);
 });
 
 await runTest('locale resources keep split directories and compatibility aggregate json files aligned', () => {
@@ -252,6 +372,10 @@ await runTest('localized text helpers resolve the active language and deep-map n
   );
   assert.equal(
     resolveLocalizedText(localizedText('Settings', '\u8bbe\u7f6e'), 'zh-CN'),
+    '\u8bbe\u7f6e',
+  );
+  assert.equal(
+    resolveLocalizedText(localizedText('Settings', '\u8bbe\u7f6e'), 'zh-TW'),
     '\u8bbe\u7f6e',
   );
   assert.equal(

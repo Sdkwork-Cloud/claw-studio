@@ -111,7 +111,21 @@ export interface RuntimeConfigProcessInfo {
   maxConcurrentJobs: number;
 }
 
-export type RuntimeLanguagePreference = 'system' | 'en' | 'zh';
+export type RuntimeLanguagePreference =
+  | 'system'
+  | 'en'
+  | 'zh'
+  | 'zh-TW'
+  | 'fr'
+  | 'de'
+  | 'pt-BR'
+  | 'ja'
+  | 'ko'
+  | 'es'
+  | 'tr'
+  | 'uk'
+  | 'pl'
+  | 'id';
 
 export interface RuntimeConfigInfo {
   version: number;

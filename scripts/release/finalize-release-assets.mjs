@@ -22,6 +22,10 @@ import {
   resolveInstallableArtifactRelativePaths,
 } from './smoke-desktop-installers.mjs';
 import {
+  DESKTOP_STARTUP_SMOKE_REPORT_FILENAME,
+  normalizeDesktopStartupSmokeChecks,
+} from './desktop-startup-smoke-contract.mjs';
+import {
   RELEASE_SMOKE_REPORT_FILENAME,
   normalizeReleaseSmokeChecks,
   readReleaseSmokeReport,
@@ -181,6 +185,32 @@ function buildDesktopInstallerSmokeMetadata({
       ? { installReadyLayout: normalizeInstallReadyLayout(smokeReport?.installReadyLayout) }
       : {}),
     installPlanSummaries: normalizeInstallPlanSummaries(smokeReport?.installPlanSummaries),
+  };
+}
+
+function buildDesktopStartupSmokeMetadata({
+  releaseAssetsDir,
+  manifestPath,
+  smokeReportPath,
+  smokeReport,
+}) {
+  return {
+    reportRelativePath: path.relative(releaseAssetsDir, smokeReportPath).replaceAll('\\', '/'),
+    manifestRelativePath: path.relative(releaseAssetsDir, manifestPath).replaceAll('\\', '/'),
+    capturedEvidenceRelativePath: String(
+      smokeReport?.capturedEvidenceRelativePath ?? '',
+    ).trim(),
+    verifiedAt: String(smokeReport?.verifiedAt ?? '').trim(),
+    target: String(smokeReport?.target ?? '').trim(),
+    status: String(smokeReport?.status ?? '').trim(),
+    phase: String(smokeReport?.phase ?? '').trim(),
+    descriptorBrowserBaseUrl: String(
+      smokeReport?.descriptorBrowserBaseUrl ?? '',
+    ).trim(),
+    builtInInstanceId: String(smokeReport?.builtInInstanceId ?? '').trim(),
+    builtInInstanceStatus: String(smokeReport?.builtInInstanceStatus ?? '').trim(),
+    artifactRelativePaths: normalizeStringArray(smokeReport?.artifactRelativePaths),
+    checks: normalizeDesktopStartupSmokeChecks(smokeReport?.checks),
   };
 }
 
@@ -368,6 +398,163 @@ function requireDesktopInstallerSmokeReports({
   }
 
   return desktopInstallerMetadataByManifestPath;
+}
+
+function requireDesktopStartupSmokeReports({
+  releaseAssetsDir,
+  partialManifestFileName,
+  releaseTag = '',
+} = {}) {
+  const desktopStartupMetadataByManifestPath = new Map();
+  const normalizedReleaseTag = String(releaseTag ?? '').trim();
+  const partialManifestRecords = listPartialManifestRecords(
+    releaseAssetsDir,
+    partialManifestFileName,
+  );
+  const hasTaggedManifest = normalizedReleaseTag.length > 0
+    && partialManifestRecords.some((record) => String(record.manifest?.releaseTag ?? '').trim().length > 0);
+
+  for (const record of partialManifestRecords) {
+    const manifest = record.manifest;
+    const manifestReleaseTag = String(manifest?.releaseTag ?? '').trim();
+    if (hasTaggedManifest && manifestReleaseTag !== normalizedReleaseTag) {
+      continue;
+    }
+
+    const manifestDir = path.dirname(record.file.absolutePath);
+    const relativeManifestDir = path.relative(releaseAssetsDir, manifestDir).replaceAll('\\', '/');
+    const [family] = relativeManifestDir.split('/');
+    if (family !== 'desktop') {
+      continue;
+    }
+
+    const smokeReportPath = path.join(
+      manifestDir,
+      DESKTOP_STARTUP_SMOKE_REPORT_FILENAME,
+    );
+    if (!existsSync(smokeReportPath)) {
+      throw new Error(`Missing desktop startup smoke report: ${smokeReportPath}`);
+    }
+
+    const expectedPlatform = String(manifest?.platform ?? '').trim();
+    const expectedArch = String(manifest?.arch ?? '').trim();
+    const expectedArtifactRelativePaths = normalizeStringArray(
+      Array.isArray(manifest?.artifacts)
+        ? manifest.artifacts.map((artifact) => artifact?.relativePath)
+        : [],
+    );
+    const smokeReport = JSON.parse(readFileSync(smokeReportPath, 'utf8'));
+
+    if (String(smokeReport?.platform ?? '').trim() !== expectedPlatform) {
+      throw new Error(
+        `Desktop startup smoke report platform mismatch at ${smokeReportPath}: expected ${expectedPlatform}, received ${smokeReport?.platform ?? 'unknown'}`,
+      );
+    }
+    if (String(smokeReport?.arch ?? '').trim() !== expectedArch) {
+      throw new Error(
+        `Desktop startup smoke report architecture mismatch at ${smokeReportPath}: expected ${expectedArch}, received ${smokeReport?.arch ?? 'unknown'}`,
+      );
+    }
+    if (String(smokeReport?.status ?? '').trim() !== 'passed') {
+      throw new Error(
+        `Desktop startup smoke report must pass before finalization: ${smokeReportPath}`,
+      );
+    }
+    if (String(smokeReport?.phase ?? '').trim() !== 'shell-mounted') {
+      throw new Error(
+        `Desktop startup smoke report must record phase shell-mounted before finalization: ${smokeReportPath}`,
+      );
+    }
+    if (
+      path.resolve(String(smokeReport?.manifestPath ?? '').trim() || manifestDir)
+      !== path.resolve(record.file.absolutePath)
+    ) {
+      throw new Error(
+        `Desktop startup smoke report manifest path mismatch at ${smokeReportPath}`,
+      );
+    }
+
+    const capturedEvidenceRelativePath = String(
+      smokeReport?.capturedEvidenceRelativePath ?? '',
+    ).trim();
+    if (!capturedEvidenceRelativePath) {
+      throw new Error(
+        `Desktop startup smoke report is missing capturedEvidenceRelativePath: ${smokeReportPath}`,
+      );
+    }
+    const capturedEvidencePath = path.resolve(
+      releaseAssetsDir,
+      capturedEvidenceRelativePath,
+    );
+    if (!existsSync(capturedEvidencePath)) {
+      throw new Error(
+        `Desktop startup smoke report references missing captured evidence: ${capturedEvidencePath}`,
+      );
+    }
+
+    const capturedEvidence = JSON.parse(readFileSync(capturedEvidencePath, 'utf8'));
+    if (String(capturedEvidence?.status ?? '').trim() !== 'passed') {
+      throw new Error(
+        `Captured desktop startup evidence must preserve status passed at ${capturedEvidencePath}`,
+      );
+    }
+    if (String(capturedEvidence?.phase ?? '').trim() !== 'shell-mounted') {
+      throw new Error(
+        `Captured desktop startup evidence must preserve phase shell-mounted at ${capturedEvidencePath}`,
+      );
+    }
+    if (capturedEvidence?.readinessEvidence?.ready !== true) {
+      throw new Error(
+        `Captured desktop startup evidence must preserve ready runtime readiness at ${capturedEvidencePath}`,
+      );
+    }
+
+    const reportedArtifactRelativePaths = normalizeStringArray(
+      smokeReport?.artifactRelativePaths,
+    );
+    if (
+      expectedArtifactRelativePaths.length !== reportedArtifactRelativePaths.length
+      || expectedArtifactRelativePaths.some(
+        (relativePath, index) => relativePath !== reportedArtifactRelativePaths[index],
+      )
+    ) {
+      throw new Error(
+        `Desktop startup smoke report does not match the current artifact set: ${smokeReportPath}`,
+      );
+    }
+
+    const checks = normalizeDesktopStartupSmokeChecks(smokeReport?.checks);
+    const passedChecks = new Map(
+      checks.map((check) => [check.id, check.status]),
+    );
+    for (const requiredCheckId of [
+      'startup-status',
+      'startup-phase',
+      'runtime-readiness',
+      'built-in-instance',
+      'gateway-websocket',
+    ]) {
+      if (passedChecks.get(requiredCheckId) !== 'passed') {
+        throw new Error(
+          `Desktop startup smoke report is missing a passing ${requiredCheckId} check: ${smokeReportPath}`,
+        );
+      }
+    }
+
+    desktopStartupMetadataByManifestPath.set(
+      record.file.absolutePath,
+      {
+        desktopStartupSmoke: buildDesktopStartupSmokeMetadata({
+          releaseAssetsDir,
+          manifestPath: record.file.absolutePath,
+          smokeReportPath,
+          smokeReport,
+        }),
+      },
+    );
+  }
+
+  return desktopStartupMetadataByManifestPath;
 }
 
 function requireServerBundleSmokeReports({
@@ -634,8 +821,8 @@ function requireDeploymentSmokeReports({
       checks.map((check) => [check.id, check.status]),
     );
     const requiredCheckIds = family === 'container'
-      ? ['docker-compose-up', 'health-ready', 'host-endpoints', 'browser-shell']
-      : ['helm-template', 'image-reference', 'readiness-probe'];
+      ? ['deployment-identity', 'runtime-profile', 'manage-credentials', 'persistent-storage', 'docker-compose-up', 'docker-compose-healthy', 'health-ready', 'host-endpoints', 'browser-shell']
+      : ['helm-template', 'deployment-identity', 'image-reference', 'configmap-runtime-identity', 'readiness-probe', 'secret-ref', 'persistent-storage'];
     for (const requiredCheckId of requiredCheckIds) {
       if (passedChecks.get(requiredCheckId) !== 'passed') {
         throw new Error(
@@ -953,6 +1140,11 @@ export function finalizeReleaseAssets({
     partialManifestFileName: profile.release.partialManifestFileName,
     releaseTag: normalizedReleaseTag,
   });
+  const desktopStartupMetadataByManifestPath = requireDesktopStartupSmokeReports({
+    releaseAssetsDir,
+    partialManifestFileName: profile.release.partialManifestFileName,
+    releaseTag: normalizedReleaseTag,
+  });
   const deploymentSmokeMetadataByManifestPath = requireDeploymentSmokeReports({
     releaseAssetsDir,
     partialManifestFileName: profile.release.partialManifestFileName,
@@ -963,6 +1155,15 @@ export function finalizeReleaseAssets({
     artifactMetadataByManifestPath.set(manifestPath, metadata);
   }
   for (const [manifestPath, metadata] of serverBundleSmokeMetadataByManifestPath.entries()) {
+    artifactMetadataByManifestPath.set(
+      manifestPath,
+      {
+        ...(artifactMetadataByManifestPath.get(manifestPath) ?? {}),
+        ...metadata,
+      },
+    );
+  }
+  for (const [manifestPath, metadata] of desktopStartupMetadataByManifestPath.entries()) {
     artifactMetadataByManifestPath.set(
       manifestPath,
       {

@@ -1,5 +1,6 @@
 import type { StudioConversationAttachment } from '@sdkwork/claw-types';
 import type {
+  OpenClawGatewayAgentEvent,
   OpenClawGatewayChatEvent,
   OpenClawGatewayChatHistoryResult,
   OpenClawGatewayHelloOk,
@@ -67,6 +68,9 @@ export interface OpenClawGatewayChatSession {
   isDraft?: boolean;
   runId?: string | null;
   thinkingLevel?: string | null;
+  fastMode?: boolean | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
   lastMessagePreview?: string;
   titleSource?: OpenClawGatewayTitleSource;
   historyState?: OpenClawGatewayHistoryState;
@@ -125,6 +129,7 @@ export interface OpenClawGatewayClientLike {
   abortChatRun: (params: { sessionKey: string; runId?: string }) => Promise<unknown>;
   resetSession: (params: { key: string; reason?: 'new' | 'reset' }) => Promise<unknown>;
   deleteSession: (params: { key: string; deleteTranscript?: boolean }) => Promise<unknown>;
+  on(event: 'agent', listener: (payload: OpenClawGatewayAgentEvent) => void): () => void;
   on(event: 'chat', listener: (payload: OpenClawGatewayChatEvent) => void): () => void;
   on(
     event: 'connection',
@@ -157,6 +162,7 @@ type InternalInstanceState = {
   sessionMessagesSubscribeUnsupported: boolean;
   subscribedSessionMessageKeys: Set<string>;
   pendingConnectInterrupts: Set<() => void>;
+  offAgent?: () => void;
   offChat?: () => void;
   offConnection?: () => void;
   offGap?: () => void;
@@ -200,6 +206,18 @@ function createInitialSnapshot(): OpenClawGatewayInstanceSnapshot {
 
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeInlineWhitespace(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function truncatePreview(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
 function isSilentReplyText(value: string) {
@@ -530,6 +548,143 @@ function cloneToolCards(toolCards: OpenClawToolCard[] | undefined) {
   return toolCards.map((toolCard) => ({ ...toolCard }));
 }
 
+function normalizeAgentToolName(value: unknown, fallback?: string | null) {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+
+  return fallback?.trim() || 'Tool';
+}
+
+function summarizeAgentToolArgs(args: unknown): string | undefined {
+  if (typeof args === 'string') {
+    const normalized = normalizeInlineWhitespace(args);
+    return normalized ? truncatePreview(normalized, 120) : undefined;
+  }
+
+  if (typeof args === 'number' || typeof args === 'boolean') {
+    return String(args);
+  }
+
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    return undefined;
+  }
+
+  const record = args as Record<string, unknown>;
+  for (const key of ['command', 'cmd', 'query', 'prompt', 'path', 'url', 'text']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return truncatePreview(normalizeInlineWhitespace(value), 120);
+    }
+  }
+
+  const serialized = JSON.stringify(args);
+  if (!serialized || serialized === '{}' || serialized === '[]') {
+    return undefined;
+  }
+
+  return truncatePreview(serialized, 120);
+}
+
+function summarizeAgentToolResult(result: unknown, isError?: boolean): string | undefined {
+  let preview: string | undefined;
+
+  if (typeof result === 'string') {
+    const normalized = normalizeInlineWhitespace(result);
+    preview = normalized ? truncatePreview(normalized, 160) : undefined;
+  } else if (typeof result === 'number' || typeof result === 'boolean') {
+    preview = String(result);
+  } else if (Array.isArray(result)) {
+    const parts = result
+      .map((entry) => summarizeAgentToolResult(entry))
+      .filter((value): value is string => Boolean(value));
+    preview = parts.length > 0 ? truncatePreview(parts.join(' | '), 160) : undefined;
+  } else if (result && typeof result === 'object') {
+    const record = result as Record<string, unknown>;
+    for (const key of ['text', 'content', 'summary', 'message', 'status', 'url', 'path']) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) {
+        preview = truncatePreview(normalizeInlineWhitespace(value), 160);
+        break;
+      }
+    }
+
+    if (!preview) {
+      const serialized = JSON.stringify(result);
+      if (serialized && serialized !== '{}' && serialized !== '[]') {
+        preview = truncatePreview(serialized, 160);
+      }
+    }
+  }
+
+  if (!preview) {
+    return undefined;
+  }
+
+  if (isError && !preview.toLowerCase().startsWith('error')) {
+    return `Error: ${preview}`;
+  }
+
+  return preview;
+}
+
+function buildAgentToolMessageId(params: {
+  sessionKey: string;
+  runId?: string | null;
+  toolCallId: string;
+}) {
+  return `agent-tool:${params.sessionKey}:${params.runId?.trim() || 'unknown'}:${params.toolCallId}`;
+}
+
+function buildAgentToolMessage(params: {
+  sessionKey: string;
+  runId?: string | null;
+  timestamp: number;
+  toolCallId: string;
+  name?: unknown;
+  args?: unknown;
+  result?: unknown;
+  isError?: boolean;
+  existingMessage?: OpenClawGatewayMessage | null;
+}): OpenClawGatewayMessage {
+  const existingCallCard = params.existingMessage?.toolCards?.find((toolCard) => toolCard.kind === 'call');
+  const resolvedName = normalizeAgentToolName(params.name, existingCallCard?.name);
+  const callDetail =
+    params.args !== undefined
+      ? summarizeAgentToolArgs(params.args)
+      : existingCallCard?.detail;
+  const resultPreview = summarizeAgentToolResult(params.result, params.isError);
+  const toolCards: OpenClawToolCard[] = [
+    {
+      kind: 'call',
+      name: resolvedName,
+      ...(callDetail ? { detail: callDetail } : {}),
+    },
+    ...(resultPreview
+      ? [
+          {
+            kind: 'result' as const,
+            name: resolvedName,
+            preview: resultPreview,
+          },
+        ]
+      : []),
+  ];
+
+  return createGatewayMessage({
+    id: buildAgentToolMessageId({
+      sessionKey: params.sessionKey,
+      runId: params.runId,
+      toolCallId: params.toolCallId,
+    }),
+    role: 'tool',
+    content: '',
+    timestamp: params.timestamp,
+    runId: params.runId ?? undefined,
+    toolCards,
+  });
+}
+
 function normalizeSenderLabelValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -616,12 +771,17 @@ function resolveMessagePreview(message: {
     return attachmentName;
   }
 
-  const primaryToolCard = message.toolCards?.[0];
-  if (!primaryToolCard) {
+  const preferredToolCard =
+    [...(message.toolCards ?? [])]
+      .reverse()
+      .find((toolCard) => Boolean(toolCard.preview?.trim() || toolCard.detail?.trim())) ??
+    message.toolCards?.[0];
+  if (!preferredToolCard) {
     return undefined;
   }
 
-  const toolPreview = primaryToolCard.detail || primaryToolCard.preview || primaryToolCard.name;
+  const toolPreview =
+    preferredToolCard.preview || preferredToolCard.detail || preferredToolCard.name;
   return toolPreview.trim() || undefined;
 }
 
@@ -1163,6 +1323,63 @@ function cloneSession(session: OpenClawGatewayChatSession): OpenClawGatewayChatS
   };
 }
 
+function hasOwnSessionOverrideField(record: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+function readNullableStringSessionOverride(
+  record: Record<string, unknown>,
+  key: string,
+): string | null | undefined {
+  if (!hasOwnSessionOverrideField(record, key)) {
+    return undefined;
+  }
+
+  const value = record[key];
+  return typeof value === 'string' || value === null ? value : undefined;
+}
+
+function readNullableBooleanSessionOverride(
+  record: Record<string, unknown>,
+  key: string,
+): boolean | null | undefined {
+  if (!hasOwnSessionOverrideField(record, key)) {
+    return undefined;
+  }
+
+  const value = record[key];
+  return typeof value === 'boolean' || value === null ? value : undefined;
+}
+
+function applySessionOverrideFields(
+  session: OpenClawGatewayChatSession,
+  record: Record<string, unknown> | null | undefined,
+) {
+  if (!record) {
+    return;
+  }
+
+  const thinkingLevel = readNullableStringSessionOverride(record, 'thinkingLevel');
+  if (thinkingLevel !== undefined) {
+    session.thinkingLevel = thinkingLevel;
+  }
+
+  const fastMode = readNullableBooleanSessionOverride(record, 'fastMode');
+  if (fastMode !== undefined) {
+    session.fastMode = fastMode;
+  }
+
+  const verboseLevel = readNullableStringSessionOverride(record, 'verboseLevel');
+  if (verboseLevel !== undefined) {
+    session.verboseLevel = verboseLevel;
+  }
+
+  const reasoningLevel = readNullableStringSessionOverride(record, 'reasoningLevel');
+  if (reasoningLevel !== undefined) {
+    session.reasoningLevel = reasoningLevel;
+  }
+}
+
 function normalizeSessionModelRef(params: {
   provider?: string | null;
   model?: string | null;
@@ -1272,6 +1489,7 @@ export class OpenClawGatewaySessionStore {
     }
 
     this.instances.delete(instanceId);
+    state.offAgent?.();
     state.offChat?.();
     state.offConnection?.();
     state.offGap?.();
@@ -1305,6 +1523,9 @@ export class OpenClawGatewaySessionStore {
       isDraft: true,
       runId: null,
       thinkingLevel: null,
+      fastMode: null,
+      verboseLevel: null,
+      reasoningLevel: null,
       lastMessagePreview: undefined,
       titleSource: 'default',
       historyState: 'ready',
@@ -1388,6 +1609,120 @@ export class OpenClawGatewaySessionStore {
         error,
         'Failed to update the OpenClaw session model.',
       );
+      this.emit(params.instanceId);
+      throw error;
+    }
+  }
+
+  async setSessionThinkingLevel(params: {
+    instanceId: string;
+    sessionId: string;
+    thinkingLevel: string | null;
+  }) {
+    return this.setSessionOverrides({
+      instanceId: params.instanceId,
+      sessionId: params.sessionId,
+      patch: {
+        thinkingLevel: params.thinkingLevel?.trim() || null,
+      },
+      errorMessage: 'Failed to update the OpenClaw session thinking level.',
+    });
+  }
+
+  async setSessionFastMode(params: {
+    instanceId: string;
+    sessionId: string;
+    fastMode: boolean | null;
+  }) {
+    return this.setSessionOverrides({
+      instanceId: params.instanceId,
+      sessionId: params.sessionId,
+      patch: {
+        fastMode: params.fastMode,
+      },
+      errorMessage: 'Failed to update the OpenClaw session fast mode.',
+    });
+  }
+
+  async setSessionVerboseLevel(params: {
+    instanceId: string;
+    sessionId: string;
+    verboseLevel: string | null;
+  }) {
+    return this.setSessionOverrides({
+      instanceId: params.instanceId,
+      sessionId: params.sessionId,
+      patch: {
+        verboseLevel: params.verboseLevel?.trim() || null,
+      },
+      errorMessage: 'Failed to update the OpenClaw session verbose level.',
+    });
+  }
+
+  async setSessionReasoningLevel(params: {
+    instanceId: string;
+    sessionId: string;
+    reasoningLevel: string | null;
+  }) {
+    return this.setSessionOverrides({
+      instanceId: params.instanceId,
+      sessionId: params.sessionId,
+      patch: {
+        reasoningLevel: params.reasoningLevel?.trim() || null,
+      },
+      errorMessage: 'Failed to update the OpenClaw session reasoning level.',
+    });
+  }
+
+  private async setSessionOverrides(params: {
+    instanceId: string;
+    sessionId: string;
+    patch: {
+      thinkingLevel?: string | null;
+      fastMode?: boolean | null;
+      verboseLevel?: string | null;
+      reasoningLevel?: string | null;
+    };
+    errorMessage: string;
+  }) {
+    const state = await this.ensureState(params.instanceId);
+    const session = this.findSession(state, params.sessionId);
+    if (!session) {
+      throw new Error(`OpenClaw session not found: ${params.sessionId}`);
+    }
+
+    if (session.isDraft) {
+      applySessionOverrideFields(
+        session,
+        params.patch as Record<string, unknown>,
+      );
+      session.updatedAt = this.now();
+      state.snapshot.lastError = undefined;
+      this.sortSessions(state.snapshot);
+      this.emit(params.instanceId);
+      return this.getSnapshot(params.instanceId);
+    }
+
+    try {
+      const result = await state.client.patchSession({
+        key: params.sessionId,
+        ...params.patch,
+      });
+      applySessionOverrideFields(
+        session,
+        params.patch as Record<string, unknown>,
+      );
+      applySessionOverrideFields(
+        session,
+        (result.resolved ?? null) as Record<string, unknown> | null,
+      );
+      session.updatedAt = this.now();
+      state.snapshot.lastError = undefined;
+      this.sortSessions(state.snapshot);
+      this.emit(params.instanceId);
+      return this.getSnapshot(params.instanceId);
+    } catch (error) {
+      state.snapshot.lastError = this.toErrorMessage(error, params.errorMessage);
       this.emit(params.instanceId);
       throw error;
     }
@@ -1619,6 +1954,9 @@ export class OpenClawGatewaySessionStore {
       pendingConnectInterrupts: new Set<() => void>(),
       refreshVersion: 0,
     };
+    state.offAgent = client.on('agent', (payload: OpenClawGatewayAgentEvent) => {
+      this.handleAgentEvent(instanceId, payload);
+    });
     state.offChat = client.on('chat', (payload: OpenClawGatewayChatEvent) => {
       this.handleChatEvent(instanceId, payload);
     });
@@ -1834,7 +2172,7 @@ export class OpenClawGatewaySessionStore {
           (existing?.titleSource === 'firstUser' || existing?.titleSource === 'explicit') &&
           Boolean(existing?.title);
 
-        return {
+        const nextSession: OpenClawGatewayChatSession = {
           id: String(record.key),
           title: shouldKeepExistingTitle ? existing!.title : rowTitleState.title,
           createdAt: existing?.createdAt ?? updatedAt,
@@ -1851,6 +2189,9 @@ export class OpenClawGatewaySessionStore {
             : undefined,
           runId: existing?.runId ?? null,
           thinkingLevel: existing?.thinkingLevel ?? null,
+          fastMode: existing?.fastMode ?? null,
+          verboseLevel: existing?.verboseLevel ?? null,
+          reasoningLevel: existing?.reasoningLevel ?? null,
           lastMessagePreview: rowLastMessagePreview ?? existing?.lastMessagePreview,
           titleSource: shouldKeepExistingTitle ? existing?.titleSource : rowTitleState.source,
           historyState:
@@ -1860,7 +2201,12 @@ export class OpenClawGatewaySessionStore {
             typeof record.kind === 'string'
               ? record.kind
               : existing?.sessionKind ?? null,
-        } satisfies OpenClawGatewayChatSession;
+        };
+        applySessionOverrideFields(
+          nextSession,
+          record as Record<string, unknown>,
+        );
+        return nextSession satisfies OpenClawGatewayChatSession;
       });
 
       state.snapshot.sessions = [...nextSessions, ...draftSessions].map((session) => ({
@@ -1968,7 +2314,6 @@ export class OpenClawGatewaySessionStore {
       const session = this.findSession(state, sessionId);
       if (session && isMissingOperatorReadScopeError(error)) {
         session.messages = [];
-        session.thinkingLevel = null;
         session.historyState = 'error';
         state.snapshot.lastError = formatMissingOperatorReadScopeMessage('existing chat history');
       } else {
@@ -2010,7 +2355,10 @@ export class OpenClawGatewaySessionStore {
               options?.preferRemoteTerminalAssistantMessage,
           })
         : remoteMessages;
-    session.thinkingLevel = history.thinkingLevel ?? null;
+    applySessionOverrideFields(
+      session,
+      history as Record<string, unknown>,
+    );
     session.runId =
       options && 'preserveRunId' in options
         ? options.preserveRunId ?? null
@@ -2201,12 +2549,7 @@ export class OpenClawGatewaySessionStore {
       session.model = resolvedModel;
       session.defaultModel = session.defaultModel ?? resolvedModel;
     }
-    if (
-      typeof payloadRecord.thinkingLevel === 'string' ||
-      payloadRecord.thinkingLevel === null
-    ) {
-      session.thinkingLevel = payloadRecord.thinkingLevel as string | null;
-    }
+    applySessionOverrideFields(session, payloadRecord);
     if (!hadUserMessageBefore && normalizedMessage.role === 'user' && session.titleSource !== 'explicit') {
       session.title = deriveSessionTitle(
         DEFAULT_CHAT_SESSION_TITLE,
@@ -2219,6 +2562,86 @@ export class OpenClawGatewaySessionStore {
 
     this.sortSessions(state.snapshot);
     this.emit(instanceId);
+  }
+
+  private handleAgentEvent(instanceId: string, payload: OpenClawGatewayAgentEvent) {
+    const state = this.instances.get(instanceId);
+    if (!state || !payload?.sessionKey || payload.stream !== 'tool') {
+      return;
+    }
+
+    const data =
+      payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+        ? (payload.data as Record<string, unknown>)
+        : null;
+    const phase = typeof data?.phase === 'string' ? data.phase : null;
+    const toolCallId = typeof data?.toolCallId === 'string' ? data.toolCallId.trim() : '';
+    if (!phase || !toolCallId) {
+      return;
+    }
+
+    const timestamp = this.now();
+    let session = this.findSession(state, payload.sessionKey);
+    let createdLiveSession = false;
+    const existingMessageId = buildAgentToolMessageId({
+      sessionKey: payload.sessionKey,
+      runId: typeof payload.runId === 'string' ? payload.runId : null,
+      toolCallId,
+    });
+    const existingMessage =
+      session?.messages.find((message) => message.id === existingMessageId) ?? null;
+    const toolMessage = buildAgentToolMessage({
+      sessionKey: payload.sessionKey,
+      runId: typeof payload.runId === 'string' ? payload.runId : null,
+      timestamp,
+      toolCallId,
+      name: data?.name,
+      args: phase === 'start' ? data?.args : undefined,
+      result:
+        phase === 'update'
+          ? data?.partialResult
+          : phase === 'result'
+            ? data?.result
+            : undefined,
+      isError: data?.isError === true,
+      existingMessage,
+    });
+
+    if (!session) {
+      const createdSession = this.createLivePlaceholderSession({
+        instanceId,
+        state,
+        sessionId: payload.sessionKey,
+        timestamp,
+        role: 'tool',
+        content: toolMessage.content,
+        attachments: undefined,
+        toolCards: toolMessage.toolCards,
+        payload: payload as Record<string, unknown>,
+        isSilentAssistantMessage: false,
+      });
+      if (!createdSession) {
+        return;
+      }
+      session = createdSession;
+      createdLiveSession = true;
+    }
+
+    session.messages = upsertSessionMessage(session.messages, toolMessage);
+    session.runId =
+      typeof payload.runId === 'string' && payload.runId.trim()
+        ? payload.runId
+        : session.runId ?? null;
+    session.updatedAt = Math.max(session.updatedAt, toolMessage.timestamp);
+    session.isDraft = false;
+    session.historyState = 'ready';
+    session.lastMessagePreview = resolveMessagePreview(toolMessage) || session.lastMessagePreview;
+
+    this.sortSessions(state.snapshot);
+    this.emit(instanceId);
+    if (createdLiveSession) {
+      void this.synchronizeSessionMessageSubscription(instanceId, state);
+    }
   }
 
   private handleChatEvent(instanceId: string, payload: OpenClawGatewayChatEvent) {
@@ -2349,6 +2772,7 @@ export class OpenClawGatewaySessionStore {
       session.updatedAt = timestamp;
       session.isDraft = false;
       session.historyState = 'ready';
+      applySessionOverrideFields(session, payloadRecord);
       session.lastMessagePreview =
         (session.messages.at(-1) ? resolveMessagePreview(session.messages.at(-1)!) : undefined) ||
         session.lastMessagePreview;
@@ -2398,6 +2822,7 @@ export class OpenClawGatewaySessionStore {
       session.isDraft = false;
       session.updatedAt = timestamp;
       session.historyState = 'ready';
+      applySessionOverrideFields(session, payloadRecord);
       session.lastMessagePreview =
         (hasRenderableMessage && session.messages.at(-1)
           ? resolveMessagePreview(session.messages.at(-1)!)
@@ -2419,7 +2844,11 @@ export class OpenClawGatewaySessionStore {
       const failedRunId = incomingRunId ?? activeRunId;
       if (failedRunId) {
         session.messages = session.messages.filter(
-          (message) => !(message.role === 'assistant' && message.runId === failedRunId),
+          (message) =>
+            !(
+              (message.role === 'assistant' || message.role === 'tool') &&
+              message.runId === failedRunId
+            ),
         );
       }
       session.runId = null;
@@ -2484,6 +2913,9 @@ export class OpenClawGatewaySessionStore {
       isDraft: false,
       runId: null,
       thinkingLevel: null,
+      fastMode: null,
+      verboseLevel: null,
+      reasoningLevel: null,
       lastMessagePreview: resolveMessagePreview({
         content: params.content,
         attachments: params.attachments,
@@ -2492,6 +2924,7 @@ export class OpenClawGatewaySessionStore {
       titleSource: params.role === 'user' ? 'firstUser' : 'default',
       historyState: 'ready',
     };
+    applySessionOverrideFields(session, params.payload);
 
     params.state.snapshot.sessions = [session, ...params.state.snapshot.sessions];
     params.state.snapshot.activeSessionId = session.id;

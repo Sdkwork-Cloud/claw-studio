@@ -22,7 +22,11 @@ import type {
   OpenClawAgentParamSource,
   OpenClawAgentParamValue,
   OpenClawChannelSnapshot,
+  OpenClawDreamingConfigSnapshot,
+  OpenClawWebFetchConfigSnapshot,
+  OpenClawWebSearchNativeCodexConfigSnapshot,
   OpenClawWebSearchConfigSnapshot,
+  OpenClawXSearchConfigSnapshot,
 } from '@sdkwork/claw-core';
 
 export interface Instance {
@@ -120,7 +124,11 @@ export interface InstanceWorkbenchSnapshot {
   managedChannels?: OpenClawChannelSnapshot[];
   managedConfigInsights?: InstanceManagedOpenClawConfigInsights | null;
   managedWebSearchConfig?: OpenClawWebSearchConfigSnapshot | null;
+  managedXSearchConfig?: OpenClawXSearchConfigSnapshot | null;
+  managedWebSearchNativeCodexConfig?: OpenClawWebSearchNativeCodexConfigSnapshot | null;
+  managedWebFetchConfig?: OpenClawWebFetchConfigSnapshot | null;
   managedAuthCooldownsConfig?: OpenClawAuthCooldownsConfigSnapshot | null;
+  managedDreamingConfig?: OpenClawDreamingConfigSnapshot | null;
   healthScore: number;
   runtimeStatus: StudioInstanceHealthStatus;
   connectedChannelCount: number;

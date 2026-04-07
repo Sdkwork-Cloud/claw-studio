@@ -534,6 +534,415 @@ await runTest('getSessionStatus uses the official session_status tool', async ()
   });
 });
 
+await runTest('listRuntimeTasks uses the latest tasks.list gateway surface and preserves task-flow linkage fields', async () => {
+  const client = createOpenClawGatewayClient({
+    getInstanceDetail: async () => createInstanceDetail(),
+    fetchImpl: async (_input, init) => {
+      assert.deepEqual(parseInvokeRequest(init), {
+        tool: 'tasks',
+        action: 'list',
+        args: {},
+      });
+      return createJsonResponse({
+        ok: true,
+        result: {
+          items: [
+            {
+              id: 'task-run-1',
+              kind: 'subagent',
+              status: 'running',
+              summary: 'Expand the release evidence review.',
+              deliveryStatus: 'pending',
+              notifyPolicy: 'state_changes',
+              runId: 'run-42',
+              childSessionKey: 'session-child',
+              requesterSessionKey: 'main',
+              flowId: 'flow-1',
+              flowLookupKey: 'release-review',
+              flowState: 'running',
+              flowSyncMode: 'managed',
+              flowRevision: 3,
+              updatedAtMs: 1_775_552_000_000,
+            },
+          ],
+        },
+      });
+    },
+  });
+
+  const result = await client.listRuntimeTasks('openclaw-prod');
+
+  assert.deepEqual(result, [
+    {
+      id: 'task-run-1',
+      kind: 'subagent',
+      status: 'running',
+      summary: 'Expand the release evidence review.',
+      deliveryStatus: 'pending',
+      notifyPolicy: 'state_changes',
+      runId: 'run-42',
+      childSessionKey: 'session-child',
+      requesterSessionKey: 'main',
+      flowId: 'flow-1',
+      flowLookupKey: 'release-review',
+      flowState: 'running',
+      flowSyncMode: 'managed',
+      flowRevision: 3,
+      startedAt: undefined,
+      updatedAt: new Date(1_775_552_000_000).toISOString(),
+      finishedAt: undefined,
+      error: undefined,
+      raw: {
+        id: 'task-run-1',
+        kind: 'subagent',
+        status: 'running',
+        summary: 'Expand the release evidence review.',
+        deliveryStatus: 'pending',
+        notifyPolicy: 'state_changes',
+        runId: 'run-42',
+        childSessionKey: 'session-child',
+        requesterSessionKey: 'main',
+        flowId: 'flow-1',
+        flowLookupKey: 'release-review',
+        flowState: 'running',
+        flowSyncMode: 'managed',
+        flowRevision: 3,
+        updatedAtMs: 1_775_552_000_000,
+      },
+    },
+  ]);
+});
+
+await runTest('listTaskFlows uses the latest tasks.flow.list gateway surface and normalizes recent flow metadata', async () => {
+  const client = createOpenClawGatewayClient({
+    getInstanceDetail: async () => createInstanceDetail(),
+    fetchImpl: async (_input, init) => {
+      assert.deepEqual(parseInvokeRequest(init), {
+        tool: 'tasks',
+        action: 'flow.list',
+        args: {},
+      });
+      return createJsonResponse({
+        ok: true,
+        result: {
+          items: [
+            {
+              id: 'flow-1',
+              lookupKey: 'release-review',
+              ownerKey: 'agent:main:main',
+              requesterOrigin: {
+                channel: 'slack',
+                to: 'channel:ops',
+                accountId: 'ops-bot',
+                threadId: '171234',
+              },
+              status: 'running',
+              notifyPolicy: 'state_changes',
+              goal: 'Review the release package',
+              currentStep: 'Compare desktop and server artifacts',
+              cancelRequestedAt: 1_775_552_050_000,
+              syncMode: 'managed',
+              revision: 3,
+              taskCount: 2,
+              activeTaskCount: 1,
+              summary: 'Release review orchestration',
+              createdAt: 1_775_551_000_000,
+              updatedAtMs: 1_775_552_000_000,
+            },
+          ],
+        },
+      });
+    },
+  });
+
+  const result = await client.listTaskFlows('openclaw-prod');
+
+  assert.deepEqual(result, [
+    {
+      id: 'flow-1',
+      lookupKey: 'release-review',
+      state: 'running',
+      ownerKey: 'agent:main:main',
+      requesterOrigin: {
+        channel: 'slack',
+        to: 'channel:ops',
+        accountId: 'ops-bot',
+        threadId: '171234',
+      },
+      notifyPolicy: 'state_changes',
+      goal: 'Review the release package',
+      currentStep: 'Compare desktop and server artifacts',
+      cancelRequestedAt: new Date(1_775_552_050_000).toISOString(),
+      syncMode: 'managed',
+      revision: 3,
+      taskCount: 2,
+      activeTaskCount: 1,
+      summary: 'Release review orchestration',
+      startedAt: new Date(1_775_551_000_000).toISOString(),
+      updatedAt: new Date(1_775_552_000_000).toISOString(),
+      finishedAt: undefined,
+      raw: {
+        id: 'flow-1',
+        lookupKey: 'release-review',
+        ownerKey: 'agent:main:main',
+        requesterOrigin: {
+          channel: 'slack',
+          to: 'channel:ops',
+          accountId: 'ops-bot',
+          threadId: '171234',
+        },
+        status: 'running',
+        notifyPolicy: 'state_changes',
+        goal: 'Review the release package',
+        currentStep: 'Compare desktop and server artifacts',
+        cancelRequestedAt: 1_775_552_050_000,
+        syncMode: 'managed',
+        revision: 3,
+        taskCount: 2,
+        activeTaskCount: 1,
+        summary: 'Release review orchestration',
+        createdAt: 1_775_551_000_000,
+        updatedAtMs: 1_775_552_000_000,
+      },
+    },
+  ]);
+});
+
+await runTest('getRuntimeTaskDetail uses the latest tasks.show gateway surface and preserves upstream task detail fields', async () => {
+  const rawTask = {
+    id: 'task-run-1',
+    runtime: 'subagent',
+    sourceId: 'release-review-cron',
+    sessionKey: 'main',
+    ownerKey: 'agent:main:main',
+    scope: 'session',
+    childSessionKey: 'session-child',
+    parentTaskId: 'task-parent-1',
+    agentId: 'release-manager',
+    runId: 'run-42',
+    label: 'Approval',
+    title: 'Request release approval',
+    status: 'running',
+    deliveryStatus: 'pending',
+    notifyPolicy: 'state_changes',
+    progressSummary: 'Waiting for release-manager approval.',
+    terminalSummary: 'Needs manual approval.',
+    terminalOutcome: 'blocked',
+    createdAt: 1_775_551_010_000,
+    startedAt: 1_775_551_020_000,
+    lastEventAt: 1_775_552_000_000,
+    cleanupAfter: 1_775_912_000_000,
+  };
+  const client = createOpenClawGatewayClient({
+    getInstanceDetail: async () => createInstanceDetail(),
+    fetchImpl: async (_input, init) => {
+      assert.deepEqual(parseInvokeRequest(init), {
+        tool: 'tasks',
+        action: 'show',
+        args: {
+          lookup: 'task-run-1',
+        },
+      });
+      return createJsonResponse({
+        ok: true,
+        result: rawTask,
+      });
+    },
+  });
+
+  const result = await client.getRuntimeTaskDetail('openclaw-prod', 'task-run-1');
+
+  assert.deepEqual(result, {
+    id: 'task-run-1',
+    runtime: 'subagent',
+    sourceId: 'release-review-cron',
+    sessionKey: 'main',
+    ownerKey: 'agent:main:main',
+    scope: 'session',
+    childSessionKey: 'session-child',
+    parentTaskId: 'task-parent-1',
+    agentId: 'release-manager',
+    runId: 'run-42',
+    label: 'Approval',
+    title: 'Request release approval',
+    status: 'running',
+    deliveryStatus: 'pending',
+    notifyPolicy: 'state_changes',
+    createdAt: new Date(1_775_551_010_000).toISOString(),
+    startedAt: new Date(1_775_551_020_000).toISOString(),
+    updatedAt: new Date(1_775_552_000_000).toISOString(),
+    finishedAt: undefined,
+    cleanupAfter: new Date(1_775_912_000_000).toISOString(),
+    progressSummary: 'Waiting for release-manager approval.',
+    terminalSummary: 'Needs manual approval.',
+    terminalOutcome: 'blocked',
+    raw: rawTask,
+  });
+});
+
+await runTest('getTaskFlowDetail uses the latest tasks.flow.show gateway surface and normalizes detail-only metadata', async () => {
+  const rawTask = {
+    id: 'task-approve-1',
+    runtime: 'subagent',
+    sessionKey: 'main',
+    ownerKey: 'agent:main:main',
+    scope: 'flow',
+    flowId: 'flow-1',
+    agentId: 'release-manager',
+    runId: 'run-42',
+    label: 'Approval',
+    title: 'Request release approval',
+    status: 'running',
+    deliveryStatus: 'pending',
+    notifyPolicy: 'state_changes',
+    progressSummary: 'Waiting for release-manager approval.',
+    terminalSummary: 'Needs manual approval.',
+    terminalOutcome: 'blocked',
+    createdAt: 1_775_551_010_000,
+    startedAt: 1_775_551_020_000,
+    lastEventAt: 1_775_552_000_000,
+    cleanupAfter: 1_775_912_000_000,
+  };
+  const rawFlow = {
+    id: 'flow-1',
+    lookupKey: 'release-review',
+    ownerKey: 'agent:main:main',
+    requesterOrigin: {
+      channel: 'slack',
+      to: 'channel:ops',
+      accountId: 'ops-bot',
+      threadId: '171234',
+    },
+    status: 'waiting',
+    notifyPolicy: 'state_changes',
+    goal: 'Review the release package',
+    currentStep: 'Wait for release-manager approval',
+    cancelRequestedAt: 1_775_552_050_000,
+    syncMode: 'managed',
+    revision: 3,
+    createdAt: 1_775_551_000_000,
+    updatedAtMs: 1_775_552_000_000,
+    state: {
+      phase: 'approval',
+      attempt: 2,
+    },
+    wait: {
+      kind: 'approval',
+      approver: 'release-manager',
+    },
+    blocked: {
+      taskId: 'task-approve-1',
+      summary: 'Awaiting release-manager approval',
+    },
+    tasks: [rawTask],
+    taskSummary: {
+      total: 1,
+      active: 1,
+      terminal: 0,
+      failures: 0,
+      byStatus: {
+        running: 1,
+      },
+      byRuntime: {
+        subagent: 1,
+      },
+    },
+  };
+  const client = createOpenClawGatewayClient({
+    getInstanceDetail: async () => createInstanceDetail(),
+    fetchImpl: async (_input, init) => {
+      assert.deepEqual(parseInvokeRequest(init), {
+        tool: 'tasks',
+        action: 'flow.show',
+        args: {
+          lookup: 'release-review',
+        },
+      });
+      return createJsonResponse({
+        ok: true,
+        result: rawFlow,
+      });
+    },
+  });
+
+  const result = await client.getTaskFlowDetail('openclaw-prod', 'release-review');
+
+  assert.deepEqual(result, {
+    id: 'flow-1',
+    lookupKey: 'release-review',
+    state: 'waiting',
+    ownerKey: 'agent:main:main',
+    requesterOrigin: {
+      channel: 'slack',
+      to: 'channel:ops',
+      accountId: 'ops-bot',
+      threadId: '171234',
+    },
+    notifyPolicy: 'state_changes',
+    goal: 'Review the release package',
+    currentStep: 'Wait for release-manager approval',
+    cancelRequestedAt: new Date(1_775_552_050_000).toISOString(),
+    syncMode: 'managed',
+    revision: 3,
+    taskCount: 1,
+    activeTaskCount: 1,
+    summary: undefined,
+    startedAt: new Date(1_775_551_000_000).toISOString(),
+    updatedAt: new Date(1_775_552_000_000).toISOString(),
+    finishedAt: undefined,
+    statePayload: {
+      phase: 'approval',
+      attempt: 2,
+    },
+    waitPayload: {
+      kind: 'approval',
+      approver: 'release-manager',
+    },
+    blocked: {
+      taskId: 'task-approve-1',
+      summary: 'Awaiting release-manager approval',
+    },
+    tasks: [
+      {
+        id: 'task-approve-1',
+        runtime: 'subagent',
+        sessionKey: 'main',
+        ownerKey: 'agent:main:main',
+        scope: 'flow',
+        flowId: 'flow-1',
+        agentId: 'release-manager',
+        runId: 'run-42',
+        label: 'Approval',
+        title: 'Request release approval',
+        status: 'running',
+        deliveryStatus: 'pending',
+        notifyPolicy: 'state_changes',
+        progressSummary: 'Waiting for release-manager approval.',
+        terminalSummary: 'Needs manual approval.',
+        terminalOutcome: 'blocked',
+        createdAt: new Date(1_775_551_010_000).toISOString(),
+        startedAt: new Date(1_775_551_020_000).toISOString(),
+        updatedAt: new Date(1_775_552_000_000).toISOString(),
+        cleanupAfter: new Date(1_775_912_000_000).toISOString(),
+        raw: rawTask,
+      },
+    ],
+    taskSummary: {
+      total: 1,
+      active: 1,
+      terminal: 0,
+      failures: 0,
+      byStatus: {
+        running: 1,
+      },
+      byRuntime: {
+        subagent: 1,
+      },
+    },
+    raw: rawFlow,
+  });
+});
+
 await runTest('listSessions uses the official sessions_list tool', async () => {
   const client = createOpenClawGatewayClient({
     getInstanceDetail: async () => createInstanceDetail(),
@@ -1357,6 +1766,13 @@ await runTest('invokeOfficialMethod maps official gateway methods onto tools/inv
       },
     },
     {
+      tool: 'doctor.memory',
+      action: 'dreamDiary',
+      args: {
+        lines: 120,
+      },
+    },
+    {
       tool: 'node.pair',
       action: 'request',
       args: {
@@ -1396,6 +1812,9 @@ await runTest('invokeOfficialMethod maps official gateway methods onto tools/inv
     await client.invokeOfficialMethod('openclaw-prod', 'doctor.memory.status', {
       limit: 5,
     }),
+    await client.invokeOfficialMethod('openclaw-prod', 'doctor.memory.dreamDiary', {
+      lines: 120,
+    }),
     await client.invokeOfficialMethod('openclaw-prod', 'node.pair.request', {
       label: 'studio-web',
     }),
@@ -1422,6 +1841,10 @@ await runTest('invokeOfficialMethod maps official gateway methods onto tools/inv
     {
       ok: true,
       requestIndex: 4,
+    },
+    {
+      ok: true,
+      requestIndex: 5,
     },
   ]);
 });

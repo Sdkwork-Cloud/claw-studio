@@ -33,16 +33,45 @@ runTest('sdkwork-claw-dashboard is implemented as a dedicated local feature pack
   const indexSource = read('packages/sdkwork-claw-dashboard/src/index.ts');
 
   assert.ok(exists('packages/sdkwork-claw-dashboard/src/Dashboard.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-dashboard/src/Usage.tsx'));
   assert.ok(exists('packages/sdkwork-claw-dashboard/src/pages/Dashboard.tsx'));
+  assert.ok(exists('packages/sdkwork-claw-dashboard/src/pages/UsageWorkspace.tsx'));
   assert.ok(exists('packages/sdkwork-claw-dashboard/src/services/index.ts'));
   assert.ok(exists('packages/sdkwork-claw-dashboard/src/services/dashboardService.ts'));
+  assert.ok(exists('packages/sdkwork-claw-dashboard/src/services/usageWorkspaceService.ts'));
   assert.ok(exists('packages/sdkwork-claw-dashboard/src/types/index.ts'));
 
   assert.ok(!pkg.dependencies?.['@sdkwork/claw-studio-dashboard']);
   assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], 'workspace:*');
+  assert.equal(pkg.dependencies?.['@sdkwork/claw-i18n'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-dashboard/);
   assert.match(indexSource, /\.\/Dashboard/);
+  assert.match(indexSource, /\.\/Usage/);
   assert.match(indexSource, /\.\/services\/dashboardService/);
+  assert.match(indexSource, /\.\/services\/usageWorkspaceService/);
+});
+
+runTest('sdkwork-claw-dashboard keeps the OpenClaw usage workspace in the shared dashboard package', () => {
+  const usageExportSource = read('packages/sdkwork-claw-dashboard/src/Usage.tsx');
+  const usagePageSource = read('packages/sdkwork-claw-dashboard/src/pages/UsageWorkspace.tsx');
+  const usageServiceSource = read('packages/sdkwork-claw-dashboard/src/services/usageWorkspaceService.ts');
+
+  assert.match(usageExportSource, /UsageWorkspace/);
+  assert.match(usagePageSource, /usageWorkspaceService/);
+  assert.match(usagePageSource, /dashboard\.usage\.page\.title/);
+  assert.match(usagePageSource, /dashboard\.usage\.sections\.sessionTimeline/);
+  assert.match(usagePageSource, /dashboard\.usage\.sections\.sessionLogs/);
+  assert.match(usagePageSource, /dashboard\.usage\.metrics\.totalTokens/);
+  assert.match(usagePageSource, /dashboard\.usage\.metrics\.totalCost/);
+  assert.match(usagePageSource, /loadUsageSnapshot/);
+  assert.match(usagePageSource, /loadSessionDetail/);
+  assert.match(usageServiceSource, /getGatewaySessionUsage/);
+  assert.match(usageServiceSource, /getUsageCost/);
+  assert.match(usageServiceSource, /getGatewaySessionUsageTimeseries/);
+  assert.match(usageServiceSource, /getGatewaySessionUsageLogs/);
+  assert.doesNotMatch(usagePageSource, /@sdkwork\/claw-shell/);
+  assert.doesNotMatch(usagePageSource, /@sdkwork\/claw-web/);
+  assert.doesNotMatch(usagePageSource, /@sdkwork\/claw-desktop/);
 });
 
 runTest('sdkwork-claw-dashboard aggregates shared runtime data into a control-plane snapshot', () => {

@@ -17,6 +17,7 @@ const LOCAL_AI_PROXY_UPSTREAM_PROTOCOLS: readonly LocalAiProxyUpstreamProtocol[]
   'openai-compatible',
   'anthropic',
   'gemini',
+  'ollama',
   'azure-openai',
   'openrouter',
   'sdkwork',
@@ -177,10 +178,14 @@ export function inferLocalAiProxyUpstreamProtocol(
 ): LocalAiProxyUpstreamProtocol {
   switch (normalizeProviderId(providerId)) {
     case 'anthropic':
+    case 'cloudflare-ai-gateway':
+    case 'vercel-ai-gateway':
       return 'anthropic';
     case 'google':
     case 'gemini':
       return 'gemini';
+    case 'ollama':
+      return 'ollama';
     case 'azure':
     case 'azure-openai':
       return 'azure-openai';

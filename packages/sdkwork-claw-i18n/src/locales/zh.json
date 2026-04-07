@@ -364,6 +364,20 @@
           "lifecycle": "生命周期",
           "browserAccess": "浏览器访问",
           "browserBaseUrl": "浏览器基础 URL",
+          "hostMode": "Host 模式",
+          "distributionFamily": "分发家族",
+          "deploymentFamily": "部署家族",
+          "acceleratorProfile": "加速配置",
+          "descriptorBrowserBaseUrl": "合同浏览器 URL",
+          "descriptorEndpointId": "合同端点 ID",
+          "stateStoreDriver": "状态存储驱动",
+          "stateStoreProfileId": "状态存储配置",
+          "requestedPort": "合同请求端口",
+          "activePort": "合同实际端口",
+          "loopbackOnly": "仅回环",
+          "dynamicPort": "动态端口",
+          "runtimeDataDir": "运行时数据目录",
+          "webDistDir": "Web 资源目录",
           "displayName": "显示名称",
           "hostId": "Host ID",
           "managePath": "管理路径",
@@ -1623,6 +1637,44 @@
       "noneSelected": "未设置",
       "routeMode": "路由模式",
       "configureModels": "配置模型",
+      "thinkingLevel": "思考级别",
+      "thinkingLevelDescription": "选择当前 OpenClaw Gateway 会话需要使用多少额外推理。",
+      "thinkingLevelPlaceholder": "选择思考级别",
+      "thinkingLevelDefault": "使用运行时默认值",
+      "thinkingLevelDefaultResolved": "默认（{{level}}）",
+      "sessionControlInherit": "继承运行时默认值",
+      "fastMode": "快速模式",
+      "fastModeDescription": "在上游运行时支持的情况下，让当前会话倾向更快、更简略的响应。",
+      "fastModePlaceholder": "选择快速模式",
+      "fastModes": {
+        "off": "关闭",
+        "on": "开启"
+      },
+      "verboseLevel": "详细输出",
+      "verboseLevelDescription": "控制 OpenClaw 针对当前会话返回多少额外的进度和状态细节。",
+      "verboseLevelPlaceholder": "选择详细程度",
+      "verboseLevels": {
+        "off": "关闭",
+        "on": "开启",
+        "full": "完整"
+      },
+      "reasoningLevel": "推理输出",
+      "reasoningLevelDescription": "选择推理内容是隐藏、在答案后输出，还是在上游通道支持时以流式方式发送。",
+      "reasoningLevelPlaceholder": "选择推理输出模式",
+      "reasoningLevels": {
+        "off": "关闭",
+        "on": "开启",
+        "stream": "流式（Telegram）"
+      },
+      "thinkingLevels": {
+        "off": "关闭",
+        "on": "开启",
+        "minimal": "最少",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "adaptive": "自适应"
+      },
       "agentSelectionDescription": "选择当前会话新消息将由哪个 Agent 工作流处理。",
       "skillSelectionDescription": "为当前会话应用专注技能，或保持通用对话模式。",
       "noMatchingAgents": "未找到匹配的 Agent。",
@@ -2855,6 +2907,78 @@
         "paused": "已暂停",
         "failed": "失败"
       },
+      "runtime": {
+        "eyebrow": "OpenClaw 运行时",
+        "title": "后台任务与 Task Flow",
+        "description": "直接在任务工作台中查看最新 OpenClaw 运行时暴露的后台任务账本和编排流状态。",
+        "cards": {
+          "runtimeTasks": "运行时任务",
+          "taskFlows": "Task Flow",
+          "activeCount": "活跃 {{count}}"
+        },
+        "taskBoard": {
+          "title": "运行时任务面板",
+          "description": "展示最新 OpenClaw tasks 能力返回的近期后台任务记录。",
+          "unsupportedTitle": "运行时任务面板不可用",
+          "unsupportedBody": "当前连接的运行时还没有暴露最新的后台任务面板能力。",
+          "empty": "当前实例还没有上报任何后台运行时任务。",
+          "summaryFallback": "该任务没有提供额外摘要。",
+          "detail": {
+            "description": "检查 OpenClaw tasks.show 返回的脱离式后台任务详情字段。",
+            "unavailable": "当前运行时无法提供后台任务详情。",
+            "loadFailed": "加载后台任务详情失败。"
+          }
+        },
+        "taskFlows": {
+          "title": "Task Flow 面板",
+          "description": "查看最近 Task Flow 记录，包含目标、当前步骤，以及来自最新 OpenClaw task-flow 能力面的实时编排状态。",
+          "unsupportedTitle": "Task Flow 面板不可用",
+          "unsupportedBody": "当前连接的运行时还没有暴露最新的 Task Flow 能力。",
+          "empty": "当前实例还没有上报任何 Task Flow 记录。",
+          "summaryFallback": "该流程没有提供额外摘要。"
+        },
+        "detail": {
+          "description": "查看 OpenClaw tasks.flow.show 返回的 Task Flow 详情字段。",
+          "payloadSummary": "摘要",
+          "taskSummary": "任务汇总",
+          "blocked": "阻塞",
+          "wait": "等待",
+          "state": "状态",
+          "statePayload": "状态载荷",
+          "waitPayload": "等待载荷",
+          "linkedTasksTitle": "关联任务",
+          "linkedTasksDescription": "查看 OpenClaw tasks.flow.show 返回的关联任务。",
+          "linkedTasksEmpty": "当前 Task Flow 没有返回关联任务。",
+          "session": "会话",
+          "agent": "智能体",
+          "error": "错误",
+          "unavailable": "当前运行时暂时无法提供 Task Flow 详情。",
+          "loadFailed": "Task Flow 详情加载失败。"
+        },
+        "fields": {
+          "runId": "运行 ID",
+          "sourceId": "来源 ID",
+          "childSession": "子会话",
+          "flow": "流程",
+          "lastEventAt": "最新事件时间",
+          "updatedAt": "更新时间",
+          "currentStep": "当前步骤",
+          "cleanupAfter": "清理时间",
+          "deliveryStatus": "交付状态",
+          "notifyPolicy": "通知策略",
+          "owner": "归属会话",
+          "parentTask": "父任务",
+          "requesterOrigin": "请求来源",
+          "result": "结果",
+          "cancelRequestedAt": "请求取消于",
+          "revision": "修订号",
+          "activity": "活跃度",
+          "flowId": "流程 ID",
+          "createdAt": "创建时间",
+          "startedAt": "开始时间",
+          "finishedAt": "结束时间"
+        }
+      },
       "empty": {
         "title": "还没有定时任务",
         "description": "创建第一个任务，自动执行周期性分析、摘要与交付流程。",
@@ -3858,7 +3982,7 @@
           "description": "管理 OpenClaw 为当前实例暴露的共享网页搜索能力及其 Provider 绑定。",
           "enabledDescription": "为该实例切换共享网页搜索能力。",
           "providerPanel": "Provider 配置",
-          "advancedDescription": "高级 JSON 会合并到所选 Provider 的 plugins.entries.<provider>.config.webSearch 对象下。",
+          "advancedDescription": "高级 JSON 会合并到所选 Provider 对应的 OpenClaw 插件 webSearch 配置根中。",
           "fields": {
             "enabled": "启用",
             "provider": "当前 Provider",
@@ -3891,6 +4015,120 @@
           "toasts": {
             "saved": "网页搜索配置已保存。",
             "saveFailed": "保存网页搜索配置失败。"
+          }
+        },
+        "webFetch": {
+          "badge": "网页抓取",
+          "title": "网页抓取",
+          "description": "管理 OpenClaw 共享 web_fetch 运行时配置，以及在可读性提取失败时用于回退的 Firecrawl 配置。",
+          "enabledDescription": "为该实例切换共享 web_fetch 能力。",
+          "readabilityDescription": "优先使用 Readability 提取正文，失败后再回退到 Firecrawl。",
+          "providerPanel": "回退 Provider",
+          "advancedDescription": "高级 JSON 会在应用 API Key 与 Base URL 字段后，合并到 plugins.entries.firecrawl.config.webFetch 下。",
+          "fields": {
+            "enabled": "启用",
+            "readability": "Readability",
+            "maxChars": "最大字符数",
+            "maxCharsCap": "最大字符上限",
+            "maxResponseBytes": "最大响应字节数",
+            "timeoutSeconds": "超时（秒）",
+            "cacheTtlMinutes": "缓存 TTL（分钟）",
+            "maxRedirects": "最大重定向次数",
+            "userAgent": "User-Agent 覆盖",
+            "apiKeySource": "API Key",
+            "baseUrl": "Base URL",
+            "advancedConfig": "高级 JSON"
+          },
+          "metrics": {
+            "fallbackProvider": "回退 Provider"
+          },
+          "placeholders": {
+            "userAgent": "留空以使用 OpenClaw 运行时默认值",
+            "apiKeySource": "fc-...",
+            "baseUrl": "https://api.firecrawl.dev",
+            "advancedConfig": "{\n  \"onlyMainContent\": true,\n  \"maxAgeMs\": 86400000\n}"
+          },
+          "errors": {
+            "maxCharsInvalid": "最大字符数必须是大于 0 的数字。",
+            "maxCharsCapInvalid": "最大字符上限必须是大于 0 的数字。",
+            "maxResponseBytesInvalid": "最大响应字节数必须是大于 0 的数字。",
+            "timeoutInvalid": "超时时间必须是大于 0 的数字。",
+            "cacheTtlInvalid": "缓存 TTL 必须是大于 0 的数字。",
+            "maxRedirectsInvalid": "最大重定向次数必须是大于 0 的数字。"
+          },
+          "toasts": {
+            "saved": "网页抓取配置已保存。",
+            "saveFailed": "保存网页抓取配置失败。"
+          }
+        },
+        "xSearch": {
+          "badge": "管理型 x_search",
+          "title": "X Search 配置",
+          "description": "管理 OpenClaw 一等支持的 xAI x_search 工具及其共享的 XAI API Key，无需再回退到原始 openclaw.json 手动编辑。",
+          "enabledDescription": "为当前实例启用或停用内置 x_search 工具。",
+          "inlineCitationsDescription": "当提供方支持时，在 x_search 返回结果中附带内联引用。",
+          "advancedDescription": "高级 JSON 会在应用托管字段后合并到 plugins.entries.xai.config.xSearch 下。API Key 会写入共享的 xAI webSearch 认证配置。",
+          "fields": {
+            "enabled": "启用",
+            "inlineCitations": "内联引用",
+            "apiKeySource": "共享 XAI API Key",
+            "model": "模型",
+            "maxTurns": "最大轮次",
+            "timeoutSeconds": "超时（秒）",
+            "cacheTtlMinutes": "缓存 TTL（分钟）",
+            "advancedConfig": "高级 JSON"
+          },
+          "metrics": {
+            "sharedAuth": "共享认证",
+            "model": "模型"
+          },
+          "placeholders": {
+            "apiKeySource": "xai-...",
+            "model": "grok-4-1-fast-non-reasoning",
+            "advancedConfig": "{\n  \"userTag\": \"internal-research\"\n}"
+          },
+          "errors": {
+            "maxTurnsInvalid": "最大轮次必须是正数。",
+            "timeoutInvalid": "超时时间必须是正数。",
+            "cacheTtlInvalid": "缓存 TTL 必须是正数。"
+          },
+          "toasts": {
+            "saved": "x_search 配置已保存。",
+            "saveFailed": "保存 x_search 配置失败。"
+          }
+        },
+        "webSearchNativeCodex": {
+          "badge": "原生 Codex 搜索",
+          "title": "OpenAI Codex 原生搜索",
+          "description": "管理 tools.web.search.openaiCodex，让支持 Codex 的模型切换到提供方原生搜索，同时保留非 Codex 路径下的托管 web_search。",
+          "enabledDescription": "为支持 Codex 的模型启用提供方原生 web_search 桥接。",
+          "advancedDescription": "高级 JSON 会在应用托管字段后合并到 tools.web.search.openaiCodex 下。",
+          "fields": {
+            "enabled": "启用",
+            "mode": "模式",
+            "contextSize": "上下文规模",
+            "allowedDomains": "允许域名",
+            "userLocationCountry": "用户位置国家",
+            "userLocationCity": "用户位置城市",
+            "userLocationTimezone": "用户位置时区",
+            "advancedConfig": "高级 JSON"
+          },
+          "metrics": {
+            "mode": "模式",
+            "allowedDomains": "允许域名"
+          },
+          "placeholders": {
+            "mode": "cached",
+            "contextSize": "high",
+            "allowedDomains": "example.com\nopenai.com",
+            "userLocationCountry": "US",
+            "userLocationCity": "New York",
+            "userLocationTimezone": "America/New_York",
+            "advancedConfig": "{\n  \"reasoningEffort\": \"medium\"\n}"
+          },
+          "toasts": {
+            "saved": "原生 Codex 搜索配置已保存。",
+            "saveFailed": "保存原生 Codex 搜索配置失败。"
           }
         },
         "authCooldowns": {
@@ -3927,6 +4165,34 @@
           "toasts": {
             "saved": "认证冷却配置已保存。",
             "saveFailed": "保存认证冷却配置失败。"
+          }
+        },
+        "dreaming": {
+          "badge": "托管梦境",
+          "title": "梦境与 Dream Diary",
+          "description": "管理 plugins.entries.memory-core.config.dreaming，并查看运行时是否已将 Dream Diary 写回到当前记忆面板。",
+          "enabledDescription": "为当前实例启用或停用 OpenClaw dreaming。",
+          "note": "将调度保持为空，即可继续使用 OpenClaw 上游默认的 dreaming 周期。",
+          "diaryReader": "Dream Diary 阅读器",
+          "fields": {
+            "enabled": "启用",
+            "frequency": "梦境调度"
+          },
+          "placeholders": {
+            "frequency": "0 3 * * *"
+          },
+          "metrics": {
+            "status": "状态",
+            "frequency": "调度",
+            "lastDreamDiary": "Dream Diary 更新时间"
+          },
+          "values": {
+            "disabled": "已停用",
+            "upstreamDefault": "上游默认"
+          },
+          "toasts": {
+            "saved": "梦境配置已保存。",
+            "saveFailed": "保存梦境配置失败。"
           }
         },
         "summary": {
@@ -4063,6 +4329,11 @@
           "on": "开",
           "off": "关",
           "streamingDescription": "为运行时响应和实时预览启用 Token 流式输出。",
+          "requestOverrides": "请求覆盖",
+          "requestOverridesDescription": "以 JSON5 编辑官方 models.providers.<provider>.request 传输层覆盖配置。",
+          "requestOverridesHint": "支持的字段：headers、auth、proxy 和 tls。",
+          "requestOverridesPlaceholder": "{\n  auth: {\n    mode: \"authorization-bearer\",\n    token: \"${OPENAI_API_KEY}\"\n  }\n}",
+          "requestOverridesInvalid": "请求覆盖配置必须是合法的 JSON5。",
           "saveConfig": "保存提供方",
           "saving": "保存中...",
           "revertConfig": "恢复配置",
@@ -4293,7 +4564,8 @@
           "runbook": "手册",
           "conversation": "对话",
           "fact": "事实",
-          "artifact": "产物"
+          "artifact": "产物",
+          "dream": "梦境"
         },
         "memorySources": {
           "operator": "操作员",
@@ -6725,7 +6997,12 @@
         "modelListEmptyDescription": "先添加一行模型，再在右侧选择默认、推理和向量角色。",
         "selectionTitle": "路由角色",
         "selectionDescription": "从当前模型列表中选择默认聊天、推理和向量模型。",
-        "runtimeDescription": "不用离开当前编辑器，就可以细调投影后的运行时行为。"
+        "runtimeDescription": "不用离开当前编辑器，就可以细调投影后的运行时行为。",
+        "requestOverridesTitle": "请求覆写",
+        "requestOverridesDescription": "使用 JSON5 直接编写 headers、auth、proxy 与 TLS 请求级配置，确保这些设置能完整穿过本地代理投影链路。",
+        "requestOverrides": "覆写草稿",
+        "requestOverridesPlaceholder": "{\n  headers: {\n    \"cf-aig-authorization\": \"Bearer ${CF_AIG_TOKEN}\",\n  },\n}",
+        "requestOverridesHint": "使用 JSON5。当前支持的顶级字段为 `headers`、`auth`、`proxy` 和 `tls`。"
       },
       "apply": {
         "title": "快速应用路由配置",

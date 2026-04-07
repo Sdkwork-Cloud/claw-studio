@@ -56,13 +56,14 @@ The server package boots the Rust host and serves the browser application throug
 
 ```bash
 pnpm build
+pnpm check:multi-mode
 pnpm check:server
 pnpm server:build
 pnpm tauri:build
 pnpm docs:build
 ```
 
-Use `pnpm build` for the web shell, `pnpm check:server` to validate the native server runtime, `pnpm server:build` for native server packaging, `pnpm tauri:build` for desktop packaging, and `pnpm docs:build` for the public documentation site.
+Use `pnpm build` for the web shell, `pnpm check:multi-mode` when you need one decisive cross-mode gate for desktop/server/OpenClaw/release surfaces, `pnpm check:server` to validate the native server runtime in isolation, `pnpm server:build` for native server packaging, `pnpm tauri:build` for desktop packaging, and `pnpm docs:build` for the public documentation site.
 
 ## Plan And Verify Releases
 

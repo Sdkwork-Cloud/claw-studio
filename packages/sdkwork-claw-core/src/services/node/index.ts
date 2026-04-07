@@ -12,6 +12,7 @@ export * from '../openClawAgentCatalogService.ts';
 export * from '../openClawConfigService.ts';
 export * from '../openClawLocalProxyProjectionService.ts';
 export * from '../openClawMirrorService.ts';
+export * from '../openClawProviderRequestDraftService.ts';
 export * from '../providerRoutingCatalogService.ts';
 export * from '../rolloutService.ts';
 export * from '../settingsService.ts';

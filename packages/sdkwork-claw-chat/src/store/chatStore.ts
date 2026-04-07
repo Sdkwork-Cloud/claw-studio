@@ -47,6 +47,9 @@ export interface ChatSession {
   isDraft?: boolean;
   runId?: string | null;
   thinkingLevel?: string | null;
+  fastMode?: boolean | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
   lastMessagePreview?: string;
   historyState?: 'idle' | 'loading' | 'ready' | 'error';
   sessionKind?: string | null;
@@ -88,6 +91,26 @@ export interface ChatState {
     instanceId: string;
     sessionId: string;
     model: string | null;
+  }) => Promise<void>;
+  setGatewaySessionThinkingLevel: (params: {
+    instanceId: string;
+    sessionId: string;
+    thinkingLevel: string | null;
+  }) => Promise<void>;
+  setGatewaySessionFastMode: (params: {
+    instanceId: string;
+    sessionId: string;
+    fastMode: boolean | null;
+  }) => Promise<void>;
+  setGatewaySessionVerboseLevel: (params: {
+    instanceId: string;
+    sessionId: string;
+    verboseLevel: string | null;
+  }) => Promise<void>;
+  setGatewaySessionReasoningLevel: (params: {
+    instanceId: string;
+    sessionId: string;
+    reasoningLevel: string | null;
   }) => Promise<void>;
   sendGatewayMessage: (params: {
     instanceId: string;
@@ -768,6 +791,18 @@ export const chatStore = createStore<ChatState>()((set, get) => ({
   },
   async setGatewaySessionModel(params) {
     await openClawGatewaySessions.setSessionModel(params);
+  },
+  async setGatewaySessionThinkingLevel(params) {
+    await openClawGatewaySessions.setSessionThinkingLevel(params);
+  },
+  async setGatewaySessionFastMode(params) {
+    await openClawGatewaySessions.setSessionFastMode(params);
+  },
+  async setGatewaySessionVerboseLevel(params) {
+    await openClawGatewaySessions.setSessionVerboseLevel(params);
+  },
+  async setGatewaySessionReasoningLevel(params) {
+    await openClawGatewaySessions.setSessionReasoningLevel(params);
   },
   async sendGatewayMessage(params) {
     return openClawGatewaySessions.sendMessage(params);

@@ -32,6 +32,7 @@ import {
   resolveOpenClawDraftSessionId,
 } from '../services';
 import { resolveChatPageModelSelection } from '../services';
+import { resolveChatThinkingLevelDefaultOption, resolveChatThinkingLevelOptions, } from '../services';
 import {
   shouldLoadChatDirectAgents,
   shouldLoadChatSkills,
@@ -68,6 +69,10 @@ export function Chat() {
     sendGatewayMessage,
     abortSession,
     setGatewaySessionModel,
+    setGatewaySessionThinkingLevel,
+    setGatewaySessionFastMode,
+    setGatewaySessionVerboseLevel,
+    setGatewaySessionReasoningLevel,
   } = useChatStore();
   const { setActiveChannel, setActiveModel, getInstanceConfig } = useLLMStore();
   const { t, i18n } = useTranslation();
@@ -181,6 +186,17 @@ export function Chat() {
     isOpenClawGateway && activeSession
       ? activeSession.model || activeSession.defaultModel || null
       : null;
+  const activeThinkingLevel = isOpenClawGateway ? activeSession?.thinkingLevel ?? null : null;
+  const activeFastMode =
+    isOpenClawGateway
+      ? activeSession?.fastMode === true
+        ? 'on'
+        : activeSession?.fastMode === false
+          ? 'off'
+          : null
+      : null;
+  const activeVerboseLevel = isOpenClawGateway ? activeSession?.verboseLevel ?? null : null;
+  const activeReasoningLevel = isOpenClawGateway ? activeSession?.reasoningLevel ?? null : null;
 
   const {
     data: modelCatalog,
@@ -227,6 +243,57 @@ export function Chat() {
     activeChannelId,
     activeModelId,
   });
+  const activeThinkingModelId =
+    isOpenClawGateway ? sessionSelectedModelId || activeModel?.id || null : null;
+  const thinkingLevelOptions = resolveChatThinkingLevelOptions(activeThinkingModelId).map((value) => ({
+    value,
+    label: t(`chat.page.thinkingLevels.${value}`),
+  }));
+  const resolvedThinkingLevelDefault = resolveChatThinkingLevelDefaultOption(activeThinkingModelId);
+  const thinkingLevelDefaultLabel = resolvedThinkingLevelDefault
+    ? t('chat.page.thinkingLevelDefaultResolved', {
+        level: t(`chat.page.thinkingLevels.${resolvedThinkingLevelDefault}`),
+      })
+    : t('chat.page.thinkingLevelDefault');
+  const sessionControlInheritLabel = t('chat.page.sessionControlInherit');
+  const fastModeOptions = [
+    {
+      value: 'off',
+      label: t('chat.page.fastModes.off'),
+    },
+    {
+      value: 'on',
+      label: t('chat.page.fastModes.on'),
+    },
+  ];
+  const verboseLevelOptions = [
+    {
+      value: 'off',
+      label: t('chat.page.verboseLevels.off'),
+    },
+    {
+      value: 'on',
+      label: t('chat.page.verboseLevels.on'),
+    },
+    {
+      value: 'full',
+      label: t('chat.page.verboseLevels.full'),
+    },
+  ];
+  const reasoningLevelOptions = [
+    {
+      value: 'off',
+      label: t('chat.page.reasoningLevels.off'),
+    },
+    {
+      value: 'on',
+      label: t('chat.page.reasoningLevels.on'),
+    },
+    {
+      value: 'stream',
+      label: t('chat.page.reasoningLevels.stream'),
+    },
+  ];
   const newSessionModel = resolveNewChatSessionModel({
     isOpenClawGateway,
     activeModelId: activeModel?.id,
@@ -932,6 +999,74 @@ export function Chat() {
           routeLabel={sessionRouteLabel}
           errorMessage={effectiveLastError ?? null}
           onOpenSettings={handleOpenSessionSettings}
+          currentThinkingLevel={activeThinkingLevel}
+          thinkingLevelDefaultLabel={thinkingLevelDefaultLabel}
+          thinkingLevelOptions={thinkingLevelOptions}
+          onSelectThinkingLevel={isOpenClawGateway
+            ? (thinkingLevel) => {
+                if (!activeInstanceId || !activeSession) {
+                  return;
+                }
+                void setGatewaySessionThinkingLevel({
+                  instanceId: activeInstanceId,
+                  sessionId: activeSession.id,
+                  thinkingLevel,
+                }).catch((error) => {
+                  console.error('Failed to update OpenClaw session thinking level:', error);
+                });
+              }
+            : undefined}
+          currentFastMode={activeFastMode}
+          fastModeDefaultLabel={sessionControlInheritLabel}
+          fastModeOptions={fastModeOptions}
+          onSelectFastMode={isOpenClawGateway
+            ? (fastMode) => {
+                if (!activeInstanceId || !activeSession) {
+                  return;
+                }
+                void setGatewaySessionFastMode({
+                  instanceId: activeInstanceId,
+                  sessionId: activeSession.id,
+                  fastMode: fastMode === null ? null : fastMode === 'on',
+                }).catch((error) => {
+                  console.error('Failed to update OpenClaw session fast mode:', error);
+                });
+              }
+            : undefined}
+          currentVerboseLevel={activeVerboseLevel}
+          verboseLevelDefaultLabel={sessionControlInheritLabel}
+          verboseLevelOptions={verboseLevelOptions}
+          onSelectVerboseLevel={isOpenClawGateway
+            ? (verboseLevel) => {
+                if (!activeInstanceId || !activeSession) {
+                  return;
+                }
+                void setGatewaySessionVerboseLevel({
+                  instanceId: activeInstanceId,
+                  sessionId: activeSession.id,
+                  verboseLevel,
+                }).catch((error) => {
+                  console.error('Failed to update OpenClaw session verbose level:', error);
+                });
+              }
+            : undefined}
+          currentReasoningLevel={activeReasoningLevel}
+          reasoningLevelDefaultLabel={sessionControlInheritLabel}
+          reasoningLevelOptions={reasoningLevelOptions}
+          onSelectReasoningLevel={isOpenClawGateway
+            ? (reasoningLevel) => {
+                if (!activeInstanceId || !activeSession) {
+                  return;
+                }
+                void setGatewaySessionReasoningLevel({
+                  instanceId: activeInstanceId,
+                  sessionId: activeSession.id,
+                  reasoningLevel,
+                }).catch((error) => {
+                  console.error('Failed to update OpenClaw session reasoning level:', error);
+                });
+              }
+            : undefined}
           agentOptions={agentOptions}
           selectedAgentId={selectedAgentId}
           isAgentLoading={isAgentSelectorLoading}

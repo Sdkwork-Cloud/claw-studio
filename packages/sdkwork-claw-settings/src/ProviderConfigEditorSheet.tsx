@@ -926,6 +926,39 @@ export function ProviderConfigEditorSheet({
                           }
                         />
                       </div>
+
+                      <div
+                        className="mt-4 rounded-[24px] border border-zinc-200/80 bg-zinc-50/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/80"
+                        data-slot="provider-center-request-overrides"
+                      >
+                        <div>
+                          <div className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                            {t('providerCenter.dialogs.editor.requestOverridesTitle')}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {t('providerCenter.dialogs.editor.requestOverridesDescription')}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          <Label>{t('providerCenter.dialogs.editor.requestOverrides')}</Label>
+                          <Textarea
+                            value={draft.requestOverridesDraft}
+                            disabled={isReadOnly}
+                            placeholder={t('providerCenter.dialogs.editor.requestOverridesPlaceholder')}
+                            className="min-h-[220px] resize-y bg-white font-mono text-xs leading-6 shadow-none dark:bg-zinc-950"
+                            onChange={(event) =>
+                              onDraftChange((current) => ({
+                                ...current,
+                                requestOverridesDraft: event.target.value,
+                              }))
+                            }
+                          />
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {t('providerCenter.dialogs.editor.requestOverridesHint')}
+                          </p>
+                        </div>
+                      </div>
                     </section>
                   </div>
                 </div>

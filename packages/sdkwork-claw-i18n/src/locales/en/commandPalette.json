@@ -17,6 +17,10 @@
       "title": "Go to Dashboard",
       "subtitle": "Open the operator control plane"
     },
+    "usage": {
+      "title": "Go to Usage",
+      "subtitle": "Inspect gateway session usage, costs, and detail timelines"
+    },
     "apps": {
       "title": "Go to App Store",
       "subtitle": "Browse AI applications"

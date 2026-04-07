@@ -152,6 +152,63 @@ await runTest('preserves provider runtime config when projecting the managed loc
   });
 });
 
+await runTest('preserves provider request overrides when projecting the managed local proxy provider', () => {
+  const projection = createOpenClawLocalProxyProjection({
+    routes: [
+      {
+        id: 'route-cloudflare-gateway',
+        schemaVersion: 1,
+        name: 'Cloudflare AI Gateway',
+        enabled: true,
+        isDefault: true,
+        managedBy: 'user',
+        clientProtocol: 'anthropic',
+        upstreamProtocol: 'anthropic',
+        providerId: 'cloudflare-ai-gateway',
+        upstreamBaseUrl: 'https://gateway.ai.cloudflare.com/v1/account/gateway/anthropic',
+        apiKey: 'cf-gateway-secret',
+        defaultModelId: 'claude-sonnet-4-20250514',
+        reasoningModelId: 'claude-opus-4-20250514',
+        models: [
+          { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+          { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+        ],
+        exposeTo: ['openclaw'],
+      },
+    ],
+    preferredClientProtocol: 'anthropic',
+    proxyBaseUrl: 'http://127.0.0.1:18791/v1',
+    proxyApiKey: 'sk_sdkwork_api_key',
+    runtimeConfig: {
+      temperature: 0.2,
+      topP: 1,
+      maxTokens: 8192,
+      timeoutMs: 60000,
+      streaming: true,
+      request: {
+        headers: {
+          'cf-aig-authorization': 'Bearer cf-gateway-secret',
+          'x-openai-client': 'claw-studio',
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(projection.provider.config, {
+    temperature: 0.2,
+    topP: 1,
+    maxTokens: 8192,
+    timeoutMs: 60000,
+    streaming: true,
+    request: {
+      headers: {
+        'cf-aig-authorization': 'Bearer cf-gateway-secret',
+        'x-openai-client': 'claw-studio',
+      },
+    },
+  });
+});
+
 await runTest('projects a native gemini local proxy route when the OpenClaw projection explicitly prefers gemini', () => {
   const projection = createOpenClawLocalProxyProjection({
     routes: [

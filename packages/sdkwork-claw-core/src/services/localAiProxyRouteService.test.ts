@@ -124,8 +124,33 @@ await runTest('infers native local proxy client protocols for anthropic and gemi
   assert.equal(inferLocalAiProxyClientProtocol('anthropic'), 'anthropic');
   assert.equal(inferLocalAiProxyClientProtocol('google'), 'gemini');
   assert.equal(inferLocalAiProxyClientProtocol('gemini'), 'gemini');
+  assert.equal(inferLocalAiProxyClientProtocol('ollama'), 'openai-compatible');
   assert.equal(inferLocalAiProxyClientProtocol('openai'), 'openai-compatible');
   assert.equal(inferLocalAiProxyClientProtocol('openrouter'), 'openai-compatible');
+});
+
+await runTest('preserves the native ollama upstream protocol while keeping the local proxy client surface openai-compatible', () => {
+  const route = normalizeLocalAiProxyRouteRecord({
+    id: 'route-ollama-native',
+    schemaVersion: 1,
+    name: 'Ollama Native',
+    enabled: true,
+    isDefault: true,
+    managedBy: 'user',
+    clientProtocol: 'openai-compatible',
+    upstreamProtocol: 'ollama',
+    providerId: 'ollama',
+    upstreamBaseUrl: 'http://127.0.0.1:11434',
+    apiKey: 'ollama-local',
+    defaultModelId: 'glm-4.7-flash',
+    models: [{ id: 'glm-4.7-flash', name: 'GLM 4.7 Flash' }],
+    exposeTo: ['openclaw'],
+  });
+
+  assert.equal(route?.clientProtocol, 'openai-compatible');
+  assert.equal(route?.upstreamProtocol, 'ollama');
+  assert.equal(route?.providerId, 'ollama');
+  assert.equal(route?.upstreamBaseUrl, 'http://127.0.0.1:11434');
 });
 
 await runTest('rejects upstream-only protocols as local proxy client protocols during normalization', () => {

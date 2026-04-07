@@ -33,6 +33,44 @@
     "noneSelected": "Not set",
     "routeMode": "Route Mode",
     "configureModels": "Configure models",
+    "thinkingLevel": "Thinking Level",
+    "thinkingLevelDescription": "Choose how much extra reasoning the OpenClaw gateway should use for this session.",
+    "thinkingLevelPlaceholder": "Select a thinking level",
+    "thinkingLevelDefault": "Use runtime default",
+    "thinkingLevelDefaultResolved": "Default ({{level}})",
+    "sessionControlInherit": "Inherit runtime default",
+    "fastMode": "Fast Mode",
+    "fastModeDescription": "Prefer faster, less deliberate responses for this session when the upstream runtime supports it.",
+    "fastModePlaceholder": "Select a fast mode",
+    "fastModes": {
+      "off": "Off",
+      "on": "On"
+    },
+    "verboseLevel": "Verbose Output",
+    "verboseLevelDescription": "Control how much extra progress and status detail OpenClaw should return for this session.",
+    "verboseLevelPlaceholder": "Select a verbose level",
+    "verboseLevels": {
+      "off": "Off",
+      "on": "On",
+      "full": "Full"
+    },
+    "reasoningLevel": "Reasoning Output",
+    "reasoningLevelDescription": "Choose whether reasoning content stays hidden, appears after the answer, or streams when the upstream channel supports it.",
+    "reasoningLevelPlaceholder": "Select a reasoning output mode",
+    "reasoningLevels": {
+      "off": "Off",
+      "on": "On",
+      "stream": "Stream (Telegram)"
+    },
+    "thinkingLevels": {
+      "off": "Off",
+      "on": "On",
+      "minimal": "Minimal",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "adaptive": "Adaptive"
+    },
     "agentSelectionDescription": "Choose which agent workflow should receive new turns in this conversation.",
     "skillSelectionDescription": "Apply a focused skill preset or keep the conversation in general mode.",
     "noMatchingAgents": "No matching agents found.",

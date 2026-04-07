@@ -88,6 +88,11 @@ const Dashboard = lazy(() =>
     default: module.Dashboard,
   })),
 );
+const UsageWorkspace = lazy(() =>
+  import('@sdkwork/claw-dashboard').then((module) => ({
+    default: module.UsageWorkspace,
+  })),
+);
 const Docs = lazy(() =>
   import('@sdkwork/claw-docs').then((module) => ({
     default: module.Docs,
@@ -261,6 +266,16 @@ export function AppRoutes() {
             <PageWrapper>
               <Suspense fallback={<RouteFallback />}>
                 <Dashboard />
+              </Suspense>
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/usage"
+          element={
+            <PageWrapper>
+              <Suspense fallback={<RouteFallback />}>
+                <UsageWorkspace />
               </Suspense>
             </PageWrapper>
           }

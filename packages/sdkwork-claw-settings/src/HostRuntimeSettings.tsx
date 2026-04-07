@@ -25,6 +25,23 @@ function renderValue(value: string | null | undefined, fallback: string) {
   return value?.trim() ? value : fallback;
 }
 
+function renderNumberValue(value: number | null | undefined, fallback: string) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : fallback;
+}
+
+function renderBooleanValue(
+  value: boolean | null | undefined,
+  yesLabel: string,
+  noLabel: string,
+  fallback: string,
+) {
+  if (typeof value !== 'boolean') {
+    return fallback;
+  }
+
+  return value ? yesLabel : noLabel;
+}
+
 export function HostRuntimeSettings({
   dashboard,
 }: {
@@ -33,6 +50,8 @@ export function HostRuntimeSettings({
   const { t } = useTranslation();
   const notAvailableLabel = t('settings.kernelCenter.values.notAvailable');
   const noneLabel = t('settings.kernelCenter.values.none');
+  const yesLabel = t('settings.kernelCenter.values.yes');
+  const noLabel = t('settings.kernelCenter.values.no');
   const hostRuntime = dashboard?.hostRuntime ?? {
     mode: 'web' as const,
     modeLabel: t('settings.kernelCenter.hostRuntime.defaults.webPreview'),
@@ -43,6 +62,22 @@ export function HostRuntimeSettings({
     browserManagementLabel: t('settings.kernelCenter.hostRuntime.defaults.browserManagementUnavailable'),
     manageBasePath: null,
     internalBasePath: null,
+  };
+  const hostRuntimeContract = dashboard?.hostRuntimeContract ?? {
+    hostMode: null,
+    distributionFamily: null,
+    deploymentFamily: null,
+    acceleratorProfile: null,
+    browserBaseUrl: null,
+    hostEndpointId: null,
+    hostRequestedPort: null,
+    hostActivePort: null,
+    hostLoopbackOnly: null,
+    hostDynamicPort: null,
+    stateStoreDriver: null,
+    stateStoreProfileId: null,
+    runtimeDataDir: null,
+    webDistDir: null,
   };
   const hostPlatform = dashboard?.hostPlatform ?? {
     status: null,
@@ -100,6 +135,74 @@ export function HostRuntimeSettings({
           <DetailCard
             label={t('settings.kernelCenter.hostRuntime.cards.internalPath')}
             value={renderValue(hostRuntime.internalBasePath, notAvailableLabel)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.hostMode')}
+            value={renderValue(hostRuntimeContract.hostMode, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.distributionFamily')}
+            value={renderValue(hostRuntimeContract.distributionFamily, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.deploymentFamily')}
+            value={renderValue(hostRuntimeContract.deploymentFamily, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.acceleratorProfile')}
+            value={renderValue(hostRuntimeContract.acceleratorProfile, noneLabel)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.descriptorBrowserBaseUrl')}
+            value={renderValue(hostRuntimeContract.browserBaseUrl, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.descriptorEndpointId')}
+            value={renderValue(hostRuntimeContract.hostEndpointId, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.stateStoreDriver')}
+            value={renderValue(hostRuntimeContract.stateStoreDriver, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.stateStoreProfileId')}
+            value={renderValue(hostRuntimeContract.stateStoreProfileId, notAvailableLabel)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.requestedPort')}
+            value={renderNumberValue(hostRuntimeContract.hostRequestedPort, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.activePort')}
+            value={renderNumberValue(hostRuntimeContract.hostActivePort, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.loopbackOnly')}
+            value={renderBooleanValue(hostRuntimeContract.hostLoopbackOnly, yesLabel, noLabel, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.dynamicPort')}
+            value={renderBooleanValue(hostRuntimeContract.hostDynamicPort, yesLabel, noLabel, notAvailableLabel)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.runtimeDataDir')}
+            value={renderValue(hostRuntimeContract.runtimeDataDir, notAvailableLabel)}
+          />
+          <DetailCard
+            label={t('settings.kernelCenter.hostRuntime.cards.webDistDir')}
+            value={renderValue(hostRuntimeContract.webDistDir, notAvailableLabel)}
           />
         </div>
 

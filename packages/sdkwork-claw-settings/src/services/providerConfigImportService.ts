@@ -78,11 +78,22 @@ const PROVIDER_LABELS: Record<string, string> = {
   anthropic: 'Anthropic',
   google: 'Google',
   xai: 'xAI',
+  groq: 'Groq',
+  ollama: 'Ollama',
   openrouter: 'OpenRouter',
+  'vercel-ai-gateway': 'Vercel AI Gateway',
+  litellm: 'LiteLLM',
+  sglang: 'SGLang',
+  together: 'Together',
   deepseek: 'DeepSeek',
   qwen: 'Qwen',
+  fireworks: 'Fireworks',
+  kilocode: 'Kilo Code',
   mistral: 'Mistral',
   cohere: 'Cohere',
+  venice: 'Venice',
+  vllm: 'vLLM',
+  'amazon-bedrock-mantle': 'Amazon Bedrock Mantle',
 };
 
 function isRecord(value: unknown): value is JsonRecord {

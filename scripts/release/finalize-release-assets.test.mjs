@@ -46,6 +46,97 @@ function buildInstallReadyLayout({
   };
 }
 
+function buildDesktopStartupSmokeReport({
+  manifestPath,
+  capturedEvidenceRelativePath = 'desktop/windows/x64/diagnostics/desktop-startup-evidence.json',
+  target = 'x86_64-pc-windows-msvc',
+  artifactRelativePaths = [
+    'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
+  ],
+} = {}) {
+  return {
+    platform: 'windows',
+    arch: 'x64',
+    target,
+    status: 'passed',
+    phase: 'shell-mounted',
+    verifiedAt: '2026-04-06T12:13:14.000Z',
+    manifestPath,
+    capturedEvidenceRelativePath,
+    descriptorBrowserBaseUrl: 'http://127.0.0.1:19797',
+    builtInInstanceId: 'local-built-in',
+    builtInInstanceStatus: 'online',
+    artifactRelativePaths,
+    checks: [
+      {
+        id: 'startup-status',
+        status: 'passed',
+        detail: 'desktop startup evidence recorded a passed launch',
+      },
+      {
+        id: 'startup-phase',
+        status: 'passed',
+        detail: 'desktop startup evidence recorded shell-mounted phase',
+      },
+      {
+        id: 'runtime-readiness',
+        status: 'passed',
+        detail: 'desktop startup evidence preserved ready runtime invariants',
+      },
+      {
+        id: 'built-in-instance',
+        status: 'passed',
+        detail: 'desktop startup evidence preserved the managed built-in instance projection',
+      },
+      {
+        id: 'gateway-websocket',
+        status: 'passed',
+        detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+      },
+    ],
+  };
+}
+
+function writePassingDesktopStartupSmokeFixture({
+  windowsDir,
+  manifestPath,
+  artifactRelativePath = 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
+} = {}) {
+  const diagnosticsDir = path.join(windowsDir, 'diagnostics');
+  mkdirSync(diagnosticsDir, { recursive: true });
+  writeFileSync(
+    path.join(diagnosticsDir, 'desktop-startup-evidence.json'),
+    `${JSON.stringify({
+      version: 1,
+      status: 'passed',
+      phase: 'shell-mounted',
+      runId: 2,
+      durationMs: 1842,
+      recordedAt: '2026-04-06T12:13:14.000Z',
+      descriptor: {
+        browserBaseUrl: 'http://127.0.0.1:19797',
+      },
+      builtInInstance: {
+        id: 'local-built-in',
+        status: 'online',
+      },
+      readinessEvidence: {
+        ready: true,
+        gatewayWebsocketDialable: true,
+      },
+    }, null, 2)}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    path.join(windowsDir, 'desktop-startup-smoke-report.json'),
+    `${JSON.stringify(buildDesktopStartupSmokeReport({
+      manifestPath,
+      artifactRelativePaths: [artifactRelativePath],
+    }), null, 2)}\n`,
+    'utf8',
+  );
+}
+
 function buildServerSmokeReport({
   manifestPath,
   platform = 'linux',
@@ -87,6 +178,108 @@ function buildServerSmokeReport({
   };
 }
 
+function buildContainerDeploymentChecks() {
+  return [
+    {
+      id: 'deployment-identity',
+      status: 'passed',
+      detail: 'packaged container bundle preserves deployment family and accelerator identity',
+    },
+    {
+      id: 'runtime-profile',
+      status: 'passed',
+      detail: 'packaged container profile pins safe public bind and data directory defaults',
+    },
+    {
+      id: 'manage-credentials',
+      status: 'passed',
+      detail: 'packaged docker compose requires explicit manage credentials',
+    },
+    {
+      id: 'persistent-storage',
+      status: 'passed',
+      detail: 'packaged docker compose persists /var/lib/claw-server',
+    },
+    {
+      id: 'docker-compose-up',
+      status: 'passed',
+      detail: 'docker compose brought the packaged bundle online',
+    },
+    {
+      id: 'docker-compose-healthy',
+      status: 'passed',
+      detail: 'docker compose reported all packaged services healthy',
+    },
+    {
+      id: 'health-ready',
+      status: 'passed',
+      detail: '/claw/health/ready returned 200',
+    },
+    {
+      id: 'host-endpoints',
+      status: 'passed',
+      detail: '/claw/manage/v1/host-endpoints returned canonical endpoints',
+    },
+    {
+      id: 'browser-shell',
+      status: 'passed',
+      detail: '/ returned bundled browser shell HTML',
+    },
+  ];
+}
+
+function buildKubernetesDeploymentChecks() {
+  return [
+    {
+      id: 'helm-template',
+      status: 'passed',
+      detail: 'helm template rendered the packaged chart successfully',
+    },
+    {
+      id: 'deployment-identity',
+      status: 'passed',
+      detail: 'packaged kubernetes bundle preserves target architecture and accelerator identity',
+    },
+    {
+      id: 'image-reference',
+      status: 'passed',
+      detail: 'rendered manifests reference the packaged OCI image coordinates',
+    },
+    {
+      id: 'configmap-runtime-identity',
+      status: 'passed',
+      detail: 'rendered config map preserves kubernetes deployment family and accelerator profile',
+    },
+    {
+      id: 'readiness-probe',
+      status: 'passed',
+      detail: 'rendered deployment probes /claw/health/ready',
+    },
+    {
+      id: 'secret-ref',
+      status: 'passed',
+      detail: 'rendered deployment consumes Secret-backed control-plane credentials',
+    },
+    {
+      id: 'persistent-storage',
+      status: 'passed',
+      detail: 'rendered manifests mount /var/lib/claw-server through a PersistentVolumeClaim',
+    },
+  ];
+}
+
+function buildDefaultDeploymentChecks(family) {
+  return family === 'container'
+    ? buildContainerDeploymentChecks()
+    : buildKubernetesDeploymentChecks();
+}
+
+function buildDeploymentChecksWithout(family, missingCheckId) {
+  return buildDefaultDeploymentChecks(family).filter(
+    (check) => check.id !== missingCheckId,
+  );
+}
+
 function buildDeploymentSmokeReport({
   family,
   manifestPath,
@@ -98,46 +291,7 @@ function buildDeploymentSmokeReport({
   artifactRelativePaths = [],
   launcherRelativePath = family === 'container' ? 'deploy/docker-compose.yml' : 'chart/Chart.yaml',
   runtimeBaseUrl = family === 'container' ? 'http://127.0.0.1:18797' : '',
-  checks = family === 'container'
-    ? [
-        {
-          id: 'docker-compose-up',
-          status: 'passed',
-          detail: 'docker compose brought the packaged bundle online',
-        },
-        {
-          id: 'health-ready',
-          status: 'passed',
-          detail: '/claw/health/ready returned 200',
-        },
-        {
-          id: 'host-endpoints',
-          status: 'passed',
-          detail: '/claw/manage/v1/host-endpoints returned canonical endpoints',
-        },
-        {
-          id: 'browser-shell',
-          status: 'passed',
-          detail: '/ returned bundled browser shell HTML',
-        },
-      ]
-    : [
-        {
-          id: 'helm-template',
-          status: 'passed',
-          detail: 'helm template rendered the packaged chart successfully',
-        },
-        {
-          id: 'image-reference',
-          status: 'passed',
-          detail: 'rendered manifests reference the packaged OCI image coordinates',
-        },
-        {
-          id: 'readiness-probe',
-          status: 'passed',
-          detail: 'rendered deployment probes /claw/health/ready',
-        },
-      ],
+  checks = buildDefaultDeploymentChecks(family),
 } = {}) {
   return {
     family,
@@ -292,6 +446,10 @@ test('release asset finalizer writes a global checksum manifest and release mani
       }, null, 2)}\n`,
       'utf8',
     );
+    writePassingDesktopStartupSmokeFixture({
+      windowsDir,
+      manifestPath: path.join(windowsDir, 'release-asset-manifest.json'),
+    });
 
     finalizer.finalizeReleaseAssets({
       profileId: 'claw-studio',
@@ -467,6 +625,246 @@ test('release asset finalizer rejects desktop release assets when installer smok
         releaseAssetsDir,
       }),
       /Desktop installer smoke report does not match the current installable artifact set/,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer rejects desktop release assets when startup smoke evidence is missing', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-desktop-startup-required-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const windowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'x64');
+
+  try {
+    mkdirSync(windowsDir, { recursive: true });
+    writeFileSync(
+      path.join(windowsDir, 'Claw.Studio_0.1.0_x64-setup.exe'),
+      'windows-installer',
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'release-asset-manifest.json'),
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-07',
+        platform: 'windows',
+        arch: 'x64',
+        openClawInstallerContract: buildInstallerContract('windows'),
+        artifacts: [
+          {
+            name: 'Claw.Studio_0.1.0_x64-setup.exe',
+            relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
+            platform: 'windows',
+            arch: 'x64',
+            kind: 'installer',
+            sha256: 'placeholder',
+            size: 17,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'installer-smoke-report.json'),
+      `${JSON.stringify({
+        platform: 'windows',
+        arch: 'x64',
+        target: 'x86_64-pc-windows-msvc',
+        manifestPath: path.join(windowsDir, 'release-asset-manifest.json'),
+        verifiedAt: '2026-04-05T11:22:33.000Z',
+        installableArtifactRelativePaths: [
+          'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
+        ],
+        requiredCompanionArtifactRelativePaths: [],
+        installReadyLayout: buildInstallReadyLayout({
+          mode: 'simulated-prewarm',
+          installKey: '2026.4.2-windows-x64',
+        }),
+        openClawInstallerContract: buildInstallerContract('windows'),
+        installPlanSummaries: [
+          {
+            relativePath: 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
+            format: 'nsis',
+            platform: 'windows',
+            stepCount: 3,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-07',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Missing desktop startup smoke report/,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('release asset finalizer lifts desktop startup smoke metadata onto desktop artifacts when launched-session evidence exists', async () => {
+  const finalizerPath = path.join(rootDir, 'scripts', 'release', 'finalize-release-assets.mjs');
+  const finalizer = await import(pathToFileURL(finalizerPath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-finalize-desktop-startup-smoke-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const windowsDir = path.join(releaseAssetsDir, 'desktop', 'windows', 'x64');
+  const diagnosticsDir = path.join(windowsDir, 'diagnostics');
+  const manifestPath = path.join(windowsDir, 'release-asset-manifest.json');
+  const artifactRelativePath = 'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe';
+
+  try {
+    mkdirSync(windowsDir, { recursive: true });
+    mkdirSync(diagnosticsDir, { recursive: true });
+    writeFileSync(
+      path.join(windowsDir, 'Claw.Studio_0.1.0_x64-setup.exe'),
+      'windows-installer',
+      'utf8',
+    );
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-08',
+        platform: 'windows',
+        arch: 'x64',
+        openClawInstallerContract: buildInstallerContract('windows'),
+        artifacts: [
+          {
+            name: 'Claw.Studio_0.1.0_x64-setup.exe',
+            relativePath: artifactRelativePath,
+            platform: 'windows',
+            arch: 'x64',
+            kind: 'installer',
+            sha256: 'placeholder',
+            size: 17,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'installer-smoke-report.json'),
+      `${JSON.stringify({
+        platform: 'windows',
+        arch: 'x64',
+        target: 'x86_64-pc-windows-msvc',
+        manifestPath,
+        verifiedAt: '2026-04-05T11:22:33.000Z',
+        installableArtifactRelativePaths: [artifactRelativePath],
+        requiredCompanionArtifactRelativePaths: [],
+        installReadyLayout: buildInstallReadyLayout({
+          mode: 'simulated-prewarm',
+          installKey: '2026.4.2-windows-x64',
+        }),
+        openClawInstallerContract: buildInstallerContract('windows'),
+        installPlanSummaries: [
+          {
+            relativePath: artifactRelativePath,
+            format: 'nsis',
+            platform: 'windows',
+            stepCount: 3,
+          },
+        ],
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(diagnosticsDir, 'desktop-startup-evidence.json'),
+      `${JSON.stringify({
+        version: 1,
+        status: 'passed',
+        phase: 'shell-mounted',
+        runId: 2,
+        durationMs: 1842,
+        recordedAt: '2026-04-06T12:13:14.000Z',
+        descriptor: {
+          browserBaseUrl: 'http://127.0.0.1:19797',
+        },
+        builtInInstance: {
+          id: 'local-built-in',
+          status: 'online',
+        },
+        readinessEvidence: {
+          ready: true,
+          gatewayWebsocketDialable: true,
+        },
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'desktop-startup-smoke-report.json'),
+      `${JSON.stringify(buildDesktopStartupSmokeReport({
+        manifestPath,
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    finalizer.finalizeReleaseAssets({
+      profileId: 'claw-studio',
+      releaseTag: 'release-2026-04-06-08',
+      repository: 'Sdkwork-Cloud/claw-studio',
+      releaseAssetsDir,
+    });
+
+    const manifest = JSON.parse(
+      readFileSync(path.join(releaseAssetsDir, 'release-manifest.json'), 'utf8'),
+    );
+    const desktopArtifact = manifest.artifacts.find(
+      (artifact) => artifact.relativePath === artifactRelativePath,
+    );
+
+    assert.deepEqual(
+      desktopArtifact?.desktopStartupSmoke,
+      {
+        reportRelativePath: 'desktop/windows/x64/desktop-startup-smoke-report.json',
+        manifestRelativePath: 'desktop/windows/x64/release-asset-manifest.json',
+        capturedEvidenceRelativePath: 'desktop/windows/x64/diagnostics/desktop-startup-evidence.json',
+        verifiedAt: '2026-04-06T12:13:14.000Z',
+        target: 'x86_64-pc-windows-msvc',
+        status: 'passed',
+        phase: 'shell-mounted',
+        descriptorBrowserBaseUrl: 'http://127.0.0.1:19797',
+        builtInInstanceId: 'local-built-in',
+        builtInInstanceStatus: 'online',
+        artifactRelativePaths: [artifactRelativePath],
+        checks: [
+          {
+            id: 'startup-status',
+            status: 'passed',
+            detail: 'desktop startup evidence recorded a passed launch',
+          },
+          {
+            id: 'startup-phase',
+            status: 'passed',
+            detail: 'desktop startup evidence recorded shell-mounted phase',
+          },
+          {
+            id: 'runtime-readiness',
+            status: 'passed',
+            detail: 'desktop startup evidence preserved ready runtime invariants',
+          },
+          {
+            id: 'built-in-instance',
+            status: 'passed',
+            detail: 'desktop startup evidence preserved the managed built-in instance projection',
+          },
+          {
+            id: 'gateway-websocket',
+            status: 'passed',
+            detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+          },
+        ],
+      },
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -1140,9 +1538,34 @@ test('release asset finalizer lifts deployment smoke metadata onto container and
         artifactRelativePaths: [containerArchiveRelativePath],
         checks: [
           {
+            id: 'deployment-identity',
+            status: 'passed',
+            detail: 'packaged container bundle preserves deployment family and accelerator identity',
+          },
+          {
+            id: 'runtime-profile',
+            status: 'passed',
+            detail: 'packaged container profile pins safe public bind and data directory defaults',
+          },
+          {
+            id: 'manage-credentials',
+            status: 'passed',
+            detail: 'packaged docker compose requires explicit manage credentials',
+          },
+          {
+            id: 'persistent-storage',
+            status: 'passed',
+            detail: 'packaged docker compose persists /var/lib/claw-server',
+          },
+          {
             id: 'docker-compose-up',
             status: 'passed',
             detail: 'docker compose brought the packaged bundle online',
+          },
+          {
+            id: 'docker-compose-healthy',
+            status: 'passed',
+            detail: 'docker compose reported all packaged services healthy',
           },
           {
             id: 'health-ready',
@@ -1180,14 +1603,34 @@ test('release asset finalizer lifts deployment smoke metadata onto container and
             detail: 'helm template rendered the packaged chart successfully',
           },
           {
+            id: 'deployment-identity',
+            status: 'passed',
+            detail: 'packaged kubernetes bundle preserves target architecture and accelerator identity',
+          },
+          {
             id: 'image-reference',
             status: 'passed',
             detail: 'rendered manifests reference the packaged OCI image coordinates',
           },
           {
+            id: 'configmap-runtime-identity',
+            status: 'passed',
+            detail: 'rendered config map preserves kubernetes deployment family and accelerator profile',
+          },
+          {
             id: 'readiness-probe',
             status: 'passed',
             detail: 'rendered deployment probes /claw/health/ready',
+          },
+          {
+            id: 'secret-ref',
+            status: 'passed',
+            detail: 'rendered deployment consumes Secret-backed control-plane credentials',
+          },
+          {
+            id: 'persistent-storage',
+            status: 'passed',
+            detail: 'rendered manifests mount /var/lib/claw-server through a PersistentVolumeClaim',
           },
         ],
       },
@@ -1299,6 +1742,150 @@ test('release asset finalizer rejects deployment artifacts when smoke evidence i
         releaseAssetsDir,
       }),
       /Kubernetes deployment smoke report does not match the current artifact set/,
+    );
+
+    writeFileSync(
+      path.join(kubernetesDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'kubernetes',
+        manifestPath: kubernetesManifestPath,
+        artifactRelativePaths: [kubernetesArchiveRelativePath],
+      }), null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(containerDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'container',
+        manifestPath: containerManifestPath,
+        artifactRelativePaths: [containerArchiveRelativePath],
+        checks: buildDeploymentChecksWithout('container', 'deployment-identity'),
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-06',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Container deployment smoke report is missing a passing deployment-identity check/,
+    );
+
+    writeFileSync(
+      path.join(containerDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'container',
+        manifestPath: containerManifestPath,
+        artifactRelativePaths: [containerArchiveRelativePath],
+        checks: buildDeploymentChecksWithout('container', 'runtime-profile'),
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-06',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Container deployment smoke report is missing a passing runtime-profile check/,
+    );
+
+    writeFileSync(
+      path.join(containerDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'container',
+        manifestPath: containerManifestPath,
+        artifactRelativePaths: [containerArchiveRelativePath],
+        checks: buildDeploymentChecksWithout('container', 'manage-credentials'),
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-06',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Container deployment smoke report is missing a passing manage-credentials check/,
+    );
+
+    writeFileSync(
+      path.join(containerDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'container',
+        manifestPath: containerManifestPath,
+        artifactRelativePaths: [containerArchiveRelativePath],
+      }), null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(kubernetesDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'kubernetes',
+        manifestPath: kubernetesManifestPath,
+        artifactRelativePaths: [kubernetesArchiveRelativePath],
+        checks: buildDeploymentChecksWithout('kubernetes', 'deployment-identity'),
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-06',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Kubernetes deployment smoke report is missing a passing deployment-identity check/,
+    );
+
+    writeFileSync(
+      path.join(kubernetesDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'kubernetes',
+        manifestPath: kubernetesManifestPath,
+        artifactRelativePaths: [kubernetesArchiveRelativePath],
+        checks: buildDeploymentChecksWithout('kubernetes', 'configmap-runtime-identity'),
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-06',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Kubernetes deployment smoke report is missing a passing configmap-runtime-identity check/,
+    );
+
+    writeFileSync(
+      path.join(kubernetesDir, 'release-smoke-report.json'),
+      `${JSON.stringify(buildDeploymentSmokeReport({
+        family: 'kubernetes',
+        manifestPath: kubernetesManifestPath,
+        artifactRelativePaths: [kubernetesArchiveRelativePath],
+        checks: buildDeploymentChecksWithout('kubernetes', 'persistent-storage'),
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-06',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /Kubernetes deployment smoke report is missing a passing persistent-storage check/,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

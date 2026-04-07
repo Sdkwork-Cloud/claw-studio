@@ -218,6 +218,43 @@ function normalizeStringArray(values) {
     : [];
 }
 
+function normalizeDeploymentAccelerator(accelerator = 'cpu') {
+  return String(accelerator ?? '').trim().toLowerCase() || 'cpu';
+}
+
+function parseSimpleEnvFile(content) {
+  const entries = new Map();
+  for (const rawLine of String(content ?? '').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    entries.set(
+      line.slice(0, separatorIndex).trim(),
+      line.slice(separatorIndex + 1).trim(),
+    );
+  }
+
+  return entries;
+}
+
+function resolveExpectedKubernetesNodeArch(arch = '') {
+  const normalizedArch = normalizeDesktopArch(arch);
+  if (normalizedArch === 'x64') {
+    return 'amd64';
+  }
+  if (normalizedArch === 'arm64') {
+    return 'arm64';
+  }
+
+  throw new Error(`Unsupported kubernetes release architecture: ${arch}`);
+}
+
 function resolveContainerComposeFilePaths(accelerator = 'cpu') {
   const composeFiles = ['deploy/docker-compose.yml'];
   const normalizedAccelerator = String(accelerator ?? '').trim().toLowerCase() || 'cpu';
@@ -272,6 +309,203 @@ export function runDockerComposeDown({
     env,
     label: 'Stopping packaged container deployment smoke',
   });
+}
+
+export function runDockerComposePs({
+  bundleRoot,
+  accelerator = 'cpu',
+  env,
+} = {}) {
+  const composeFiles = resolveContainerComposeFilePaths(accelerator);
+  const args = ['compose'];
+  for (const composeFile of composeFiles) {
+    args.push('-f', composeFile);
+  }
+  args.push('ps', '--format', 'json');
+
+  return runCommand({
+    command: 'docker',
+    args,
+    cwd: bundleRoot,
+    env,
+    label: 'Inspecting packaged container deployment smoke health',
+  }).stdout;
+}
+
+export function parseDockerComposePsOutput(output) {
+  const normalizedOutput = String(output ?? '').trim();
+  if (!normalizedOutput) {
+    throw new Error('docker compose ps returned no packaged service records.');
+  }
+
+  const rawEntries = normalizedOutput.startsWith('[')
+    ? JSON.parse(normalizedOutput)
+    : normalizedOutput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  const records = Array.isArray(rawEntries) ? rawEntries : [rawEntries];
+
+  return records.map((record) => ({
+    service: String(record?.Service ?? record?.service ?? '').trim(),
+    name: String(record?.Name ?? record?.name ?? '').trim(),
+    state: String(record?.State ?? record?.state ?? record?.Status ?? '').trim().toLowerCase(),
+    health: String(record?.Health ?? record?.health ?? '').trim().toLowerCase(),
+  }));
+}
+
+export function inspectDockerComposeHealth({
+  bundleRoot,
+  accelerator = 'cpu',
+  env,
+} = {}) {
+  const services = parseDockerComposePsOutput(runDockerComposePs({
+    bundleRoot,
+    accelerator,
+    env,
+  }));
+
+  if (services.length === 0) {
+    throw new Error('docker compose ps did not report any packaged services.');
+  }
+
+  for (const service of services) {
+    const serviceLabel = service.service || service.name || 'unknown-service';
+    if (!service.state.includes('running')) {
+      throw new Error(
+        `Packaged docker compose service ${serviceLabel} is not running (state: ${service.state || 'unknown'}).`,
+      );
+    }
+    if (!service.health) {
+      throw new Error(
+        `Packaged docker compose service ${serviceLabel} did not expose a health status.`,
+      );
+    }
+    if (service.health !== 'healthy') {
+      throw new Error(
+        `Packaged docker compose service ${serviceLabel} is not healthy (health: ${service.health}).`,
+      );
+    }
+  }
+
+  return {
+    services,
+  };
+}
+
+export function inspectContainerDeploymentContract({
+  bundleRoot,
+  accelerator = 'cpu',
+} = {}) {
+  const composePath = path.join(bundleRoot, 'deploy', 'docker-compose.yml');
+  const defaultProfilePath = path.join(bundleRoot, 'deploy', 'profiles', 'default.env');
+  const releaseMetadata = requireDeploymentBundleReleaseMetadata(bundleRoot);
+  const normalizedAccelerator = normalizeDeploymentAccelerator(accelerator);
+  if (!existsSync(composePath)) {
+    throw new Error(`Packaged container bundle is missing deploy/docker-compose.yml: ${composePath}`);
+  }
+  if (!existsSync(defaultProfilePath)) {
+    throw new Error(`Packaged container bundle is missing deploy/profiles/default.env: ${defaultProfilePath}`);
+  }
+
+  const composeDefinition = readFileSync(composePath, 'utf8');
+  const defaultProfileEntries = parseSimpleEnvFile(readFileSync(defaultProfilePath, 'utf8'));
+  const metadataFamily = String(releaseMetadata?.family ?? '').trim().toLowerCase();
+  const metadataAccelerator = normalizeDeploymentAccelerator(releaseMetadata?.accelerator);
+
+  if (metadataFamily !== 'container') {
+    throw new Error('Packaged container bundle release-metadata.json must declare family=container.');
+  }
+  if (metadataAccelerator !== normalizedAccelerator) {
+    throw new Error(
+      `Packaged container bundle accelerator mismatch: expected ${normalizedAccelerator}, received ${metadataAccelerator}.`,
+    );
+  }
+  if (defaultProfileEntries.get('CLAW_DEPLOYMENT_FAMILY') !== 'container') {
+    throw new Error(
+      `Packaged container runtime profile must pin CLAW_DEPLOYMENT_FAMILY=container in ${defaultProfilePath}.`,
+    );
+  }
+
+  if (normalizedAccelerator === 'cpu') {
+    if (defaultProfileEntries.get('CLAW_ACCELERATOR_PROFILE') !== 'cpu') {
+      throw new Error(
+        `Packaged container runtime profile must pin CLAW_ACCELERATOR_PROFILE=cpu in ${defaultProfilePath}.`,
+      );
+    }
+  } else {
+    const overlayProfilePath = path.join(bundleRoot, 'deploy', 'profiles', `${normalizedAccelerator}.env`);
+    const overlayComposePath = path.join(bundleRoot, 'deploy', `docker-compose.${normalizedAccelerator}.yml`);
+    if (!existsSync(overlayProfilePath)) {
+      throw new Error(`Packaged container bundle is missing accelerator profile ${overlayProfilePath}.`);
+    }
+    if (!existsSync(overlayComposePath)) {
+      throw new Error(`Packaged container bundle is missing accelerator compose overlay ${overlayComposePath}.`);
+    }
+    const overlayProfileEntries = parseSimpleEnvFile(readFileSync(overlayProfilePath, 'utf8'));
+    if (overlayProfileEntries.get('CLAW_ACCELERATOR_PROFILE') !== normalizedAccelerator) {
+      throw new Error(
+        `Packaged accelerator profile ${overlayProfilePath} must pin CLAW_ACCELERATOR_PROFILE=${normalizedAccelerator}.`,
+      );
+    }
+    if (overlayProfileEntries.get('CLAW_DEPLOYMENT_FAMILY') !== 'container') {
+      throw new Error(
+        `Packaged accelerator profile ${overlayProfilePath} must pin CLAW_DEPLOYMENT_FAMILY=container.`,
+      );
+    }
+  }
+
+  if (defaultProfileEntries.get('CLAW_SERVER_DATA_DIR') !== '/var/lib/claw-server') {
+    throw new Error(
+      `Packaged container runtime profile must pin CLAW_SERVER_DATA_DIR=/var/lib/claw-server in ${defaultProfilePath}.`,
+    );
+  }
+  if (defaultProfileEntries.get('CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND') !== 'false') {
+    throw new Error(
+      `Packaged container runtime profile must keep CLAW_SERVER_ALLOW_INSECURE_PUBLIC_BIND=false in ${defaultProfilePath}.`,
+    );
+  }
+
+  if (
+    !/CLAW_SERVER_MANAGE_USERNAME:\s+\$\{CLAW_SERVER_MANAGE_USERNAME:\?/m.test(composeDefinition)
+    || !/CLAW_SERVER_MANAGE_PASSWORD:\s+\$\{CLAW_SERVER_MANAGE_PASSWORD:\?/m.test(composeDefinition)
+  ) {
+    throw new Error(
+      `Packaged docker compose must require explicit manage credentials in ${composePath}.`,
+    );
+  }
+
+  if (!/^\s*-\s+[^:\r\n]+:\/var\/lib\/claw-server\s*$/m.test(composeDefinition)) {
+    throw new Error(
+      `Packaged docker compose must persist /var/lib/claw-server in ${composePath}.`,
+    );
+  }
+
+  return {
+    checks: [
+      {
+        id: 'deployment-identity',
+        status: 'passed',
+        detail: 'packaged container bundle preserves deployment family and accelerator identity',
+      },
+      {
+        id: 'runtime-profile',
+        status: 'passed',
+        detail: 'packaged container profile pins safe public bind and data directory defaults',
+      },
+      {
+        id: 'manage-credentials',
+        status: 'passed',
+        detail: 'packaged docker compose requires explicit manage credentials',
+      },
+      {
+        id: 'persistent-storage',
+        status: 'passed',
+        detail: 'packaged docker compose persists /var/lib/claw-server',
+      },
+    ],
+  };
 }
 
 async function waitForSuccessfulEndpoint({
@@ -341,8 +575,10 @@ export async function smokeContainerDeploymentBundle({
   bundleRoot,
   accelerator = 'cpu',
   capabilities = {},
+  inspectContainerDeploymentContractFn = inspectContainerDeploymentContract,
   runDockerComposeUpFn = runDockerComposeUp,
   runDockerComposeDownFn = runDockerComposeDown,
+  inspectDockerComposeHealthFn = inspectDockerComposeHealth,
   probeEndpointFn = probeEndpoint,
   fetchJsonFn = fetchJson,
 } = {}) {
@@ -356,6 +592,15 @@ export async function smokeContainerDeploymentBundle({
   let started = false;
 
   try {
+    const containerDeploymentContract = inspectContainerDeploymentContractFn({
+      bundleRoot,
+      accelerator: normalizedAccelerator,
+      capabilities,
+    });
+    const checks = Array.isArray(containerDeploymentContract?.checks)
+      ? [...containerDeploymentContract.checks]
+      : [];
+
     runDockerComposeUpFn({
       bundleRoot,
       accelerator: normalizedAccelerator,
@@ -364,13 +609,29 @@ export async function smokeContainerDeploymentBundle({
     });
     started = true;
 
-    const checks = [
-      {
-        id: 'docker-compose-up',
-        status: 'passed',
-        detail: 'docker compose brought the packaged bundle online',
-      },
-    ];
+    checks.push({
+      id: 'docker-compose-up',
+      status: 'passed',
+      detail: 'docker compose brought the packaged bundle online',
+    });
+    const composeHealth = await inspectDockerComposeHealthFn({
+      bundleRoot,
+      accelerator: normalizedAccelerator,
+      env,
+      capabilities,
+    });
+    const healthyServiceLabels = normalizeStringArray(
+      Array.isArray(composeHealth?.services)
+        ? composeHealth.services.map((service) => service?.service || service?.name)
+        : [],
+    );
+    checks.push({
+      id: 'docker-compose-healthy',
+      status: 'passed',
+      detail: healthyServiceLabels.length > 0
+        ? `docker compose reported healthy services: ${healthyServiceLabels.join(', ')}`
+        : 'docker compose reported all packaged services healthy',
+    });
     checks.push(await waitForSuccessfulEndpoint({
       id: 'health-ready',
       baseUrl,
@@ -422,13 +683,42 @@ function resolveKubernetesOverlayValuesPath(accelerator = 'cpu') {
   return '';
 }
 
-function readDeploymentBundleReleaseMetadata(bundleRoot) {
+function requireDeploymentBundleReleaseMetadata(bundleRoot) {
   const metadataPath = path.join(bundleRoot, 'release-metadata.json');
   if (!existsSync(metadataPath)) {
-    return {};
+    throw new Error(`Packaged deployment bundle is missing release-metadata.json: ${metadataPath}`);
   }
 
   return JSON.parse(readFileSync(metadataPath, 'utf8'));
+}
+
+function resolveExpectedKubernetesImageReference(releaseMetadata) {
+  const normalizedImageRepository = String(releaseMetadata?.imageRepository ?? '').trim();
+  const normalizedImageTag = String(releaseMetadata?.imageTag ?? '').trim();
+  const normalizedImageDigest = String(releaseMetadata?.imageDigest ?? '').trim();
+
+  if (!normalizedImageRepository) {
+    throw new Error('Packaged kubernetes bundle release-metadata.json is missing imageRepository.');
+  }
+  if (!normalizedImageTag && !normalizedImageDigest) {
+    throw new Error('Packaged kubernetes bundle release-metadata.json is missing image metadata.');
+  }
+
+  return normalizedImageDigest
+    ? `${normalizedImageRepository}@${normalizedImageDigest}`
+    : `${normalizedImageRepository}:${normalizedImageTag}`;
+}
+
+function requireKubernetesReleaseValues(bundleRoot) {
+  const valuesPath = path.join(bundleRoot, 'values.release.yaml');
+  if (!existsSync(valuesPath)) {
+    throw new Error(`Packaged kubernetes bundle is missing values.release.yaml: ${valuesPath}`);
+  }
+
+  return {
+    valuesPath,
+    values: readFileSync(valuesPath, 'utf8'),
+  };
 }
 
 export function runHelmTemplate({
@@ -478,7 +768,13 @@ export async function smokeKubernetesDeploymentBundle({
   runHelmTemplateFn = runHelmTemplate,
   runKubectlClientDryRunFn = runKubectlClientDryRun,
 } = {}) {
-  const releaseMetadata = readDeploymentBundleReleaseMetadata(bundleRoot);
+  const releaseMetadata = requireDeploymentBundleReleaseMetadata(bundleRoot);
+  const { valuesPath, values: releaseValues } = requireKubernetesReleaseValues(bundleRoot);
+  const normalizedAccelerator = normalizeDeploymentAccelerator(accelerator);
+  const metadataFamily = String(releaseMetadata?.family ?? '').trim().toLowerCase();
+  const metadataArch = normalizeDesktopArch(releaseMetadata?.arch);
+  const metadataAccelerator = normalizeDeploymentAccelerator(releaseMetadata?.accelerator);
+  const expectedNodeArch = resolveExpectedKubernetesNodeArch(metadataArch);
   const renderedManifest = runHelmTemplateFn({
     bundleRoot,
     accelerator,
@@ -492,6 +788,61 @@ export async function smokeKubernetesDeploymentBundle({
     },
   ];
 
+  if (metadataFamily !== 'kubernetes') {
+    throw new Error('Packaged kubernetes bundle release-metadata.json must declare family=kubernetes.');
+  }
+  if (metadataAccelerator !== normalizedAccelerator) {
+    throw new Error(
+      `Packaged kubernetes bundle accelerator mismatch: expected ${normalizedAccelerator}, received ${metadataAccelerator}.`,
+    );
+  }
+  if (!new RegExp(`targetArchitecture:\\s*${metadataArch}\\b`, 'm').test(releaseValues)) {
+    throw new Error(
+      `Packaged kubernetes release values must pin targetArchitecture=${metadataArch} in ${valuesPath}.`,
+    );
+  }
+  if (!new RegExp(`acceleratorProfile:\\s*${normalizedAccelerator}\\b`, 'm').test(releaseValues)) {
+    throw new Error(
+      `Packaged kubernetes release values must pin acceleratorProfile=${normalizedAccelerator} in ${valuesPath}.`,
+    );
+  }
+  checks.push({
+    id: 'deployment-identity',
+    status: 'passed',
+    detail: 'packaged kubernetes bundle preserves target architecture and accelerator identity',
+  });
+
+  const expectedImageReference = resolveExpectedKubernetesImageReference(releaseMetadata);
+  if (!renderedManifest.includes(expectedImageReference)) {
+    throw new Error(`Rendered kubernetes manifests must reference ${expectedImageReference}.`);
+  }
+  checks.push({
+    id: 'image-reference',
+    status: 'passed',
+    detail: 'rendered manifests reference the packaged OCI image coordinates',
+  });
+
+  const hasDeploymentFamilyIdentity = (
+    /CLAW_DEPLOYMENT_FAMILY:\s*"kubernetes"/m.test(renderedManifest)
+    || /name:\s*CLAW_DEPLOYMENT_FAMILY\s*\n\s*value:\s*"kubernetes"/m.test(renderedManifest)
+  );
+  const hasAcceleratorIdentity = (
+    new RegExp(`CLAW_ACCELERATOR_PROFILE:\\s*"${normalizedAccelerator}"`, 'm').test(renderedManifest)
+    || new RegExp(`name:\\s*CLAW_ACCELERATOR_PROFILE\\s*\\n\\s*value:\\s*"${normalizedAccelerator}"`, 'm').test(renderedManifest)
+  );
+  const hasExpectedNodeArch = new RegExp(`kubernetes\\.io/arch:\\s*${expectedNodeArch}\\b`, 'm')
+    .test(renderedManifest);
+  if (!hasDeploymentFamilyIdentity || !hasAcceleratorIdentity || !hasExpectedNodeArch) {
+    throw new Error(
+      'Rendered kubernetes manifests must preserve deployment family, accelerator profile, and node architecture identity.',
+    );
+  }
+  checks.push({
+    id: 'configmap-runtime-identity',
+    status: 'passed',
+    detail: 'rendered config map preserves kubernetes deployment family and accelerator profile',
+  });
+
   if (!renderedManifest.includes('/claw/health/ready')) {
     throw new Error('Rendered kubernetes manifests must probe /claw/health/ready.');
   }
@@ -501,19 +852,33 @@ export async function smokeKubernetesDeploymentBundle({
     detail: 'rendered deployment probes /claw/health/ready',
   });
 
-  const normalizedImageRepository = String(releaseMetadata?.imageRepository ?? '').trim();
-  const normalizedImageTag = String(releaseMetadata?.imageTag ?? '').trim();
-  const normalizedImageDigest = String(releaseMetadata?.imageDigest ?? '').trim();
-  const expectedImageReference = normalizedImageDigest
-    ? `${normalizedImageRepository}@${normalizedImageDigest}`
-    : `${normalizedImageRepository}:${normalizedImageTag}`;
-  if (expectedImageReference.trim().length > 0 && !renderedManifest.includes(expectedImageReference)) {
-    throw new Error(`Rendered kubernetes manifests must reference ${expectedImageReference}.`);
+  if (
+    !/kind:\s+Secret\b/m.test(renderedManifest)
+    || !/secretRef:\s*\n\s*name:\s*[^\s]+/m.test(renderedManifest)
+  ) {
+    throw new Error(
+      'Rendered kubernetes manifests must define and consume Secret-backed control-plane credentials.',
+    );
   }
   checks.push({
-    id: 'image-reference',
+    id: 'secret-ref',
     status: 'passed',
-    detail: 'rendered manifests reference the packaged OCI image coordinates',
+    detail: 'rendered deployment consumes Secret-backed control-plane credentials',
+  });
+
+  if (
+    !/kind:\s+PersistentVolumeClaim\b/m.test(renderedManifest)
+    || !/persistentVolumeClaim:\s*\n\s*claimName:\s*[^\s]+/m.test(renderedManifest)
+    || !/mountPath:\s*\/var\/lib\/claw-server\b/m.test(renderedManifest)
+  ) {
+    throw new Error(
+      'Rendered kubernetes manifests must mount /var/lib/claw-server through a PersistentVolumeClaim.',
+    );
+  }
+  checks.push({
+    id: 'persistent-storage',
+    status: 'passed',
+    detail: 'rendered manifests mount /var/lib/claw-server through a PersistentVolumeClaim',
   });
 
   if (capabilities.kubectl) {

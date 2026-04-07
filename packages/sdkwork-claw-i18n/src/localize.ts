@@ -25,7 +25,9 @@ export function isLocalizedText(value: unknown): value is LocalizedText {
 
 export function resolveLocalizedText(value: LocalizedText, language?: string | null) {
   const normalizedLanguage = normalizeLanguage(language);
-  return value[normalizedLanguage] ?? value[DEFAULT_LANGUAGE];
+  return normalizedLanguage === 'zh' || normalizedLanguage === 'zh-TW'
+    ? value.zh
+    : value.en;
 }
 
 function localizeValueDeep<T>(value: T, language: AppLanguage): T {

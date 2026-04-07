@@ -8,12 +8,35 @@ use std::fs;
 pub const APP_LANGUAGE_PREFERENCE_SYSTEM: &str = "system";
 pub const APP_LANGUAGE_PREFERENCE_ENGLISH: &str = "en";
 pub const APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE: &str = "zh";
+pub const APP_LANGUAGE_PREFERENCE_TRADITIONAL_CHINESE: &str = "zh-TW";
+pub const APP_LANGUAGE_PREFERENCE_FRENCH: &str = "fr";
+pub const APP_LANGUAGE_PREFERENCE_GERMAN: &str = "de";
+pub const APP_LANGUAGE_PREFERENCE_BRAZILIAN_PORTUGUESE: &str = "pt-BR";
+pub const APP_LANGUAGE_PREFERENCE_JAPANESE: &str = "ja";
+pub const APP_LANGUAGE_PREFERENCE_KOREAN: &str = "ko";
+pub const APP_LANGUAGE_PREFERENCE_SPANISH: &str = "es";
+pub const APP_LANGUAGE_PREFERENCE_TURKISH: &str = "tr";
+pub const APP_LANGUAGE_PREFERENCE_UKRAINIAN: &str = "uk";
+pub const APP_LANGUAGE_PREFERENCE_POLISH: &str = "pl";
+pub const APP_LANGUAGE_PREFERENCE_INDONESIAN: &str = "id";
 pub const HOST_PLATFORM_DESIRED_STATE_PROJECTION_VERSION: &str = "phase1";
 pub const HOST_PLATFORM_ROLLOUT_ENGINE_VERSION: &str = "phase1";
 const CURRENT_APP_CONFIG_VERSION: u32 = 2;
 
 pub fn normalize_app_language_preference(value: &str) -> &'static str {
     let normalized = value.trim().to_lowercase().replace('_', "-");
+
+    if normalized == APP_LANGUAGE_PREFERENCE_SYSTEM {
+        return APP_LANGUAGE_PREFERENCE_SYSTEM;
+    }
+
+    if normalized.starts_with("zh-tw")
+        || normalized.starts_with("zh-hk")
+        || normalized.starts_with("zh-mo")
+        || normalized.starts_with("zh-hant")
+    {
+        return APP_LANGUAGE_PREFERENCE_TRADITIONAL_CHINESE;
+    }
 
     if normalized.starts_with("zh") {
         return APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE;
@@ -23,8 +46,44 @@ pub fn normalize_app_language_preference(value: &str) -> &'static str {
         return APP_LANGUAGE_PREFERENCE_ENGLISH;
     }
 
-    if normalized == APP_LANGUAGE_PREFERENCE_SYSTEM {
-        return APP_LANGUAGE_PREFERENCE_SYSTEM;
+    if normalized.starts_with("fr") {
+        return APP_LANGUAGE_PREFERENCE_FRENCH;
+    }
+
+    if normalized.starts_with("de") {
+        return APP_LANGUAGE_PREFERENCE_GERMAN;
+    }
+
+    if normalized.starts_with("pt") {
+        return APP_LANGUAGE_PREFERENCE_BRAZILIAN_PORTUGUESE;
+    }
+
+    if normalized.starts_with("ja") {
+        return APP_LANGUAGE_PREFERENCE_JAPANESE;
+    }
+
+    if normalized.starts_with("ko") {
+        return APP_LANGUAGE_PREFERENCE_KOREAN;
+    }
+
+    if normalized.starts_with("es") {
+        return APP_LANGUAGE_PREFERENCE_SPANISH;
+    }
+
+    if normalized.starts_with("tr") {
+        return APP_LANGUAGE_PREFERENCE_TURKISH;
+    }
+
+    if normalized.starts_with("uk") {
+        return APP_LANGUAGE_PREFERENCE_UKRAINIAN;
+    }
+
+    if normalized.starts_with("pl") {
+        return APP_LANGUAGE_PREFERENCE_POLISH;
+    }
+
+    if normalized.starts_with("id") {
+        return APP_LANGUAGE_PREFERENCE_INDONESIAN;
     }
 
     APP_LANGUAGE_PREFERENCE_SYSTEM
@@ -527,6 +586,16 @@ mod tests {
         };
 
         assert_eq!(config.normalized().language, "zh");
+    }
+
+    #[test]
+    fn config_preserves_supported_non_english_language_preferences() {
+        let config = AppConfig {
+            language: "pt-PT".to_string(),
+            ..AppConfig::default()
+        };
+
+        assert_eq!(config.normalized().language, "pt-BR");
     }
 
     #[test]

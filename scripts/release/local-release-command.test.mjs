@@ -73,6 +73,18 @@ test('local release helper resolves usable defaults for root release commands', 
   assert.equal(parsedSmokeContext.arch, 'arm64');
   assert.equal(parsedSmokeContext.target, 'aarch64-apple-darwin');
 
+  const parsedDesktopStartupSmokeOptions = helper.parseArgs([
+    'smoke',
+    'desktop',
+    '--startup-evidence-path',
+    'D:/synthetic/desktop-startup-evidence.json',
+  ]);
+
+  assert.equal(
+    parsedDesktopStartupSmokeOptions.startupEvidencePath.replaceAll('\\', '/'),
+    'D:/synthetic/desktop-startup-evidence.json',
+  );
+
   const parsedServerSmokeOptions = helper.parseArgs(['smoke', 'server']);
   const parsedServerSmokeContext = helper.resolveLocalReleaseContext({
     mode: parsedServerSmokeOptions.mode,
@@ -173,7 +185,7 @@ test('local release helper auto-builds missing server prerequisites for local se
   });
 });
 
-test('local release helper dispatches desktop smoke through the dedicated smoke command', async () => {
+test('local release helper dispatches desktop installer and startup smoke through the dedicated smoke command', async () => {
   const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
   const helper = await import(pathToFileURL(helperPath).href);
 
@@ -183,8 +195,22 @@ test('local release helper dispatches desktop smoke through the dedicated smoke 
     env: {},
     platform: 'darwin',
     arch: 'arm64',
+    startupEvidencePath: 'D:/synthetic/desktop-startup-evidence.json',
     smokeDesktopInstallersFn(context) {
-      smokeCalls.push(context);
+      smokeCalls.push({
+        step: 'installers',
+        context,
+      });
+      return {
+        ok: true,
+        context,
+      };
+    },
+    smokeDesktopStartupEvidenceFn(context) {
+      smokeCalls.push({
+        step: 'startup',
+        context,
+      });
       return {
         ok: true,
         context,
@@ -192,11 +218,60 @@ test('local release helper dispatches desktop smoke through the dedicated smoke 
     },
   });
 
-  assert.equal(smokeCalls.length, 1);
-  assert.equal(smokeCalls[0].mode, 'smoke:desktop');
-  assert.equal(smokeCalls[0].platform, 'macos');
-  assert.equal(smokeCalls[0].arch, 'arm64');
-  assert.equal(smokeCalls[0].target, 'aarch64-apple-darwin');
+  assert.deepEqual(
+    smokeCalls.map((entry) => entry.step),
+    ['installers', 'startup'],
+  );
+  assert.equal(smokeCalls[0].context.mode, 'smoke:desktop');
+  assert.equal(smokeCalls[0].context.platform, 'macos');
+  assert.equal(smokeCalls[0].context.arch, 'arm64');
+  assert.equal(smokeCalls[0].context.target, 'aarch64-apple-darwin');
+  assert.equal(
+    smokeCalls[1].context.startupEvidencePath.replaceAll('\\', '/'),
+    'D:/synthetic/desktop-startup-evidence.json',
+  );
+  assert.equal(result.mode, 'smoke:desktop');
+});
+
+test('local release helper dispatches packaged desktop launch smoke when no external startup evidence path is provided', async () => {
+  const helperPath = path.join(rootDir, 'scripts', 'release', 'local-release-command.mjs');
+  const helper = await import(pathToFileURL(helperPath).href);
+
+  const smokeCalls = [];
+  const result = await helper.runLocalReleaseCommand({
+    mode: 'smoke:desktop',
+    env: {},
+    platform: 'linux',
+    arch: 'x64',
+    smokeDesktopInstallersFn(context) {
+      smokeCalls.push({
+        step: 'installers',
+        context,
+      });
+      return {
+        ok: true,
+        context,
+      };
+    },
+    smokeDesktopPackagedLaunchFn(context) {
+      smokeCalls.push({
+        step: 'packaged-launch',
+        context,
+      });
+      return {
+        ok: true,
+        context,
+      };
+    },
+  });
+
+  assert.deepEqual(
+    smokeCalls.map((entry) => entry.step),
+    ['installers', 'packaged-launch'],
+  );
+  assert.equal(smokeCalls[1].context.platform, 'linux');
+  assert.equal(smokeCalls[1].context.arch, 'x64');
+  assert.equal(smokeCalls[1].context.target, 'x86_64-unknown-linux-gnu');
   assert.equal(result.mode, 'smoke:desktop');
 });
 
@@ -291,7 +366,16 @@ test('local release helper automatically runs desktop smoke after packaging desk
     },
     smokeDesktopInstallersFn: async (context) => {
       callOrder.push({
-        step: 'smoke',
+        step: 'installers',
+        context,
+      });
+      return {
+        ok: true,
+      };
+    },
+    smokeDesktopPackagedLaunchFn: async (context) => {
+      callOrder.push({
+        step: 'packaged-launch',
         context,
       });
       return {
@@ -302,13 +386,17 @@ test('local release helper automatically runs desktop smoke after packaging desk
 
   assert.deepEqual(
     callOrder.map((entry) => entry.step),
-    ['package', 'smoke'],
+    ['package', 'installers', 'packaged-launch'],
   );
   assert.equal(callOrder[0].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
   assert.equal(callOrder[1].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
   assert.equal(callOrder[1].context.platform, 'linux');
   assert.equal(callOrder[1].context.arch, 'x64');
   assert.equal(callOrder[1].context.target, 'x86_64-unknown-linux-gnu');
+  assert.equal(callOrder[2].context.releaseAssetsDir.replaceAll('\\', '/'), 'D:/synthetic/release-assets');
+  assert.equal(callOrder[2].context.platform, 'linux');
+  assert.equal(callOrder[2].context.arch, 'x64');
+  assert.equal(callOrder[2].context.target, 'x86_64-unknown-linux-gnu');
 });
 
 test('local release helper automatically runs server smoke after packaging server release assets', async () => {

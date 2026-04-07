@@ -33,6 +33,44 @@
     "noneSelected": "\u672a\u8bbe\u7f6e",
     "routeMode": "\u8def\u7531\u6a21\u5f0f",
     "configureModels": "\u914d\u7f6e\u6a21\u578b",
+    "thinkingLevel": "\u601d\u8003\u7ea7\u522b",
+    "thinkingLevelDescription": "\u9009\u62e9\u5f53\u524d OpenClaw Gateway \u4f1a\u8bdd\u9700\u8981\u4f7f\u7528\u591a\u5c11\u989d\u5916\u63a8\u7406\u3002",
+    "thinkingLevelPlaceholder": "\u9009\u62e9\u601d\u8003\u7ea7\u522b",
+    "thinkingLevelDefault": "\u4f7f\u7528\u8fd0\u884c\u65f6\u9ed8\u8ba4\u503c",
+    "thinkingLevelDefaultResolved": "\u9ed8\u8ba4\uff08{{level}}\uff09",
+    "sessionControlInherit": "\u7ee7\u627f\u8fd0\u884c\u65f6\u9ed8\u8ba4\u503c",
+    "fastMode": "\u5feb\u901f\u6a21\u5f0f",
+    "fastModeDescription": "\u5728\u4e0a\u6e38\u8fd0\u884c\u65f6\u652f\u6301\u7684\u60c5\u51b5\u4e0b\uff0c\u8ba9\u5f53\u524d\u4f1a\u8bdd\u503e\u5411\u66f4\u5feb\u3001\u66f4\u7b80\u7565\u7684\u54cd\u5e94\u3002",
+    "fastModePlaceholder": "\u9009\u62e9\u5feb\u901f\u6a21\u5f0f",
+    "fastModes": {
+      "off": "\u5173\u95ed",
+      "on": "\u5f00\u542f"
+    },
+    "verboseLevel": "\u8be6\u7ec6\u8f93\u51fa",
+    "verboseLevelDescription": "\u63a7\u5236 OpenClaw \u9488\u5bf9\u5f53\u524d\u4f1a\u8bdd\u8fd4\u56de\u591a\u5c11\u989d\u5916\u7684\u8fdb\u5ea6\u548c\u72b6\u6001\u7ec6\u8282\u3002",
+    "verboseLevelPlaceholder": "\u9009\u62e9\u8be6\u7ec6\u7a0b\u5ea6",
+    "verboseLevels": {
+      "off": "\u5173\u95ed",
+      "on": "\u5f00\u542f",
+      "full": "\u5b8c\u6574"
+    },
+    "reasoningLevel": "\u63a8\u7406\u8f93\u51fa",
+    "reasoningLevelDescription": "\u9009\u62e9\u63a8\u7406\u5185\u5bb9\u662f\u9690\u85cf\u3001\u5728\u7b54\u6848\u540e\u8f93\u51fa\uff0c\u8fd8\u662f\u5728\u4e0a\u6e38\u901a\u9053\u652f\u6301\u65f6\u4ee5\u6d41\u5f0f\u65b9\u5f0f\u53d1\u9001\u3002",
+    "reasoningLevelPlaceholder": "\u9009\u62e9\u63a8\u7406\u8f93\u51fa\u6a21\u5f0f",
+    "reasoningLevels": {
+      "off": "\u5173\u95ed",
+      "on": "\u5f00\u542f",
+      "stream": "\u6d41\u5f0f\uff08Telegram\uff09"
+    },
+    "thinkingLevels": {
+      "off": "\u5173\u95ed",
+      "on": "\u5f00\u542f",
+      "minimal": "\u6700\u5c11",
+      "low": "\u4f4e",
+      "medium": "\u4e2d",
+      "high": "\u9ad8",
+      "adaptive": "\u81ea\u9002\u5e94"
+    },
     "agentSelectionDescription": "\u9009\u62e9\u5f53\u524d\u4f1a\u8bdd\u65b0\u6d88\u606f\u5c06\u7531\u54ea\u4e2a Agent \u5de5\u4f5c\u6d41\u5904\u7406\u3002",
     "skillSelectionDescription": "\u4e3a\u5f53\u524d\u4f1a\u8bdd\u5e94\u7528\u4e13\u6ce8\u6280\u80fd\uff0c\u6216\u4fdd\u6301\u901a\u7528\u5bf9\u8bdd\u6a21\u5f0f\u3002",
     "noMatchingAgents": "\u672a\u627e\u5230\u5339\u914d\u7684 Agent\u3002",

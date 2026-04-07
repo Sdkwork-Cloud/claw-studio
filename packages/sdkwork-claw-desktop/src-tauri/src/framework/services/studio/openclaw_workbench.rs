@@ -650,7 +650,7 @@ fn build_openclaw_memory_entries(
 }
 
 fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
-    const TOOLS: [(&str, &str, &str, &str, &str, &str, bool, &str, bool); 27] = [
+    const TOOLS: [(&str, &str, &str, &str, &str, &str, bool, &str, bool); 29] = [
         (
             "read",
             "read",
@@ -933,6 +933,28 @@ fn build_openclaw_tools(_config: &Value) -> Vec<StudioWorkbenchToolRecord> {
             "integration",
             "execute",
             "tool:image_generate",
+            true,
+            "media",
+            true,
+        ),
+        (
+            "video_generate",
+            "video_generate",
+            "Generate videos",
+            "integration",
+            "execute",
+            "tool:video_generate",
+            true,
+            "media",
+            true,
+        ),
+        (
+            "music_generate",
+            "music_generate",
+            "Generate music",
+            "integration",
+            "execute",
+            "tool:music_generate",
             true,
             "media",
             true,
@@ -1931,6 +1953,8 @@ fn tool_allowed_by_profile(profile: &str, tool_id: &str) -> bool {
                 | "agents_list"
                 | "image"
                 | "image_generate"
+                | "video_generate"
+                | "music_generate"
         ),
         _ => false,
     }
@@ -1951,7 +1975,7 @@ fn tool_token_matches(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_openclaw_llm_providers, map_openclaw_cron_task};
+    use super::{build_openclaw_llm_providers, build_openclaw_tools, map_openclaw_cron_task};
     use crate::framework::services::studio::StudioWorkbenchLLMProviderConfigRecord;
     use serde_json::json;
     use std::collections::BTreeMap;
@@ -2088,5 +2112,32 @@ mod tests {
             Some("https://hooks.example.com/openclaw/cron")
         );
         assert!(task.raw_definition.is_some());
+    }
+
+    #[test]
+    fn build_openclaw_tools_exposes_video_and_music_generation_tools() {
+        let tools = build_openclaw_tools(&json!({
+            "tools": {
+                "profile": "coding"
+            }
+        }));
+
+        let video_generate = tools
+            .iter()
+            .find(|tool| tool.id == "video_generate")
+            .expect("video_generate tool");
+        assert_eq!(video_generate.command, "tool:video_generate");
+        assert_eq!(video_generate.category, "integration");
+        assert_eq!(video_generate.access, "execute");
+        assert_eq!(video_generate.status, "beta");
+
+        let music_generate = tools
+            .iter()
+            .find(|tool| tool.id == "music_generate")
+            .expect("music_generate tool");
+        assert_eq!(music_generate.command, "tool:music_generate");
+        assert_eq!(music_generate.category, "integration");
+        assert_eq!(music_generate.access, "execute");
+        assert_eq!(music_generate.status, "beta");
     }
 }

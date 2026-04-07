@@ -3,7 +3,8 @@ use crate::{
     framework::{
         config::{
             normalize_app_language_preference, APP_LANGUAGE_PREFERENCE_ENGLISH,
-            APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE,
+            APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE, APP_LANGUAGE_PREFERENCE_SYSTEM,
+            APP_LANGUAGE_PREFERENCE_TRADITIONAL_CHINESE,
         },
         context::FrameworkContext,
         events,
@@ -267,9 +268,12 @@ pub(crate) fn resolve_tray_language(
     system_locale: Option<&str>,
 ) -> TrayLanguage {
     match normalize_app_language_preference(configured_language) {
-        APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE => TrayLanguage::Zh,
+        APP_LANGUAGE_PREFERENCE_SYSTEM => system_locale_to_tray_language(system_locale),
+        APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE | APP_LANGUAGE_PREFERENCE_TRADITIONAL_CHINESE => {
+            TrayLanguage::Zh
+        }
         APP_LANGUAGE_PREFERENCE_ENGLISH => TrayLanguage::En,
-        _ => system_locale_to_tray_language(system_locale),
+        _ => TrayLanguage::En,
     }
 }
 
@@ -1087,6 +1091,11 @@ mod tests {
             TrayLanguage::Zh
         );
         assert_eq!(resolve_tray_language("en", Some("zh-CN")), TrayLanguage::En);
+        assert_eq!(
+            resolve_tray_language("zh-TW", Some("en-US")),
+            TrayLanguage::Zh
+        );
+        assert_eq!(resolve_tray_language("ja", Some("zh-CN")), TrayLanguage::En);
     }
 
     #[test]

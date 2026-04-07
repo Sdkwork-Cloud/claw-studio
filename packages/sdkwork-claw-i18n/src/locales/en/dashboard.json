@@ -279,5 +279,106 @@
     "operatorsDescription": "Capability cards keep agent focus, automation fit, and execution range visible for the team.",
     "delivery": "Delivery model",
     "deliveryDescription": "Channel readiness stays visible so approvals, alerts, and summaries can leave the workspace when needed."
+  },
+  "usage": {
+    "page": {
+      "title": "Gateway Usage",
+      "description": "Review OpenClaw gateway session usage, costs, compatibility fallback state, and per-session detail from one shared workspace.",
+      "loading": "Loading usage workspace",
+      "emptyTitle": "No OpenClaw gateway is available",
+      "emptyDescription": "Add or start an OpenClaw-backed instance before reviewing usage and cost evidence.",
+      "noSnapshot": "Usage snapshot unavailable"
+    },
+    "actions": {
+      "openInstances": "Open instances"
+    },
+    "filters": {
+      "instance": "Instance",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "timeZone": "Time zone",
+      "timeZoneLocal": "Local time",
+      "timeZoneUtc": "UTC",
+      "search": "Search sessions",
+      "searchPlaceholder": "Filter by session, model, agent, or channel",
+      "query": "Query filters",
+      "queryPlaceholder": "Try provider:anthropic tool:grep minTokens:1000",
+      "applyQuery": "Apply query",
+      "clearQuery": "Clear query",
+      "sort": "Sort sessions",
+      "sortRecent": "Most recent",
+      "sortTokens": "Most tokens",
+      "sortCost": "Highest cost",
+      "sortMessages": "Most messages",
+      "sortErrors": "Most errors",
+      "selectedDays": "{{count}} days selected",
+      "selectedSessions": "{{count}} sessions selected",
+      "visibleColumns": "Visible columns",
+      "logRoles": "Log roles",
+      "logTools": "Log tools",
+      "logHasTools": "Only entries with tools",
+      "logQuery": "Log search",
+      "logQueryPlaceholder": "Filter log content",
+      "clearLogFilters": "Clear log filters",
+      "refresh": "Refresh",
+      "invalidRange": "End date must be on or after the start date."
+    },
+    "summary": {
+      "updatedAt": "Updated",
+      "compatibility": "Compatibility"
+    },
+    "compatibility": {
+      "dateInterpretation": "Date interpretation enabled",
+      "legacyNoDateInterpretation": "Legacy gateway fallback"
+    },
+    "sections": {
+      "sessions": "Sessions",
+      "sessionsDescription": "Inspect session-level volume, cost concentration, and error distribution before drilling into one conversation.",
+      "dailyBreakdown": "Daily breakdown",
+      "dailyBreakdownDescription": "Compare daily usage and cost totals against message and error activity.",
+      "sessionDetail": "Session detail",
+      "sessionDetailDescription": "Keep the active session context, model choice, provider, and timing evidence visible.",
+      "sessionTimeline": "Session timeline",
+      "sessionTimelineDescription": "Review token and cost movement across the selected session timeline.",
+      "sessionLogs": "Session logs",
+      "sessionLogsDescription": "Inspect the raw session usage log stream returned by the OpenClaw gateway."
+    },
+    "metrics": {
+      "totalTokens": "Total tokens",
+      "totalCost": "Total cost",
+      "sessionCount": "Sessions",
+      "errorCount": "Errors"
+    },
+    "labels": {
+      "gateway": "Gateway",
+      "version": "Version",
+      "noVersion": "Unknown",
+      "sessionKey": "Session",
+      "sessionId": "Session ID",
+      "model": "Model",
+      "provider": "Provider",
+      "agent": "Agent",
+      "channel": "Channel",
+      "messages": "Messages",
+      "toolCalls": "Tool calls",
+      "errors": "Errors",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "inputTokens": "Input tokens",
+      "missingCostEntries": "Missing cost entries",
+      "lastActivity": "Last activity",
+      "duration": "Duration",
+      "logTime": "Time",
+      "cumulativeTokens": "Cumulative tokens",
+      "cumulativeCost": "Cumulative cost",
+      "noSessions": "No sessions matched the current filters.",
+      "noDailyBreakdown": "No daily usage data is available for the selected range.",
+      "noSessionSelected": "Select a session to inspect detail, timeline, and logs.",
+      "refineSessionSelection": "Select a single session to inspect detail, timeline, and logs.",
+      "noTimeline": "No timeline points are available for the selected session.",
+      "noLogs": "No session logs are available for the selected session.",
+      "noLogTools": "No tool invocations were detected in the current log stream.",
+      "noMatchingLogs": "No log entries matched the current log filters."
+    }
   }
 }

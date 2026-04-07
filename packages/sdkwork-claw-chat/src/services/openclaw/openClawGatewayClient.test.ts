@@ -104,6 +104,7 @@ await runTest(
     const signedPayloads: string[] = [];
     const connectionEvents: OpenClawGatewayConnectionEvent[] = [];
     const chatEvents: Array<Record<string, unknown>> = [];
+    const agentEvents: Array<Record<string, unknown>> = [];
     const sessionsChangedPayloads: unknown[] = [];
 
     let requestCounter = 0;
@@ -143,6 +144,9 @@ await runTest(
     });
     client.on('chat', (event) => {
       chatEvents.push(event as Record<string, unknown>);
+    });
+    (client as any).on('agent', (event: Record<string, unknown>) => {
+      agentEvents.push(event);
     });
     client.on('sessions.changed', (payload) => {
       sessionsChangedPayloads.push(payload);
@@ -500,9 +504,41 @@ await runTest(
         source: 'remote-refresh',
       },
     });
+    socket.emitMessage({
+      type: 'event',
+      event: 'agent',
+      payload: {
+        sessionKey: 'claw-studio:instance-alpha:session-1',
+        runId: 'run-1',
+        stream: 'tool',
+        data: {
+          phase: 'start',
+          toolCallId: 'tool-1',
+          name: 'web_search',
+          args: {
+            query: 'openclaw docs',
+          },
+        },
+      },
+    });
 
     assert.equal(chatEvents.length, 1);
     assert.equal(chatEvents[0]?.sessionKey, 'claw-studio:instance-alpha:session-1');
+    assert.deepEqual(agentEvents, [
+      {
+        sessionKey: 'claw-studio:instance-alpha:session-1',
+        runId: 'run-1',
+        stream: 'tool',
+        data: {
+          phase: 'start',
+          toolCallId: 'tool-1',
+          name: 'web_search',
+          args: {
+            query: 'openclaw docs',
+          },
+        },
+      },
+    ]);
     assert.deepEqual(sessionsChangedPayloads, [{ source: 'remote-refresh' }]);
     assert.deepEqual(
       connectionEvents.map((event) => event.status),

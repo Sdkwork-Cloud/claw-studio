@@ -48,13 +48,19 @@ await runTest('workspace docs document server verification and release planning 
   const releaseAndDeployment = read('docs/core/release-and-deployment.md');
   const rootPackage = readJson<{ scripts?: Record<string, string> }>('package.json');
 
+  assert.match(gettingStarted, /pnpm check:multi-mode/);
   assert.match(gettingStarted, /pnpm check:server/);
   assert.match(gettingStarted, /pnpm release:plan/);
+  assert.match(commandsReference, /pnpm check:multi-mode/);
   assert.match(commandsReference, /pnpm check:server/);
   assert.match(commandsReference, /pnpm check:automation/);
   assert.match(commandsReference, /pnpm check:release-flow/);
   assert.match(commandsReference, /pnpm check:ci-flow/);
   assert.match(commandsReference, /pnpm release:plan/);
+  assert.match(releaseAndDeployment, /pnpm check:multi-mode/);
+  assert.match(releaseAndDeployment, /versionSourcesAligned/);
+  assert.match(readme, /pnpm check:multi-mode\s+# validate desktop, server, OpenClaw runtime, and release packaging together/i);
+  assert.match(releaseAndDeployment, /pnpm check:desktop/);
   assert.match(releaseAndDeployment, /pnpm check:server/);
   assert.match(releaseAndDeployment, /pnpm check:automation/);
   assert.match(releaseAndDeployment, /pnpm release:plan/);
@@ -66,8 +72,13 @@ await runTest('workspace docs document server verification and release planning 
   assert.match(readme, /pnpm check:server\s+# validate the native Rust server runtime/i);
   assert.match(readme, /pnpm check:automation\s+# validate release and CI automation contracts/i);
   assert.doesNotMatch(readme, /node scripts\/check-server-platform-foundation\.mjs/);
+  assert.match(contributing, /pnpm check:multi-mode/);
   assert.match(contributing, /pnpm check:server/);
   assert.match(contributing, /pnpm check:automation/);
+  assert.match(
+    rootPackage.scripts?.['check:multi-mode'] ?? '',
+    /pnpm check:desktop && pnpm check:server && pnpm check:sdkwork-host-runtime && pnpm check:desktop-openclaw-runtime && pnpm check:release-flow/,
+  );
   assert.match(rootPackage.scripts?.['check:sdkwork-docs'] ?? '', /vitepress-command-contract\.test\.mjs/);
 });
 

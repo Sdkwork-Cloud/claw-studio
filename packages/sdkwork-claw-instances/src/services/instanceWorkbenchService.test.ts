@@ -1984,6 +1984,84 @@ await runTest('listInstanceMemories prefers OpenClaw runtime memory hits and sta
   );
 });
 
+await runTest('listInstanceMemories includes Dream Diary and dreaming cadence when the latest OpenClaw runtime exposes dreaming surfaces', async () => {
+  let getDoctorMemoryStatusCalls = 0;
+  let getDoctorMemoryDreamDiaryCalls = 0;
+  const service = createInstanceWorkbenchService({
+    openClawGatewayClient: {
+      getConfig: async () => ({
+        config: {
+          plugins: {
+            entries: {
+              'memory-core': {
+                config: {
+                  dreaming: {
+                    enabled: true,
+                    frequency: '0 3 * * *',
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      getDoctorMemoryStatus: async () => {
+        getDoctorMemoryStatusCalls += 1;
+        return {
+          agentId: 'ops',
+          provider: 'openai',
+          embedding: {
+            ok: true,
+          },
+          dreaming: {
+            enabled: true,
+            frequency: '0 3 * * *',
+            lastRunAt: '2026-04-07T03:00:00.000Z',
+          },
+        };
+      },
+      getDoctorMemoryDreamDiary: async () => {
+        getDoctorMemoryDreamDiaryCalls += 1;
+        return {
+          path: 'dreams.md',
+          content:
+            '# Dream Diary\n\n## 2026-04-07\nConsolidated deployment runbooks into a single operator playbook.',
+          updatedAt: '2026-04-07T03:05:00.000Z',
+        };
+      },
+      searchMemory: async () => ({
+        results: [],
+      }),
+      getAgentFile: async () => ({
+        file: undefined,
+      }),
+    },
+  });
+
+  const memories = await service.listInstanceMemories('openclaw-dreaming-runtime', [
+    {
+      agent: {
+        id: 'ops',
+        name: 'Ops',
+        description: 'Automation agent',
+        avatar: 'O',
+        systemPrompt: 'Handle incidents',
+        creator: 'OpenClaw',
+      },
+      focusAreas: ['Operations'],
+      automationFitScore: 80,
+      workspace: '/workspace/ops',
+      configSource: 'runtime',
+    },
+  ]);
+
+  assert.equal(getDoctorMemoryStatusCalls, 1);
+  assert.equal(getDoctorMemoryDreamDiaryCalls, 1);
+  assert.equal(memories.some((entry) => entry.title === 'Dream Diary'), true);
+  assert.equal(memories.some((entry) => entry.summary.includes('Consolidated deployment runbooks')), true);
+  assert.equal(memories.some((entry) => entry.summary.includes('Frequency=0 3 * * *')), true);
+});
+
 await runTest('getInstanceWorkbench keeps Provider Center managed llmProviders authoritative while overlaying other live OpenClaw sections', async () => {
   const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
   const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
@@ -2299,6 +2377,49 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
         },
       ],
     },
+    xSearchConfig: {
+      enabled: true,
+      apiKeySource: 'xai-live',
+      model: 'grok-4-1-fast-non-reasoning',
+      inlineCitations: false,
+      maxTurns: 3,
+      timeoutSeconds: 45,
+      cacheTtlMinutes: 18,
+      advancedConfig: '{\n  "userTag": "internal-research"\n}',
+    },
+    webFetchConfig: {
+      enabled: true,
+      maxChars: 42000,
+      maxCharsCap: 64000,
+      maxResponseBytes: 2500000,
+      timeoutSeconds: 28,
+      cacheTtlMinutes: 9,
+      maxRedirects: 4,
+      readability: false,
+      userAgent: 'SDKWork Fetch Bot/1.0',
+      fallbackProvider: {
+        providerId: 'firecrawl',
+        name: 'Firecrawl Fetch',
+        description: 'Use Firecrawl as the OpenClaw web_fetch fallback provider.',
+        apiKeySource: 'fc-live',
+        baseUrl: 'https://api.firecrawl.dev',
+        advancedConfig: '{\n  "onlyMainContent": true\n}',
+        supportsApiKey: true,
+        supportsBaseUrl: true,
+      },
+    },
+    webSearchNativeCodexConfig: {
+      enabled: true,
+      mode: 'cached',
+      allowedDomains: ['example.com', 'openai.com'],
+      contextSize: 'high',
+      userLocation: {
+        country: 'US',
+        city: 'New York',
+        timezone: 'America/New_York',
+      },
+      advancedConfig: '{\n  "reasoningEffort": "medium"\n}',
+    },
     authCooldownsConfig: {
       rateLimitedProfileRotations: 2,
       overloadedProfileRotations: 1,
@@ -2306,6 +2427,10 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
       billingBackoffHours: 5,
       billingMaxHours: 24,
       failureWindowHours: 24,
+    },
+    dreamingConfig: {
+      enabled: true,
+      frequency: '0 3 * * *',
     },
     root: {},
   });
@@ -2382,8 +2507,19 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
     assert.equal(workbench?.managedChannels?.some((channel) => channel.id === 'whatsapp'), true);
     assert.equal(workbench?.managedWebSearchConfig?.provider, 'searxng');
     assert.equal(workbench?.managedWebSearchConfig?.providers[0]?.baseUrl, 'http://127.0.0.1:8080');
+    assert.equal(workbench?.managedXSearchConfig?.apiKeySource, 'xai-live');
+    assert.equal(workbench?.managedXSearchConfig?.model, 'grok-4-1-fast-non-reasoning');
+    assert.equal(workbench?.managedWebSearchNativeCodexConfig?.mode, 'cached');
+    assert.equal(
+      workbench?.managedWebSearchNativeCodexConfig?.userLocation.timezone,
+      'America/New_York',
+    );
+    assert.equal(workbench?.managedWebFetchConfig?.fallbackProvider.providerId, 'firecrawl');
+    assert.equal(workbench?.managedWebFetchConfig?.fallbackProvider.baseUrl, 'https://api.firecrawl.dev');
     assert.equal(workbench?.managedAuthCooldownsConfig?.rateLimitedProfileRotations, 2);
     assert.equal(workbench?.managedAuthCooldownsConfig?.overloadedBackoffMs, 45000);
+    assert.equal(workbench?.managedDreamingConfig?.enabled, true);
+    assert.equal(workbench?.managedDreamingConfig?.frequency, '0 3 * * *');
     assert.equal(workbench?.channels.find((channel) => channel.id === 'slack')?.status, 'connected');
     assert.equal(workbench?.channels.find((channel) => channel.id === 'qq')?.status, 'not_configured');
   } finally {

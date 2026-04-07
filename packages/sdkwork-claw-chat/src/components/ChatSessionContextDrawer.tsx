@@ -1,7 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Package, Search, Settings2, Sparkles, UserCircle, X } from 'lucide-react';
-import { cn, Input, OverlaySurface } from '@sdkwork/claw-ui';
+import {
+  cn,
+  Input,
+  OverlaySurface,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@sdkwork/claw-ui';
 
 export type ChatSessionContextStatusTone =
   | 'ready'
@@ -17,6 +26,22 @@ export interface ChatSessionContextDrawerOption {
   avatarLabel?: string | null;
 }
 
+export interface ChatSessionContextDrawerSelectOption {
+  value: string;
+  label: string;
+}
+
+type ChatSessionContextDrawerControlSection = {
+  id: string;
+  title: string;
+  description: string;
+  placeholder: string;
+  currentValue: string | null;
+  defaultLabel: string;
+  options: ChatSessionContextDrawerSelectOption[];
+  onSelect: (value: string | null) => void;
+};
+
 export interface ChatSessionContextDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -29,6 +54,22 @@ export interface ChatSessionContextDrawerProps {
   routeLabel?: string | null;
   errorMessage?: string | null;
   onOpenSettings?: () => void;
+  currentThinkingLevel?: string | null;
+  thinkingLevelDefaultLabel?: string | null;
+  thinkingLevelOptions?: ChatSessionContextDrawerSelectOption[];
+  onSelectThinkingLevel?: (thinkingLevel: string | null) => void;
+  currentFastMode?: string | null;
+  fastModeDefaultLabel?: string | null;
+  fastModeOptions?: ChatSessionContextDrawerSelectOption[];
+  onSelectFastMode?: (fastMode: string | null) => void;
+  currentVerboseLevel?: string | null;
+  verboseLevelDefaultLabel?: string | null;
+  verboseLevelOptions?: ChatSessionContextDrawerSelectOption[];
+  onSelectVerboseLevel?: (verboseLevel: string | null) => void;
+  currentReasoningLevel?: string | null;
+  reasoningLevelDefaultLabel?: string | null;
+  reasoningLevelOptions?: ChatSessionContextDrawerSelectOption[];
+  onSelectReasoningLevel?: (reasoningLevel: string | null) => void;
   agentOptions: ChatSessionContextDrawerOption[];
   selectedAgentId: string | null;
   isAgentLoading?: boolean;
@@ -38,6 +79,8 @@ export interface ChatSessionContextDrawerProps {
   isSkillLoading?: boolean;
   onSelectSkill: (skillId: string | null) => void;
 }
+
+const CHAT_SESSION_CONTROL_DEFAULT_VALUE_PREFIX = '__session_control_default__';
 
 function resolveStatusClasses(statusTone: ChatSessionContextStatusTone) {
   switch (statusTone) {
@@ -89,6 +132,22 @@ export function ChatSessionContextDrawer({
   routeLabel,
   errorMessage,
   onOpenSettings,
+  currentThinkingLevel = null,
+  thinkingLevelDefaultLabel = null,
+  thinkingLevelOptions = [],
+  onSelectThinkingLevel,
+  currentFastMode = null,
+  fastModeDefaultLabel = null,
+  fastModeOptions = [],
+  onSelectFastMode,
+  currentVerboseLevel = null,
+  verboseLevelDefaultLabel = null,
+  verboseLevelOptions = [],
+  onSelectVerboseLevel,
+  currentReasoningLevel = null,
+  reasoningLevelDefaultLabel = null,
+  reasoningLevelOptions = [],
+  onSelectReasoningLevel,
   agentOptions,
   selectedAgentId,
   isAgentLoading = false,
@@ -126,6 +185,59 @@ export function ChatSessionContextDrawer({
       return haystack.includes(normalizedQuery);
     });
   }, [skillOptions, skillSearchQuery]);
+
+  const sessionControlSections = [
+    onSelectThinkingLevel && thinkingLevelOptions.length > 0
+      ? {
+          id: 'thinking-level',
+          title: t('chat.page.thinkingLevel'),
+          description: t('chat.page.thinkingLevelDescription'),
+          placeholder: t('chat.page.thinkingLevelPlaceholder'),
+          currentValue: currentThinkingLevel,
+          defaultLabel: thinkingLevelDefaultLabel || t('chat.page.thinkingLevelDefault'),
+          options: thinkingLevelOptions,
+          onSelect: onSelectThinkingLevel,
+        }
+      : null,
+    onSelectFastMode && fastModeOptions.length > 0
+      ? {
+          id: 'fast-mode',
+          title: t('chat.page.fastMode'),
+          description: t('chat.page.fastModeDescription'),
+          placeholder: t('chat.page.fastModePlaceholder'),
+          currentValue: currentFastMode,
+          defaultLabel: fastModeDefaultLabel || t('chat.page.sessionControlInherit'),
+          options: fastModeOptions,
+          onSelect: onSelectFastMode,
+        }
+      : null,
+    onSelectVerboseLevel && verboseLevelOptions.length > 0
+      ? {
+          id: 'verbose-level',
+          title: t('chat.page.verboseLevel'),
+          description: t('chat.page.verboseLevelDescription'),
+          placeholder: t('chat.page.verboseLevelPlaceholder'),
+          currentValue: currentVerboseLevel,
+          defaultLabel: verboseLevelDefaultLabel || t('chat.page.sessionControlInherit'),
+          options: verboseLevelOptions,
+          onSelect: onSelectVerboseLevel,
+        }
+      : null,
+    onSelectReasoningLevel && reasoningLevelOptions.length > 0
+      ? {
+          id: 'reasoning-level',
+          title: t('chat.page.reasoningLevel'),
+          description: t('chat.page.reasoningLevelDescription'),
+          placeholder: t('chat.page.reasoningLevelPlaceholder'),
+          currentValue: currentReasoningLevel,
+          defaultLabel: reasoningLevelDefaultLabel || t('chat.page.sessionControlInherit'),
+          options: reasoningLevelOptions,
+          onSelect: onSelectReasoningLevel,
+        }
+      : null,
+  ].filter(
+    (section): section is ChatSessionContextDrawerControlSection => section !== null,
+  );
 
   return (
     <OverlaySurface
@@ -236,6 +348,42 @@ export function ChatSessionContextDrawer({
             </button>
           ) : null}
         </section>
+
+        {sessionControlSections.map((section) => {
+          const defaultValue = `${CHAT_SESSION_CONTROL_DEFAULT_VALUE_PREFIX}:${section.id}`;
+          return (
+            <section key={section.id} className="mt-5">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                  {section.title}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  {section.description}
+                </p>
+              </div>
+              <Select
+                value={section.currentValue ?? defaultValue}
+                onValueChange={(value) =>
+                  section.onSelect(value === defaultValue ? null : value)
+                }
+              >
+                <SelectTrigger className="h-11 rounded-2xl border-zinc-200/80 bg-white shadow-none dark:border-zinc-800 dark:bg-zinc-900">
+                  <SelectValue placeholder={section.placeholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={defaultValue}>
+                    {section.defaultLabel}
+                  </SelectItem>
+                  {section.options.map((option) => (
+                    <SelectItem key={`${section.id}:${option.value}`} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </section>
+          );
+        })}
 
         <section className="mt-5">
           <div className="mb-3">

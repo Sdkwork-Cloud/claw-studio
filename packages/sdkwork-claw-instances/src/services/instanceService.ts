@@ -55,8 +55,14 @@ function createRuntimeDependencyOverrides(): InstanceServiceDependencyOverrides 
       deleteAgent: (input) => openClawConfigService.deleteAgent(input),
       saveChannelConfiguration: (input) => openClawConfigService.saveChannelConfiguration(input),
       saveWebSearchConfiguration: (input) => openClawConfigService.saveWebSearchConfiguration(input),
+      saveXSearchConfiguration: (input) => openClawConfigService.saveXSearchConfiguration(input),
+      saveWebSearchNativeCodexConfiguration: (input) =>
+        openClawConfigService.saveWebSearchNativeCodexConfiguration(input),
+      saveWebFetchConfiguration: (input) => openClawConfigService.saveWebFetchConfiguration(input),
       saveAuthCooldownsConfiguration: (input) =>
         openClawConfigService.saveAuthCooldownsConfiguration(input),
+      saveDreamingConfiguration: (input) =>
+        openClawConfigService.saveDreamingConfiguration(input),
       setChannelEnabled: (input) => openClawConfigService.setChannelEnabled(input),
     },
   };

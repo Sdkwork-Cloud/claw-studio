@@ -1,8 +1,10 @@
 import {
+  formatOpenClawProviderRequestOverridesDraft,
   inferLocalAiProxyClientProtocol,
   inferLocalAiProxyUpstreamProtocol,
   listKnownProviderRoutingChannels,
   normalizeLegacyProviderId,
+  parseOpenClawProviderRequestOverridesDraft,
 } from '@sdkwork/claw-core';
 import type {
   LocalAiProxyClientProtocol,
@@ -24,7 +26,10 @@ const PRIORITIZED_PROVIDER_ORDER = [
   'gemini',
   'xai',
   'azure-openai',
+  'ollama',
+  'amazon-bedrock-mantle',
   'openrouter',
+  'fireworks',
   'deepseek',
   'minimax',
   'moonshot',
@@ -48,6 +53,7 @@ export const providerConfigUpstreamProtocolOptions: LocalAiProxyUpstreamProtocol
   'openai-compatible',
   'anthropic',
   'gemini',
+  'ollama',
   'azure-openai',
   'openrouter',
   'sdkwork',
@@ -94,6 +100,7 @@ export interface ProviderConfigFormState {
   maxTokens: string;
   timeoutMs: string;
   streaming: boolean;
+  requestOverridesDraft: string;
   clientProtocolMode: ProviderConfigFieldMode;
   upstreamProtocolMode: ProviderConfigFieldMode;
   baseUrlMode: ProviderConfigFieldMode;
@@ -289,6 +296,8 @@ function normalizeUpstreamProtocolInput(
       return 'anthropic';
     case 'gemini':
       return 'gemini';
+    case 'ollama':
+      return 'ollama';
     case 'azure-openai':
       return 'azure-openai';
     case 'openrouter':
@@ -388,6 +397,7 @@ export function createProviderConfigFormState(
     maxTokens: String(runtimeConfig.maxTokens ?? 8192),
     timeoutMs: String(runtimeConfig.timeoutMs ?? 60000),
     streaming: runtimeConfig.streaming ?? true,
+    requestOverridesDraft: formatOpenClawProviderRequestOverridesDraft(runtimeConfig.request),
     clientProtocolMode: input?.id ? 'manual' : 'auto',
     upstreamProtocolMode: input?.id ? 'manual' : 'auto',
     baseUrlMode: input?.id ? 'manual' : 'auto',
@@ -400,6 +410,7 @@ export function createProviderConfigDraftFromForm(
   const defaultModelId = form.defaultModelId.trim();
   const reasoningModelId = form.reasoningModelId.trim() || undefined;
   const embeddingModelId = form.embeddingModelId.trim() || undefined;
+  const request = parseOpenClawProviderRequestOverridesDraft(form.requestOverridesDraft);
   const sourceRows =
     form.modelRows.length > 0 ? form.modelRows : parseModelsText(form.modelsText);
   const models = appendReferencedModelIds(
@@ -441,6 +452,7 @@ export function createProviderConfigDraftFromForm(
       maxTokens: Number.parseInt(form.maxTokens, 10) || 8192,
       timeoutMs: Number.parseInt(form.timeoutMs, 10) || 60000,
       streaming: form.streaming,
+      ...(request ? { request } : {}),
     },
   };
 }
