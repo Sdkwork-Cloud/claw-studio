@@ -103,13 +103,13 @@ function createService(options: {
     },
     platformApi: {
       getPlatform: () => 'desktop',
-      pathExists: async (filePath) => {
+      pathExists: async (filePath: string) => {
         if (options.blockGeneralFs) {
           throw new Error(`general pathExists should not be used for ${filePath}`);
         }
         return files.has(filePath.replaceAll('\\', '/'));
       },
-      readFile: async (filePath) => {
+      readFile: async (filePath: string) => {
         if (options.blockGeneralFs) {
           throw new Error(`general readFile should not be used for ${filePath}`);
         }
@@ -120,9 +120,9 @@ function createService(options: {
         }
         return value;
       },
-      pathExistsForUserTooling: async (filePath) =>
+      pathExistsForUserTooling: async (filePath: string) =>
         userToolingFiles.has(filePath.replaceAll('\\', '/')),
-      readFileForUserTooling: async (filePath) => {
+      readFileForUserTooling: async (filePath: string) => {
         const normalizedPath = filePath.replaceAll('\\', '/');
         const value = userToolingFiles.get(normalizedPath);
         if (value === undefined) {

@@ -12,7 +12,6 @@ import {
   type AppStoreCatalogApp,
   type AppStoreCatalogCategory,
   type AppStoreCatalogService,
-  appStoreCatalogService as defaultAppStoreCatalogService,
 } from '@sdkwork/claw-core';
 import { type ListParams, type PaginatedResult } from '@sdkwork/claw-types';
 import {
@@ -97,6 +96,13 @@ const APP_STORE_INSPECTION_CONCURRENCY = 2;
 const INSTALL_SURFACE_SUMMARY_CACHE_TTL_MS = 30_000;
 const REMOTE_CATALOG_PAGE_SIZE = 100;
 
+let clawCoreModulePromise: Promise<ClawCoreModule> | null = null;
+
+function loadClawCoreModule(): Promise<ClawCoreModule> {
+  clawCoreModulePromise ??= import('@sdkwork/claw-core');
+  return clawCoreModulePromise;
+}
+
 interface AppCatalogPresentation {
   items: AppItem[];
   itemsById: Map<string, AppItem>;
@@ -107,6 +113,8 @@ interface AppStoreRemoteCatalogSnapshot {
   items: AppStoreCatalogApp[];
   categories: AppStoreCatalogCategory[];
 }
+
+type ClawCoreModule = typeof import('@sdkwork/claw-core');
 
 export interface CreateAppStoreServiceOptions {
   appStoreCatalogService?: AppStoreCatalogService;
@@ -494,7 +502,8 @@ async function mapWithConcurrency<T, R>(
 }
 
 class AppStoreServiceImpl implements IAppStoreService {
-  private appStoreCatalogService: AppStoreCatalogService;
+  private appStoreCatalogServiceOverride?: AppStoreCatalogService;
+  private appStoreCatalogServicePromise: Promise<AppStoreCatalogService> | null = null;
   private installCatalogCache = new Map<string, Promise<AppInstallDefinition[]>>();
   private catalogPresentationCache = new Map<string, Promise<AppCatalogPresentation>>();
   private remoteCatalogPromise: Promise<AppStoreRemoteCatalogSnapshot> | null = null;
@@ -509,8 +518,33 @@ class AppStoreServiceImpl implements IAppStoreService {
   private installSurfaceSummaryPending = new Map<string, Promise<AppInstallSurfaceSummary | null>>();
 
   constructor(options: CreateAppStoreServiceOptions = {}) {
-    this.appStoreCatalogService =
-      options.appStoreCatalogService || defaultAppStoreCatalogService;
+    this.appStoreCatalogServiceOverride = options.appStoreCatalogService;
+  }
+
+  private async resolveAppStoreCatalogService(): Promise<AppStoreCatalogService> {
+    if (this.appStoreCatalogServiceOverride) {
+      return this.appStoreCatalogServiceOverride;
+    }
+
+    if (!this.appStoreCatalogServicePromise) {
+      this.appStoreCatalogServicePromise = loadClawCoreModule()
+        .then((module) => {
+          const service = module.appStoreCatalogService;
+          if (!service) {
+            throw new Error(
+              '@sdkwork/claw-core does not expose appStoreCatalogService from the active runtime entry.',
+            );
+          }
+
+          return service;
+        })
+        .catch((error) => {
+          this.appStoreCatalogServicePromise = null;
+          throw error;
+        });
+    }
+
+    return this.appStoreCatalogServicePromise;
   }
 
   private async loadRuntimeInfo(): Promise<RuntimeInfo | null> {
@@ -651,14 +685,15 @@ class AppStoreServiceImpl implements IAppStoreService {
     }
 
     const pending = (async (): Promise<AppStoreRemoteCatalogSnapshot> => {
+      const appStoreCatalogService = await this.resolveAppStoreCatalogService();
       const [categories, items] = await Promise.all([
-        this.appStoreCatalogService.listCategories().catch(() => []),
+        appStoreCatalogService.listCategories().catch(() => []),
         (async () => {
           const collectedItems: AppStoreCatalogApp[] = [];
           let page = 1;
 
           while (true) {
-            const result = await this.appStoreCatalogService.listApps({
+            const result = await appStoreCatalogService.listApps({
               page,
               pageSize: REMOTE_CATALOG_PAGE_SIZE,
             });
@@ -904,8 +939,9 @@ class AppStoreServiceImpl implements IAppStoreService {
   async getList(params: ListParams = {}): Promise<PaginatedResult<AppItem>> {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
+    const appStoreCatalogService = await this.resolveAppStoreCatalogService();
     const [result, installCatalogMap] = await Promise.all([
-      this.appStoreCatalogService.listApps({
+      appStoreCatalogService.listApps({
         keyword: params.keyword,
         page,
         pageSize,
@@ -955,8 +991,9 @@ class AppStoreServiceImpl implements IAppStoreService {
   }
 
   async getApp(id: string): Promise<AppItem> {
+    const appStoreCatalogService = await this.resolveAppStoreCatalogService();
     const [remoteApp, installCatalogMap] = await Promise.all([
-      this.appStoreCatalogService.getApp(id),
+      appStoreCatalogService.getApp(id),
       this.getInstallCatalogMap(),
     ]);
 

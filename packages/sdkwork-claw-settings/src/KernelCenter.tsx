@@ -238,6 +238,10 @@ function formatTimestampValue(timestamp: number | null, emptyLabel: string) {
   return timestamp ? new Date(timestamp).toLocaleString() : emptyLabel;
 }
 
+function formatDurationMsValue(durationMs: number | null) {
+  return durationMs === null ? null : `${durationMs} ms`;
+}
+
 function MetricCard({
   icon: Icon,
   label,
@@ -350,6 +354,41 @@ export function KernelCenter() {
     activeProfilePath: null,
     rootDir: null,
     profileCount: 0,
+  };
+  const startupEvidence = dashboard?.startupEvidence ?? {
+    status: null,
+    phase: null,
+    runId: null,
+    recordedAt: null,
+    durationMs: null,
+    path: null,
+    descriptorMode: null,
+    descriptorLifecycle: null,
+    descriptorEndpointId: null,
+    descriptorRequestedPort: null,
+    descriptorActivePort: null,
+    descriptorLoopbackOnly: null,
+    descriptorDynamicPort: null,
+    descriptorStateStoreDriver: null,
+    descriptorStateStoreProfileId: null,
+    descriptorBrowserBaseUrl: null,
+    manageBaseUrl: null,
+    builtInInstanceId: null,
+    builtInInstanceName: null,
+    builtInInstanceVersion: null,
+    builtInInstanceRuntimeKind: null,
+    builtInInstanceDeploymentMode: null,
+    builtInInstanceTransportKind: null,
+    builtInInstanceBaseUrl: null,
+    builtInInstanceWebsocketUrl: null,
+    builtInInstanceIsBuiltIn: null,
+    builtInInstanceIsDefault: null,
+    builtInInstanceStatus: null,
+    runtimeLifecycle: null,
+    gatewayLifecycle: null,
+    ready: null,
+    errorMessage: null,
+    errorCause: null,
   };
   const provenance = dashboard?.provenance ?? {
     installSourceLabel: null,
@@ -841,6 +880,221 @@ export function KernelCenter() {
               label={t('settings.kernelCenter.fields.nodeVersion')}
               value={provenance.nodeVersion || null}
               emptyLabel={notAvailableLabel}
+            />
+          </div>
+        </Section>
+
+        <Section title={t('settings.kernelCenter.sections.startupEvidence')}>
+          <div
+            data-slot="kernel-center-startup-evidence"
+            className="grid grid-cols-1 gap-4 md:grid-cols-2"
+          >
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceStatus')}
+              value={startupEvidence.status || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidencePhase')}
+              value={startupEvidence.phase || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceRunId')}
+              value={
+                startupEvidence.runId === null
+                  ? null
+                  : String(startupEvidence.runId)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceRecordedAt')}
+              value={startupEvidence.recordedAt || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDuration')}
+              value={formatDurationMsValue(startupEvidence.durationMs)}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceReady')}
+              value={
+                startupEvidence.ready === null
+                  ? null
+                  : translateBoolean(t, startupEvidence.ready)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidencePath')}
+              value={startupEvidence.path || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorMode')}
+              value={startupEvidence.descriptorMode || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorLifecycle')}
+              value={startupEvidence.descriptorLifecycle || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorEndpointId')}
+              value={startupEvidence.descriptorEndpointId || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorRequestedPort')}
+              value={
+                startupEvidence.descriptorRequestedPort === null
+                  ? null
+                  : String(startupEvidence.descriptorRequestedPort)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorActivePort')}
+              value={
+                startupEvidence.descriptorActivePort === null
+                  ? null
+                  : String(startupEvidence.descriptorActivePort)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorLoopbackOnly')}
+              value={
+                startupEvidence.descriptorLoopbackOnly === null
+                  ? null
+                  : translateBoolean(t, startupEvidence.descriptorLoopbackOnly)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorDynamicPort')}
+              value={
+                startupEvidence.descriptorDynamicPort === null
+                  ? null
+                  : translateBoolean(t, startupEvidence.descriptorDynamicPort)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorStateStoreDriver')}
+              value={startupEvidence.descriptorStateStoreDriver || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorStateStoreProfileId')}
+              value={startupEvidence.descriptorStateStoreProfileId || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceDescriptorBrowserBaseUrl')}
+              value={startupEvidence.descriptorBrowserBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceManageBaseUrl')}
+              value={startupEvidence.manageBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceId')}
+              value={startupEvidence.builtInInstanceId || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceName')}
+              value={startupEvidence.builtInInstanceName || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceVersion')}
+              value={startupEvidence.builtInInstanceVersion || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceRuntimeKind')}
+              value={startupEvidence.builtInInstanceRuntimeKind || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceDeploymentMode')}
+              value={startupEvidence.builtInInstanceDeploymentMode || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceTransportKind')}
+              value={startupEvidence.builtInInstanceTransportKind || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceBaseUrl')}
+              value={startupEvidence.builtInInstanceBaseUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceWebsocketUrl')}
+              value={startupEvidence.builtInInstanceWebsocketUrl || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceIsBuiltIn')}
+              value={
+                startupEvidence.builtInInstanceIsBuiltIn === null
+                  ? null
+                  : translateBoolean(t, startupEvidence.builtInInstanceIsBuiltIn)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceIsDefault')}
+              value={
+                startupEvidence.builtInInstanceIsDefault === null
+                  ? null
+                  : translateBoolean(t, startupEvidence.builtInInstanceIsDefault)
+              }
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceBuiltInInstanceStatus')}
+              value={startupEvidence.builtInInstanceStatus || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceRuntimeLifecycle')}
+              value={startupEvidence.runtimeLifecycle || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceGatewayLifecycle')}
+              value={startupEvidence.gatewayLifecycle || null}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceErrorCause')}
+              value={startupEvidence.errorCause || null}
+              emptyLabel={noneLabel}
+              mono
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.startupEvidenceErrorMessage')}
+              value={startupEvidence.errorMessage || null}
+              emptyLabel={noneLabel}
+              mono
             />
           </div>
         </Section>

@@ -8,6 +8,7 @@ import type {
   StudioWorkbenchChannelRecord,
   StudioWorkbenchTaskRecord,
 } from '@sdkwork/claw-types';
+import type { DashboardAnalyticsQuery } from '../types';
 import { createDashboardService } from './dashboardService.ts';
 
 async function runTest(name: string, fn: () => Promise<void>) {
@@ -268,7 +269,7 @@ function createService(options: {
       },
     },
     dashboardCommerceApi: {
-      getCommerceSnapshot: async (query) => {
+      getCommerceSnapshot: async (query: DashboardAnalyticsQuery = {}) => {
         if (options.commerceError) {
           throw options.commerceError;
         }

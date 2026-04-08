@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { createSettingsService } from './settingsService.ts';
+import {
+  createSettingsService,
+  type CreateSettingsServiceOptions,
+} from './settingsService.ts';
 
 function createStorage() {
   const store = new Map<string, string>();
@@ -54,54 +57,56 @@ function jsonResponse(payload: unknown, status = 200) {
 }
 
 function createTestSettingsService() {
+  const client: Awaited<ReturnType<NonNullable<CreateSettingsServiceOptions['getClient']>>> = {
+    user: {
+      async getUserProfile() {
+        return (await fetch('http://localhost/app/v3/api/user/profile')).json();
+      },
+      async updateUserProfile(body) {
+        return (
+          await fetch('http://localhost/app/v3/api/user/profile', {
+            method: 'PUT',
+            body: JSON.stringify(body),
+          })
+        ).json();
+      },
+      async changePassword(body) {
+        return (
+          await fetch('http://localhost/app/v3/api/user/password', {
+            method: 'PUT',
+            body: JSON.stringify(body),
+          })
+        ).json();
+      },
+    },
+    notification: {
+      async getNotificationSettings() {
+        return (await fetch('http://localhost/app/v3/api/notification/settings')).json();
+      },
+      async updateNotificationSettings(body) {
+        return (
+          await fetch('http://localhost/app/v3/api/notification/settings', {
+            method: 'PUT',
+            body: JSON.stringify(body),
+          })
+        ).json();
+      },
+      async updateTypeSettings(type, body) {
+        return (
+          await fetch(
+            `http://localhost/app/v3/api/notification/settings/${encodeURIComponent(String(type))}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify(body),
+            },
+          )
+        ).json();
+      },
+    },
+  };
+
   return createSettingsService({
-    getClient: () => ({
-      user: {
-        async getUserProfile() {
-          return (await fetch('http://localhost/app/v3/api/user/profile')).json();
-        },
-        async updateUserProfile(body: Record<string, unknown>) {
-          return (
-            await fetch('http://localhost/app/v3/api/user/profile', {
-              method: 'PUT',
-              body: JSON.stringify(body),
-            })
-          ).json();
-        },
-        async changePassword(body: Record<string, unknown>) {
-          return (
-            await fetch('http://localhost/app/v3/api/user/password', {
-              method: 'PUT',
-              body: JSON.stringify(body),
-            })
-          ).json();
-        },
-      },
-      notification: {
-        async getNotificationSettings() {
-          return (await fetch('http://localhost/app/v3/api/notification/settings')).json();
-        },
-        async updateNotificationSettings(body: Record<string, unknown>) {
-          return (
-            await fetch('http://localhost/app/v3/api/notification/settings', {
-              method: 'PUT',
-              body: JSON.stringify(body),
-            })
-          ).json();
-        },
-        async updateTypeSettings(type: string, body: Record<string, unknown>) {
-          return (
-            await fetch(
-              `http://localhost/app/v3/api/notification/settings/${encodeURIComponent(type)}`,
-              {
-                method: 'PUT',
-                body: JSON.stringify(body),
-              },
-            )
-          ).json();
-        },
-      },
-    }),
+    getClient: () => client,
   });
 }
 
@@ -175,20 +180,24 @@ await runTest('settingsService persists general preferences across reads', async
   const settingsService = createTestSettingsService();
   const initial = await settingsService.getPreferences();
   assert.equal(initial.general.launchOnStartup, false);
+  assert.equal(initial.general.compactModelSelector, true);
 
   const updated = await settingsService.updatePreferences({
     general: {
       launchOnStartup: true,
       startMinimized: true,
+      compactModelSelector: false,
     },
   });
 
   assert.equal(updated.general.launchOnStartup, true);
   assert.equal(updated.general.startMinimized, true);
+  assert.equal(updated.general.compactModelSelector, false);
 
   const reloaded = await settingsService.getPreferences();
   assert.equal(reloaded.general.launchOnStartup, true);
   assert.equal(reloaded.general.startMinimized, true);
+  assert.equal(reloaded.general.compactModelSelector, false);
 });
 
 await runTest('settingsService keeps security and privacy overlays when notification settings reload', async () => {

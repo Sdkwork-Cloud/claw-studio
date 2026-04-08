@@ -156,6 +156,14 @@ runTest('sdkwork-claw-install keeps guided install configuration and initializat
 
   assert.match(serviceIndexSource, /installBootstrapService/);
   assert.match(serviceIndexSource, /installGuidedWizardService/);
+  assert.match(
+    serviceIndexSource,
+    /export \* as installGuidedWizardService from '\.\/installGuidedWizardService'/,
+  );
+  assert.match(
+    serviceIndexSource,
+    /export \* as openClawInstallWizardService from '\.\/openClawInstallWizardService'/,
+  );
 });
 
 runTest('sdkwork-claw-install gives OpenClaw a dedicated file-backed guided wizard instead of reusing the generic inline configuration flow', () => {

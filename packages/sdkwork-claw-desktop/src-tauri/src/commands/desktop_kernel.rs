@@ -235,7 +235,7 @@ mod tests {
         },
         state::AppState,
     };
-    use std::sync::Arc;
+    use std::{fs, sync::Arc};
 
     fn normalize_path_suffix(path: &str) -> String {
         path.replace('\\', "/")
@@ -336,6 +336,49 @@ mod tests {
         assert!(info.local_ai_proxy.route_metrics.is_empty());
         assert!(info.local_ai_proxy.route_tests.is_empty());
         assert!(!info.local_ai_proxy.message_capture_enabled);
+        let payload = serde_json::to_value(&info).expect("kernel info json");
+        assert_eq!(payload["openClawRuntime"]["runtimeId"], "openclaw");
+        assert_eq!(payload["openClawRuntime"]["lifecycle"], "inactive");
+        assert!(normalize_path_suffix(
+            payload["openClawRuntime"]["homeDir"]
+                .as_str()
+                .expect("runtime home dir"),
+        )
+        .ends_with("user-home/openclaw-home"));
+        assert!(normalize_path_suffix(
+            payload["openClawRuntime"]["stateDir"]
+                .as_str()
+                .expect("runtime state dir"),
+        )
+        .ends_with("user-home/openclaw-home/.openclaw"));
+        assert!(normalize_path_suffix(
+            payload["openClawRuntime"]["workspaceDir"]
+                .as_str()
+                .expect("runtime workspace dir"),
+        )
+        .ends_with("user-home/openclaw-home/.openclaw/workspace"));
+        assert!(normalize_path_suffix(
+            payload["openClawRuntime"]["configPath"]
+                .as_str()
+                .expect("runtime config path"),
+        )
+        .ends_with("user-home/openclaw-home/.openclaw/openclaw.json"));
+        assert_eq!(
+            payload["openClawRuntime"]["startupChain"][0]["id"],
+            "configureOpenClawGateway"
+        );
+        assert_eq!(
+            payload["openClawRuntime"]["startupChain"][0]["status"],
+            "pending"
+        );
+        assert_eq!(
+            payload["openClawRuntime"]["startupChain"][1]["id"],
+            "ensureLocalAiProxyReady"
+        );
+        assert_eq!(
+            payload["openClawRuntime"]["startupChain"][2]["id"],
+            "projectManagedOpenClawProvider"
+        );
         assert!(normalize_path_suffix(
             info.local_ai_proxy
                 .observability_db_path
@@ -343,6 +386,196 @@ mod tests {
                 .expect("observability db path"),
         )
         .ends_with("machine/store/local-ai-proxy-observability.sqlite3"));
+    }
+
+    #[test]
+    fn desktop_kernel_info_exposes_persisted_startup_evidence_summary() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let diagnostics_dir = paths.data_dir.join("diagnostics");
+        fs::create_dir_all(&diagnostics_dir).expect("create diagnostics dir");
+        fs::write(
+            diagnostics_dir.join("desktop-startup-evidence.json"),
+            r#"{
+  "version": 1,
+  "status": "passed",
+  "phase": "shell-mounted",
+  "runId": 11,
+  "durationMs": 842,
+  "recordedAt": "2026-04-08T10:30:00.000Z",
+  "descriptor": {
+    "mode": "desktopCombined",
+    "lifecycle": "ready",
+    "endpointId": "desktop-host",
+    "requestedPort": 18797,
+    "activePort": 18797,
+    "loopbackOnly": true,
+    "dynamicPort": false,
+    "stateStoreDriver": "sqlite",
+    "stateStoreProfileId": "default-sqlite",
+    "browserBaseUrl": "http://127.0.0.1:18797"
+  },
+  "builtInInstance": {
+    "id": "local-built-in",
+    "name": "Local Built-In",
+    "version": "2026.4.2",
+    "runtimeKind": "openclaw",
+    "deploymentMode": "local-managed",
+    "transportKind": "openclawGatewayWs",
+    "baseUrl": "http://127.0.0.1:18797",
+    "websocketUrl": "ws://127.0.0.1:18797/ws",
+    "isBuiltIn": true,
+    "isDefault": true,
+    "status": "online"
+  },
+  "readinessEvidence": {
+    "manageBaseUrl": "http://127.0.0.1:18797",
+    "openClawRuntimeLifecycle": "ready",
+    "openClawGatewayLifecycle": "ready",
+    "ready": true
+  },
+  "error": {
+    "message": "gateway websocket did not become dialable",
+    "cause": "socket timeout"
+  }
+}
+"#,
+        )
+        .expect("write startup evidence");
+        let logger = init_logger(&paths).expect("logger");
+        let context = Arc::new(FrameworkContext::from_parts(
+            paths.clone(),
+            AppConfig::default(),
+            logger,
+        ));
+        let state = AppState::from_context(context);
+
+        let info = desktop_kernel_info_from_state(&state).expect("kernel info");
+        let payload = serde_json::to_value(&info).expect("kernel info json");
+
+        assert_eq!(payload["desktopStartupEvidence"]["status"], "passed");
+        assert_eq!(payload["desktopStartupEvidence"]["phase"], "shell-mounted");
+        assert_eq!(payload["desktopStartupEvidence"]["runId"], 11);
+        assert_eq!(
+            payload["desktopStartupEvidence"]["recordedAt"],
+            "2026-04-08T10:30:00.000Z"
+        );
+        assert_eq!(payload["desktopStartupEvidence"]["durationMs"], 842);
+        assert_eq!(
+            normalize_path_suffix(
+                payload["desktopStartupEvidence"]["evidencePath"]
+                    .as_str()
+                    .expect("startup evidence path"),
+            ),
+            normalize_path_suffix(
+                &paths
+                    .data_dir
+                    .join("diagnostics")
+                    .join("desktop-startup-evidence.json")
+                    .to_string_lossy(),
+            )
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorMode"],
+            "desktopCombined"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorLifecycle"],
+            "ready"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorEndpointId"],
+            "desktop-host"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorActivePort"],
+            18797
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorRequestedPort"],
+            18797
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorLoopbackOnly"],
+            true
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorDynamicPort"],
+            false
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorStateStoreDriver"],
+            "sqlite"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorStateStoreProfileId"],
+            "default-sqlite"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["descriptorBrowserBaseUrl"],
+            "http://127.0.0.1:18797"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["manageBaseUrl"],
+            "http://127.0.0.1:18797"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceId"],
+            "local-built-in"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceName"],
+            "Local Built-In"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceVersion"],
+            "2026.4.2"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceRuntimeKind"],
+            "openclaw"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceDeploymentMode"],
+            "local-managed"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceTransportKind"],
+            "openclawGatewayWs"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceBaseUrl"],
+            "http://127.0.0.1:18797"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceWebsocketUrl"],
+            "ws://127.0.0.1:18797/ws"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceIsBuiltIn"],
+            true
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceIsDefault"],
+            true
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["builtInInstanceStatus"],
+            "online"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["openClawRuntimeLifecycle"],
+            "ready"
+        );
+        assert_eq!(
+            payload["desktopStartupEvidence"]["openClawGatewayLifecycle"],
+            "ready"
+        );
+        assert_eq!(payload["desktopStartupEvidence"]["ready"], true);
+        assert_eq!(
+            payload["desktopStartupEvidence"]["errorCause"],
+            "socket timeout"
+        );
     }
 
     #[test]

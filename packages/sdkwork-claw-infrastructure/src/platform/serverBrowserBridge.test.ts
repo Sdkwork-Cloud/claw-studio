@@ -16,6 +16,7 @@ import {
   SERVER_MANAGE_BASE_PATH_META_NAME,
   internal,
   manage,
+  platform,
   studio,
 } from './index.ts';
 
@@ -545,6 +546,7 @@ await runTest('server browser bridge preserves the active desktop authority inst
       platform: {
         ...originalBridge.platform,
         getPlatform: () => 'desktop',
+        supportsNativeScreenshot: () => true,
       },
       manage: desktopManage,
       internal: desktopInternal,
@@ -566,6 +568,27 @@ await runTest('server browser bridge preserves the active desktop authority inst
     assert.equal(getPlatformBridge().internal, desktopInternal);
     assert.equal(getPlatformBridge().runtime, desktopRuntime);
     assert.equal(getPlatformBridge().studio, desktopStudio);
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('desktopCombined hosted browser exposes desktop platform capabilities without pretending to be native desktop', async () => {
+  const originalBridge = getPlatformBridge();
+
+  try {
+    const configured = configureServerBrowserPlatformBridge({
+      document: createMetaDocument({
+        [SERVER_HOST_MODE_META_NAME]: 'desktopCombined',
+        [SERVER_MANAGE_BASE_PATH_META_NAME]: '/claw/manage/v1',
+        [SERVER_INTERNAL_BASE_PATH_META_NAME]: '/claw/internal/v1',
+        [SERVER_API_BASE_PATH_META_NAME]: '/claw/api/v1',
+      }) as Document,
+    });
+
+    assert.equal(configured, true);
+    assert.equal(platform.getPlatform(), 'desktop');
+    assert.equal(platform.supportsNativeScreenshot(), false);
   } finally {
     configurePlatformBridge(originalBridge);
   }
@@ -673,6 +696,7 @@ await runTest('server browser bridge bootstrap skips structured descriptor fetch
       platform: {
         ...originalBridge.platform,
         getPlatform: () => 'desktop',
+        supportsNativeScreenshot: () => true,
       },
       manage: desktopManage,
       internal: desktopInternal,

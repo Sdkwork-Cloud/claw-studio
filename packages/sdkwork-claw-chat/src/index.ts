@@ -1,9 +1,8 @@
 export * from './Chat';
-export * from './components';
+export { chatService } from './services/chatService';
+export * from './chatSessionMapping';
+export * from './externalModules.d';
 export * from './runtime/OpenClawGatewayConnections';
-export * from './services/agentService';
-export * from './services/chatService';
-export * from './services/chatCronActivityNotifications';
-export * from './services/clawChatService';
+export * from './services';
 export * from './store/useChatStore';
-export * from './types/index.ts';
+export * from './types';

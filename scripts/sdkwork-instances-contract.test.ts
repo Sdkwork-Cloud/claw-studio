@@ -78,9 +78,14 @@ runTest('sdkwork-claw-instances is implemented locally instead of re-exporting c
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-instances/);
   assert.match(indexSource, /Instances/);
   assert.match(indexSource, /InstanceDetail/);
+  assert.match(indexSource, /Nodes/);
+  assert.match(indexSource, /agentSkillManagementService/);
+  assert.match(indexSource, /agentWorkbenchService/);
   assert.match(indexSource, /instanceService/);
   assert.match(indexSource, /instanceWorkbenchService/);
   assert.match(indexSource, /useInstanceStore/);
+  assert.doesNotMatch(indexSource, /export \* from '\.\/services';/);
+  assert.doesNotMatch(indexSource, /export \* from '\.\/types';/);
 });
 
 runTest('sdkwork-claw-instances exports the Nodes surface through package and service barrels with localized page copy', () => {

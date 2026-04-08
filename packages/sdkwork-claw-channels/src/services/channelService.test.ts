@@ -12,11 +12,21 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
 }
 
 async function withMockedWindowStorage(fn: () => Promise<void>) {
-  const originalWindow = (globalThis as typeof globalThis & { window?: unknown }).window;
+  const globalWithWindow = globalThis as unknown as { window?: unknown };
+  const originalWindow = globalWithWindow.window;
   const storage = new Map<string, string>();
-  const localStorage = {
+  const localStorage: Storage = {
+    get length() {
+      return storage.size;
+    },
+    clear() {
+      storage.clear();
+    },
     getItem(key: string) {
       return storage.get(key) ?? null;
+    },
+    key(index: number) {
+      return [...storage.keys()][index] ?? null;
     },
     setItem(key: string, value: string) {
       storage.set(key, value);
@@ -26,14 +36,14 @@ async function withMockedWindowStorage(fn: () => Promise<void>) {
     },
   };
 
-  (globalThis as typeof globalThis & { window?: { localStorage: typeof localStorage } }).window = {
+  globalWithWindow.window = {
     localStorage,
   };
 
   try {
     await fn();
   } finally {
-    (globalThis as typeof globalThis & { window?: unknown }).window = originalWindow;
+    globalWithWindow.window = originalWindow;
   }
 }
 

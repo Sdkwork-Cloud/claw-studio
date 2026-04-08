@@ -19,7 +19,14 @@ function runTest(name: string, fn: () => void | Promise<void>) {
     });
 }
 
-function createDetail(overrides: Partial<StudioInstanceDetailRecord> = {}): StudioInstanceDetailRecord {
+type DetailOverrides =
+  Omit<Partial<StudioInstanceDetailRecord>, 'instance' | 'config' | 'lifecycle'> & {
+    instance?: Partial<StudioInstanceDetailRecord['instance']>;
+    config?: Partial<StudioInstanceDetailRecord['config']>;
+    lifecycle?: Partial<StudioInstanceDetailRecord['lifecycle']>;
+  };
+
+function createDetail(overrides: DetailOverrides = {}): StudioInstanceDetailRecord {
   const {
     instance: instanceOverrides,
     config: configOverrides,

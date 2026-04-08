@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import type { HubInstallResult } from '@sdkwork/claw-infrastructure';
+import type { HubInstallProgressEvent, HubInstallResult } from '@sdkwork/claw-infrastructure';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -19,40 +19,52 @@ await runTest(
       reduceHubInstallProgressEvent,
     } = await import('./hubInstallProgressService.ts');
 
-    const events = [
+    const events: HubInstallProgressEvent[] = [
       {
+        softwareName: 'openclaw-npm',
+        operationKind: 'install',
         type: 'stageStarted',
         stage: 'dependencies',
         totalSteps: 2,
-      } as const,
+      },
       {
+        softwareName: 'openclaw-npm',
+        operationKind: 'install',
         type: 'stepStarted',
         stepId: 'ensure-node',
         description: 'Ensure Node.js',
-      } as const,
+      },
       {
+        softwareName: 'openclaw-npm',
+        operationKind: 'install',
         type: 'stepCommandStarted',
         stepId: 'ensure-node',
         commandLine: 'winget install OpenJS.NodeJS.LTS',
-      } as const,
+      },
       {
+        softwareName: 'openclaw-npm',
+        operationKind: 'install',
         type: 'artifactStarted',
         artifactId: 'nodejs',
         artifactType: 'package',
-      } as const,
+      },
       {
+        softwareName: 'openclaw-npm',
+        operationKind: 'install',
         type: 'artifactCompleted',
         artifactId: 'nodejs',
         artifactType: 'package',
         success: true,
-      } as const,
+      },
       {
+        softwareName: 'openclaw-npm',
+        operationKind: 'install',
         type: 'stageCompleted',
         stage: 'dependencies',
         success: true,
         totalSteps: 2,
         failedSteps: 0,
-      } as const,
+      },
     ];
 
     const state = events.reduce(reduceHubInstallProgressEvent, createHubInstallProgressState());
@@ -77,6 +89,8 @@ await runTest(
     } = await import('./hubInstallProgressService.ts');
 
     const liveState = reduceHubInstallProgressEvent(createHubInstallProgressState(), {
+      softwareName: 'openclaw-npm',
+      operationKind: 'install',
       type: 'stageStarted',
       stage: 'install',
       totalSteps: 3,
@@ -148,12 +162,16 @@ await runTest(
 
     const t = (key: string) => key;
     const started = formatHubInstallProgressEvent(t, {
+      softwareName: 'openclaw-npm',
+      operationKind: 'install',
       type: 'dependencyStarted',
       dependencyId: 'node',
       target: 'node',
       description: 'Node.js runtime',
     });
     const completed = formatHubInstallProgressEvent(t, {
+      softwareName: 'openclaw-npm',
+      operationKind: 'install',
       type: 'dependencyCompleted',
       dependencyId: 'node',
       target: 'node',

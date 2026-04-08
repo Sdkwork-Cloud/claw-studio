@@ -1,9 +1,6 @@
 import type { OrderVO, PageOrderVO, PageProductVO, ProductVO, SdkworkAppClient } from '@sdkwork/app-sdk';
 import { unwrapAppSdkResponse } from '../sdk/appSdkResult.ts';
-import {
-  getAppSdkClientWithSession,
-  readAppSdkSessionTokens,
-} from '../sdk/useAppSdkClient.ts';
+import { getAppSdkClientWithSession, readAppSdkSessionTokens } from '../sdk/useAppSdkClient.ts';
 
 export type DashboardCommerceGranularity = 'day' | 'hour';
 export type DashboardCommerceRangeMode = 'seven_days' | 'month' | 'custom';
@@ -107,8 +104,8 @@ type DashboardCommerceClient = Pick<SdkworkAppClient, 'order' | 'product'>;
 type DashboardCommerceSessionTokens = { authToken?: string | null };
 
 export interface CreateDashboardCommerceServiceOptions {
-  getClient?: () => DashboardCommerceClient;
-  getSessionTokens?: () => DashboardCommerceSessionTokens;
+  getClient?: () => DashboardCommerceClient | Promise<DashboardCommerceClient>;
+  getSessionTokens?: () => DashboardCommerceSessionTokens | Promise<DashboardCommerceSessionTokens>;
   getNow?: () => Date;
 }
 
@@ -494,7 +491,9 @@ export function createDashboardCommerceService(options: CreateDashboardCommerceS
 
   return {
     async getCommerceSnapshot(query: DashboardCommerceQuery = {}) {
-      const sessionTokens = getSessionTokens ? getSessionTokens() : getDefaultSessionTokens();
+      const sessionTokens = await Promise.resolve(
+        getSessionTokens ? getSessionTokens() : getDefaultSessionTokens(),
+      );
       if (!toOptionalString(sessionTokens.authToken)) {
         return createEmptyDashboardCommerceSnapshot(query);
       }
@@ -509,7 +508,7 @@ export function createDashboardCommerceService(options: CreateDashboardCommerceS
       const targetMonthDate = window.selectedMonthKey ? new Date(`${window.selectedMonthKey}-01T00:00:00.000Z`) : now;
       const projectedDays = new Date(Date.UTC(targetMonthDate.getUTCFullYear(), targetMonthDate.getUTCMonth() + 1, 0)).getUTCDate();
 
-      const client = getClient ? getClient() : getDefaultClient();
+      const client = await Promise.resolve(getClient ? getClient() : getDefaultClient());
       const [orders, products] = await Promise.all([
         loadAllOrders(client, collectionStart, collectionEnd),
         loadAllProducts(client),

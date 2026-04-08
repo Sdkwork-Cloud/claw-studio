@@ -1,4 +1,10 @@
 import assert from 'node:assert/strict';
+import type { HubInstallAssessmentResult } from '@sdkwork/claw-infrastructure';
+import type { InstallChoiceAssessmentState } from './installRecommendationService.ts';
+
+type AssessmentOverrides = Omit<Partial<HubInstallAssessmentResult>, 'runtime'> & {
+  runtime?: Partial<HubInstallAssessmentResult['runtime']>;
+};
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -10,22 +16,48 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
   }
 }
 
-function createAssessment(overrides: Record<string, unknown> = {}) {
+function createAssessment(
+  overrides: AssessmentOverrides = {},
+): InstallChoiceAssessmentState {
+  const runtimeOverrides = overrides.runtime ?? {};
+  const { runtime: _runtime, ...assessmentOverrides } = overrides;
+
   return {
     status: 'success',
     result: {
+      registryName: 'official',
+      registrySource: 'local',
+      softwareName: 'openclaw',
+      manifestSource: 'manifest',
+      manifestName: 'OpenClaw',
       ready: true,
+      requiresElevatedSetup: false,
+      platform: 'windows',
+      effectiveRuntimePlatform: 'windows',
+      resolvedInstallScope: 'user',
+      resolvedInstallRoot: 'C:/Users/admin/AppData/Local/Programs/openclaw',
+      resolvedWorkRoot: 'C:/Users/admin/workspace/openclaw',
+      resolvedBinDir: 'C:/Users/admin/AppData/Local/Programs/openclaw/bin',
+      resolvedDataRoot: 'C:/Users/admin/AppData/Roaming/openclaw',
+      installControlLevel: 'partial',
       installStatus: null,
       issues: [],
       dependencies: [],
+      recommendations: [],
+      dataItems: [],
+      migrationStrategies: [],
       runtime: {
+        hostPlatform: 'windows',
+        requestedRuntimePlatform: 'windows',
         effectiveRuntimePlatform: 'windows',
+        availableWslDistributions: [],
         wslAvailable: false,
         hostDockerAvailable: false,
         wslDockerAvailable: false,
         commandAvailability: {},
+        ...runtimeOverrides,
       },
-      ...overrides,
+      ...assessmentOverrides,
     },
   };
 }

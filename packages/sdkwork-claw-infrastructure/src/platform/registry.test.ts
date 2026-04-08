@@ -4,6 +4,7 @@ import {
   type StudioInstanceDetailRecord,
 } from '@sdkwork/claw-types';
 import {
+  bootstrapServerBrowserPlatformBridge,
   STUDIO_DETAIL_CACHE_TTL_MS,
   configureServerBrowserPlatformBridge,
   configurePlatformBridge,
@@ -760,6 +761,8 @@ await runTest('server browser bridge also installs hosted-browser runtime startu
     const configured = configureServerBrowserPlatformBridge({
       document: createMetaDocument({
         'sdkwork-claw-host-mode': 'server',
+        'sdkwork-claw-deployment-family': 'container',
+        'sdkwork-claw-accelerator-profile': 'nvidia-cuda',
         'sdkwork-claw-manage-base-path': '/claw/manage/v1',
         'sdkwork-claw-internal-base-path': '/claw/internal/v1',
       }) as Document,
@@ -770,11 +773,11 @@ await runTest('server browser bridge also installs hosted-browser runtime startu
 
     const runtimeInfo = await runtime.getRuntimeInfo();
 
-    assert.equal(runtimeInfo.platform, 'web');
+    assert.equal(runtimeInfo.platform, 'server');
     assert.equal(runtimeInfo.startup?.hostMode, 'server');
     assert.equal(runtimeInfo.startup?.distributionFamily, 'server');
-    assert.equal(runtimeInfo.startup?.deploymentFamily, 'bareMetal');
-    assert.equal(runtimeInfo.startup?.acceleratorProfile, null);
+    assert.equal(runtimeInfo.startup?.deploymentFamily, 'container');
+    assert.equal(runtimeInfo.startup?.acceleratorProfile, 'nvidia-cuda');
     assert.equal(runtimeInfo.startup?.hostedBrowser, true);
     assert.equal(runtimeInfo.startup?.manageBasePath, '/claw/manage/v1');
     assert.equal(runtimeInfo.startup?.internalBasePath, '/claw/internal/v1');
@@ -801,7 +804,7 @@ await runTest('server browser bridge also installs hosted-browser runtime startu
 
     const runtimeInfo = await runtime.getRuntimeInfo();
 
-    assert.equal(runtimeInfo.platform, 'web');
+    assert.equal(runtimeInfo.platform, 'desktop');
     assert.equal(runtimeInfo.startup?.hostMode, 'desktopCombined');
     assert.equal(runtimeInfo.startup?.distributionFamily, 'desktop');
     assert.equal(runtimeInfo.startup?.deploymentFamily, 'bareMetal');
@@ -810,6 +813,53 @@ await runTest('server browser bridge also installs hosted-browser runtime startu
     assert.equal(runtimeInfo.startup?.manageBasePath, '/claw/manage/v1');
     assert.equal(runtimeInfo.startup?.internalBasePath, '/claw/internal/v1');
     assert.equal(runtimeInfo.startup?.browserBaseUrl, 'http://127.0.0.1:19876');
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('server browser bridge bootstrap preserves kubernetes hosted runtime metadata', async () => {
+  const originalBridge = getPlatformBridge();
+
+  try {
+    const configured = await bootstrapServerBrowserPlatformBridge({
+      document: {
+        baseURI: 'https://claw.example.com/index.html',
+        querySelector() {
+          return null;
+        },
+      } as Document,
+      fetchImpl: async (input) => {
+        const inputText = String(input);
+
+        if (inputText === 'https://claw.example.com/sdkwork-claw-bootstrap.json') {
+          return createJsonResponse({
+            mode: 'server',
+            distributionFamily: 'server',
+            deploymentFamily: 'kubernetes',
+            acceleratorProfile: 'cpu',
+            apiBasePath: '/claw/api/v1',
+            manageBasePath: '/claw/manage/v1',
+            internalBasePath: '/claw/internal/v1',
+            browserSessionToken: null,
+          }) as Response;
+        }
+
+        throw new Error(`unexpected descriptor fetch: ${inputText}`);
+      },
+    });
+
+    assert.equal(configured, true);
+
+    const runtimeInfo = await runtime.getRuntimeInfo();
+
+    assert.equal(runtimeInfo.platform, 'server');
+    assert.equal(runtimeInfo.startup?.hostMode, 'server');
+    assert.equal(runtimeInfo.startup?.distributionFamily, 'server');
+    assert.equal(runtimeInfo.startup?.deploymentFamily, 'kubernetes');
+    assert.equal(runtimeInfo.startup?.acceleratorProfile, 'cpu');
+    assert.equal(runtimeInfo.startup?.browserBaseUrl, 'https://claw.example.com');
+    assert.equal(runtimeInfo.startup?.hostedBrowser, true);
   } finally {
     configurePlatformBridge(originalBridge);
   }

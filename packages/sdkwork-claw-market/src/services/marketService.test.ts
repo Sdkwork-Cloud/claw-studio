@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { Skill, SkillPack } from '@sdkwork/claw-types';
-import { createMarketService } from './marketService.ts';
+import { createMarketService, type InstallSkillInput } from './marketService.ts';
 
 function runTest(name: string, callback: () => void | Promise<void>) {
   return Promise.resolve()
@@ -96,7 +96,7 @@ await runTest(
 await runTest(
   'marketService installs skills and selected pack items through native agent skill management using ClawHub slugs',
   async () => {
-    const installCalls: Array<Record<string, unknown>> = [];
+    const installCalls: InstallSkillInput[] = [];
     const service = createMarketService({
       clawHubService: {
         listCategories: async () => [],
@@ -129,7 +129,7 @@ await runTest(
       },
       agentSkillManagementService: {
         installSkill: async (input) => {
-          installCalls.push(input as Record<string, unknown>);
+          installCalls.push(input);
         },
       },
     });

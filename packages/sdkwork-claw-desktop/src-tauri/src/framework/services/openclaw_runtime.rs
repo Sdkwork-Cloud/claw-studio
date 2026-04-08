@@ -198,8 +198,8 @@ impl OpenClawRuntimeService {
             )?;
         }
 
-        let install_dir = resolve_launch_runtime_install_dir(&install_dir, &manifest)?
-            .ok_or_else(|| {
+        let install_dir =
+            resolve_launch_runtime_install_dir(&install_dir, &manifest)?.ok_or_else(|| {
                 FrameworkError::NotFound(format!(
                     "bundled openclaw runtime is incomplete under {}",
                     install_dir.display()
@@ -985,13 +985,11 @@ fn generate_gateway_auth_token() -> String {
 }
 
 fn current_rfc3339_timestamp() -> Result<String> {
-    OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .map_err(|error| {
-            FrameworkError::Internal(format!(
-                "failed to format managed openclaw metadata timestamp: {error}"
-            ))
-        })
+    OffsetDateTime::now_utc().format(&Rfc3339).map_err(|error| {
+        FrameworkError::Internal(format!(
+            "failed to format managed openclaw metadata timestamp: {error}"
+        ))
+    })
 }
 
 fn unix_timestamp_ms() -> Result<u128> {
@@ -1165,7 +1163,9 @@ mod tests {
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
         let bundled_manifest =
             load_manifest(&resource_root.join("manifest.json")).expect("bundled manifest");
-        let install_dir = paths.openclaw_runtime_dir.join(bundled_manifest.install_key());
+        let install_dir = paths
+            .openclaw_runtime_dir
+            .join(bundled_manifest.install_key());
         fs::create_dir_all(
             install_dir
                 .parent()
@@ -1177,11 +1177,11 @@ mod tests {
 
         let error = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
-            .expect_err("activation should fail instead of silently falling back to a staging runtime");
+            .expect_err(
+                "activation should fail instead of silently falling back to a staging runtime",
+            );
 
-        assert!(error
-            .to_string()
-            .contains("install root"));
+        assert!(error.to_string().contains("install root"));
 
         let active = if paths.active_file.exists() {
             serde_json::from_str::<ActiveState>(
@@ -1224,9 +1224,7 @@ mod tests {
 
     #[test]
     fn staged_install_directory_keeps_the_full_install_key_prefix() {
-        let install_dir = std::path::PathBuf::from(
-            "D:/runtime/openclaw/2026.4.2-windows-x64",
-        );
+        let install_dir = std::path::PathBuf::from("D:/runtime/openclaw/2026.4.2-windows-x64");
 
         let staged_dir = staged_runtime_install_dir(&install_dir, 123);
 
@@ -1252,8 +1250,11 @@ mod tests {
 
         copy_directory_recursive(&resource_root.join("runtime"), &runtime_dir)
             .expect("copy runtime into staged dir");
-        fs::copy(resource_root.join("manifest.json"), staged_dir.join("manifest.json"))
-            .expect("copy manifest into staged dir");
+        fs::copy(
+            resource_root.join("manifest.json"),
+            staged_dir.join("manifest.json"),
+        )
+        .expect("copy manifest into staged dir");
         assert!(resolve_runtime_sidecar_manifest_path(&runtime_dir).exists());
 
         let activated = service
@@ -1530,17 +1531,19 @@ mod tests {
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
-        fs::remove_file(resource_root.join("runtime").join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME))
-            .expect("remove bundled runtime sidecar");
+        fs::remove_file(
+            resource_root
+                .join("runtime")
+                .join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME),
+        )
+        .expect("remove bundled runtime sidecar");
         let service = OpenClawRuntimeService::new();
 
         let error = service
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect_err("missing bundled runtime sidecar should fail");
 
-        assert!(error
-            .to_string()
-            .contains("runtime sidecar"));
+        assert!(error.to_string().contains("runtime sidecar"));
     }
 
     #[test]
@@ -1549,8 +1552,12 @@ mod tests {
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
         let resource_root =
             create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
-        fs::remove_file(resource_root.join("runtime").join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME))
-            .expect("remove bundled runtime sidecar");
+        fs::remove_file(
+            resource_root
+                .join("runtime")
+                .join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME),
+        )
+        .expect("remove bundled runtime sidecar");
         create_test_runtime_archive(&resource_root);
         fs::remove_dir_all(resource_root.join("runtime")).expect("remove source runtime dir");
         let service = OpenClawRuntimeService::new();
@@ -1559,9 +1566,7 @@ mod tests {
             .ensure_bundled_runtime_from_root(&paths, &resource_root)
             .expect_err("archived runtime without sidecar should fail");
 
-        assert!(error
-            .to_string()
-            .contains("runtime sidecar"));
+        assert!(error.to_string().contains("runtime sidecar"));
     }
 
     #[test]

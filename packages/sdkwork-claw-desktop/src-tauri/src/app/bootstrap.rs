@@ -269,9 +269,8 @@ pub(crate) fn resolve_tray_language(
 ) -> TrayLanguage {
     match normalize_app_language_preference(configured_language) {
         APP_LANGUAGE_PREFERENCE_SYSTEM => system_locale_to_tray_language(system_locale),
-        APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE | APP_LANGUAGE_PREFERENCE_TRADITIONAL_CHINESE => {
-            TrayLanguage::Zh
-        }
+        APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE
+        | APP_LANGUAGE_PREFERENCE_TRADITIONAL_CHINESE => TrayLanguage::Zh,
         APP_LANGUAGE_PREFERENCE_ENGLISH => TrayLanguage::En,
         _ => TrayLanguage::En,
     }
@@ -911,7 +910,7 @@ mod tests {
         openclaw_release::bundled_openclaw_version,
         paths::resolve_paths_for_root,
         services::{
-            local_ai_proxy::default_local_ai_proxy_public_host,
+            local_ai_proxy::config::default_local_ai_proxy_public_host,
             openclaw_runtime::BundledOpenClawManifest,
             studio::StudioInstanceStatus,
             supervisor::{ManagedServiceLifecycle, SERVICE_ID_OPENCLAW_GATEWAY},
@@ -920,7 +919,8 @@ mod tests {
     use serde_json::Value;
     use sha2::{Digest, Sha256};
     use std::{
-        fs, io::Read,
+        fs,
+        io::Read,
         process::{Child, Command},
         thread,
         time::Duration,
@@ -1332,8 +1332,7 @@ mod tests {
     }
 
     #[test]
-    fn bundled_openclaw_activation_marks_built_in_instance_error_when_runtime_installation_fails()
-    {
+    fn bundled_openclaw_activation_marks_built_in_instance_error_when_runtime_installation_fails() {
         let root = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(root.path()).expect("paths");
         let logger = init_logger(&paths).expect("logger");
@@ -1343,7 +1342,9 @@ mod tests {
         fs::remove_file(resource_root.join("manifest.json")).expect("remove bundled manifest");
 
         let error = activate_bundled_openclaw_from_resource_root(&context, &resource_root)
-            .expect_err("activate bundled openclaw should fail when runtime installation is broken");
+            .expect_err(
+                "activate bundled openclaw should fail when runtime installation is broken",
+            );
 
         assert!(!error.to_string().trim().is_empty());
 
@@ -1410,10 +1411,14 @@ mod tests {
         let resource_root = create_bundled_gateway_fixture(root.path());
         seed_managed_openclaw_gateway_port(&paths, reserve_available_loopback_port());
 
-        let mut stale_gateway =
-            spawn_stale_gateway_process_locking_config(root.path(), &paths.openclaw_config_file, &paths.openclaw_runtime_dir);
+        let mut stale_gateway = spawn_stale_gateway_process_locking_config(
+            root.path(),
+            &paths.openclaw_config_file,
+            &paths.openclaw_runtime_dir,
+        );
 
-        let activation_result = activate_bundled_openclaw_from_resource_root(&context, &resource_root);
+        let activation_result =
+            activate_bundled_openclaw_from_resource_root(&context, &resource_root);
         let _ = terminate_child(&mut stale_gateway);
 
         activation_result.expect(
@@ -1478,7 +1483,8 @@ mod tests {
         let ready_file_path = root.join("lock-openclaw-config.ready");
 
         fs::create_dir_all(&stale_runtime_dir).expect("stale runtime dir");
-        fs::write(&fake_openclaw_script, "// stale gateway marker\n").expect("fake openclaw script");
+        fs::write(&fake_openclaw_script, "// stale gateway marker\n")
+            .expect("fake openclaw script");
         fs::write(
             &lock_script_path,
             r#"
@@ -1525,7 +1531,9 @@ try {
                 return child;
             }
             if let Ok(Some(status)) = child.try_wait() {
-                panic!("stale gateway lock process exited before acquiring the config lock: {status}");
+                panic!(
+                    "stale gateway lock process exited before acquiring the config lock: {status}"
+                );
             }
             thread::sleep(Duration::from_millis(50));
         }

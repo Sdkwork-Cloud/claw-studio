@@ -6,6 +6,7 @@ import {
 import { buildOpenClawAgentFileId } from './openClawSupport.ts';
 import {
   createInstanceWorkbenchService as createInstanceWorkbenchServiceCore,
+  type InstanceWorkbenchServiceDependencies,
   type InstanceWorkbenchServiceDependencyOverrides,
 } from './instanceWorkbenchServiceCore.ts';
 
@@ -21,7 +22,123 @@ function runTest(name: string, fn: () => Promise<void> | void) {
     });
 }
 
-const DEFAULT_CHANNEL_DEFINITIONS = [
+type ManagedConfigSnapshot =
+  Awaited<ReturnType<InstanceWorkbenchServiceDependencies['openClawConfigService']['readConfigSnapshot']>>;
+type ManagedConfigRoute = StudioInstanceDetailRecord['dataAccess']['routes'][number];
+type ManagedChannelField =
+  ReturnType<InstanceWorkbenchServiceDependencies['openClawConfigService']['getChannelDefinitions']>[number]['fields'][number];
+type LiveTask =
+  Awaited<ReturnType<InstanceWorkbenchServiceDependencies['openClawGatewayClient']['listWorkbenchCronJobs']>>[number];
+
+function createChannelField(key: string): ManagedChannelField {
+  const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase());
+
+  return {
+    key,
+    label,
+    placeholder: label,
+  };
+}
+
+function createManagedConfigSnapshot(
+  configPath = '',
+  overrides: Partial<ManagedConfigSnapshot> = {},
+): ManagedConfigSnapshot {
+  return {
+    configPath,
+    providerSnapshots: [],
+    agentSnapshots: [],
+    channelSnapshots: [],
+    webSearchConfig: {
+      enabled: true,
+      provider: '',
+      maxResults: 0,
+      timeoutSeconds: 0,
+      cacheTtlMinutes: 0,
+      providers: [],
+    },
+    xSearchConfig: {
+      enabled: false,
+      apiKeySource: '',
+      model: '',
+      inlineCitations: false,
+      maxTurns: 2,
+      timeoutSeconds: 30,
+      cacheTtlMinutes: 15,
+      advancedConfig: '',
+    },
+    webSearchNativeCodexConfig: {
+      enabled: false,
+      mode: 'cached',
+      allowedDomains: [],
+      contextSize: '',
+      userLocation: {
+        country: '',
+        city: '',
+        timezone: '',
+      },
+      advancedConfig: '',
+    },
+    webFetchConfig: {
+      enabled: true,
+      maxChars: 50000,
+      maxCharsCap: 50000,
+      maxResponseBytes: 2000000,
+      timeoutSeconds: 30,
+      cacheTtlMinutes: 15,
+      maxRedirects: 3,
+      readability: true,
+      userAgent: '',
+      fallbackProvider: {
+        providerId: 'firecrawl',
+        name: 'Firecrawl Fetch',
+        description: 'Use Firecrawl as the OpenClaw web_fetch fallback provider.',
+        apiKeySource: '',
+        baseUrl: '',
+        advancedConfig: '',
+        supportsApiKey: true,
+        supportsBaseUrl: true,
+      },
+    },
+    authCooldownsConfig: {
+      rateLimitedProfileRotations: null,
+      overloadedProfileRotations: null,
+      overloadedBackoffMs: null,
+      billingBackoffHours: null,
+      billingMaxHours: null,
+      failureWindowHours: null,
+    },
+    dreamingConfig: {
+      enabled: false,
+      frequency: '',
+    },
+    root: {},
+    ...overrides,
+  };
+}
+
+function createManagedConfigRoute(
+  target: string,
+  overrides: Partial<ManagedConfigRoute> = {},
+): ManagedConfigRoute {
+  return {
+    id: 'config',
+    label: 'Configuration',
+    scope: 'config',
+    mode: 'managedFile',
+    status: 'ready',
+    target,
+    readonly: false,
+    authoritative: true,
+    detail: 'Managed config file is writable.',
+    source: 'integration',
+    ...overrides,
+  };
+}
+
+const DEFAULT_CHANNEL_DEFINITIONS: ReturnType<
+  InstanceWorkbenchServiceDependencies['openClawConfigService']['getChannelDefinitions']
+> = [
   {
     id: 'sdkworkchat',
     name: 'SDKWORK Chat',
@@ -35,7 +152,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'WeChat',
     description: 'WeChat channel integration.',
     configurationMode: 'required',
-    fields: [{ key: 'appId' }, { key: 'appSecret' }],
+    fields: [createChannelField('appId'), createChannelField('appSecret')],
     setupSteps: ['Configure the WeChat application credentials.'],
   },
   {
@@ -43,7 +160,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'QQ',
     description: 'QQ channel integration.',
     configurationMode: 'required',
-    fields: [{ key: 'appId' }, { key: 'token' }],
+    fields: [createChannelField('appId'), createChannelField('token')],
     setupSteps: ['Configure the QQ bot credentials.'],
   },
   {
@@ -51,7 +168,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'DingTalk',
     description: 'DingTalk channel integration.',
     configurationMode: 'required',
-    fields: [{ key: 'clientId' }, { key: 'clientSecret' }],
+    fields: [createChannelField('clientId'), createChannelField('clientSecret')],
     setupSteps: ['Configure the DingTalk app credentials.'],
   },
   {
@@ -59,7 +176,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'WeCom',
     description: 'WeCom channel integration.',
     configurationMode: 'required',
-    fields: [{ key: 'corpId' }, { key: 'secret' }],
+    fields: [createChannelField('corpId'), createChannelField('secret')],
     setupSteps: ['Configure the WeCom credentials.'],
   },
   {
@@ -67,7 +184,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'Feishu',
     description: 'Feishu channel integration.',
     configurationMode: 'required',
-    fields: [{ key: 'appId' }, { key: 'appSecret' }],
+    fields: [createChannelField('appId'), createChannelField('appSecret')],
     setupSteps: ['Configure the Feishu application credentials.'],
   },
   {
@@ -75,7 +192,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'Telegram',
     description: 'Telegram channel integration.',
     configurationMode: 'required',
-    fields: [{ key: 'botToken' }],
+    fields: [createChannelField('botToken')],
     setupSteps: ['Configure the Telegram bot token.'],
   },
   {
@@ -83,7 +200,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'WhatsApp',
     description: 'WhatsApp channel runtime integration.',
     configurationMode: 'none',
-    fields: [{ key: 'allowFrom' }, { key: 'groups' }],
+    fields: [createChannelField('allowFrom'), createChannelField('groups')],
     setupSteps: ['Authenticate the WhatsApp runtime session.'],
   },
   {
@@ -91,7 +208,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'Discord',
     description: 'Discord channel integration.',
     configurationMode: 'required',
-    fields: [{ key: 'token' }],
+    fields: [createChannelField('token')],
     setupSteps: ['Configure the Discord bot token.'],
   },
   {
@@ -99,7 +216,7 @@ const DEFAULT_CHANNEL_DEFINITIONS = [
     name: 'Slack',
     description: 'Slack notification delivery.',
     configurationMode: 'required',
-    fields: [{ key: 'token' }, { key: 'workspace' }],
+    fields: [createChannelField('token'), createChannelField('workspace')],
     setupSteps: ['Connect a Slack workspace account.'],
   },
 ];
@@ -120,18 +237,10 @@ function resolveConfigPath(detail: StudioInstanceDetailRecord | null | undefined
   return configArtifact?.location || null;
 }
 
-const openClawConfigService = {
+const openClawConfigService: InstanceWorkbenchServiceDependencies['openClawConfigService'] = {
   resolveInstanceConfigPath: (detail: StudioInstanceDetailRecord | null | undefined) =>
     resolveConfigPath(detail),
-  readConfigSnapshot: async (configPath: string) => ({
-    configPath,
-    providerSnapshots: [],
-    agentSnapshots: [],
-    channelSnapshots: [],
-    webSearchConfig: null,
-    authCooldownsConfig: null,
-    root: {},
-  }),
+  readConfigSnapshot: async (configPath: string) => createManagedConfigSnapshot(configPath),
   getChannelDefinitions: () =>
     DEFAULT_CHANNEL_DEFINITIONS.map((definition) => ({
       ...definition,
@@ -139,6 +248,22 @@ const openClawConfigService = {
       setupSteps: [...definition.setupSteps],
     })),
 };
+
+function createManagedChannelSnapshots(): ManagedConfigSnapshot['channelSnapshots'] {
+  return openClawConfigService.getChannelDefinitions().map((definition) => ({
+    id: definition.id,
+    name: definition.name,
+    description: definition.description,
+    status: definition.configurationMode === 'none' ? 'connected' : 'not_configured',
+    enabled: definition.configurationMode === 'none',
+    configurationMode: definition.configurationMode || 'required',
+    fieldCount: definition.fields.length,
+    configuredFieldCount: 0,
+    setupSteps: [...definition.setupSteps],
+    values: Object.fromEntries(definition.fields.map((field) => [field.key, ''])),
+    fields: definition.fields.map((field) => ({ ...field })),
+  }));
+}
 
 function buildOpenClawCronTaskPayloadForTest(
   task: Record<string, any>,
@@ -405,6 +530,8 @@ function createBuiltInOpenClawDetail(): StudioInstanceDetailRecord {
             cronExpression: '0 8 * * *',
             actionType: 'skill',
             status: 'active',
+            sessionMode: 'isolated',
+            wakeUpMode: 'immediate',
             executionContent: 'runAssistantTask',
             deliveryMode: 'publishSummary',
             deliveryChannel: 'slack',
@@ -516,7 +643,7 @@ function createBuiltInOpenClawDetail(): StudioInstanceDetailRecord {
   };
 }
 
-function createLiveTask(taskId = 'job-ops-daily') {
+function createLiveTask(taskId = 'job-ops-daily'): LiveTask {
   return {
     id: taskId,
     name: 'Ops Daily Brief',
@@ -530,6 +657,8 @@ function createLiveTask(taskId = 'job-ops-daily') {
     cronExpression: '0 9 * * *',
     actionType: 'skill' as const,
     status: 'active' as const,
+    sessionMode: 'isolated' as const,
+    wakeUpMode: 'immediate' as const,
     executionContent: 'runAssistantTask' as const,
     deliveryMode: 'publishSummary' as const,
     deliveryChannel: 'slack',
@@ -1527,7 +1656,7 @@ await runTest(
             missing: true,
           },
         }),
-      } as any,
+      },
     });
 
     const workbench = await service.getInstanceWorkbench('openclaw-tools-scope');
@@ -1630,7 +1759,7 @@ await runTest(
             missing: true,
           },
         }),
-      } as any,
+      },
     });
 
     const workbench = await service.getInstanceWorkbench('openclaw-agent-id-normalization');
@@ -1731,7 +1860,7 @@ await runTest(
         }),
         listWorkbenchCronJobs: async () => [],
         listWorkbenchCronRuns: async () => [],
-      } as any,
+      },
     });
 
     const workbench = await service.getInstanceWorkbench('openclaw-backend-raw-agent');
@@ -1824,7 +1953,7 @@ await runTest(
         }),
         listWorkbenchCronJobs: async () => [],
         listWorkbenchCronRuns: async () => [],
-      } as any,
+      },
     });
 
     const workbench = await service.getInstanceWorkbench('openclaw-backend-raw-file-agent');
@@ -2066,9 +2195,9 @@ await runTest('getInstanceWorkbench keeps Provider Center managed llmProviders a
   const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
   const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
-  openClawConfigService.readConfigSnapshot = async () => ({
-    configPath: managedConfigPath,
-    providerSnapshots: [
+  openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
+    createManagedConfigSnapshot(managedConfigPath, {
+      providerSnapshots: [
       {
         id: 'sdkwork-local-proxy',
         providerKey: 'sdkwork-local-proxy',
@@ -2106,11 +2235,8 @@ await runTest('getInstanceWorkbench keeps Provider Center managed llmProviders a
           streaming: true,
         },
       },
-    ],
-    agentSnapshots: [],
-    channelSnapshots: [],
-    root: {},
-  });
+      ],
+    });
 
   try {
     const service = createInstanceWorkbenchService({
@@ -2314,15 +2440,7 @@ await runTest(
         ...openClawConfigService,
         readConfigSnapshot: async (configPath: string) => {
           readConfigSnapshotCalls += 1;
-          return {
-            configPath,
-            providerSnapshots: [],
-            agentSnapshots: [],
-            channelSnapshots: [],
-            webSearchConfig: null,
-            authCooldownsConfig: null,
-            root: {},
-          };
+          return createManagedConfigSnapshot(configPath);
         },
       },
     });
@@ -2336,27 +2454,13 @@ await runTest(
 
 await runTest('getInstanceWorkbench keeps managed channel editing metadata when OpenClaw is sourced from live gateway sections', async () => {
   const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
-  const managedChannelSnapshots = openClawConfigService.getChannelDefinitions().map((definition) => ({
-    id: definition.id,
-    name: definition.name,
-    description: definition.description,
-    status: definition.configurationMode === 'none' ? ('connected' as const) : ('not_configured' as const),
-    enabled: definition.configurationMode === 'none',
-    configurationMode: definition.configurationMode || 'required',
-    fieldCount: definition.fields.length,
-    configuredFieldCount: 0,
-    setupSteps: [...definition.setupSteps],
-    values: Object.fromEntries(definition.fields.map((field) => [field.key, ''])),
-    fields: definition.fields.map((field) => ({ ...field })),
-  }));
+  const managedChannelSnapshots = createManagedChannelSnapshots();
   const originalReadConfigSnapshot = openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
-  openClawConfigService.readConfigSnapshot = async () => ({
-    configPath: managedConfigPath,
-    providerSnapshots: [],
-    agentSnapshots: [],
-    channelSnapshots: managedChannelSnapshots,
-    webSearchConfig: {
+  openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
+    createManagedConfigSnapshot(managedConfigPath, {
+      channelSnapshots: managedChannelSnapshots,
+      webSearchConfig: {
       enabled: true,
       provider: 'searxng',
       maxResults: 10,
@@ -2376,8 +2480,8 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
           supportsModel: false,
         },
       ],
-    },
-    xSearchConfig: {
+      },
+      xSearchConfig: {
       enabled: true,
       apiKeySource: 'xai-live',
       model: 'grok-4-1-fast-non-reasoning',
@@ -2386,8 +2490,8 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
       timeoutSeconds: 45,
       cacheTtlMinutes: 18,
       advancedConfig: '{\n  "userTag": "internal-research"\n}',
-    },
-    webFetchConfig: {
+      },
+      webFetchConfig: {
       enabled: true,
       maxChars: 42000,
       maxCharsCap: 64000,
@@ -2407,8 +2511,8 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
         supportsApiKey: true,
         supportsBaseUrl: true,
       },
-    },
-    webSearchNativeCodexConfig: {
+      },
+      webSearchNativeCodexConfig: {
       enabled: true,
       mode: 'cached',
       allowedDomains: ['example.com', 'openai.com'],
@@ -2419,21 +2523,20 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
         timezone: 'America/New_York',
       },
       advancedConfig: '{\n  "reasoningEffort": "medium"\n}',
-    },
-    authCooldownsConfig: {
+      },
+      authCooldownsConfig: {
       rateLimitedProfileRotations: 2,
       overloadedProfileRotations: 1,
       overloadedBackoffMs: 45000,
       billingBackoffHours: 5,
       billingMaxHours: 24,
       failureWindowHours: 24,
-    },
-    dreamingConfig: {
+      },
+      dreamingConfig: {
       enabled: true,
       frequency: '0 3 * * *',
-    },
-    root: {},
-  });
+      },
+    });
 
   try {
     const service = createInstanceWorkbenchService({
@@ -2443,11 +2546,7 @@ await runTest('getInstanceWorkbench keeps managed channel editing metadata when 
             workbench: null,
             dataAccess: {
               routes: [
-                {
-                  scope: 'config',
-                  mode: 'managedFile',
-                  target: managedConfigPath,
-                },
+                createManagedConfigRoute(managedConfigPath),
               ],
             },
           }),
@@ -2580,7 +2679,7 @@ await runTest(
         },
         listAgentFiles: async () => ({ files: [] }),
         getAgentFile: async () => ({ file: undefined }),
-      } as any,
+      },
     });
 
     const workbench = await service.getInstanceWorkbench('offline-openclaw');
@@ -2598,10 +2697,9 @@ await runTest(
     const originalReadConfigSnapshot =
       openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
-    openClawConfigService.readConfigSnapshot = async () => ({
-      configPath: managedConfigPath,
-      providerSnapshots: [],
-      agentSnapshots: [
+    openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
+      createManagedConfigSnapshot(managedConfigPath, {
+        agentSnapshots: [
         {
           id: 'ops',
           name: 'Ops',
@@ -2625,10 +2723,8 @@ await runTest(
             timeoutMs: 'defaults',
           },
         },
-      ],
-      channelSnapshots: [],
-      root: {},
-    });
+        ],
+      });
 
     try {
       const service = createInstanceWorkbenchService({
@@ -2638,11 +2734,7 @@ await runTest(
               workbench: null,
               dataAccess: {
                 routes: [
-                  {
-                    scope: 'config',
-                    mode: 'managedFile',
-                    target: managedConfigPath,
-                  },
+                  createManagedConfigRoute(managedConfigPath),
                 ],
               },
             }),
@@ -2687,7 +2779,7 @@ await runTest(
           }),
           listWorkbenchCronJobs: async () => [],
           listWorkbenchCronRuns: async () => [],
-        } as any,
+        },
       });
 
       const workbench = await service.getInstanceWorkbench('managed-agent-default-params');
@@ -2714,34 +2806,14 @@ await runTest(
   'getInstanceWorkbench preserves channel account runtime state when managed config overlays live OpenClaw sections',
   async () => {
     const managedConfigPath = 'D:/OpenClaw/.openclaw/openclaw.json';
-    const managedChannelSnapshots = openClawConfigService
-      .getChannelDefinitions()
-      .map((definition) => ({
-        id: definition.id,
-        name: definition.name,
-        description: definition.description,
-        status:
-          definition.configurationMode === 'none'
-            ? ('connected' as const)
-            : ('not_configured' as const),
-        enabled: definition.configurationMode === 'none',
-        configurationMode: definition.configurationMode || 'required',
-        fieldCount: definition.fields.length,
-        configuredFieldCount: 0,
-        setupSteps: [...definition.setupSteps],
-        values: Object.fromEntries(definition.fields.map((field) => [field.key, ''])),
-        fields: definition.fields.map((field) => ({ ...field })),
-      }));
+    const managedChannelSnapshots = createManagedChannelSnapshots();
     const originalReadConfigSnapshot =
       openClawConfigService.readConfigSnapshot.bind(openClawConfigService);
 
-    openClawConfigService.readConfigSnapshot = async () => ({
-      configPath: managedConfigPath,
-      providerSnapshots: [],
-      agentSnapshots: [],
-      channelSnapshots: managedChannelSnapshots,
-      root: {},
-    });
+    openClawConfigService.readConfigSnapshot = async (_configPath: string) =>
+      createManagedConfigSnapshot(managedConfigPath, {
+        channelSnapshots: managedChannelSnapshots,
+      });
 
     try {
       const service = createInstanceWorkbenchService({
@@ -2943,19 +3015,19 @@ await runTest(
           return {
             channels: {},
             channelOrder: [],
-          } as any;
+          };
         },
         getSkillsStatus: async () => {
           gatewayCalls.push('getSkillsStatus');
           return {
             skills: [],
-          } as any;
+          };
         },
         listAgents: async () => {
           gatewayCalls.push('listAgents');
           return {
             agents: [],
-          } as any;
+          };
         },
         listWorkbenchCronJobs: async () => {
           gatewayCalls.push('listWorkbenchCronJobs');
@@ -2964,8 +3036,9 @@ await runTest(
         getToolsCatalog: async () => {
           gatewayCalls.push('getToolsCatalog');
           return {
+            profiles: [],
             groups: [],
-          } as any;
+          };
         },
       },
     });
@@ -2998,13 +3071,13 @@ await runTest(
       },
       openClawGatewayClient: {
         listWorkbenchCronJobs: async () =>
-          [
+          ([
             {
               id: 'job-ops-daily',
               name: 'Ops Daily Brief',
               status: 'paused',
             },
-          ] as any,
+          ] as unknown as LiveTask[]),
         listWorkbenchCronRuns: async () => [],
         getConfig: async () => ({
           config: {
@@ -3062,7 +3135,7 @@ await runTest(
       },
       openClawGatewayClient: {
         listWorkbenchCronJobs: async () =>
-          [
+          ([
             {
               ...createLiveTask(' shared-task '),
               id: ' shared-task ',
@@ -3077,7 +3150,7 @@ await runTest(
               name: 'Ghost Task',
               status: 'active',
             },
-          ] as any,
+          ] as unknown as LiveTask[]),
         listWorkbenchCronRuns: async () => [],
         getConfig: async () => ({
           config: {
@@ -3452,7 +3525,7 @@ await runTest(
         getAgentFile: async () => ({
           file: undefined,
         }),
-      } as any,
+      },
     });
 
     const workbench = await service.getInstanceWorkbench('local-built-in');
@@ -3569,7 +3642,7 @@ await runTest(
           gatewayTaskCalls.push('updateCronJob');
           throw new Error('gateway update must stay unused for backend-authored task updates');
         },
-      } as any,
+      },
     });
 
     await service.createTask('local-built-in', {
@@ -3625,7 +3698,7 @@ await runTest(
 );
 
 await runTest('instanceWorkbenchService routes OpenClaw task actions through native cron methods', async () => {
-  const gatewayCalls: Array<[string, string, ...unknown[]]> = [];
+  const gatewayCalls: Array<[string, ...unknown[]]> = [];
   let liveTasks = [createLiveTask('job-ops-daily')];
 
   const service = createInstanceWorkbenchService({
@@ -3766,7 +3839,7 @@ await runTest('instanceWorkbenchService routes OpenClaw task actions through nat
           missing: true,
         },
       }),
-    } as any,
+    },
   });
 
   const workbench = await service.getInstanceWorkbench('openclaw-prod');

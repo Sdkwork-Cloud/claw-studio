@@ -850,12 +850,10 @@ fn wait_for_gateway_ready(
     timeout_ms: u64,
 ) -> Result<()> {
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-    let loopback = SocketAddr::V4(SocketAddrV4::new(
-        Ipv4Addr::LOCALHOST,
-        runtime.gateway_port,
-    ));
+    let loopback = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, runtime.gateway_port));
     let mut next_health_probe_at = Instant::now();
-    let mut last_probe_detail = "loopback listener is not yet accepting readiness probes".to_string();
+    let mut last_probe_detail =
+        "loopback listener is not yet accepting readiness probes".to_string();
 
     while Instant::now() < deadline {
         if let Some(status) = child.try_wait()? {
@@ -873,8 +871,8 @@ fn wait_for_gateway_ready(
         }
         last_probe_detail = readiness.detail();
         if include_health_probe {
-            next_health_probe_at =
-                Instant::now() + Duration::from_millis(DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_INTERVAL_MS);
+            next_health_probe_at = Instant::now()
+                + Duration::from_millis(DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_INTERVAL_MS);
         }
 
         thread::sleep(Duration::from_millis(100));
@@ -899,10 +897,8 @@ fn probe_gateway_ready(
         return invoke_probe;
     }
 
-    let health_probe = probe_gateway_cli_health_ready(
-        runtime,
-        DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_TIMEOUT_MS,
-    );
+    let health_probe =
+        probe_gateway_cli_health_ready(runtime, DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_TIMEOUT_MS);
     if health_probe.is_ready() {
         return health_probe;
     }
@@ -915,10 +911,7 @@ fn probe_gateway_ready(
 }
 
 fn probe_gateway_invoke_ready(runtime: &ActivatedOpenClawRuntime) -> GatewayProbeStatus {
-    let loopback = SocketAddr::V4(SocketAddrV4::new(
-        Ipv4Addr::LOCALHOST,
-        runtime.gateway_port,
-    ));
+    let loopback = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, runtime.gateway_port));
     let mut stream = match TcpStream::connect_timeout(&loopback, Duration::from_millis(200)) {
         Ok(stream) => stream,
         Err(error) => {
@@ -1804,13 +1797,11 @@ mod tests {
             .find(|managed_service| managed_service.id == SERVICE_ID_OPENCLAW_GATEWAY)
             .expect("openclaw service");
         assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Failed);
-        assert!(
-            openclaw
-                .last_error
-                .as_deref()
-                .unwrap_or_default()
-                .contains("not ready")
-        );
+        assert!(openclaw
+            .last_error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("not ready"));
 
         service.begin_shutdown().expect("shutdown");
     }

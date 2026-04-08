@@ -130,6 +130,41 @@ export class LazyWebStudioPlatform implements StudioPlatformAPI {
     );
   }
 
+  async setInstanceChannelEnabled(
+    instanceId: string,
+    channelId: string,
+    enabled: boolean,
+  ) {
+    const platform = await this.getPlatform();
+    if (!platform.setInstanceChannelEnabled) {
+      throw new Error('Studio channel status updates are not available for the active platform bridge.');
+    }
+
+    return platform.setInstanceChannelEnabled(instanceId, channelId, enabled);
+  }
+
+  async saveInstanceChannelConfig(
+    instanceId: string,
+    channelId: string,
+    values: Record<string, string>,
+  ) {
+    const platform = await this.getPlatform();
+    if (!platform.saveInstanceChannelConfig) {
+      throw new Error('Studio channel configuration writes are not available for the active platform bridge.');
+    }
+
+    return platform.saveInstanceChannelConfig(instanceId, channelId, values);
+  }
+
+  async deleteInstanceChannelConfig(instanceId: string, channelId: string) {
+    const platform = await this.getPlatform();
+    if (!platform.deleteInstanceChannelConfig) {
+      throw new Error('Studio channel configuration deletes are not available for the active platform bridge.');
+    }
+
+    return platform.deleteInstanceChannelConfig(instanceId, channelId);
+  }
+
   async cloneInstanceTask(instanceId: string, taskId: string, name?: string) {
     return (await this.getPlatform()).cloneInstanceTask(instanceId, taskId, name);
   }

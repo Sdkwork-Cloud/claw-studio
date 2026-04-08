@@ -207,7 +207,7 @@ await runTest(
             iconUrl: 'https://cdn.sdkwork.com/openclaw/icon.png',
           };
         },
-      } as any,
+      },
     });
 
     configurePlatformBridge({
@@ -356,7 +356,7 @@ await runTest(
           category: 'SDK',
           description: 'Code automation app.',
         }),
-      } as any,
+      },
     });
 
     try {
@@ -710,7 +710,7 @@ await runTest('getList merges app sdk store metadata with the Rust installer cat
         category: id === 'app-pnpm' ? 'Package Managers' : 'Runtimes',
         description: id === 'app-pnpm' ? 'pnpm package manager.' : 'Node.js runtime.',
       }),
-    } as any,
+    },
   });
 
   try {
@@ -851,7 +851,7 @@ await runTest('getCategories groups app sdk store entries with merged installer 
         category: id === 'app-pnpm' ? 'Package Managers' : 'Runtimes',
         description: id === 'app-pnpm' ? 'pnpm package manager.' : 'Node.js runtime.',
       }),
-    } as any,
+    },
   });
 
   try {
@@ -984,7 +984,7 @@ await runTest('getApp resolves detail from app sdk store metadata and merges ins
         description: 'Code automation app.',
         iconUrl: 'https://cdn.sdkwork.com/codex/icon.png',
       }),
-    } as any,
+    },
   });
 
   try {
@@ -1073,7 +1073,7 @@ await runTest('inspectInstall delegates to the shared installer bridge with the 
         category: 'SDK',
         description: 'Desktop automation app.',
       }),
-    } as any,
+    },
   });
   const runtimeInfo: RuntimeInfo = {
     platform: 'desktop',
@@ -1161,7 +1161,7 @@ await runTest('inspectInstall preserves persistent install status from the Rust 
         category: 'SDK',
         description: 'Desktop automation app.',
       }),
-    } as any,
+    },
   });
 
   configurePlatformBridge({
@@ -1508,10 +1508,9 @@ await runTest(
               ready: false,
               issues: [
                 {
-                  id: 'pnpm-not-ready',
                   severity: 'error',
-                  summary: 'pnpm needs repair',
-                  detail: 'pnpm is missing from PATH.',
+                  code: 'pnpm-not-ready',
+                  message: 'pnpm is missing from PATH.',
                 },
               ],
             });

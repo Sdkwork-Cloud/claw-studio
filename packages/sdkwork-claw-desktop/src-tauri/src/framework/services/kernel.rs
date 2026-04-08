@@ -1,17 +1,22 @@
 use crate::framework::{
     kernel::{
         DesktopBundledComponentsInfo, DesktopCapabilityInfo, DesktopCapabilityStatus,
-        DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories, DesktopKernelInfo,
-        DesktopLocalAiProxyInfo, DesktopNotificationInfo, DesktopPaymentInfo,
-        DesktopPermissionsInfo, DesktopProcessInfo, DesktopSecurityInfo, DesktopSupervisorInfo,
+        DesktopFileSystemInfo, DesktopIntegrationInfo, DesktopKernelDirectories,
+        DesktopKernelInfo, DesktopLocalAiProxyInfo, DesktopNotificationInfo,
+        DesktopOpenClawRuntimeInfo, DesktopPaymentInfo, DesktopPermissionsInfo,
+        DesktopProcessInfo, DesktopSecurityInfo, DesktopStartupEvidenceInfo,
+        DesktopSupervisorInfo,
     },
     kernel_host::types::DesktopKernelHostInfo,
     paths::AppPaths,
     storage::StorageInfo,
 };
+use std::fs;
 
 #[derive(Clone, Debug, Default)]
 pub struct KernelService;
+
+const DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH: &str = "diagnostics/desktop-startup-evidence.json";
 
 pub struct KernelDomainSnapshots {
     pub filesystem: DesktopFileSystemInfo,
@@ -22,7 +27,9 @@ pub struct KernelDomainSnapshots {
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
+    pub open_claw_runtime: DesktopOpenClawRuntimeInfo,
     pub local_ai_proxy: DesktopLocalAiProxyInfo,
+    pub desktop_startup_evidence: Option<DesktopStartupEvidenceInfo>,
     pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
     pub host: DesktopKernelHostInfo,
@@ -31,6 +38,214 @@ pub struct KernelDomainSnapshots {
 impl KernelService {
     pub fn new() -> Self {
         Self
+    }
+
+    pub fn desktop_startup_evidence(&self, paths: &AppPaths) -> Option<DesktopStartupEvidenceInfo> {
+        let evidence_path = paths.data_dir.join(DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH);
+        if !evidence_path.exists() {
+            return None;
+        }
+
+        let evidence_path_string = evidence_path.to_string_lossy().into_owned();
+        let raw_document = match fs::read_to_string(&evidence_path) {
+            Ok(document) => document,
+            Err(error) => {
+                return Some(DesktopStartupEvidenceInfo {
+                    status: None,
+                    phase: None,
+                    run_id: None,
+                    recorded_at: None,
+                    duration_ms: None,
+                    evidence_path: evidence_path_string,
+                    descriptor_mode: None,
+                    descriptor_lifecycle: None,
+                    descriptor_endpoint_id: None,
+                    descriptor_requested_port: None,
+                    descriptor_active_port: None,
+                    descriptor_loopback_only: None,
+                    descriptor_dynamic_port: None,
+                    descriptor_state_store_driver: None,
+                    descriptor_state_store_profile_id: None,
+                    descriptor_browser_base_url: None,
+                    manage_base_url: None,
+                    built_in_instance_id: None,
+                    built_in_instance_name: None,
+                    built_in_instance_version: None,
+                    built_in_instance_runtime_kind: None,
+                    built_in_instance_deployment_mode: None,
+                    built_in_instance_transport_kind: None,
+                    built_in_instance_base_url: None,
+                    built_in_instance_websocket_url: None,
+                    built_in_instance_is_built_in: None,
+                    built_in_instance_is_default: None,
+                    built_in_instance_status: None,
+                    open_claw_runtime_lifecycle: None,
+                    open_claw_gateway_lifecycle: None,
+                    ready: None,
+                    error_message: Some(format!(
+                        "Unable to read desktop startup evidence: {error}"
+                    )),
+                    error_cause: None,
+                })
+            }
+        };
+
+        let document: DesktopStartupEvidenceDocument = match serde_json::from_str(&raw_document) {
+            Ok(document) => document,
+            Err(error) => {
+                return Some(DesktopStartupEvidenceInfo {
+                    status: None,
+                    phase: None,
+                    run_id: None,
+                    recorded_at: None,
+                    duration_ms: None,
+                    evidence_path: evidence_path_string,
+                    descriptor_mode: None,
+                    descriptor_lifecycle: None,
+                    descriptor_endpoint_id: None,
+                    descriptor_requested_port: None,
+                    descriptor_active_port: None,
+                    descriptor_loopback_only: None,
+                    descriptor_dynamic_port: None,
+                    descriptor_state_store_driver: None,
+                    descriptor_state_store_profile_id: None,
+                    descriptor_browser_base_url: None,
+                    manage_base_url: None,
+                    built_in_instance_id: None,
+                    built_in_instance_name: None,
+                    built_in_instance_version: None,
+                    built_in_instance_runtime_kind: None,
+                    built_in_instance_deployment_mode: None,
+                    built_in_instance_transport_kind: None,
+                    built_in_instance_base_url: None,
+                    built_in_instance_websocket_url: None,
+                    built_in_instance_is_built_in: None,
+                    built_in_instance_is_default: None,
+                    built_in_instance_status: None,
+                    open_claw_runtime_lifecycle: None,
+                    open_claw_gateway_lifecycle: None,
+                    ready: None,
+                    error_message: Some(format!(
+                        "Unable to parse desktop startup evidence: {error}"
+                    )),
+                    error_cause: None,
+                })
+            }
+        };
+
+        Some(DesktopStartupEvidenceInfo {
+            status: normalize_optional_string(document.status),
+            phase: normalize_optional_string(document.phase),
+            run_id: document.run_id,
+            recorded_at: normalize_optional_string(document.recorded_at),
+            duration_ms: document.duration_ms,
+            evidence_path: evidence_path_string,
+            descriptor_mode: document
+                .descriptor
+                .as_ref()
+                .and_then(|descriptor| normalize_optional_string(descriptor.mode.clone())),
+            descriptor_lifecycle: document
+                .descriptor
+                .as_ref()
+                .and_then(|descriptor| normalize_optional_string(descriptor.lifecycle.clone())),
+            descriptor_endpoint_id: document
+                .descriptor
+                .as_ref()
+                .and_then(|descriptor| normalize_optional_string(descriptor.endpoint_id.clone())),
+            descriptor_requested_port: document
+                .descriptor
+                .as_ref()
+                .and_then(|descriptor| descriptor.requested_port),
+            descriptor_active_port: document
+                .descriptor
+                .as_ref()
+                .and_then(|descriptor| descriptor.active_port),
+            descriptor_loopback_only: document
+                .descriptor
+                .as_ref()
+                .and_then(|descriptor| descriptor.loopback_only),
+            descriptor_dynamic_port: document
+                .descriptor
+                .as_ref()
+                .and_then(|descriptor| descriptor.dynamic_port),
+            descriptor_state_store_driver: document.descriptor.as_ref().and_then(|descriptor| {
+                normalize_optional_string(descriptor.state_store_driver.clone())
+            }),
+            descriptor_state_store_profile_id: document.descriptor.as_ref().and_then(|descriptor| {
+                normalize_optional_string(descriptor.state_store_profile_id.clone())
+            }),
+            descriptor_browser_base_url: document
+                .descriptor
+                .and_then(|descriptor| normalize_optional_string(descriptor.browser_base_url)),
+            manage_base_url: document.readiness_evidence.as_ref().and_then(|evidence| {
+                normalize_optional_string(evidence.manage_base_url.clone())
+            }),
+            built_in_instance_id: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| normalize_optional_string(instance.id.clone())),
+            built_in_instance_name: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| normalize_optional_string(instance.name.clone())),
+            built_in_instance_version: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| normalize_optional_string(instance.version.clone())),
+            built_in_instance_runtime_kind: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| {
+                    normalize_optional_string(instance.runtime_kind.clone())
+                }),
+            built_in_instance_deployment_mode: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| {
+                    normalize_optional_string(instance.deployment_mode.clone())
+                }),
+            built_in_instance_transport_kind: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| {
+                    normalize_optional_string(instance.transport_kind.clone())
+                }),
+            built_in_instance_base_url: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| normalize_optional_string(instance.base_url.clone())),
+            built_in_instance_websocket_url: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| {
+                    normalize_optional_string(instance.websocket_url.clone())
+                }),
+            built_in_instance_is_built_in: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| instance.is_built_in),
+            built_in_instance_is_default: document
+                .built_in_instance
+                .as_ref()
+                .and_then(|instance| instance.is_default),
+            built_in_instance_status: document
+                .built_in_instance
+                .and_then(|instance| normalize_optional_string(instance.status)),
+            open_claw_runtime_lifecycle: document.readiness_evidence.as_ref().and_then(
+                |evidence| normalize_optional_string(evidence.open_claw_runtime_lifecycle.clone()),
+            ),
+            open_claw_gateway_lifecycle: document.readiness_evidence.as_ref().and_then(
+                |evidence| normalize_optional_string(evidence.open_claw_gateway_lifecycle.clone()),
+            ),
+            ready: document.readiness_evidence.and_then(|evidence| evidence.ready),
+            error_message: document
+                .error
+                .as_ref()
+                .and_then(|error| normalize_optional_string(error.message.clone())),
+            error_cause: document
+                .error
+                .and_then(|error| normalize_optional_string(error.cause)),
+        })
     }
 
     pub fn kernel_info(
@@ -136,6 +351,15 @@ impl KernelService {
                 ),
             },
             DesktopCapabilityInfo {
+                key: "openclaw-runtime".to_string(),
+                status: DesktopCapabilityStatus::Ready,
+                detail: format!(
+                    "Built-in OpenClaw runtime lifecycle is \"{}\" with {} startup stages tracked.",
+                    domains.open_claw_runtime.lifecycle,
+                    domains.open_claw_runtime.startup_chain.len()
+                ),
+            },
+            DesktopCapabilityInfo {
                 key: "local-ai-proxy".to_string(),
                 status: DesktopCapabilityStatus::Ready,
                 detail: format!(
@@ -185,10 +409,84 @@ impl KernelService {
             payments: domains.payments,
             integrations: domains.integrations,
             supervisor: domains.supervisor,
+            open_claw_runtime: domains.open_claw_runtime,
             local_ai_proxy: domains.local_ai_proxy,
+            desktop_startup_evidence: domains.desktop_startup_evidence,
             bundled_components: domains.bundled_components,
             storage: domains.storage,
             host: domains.host,
         }
     }
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopStartupEvidenceDocument {
+    status: Option<String>,
+    phase: Option<String>,
+    run_id: Option<u64>,
+    recorded_at: Option<String>,
+    duration_ms: Option<u64>,
+    descriptor: Option<DesktopStartupEvidenceDescriptor>,
+    readiness_evidence: Option<DesktopStartupEvidenceReadiness>,
+    built_in_instance: Option<DesktopStartupEvidenceBuiltInInstance>,
+    error: Option<DesktopStartupEvidenceError>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopStartupEvidenceDescriptor {
+    mode: Option<String>,
+    lifecycle: Option<String>,
+    endpoint_id: Option<String>,
+    requested_port: Option<u16>,
+    active_port: Option<u16>,
+    loopback_only: Option<bool>,
+    dynamic_port: Option<bool>,
+    state_store_driver: Option<String>,
+    state_store_profile_id: Option<String>,
+    browser_base_url: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopStartupEvidenceReadiness {
+    manage_base_url: Option<String>,
+    open_claw_runtime_lifecycle: Option<String>,
+    open_claw_gateway_lifecycle: Option<String>,
+    ready: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopStartupEvidenceBuiltInInstance {
+    id: Option<String>,
+    name: Option<String>,
+    version: Option<String>,
+    runtime_kind: Option<String>,
+    deployment_mode: Option<String>,
+    transport_kind: Option<String>,
+    base_url: Option<String>,
+    websocket_url: Option<String>,
+    is_built_in: Option<bool>,
+    is_default: Option<bool>,
+    status: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopStartupEvidenceError {
+    message: Option<String>,
+    cause: Option<String>,
 }

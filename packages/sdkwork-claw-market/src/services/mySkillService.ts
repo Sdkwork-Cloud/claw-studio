@@ -1,17 +1,13 @@
-import {
-  agentSkillManagementService as directAgentSkillManagementService,
-  agentWorkbenchService as directAgentWorkbenchService,
-  instanceWorkbenchService,
-} from '@sdkwork/claw-instances';
 import type { ListParams, PaginatedResult, Skill } from '@sdkwork/claw-types';
 
-const defaultAgentWorkbenchService = directAgentWorkbenchService;
-const defaultAgentSkillManagementService = directAgentSkillManagementService;
-
-type InstanceWorkbenchServiceLike = Pick<typeof instanceWorkbenchService, 'getInstanceWorkbench'>;
-type AgentWorkbenchServiceLike = Pick<typeof defaultAgentWorkbenchService, 'getAgentWorkbench'>;
+type InstancesModule = typeof import('@sdkwork/claw-instances');
+type InstanceWorkbenchServiceLike = Pick<
+  InstancesModule['instanceWorkbenchService'],
+  'getInstanceWorkbench'
+>;
+type AgentWorkbenchServiceLike = Pick<InstancesModule['agentWorkbenchService'], 'getAgentWorkbench'>;
 type AgentSkillManagementServiceLike = Pick<
-  typeof defaultAgentSkillManagementService,
+  InstancesModule['agentSkillManagementService'],
   'removeSkill' | 'setSkillEnabled'
 >;
 
@@ -121,13 +117,30 @@ async function loadAgentWorkbench(
   };
 }
 
+async function getDefaultInstanceWorkbenchService(): Promise<InstanceWorkbenchServiceLike> {
+  const module = await import('@sdkwork/claw-instances');
+  return module.instanceWorkbenchService;
+}
+
+async function getDefaultAgentWorkbenchService(): Promise<AgentWorkbenchServiceLike> {
+  const module = await import('@sdkwork/claw-instances');
+  return module.agentWorkbenchService;
+}
+
+async function getDefaultAgentSkillManagementService(): Promise<AgentSkillManagementServiceLike> {
+  const module = await import('@sdkwork/claw-instances');
+  return module.agentSkillManagementService;
+}
+
 export function createMySkillService(
   options: CreateMySkillServiceOptions = {},
 ): MySkillService {
-  const workbenchService = options.instanceWorkbenchService || instanceWorkbenchService;
-  const perAgentWorkbenchService = options.agentWorkbenchService || defaultAgentWorkbenchService;
-  const skillManagementService =
-    options.agentSkillManagementService || defaultAgentSkillManagementService;
+  const resolveWorkbenchService = async () =>
+    options.instanceWorkbenchService || await getDefaultInstanceWorkbenchService();
+  const resolveAgentWorkbenchService = async () =>
+    options.agentWorkbenchService || await getDefaultAgentWorkbenchService();
+  const resolveSkillManagementService = async () =>
+    options.agentSkillManagementService || await getDefaultAgentSkillManagementService();
 
   return {
     async getList(instanceId, params = {}) {
@@ -136,6 +149,10 @@ export function createMySkillService(
     },
 
     async getMySkills(instanceId) {
+      const [workbenchService, perAgentWorkbenchService] = await Promise.all([
+        resolveWorkbenchService(),
+        resolveAgentWorkbenchService(),
+      ]);
       const { workbench, agentWorkbench } = await loadAgentWorkbench(
         instanceId,
         workbenchService,
@@ -150,6 +167,11 @@ export function createMySkillService(
     },
 
     async uninstallSkill(instanceId, skillId) {
+      const [workbenchService, perAgentWorkbenchService, skillManagementService] = await Promise.all([
+        resolveWorkbenchService(),
+        resolveAgentWorkbenchService(),
+        resolveSkillManagementService(),
+      ]);
       const { agentWorkbench } = await loadAgentWorkbench(
         instanceId,
         workbenchService,

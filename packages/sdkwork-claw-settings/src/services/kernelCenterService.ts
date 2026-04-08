@@ -111,6 +111,41 @@ export interface KernelCenterDashboard {
     readyKeys: string[];
     plannedKeys: string[];
   };
+  startupEvidence: {
+    status: string | null;
+    phase: string | null;
+    runId: number | null;
+    recordedAt: string | null;
+    durationMs: number | null;
+    path: string | null;
+    descriptorMode: string | null;
+    descriptorLifecycle: string | null;
+    descriptorEndpointId: string | null;
+    descriptorRequestedPort: number | null;
+    descriptorActivePort: number | null;
+    descriptorLoopbackOnly: boolean | null;
+    descriptorDynamicPort: boolean | null;
+    descriptorStateStoreDriver: string | null;
+    descriptorStateStoreProfileId: string | null;
+    descriptorBrowserBaseUrl: string | null;
+    manageBaseUrl: string | null;
+    builtInInstanceId: string | null;
+    builtInInstanceName: string | null;
+    builtInInstanceVersion: string | null;
+    builtInInstanceRuntimeKind: string | null;
+    builtInInstanceDeploymentMode: string | null;
+    builtInInstanceTransportKind: string | null;
+    builtInInstanceBaseUrl: string | null;
+    builtInInstanceWebsocketUrl: string | null;
+    builtInInstanceIsBuiltIn: boolean | null;
+    builtInInstanceIsDefault: boolean | null;
+    builtInInstanceStatus: string | null;
+    runtimeLifecycle: string | null;
+    gatewayLifecycle: string | null;
+    ready: boolean | null;
+    errorMessage: string | null;
+    errorCause: string | null;
+  };
   provenance: {
     installSourceLabel: string;
     platformLabel: string;
@@ -509,6 +544,8 @@ function mapDashboard(
 ): KernelCenterDashboard {
   const activeProfile = info?.storage.profiles.find((profile) => profile.active) ?? null;
   const controlSocket = snapshot?.raw.host.controlSocket ?? info?.host.host.controlSocket ?? null;
+  const openClawRuntime = info?.openClawRuntime ?? null;
+  const startupEvidence = info?.desktopStartupEvidence ?? null;
   const readyKeys =
     info?.capabilities
       .filter((capability) => capability.status === 'ready')
@@ -522,8 +559,17 @@ function mapDashboard(
     snapshot,
     info,
     statusTone: resolveStatusTone(snapshot, hostPlatformStatus),
-    statusTitle: formatRuntimeState(snapshot?.runtimeState),
-    statusSummary: snapshot?.raw.runtime.reason ?? 'Kernel host status is currently unavailable.',
+    statusTitle: formatRuntimeState(snapshot?.runtimeState ?? openClawRuntime?.lifecycle ?? null),
+    statusSummary:
+      normalizeOptionalText(snapshot?.raw.runtime.reason)
+      ?? (startupEvidence?.errorMessage
+        ? startupEvidence.errorMessage
+        : startupEvidence?.phase && startupEvidence?.recordedAt
+        ? `Desktop startup evidence last reached ${startupEvidence.phase} at ${startupEvidence.recordedAt}.`
+        : null)
+      ?? openClawRuntime?.startupChain.find((stage) => stage.status !== 'ready')?.detail
+      ?? openClawRuntime?.startupChain[openClawRuntime.startupChain.length - 1]?.detail
+      ?? 'Kernel host status is currently unavailable.',
     hostPlatform: {
       status: hostPlatformStatus,
       modeLabel: formatHostPlatformMode(hostPlatformStatus?.mode),
@@ -596,19 +642,59 @@ function mapDashboard(
       readyKeys,
       plannedKeys,
     },
+    startupEvidence: {
+      status: startupEvidence?.status ?? null,
+      phase: startupEvidence?.phase ?? null,
+      runId: startupEvidence?.runId ?? null,
+      recordedAt: startupEvidence?.recordedAt ?? null,
+      durationMs: startupEvidence?.durationMs ?? null,
+      path: startupEvidence?.evidencePath ?? null,
+      descriptorMode: startupEvidence?.descriptorMode ?? null,
+      descriptorLifecycle: startupEvidence?.descriptorLifecycle ?? null,
+      descriptorEndpointId: startupEvidence?.descriptorEndpointId ?? null,
+      descriptorRequestedPort: startupEvidence?.descriptorRequestedPort ?? null,
+      descriptorActivePort: startupEvidence?.descriptorActivePort ?? null,
+      descriptorLoopbackOnly: startupEvidence?.descriptorLoopbackOnly ?? null,
+      descriptorDynamicPort: startupEvidence?.descriptorDynamicPort ?? null,
+      descriptorStateStoreDriver: startupEvidence?.descriptorStateStoreDriver ?? null,
+      descriptorStateStoreProfileId: startupEvidence?.descriptorStateStoreProfileId ?? null,
+      descriptorBrowserBaseUrl: startupEvidence?.descriptorBrowserBaseUrl ?? null,
+      manageBaseUrl: startupEvidence?.manageBaseUrl ?? null,
+      builtInInstanceId: startupEvidence?.builtInInstanceId ?? null,
+      builtInInstanceName: startupEvidence?.builtInInstanceName ?? null,
+      builtInInstanceVersion: startupEvidence?.builtInInstanceVersion ?? null,
+      builtInInstanceRuntimeKind: startupEvidence?.builtInInstanceRuntimeKind ?? null,
+      builtInInstanceDeploymentMode: startupEvidence?.builtInInstanceDeploymentMode ?? null,
+      builtInInstanceTransportKind: startupEvidence?.builtInInstanceTransportKind ?? null,
+      builtInInstanceBaseUrl: startupEvidence?.builtInInstanceBaseUrl ?? null,
+      builtInInstanceWebsocketUrl: startupEvidence?.builtInInstanceWebsocketUrl ?? null,
+      builtInInstanceIsBuiltIn: startupEvidence?.builtInInstanceIsBuiltIn ?? null,
+      builtInInstanceIsDefault: startupEvidence?.builtInInstanceIsDefault ?? null,
+      builtInInstanceStatus: startupEvidence?.builtInInstanceStatus ?? null,
+      runtimeLifecycle: startupEvidence?.openClawRuntimeLifecycle ?? null,
+      gatewayLifecycle: startupEvidence?.openClawGatewayLifecycle ?? null,
+      ready: startupEvidence?.ready ?? null,
+      errorMessage: startupEvidence?.errorMessage ?? null,
+      errorCause: startupEvidence?.errorCause ?? null,
+    },
     provenance: {
       installSourceLabel: formatInstallSource(snapshot?.raw.provenance.installSource),
       platformLabel: formatPlatformLabel(
-        snapshot?.raw.provenance.platform,
-        snapshot?.raw.provenance.arch,
+        openClawRuntime?.platform ?? snapshot?.raw.provenance.platform,
+        openClawRuntime?.arch ?? snapshot?.raw.provenance.arch,
       ),
-      openclawVersion: snapshot?.openclawVersion ?? null,
-      nodeVersion: snapshot?.nodeVersion ?? null,
-      configPath: snapshot?.raw.provenance.configPath ?? null,
-      runtimeHomeDir: snapshot?.raw.provenance.runtimeHomeDir ?? null,
-      runtimeInstallDir: snapshot?.raw.provenance.runtimeInstallDir ?? null,
+      openclawVersion: openClawRuntime?.openclawVersion ?? snapshot?.openclawVersion ?? null,
+      nodeVersion: openClawRuntime?.nodeVersion ?? snapshot?.nodeVersion ?? null,
+      configPath: openClawRuntime?.configPath ?? snapshot?.raw.provenance.configPath ?? null,
+      runtimeHomeDir: openClawRuntime?.homeDir ?? snapshot?.raw.provenance.runtimeHomeDir ?? null,
+      runtimeInstallDir: openClawRuntime?.installDir ?? snapshot?.raw.provenance.runtimeInstallDir ?? null,
     },
   };
+}
+
+function normalizeOptionalText(value?: string | null) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 export function createKernelCenterService(

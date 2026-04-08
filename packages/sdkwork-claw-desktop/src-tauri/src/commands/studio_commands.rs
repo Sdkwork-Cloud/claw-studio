@@ -46,12 +46,16 @@ pub struct DesktopHostedRuntimeRecord {
 
 fn list_instances_from_state(state: &AppState) -> FrameworkResult<Vec<StudioInstanceRecord>> {
     let config = state.config_snapshot();
-    state.context.services.studio.list_instances_with_supervisor(
-        &state.paths,
-        &config,
-        &state.context.services.storage,
-        &state.context.services.supervisor,
-    )
+    state
+        .context
+        .services
+        .studio
+        .list_instances_with_supervisor(
+            &state.paths,
+            &config,
+            &state.context.services.storage,
+            &state.context.services.supervisor,
+        )
 }
 
 #[tauri::command]
@@ -99,12 +103,12 @@ pub async fn studio_get_instance_detail(
             .services
             .studio
             .get_instance_detail_with_supervisor(
-            &state.paths,
-            &config,
-            &state.context.services.storage,
-            &state.context.services.supervisor,
-            id.as_str(),
-        )
+                &state.paths,
+                &config,
+                &state.context.services.storage,
+                &state.context.services.supervisor,
+                id.as_str(),
+            )
     })
     .await
     .map_err(|error| error.to_string())

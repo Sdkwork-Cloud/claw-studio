@@ -1,3 +1,3 @@
 export * from './Points';
-export * from './components';
 export * from './services';
+export * from './components/PointsHeaderEntry';

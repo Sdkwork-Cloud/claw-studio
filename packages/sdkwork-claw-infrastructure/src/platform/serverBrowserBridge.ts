@@ -3,13 +3,18 @@ import {
   getPlatformBridge,
   type PlatformBridge,
 } from './registry.ts';
-import type { RuntimeInfo, RuntimeStartupContext } from './contracts/runtime.ts';
+import type {
+  RuntimeInfo,
+  RuntimePlatformKind,
+  RuntimeStartupContext,
+} from './contracts/runtime.ts';
 import { createBrowserSessionAwareFetch } from './browserSessionFetch.ts';
 import { WebInternalPlatform, DEFAULT_INTERNAL_BASE_PATH } from './webInternal.ts';
 import { WebManagePlatform, DEFAULT_MANAGE_BASE_PATH } from './webManage.ts';
 import { WebHostedStudioPlatform, DEFAULT_STUDIO_API_BASE_PATH } from './webHostedStudio.ts';
 import type { WebPlatformFetch } from './webHttp.ts';
 import { resolveWebPlatformFetch } from './webHttp.ts';
+import { WebPlatform } from './web.ts';
 import { WebRuntimePlatform } from './webRuntime.ts';
 
 export const SERVER_HOST_MODE_META_NAME = 'sdkwork-claw-host-mode';
@@ -107,15 +112,16 @@ export function readServerBrowserPlatformBridgeConfig(
 export function createServerBrowserPlatformBridge(
   config: ServerBrowserPlatformBridgeConfig,
   options: Pick<ConfigureServerBrowserPlatformBridgeOptions, 'fetchImpl'> = {},
-): Pick<PlatformBridge, 'manage' | 'internal' | 'runtime' | 'studio'> {
+): Pick<PlatformBridge, 'platform' | 'manage' | 'internal' | 'runtime' | 'studio'> {
   return createLiveServerBrowserPlatformBridge(() => config, options);
 }
 
 function createLiveServerBrowserPlatformBridge(
   resolveConfig: ServerBrowserBridgeConfigResolver,
   options: Pick<ConfigureServerBrowserPlatformBridgeOptions, 'fetchImpl'> = {},
-): Pick<PlatformBridge, 'manage' | 'internal' | 'runtime' | 'studio'> {
+): Pick<PlatformBridge, 'platform' | 'manage' | 'internal' | 'runtime' | 'studio'> {
   return {
+    platform: new HostedBrowserPlatform(() => resolveConfig().mode),
     studio: new WebHostedStudioPlatform({
       resolveBasePath: async () => resolveConfig().apiBasePath,
       fetchImpl: createDeferredServerBrowserFetch(resolveConfig, options.fetchImpl),
@@ -183,7 +189,9 @@ export async function bootstrapServerBrowserPlatformBridge(
 
 function isDesktopPlatformBridgeActive(): boolean {
   try {
-    return getPlatformBridge().platform.getPlatform() === 'desktop';
+    const activePlatform = getPlatformBridge().platform;
+    return activePlatform.getPlatform() === 'desktop' &&
+      activePlatform.supportsNativeScreenshot();
   } catch {
     return false;
   }
@@ -328,12 +336,36 @@ class HostedBrowserRuntimePlatform extends WebRuntimePlatform {
 
   async getRuntimeInfo(): Promise<RuntimeInfo> {
     const runtimeInfo = await super.getRuntimeInfo();
+    const startup = this.resolveStartupContext();
 
     return {
       ...runtimeInfo,
-      startup: this.resolveStartupContext(),
+      platform: deriveHostedBrowserRuntimePlatform(startup),
+      startup,
     };
   }
+}
+
+class HostedBrowserPlatform extends WebPlatform {
+  private readonly resolveMode: () => ServerBrowserPlatformBridgeConfig['mode'];
+
+  constructor(resolveMode: () => ServerBrowserPlatformBridgeConfig['mode']) {
+    super();
+    this.resolveMode = resolveMode;
+  }
+
+  getPlatform(): 'web' | 'desktop' {
+    return this.resolveMode() === 'desktopCombined' ? 'desktop' : 'web';
+  }
+}
+
+function deriveHostedBrowserRuntimePlatform(
+  startup: RuntimeStartupContext,
+): RuntimePlatformKind {
+  return startup.distributionFamily === 'desktop' ||
+    startup.hostMode === 'desktopCombined'
+    ? 'desktop'
+    : 'server';
 }
 
 function createLiveServerBrowserManagePlatform(

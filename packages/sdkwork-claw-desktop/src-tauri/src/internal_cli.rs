@@ -92,9 +92,7 @@ pub fn maybe_handle_internal_cli_action() -> bool {
             true
         }
         Some(InternalCliAction::RegisterOpenClawCli { install_root }) => {
-            if let Err(error) =
-                register_openclaw_cli_for_current_install(install_root.as_deref())
-            {
+            if let Err(error) = register_openclaw_cli_for_current_install(install_root.as_deref()) {
                 eprintln!("failed to register embedded openclaw cli: {error}");
                 std::process::exit(1);
             }
@@ -225,7 +223,9 @@ fn resolve_requested_install_root(install_root: Option<&OsStr>) -> Result<Option
     Ok(Some(install_root))
 }
 
-fn prepare_bundled_openclaw_runtime_for_current_install(install_root: Option<&OsStr>) -> Result<()> {
+fn prepare_bundled_openclaw_runtime_for_current_install(
+    install_root: Option<&OsStr>,
+) -> Result<()> {
     let requested_install_root = resolve_requested_install_root(install_root)?;
     let paths = crate::framework::paths::resolve_paths_from_current_process_with_overrides(
         requested_install_root.clone(),
@@ -574,8 +574,7 @@ mod tests {
         PREPARE_BUNDLED_OPENCLAW_RUNTIME_FLAG, RUN_OPENCLAW_CLI_FLAG,
     };
     use crate::framework::{
-        paths::resolve_paths_for_root,
-        services::openclaw_runtime::BundledOpenClawManifest,
+        paths::resolve_paths_for_root, services::openclaw_runtime::BundledOpenClawManifest,
     };
     use sha2::{Digest, Sha256};
     use std::{ffi::OsString, fs};
@@ -771,12 +770,10 @@ mod tests {
         .expect("bundled runtime manifest");
 
         assert!(manifest.node_relative_path.starts_with("runtime/"));
-        assert!(
-            resource_root
-                .join("runtime")
-                .join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME)
-                .exists()
-        );
+        assert!(resource_root
+            .join("runtime")
+            .join(PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME)
+            .exists());
     }
 
     fn create_bundled_runtime_fixture(
@@ -969,8 +966,8 @@ mod tests {
         let mut hasher = Sha256::new();
         let mut buffer = [0_u8; 8192];
         loop {
-            let bytes_read = std::io::Read::read(&mut file, &mut buffer)
-                .expect("read runtime integrity file");
+            let bytes_read =
+                std::io::Read::read(&mut file, &mut buffer).expect("read runtime integrity file");
             if bytes_read == 0 {
                 break;
             }

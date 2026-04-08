@@ -12,6 +12,8 @@ const allPackageDirs = fs
 const shared = new Set([
   'sdkwork-claw-web',
   'sdkwork-claw-desktop',
+  'sdkwork-claw-host-core',
+  'sdkwork-claw-host-studio',
   'sdkwork-claw-shell',
   'sdkwork-claw-commons',
   'sdkwork-claw-core',
@@ -20,6 +22,7 @@ const shared = new Set([
   'sdkwork-claw-i18n',
   'sdkwork-claw-ui',
   'sdkwork-claw-distribution',
+  'sdkwork-claw-server',
 ]);
 
 const featureDirs = allPackageDirs.filter((dir) => !shared.has(dir));
@@ -102,6 +105,47 @@ function writeIndex(file, exportsList) {
   fs.writeFileSync(file, unique.length === 0 ? 'export {};\n' : `${unique.map((entry) => `export * from '${entry}';`).join('\n')}\n`);
 }
 
+function writeIndexIfDirExists(dir, file, exportsList) {
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    return;
+  }
+
+  writeIndex(file, exportsList);
+}
+
+function collectRootExports(srcDir) {
+  if (!fs.existsSync(srcDir)) {
+    return [];
+  }
+
+  const exportsList = [];
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (entry.isFile()) {
+      if (!/\.(ts|tsx)$/.test(entry.name) || /(?:^|[\\/])index\.(ts|tsx)$/.test(entry.name)) {
+        continue;
+      }
+      if (/\.test\.(ts|tsx)$/.test(entry.name)) {
+        continue;
+      }
+      exportsList.push(`./${entry.name.replace(/\.(ts|tsx)$/, '')}`);
+      continue;
+    }
+
+    if (!entry.isDirectory() || entry.name === 'components' || entry.name === 'pages') {
+      continue;
+    }
+
+    const hasIndex = ['index.ts', 'index.tsx'].some((fileName) =>
+      fs.existsSync(path.join(srcDir, entry.name, fileName)),
+    );
+    if (hasIndex) {
+      exportsList.push(`./${entry.name}`);
+    }
+  }
+
+  return exportsList;
+}
+
 for (const dir of featureDirs) {
   const pkgPath = path.join(packagesDir, dir, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
@@ -129,11 +173,6 @@ for (const dir of featureDirs) {
   pkg.dependencies = dependencyMap;
   fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 
-  const pagesDir = path.join(srcDir, 'pages');
-  const pageExports = listSourceFiles(pagesDir)
-    .filter((file) => file.endsWith('.tsx'))
-    .map((file) => `./${path.relative(srcDir, file).replace(/\\/g, '/').replace(/\.tsx$/, '')}`);
-
   const componentsDir = path.join(srcDir, 'components');
   const componentExports = listSourceFiles(componentsDir)
     .filter((file) => !/(?:^|[\\/])index\.(ts|tsx)$/.test(file))
@@ -144,9 +183,9 @@ for (const dir of featureDirs) {
     .filter((file) => file.endsWith('.ts') && !/(?:^|[\\/])index\.ts$/.test(file))
     .map((file) => `./${path.relative(servicesDir, file).replace(/\\/g, '/').replace(/\.ts$/, '')}`);
 
-  writeIndex(path.join(srcDir, 'components', 'index.ts'), componentExports);
-  writeIndex(path.join(srcDir, 'services', 'index.ts'), serviceExports);
-  writeIndex(path.join(srcDir, 'index.ts'), pageExports);
+  writeIndexIfDirExists(componentsDir, path.join(srcDir, 'components', 'index.ts'), componentExports);
+  writeIndexIfDirExists(servicesDir, path.join(srcDir, 'services', 'index.ts'), serviceExports);
+  writeIndex(path.join(srcDir, 'index.ts'), collectRootExports(srcDir));
 }
 
 console.log('SDKWork feature package dependencies and index exports synchronized.');

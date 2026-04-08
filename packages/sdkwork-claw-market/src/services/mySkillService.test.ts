@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import type { Skill } from '@sdkwork/claw-types';
-import { createMySkillService } from './mySkillService.ts';
+import { createMySkillService, type CreateMySkillServiceOptions } from './mySkillService.ts';
+
+type RemoveSkillInput = Parameters<
+  NonNullable<CreateMySkillServiceOptions['agentSkillManagementService']>['removeSkill']
+>[0];
+type SetSkillEnabledInput = Parameters<
+  NonNullable<CreateMySkillServiceOptions['agentSkillManagementService']>['setSkillEnabled']
+>[0];
 
 function runTest(name: string, callback: () => void | Promise<void>) {
   return Promise.resolve()
@@ -96,8 +103,8 @@ await runTest(
 await runTest(
   'mySkillService removes workspace skills directly and disables managed skills as fallback',
   async () => {
-    const removeCalls: Array<Record<string, unknown>> = [];
-    const disableCalls: Array<Record<string, unknown>> = [];
+    const removeCalls: RemoveSkillInput[] = [];
+    const disableCalls: SetSkillEnabledInput[] = [];
     const service = createMySkillService({
       instanceWorkbenchService: {
         getInstanceWorkbench: async () =>
@@ -147,10 +154,10 @@ await runTest(
       },
       agentSkillManagementService: {
         removeSkill: async (input) => {
-          removeCalls.push(input as Record<string, unknown>);
+          removeCalls.push(input);
         },
         setSkillEnabled: async (input) => {
-          disableCalls.push(input as Record<string, unknown>);
+          disableCalls.push(input);
         },
       },
     });

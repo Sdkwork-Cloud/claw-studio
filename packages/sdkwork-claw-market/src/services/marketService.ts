@@ -1,4 +1,3 @@
-import { clawHubService as defaultClawHubService } from '@sdkwork/claw-core';
 import type { ListParams, PaginatedResult, Review, Skill, SkillPack } from '@sdkwork/claw-types';
 
 export interface InstallSkillInput {
@@ -88,6 +87,11 @@ export interface CreateMarketServiceOptions {
     payload: unknown,
     onProgress: (progress: number) => void,
   ) => Promise<void>;
+}
+
+async function getDefaultClawHubService(): Promise<ClawHubService> {
+  const module = await import('@sdkwork/claw-core');
+  return module.clawHubService as ClawHubService;
 }
 
 function paginateItems<T>(items: T[], params: ListParams = {}): PaginatedResult<T> {
@@ -192,7 +196,7 @@ async function getDefaultAgentSkillManagementService(): Promise<AgentSkillManage
 
 export function createMarketService(options: CreateMarketServiceOptions = {}): IMarketService {
   const downloadCatalogAsset = options.downloadCatalogAsset || downloadCatalogAssetAsJsonFile;
-  const resolveClawHubService = async () => options.clawHubService || defaultClawHubService;
+  const resolveClawHubService = async () => options.clawHubService || await getDefaultClawHubService();
 
   return {
     async getCategories() {

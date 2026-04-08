@@ -78,12 +78,32 @@ class MockWebSocket {
   }
 }
 
-function parseFrame(socket: MockWebSocket, index = socket.sent.length - 1) {
-  return JSON.parse(socket.sent[index] ?? '{}') as {
-    id?: string;
-    method?: string;
-    params?: Record<string, unknown>;
+type ParsedGatewayFrame = {
+  id?: string;
+  method?: string;
+  params?: Record<string, unknown> & {
+    auth?: {
+      token?: string;
+    };
+    client?: {
+      id?: string;
+      version?: string;
+      platform?: string;
+      mode?: string;
+      instanceId?: string;
+    };
+    device?: {
+      id?: string;
+      publicKey?: string;
+      signature?: string;
+      signedAt?: number;
+      nonce?: string;
+    };
   };
+};
+
+function parseFrame(socket: MockWebSocket, index = socket.sent.length - 1) {
+  return JSON.parse(socket.sent[index] ?? '{}') as ParsedGatewayFrame;
 }
 
 async function waitFor(check: () => boolean, timeoutMs = 1_000) {

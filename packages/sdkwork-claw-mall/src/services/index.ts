@@ -1,1 +1,2 @@
-export * from './clawMallService.ts';
+export * from './clawMallService';
+export * from './clawMallService.test';

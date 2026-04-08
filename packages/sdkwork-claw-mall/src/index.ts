@@ -1,3 +1,3 @@
-export * from './ClawMall.tsx';
-export * from './ProductDetail.tsx';
-export * from './services/index.ts';
+export * from './ClawMall';
+export * from './ProductDetail';
+export * from './services';

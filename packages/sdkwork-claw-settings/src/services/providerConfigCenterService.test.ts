@@ -4,8 +4,17 @@ import {
   PROVIDER_CONFIG_CENTER_STORAGE_NAMESPACE,
   createProviderConfigCenterService,
   type ProviderConfigDraft,
+  type ProviderConfigCenterServiceOverrides,
   type ProviderConfigRecord,
 } from './providerConfigCenterService.ts';
+
+type ProviderRoutingApiOverrides = NonNullable<
+  ProviderConfigCenterServiceOverrides['providerRoutingApi']
+>;
+type SaveProviderRoutingRecordInput = Parameters<
+  NonNullable<ProviderRoutingApiOverrides['saveProviderRoutingRecord']>
+>[0];
+type ProviderRuntimeConfig = ProviderConfigRecord['config'];
 
 function runTest(name: string, callback: () => void | Promise<void>) {
   return Promise.resolve()
@@ -17,6 +26,19 @@ function runTest(name: string, callback: () => void | Promise<void>) {
       console.error(`not ok - ${name}`);
       throw error;
     });
+}
+
+function createRuntimeConfig(
+  overrides: Partial<ProviderRuntimeConfig> = {},
+): ProviderRuntimeConfig {
+  return {
+    temperature: 0.2,
+    topP: 1,
+    maxTokens: 12000,
+    timeoutMs: 120000,
+    streaming: true,
+    ...overrides,
+  };
 }
 
 function createDraft(overrides: Partial<ProviderConfigDraft> = {}): ProviderConfigDraft {
@@ -39,14 +61,41 @@ function createDraft(overrides: Partial<ProviderConfigDraft> = {}): ProviderConf
       { id: 'text-embedding-3-large', name: 'text-embedding-3-large' },
     ],
     exposeTo: ['openclaw'],
-    config: {
-      temperature: 0.2,
-      topP: 1,
-      maxTokens: 12000,
-      timeoutMs: 120000,
-      streaming: true,
-    },
+    config: createRuntimeConfig(overrides.config),
     ...overrides,
+  };
+}
+
+function createRecord(
+  overrides: (Partial<ProviderConfigRecord> & Partial<ProviderConfigDraft>) = {},
+): ProviderConfigRecord {
+  const draft = createDraft(overrides);
+  const upstreamBaseUrl =
+    overrides.upstreamBaseUrl || draft.upstreamBaseUrl || draft.baseUrl || 'https://ai.sdkwork.com';
+
+  return {
+    id: overrides.id || 'provider-config-openai-prod',
+    schemaVersion: overrides.schemaVersion ?? 1,
+    name: overrides.name || draft.name,
+    enabled: overrides.enabled ?? draft.enabled ?? true,
+    isDefault: overrides.isDefault ?? draft.isDefault ?? false,
+    managedBy: overrides.managedBy || draft.managedBy || 'user',
+    clientProtocol: overrides.clientProtocol || draft.clientProtocol || 'openai-compatible',
+    upstreamProtocol: overrides.upstreamProtocol || draft.upstreamProtocol || 'openai-compatible',
+    providerId: overrides.providerId || draft.providerId,
+    upstreamBaseUrl,
+    apiKey: overrides.apiKey || draft.apiKey,
+    defaultModelId: overrides.defaultModelId || draft.defaultModelId,
+    reasoningModelId: overrides.reasoningModelId ?? draft.reasoningModelId,
+    embeddingModelId: overrides.embeddingModelId ?? draft.embeddingModelId,
+    models: overrides.models || draft.models,
+    notes: overrides.notes ?? draft.notes,
+    exposeTo: overrides.exposeTo || draft.exposeTo || ['openclaw'],
+    presetId: overrides.presetId ?? draft.presetId,
+    createdAt: overrides.createdAt ?? 1,
+    updatedAt: overrides.updatedAt ?? 1,
+    baseUrl: overrides.baseUrl || upstreamBaseUrl,
+    config: createRuntimeConfig(overrides.config),
   };
 }
 
@@ -171,18 +220,13 @@ function createOpenClawDetail(
 }
 
 await runTest('providerConfigCenterService delegates route catalog CRUD to the shared provider routing control plane', async () => {
-  const routedRecord: ProviderConfigRecord = {
+  const routedRecord = createRecord({
     id: 'provider-config-openai-prod',
-    schemaVersion: 1,
-    createdAt: 1,
     updatedAt: 2,
-    baseUrl: 'https://api.openai.com/v1',
-    ...createDraft({
       isDefault: true,
-    }),
-  };
+  });
   const listCalls: string[] = [];
-  const saveCalls: Array<Record<string, unknown>> = [];
+  const saveCalls: SaveProviderRoutingRecordInput[] = [];
   const deleteCalls: string[] = [];
   const service = createProviderConfigCenterService({
     storageApi: {
@@ -208,7 +252,7 @@ await runTest('providerConfigCenterService delegates route catalog CRUD to the s
         return [routedRecord];
       },
       saveProviderRoutingRecord: async (input) => {
-        saveCalls.push(input as Record<string, unknown>);
+        saveCalls.push(input);
         return routedRecord;
       },
       deleteProviderRoutingRecord: async (id) => {
@@ -934,27 +978,22 @@ await runTest('providerConfigCenterService applies a saved provider config throu
   const projectionCalls: Array<unknown> = [];
   const agentCalls: Array<unknown> = [];
   const kernelCalls: string[] = [];
-  const record = {
+  const record = createRecord({
     id: 'provider-config-openai-prod',
-    schemaVersion: 1,
-    createdAt: 1,
-    updatedAt: 1,
-    ...createDraft({
-      config: {
-        temperature: 0.2,
-        topP: 1,
-        maxTokens: 12000,
-        timeoutMs: 120000,
-        streaming: true,
-        request: {
-          headers: {
-            'cf-aig-authorization': 'Bearer cf-gateway-secret',
-            'x-openai-client': 'claw-studio',
-          },
+    config: {
+      temperature: 0.2,
+      topP: 1,
+      maxTokens: 12000,
+      timeoutMs: 120000,
+      streaming: true,
+      request: {
+        headers: {
+          'cf-aig-authorization': 'Bearer cf-gateway-secret',
+          'x-openai-client': 'claw-studio',
         },
       },
-    }),
-  } satisfies ProviderConfigRecord;
+    },
+  });
   const service = createProviderConfigCenterService({
     storageApi: {
       getStorageInfo: async () => null,
@@ -1120,25 +1159,20 @@ await runTest('providerConfigCenterService applies provider configs through the 
   const projectionCalls: Array<unknown> = [];
   const agentCalls: Array<unknown> = [];
   const kernelCalls: string[] = [];
-  const record = {
+  const record = createRecord({
     id: 'provider-config-anthropic-route',
-    schemaVersion: 1,
-    createdAt: 1,
-    updatedAt: 1,
-    ...createDraft({
-      name: 'Anthropic Route',
-      providerId: 'anthropic',
-      upstreamProtocol: 'anthropic',
-      upstreamBaseUrl: 'https://api.anthropic.com/v1',
-      defaultModelId: 'claude-sonnet-4-20250514',
-      reasoningModelId: 'claude-opus-4-20250514',
-      embeddingModelId: undefined,
-      models: [
-        { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-        { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-      ],
-    }),
-  } satisfies ProviderConfigRecord;
+    name: 'Anthropic Route',
+    providerId: 'anthropic',
+    upstreamProtocol: 'anthropic',
+    upstreamBaseUrl: 'https://api.anthropic.com/v1',
+    defaultModelId: 'claude-sonnet-4-20250514',
+    reasoningModelId: 'claude-opus-4-20250514',
+    embeddingModelId: undefined,
+    models: [
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+    ],
+  });
   const service = createProviderConfigCenterService({
     storageApi: {
       getStorageInfo: async () => null,
@@ -1286,26 +1320,21 @@ await runTest('providerConfigCenterService applies native gemini client routes t
   const projectionCalls: Array<unknown> = [];
   const agentCalls: Array<unknown> = [];
   const kernelCalls: string[] = [];
-  const record = {
+  const record = createRecord({
     id: 'provider-config-gemini-native',
-    schemaVersion: 1,
-    createdAt: 1,
-    updatedAt: 1,
-    ...createDraft({
-      name: 'Gemini Native',
-      providerId: 'google',
-      clientProtocol: 'gemini',
-      upstreamProtocol: 'gemini',
-      upstreamBaseUrl: 'https://generativelanguage.googleapis.com',
-      defaultModelId: 'gemini-2.5-pro',
-      reasoningModelId: undefined,
-      embeddingModelId: 'text-embedding-004',
-      models: [
-        { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-        { id: 'text-embedding-004', name: 'text-embedding-004' },
-      ],
-    }),
-  } satisfies ProviderConfigRecord;
+    name: 'Gemini Native',
+    providerId: 'google',
+    clientProtocol: 'gemini',
+    upstreamProtocol: 'gemini',
+    upstreamBaseUrl: 'https://generativelanguage.googleapis.com',
+    defaultModelId: 'gemini-2.5-pro',
+    reasoningModelId: undefined,
+    embeddingModelId: 'text-embedding-004',
+    models: [
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+      { id: 'text-embedding-004', name: 'text-embedding-004' },
+    ],
+  });
   const service = createProviderConfigCenterService({
     storageApi: {
       getStorageInfo: async () => null,
@@ -1450,16 +1479,11 @@ await runTest('providerConfigCenterService applies native gemini client routes t
 });
 
 await runTest('providerConfigCenterService merges local proxy runtime summaries into listed route records', async () => {
-  const record = {
+  const record = createRecord({
     id: 'provider-config-openai-prod',
-    schemaVersion: 1,
-    createdAt: 1,
     updatedAt: 2,
-    baseUrl: 'https://api.openai.com/v1',
-    ...createDraft({
       isDefault: true,
-    }),
-  } satisfies ProviderConfigRecord;
+  });
   const service = createProviderConfigCenterService({
     storageApi: {
       getStorageInfo: async () => null,
@@ -1595,7 +1619,7 @@ await runTest('providerConfigCenterService delegates route tests through the ker
         calls.push('ensureRunning');
         return null;
       },
-      testLocalAiProxyRoute: async (routeId) => {
+      testLocalAiProxyRoute: async (routeId: string) => {
         calls.push(`test:${routeId}`);
         return {
           routeId,

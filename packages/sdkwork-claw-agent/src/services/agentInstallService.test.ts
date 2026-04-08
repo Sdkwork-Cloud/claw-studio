@@ -31,6 +31,7 @@ function createPlatformStub(
     setStorage: async () => {},
     getStorage: async () => null,
     copy: async () => {},
+    showNotification: async () => {},
     openExternal: async () => {},
     supportsNativeScreenshot: () => false,
     captureScreenshot: async () => null,
@@ -275,6 +276,9 @@ function createStudioStub(
     getInstanceLogs: originalStudio.getInstanceLogs.bind(originalStudio),
     createInstanceTask: originalStudio.createInstanceTask.bind(originalStudio),
     updateInstanceTask: originalStudio.updateInstanceTask.bind(originalStudio),
+    updateInstanceFileContent: originalStudio.updateInstanceFileContent.bind(originalStudio),
+    updateInstanceLlmProviderConfig:
+      originalStudio.updateInstanceLlmProviderConfig.bind(originalStudio),
     cloneInstanceTask: originalStudio.cloneInstanceTask.bind(originalStudio),
     runInstanceTaskNow: originalStudio.runInstanceTaskNow.bind(originalStudio),
     listInstanceTaskExecutions: originalStudio.listInstanceTaskExecutions.bind(originalStudio),

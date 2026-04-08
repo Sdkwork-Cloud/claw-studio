@@ -108,6 +108,17 @@ export interface StudioPlatformAPI {
     providerId: string,
     update: StudioUpdateInstanceLlmProviderConfigInput,
   ): Promise<boolean>;
+  setInstanceChannelEnabled?(
+    instanceId: string,
+    channelId: string,
+    enabled: boolean,
+  ): Promise<boolean>;
+  saveInstanceChannelConfig?(
+    instanceId: string,
+    channelId: string,
+    values: Record<string, string>,
+  ): Promise<boolean>;
+  deleteInstanceChannelConfig?(instanceId: string, channelId: string): Promise<boolean>;
   cloneInstanceTask(instanceId: string, taskId: string, name?: string): Promise<void>;
   runInstanceTaskNow(
     instanceId: string,

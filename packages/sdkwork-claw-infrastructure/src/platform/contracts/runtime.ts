@@ -368,6 +368,45 @@ export interface RuntimeDesktopBundledComponentsInfo {
   components: RuntimeDesktopBundledComponentInfo[];
 }
 
+export interface RuntimeDesktopOpenClawRuntimeStageInfo {
+  id: string;
+  status: string;
+  detail: string;
+}
+
+export interface RuntimeDesktopOpenClawProviderProjectionInfo {
+  providerId: string;
+  available: boolean;
+  status: string;
+  baseUrl?: string | null;
+  api?: string | null;
+  auth?: string | null;
+  defaultModel?: string | null;
+}
+
+export interface RuntimeDesktopOpenClawRuntimeInfo {
+  runtimeId: string;
+  lifecycle: string;
+  configured: boolean;
+  installKey?: string | null;
+  openclawVersion?: string | null;
+  nodeVersion?: string | null;
+  platform: string;
+  arch: string;
+  installDir?: string | null;
+  runtimeDir?: string | null;
+  homeDir: string;
+  stateDir: string;
+  workspaceDir: string;
+  configPath: string;
+  gatewayPort?: number | null;
+  gatewayBaseUrl?: string | null;
+  localAiProxyBaseUrl?: string | null;
+  localAiProxySnapshotPath: string;
+  providerProjection: RuntimeDesktopOpenClawProviderProjectionInfo;
+  startupChain: RuntimeDesktopOpenClawRuntimeStageInfo[];
+}
+
 export interface RuntimeDesktopLocalAiProxyInfo {
   lifecycle: string;
   baseUrl?: string | null;
@@ -402,6 +441,42 @@ export interface RuntimeDesktopLocalAiProxyDefaultRouteInfo {
   modelCount: number;
 }
 
+export interface RuntimeDesktopStartupEvidenceInfo {
+  status?: string | null;
+  phase?: string | null;
+  runId?: number | null;
+  recordedAt?: string | null;
+  durationMs?: number | null;
+  evidencePath: string;
+  descriptorMode?: string | null;
+  descriptorLifecycle?: string | null;
+  descriptorEndpointId?: string | null;
+  descriptorRequestedPort?: number | null;
+  descriptorActivePort?: number | null;
+  descriptorLoopbackOnly?: boolean | null;
+  descriptorDynamicPort?: boolean | null;
+  descriptorStateStoreDriver?: string | null;
+  descriptorStateStoreProfileId?: string | null;
+  descriptorBrowserBaseUrl?: string | null;
+  manageBaseUrl?: string | null;
+  builtInInstanceId?: string | null;
+  builtInInstanceName?: string | null;
+  builtInInstanceVersion?: string | null;
+  builtInInstanceRuntimeKind?: string | null;
+  builtInInstanceDeploymentMode?: string | null;
+  builtInInstanceTransportKind?: string | null;
+  builtInInstanceBaseUrl?: string | null;
+  builtInInstanceWebsocketUrl?: string | null;
+  builtInInstanceIsBuiltIn?: boolean | null;
+  builtInInstanceIsDefault?: boolean | null;
+  builtInInstanceStatus?: string | null;
+  openClawRuntimeLifecycle?: string | null;
+  openClawGatewayLifecycle?: string | null;
+  ready?: boolean | null;
+  errorMessage?: string | null;
+  errorCause?: string | null;
+}
+
 export interface RuntimeDesktopKernelInfo {
   directories: RuntimeDesktopKernelDirectories;
   capabilities: RuntimeDesktopKernelCapability[];
@@ -413,7 +488,9 @@ export interface RuntimeDesktopKernelInfo {
   payments: RuntimeDesktopPaymentInfo;
   integrations: RuntimeDesktopIntegrationInfo;
   supervisor: RuntimeDesktopSupervisorInfo;
+  openClawRuntime?: RuntimeDesktopOpenClawRuntimeInfo | null;
   localAiProxy: RuntimeDesktopLocalAiProxyInfo;
+  desktopStartupEvidence?: RuntimeDesktopStartupEvidenceInfo | null;
   bundledComponents: RuntimeDesktopBundledComponentsInfo;
   storage: RuntimeStorageInfo;
   host: RuntimeDesktopKernelHostInfo;

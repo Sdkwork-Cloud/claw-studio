@@ -855,7 +855,7 @@ await runTest(
           throw new Error('skills endpoint unavailable');
         },
         getToolsCatalog: async (_instanceId, args = {}) => ({
-          agentId: args.agentId,
+          agentId: typeof args.agentId === 'string' ? args.agentId : undefined,
           profiles: [],
           groups: [
             {

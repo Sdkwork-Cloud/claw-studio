@@ -1,5 +1,21 @@
 import assert from 'node:assert/strict';
-import { createInstallBootstrapService } from './installBootstrapService.ts';
+import type {
+  OpenClawChannelSnapshot,
+  OpenClawConfigSnapshot,
+  ProviderRoutingDraft,
+  ProviderRoutingRecord,
+} from '@sdkwork/claw-core';
+import type { ProxyProvider } from '@sdkwork/claw-types';
+import {
+  createInstallBootstrapService,
+  type InitializeInstallInstanceInput,
+  type InitializeInstallInstanceResult,
+} from './installBootstrapService.ts';
+import type {
+  ApplyOpenClawConfigurationInput,
+  ApplyOpenClawConfigurationResult,
+  OpenClawBootstrapData,
+} from './openClawBootstrapService.ts';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -12,8 +28,8 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
 }
 
 function createBootstrapProvider(
-  overrides: Record<string, unknown> = {},
-): Record<string, unknown> {
+  overrides: Partial<ProxyProvider> = {},
+): ProxyProvider {
   return {
     id: 'provider-config-openai-primary',
     channelId: 'openai',
@@ -40,6 +56,125 @@ function createBootstrapProvider(
   };
 }
 
+function createBootstrapChannel(
+  overrides: Partial<OpenClawChannelSnapshot> = {},
+): OpenClawChannelSnapshot {
+  return {
+    id: 'telegram',
+    name: 'Telegram',
+    description: 'Telegram bot access',
+    status: 'connected',
+    enabled: true,
+    configurationMode: 'required',
+    fieldCount: 2,
+    configuredFieldCount: 2,
+    setupSteps: ['Create bot', 'Paste token'],
+    values: {
+      token: 'tg-secret',
+      chatId: '123',
+    },
+    fields: [
+      {
+        key: 'token',
+        label: 'Bot Token',
+        placeholder: 'tg-token',
+      },
+      {
+        key: 'chatId',
+        label: 'Chat ID',
+        placeholder: '123456',
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function createBootstrapData(
+  overrides: Partial<OpenClawBootstrapData> = {},
+): OpenClawBootstrapData {
+  return {
+    configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+    syncedInstanceId: 'local-built-in',
+    providers: [],
+    channels: [],
+    packs: [],
+    skills: [],
+    ...overrides,
+  };
+}
+
+function createConfigSnapshot(
+  overrides: Partial<Pick<OpenClawConfigSnapshot, 'providerSnapshots' | 'channelSnapshots'>> = {},
+): Pick<OpenClawConfigSnapshot, 'providerSnapshots' | 'channelSnapshots'> {
+  return {
+    providerSnapshots: [],
+    channelSnapshots: [],
+    ...overrides,
+  };
+}
+
+function createApplyConfigurationResult(
+  overrides: Partial<ApplyOpenClawConfigurationResult> = {},
+): ApplyOpenClawConfigurationResult {
+  return {
+    configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+    providerId: 'provider-config-openai-primary',
+    syncedInstanceId: 'local-built-in',
+    configuredChannelIds: [],
+    ...overrides,
+  };
+}
+
+function createProviderRoutingRecord(
+  overrides: Partial<ProviderRoutingRecord> = {},
+): ProviderRoutingRecord {
+  return {
+    id: 'provider-config-openai-guided',
+    schemaVersion: 1,
+    name: 'Guided OpenAI',
+    providerId: 'openai',
+    clientProtocol: 'openai-compatible',
+    upstreamProtocol: 'openai-compatible',
+    upstreamBaseUrl: 'https://api.openai.com/v1',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: 'sk-guided-openai',
+    enabled: true,
+    isDefault: true,
+    managedBy: 'user',
+    defaultModelId: 'gpt-5.4',
+    reasoningModelId: undefined,
+    embeddingModelId: undefined,
+    models: [
+      {
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+      },
+    ],
+    exposeTo: ['openclaw'],
+    config: {
+      temperature: 0.2,
+      topP: 1,
+      maxTokens: 8192,
+      timeoutMs: 60000,
+      streaming: true,
+    },
+    createdAt: 1,
+    updatedAt: 1,
+    ...overrides,
+  };
+}
+
+function createInitializeInstanceResult(
+  overrides: Partial<InitializeInstallInstanceResult> = {},
+): InitializeInstallInstanceResult {
+  return {
+    instanceId: 'local-built-in',
+    installedPackIds: [],
+    installedSkillIds: [],
+    ...overrides,
+  };
+}
+
 await runTest('loadBootstrapData projects the synced OpenClaw bootstrap state into the generic guided-install surface', async () => {
   const service = createInstallBootstrapService({
     studioApi: {
@@ -55,42 +190,12 @@ await runTest('loadBootstrapData projects the synced OpenClaw bootstrap state in
       },
     },
     openClawBootstrapApi: {
-      async loadBootstrapData() {
-        return {
-          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
-          syncedInstanceId: 'local-built-in',
+      async loadBootstrapData(_input = {}) {
+        return createBootstrapData({
           providers: [
             createBootstrapProvider(),
           ],
-          channels: [
-            {
-              id: 'telegram',
-              name: 'Telegram',
-              description: 'Telegram bot access',
-              status: 'connected',
-              enabled: true,
-              configurationMode: 'required',
-              fieldCount: 2,
-              configuredFieldCount: 2,
-              setupSteps: ['Create bot', 'Paste token'],
-              values: {
-                token: 'tg-secret',
-                chatId: '123',
-              },
-              fields: [
-                {
-                  key: 'token',
-                  label: 'Bot Token',
-                  placeholder: 'tg-token',
-                },
-                {
-                  key: 'chatId',
-                  label: 'Chat ID',
-                  placeholder: '123456',
-                },
-              ],
-            },
-          ],
+          channels: [createBootstrapChannel()],
           packs: [
             {
               id: 'starter-pack',
@@ -115,7 +220,7 @@ await runTest('loadBootstrapData projects the synced OpenClaw bootstrap state in
               category: 'Utility',
             },
           ],
-        };
+        });
       },
       async applyConfiguration() {
         throw new Error('not implemented');
@@ -130,13 +235,8 @@ await runTest('loadBootstrapData projects the synced OpenClaw bootstrap state in
       },
     },
     openClawConfigApi: {
-      async readConfigSnapshot() {
-        return {
-          providerSnapshots: [],
-        };
-      },
-      async saveProviderSelection() {
-        throw new Error('not implemented');
+      async readConfigSnapshot(_configPath: string) {
+        return createConfigSnapshot();
       },
     },
   });
@@ -147,7 +247,7 @@ await runTest('loadBootstrapData projects the synced OpenClaw bootstrap state in
   assert.deepEqual(data.instances.map((instance) => instance.id), ['local-built-in']);
   assert.equal(data.providers.length, 1);
   assert.equal(data.providers[0]?.id, 'provider-config-openai-primary');
-  assert.equal(data.providerChannels[0]?.id, 'openai');
+  assert.equal(data.providerChannels.find((channel) => channel.id === 'openai')?.providerCount, 1);
   assert.equal(data.providerChannels.some((channel) => channel.id === 'meta'), true);
   assert.equal(data.providerChannels.some((channel) => channel.id === 'baichuan'), true);
   assert.equal(data.providerChannels.some((channel) => channel.id === 'azure-openai'), true);
@@ -173,10 +273,8 @@ await runTest(
         },
       },
       openClawBootstrapApi: {
-        async loadBootstrapData() {
-          return {
-            configPath: 'C:/Users/admin/.openclaw/openclaw.json',
-            syncedInstanceId: 'local-built-in',
+        async loadBootstrapData(_input = {}) {
+          return createBootstrapData({
             providers: [
               createBootstrapProvider({
                 id: 'local-ai-proxy-system-default-openai-compatible',
@@ -206,7 +304,7 @@ await runTest(
             channels: [],
             packs: [],
             skills: [],
-          };
+          });
         },
         async applyConfiguration() {
           throw new Error('not implemented');
@@ -221,10 +319,8 @@ await runTest(
         },
       },
       openClawConfigApi: {
-        async readConfigSnapshot() {
-          return {
-            providerSnapshots: [],
-          };
+        async readConfigSnapshot(_configPath: string) {
+          return createConfigSnapshot();
         },
       },
     });
@@ -248,7 +344,7 @@ await runTest(
         },
       ],
     );
-    assert.equal(data.providerChannels.some((channel) => channel.id === 'sdkwork'), false);
+    assert.equal(data.providerChannels.find((channel) => channel.id === 'sdkwork')?.providerCount, 0);
     assert.equal(data.providerChannels.find((channel) => channel.id === 'openai')?.providerCount, 1);
     assert.equal(
       data.providerChannels.find((channel) => channel.id === 'anthropic')?.providerCount,
@@ -259,7 +355,7 @@ await runTest(
 );
 
 await runTest('applyConfiguration delegates existing provider selection to the OpenClaw bootstrap flow', async () => {
-  const calls: Array<Record<string, unknown>> = [];
+  const calls: ApplyOpenClawConfigurationInput[] = [];
   const service = createInstallBootstrapService({
     studioApi: {
       async listInstances() {
@@ -274,10 +370,8 @@ await runTest('applyConfiguration delegates existing provider selection to the O
       },
     },
     openClawBootstrapApi: {
-      async loadBootstrapData() {
-        return {
-          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
-          syncedInstanceId: 'local-built-in',
+      async loadBootstrapData(_input = {}) {
+        return createBootstrapData({
           providers: [
             {
               id: 'openai-managed',
@@ -306,16 +400,14 @@ await runTest('applyConfiguration delegates existing provider selection to the O
           channels: [],
           packs: [],
           skills: [],
-        };
+        });
       },
-      async applyConfiguration(input: Record<string, unknown>) {
+      async applyConfiguration(input: ApplyOpenClawConfigurationInput) {
         calls.push(input);
-        return {
-          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+        return createApplyConfigurationResult({
           providerId: 'openai-managed',
-          syncedInstanceId: 'local-built-in',
           configuredChannelIds: ['telegram'],
-        };
+        });
       },
       async initializeOpenClawInstance() {
         throw new Error('not implemented');
@@ -327,10 +419,8 @@ await runTest('applyConfiguration delegates existing provider selection to the O
       },
     },
     openClawConfigApi: {
-      async readConfigSnapshot() {
-        return {
-          providerSnapshots: [],
-        };
+      async readConfigSnapshot(_configPath: string) {
+        return createConfigSnapshot();
       },
     },
   });
@@ -367,8 +457,8 @@ await runTest('applyConfiguration delegates existing provider selection to the O
 });
 
 await runTest('applyConfiguration saves a new provider route and applies it through the OpenClaw bootstrap flow', async () => {
-  const routeSaveCalls: Array<Record<string, unknown>> = [];
-  const applyCalls: Array<Record<string, unknown>> = [];
+  const routeSaveCalls: Array<ProviderRoutingDraft & { id?: string }> = [];
+  const applyCalls: ApplyOpenClawConfigurationInput[] = [];
   const service = createInstallBootstrapService({
     studioApi: {
       async listInstances() {
@@ -383,72 +473,34 @@ await runTest('applyConfiguration saves a new provider route and applies it thro
       },
     },
     openClawBootstrapApi: {
-      async loadBootstrapData() {
-        return {
-          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
-          syncedInstanceId: 'local-built-in',
+      async loadBootstrapData(_input = {}) {
+        return createBootstrapData({
           providers: [],
           channels: [],
           packs: [],
           skills: [],
-        };
+        });
       },
-      async applyConfiguration(input: Record<string, unknown>) {
+      async applyConfiguration(input: ApplyOpenClawConfigurationInput) {
         applyCalls.push(input);
-        return {
-          configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+        return createApplyConfigurationResult({
           providerId: 'provider-config-openai-guided',
-          syncedInstanceId: 'local-built-in',
           configuredChannelIds: [],
-        };
+        });
       },
       async initializeOpenClawInstance() {
         throw new Error('not implemented');
       },
     },
     providerRoutingApi: {
-      async saveProviderRoutingRecord(input: Record<string, unknown>) {
+      async saveProviderRoutingRecord(input: ProviderRoutingDraft & { id?: string }) {
         routeSaveCalls.push(input);
-        return {
-          id: 'provider-config-openai-guided',
-          schemaVersion: 1,
-          name: 'Guided OpenAI',
-          providerId: 'openai',
-          clientProtocol: 'openai-compatible',
-          upstreamProtocol: 'openai-compatible',
-          upstreamBaseUrl: 'https://api.openai.com/v1',
-          baseUrl: 'https://api.openai.com/v1',
-          apiKey: 'sk-guided-openai',
-          enabled: true,
-          isDefault: true,
-          managedBy: 'user',
-          defaultModelId: 'gpt-5.4',
-          reasoningModelId: undefined,
-          embeddingModelId: undefined,
-          models: [
-            {
-              id: 'gpt-5.4',
-              name: 'GPT-5.4',
-            },
-          ],
-          exposeTo: ['openclaw'],
-          config: {
-            temperature: 0.2,
-            topP: 1,
-            maxTokens: 8192,
-            timeoutMs: 60000,
-            streaming: true,
-          },
-          createdAt: 1,
-          updatedAt: 1,
-        };
+        return createProviderRoutingRecord();
       },
     },
     openClawConfigApi: {
-      async readConfigSnapshot() {
-        return {
-          providerSnapshots: [],
-        };
+      async readConfigSnapshot(_configPath: string) {
+        return createConfigSnapshot();
       },
     },
   });
@@ -497,7 +549,7 @@ await runTest('applyConfiguration saves a new provider route and applies it thro
 await runTest(
   'applyConfiguration saves native gemini routes with the gemini local proxy client protocol',
   async () => {
-    const routeSaveCalls: Array<Record<string, unknown>> = [];
+    const routeSaveCalls: Array<ProviderRoutingDraft & { id?: string }> = [];
     const service = createInstallBootstrapService({
       studioApi: {
         async listInstances() {
@@ -512,34 +564,29 @@ await runTest(
         },
       },
       openClawBootstrapApi: {
-        async loadBootstrapData() {
-          return {
-            configPath: 'C:/Users/admin/.openclaw/openclaw.json',
-            syncedInstanceId: 'local-built-in',
+        async loadBootstrapData(_input = {}) {
+          return createBootstrapData({
             providers: [],
             channels: [],
             packs: [],
             skills: [],
-          };
+          });
         },
         async applyConfiguration() {
-          return {
-            configPath: 'C:/Users/admin/.openclaw/openclaw.json',
+          return createApplyConfigurationResult({
             providerId: 'provider-config-gemini-guided',
-            syncedInstanceId: 'local-built-in',
             configuredChannelIds: [],
-          };
+          });
         },
         async initializeOpenClawInstance() {
           throw new Error('not implemented');
         },
       },
       providerRoutingApi: {
-        async saveProviderRoutingRecord(input: Record<string, unknown>) {
+        async saveProviderRoutingRecord(input: ProviderRoutingDraft & { id?: string }) {
           routeSaveCalls.push(input);
-          return {
+          return createProviderRoutingRecord({
             id: 'provider-config-gemini-guided',
-            schemaVersion: 1,
             name: 'Guided Gemini',
             providerId: 'google',
             clientProtocol: 'gemini',
@@ -547,11 +594,7 @@ await runTest(
             upstreamBaseUrl: 'https://generativelanguage.googleapis.com',
             baseUrl: 'https://generativelanguage.googleapis.com',
             apiKey: 'sk-guided-gemini',
-            enabled: true,
-            isDefault: true,
-            managedBy: 'user',
             defaultModelId: 'gemini-2.5-pro',
-            reasoningModelId: undefined,
             embeddingModelId: 'text-embedding-004',
             models: [
               {
@@ -563,24 +606,12 @@ await runTest(
                 name: 'text-embedding-004',
               },
             ],
-            exposeTo: ['openclaw'],
-            config: {
-              temperature: 0.2,
-              topP: 1,
-              maxTokens: 8192,
-              timeoutMs: 60000,
-              streaming: true,
-            },
-            createdAt: 1,
-            updatedAt: 1,
-          };
+          });
         },
       },
       openClawConfigApi: {
-        async readConfigSnapshot() {
-          return {
-            providerSnapshots: [],
-          };
+        async readConfigSnapshot(_configPath: string) {
+          return createConfigSnapshot();
         },
       },
     });
@@ -617,7 +648,7 @@ await runTest(
 );
 
 await runTest('initializeInstance delegates to the OpenClaw initializer surface', async () => {
-  const calls: Array<Record<string, unknown>> = [];
+  const calls: InitializeInstallInstanceInput[] = [];
   const service = createInstallBootstrapService({
     studioApi: {
       async listInstances() {
@@ -631,13 +662,12 @@ await runTest('initializeInstance delegates to the OpenClaw initializer surface'
       async applyConfiguration() {
         throw new Error('not implemented');
       },
-      async initializeOpenClawInstance(input: Record<string, unknown>) {
+      async initializeOpenClawInstance(input: InitializeInstallInstanceInput) {
         calls.push(input);
-        return {
-          instanceId: 'local-built-in',
+        return createInitializeInstanceResult({
           installedPackIds: ['starter-pack'],
           installedSkillIds: ['skill-1'],
-        };
+        });
       },
     },
     providerRoutingApi: {
@@ -646,10 +676,8 @@ await runTest('initializeInstance delegates to the OpenClaw initializer surface'
       },
     },
     openClawConfigApi: {
-      async readConfigSnapshot() {
-        return {
-          providerSnapshots: [],
-        };
+      async readConfigSnapshot(_configPath: string) {
+        return createConfigSnapshot();
       },
     },
   });

@@ -31,6 +31,7 @@ pub mod openclaw_mirror_export;
 pub mod openclaw_mirror_import;
 pub mod openclaw_mirror_manifest;
 pub mod openclaw_runtime;
+pub mod openclaw_runtime_snapshot;
 pub mod path_registration;
 pub mod payments;
 pub mod permissions;
@@ -56,6 +57,7 @@ use self::{
     notifications::NotificationService,
     openclaw_mirror::OpenClawMirrorService,
     openclaw_runtime::OpenClawRuntimeService,
+    openclaw_runtime_snapshot::OpenClawRuntimeSnapshotService,
     path_registration::PathRegistrationService,
     payments::PaymentService,
     permissions::PermissionService,
@@ -84,6 +86,7 @@ pub struct FrameworkServices {
     pub permissions: PermissionService,
     pub openclaw_mirror: OpenClawMirrorService,
     pub openclaw_runtime: OpenClawRuntimeService,
+    pub openclaw_runtime_snapshot: OpenClawRuntimeSnapshotService,
     pub local_ai_proxy: LocalAiProxyService,
     pub path_registration: PathRegistrationService,
     pub process: ProcessService,
@@ -125,6 +128,7 @@ impl FrameworkServices {
             permissions: PermissionService::new(),
             openclaw_mirror: OpenClawMirrorService::new(),
             openclaw_runtime: OpenClawRuntimeService::new(),
+            openclaw_runtime_snapshot: OpenClawRuntimeSnapshotService::new(),
             local_ai_proxy: LocalAiProxyService::new(),
             path_registration: PathRegistrationService::new(),
             process: ProcessService::new(policy),
@@ -159,6 +163,11 @@ impl FrameworkServices {
         let active_job_count = self.jobs.active_job_count()?;
         let active_process_job_count = self.jobs.active_process_job_count()?;
         let supervisor = self.supervisor.kernel_info()?;
+        let open_claw_runtime = self.openclaw_runtime_snapshot.kernel_info(
+            paths,
+            &self.supervisor,
+            &self.local_ai_proxy,
+        )?;
         let local_ai_proxy = self.desktop_local_ai_proxy_info(paths)?;
         let configured_openclaw_runtime = self.supervisor.configured_openclaw_runtime()?;
         let host = build_desktop_kernel_host_info(
@@ -182,7 +191,9 @@ impl FrameworkServices {
                 payments: self.payments.kernel_info(&normalized),
                 integrations: self.integrations.kernel_info(paths, &normalized)?,
                 supervisor,
+                open_claw_runtime,
                 local_ai_proxy,
+                desktop_startup_evidence: self.kernel.desktop_startup_evidence(paths),
                 bundled_components: self.components.kernel_info(paths)?,
                 storage: self.storage.storage_info(paths, &normalized),
                 host,

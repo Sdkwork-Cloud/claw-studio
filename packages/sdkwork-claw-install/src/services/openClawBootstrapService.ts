@@ -9,7 +9,6 @@ import {
   type RuntimeDesktopKernelInfo,
 } from '@sdkwork/claw-infrastructure';
 import {
-  clawHubService,
   createOpenClawLocalProxyProjection,
   kernelPlatformService,
   OPENCLAW_LOCAL_PROXY_DEFAULT_API_KEY,
@@ -141,13 +140,15 @@ function projectProviderRouteForOpenClawBootstrap(
   };
 }
 
-async function listConfiguredProviders() {
+async function listConfiguredProviders(kernelInfo?: RuntimeDesktopKernelInfo | null) {
   const routes = await providerRoutingCatalogService.listProviderRoutingRecords();
 
-  await kernelPlatformService.ensureRunning().catch(() => null);
-  const kernelInfo = await kernelPlatformService.getInfo().catch(() => null);
+  const resolvedKernelInfo = kernelInfo ?? await (async () => {
+    await kernelPlatformService.ensureRunning().catch(() => null);
+    return kernelPlatformService.getInfo().catch(() => null);
+  })();
 
-  return routes.map((route) => projectProviderRouteForOpenClawBootstrap(route, kernelInfo));
+  return routes.map((route) => projectProviderRouteForOpenClawBootstrap(route, resolvedKernelInfo));
 }
 
 function parsePort(value: unknown) {
@@ -174,11 +175,22 @@ function readGatewayPort(root: Record<string, unknown>) {
   return parsePort(gateway?.port);
 }
 
-async function resolveHomeRoots(assessment?: HubInstallAssessmentResult | null) {
+async function resolveHomeRoots(
+  assessment?: HubInstallAssessmentResult | null,
+  kernelInfo?: RuntimeDesktopKernelInfo | null,
+) {
   const candidates = new Set<string>();
   const runtimeHome = normalizePath(assessment?.runtime.runtimeHomeDir);
   if (runtimeHome) {
     candidates.add(runtimeHome);
+  }
+  const kernelRuntimeHome = normalizePath(kernelInfo?.openClawRuntime?.homeDir);
+  const kernelUserRoot = normalizePath(kernelInfo?.directories?.userRoot);
+  if (kernelRuntimeHome) {
+    candidates.add(kernelRuntimeHome);
+  }
+  if (kernelUserRoot) {
+    candidates.add(kernelUserRoot);
   }
 
   try {
@@ -202,8 +214,9 @@ async function resolveHomeRoots(assessment?: HubInstallAssessmentResult | null) 
 async function resolveConfigPath(input: {
   installResult?: HubInstallResult | null;
   assessment?: HubInstallAssessmentResult | null;
+  kernelInfo?: RuntimeDesktopKernelInfo | null;
 }) {
-  const homeRoots = await resolveHomeRoots(input.assessment);
+  const homeRoots = await resolveHomeRoots(input.assessment, input.kernelInfo);
 
   return openClawConfigService.resolveInstallConfigPath({
     installRoot: input.installResult?.resolvedInstallRoot || input.assessment?.resolvedInstallRoot,
@@ -225,6 +238,56 @@ function buildGatewayUrls(root: Record<string, unknown>) {
     baseUrl,
     websocketUrl,
   };
+}
+
+type ClawHubCatalogService = {
+  listPackages: () => Promise<SkillPack[]>;
+  listSkills: () => Promise<Skill[]>;
+};
+
+async function resolveClawHubCatalogService(): Promise<ClawHubCatalogService | null> {
+  const module = await import('@sdkwork/claw-core');
+  const service = 'clawHubService' in module ? module.clawHubService : null;
+  if (
+    service
+    && typeof service.listPackages === 'function'
+    && typeof service.listSkills === 'function'
+  ) {
+    return service;
+  }
+
+  return null;
+}
+
+async function loadClawHubCatalogSnapshot(): Promise<{
+  packs: SkillPack[];
+  skills: Skill[];
+}> {
+  try {
+    const service = await resolveClawHubCatalogService();
+    if (!service) {
+      return {
+        packs: [],
+        skills: [],
+      };
+    }
+
+    const [packs, skills] = await Promise.all([
+      service.listPackages().catch(() => []),
+      service.listSkills().catch(() => []),
+    ]);
+
+    return {
+      packs,
+      skills,
+    };
+  } catch {
+    // Keep bootstrap usable when ClawHub's shared SDK surface is unavailable in node-safe tests.
+    return {
+      packs: [],
+      skills: [],
+    };
+  }
 }
 
 async function syncLocalExternalInstance(input: {
@@ -307,10 +370,10 @@ async function syncLocalExternalInstance(input: {
 }
 
 async function resolveSelectedSkills(packIds: string[], skillIds: string[]) {
-  const [allPacks, allSkills] = await Promise.all([
-    clawHubService.listPackages(),
-    clawHubService.listSkills(),
-  ]);
+  const {
+    packs: allPacks,
+    skills: allSkills,
+  } = await loadClawHubCatalogSnapshot();
   const selectedSkills = new Map<string, Skill>();
 
   for (const packId of packIds) {
@@ -364,17 +427,21 @@ class OpenClawBootstrapService {
     installResult?: HubInstallResult | null;
     assessment?: HubInstallAssessmentResult | null;
   }): Promise<OpenClawBootstrapData> {
-    const configPath = await resolveConfigPath(input);
+    await kernelPlatformService.ensureRunning().catch(() => null);
+    const kernelInfo = await kernelPlatformService.getInfo().catch(() => null);
+    const configPath = await resolveConfigPath({
+      ...input,
+      kernelInfo,
+    });
 
     if (!configPath) {
       throw new Error('Unable to locate the installed OpenClaw config file.');
     }
 
-    const [configSnapshot, allProviders, packs, skills] = await Promise.all([
+    const [configSnapshot, allProviders, catalog] = await Promise.all([
       openClawConfigService.readConfigSnapshot(configPath),
-      listConfiguredProviders(),
-      clawHubService.listPackages(),
-      clawHubService.listSkills(),
+      listConfiguredProviders(kernelInfo),
+      loadClawHubCatalogSnapshot(),
     ]);
     const syncedInstance = await syncLocalExternalInstance({
       configPath,
@@ -388,8 +455,8 @@ class OpenClawBootstrapService {
       syncedInstanceId: syncedInstance.instanceId,
       providers: filterOpenClawCompatibleProviders(allProviders),
       channels: configSnapshot.channelSnapshots,
-      packs,
-      skills,
+      packs: catalog.packs,
+      skills: catalog.skills,
       installRoot: syncedInstance.installRoot,
       workRoot: syncedInstance.workRoot,
       dataRoot: syncedInstance.dataRoot,

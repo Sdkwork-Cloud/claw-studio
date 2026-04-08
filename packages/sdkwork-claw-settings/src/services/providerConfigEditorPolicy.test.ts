@@ -448,6 +448,7 @@ await runTest(
 }`,
     });
 
+    assert.ok(draft.config);
     assert.deepEqual(draft.config.request, {
       headers: {
         'cf-aig-authorization': 'Bearer cf-gateway-secret',

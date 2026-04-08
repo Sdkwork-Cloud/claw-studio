@@ -231,6 +231,9 @@ function createKernelInfo(
       ],
       upstreamBaseUrl: 'https://ai.sdkwork.com',
       modelCount: 3,
+      routeMetrics: [],
+      routeTests: [],
+      messageCaptureEnabled: false,
       configPath: 'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.json',
       snapshotPath: 'C:/ProgramData/SdkWork/ClawStudio/runtime/state/local-ai-proxy.snapshot.json',
       logPath: 'C:/ProgramData/SdkWork/ClawStudio/logs/app/local-ai-proxy.log',
@@ -543,6 +546,247 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
   assert.equal(dashboard.rollouts.phaseCounts.failed, 1);
   assert.equal(dashboard.rollouts.latestUpdatedAt, 1_743_100_300_000);
 });
+
+await runTest(
+  'kernelCenterService prefers the dedicated OpenClaw runtime snapshot for provenance fields when available',
+  async () => {
+    const { createKernelCenterService } = await import('./kernelCenterService.ts');
+
+    const snapshot = createSnapshot();
+    snapshot.raw.provenance.openclawVersion = 'stale-openclaw';
+    snapshot.raw.provenance.nodeVersion = 'stale-node';
+    snapshot.raw.provenance.platform = 'stale-platform';
+    snapshot.raw.provenance.arch = 'stale-arch';
+    snapshot.raw.provenance.configPath = 'C:/stale/openclaw.json';
+    snapshot.raw.provenance.runtimeHomeDir = 'C:/stale/home';
+    snapshot.raw.provenance.runtimeInstallDir = 'C:/stale/install';
+    snapshot.openclawVersion = 'stale-openclaw';
+    snapshot.nodeVersion = 'stale-node';
+    const kernelInfo = createKernelInfo();
+    (kernelInfo as RuntimeDesktopKernelInfo & {
+      openClawRuntime?: Record<string, unknown>;
+    }).openClawRuntime = {
+      runtimeId: 'openclaw',
+      lifecycle: 'ready',
+      configured: true,
+      installKey: `${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+      openclawVersion: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      nodeVersion: DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION,
+      platform: 'windows',
+      arch: 'x64',
+      installDir:
+        `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+      runtimeDir:
+        `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64/runtime`,
+      homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+      stateDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw',
+      workspaceDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/workspace',
+      configPath: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+      gatewayPort: 18789,
+      gatewayBaseUrl: 'http://127.0.0.1:18789',
+      localAiProxyBaseUrl: LOCAL_AI_PROXY_BASE_URL,
+      localAiProxySnapshotPath:
+        'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy.snapshot.json',
+      providerProjection: {
+        providerId: 'sdkwork-local-proxy',
+        available: true,
+        status: 'ready',
+        baseUrl: LOCAL_AI_PROXY_BASE_URL,
+        api: 'openai-completions',
+        auth: 'api-key',
+        defaultModel: 'sdkwork-local-proxy/gpt-5.4',
+      },
+      startupChain: [
+        {
+          id: 'configureOpenClawGateway',
+          status: 'ready',
+          detail: 'configured',
+        },
+      ],
+    };
+
+    const service = createKernelCenterService({
+      kernelPlatformService: {
+        getInfo: async () => kernelInfo,
+        getStatus: async () => snapshot,
+        ensureRunning: async () => snapshot,
+        restart: async () => snapshot,
+      },
+      hostPlatformService: {
+        getStatus: async () => ({
+          ...createHostPlatformStatus(),
+          capabilityCount: 2,
+          isReady: true,
+        }),
+      },
+      rolloutService: {
+        list: async () => createRolloutListResult(),
+        summarizePhases: () => ({
+          active: 1,
+          failed: 1,
+          completed: 0,
+          paused: 0,
+          drafts: 0,
+        }),
+      },
+      runtimeApi: {
+        getRuntimeInfo: async () => createRuntimeInfo(),
+      },
+    });
+
+    const dashboard = await service.getDashboard();
+
+    assert.equal(dashboard.provenance.openclawVersion, DEFAULT_BUNDLED_OPENCLAW_VERSION);
+    assert.equal(dashboard.provenance.nodeVersion, DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION);
+    assert.equal(dashboard.provenance.platformLabel, 'windows/x64');
+    assert.equal(
+      dashboard.provenance.configPath,
+      'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+    );
+    assert.equal(
+      dashboard.provenance.runtimeHomeDir,
+      'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+    );
+    assert.equal(
+      dashboard.provenance.runtimeInstallDir,
+      `C:/Program Files/SdkWork/CrawStudio/runtimes/openclaw/${DEFAULT_BUNDLED_OPENCLAW_VERSION}-windows-x64`,
+    );
+  },
+);
+
+await runTest(
+  'kernelCenterService surfaces desktop startup evidence from the published kernel snapshot when live runtime reason is unavailable',
+  async () => {
+    const { createKernelCenterService } = await import('./kernelCenterService.ts');
+
+    const snapshot = createSnapshot();
+    snapshot.raw.runtime.reason = '';
+    const kernelInfo = createKernelInfo();
+    (kernelInfo as RuntimeDesktopKernelInfo & {
+      desktopStartupEvidence?: Record<string, unknown>;
+    }).desktopStartupEvidence = {
+      status: 'passed',
+      phase: 'shell-mounted',
+      runId: 11,
+      recordedAt: '2026-04-08T10:30:00.000Z',
+      durationMs: 842,
+      evidencePath:
+        'C:/Users/admin/.sdkwork/crawstudio/studio/diagnostics/desktop-startup-evidence.json',
+      descriptorMode: 'desktopCombined',
+      descriptorLifecycle: 'ready',
+      descriptorEndpointId: 'desktop-host',
+      descriptorActivePort: 18797,
+      descriptorRequestedPort: 18797,
+      descriptorLoopbackOnly: true,
+      descriptorDynamicPort: false,
+      descriptorStateStoreDriver: 'sqlite',
+      descriptorStateStoreProfileId: 'default-sqlite',
+      descriptorBrowserBaseUrl: 'http://127.0.0.1:18797',
+      manageBaseUrl: 'http://127.0.0.1:18797',
+      builtInInstanceId: 'local-built-in',
+      builtInInstanceName: 'Local Built-In',
+      builtInInstanceVersion: DEFAULT_BUNDLED_OPENCLAW_VERSION,
+      builtInInstanceRuntimeKind: 'openclaw',
+      builtInInstanceDeploymentMode: 'local-managed',
+      builtInInstanceTransportKind: 'openclawGatewayWs',
+      builtInInstanceBaseUrl: 'http://127.0.0.1:18797',
+      builtInInstanceWebsocketUrl: 'ws://127.0.0.1:18797/ws',
+      builtInInstanceIsBuiltIn: true,
+      builtInInstanceIsDefault: true,
+      builtInInstanceStatus: 'online',
+      openClawRuntimeLifecycle: 'ready',
+      openClawGatewayLifecycle: 'ready',
+      ready: true,
+      errorMessage: 'gateway websocket did not become dialable',
+      errorCause: 'socket timeout',
+    };
+
+    const service = createKernelCenterService({
+      kernelPlatformService: {
+        getInfo: async () => kernelInfo,
+        getStatus: async () => snapshot,
+        ensureRunning: async () => snapshot,
+        restart: async () => snapshot,
+      },
+      hostPlatformService: {
+        getStatus: async () => ({
+          ...createHostPlatformStatus(),
+          capabilityCount: 2,
+          isReady: true,
+        }),
+      },
+      rolloutService: {
+        list: async () => createRolloutListResult(),
+        summarizePhases: () => ({
+          active: 1,
+          failed: 1,
+          completed: 0,
+          paused: 0,
+          drafts: 0,
+        }),
+      },
+      runtimeApi: {
+        getRuntimeInfo: async () => createRuntimeInfo(),
+      },
+    });
+
+    const dashboard = await service.getDashboard();
+
+    assert.equal(dashboard.startupEvidence.status, 'passed');
+    assert.equal(dashboard.startupEvidence.phase, 'shell-mounted');
+    assert.equal(dashboard.startupEvidence.runId, 11);
+    assert.equal(
+      dashboard.startupEvidence.path,
+      'C:/Users/admin/.sdkwork/crawstudio/studio/diagnostics/desktop-startup-evidence.json',
+    );
+    assert.equal(dashboard.startupEvidence.descriptorMode, 'desktopCombined');
+    assert.equal(dashboard.startupEvidence.descriptorLifecycle, 'ready');
+    assert.equal(dashboard.startupEvidence.descriptorEndpointId, 'desktop-host');
+    assert.equal(dashboard.startupEvidence.descriptorActivePort, 18797);
+    assert.equal(dashboard.startupEvidence.descriptorRequestedPort, 18797);
+    assert.equal(dashboard.startupEvidence.descriptorLoopbackOnly, true);
+    assert.equal(dashboard.startupEvidence.descriptorDynamicPort, false);
+    assert.equal(dashboard.startupEvidence.descriptorStateStoreDriver, 'sqlite');
+    assert.equal(
+      dashboard.startupEvidence.descriptorStateStoreProfileId,
+      'default-sqlite',
+    );
+    assert.equal(dashboard.startupEvidence.manageBaseUrl, 'http://127.0.0.1:18797');
+    assert.equal(dashboard.startupEvidence.builtInInstanceId, 'local-built-in');
+    assert.equal(dashboard.startupEvidence.builtInInstanceName, 'Local Built-In');
+    assert.equal(
+      dashboard.startupEvidence.builtInInstanceVersion,
+      DEFAULT_BUNDLED_OPENCLAW_VERSION,
+    );
+    assert.equal(
+      dashboard.startupEvidence.builtInInstanceRuntimeKind,
+      'openclaw',
+    );
+    assert.equal(
+      dashboard.startupEvidence.builtInInstanceDeploymentMode,
+      'local-managed',
+    );
+    assert.equal(
+      dashboard.startupEvidence.builtInInstanceTransportKind,
+      'openclawGatewayWs',
+    );
+    assert.equal(
+      dashboard.startupEvidence.builtInInstanceBaseUrl,
+      'http://127.0.0.1:18797',
+    );
+    assert.equal(
+      dashboard.startupEvidence.builtInInstanceWebsocketUrl,
+      'ws://127.0.0.1:18797/ws',
+    );
+    assert.equal(dashboard.startupEvidence.builtInInstanceIsBuiltIn, true);
+    assert.equal(dashboard.startupEvidence.builtInInstanceIsDefault, true);
+    assert.equal(dashboard.startupEvidence.runtimeLifecycle, 'ready');
+    assert.equal(dashboard.startupEvidence.gatewayLifecycle, 'ready');
+    assert.equal(dashboard.startupEvidence.ready, true);
+    assert.equal(dashboard.startupEvidence.errorCause, 'socket timeout');
+    assert.match(dashboard.statusSummary, /gateway websocket did not become dialable/);
+  },
+);
 
 await runTest(
   'kernelCenterService forwards ensureRunning and restart actions and degrades gracefully when host governance details are unavailable',

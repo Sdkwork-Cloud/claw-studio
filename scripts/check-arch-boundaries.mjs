@@ -80,6 +80,23 @@ const allowedPackageExportKeys = new Map([
 const allowedPackageSubpathImports = new Set([
   '@sdkwork/claw-core/sdk',
 ]);
+const sourceLayoutExpectations = [
+  {
+    package: WEB,
+    allowedFiles: new Set(['App.tsx', 'externalModules.d.ts', 'index.ts', 'main.tsx', 'vite-env.d.ts']),
+    allowedDirs: new Set(),
+  },
+  {
+    package: DESKTOP,
+    allowedFiles: new Set(['index.ts', 'main.tsx', 'vite-env.d.ts']),
+    allowedDirs: new Set(['desktop']),
+  },
+  {
+    package: SHELL,
+    allowedFiles: new Set(['index.ts']),
+    allowedDirs: new Set(['application', 'components', 'styles']),
+  },
+];
 
 function listSourceFiles(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -195,6 +212,30 @@ const businessBarrelViolations = [];
 const localServiceBarrelViolations = [];
 const rootImportViolations = [];
 const dependencyViolations = [];
+const sourceLayoutViolations = [];
+
+for (const expectation of sourceLayoutExpectations) {
+  const dirName = expectation.package.replace('@sdkwork/', 'sdkwork-');
+  const srcDir = path.join(packagesDir, dirName, 'src');
+  if (!fs.existsSync(srcDir)) {
+    continue;
+  }
+
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const kind = entry.isDirectory() ? 'dir' : 'file';
+    const allowed = entry.isDirectory()
+      ? expectation.allowedDirs.has(entry.name)
+      : expectation.allowedFiles.has(entry.name);
+
+    if (!allowed) {
+      sourceLayoutViolations.push({
+        package: expectation.package,
+        entry: path.relative(root, path.join(srcDir, entry.name)),
+        kind,
+      });
+    }
+  }
+}
 
 for (const [pkgName, requiredDirs] of structureExpectations) {
   const dirName = pkgName.replace('@sdkwork/', 'sdkwork-');
@@ -319,9 +360,19 @@ if (
   packageExportViolations.length > 0 ||
   businessBarrelViolations.length > 0 ||
   localServiceBarrelViolations.length > 0 ||
+  sourceLayoutViolations.length > 0 ||
   rootImportViolations.length > 0 ||
   dependencyViolations.length > 0
 ) {
+  if (sourceLayoutViolations.length > 0) {
+    console.error('Host and shell source layout violations found:\n');
+    for (const violation of sourceLayoutViolations) {
+      console.error(
+        `- ${violation.package}\n  ${violation.kind}: ${violation.entry}\n`,
+      );
+    }
+  }
+
   if (structureViolations.length > 0) {
     console.error('Package structure violations found:\n');
     for (const violation of structureViolations) {

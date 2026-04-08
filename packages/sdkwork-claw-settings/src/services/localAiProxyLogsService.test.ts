@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import type { PaginatedResult } from '@sdkwork/claw-types';
+import type {
+  LocalAiProxyMessageLogsQuery,
+  LocalAiProxyRequestLogsQuery,
+  PaginatedResult,
+} from '@sdkwork/claw-types';
 
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
@@ -14,7 +18,10 @@ async function runTest(name: string, callback: () => Promise<void> | void) {
 await runTest('localAiProxyLogsService normalizes request and message log queries before delegating to the kernel bridge', async () => {
   const { createLocalAiProxyLogsService } = await import('./localAiProxyLogsService.ts');
 
-  const calls: Array<{ kind: string; query: Record<string, unknown> }> = [];
+  const calls: Array<{
+    kind: string;
+    query: LocalAiProxyRequestLogsQuery | LocalAiProxyMessageLogsQuery;
+  }> = [];
   const emptyPage: PaginatedResult<any> = {
     items: [],
     total: 0,
@@ -25,15 +32,15 @@ await runTest('localAiProxyLogsService normalizes request and message log querie
 
   const service = createLocalAiProxyLogsService({
     kernelPlatformService: {
-      listLocalAiProxyRequestLogs: async (query) => {
+      listLocalAiProxyRequestLogs: async (query: LocalAiProxyRequestLogsQuery) => {
         calls.push({ kind: 'requests', query });
         return emptyPage;
       },
-      listLocalAiProxyMessageLogs: async (query) => {
+      listLocalAiProxyMessageLogs: async (query: LocalAiProxyMessageLogsQuery) => {
         calls.push({ kind: 'messages', query });
         return emptyPage;
       },
-      updateLocalAiProxyMessageCapture: async (enabled) => ({
+      updateLocalAiProxyMessageCapture: async (enabled: boolean) => ({
         enabled,
         updatedAt: 1743512000000,
       }),
@@ -97,7 +104,7 @@ await runTest('localAiProxyLogsService preserves prompt, completion, and cache t
 
   const service = createLocalAiProxyLogsService({
     kernelPlatformService: {
-      listLocalAiProxyRequestLogs: async () => ({
+      listLocalAiProxyRequestLogs: async (_query: LocalAiProxyRequestLogsQuery) => ({
         items: [
           {
             id: 'req_usage_1',
@@ -126,14 +133,14 @@ await runTest('localAiProxyLogsService preserves prompt, completion, and cache t
         pageSize: 20,
         hasMore: false,
       }),
-      listLocalAiProxyMessageLogs: async () => ({
+      listLocalAiProxyMessageLogs: async (_query: LocalAiProxyMessageLogsQuery) => ({
         items: [],
         total: 0,
         page: 1,
         pageSize: 20,
         hasMore: false,
       }),
-      updateLocalAiProxyMessageCapture: async (enabled) => ({
+      updateLocalAiProxyMessageCapture: async (enabled: boolean) => ({
         enabled,
         updatedAt: 1743512000000,
       }),

@@ -213,6 +213,63 @@ pub struct DesktopBundledComponentsInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DesktopOpenClawRuntimeStageInfo {
+    pub id: String,
+    pub status: String,
+    pub detail: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopOpenClawProviderProjectionInfo {
+    pub provider_id: String,
+    pub available: bool,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopOpenClawRuntimeInfo {
+    pub runtime_id: String,
+    pub lifecycle: String,
+    pub configured: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub install_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub openclaw_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_version: Option<String>,
+    pub platform: String,
+    pub arch: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub install_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_dir: Option<String>,
+    pub home_dir: String,
+    pub state_dir: String,
+    pub workspace_dir: String,
+    pub config_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_ai_proxy_base_url: Option<String>,
+    pub local_ai_proxy_snapshot_path: String,
+    pub provider_projection: DesktopOpenClawProviderProjectionInfo,
+    pub startup_chain: Vec<DesktopOpenClawRuntimeStageInfo>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DesktopLocalAiProxyDefaultRouteInfo {
     pub client_protocol: String,
     pub id: String,
@@ -297,6 +354,76 @@ pub struct DesktopLocalAiProxyInfo {
     pub log_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopStartupEvidenceInfo {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recorded_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+    pub evidence_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_lifecycle: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_endpoint_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_requested_port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_active_port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_loopback_only: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_dynamic_port: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_state_store_driver: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_state_store_profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptor_browser_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manage_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_runtime_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_deployment_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_transport_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_websocket_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_is_built_in: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_is_default: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_instance_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_claw_runtime_lifecycle: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_claw_gateway_lifecycle: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ready: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_cause: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -391,7 +518,10 @@ pub struct DesktopKernelInfo {
     pub payments: DesktopPaymentInfo,
     pub integrations: DesktopIntegrationInfo,
     pub supervisor: DesktopSupervisorInfo,
+    pub open_claw_runtime: DesktopOpenClawRuntimeInfo,
     pub local_ai_proxy: DesktopLocalAiProxyInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub desktop_startup_evidence: Option<DesktopStartupEvidenceInfo>,
     pub bundled_components: DesktopBundledComponentsInfo,
     pub storage: StorageInfo,
     pub host: DesktopKernelHostInfo,

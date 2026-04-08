@@ -7,6 +7,10 @@ import type {
   StudioPlatformAPI,
 } from '@sdkwork/claw-infrastructure';
 
+type StudioCreateInstanceInput = Parameters<StudioPlatformAPI['createInstance']>[0];
+type StudioCreateInstanceRecord = Awaited<ReturnType<StudioPlatformAPI['createInstance']>>;
+type StudioUpdateInstanceInput = Parameters<StudioPlatformAPI['updateInstance']>[1];
+
 async function runTest(name: string, callback: () => Promise<void> | void) {
   try {
     await callback();
@@ -27,7 +31,14 @@ function createPlatformStub(
     setStorage: async () => {},
     getStorage: async () => null,
     copy: async () => {},
+    showNotification: async () => {},
     openExternal: async () => {},
+    supportsNativeScreenshot: () => false,
+    captureScreenshot: async () => null,
+    fetchRemoteUrl: async (url) => ({
+      url,
+      bytes: new Uint8Array(),
+    }),
     selectFile: async () => [],
     saveFile: async () => {},
     minimizeWindow: async () => {},
@@ -80,9 +91,9 @@ function createPlatformStub(
 function createStudioStub(
   originalStudio: StudioPlatformAPI,
   instanceState: {
-    instances: Array<Awaited<ReturnType<StudioPlatformAPI['createInstance']>>>;
-    created: Array<Record<string, unknown>>;
-    updated: Array<{ id: string; input: Record<string, unknown> }>;
+    instances: StudioCreateInstanceRecord[];
+    created: StudioCreateInstanceInput[];
+    updated: Array<{ id: string; input: StudioUpdateInstanceInput }>;
   },
 ): StudioPlatformAPI {
   return {
@@ -91,54 +102,12 @@ function createStudioStub(
       instanceState.instances.find((instance) => instance.id === id) || null,
     getInstanceDetail: originalStudio.getInstanceDetail.bind(originalStudio),
     createInstance: async (input) => {
-      const created = {
+      const created = createStudioInstanceRecord(input, {
         id: `synced-${instanceState.instances.length + 1}`,
-        name: input.name,
-        description: input.description,
-        runtimeKind: input.runtimeKind,
-        deploymentMode: input.deploymentMode,
-        transportKind: input.transportKind,
-        status: 'online' as const,
-        isBuiltIn: false,
-        isDefault: false,
-        iconType: input.iconType || 'server',
-        version: input.version || 'host',
-        typeLabel: input.typeLabel || 'Host Managed',
-        host: input.host || '127.0.0.1',
-        port: input.port ?? 28789,
-        baseUrl: input.baseUrl ?? null,
-        websocketUrl: input.websocketUrl ?? null,
-        cpu: 0,
-        memory: 0,
-        totalMemory: 'Unknown',
-        uptime: '-',
-        capabilities: ['chat', 'health', 'tasks', 'models'],
-        storage: {
-          profileId: 'default-local',
-          provider: input.storage?.provider || 'localFile',
-          namespace: input.storage?.namespace || 'openclaw-local-external',
-          database: null,
-          connectionHint: null,
-          endpoint: null,
-        },
-        config: {
-          port: input.config?.port || String(input.port ?? 28789),
-          sandbox: input.config?.sandbox ?? true,
-          autoUpdate: input.config?.autoUpdate ?? false,
-          logLevel: input.config?.logLevel || 'info',
-          corsOrigins: input.config?.corsOrigins || '*',
-          workspacePath: input.config?.workspacePath ?? null,
-          baseUrl: input.config?.baseUrl ?? input.baseUrl ?? null,
-          websocketUrl: input.config?.websocketUrl ?? input.websocketUrl ?? null,
-          authToken: input.config?.authToken ?? null,
-        },
-        createdAt: 1,
-        updatedAt: 1,
-        lastSeenAt: 1,
-      };
+      });
 
       instanceState.instances.push(created);
-      instanceState.created.push(input as Record<string, unknown>);
+      instanceState.created.push(input);
       return { ...created };
     },
     updateInstance: async (id, input) => {
@@ -158,7 +127,7 @@ function createStudioStub(
           port: input.config?.port ?? current.config.port,
         },
       });
-      instanceState.updated.push({ id, input: input as Record<string, unknown> });
+      instanceState.updated.push({ id, input });
       return { ...current };
     },
     deleteInstance: originalStudio.deleteInstance.bind(originalStudio),
@@ -172,7 +141,12 @@ function createStudioStub(
     cloneInstanceTask: originalStudio.cloneInstanceTask.bind(originalStudio),
     runInstanceTaskNow: originalStudio.runInstanceTaskNow.bind(originalStudio),
     listInstanceTaskExecutions: originalStudio.listInstanceTaskExecutions.bind(originalStudio),
+    createInstanceTask: originalStudio.createInstanceTask.bind(originalStudio),
+    updateInstanceTask: originalStudio.updateInstanceTask.bind(originalStudio),
     updateInstanceTaskStatus: originalStudio.updateInstanceTaskStatus.bind(originalStudio),
+    updateInstanceFileContent: originalStudio.updateInstanceFileContent.bind(originalStudio),
+    updateInstanceLlmProviderConfig:
+      originalStudio.updateInstanceLlmProviderConfig.bind(originalStudio),
     deleteInstanceTask: originalStudio.deleteInstanceTask.bind(originalStudio),
     listConversations: originalStudio.listConversations.bind(originalStudio),
     putConversation: originalStudio.putConversation.bind(originalStudio),
@@ -278,6 +252,66 @@ function createStorageStub(
   };
 }
 
+function createStudioInstanceRecord(
+  input: StudioCreateInstanceInput,
+  overrides: Partial<StudioCreateInstanceRecord> = {},
+): StudioCreateInstanceRecord {
+  return {
+    id: 'synced-1',
+    name: input.name,
+    description: input.description,
+    runtimeKind: input.runtimeKind,
+    deploymentMode: input.deploymentMode,
+    transportKind: input.transportKind,
+    status: 'online',
+    isBuiltIn: false,
+    isDefault: false,
+    iconType: input.iconType || 'server',
+    version: input.version || 'host',
+    typeLabel: input.typeLabel || 'Host Managed',
+    host: input.host || '127.0.0.1',
+    port: input.port ?? 28789,
+    baseUrl: input.baseUrl ?? null,
+    websocketUrl: input.websocketUrl ?? null,
+    cpu: 0,
+    memory: 0,
+    totalMemory: 'Unknown',
+    uptime: '-',
+    capabilities: ['chat', 'health', 'tasks', 'models'],
+    storage: {
+      profileId: 'default-local',
+      provider: input.storage?.provider || 'localFile',
+      namespace: input.storage?.namespace || 'openclaw-local-external',
+      database: null,
+      connectionHint: null,
+      endpoint: null,
+    },
+    config: {
+      port: input.config?.port || String(input.port ?? 28789),
+      sandbox: input.config?.sandbox ?? true,
+      autoUpdate: input.config?.autoUpdate ?? false,
+      logLevel: input.config?.logLevel || 'info',
+      corsOrigins: input.config?.corsOrigins || '*',
+      workspacePath: input.config?.workspacePath ?? null,
+      baseUrl: input.config?.baseUrl ?? input.baseUrl ?? null,
+      websocketUrl: input.config?.websocketUrl ?? input.websocketUrl ?? null,
+      authToken: input.config?.authToken ?? null,
+    },
+    createdAt: 1,
+    updatedAt: 1,
+    lastSeenAt: 1,
+    ...overrides,
+  };
+}
+
+function createStudioState() {
+  return {
+    instances: [] as StudioCreateInstanceRecord[],
+    created: [] as StudioCreateInstanceInput[],
+    updated: [] as Array<{ id: string; input: StudioUpdateInstanceInput }>,
+  };
+}
+
 function createAssessmentResult(overrides: Partial<HubInstallAssessmentResult> = {}): HubInstallAssessmentResult {
   return {
     registryName: 'hub-installer',
@@ -345,6 +379,83 @@ function createInstallResult(overrides: Partial<HubInstallResult> = {}): HubInst
   };
 }
 
+await runTest(
+  'openClawBootstrapService prefers the kernel OpenClaw runtime home when install assessment paths drift',
+  async () => {
+    const { configurePlatformBridge, getPlatformBridge } = await import(
+      '@sdkwork/claw-infrastructure'
+    );
+    const { kernelPlatformService } = await import('@sdkwork/claw-core');
+    const { openClawBootstrapService } = await import('./openClawBootstrapService.ts');
+
+    const originalBridge = getPlatformBridge();
+    const originalEnsureRunning = kernelPlatformService.ensureRunning;
+    const originalGetInfo = kernelPlatformService.getInfo;
+    const fileSystem: Record<string, string> = {
+      'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json': `{
+  gateway: { port: 28789 },
+  channels: {},
+  models: { providers: {} },
+  agents: { defaults: {} }
+}`,
+    };
+    const instanceState = createStudioState();
+
+    configurePlatformBridge({
+      platform: createPlatformStub(fileSystem),
+      storage: createStorageStub(),
+      studio: createStudioStub(originalBridge.studio, instanceState),
+    });
+
+    kernelPlatformService.ensureRunning = async () => null;
+    kernelPlatformService.getInfo = async () =>
+      ({
+        openClawRuntime: {
+          homeDir: 'C:/Users/admin/.sdkwork/crawstudio/openclaw-home',
+        },
+        localAiProxy: {
+          lifecycle: 'running',
+          baseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+          rootBaseUrl: 'http://ai.sdkwork.localhost:18791',
+          openaiCompatibleBaseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+          anthropicBaseUrl: 'http://ai.sdkwork.localhost:18791/v1',
+          geminiBaseUrl: 'http://ai.sdkwork.localhost:18791',
+          activePort: 18791,
+          loopbackOnly: true,
+          defaultRouteId: 'local-ai-proxy-system-default-openai-compatible',
+          defaultRouteName: 'SDKWork Default',
+          upstreamBaseUrl: 'https://ai.sdkwork.com',
+          modelCount: 3,
+          configPath: 'D:/state/local-ai-proxy.json',
+          snapshotPath: 'D:/state/local-ai-proxy.snapshot.json',
+          logPath: 'D:/logs/local-ai-proxy.log',
+          lastError: null,
+        },
+      }) as any;
+
+    try {
+      const data = await openClawBootstrapService.loadBootstrapData({
+        assessment: createAssessmentResult({
+          runtime: {
+            ...createAssessmentResult().runtime,
+            runtimeHomeDir: 'D:/stale-home',
+          },
+        }),
+        installResult: createInstallResult(),
+      });
+
+      assert.equal(
+        data.configPath,
+        'C:/Users/admin/.sdkwork/crawstudio/openclaw-home/.openclaw/openclaw.json',
+      );
+    } finally {
+      kernelPlatformService.ensureRunning = originalEnsureRunning;
+      kernelPlatformService.getInfo = originalGetInfo;
+      configurePlatformBridge(originalBridge);
+    }
+  },
+);
+
 await runTest('openClawBootstrapService resolves the installed openclaw.json and syncs one local-external instance before configuration', async () => {
   const { configurePlatformBridge, getPlatformBridge } = await import(
     '@sdkwork/claw-infrastructure'
@@ -365,11 +476,7 @@ await runTest('openClawBootstrapService resolves the installed openclaw.json and
   agents: { defaults: {} },
 }`,
   };
-  const instanceState = {
-    instances: [],
-    created: [] as Array<Record<string, unknown>>,
-    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
-  };
+  const instanceState = createStudioState();
   const ensureCalls: string[] = [];
   const storageSeed = {
     'default-sqlite:studio.provider-center:provider-config-openai-primary': JSON.stringify({
@@ -518,11 +625,7 @@ await runTest(
   agents: { defaults: {} },
 }`,
     };
-    const instanceState = {
-      instances: [],
-      created: [] as Array<Record<string, unknown>>,
-      updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
-    };
+    const instanceState = createStudioState();
     const storageSeed = {
       'default-sqlite:studio.provider-center:provider-config-meta-primary': JSON.stringify({
         id: 'provider-config-meta-primary',
@@ -629,11 +732,7 @@ await runTest('openClawBootstrapService includes a real gateway validation snaps
   agents: { defaults: {} }
 }`,
   };
-  const instanceState = {
-    instances: [],
-    created: [] as Array<Record<string, unknown>>,
-    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
-  };
+  const instanceState = createStudioState();
   const storageSeed = {
     'default-sqlite:studio.provider-center:provider-config-openai-primary': JSON.stringify({
       id: 'provider-config-openai-primary',
@@ -718,11 +817,7 @@ await runTest('openClawBootstrapService applies provider-center routes through t
   agents: { defaults: {} },
 }`,
   };
-  const instanceState = {
-    instances: [],
-    created: [] as Array<Record<string, unknown>>,
-    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
-  };
+  const instanceState = createStudioState();
   const storageSeed = {
     'default-sqlite:studio.provider-center:provider-config-openai-primary': JSON.stringify({
       id: 'provider-config-openai-primary',
@@ -918,11 +1013,7 @@ await runTest('openClawBootstrapService applies native gemini provider-center ro
   agents: { defaults: {} },
 }`,
   };
-  const instanceState = {
-    instances: [],
-    created: [] as Array<Record<string, unknown>>,
-    updated: [] as Array<{ id: string; input: Record<string, unknown> }>,
-  };
+  const instanceState = createStudioState();
   const storageSeed = {
     'default-sqlite:studio.provider-center:provider-config-gemini-native': JSON.stringify({
       id: 'provider-config-gemini-native',

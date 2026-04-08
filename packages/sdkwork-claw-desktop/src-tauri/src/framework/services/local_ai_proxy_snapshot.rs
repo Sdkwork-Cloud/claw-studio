@@ -617,12 +617,7 @@ fn normalize_client_protocol(value: Option<&Value>) -> Option<String> {
 fn normalize_upstream_protocol(value: Option<&Value>) -> Option<String> {
     let normalized = normalize_string(value)?;
     match normalized.as_str() {
-        "openai-compatible"
-        | "anthropic"
-        | "gemini"
-        | "ollama"
-        | "azure-openai"
-        | "openrouter"
+        "openai-compatible" | "anthropic" | "gemini" | "ollama" | "azure-openai" | "openrouter"
         | "sdkwork" => Some(normalized),
         _ => None,
     }

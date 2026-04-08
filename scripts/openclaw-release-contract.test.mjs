@@ -54,7 +54,6 @@ const versionFixtureSourcePaths = [
   'packages/sdkwork-claw-instances/src/services/instanceWorkbenchService.test.ts',
   'packages/sdkwork-claw-instances/src/services/instanceService.test.ts',
   'packages/sdkwork-claw-infrastructure/src/services/openClawGatewayClient.test.ts',
-  'packages/sdkwork-claw-tasks/src/services/taskService.test.ts',
 ];
 const versionFixtureSources = versionFixtureSourcePaths.map((fixturePath) => ({
   fixturePath,

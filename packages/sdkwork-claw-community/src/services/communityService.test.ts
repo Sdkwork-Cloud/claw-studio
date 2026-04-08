@@ -145,7 +145,7 @@ await runTest(
 await runTest(
   'communityService creates feeds through the app sdk and persists classifieds metadata inside feed content',
   async () => {
-    let capturedPayload: Record<string, unknown> | null = null;
+    const capturedPayloads: Record<string, unknown>[] = [];
 
     const service = createCommunityService({
       getClient: () =>
@@ -165,7 +165,7 @@ await runTest(
               data: [],
             }),
             create: async (body: Record<string, unknown>) => {
-              capturedPayload = body;
+              capturedPayloads.push(body);
               return {
                 code: '2000',
                 data: {
@@ -213,15 +213,16 @@ await runTest(
       coverImage: 'https://cdn.sdkwork.test/service-cover.png',
     });
 
+    const capturedPayload = capturedPayloads[0];
     assert.ok(capturedPayload);
-    assert.equal(capturedPayload?.categoryId, 11);
-    assert.deepEqual(capturedPayload?.tags, ['automation', 'landing-page']);
-    assert.deepEqual(capturedPayload?.images, ['https://cdn.sdkwork.test/service-cover.png']);
-    assert.equal(capturedPayload?.source, 'claw-studio-community');
-    assert.equal(typeof capturedPayload?.content, 'string');
-    assert.match(String(capturedPayload?.content), /claw-community-meta/);
-    assert.match(String(capturedPayload?.content), /"serviceLine":"development"/);
-    assert.match(String(capturedPayload?.content), /"deliveryMode":"online"/);
+    assert.equal(capturedPayload['categoryId'], 11);
+    assert.deepEqual(capturedPayload['tags'], ['automation', 'landing-page']);
+    assert.deepEqual(capturedPayload['images'], ['https://cdn.sdkwork.test/service-cover.png']);
+    assert.equal(capturedPayload['source'], 'claw-studio-community');
+    assert.equal(typeof capturedPayload['content'], 'string');
+    assert.match(String(capturedPayload['content']), /claw-community-meta/);
+    assert.match(String(capturedPayload['content']), /"serviceLine":"development"/);
+    assert.match(String(capturedPayload['content']), /"deliveryMode":"online"/);
 
     assert.equal(created.id, '201');
     assert.equal(created.category, 'services');
