@@ -11,6 +11,7 @@ const rootDir = path.resolve(__dirname, '..', '..');
 
 const WINDOWS_TAURI_CONFIG_PATH = 'packages/sdkwork-claw-desktop/src-tauri/tauri.windows.conf.json';
 const WINDOWS_INSTALLER_HOOKS_PATH = 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh';
+const WINDOWS_MAIN_BINARY_NAME = 'sdkwork-claw-desktop.exe';
 const LINUX_TAURI_CONFIG_PATH = 'packages/sdkwork-claw-desktop/src-tauri/tauri.linux.conf.json';
 const LINUX_POSTINSTALL_PATH = 'packages/sdkwork-claw-desktop/src-tauri/linux-postinstall-openclaw.sh';
 const MACOS_TAURI_CONFIG_PATH = 'packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json';
@@ -82,6 +83,11 @@ function readWindowsInstallerContract(workspaceRootDir) {
   );
   assertIncludes(
     installerHooksSource,
+    `"$INSTDIR\\${WINDOWS_MAIN_BINARY_NAME}" --prepare-bundled-openclaw-runtime`,
+    'Desktop Windows installer hooks must invoke the actual packaged desktop binary for bundled OpenClaw prewarm.',
+  );
+  assertIncludes(
+    installerHooksSource,
     'Abort "Embedded OpenClaw runtime prewarm failed during install',
     'Desktop Windows installer hooks must abort install when bundled OpenClaw prewarm fails.',
   );
@@ -94,6 +100,11 @@ function readWindowsInstallerContract(workspaceRootDir) {
     installerHooksSource,
     '--register-openclaw-cli --install-root "$INSTDIR"',
     'Desktop Windows installer hooks must forward $INSTDIR into the embedded OpenClaw CLI registration flow.',
+  );
+  assertIncludes(
+    installerHooksSource,
+    `"$INSTDIR\\${WINDOWS_MAIN_BINARY_NAME}" --register-openclaw-cli`,
+    'Desktop Windows installer hooks must invoke the actual packaged desktop binary for bundled OpenClaw CLI registration.',
   );
   assert.equal(
     installerHooksSource.indexOf('--prepare-bundled-openclaw-runtime')

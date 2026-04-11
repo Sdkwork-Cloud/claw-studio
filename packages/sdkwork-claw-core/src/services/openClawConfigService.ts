@@ -1241,7 +1241,11 @@ function buildProviderKey(providerId: string) {
 }
 
 function buildModelRef(providerKey: string, modelId: string) {
-  return `${normalizeProviderKey(providerKey)}/${modelId}`;
+  const normalizedProviderKey = normalizeProviderKey(providerKey);
+  const normalizedModelRef = normalizeModelRefString(modelId);
+  return normalizedModelRef.includes('/')
+    ? normalizedModelRef
+    : `${normalizedProviderKey}/${normalizedModelRef}`;
 }
 
 function normalizeModelRefString(value: string | undefined | null) {
@@ -2057,7 +2061,7 @@ function buildResolvedAgentPaths(
 const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
   {
     id: 'sdkworkchat',
-    name: 'SDKWORK公众号',
+    name: 'SDKWORK Official Account',
     description:
       'Use the built-in SDKWORK official account delivery path so OpenClaw can hand off conversations without extra credential setup.',
     setupSteps: [
@@ -2070,7 +2074,7 @@ const OPENCLAW_CHANNEL_DEFINITIONS: OpenClawChannelDefinition[] = [
   },
   {
     id: 'wehcat',
-    name: '微信公众号',
+    name: 'WeChat Official Account',
     description:
       'Connect a WeChat official account workflow so OpenClaw can serve China-facing media channels.',
     setupSteps: [

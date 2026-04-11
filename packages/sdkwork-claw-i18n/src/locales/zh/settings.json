@@ -65,10 +65,10 @@
       "ensureFailed": "确保内核运行失败。",
       "restartSuccess": "已发起内核重启。",
       "restartFailed": "重启内核失败。",
-      "rolloutPreviewLoaded": "\u5df2\u52a0\u8f7d\u53d1\u5e03\u9884\u89c8\u3002",
-      "rolloutPreviewFailed": "\u9884\u89c8\u53d1\u5e03\u5931\u8d25\u3002",
-      "rolloutStartRequested": "\u5df2\u63d0\u4ea4\u53d1\u5e03\u542f\u52a8\u8bf7\u6c42\u3002",
-      "rolloutStartFailed": "\u542f\u52a8\u53d1\u5e03\u5931\u8d25\u3002"
+      "rolloutPreviewLoaded": "已加载发布预览。",
+      "rolloutPreviewFailed": "预览发布失败。",
+      "rolloutStartRequested": "已提交发布启动请求。",
+      "rolloutStartFailed": "启动发布失败。"
     },
     "metrics": {
       "runtime": "运行时",
@@ -135,49 +135,49 @@
       "localAiProxy": "本地 AI 代理"
     },
     "hostRuntime": {
-      "title": "Host \u8fd0\u884c\u65f6\u6cbb\u7406",
+      "title": "Host 运行时治理",
       "defaults": {
-        "webPreview": "Web \u9884\u89c8",
-        "inactive": "\u672a\u6fc0\u6d3b",
-        "browserManagementUnavailable": "\u6d4f\u89c8\u5668\u7ba1\u7406\u4e0d\u53ef\u7528"
+        "webPreview": "Web 预览",
+        "inactive": "未激活",
+        "browserManagementUnavailable": "浏览器管理不可用"
       },
       "cards": {
-        "runtimeMode": "\u8fd0\u884c\u6a21\u5f0f",
-        "lifecycle": "\u751f\u547d\u5468\u671f",
-        "browserAccess": "\u6d4f\u89c8\u5668\u8bbf\u95ee",
-        "browserBaseUrl": "\u6d4f\u89c8\u5668\u57fa\u7840 URL",
-        "hostMode": "Host \u6a21\u5f0f",
-        "distributionFamily": "\u5206\u53d1\u5bb6\u65cf",
-        "deploymentFamily": "\u90e8\u7f72\u5bb6\u65cf",
-        "acceleratorProfile": "\u52a0\u901f\u914d\u7f6e",
-        "descriptorBrowserBaseUrl": "\u5408\u540c\u6d4f\u89c8\u5668 URL",
-        "descriptorEndpointId": "\u5408\u540c\u7aef\u70b9 ID",
-        "stateStoreDriver": "\u72b6\u6001\u5b58\u50a8\u9a71\u52a8",
-        "stateStoreProfileId": "\u72b6\u6001\u5b58\u50a8\u914d\u7f6e",
-        "requestedPort": "\u5408\u540c\u8bf7\u6c42\u7aef\u53e3",
-        "activePort": "\u5408\u540c\u5b9e\u9645\u7aef\u53e3",
-        "loopbackOnly": "\u4ec5\u56de\u73af",
-        "dynamicPort": "\u52a8\u6001\u7aef\u53e3",
-        "runtimeDataDir": "\u8fd0\u884c\u65f6\u6570\u636e\u76ee\u5f55",
-        "webDistDir": "Web \u8d44\u6e90\u76ee\u5f55",
-        "displayName": "\u663e\u793a\u540d\u79f0",
+        "runtimeMode": "运行模式",
+        "lifecycle": "生命周期",
+        "browserAccess": "浏览器访问",
+        "browserBaseUrl": "浏览器基础 URL",
+        "hostMode": "Host 模式",
+        "distributionFamily": "分发家族",
+        "deploymentFamily": "部署家族",
+        "acceleratorProfile": "加速配置",
+        "descriptorBrowserBaseUrl": "合同浏览器 URL",
+        "descriptorEndpointId": "合同端点 ID",
+        "stateStoreDriver": "状态存储驱动",
+        "stateStoreProfileId": "状态存储配置",
+        "requestedPort": "合同请求端口",
+        "activePort": "合同实际端口",
+        "loopbackOnly": "仅回环",
+        "dynamicPort": "动态端口",
+        "runtimeDataDir": "运行时数据目录",
+        "webDistDir": "Web 资源目录",
+        "displayName": "显示名称",
         "hostId": "Host ID",
-        "managePath": "\u7ba1\u7406\u8def\u5f84",
-        "internalPath": "\u5185\u90e8\u8def\u5f84",
-        "endpoints": "\u7aef\u70b9",
-        "ready": "\u5c31\u7eea",
-        "portFallbacks": "\u7aef\u53e3\u56de\u9000",
-        "dynamicPorts": "\u52a8\u6001\u7aef\u53e3"
+        "managePath": "管理路径",
+        "internalPath": "内部路径",
+        "endpoints": "端点",
+        "ready": "就绪",
+        "portFallbacks": "端口回退",
+        "dynamicPorts": "动态端口"
       },
       "table": {
-        "endpoint": "\u7aef\u70b9",
-        "bind": "\u7ed1\u5b9a\u5730\u5740",
-        "requestedPort": "\u8bf7\u6c42\u7aef\u53e3",
-        "activePort": "\u6d3b\u8dc3\u7aef\u53e3",
-        "exposure": "\u66b4\u9732\u65b9\u5f0f",
-        "status": "\u72b6\u6001",
-        "conflict": "\u51b2\u7a81",
-        "empty": "\u65e0"
+        "endpoint": "端点",
+        "bind": "绑定地址",
+        "requestedPort": "请求端口",
+        "activePort": "活跃端口",
+        "exposure": "暴露方式",
+        "status": "状态",
+        "conflict": "冲突",
+        "empty": "无"
       }
     },
     "fields": {
@@ -252,7 +252,11 @@
       "startupEvidenceRuntimeLifecycle": "运行时生命周期",
       "startupEvidenceGatewayLifecycle": "网关生命周期",
       "startupEvidenceErrorCause": "启动证据错误原因",
-      "startupEvidenceErrorMessage": "启动证据错误"
+      "startupEvidenceErrorMessage": "启动证据错误",
+      "messageCaptureEnabled": "Message Capture Enabled",
+      "observabilityDbPath": "Observability DB Path",
+      "routeMetrics": "Route Metrics",
+      "routeTests": "Route Tests"
     },
     "values": {
       "notAvailable": "不可用",
@@ -292,56 +296,90 @@
     },
     "localAiProxy": {
       "protocols": {
-        "openaiCompatible": "OpenAI \u517c\u5bb9",
+        "openaiCompatible": "OpenAI 兼容",
         "anthropic": "Anthropic",
         "gemini": "Gemini"
       },
-      "systemDefault": "\u7cfb\u7edf\u9ed8\u8ba4",
-      "modelCount_one": "{{count}} \u4e2a\u6a21\u578b",
-      "modelCount_other": "{{count}} \u4e2a\u6a21\u578b",
-      "defaultRouteLabel": "{{protocol}} \u9ed8\u8ba4"
+      "systemDefault": "系统默认",
+      "modelCount_one": "{{count}} 个模型",
+      "modelCount_other": "{{count}} 个模型",
+      "defaultRouteLabel": "{{protocol}} 默认",
+      "routeMetricLabel": "Route Metrics {{routeId}}",
+      "routeTestLabel": "Route Test {{routeId}}",
+      "observability": {
+        "health": {
+          "healthy": "Healthy",
+          "degraded": "Degraded",
+          "failed": "Failed",
+          "disabled": "Disabled"
+        },
+        "testStatus": {
+          "passed": "Passed",
+          "failed": "Failed"
+        },
+        "capabilities": {
+          "chat": "Chat",
+          "responses": "Responses",
+          "embeddings": "Embeddings",
+          "messages": "Messages",
+          "generateContent": "Generate Content"
+        },
+        "requests": "Requests",
+        "successes": "Success",
+        "failures": "Failure",
+        "rpm": "RPM",
+        "totalTokens": "Tokens",
+        "averageLatency": "Avg",
+        "lastLatency": "Last",
+        "lastUsedAt": "Last Used",
+        "lastError": "Error",
+        "capability": "Capability",
+        "testedAt": "Tested",
+        "latency": "Latency",
+        "model": "Model"
+      }
     },
     "rollouts": {
-      "title": "\u53d1\u5e03\u63a7\u5236",
+      "title": "发布控制",
       "metrics": {
-        "total": "\u603b\u8ba1",
-        "active": "\u6d3b\u8dc3",
-        "failed": "\u5931\u8d25",
-        "completed": "\u5df2\u5b8c\u6210"
+        "total": "总计",
+        "active": "活跃",
+        "failed": "失败",
+        "completed": "已完成"
       },
-      "empty": "\u6682\u65e0\u53ef\u7528\u7684\u53d1\u5e03\u8bb0\u5f55\u3002",
+      "empty": "暂无可用的发布记录。",
       "phases": {
-        "draft": "\u8349\u7a3f",
-        "previewing": "\u9884\u89c8\u4e2d",
-        "awaitingApproval": "\u5f85\u6279\u51c6",
-        "ready": "\u5c31\u7eea",
-        "promoting": "\u63a8\u8fdb\u4e2d",
-        "paused": "\u5df2\u6682\u505c",
-        "completed": "\u5df2\u5b8c\u6210",
-        "failed": "\u5931\u8d25",
-        "cancelled": "\u5df2\u53d6\u6d88"
+        "draft": "草稿",
+        "previewing": "预览中",
+        "awaitingApproval": "待批准",
+        "ready": "就绪",
+        "promoting": "推进中",
+        "paused": "已暂停",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消"
       },
       "actions": {
-        "preview": "\u9884\u89c8",
-        "previewing": "\u9884\u89c8\u4e2d...",
-        "start": "\u542f\u52a8",
-        "starting": "\u542f\u52a8\u4e2d..."
+        "preview": "预览",
+        "previewing": "预览中...",
+        "start": "启动",
+        "starting": "启动中..."
       },
       "values": {
-        "attempt": "\u7b2c {{count}} \u6b21\u5c1d\u8bd5",
-        "targets": "{{count}} \u4e2a\u76ee\u6807",
-        "updatedAt": "\u66f4\u65b0\u4e8e {{value}}"
+        "attempt": "第 {{count}} 次尝试",
+        "targets": "{{count}} 个目标",
+        "updatedAt": "更新于 {{value}}"
       },
-      "previewTitle": "\u9884\u89c8\uff1a{{rolloutId}}",
+      "previewTitle": "预览：{{rolloutId}}",
       "previewSummary": {
-        "admissible": "\u53ef\u51c6\u5165 {{count}}",
-        "degraded": "\u964d\u7ea7 {{count}}",
-        "blocked": "\u5df2\u963b\u6b62 {{count}}",
-        "predictedWaves": "\u9884\u6d4b\u6ce2\u6b21 {{count}}"
+        "admissible": "可准入 {{count}}",
+        "degraded": "降级 {{count}}",
+        "blocked": "已阻止 {{count}}",
+        "predictedWaves": "预测波次 {{count}}"
       },
       "blockedTargets": {
-        "title": "\u5df2\u963b\u6b62\u7684\u76ee\u6807",
-        "empty": "\u5f53\u524d\u9884\u89c8\u4e2d\u6ca1\u6709\u88ab\u963b\u6b62\u7684\u76ee\u6807\u3002"
+        "title": "已阻止的目标",
+        "empty": "当前预览中没有被阻止的目标。"
       }
     }
   },

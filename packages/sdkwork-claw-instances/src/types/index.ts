@@ -34,7 +34,7 @@ export interface Instance {
   name: string;
   type: string;
   iconType: 'apple' | 'box' | 'server';
-  status: 'online' | 'offline' | 'starting' | 'error';
+  status: 'online' | 'offline' | 'starting' | 'syncing' | 'error';
   version: string;
   uptime: string;
   ip: string;

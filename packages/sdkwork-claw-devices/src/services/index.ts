@@ -1,2 +1,1 @@
-export * from './deviceService';
-export * from './deviceService.test';
+﻿export * from './deviceService';

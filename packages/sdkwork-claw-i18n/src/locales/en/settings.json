@@ -253,7 +253,11 @@
       "startupEvidenceRuntimeLifecycle": "Runtime Lifecycle",
       "startupEvidenceGatewayLifecycle": "Gateway Lifecycle",
       "startupEvidenceErrorCause": "Startup Evidence Error Cause",
-      "startupEvidenceErrorMessage": "Startup Evidence Error"
+      "startupEvidenceErrorMessage": "Startup Evidence Error",
+      "messageCaptureEnabled": "Message Capture Enabled",
+      "observabilityDbPath": "Observability DB Path",
+      "routeMetrics": "Route Metrics",
+      "routeTests": "Route Tests"
     },
     "values": {
       "notAvailable": "Not available",
@@ -300,7 +304,41 @@
       "systemDefault": "system default",
       "modelCount_one": "{{count}} model",
       "modelCount_other": "{{count}} models",
-      "defaultRouteLabel": "{{protocol}} Default"
+      "defaultRouteLabel": "{{protocol}} Default",
+      "routeMetricLabel": "Route Metrics {{routeId}}",
+      "routeTestLabel": "Route Test {{routeId}}",
+      "observability": {
+        "health": {
+          "healthy": "Healthy",
+          "degraded": "Degraded",
+          "failed": "Failed",
+          "disabled": "Disabled"
+        },
+        "testStatus": {
+          "passed": "Passed",
+          "failed": "Failed"
+        },
+        "capabilities": {
+          "chat": "Chat",
+          "responses": "Responses",
+          "embeddings": "Embeddings",
+          "messages": "Messages",
+          "generateContent": "Generate Content"
+        },
+        "requests": "Requests",
+        "successes": "Success",
+        "failures": "Failure",
+        "rpm": "RPM",
+        "totalTokens": "Tokens",
+        "averageLatency": "Avg",
+        "lastLatency": "Last",
+        "lastUsedAt": "Last Used",
+        "lastError": "Error",
+        "capability": "Capability",
+        "testedAt": "Tested",
+        "latency": "Latency",
+        "model": "Model"
+      }
     },
     "rollouts": {
       "title": "Rollout Control",

@@ -191,6 +191,18 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
         ready: true,
       },
     } as never,
+    localAiProxy: {
+      lifecycle: 'running',
+      baseUrl: 'http://127.0.0.1:19797/v1',
+      rootBaseUrl: 'http://127.0.0.1:19797',
+      activePort: 19797,
+      messageCaptureEnabled: true,
+      observabilityDbPath: 'C:/Users/admin/AppData/Claw/machine/store/local-ai-proxy-observability.sqlite3',
+      configPath: 'C:/Users/admin/AppData/Claw/data/local-ai-proxy.config.json',
+      snapshotPath: 'C:/Users/admin/AppData/Claw/data/local-ai-proxy.snapshot.json',
+      logPath: 'C:/Users/admin/AppData/Claw/logs/local-ai-proxy.log',
+      lastError: null,
+    } as never,
   });
 
   assert.equal(document.version, 1);
@@ -206,6 +218,20 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
   );
   assert.equal(document.builtInInstance?.id, 'local-built-in');
   assert.equal(document.builtInInstance?.status, 'online');
+  assert.equal(document.localAiProxy?.lifecycle, 'running');
+  assert.equal(document.localAiProxy?.messageCaptureEnabled, true);
+  assert.equal(
+    document.localAiProxy?.observabilityDbPath,
+    'C:/Users/admin/AppData/Claw/machine/store/local-ai-proxy-observability.sqlite3',
+  );
+  assert.equal(
+    document.localAiProxy?.snapshotPath,
+    'C:/Users/admin/AppData/Claw/data/local-ai-proxy.snapshot.json',
+  );
+  assert.equal(
+    document.localAiProxy?.logPath,
+    'C:/Users/admin/AppData/Claw/logs/local-ai-proxy.log',
+  );
   assert.equal(
     Object.prototype.hasOwnProperty.call(document.builtInInstance ?? {}, 'config'),
     false,
@@ -213,6 +239,8 @@ test('desktop startup evidence builds a passed launch document with a sanitized 
 
   const serialized = serializeDesktopStartupEvidence(document);
   assert.match(serialized, /"phase": "shell-mounted"/);
+  assert.match(serialized, /"localAiProxy": \{/);
+  assert.match(serialized, /"snapshotPath": "C:\/Users\/admin\/AppData\/Claw\/data\/local-ai-proxy\.snapshot\.json"/);
   assert.doesNotMatch(serialized, /browserSessionToken/);
   assert.doesNotMatch(serialized, /authToken/);
   assert.equal(

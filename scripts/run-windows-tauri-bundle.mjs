@@ -39,6 +39,7 @@ const desktopTauriConfig = JSON.parse(
   fs.readFileSync(path.join(desktopSrcTauriDir, 'tauri.conf.json'), 'utf8'),
 );
 const commandEnv = withRustToolchainPath(process.env);
+const WINDOWS_NSIS_RETRY_TARGET_SOFT_LIMIT = 240;
 const windowsNsisShortSourceSpecs = [
   ['generated', 'bundled', ['generated', 'bundled'], true],
   ['bridge-bundled', 'bundled', ['generated', 'br', 'b'], true],
@@ -142,11 +143,136 @@ function resolveWindowsMirrorBaseDir(workspaceRootDir, env = process.env) {
   return resolveBundledResourceMirrorBaseDir(workspaceRootDir, env, 'win32');
 }
 
-export function createWindowsNsisSourceReplacements(
+function normalizeWindowsComparablePath(value = '') {
+  const normalizedValue = String(value ?? '').trim();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return path.win32.normalize(normalizedValue).replace(/[\\/]+$/, '').toLowerCase();
+}
+
+function normalizeWindowsTargetRoot(value = '') {
+  const normalizedValue = String(value ?? '').trim();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return path.win32.normalize(normalizedValue).replace(/[\\/]+$/, '');
+}
+
+function resolveMaxNestedSourcePathLength(sourceRoot, actualTargetRoot) {
+  const normalizedActualTargetRoot = normalizeWindowsTargetRoot(actualTargetRoot);
+  if (!normalizedActualTargetRoot || !fs.existsSync(normalizedActualTargetRoot)) {
+    return 0;
+  }
+
+  const stack = [normalizedActualTargetRoot];
+  let maxNestedSourcePathLength = 0;
+
+  while (stack.length > 0) {
+    const currentRoot = stack.pop();
+    const entries = fs.readdirSync(currentRoot, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const absolutePath = path.win32.join(currentRoot, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(absolutePath);
+        continue;
+      }
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const nestedSourcePathLength = path.win32
+        .relative(normalizedActualTargetRoot, absolutePath)
+        .length;
+      if (nestedSourcePathLength > maxNestedSourcePathLength) {
+        maxNestedSourcePathLength = nestedSourcePathLength;
+      }
+    }
+  }
+
+  return maxNestedSourcePathLength;
+}
+
+function buildWindowsNsisRetryAliasRoot({
+  workspaceRootDir = rootDir,
+  mirrorDirName = '',
+  actualTargetRoot = '',
+} = {}) {
+  const normalizedActualTargetRoot = normalizeWindowsTargetRoot(actualTargetRoot);
+  if (!normalizedActualTargetRoot) {
+    return '';
+  }
+
+  const shortWorkspaceRoot = path.win32.join(
+    path.win32.parse(workspaceRootDir).root,
+    '.sdkwork-bc',
+    path.win32.basename(workspaceRootDir),
+  );
+  const normalizedMirrorDirName = String(mirrorDirName ?? '').trim();
+  if (!normalizedMirrorDirName) {
+    return normalizedActualTargetRoot;
+  }
+
+  const targetLeafName = path.win32.basename(normalizedActualTargetRoot);
+  if (
+    normalizedMirrorDirName === 'bundled'
+    && targetLeafName
+    && targetLeafName.toLowerCase().startsWith('bundled-')
+  ) {
+    return path.win32.join(shortWorkspaceRoot, 'bundled-mirrors', targetLeafName);
+  }
+
+  return path.win32.join(shortWorkspaceRoot, normalizedMirrorDirName);
+}
+
+function buildProjectedWindowsSourcePathLength(targetRoot, maxNestedSourcePathLength = 0) {
+  const normalizedTargetRoot = normalizeWindowsTargetRoot(targetRoot);
+  if (!normalizedTargetRoot) {
+    return 0;
+  }
+
+  const normalizedMaxNestedSourcePathLength = Math.max(
+    0,
+    Math.trunc(Number(maxNestedSourcePathLength) || 0),
+  );
+  return normalizedTargetRoot.length + (normalizedMaxNestedSourcePathLength > 0 ? 1 : 0) + normalizedMaxNestedSourcePathLength;
+}
+
+function shouldUseWindowsNsisRetryAliasRoot(
+  actualTargetRoot,
+  aliasTargetRoot,
+  maxNestedSourcePathLength = 0,
+) {
+  const normalizedActualTargetRoot = normalizeWindowsTargetRoot(actualTargetRoot);
+  const normalizedAliasTargetRoot = normalizeWindowsTargetRoot(aliasTargetRoot);
+  if (!normalizedActualTargetRoot || !normalizedAliasTargetRoot) {
+    return false;
+  }
+
+  const projectedActualTargetLength = buildProjectedWindowsSourcePathLength(
+    normalizedActualTargetRoot,
+    maxNestedSourcePathLength,
+  );
+  const projectedAliasTargetLength = buildProjectedWindowsSourcePathLength(
+    normalizedAliasTargetRoot,
+    maxNestedSourcePathLength,
+  );
+
+  return (
+    projectedActualTargetLength > WINDOWS_NSIS_RETRY_TARGET_SOFT_LIMIT
+    && projectedAliasTargetLength < projectedActualTargetLength
+  );
+}
+
+export function resolveWindowsNsisSourceReplacementPlans(
   workspaceRootDir = rootDir,
   {
     env = process.env,
     resolvePathTargetImpl = resolveExistingPathTarget,
+    resolveMaxNestedSourcePathLengthImpl = resolveMaxNestedSourcePathLength,
   } = {},
 ) {
   const windowsMirrorBaseDir = resolveWindowsMirrorBaseDir(workspaceRootDir, env);
@@ -169,15 +295,90 @@ export function createWindowsNsisSourceReplacements(
       preferResolvedTarget && typeof resolvePathTargetImpl === 'function'
         ? resolvePathTargetImpl(sourceRoot)
         : null;
+    const actualTargetRoot = normalizeWindowsTargetRoot(resolvedTargetRoot || fallbackTargetRoot);
+    const aliasTargetRoot = buildWindowsNsisRetryAliasRoot({
+      workspaceRootDir,
+      mirrorDirName,
+      actualTargetRoot,
+    });
+    const maxNestedSourcePathLength =
+      typeof resolveMaxNestedSourcePathLengthImpl === 'function'
+        ? resolveMaxNestedSourcePathLengthImpl(sourceRoot, actualTargetRoot)
+        : 0;
+    const replacementTargetRoot = shouldUseWindowsNsisRetryAliasRoot(
+      actualTargetRoot,
+      aliasTargetRoot,
+      maxNestedSourcePathLength,
+    )
+      ? aliasTargetRoot
+      : actualTargetRoot;
 
     return {
+      mirrorDirName,
+      sourceRoot,
       from: `${sourceRoot}\\`,
-      to: `${path.win32.normalize(resolvedTargetRoot || fallbackTargetRoot)}\\`,
+      to: `${replacementTargetRoot}\\`,
+      actualTargetRoot,
     };
   });
 }
 
+export function createWindowsNsisSourceReplacements(
+  workspaceRootDir = rootDir,
+  options = {},
+) {
+  return resolveWindowsNsisSourceReplacementPlans(workspaceRootDir, options)
+    .map(({ from, to }) => ({ from, to }));
+}
+
 export const createWindowsNsisBridgeReplacements = createWindowsNsisSourceReplacements;
+
+export function ensureWindowsNsisRetrySourceAliases({
+  plans = resolveWindowsNsisSourceReplacementPlans(rootDir),
+  pathExistsImpl = (targetPath) => fs.existsSync(targetPath),
+  mkdirImpl = (targetPath, options) => fs.mkdirSync(targetPath, options),
+  rmImpl = (targetPath, options) => fs.rmSync(targetPath, options),
+  symlinkImpl = (targetPath, aliasPath, type) => fs.symlinkSync(targetPath, aliasPath, type),
+  resolvePathTargetImpl = resolveExistingPathTarget,
+} = {}) {
+  const createdAliasRoots = new Set();
+
+  for (const plan of Array.isArray(plans) ? plans : []) {
+    const actualTargetRoot = normalizeWindowsTargetRoot(plan?.actualTargetRoot);
+    const aliasTargetRoot = normalizeWindowsTargetRoot(plan?.to);
+    if (!actualTargetRoot || !aliasTargetRoot) {
+      continue;
+    }
+    if (normalizeWindowsComparablePath(actualTargetRoot) === normalizeWindowsComparablePath(aliasTargetRoot)) {
+      continue;
+    }
+    if (createdAliasRoots.has(normalizeWindowsComparablePath(aliasTargetRoot))) {
+      continue;
+    }
+    if (typeof pathExistsImpl === 'function' && !pathExistsImpl(actualTargetRoot)) {
+      continue;
+    }
+
+    const resolvedAliasTarget =
+      typeof resolvePathTargetImpl === 'function'
+        ? resolvePathTargetImpl(aliasTargetRoot)
+        : null;
+    if (
+      normalizeWindowsComparablePath(resolvedAliasTarget)
+      === normalizeWindowsComparablePath(actualTargetRoot)
+    ) {
+      createdAliasRoots.add(normalizeWindowsComparablePath(aliasTargetRoot));
+      continue;
+    }
+
+    if (typeof pathExistsImpl === 'function' && pathExistsImpl(aliasTargetRoot)) {
+      rmImpl(aliasTargetRoot, { recursive: true, force: true });
+    }
+    mkdirImpl(path.win32.dirname(aliasTargetRoot), { recursive: true });
+    symlinkImpl(actualTargetRoot, aliasTargetRoot, 'junction');
+    createdAliasRoots.add(normalizeWindowsComparablePath(aliasTargetRoot));
+  }
+}
 
 export function rewriteNsisSourcePaths(
   installerContent,
@@ -389,6 +590,10 @@ function retryNsisBundleWithShortSourcePaths({
   }
 
   const originalInstaller = fs.readFileSync(artifacts.installerScriptPath, 'utf8');
+  const replacementPlans = resolveWindowsNsisSourceReplacementPlans(rootDir);
+  ensureWindowsNsisRetrySourceAliases({
+    plans: replacementPlans,
+  });
   const rewrittenInstaller = prepareWindowsNsisRetryScript({
     installerContent: originalInstaller,
     workspaceRootDir: rootDir,

@@ -35,6 +35,33 @@ export interface InstalledSkill {
   status: 'running' | 'stopped' | 'error';
 }
 
+export type SkillInstanceAssetScope =
+  | 'workspace'
+  | 'managed'
+  | 'bundled'
+  | 'unknown';
+
+export type SkillInstanceAssetStatus =
+  | 'enabled'
+  | 'disabled'
+  | 'blocked';
+
+export type SkillInstanceAssetCompatibility =
+  | 'compatible'
+  | 'attention'
+  | 'blocked';
+
+export interface SkillInstanceAssetMetadata {
+  source: string;
+  scope: SkillInstanceAssetScope;
+  status: SkillInstanceAssetStatus;
+  compatibility: SkillInstanceAssetCompatibility;
+  bundled: boolean;
+  filePath?: string;
+  baseDir?: string;
+  missingRequirementCount: number;
+}
+
 export interface Skill {
   id: string;
   skillKey?: string;
@@ -53,6 +80,7 @@ export interface Skill {
   repositoryUrl?: string;
   homepageUrl?: string;
   documentationUrl?: string;
+  instanceAsset?: SkillInstanceAssetMetadata;
 }
 
 export interface SkillPack {
@@ -715,6 +743,14 @@ export interface StudioInstanceHealthSnapshot {
   evaluatedAt: number;
 }
 
+export type StudioBuiltInOpenClawActivationStage =
+  | 'prepareRuntimeActivation'
+  | 'bundledRuntimeReady'
+  | 'gatewayConfigured'
+  | 'localAiProxyReady'
+  | 'desktopKernelRunning'
+  | 'builtInInstanceOnline';
+
 export interface StudioInstanceLifecycleSnapshot {
   owner: StudioInstanceLifecycleOwner;
   startStopSupported: boolean;
@@ -722,6 +758,8 @@ export interface StudioInstanceLifecycleSnapshot {
   lifecycleControllable?: boolean;
   workbenchManaged?: boolean;
   endpointObserved?: boolean;
+  lastActivationStage?: StudioBuiltInOpenClawActivationStage | null;
+  lastError?: string | null;
   notes: string[];
 }
 
@@ -1028,6 +1066,7 @@ export interface StudioWorkbenchSkillRecord {
   size?: string;
   updatedAt?: string;
   readme?: string;
+  instanceAsset?: SkillInstanceAssetMetadata;
 }
 
 export interface StudioWorkbenchFileRecord {

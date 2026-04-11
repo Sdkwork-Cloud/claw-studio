@@ -1,2 +1,1 @@
-export * from './modelPurchaseCatalog';
-export * from './modelPurchaseCatalog.test';
+﻿export * from './modelPurchaseCatalog';

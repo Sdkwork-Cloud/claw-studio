@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { Coins, Crown, Sparkles, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '@sdkwork/claw-core';
 import {
   filterPointsTransactions,
   pointsQueryKeys,
@@ -94,6 +95,7 @@ function renderMembershipMeta(
 export function Points() {
   const { t, i18n } = useTranslation();
   const language = i18n.resolvedLanguage ?? i18n.language;
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [activeFilter, setActiveFilter] = useState<PointsTransactionFilter>('all');
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
@@ -103,7 +105,8 @@ export function Points() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: pointsQueryKeys.dashboard,
+    queryKey: [...pointsQueryKeys.dashboard, isAuthenticated ? 'auth' : 'guest'],
+    enabled: isAuthenticated,
     queryFn: () => pointsService.getDashboard(),
     placeholderData: pointsService.getEmptyDashboard(),
   });

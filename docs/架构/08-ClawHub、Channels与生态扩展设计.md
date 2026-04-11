@@ -90,3 +90,35 @@ Channels 当前采用双路径治理：
 ## 8. 结论
 
 生态扩展层已经具备真实产品价值。下一步不是继续堆入口，而是把生态协议、版本兼容、实例闭环和安全治理标准统一收口。
+
+## 9. 2026-04-10 已装技能实例资产回读补充
+
+- `mySkillService` 现在把“我的技能”中的已安装技能视为实例内生态资产回读面，而不是普通目录项；读回时保留 `source`、`scope`、`status`、`compatibility`、`bundled`、`filePath`、`baseDir`、`missingRequirementCount`。
+- 这条回读链的事实源不是 ClawHub 目录元数据，而是 `agentWorkbenchService.getAgentWorkbench()` 投影出来的技能状态；其上游仍然是 `gateway.skills.status`。
+- 安装权威保持不变：`marketService -> agentSkillManagementService.installSkill -> gateway.skills.install`；卸载/禁用权威也保持在 `agentSkillManagementService.removeSkill` / `setSkillEnabled`，避免 Market 自行拼装删除逻辑。
+- 这一轮只冻结“已安装技能”回读语义，没有给目录页或技能包详情页补齐真实兼容矩阵，因此 `CP08-3` 有进展，但 Step 08 仍未闭环。
+
+## 10. 2026-04-10 已装技能运行态 UI 回读补充
+
+- `Market` 的“我的技能”卡片和 `SkillDetail` 信息面板现在直接消费 `Skill.instanceAsset`，把运行态 `status`、`compatibility`、`source`、`scope`、`missingRequirementCount` 回读给用户，而不是继续一律显示静态兼容文案。
+- 这意味着已安装技能在 UI 上也遵守同一条事实链：`mySkillService -> agentWorkbenchService.getAgentWorkbench() -> gateway.skills.status`。
+- 当前仍然明确不做两件事：
+  - 不把技能包详情页伪装成拥有真实兼容矩阵
+  - 不在没有运行态证据时生成目录侧“兼容/阻塞”判断
+- 因此 Step 08 的 UI 回读语义更一致了，但真正的三面闭环仍未完成。
+
+## 11. 2026-04-10 Instance Detail installed-skill runtime closure
+
+- `Instance Detail -> Skills` now consumes the same installed-skill runtime truth that already drove `My Skills` and `Skill Detail`.
+- The instance workbench path is now:
+  - `gateway.skills.status`
+  - `buildOpenClawSkills()`
+  - `InstanceWorkbenchSnapshot.skills[].instanceAsset`
+  - `InstanceDetailSkillsSection`
+- This closes the previous workbench-side metadata loss without changing any installation or removal authority:
+  - install authority still stays in `marketService -> agentSkillManagementService.installSkill -> gateway.skills.install`
+  - uninstall/disable authority still stays in `agentSkillManagementService.removeSkill` / `setSkillEnabled`
+  - channel authority still stays on the instance-aware channels bridge and its managed-config/workbench dual readback path
+- `StudioWorkbenchSkillRecord` now preserves optional `instanceAsset` metadata so runtime readback can cross the shared workbench boundary without forcing unrelated surfaces to fabricate missing runtime facts.
+- Pack-level compatibility remains intentionally static because the repository still has no truthful aggregated pack runtime source.
+- With Market, My Skills, Skill Detail, Instance Detail, channels, and agent install gates all green in the current repository state, Step 08 now closes as an instance-centered ecosystem asset lifecycle step.

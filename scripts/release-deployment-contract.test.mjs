@@ -19,9 +19,9 @@ test('docker deployment templates keep compose commands and overlay profiles ali
   const amdEnv = read('deploy/docker/profiles/amd-rocm.env');
   const releaseDoc = read('docs/core/release-and-deployment.md');
 
-  assert.match(dockerReadme, /docker compose -f deploy\/docker-compose\.yml up -d/);
-  assert.match(dockerReadme, /docker compose -f deploy\/docker-compose\.yml -f deploy\/docker-compose\.nvidia-cuda\.yml up -d/);
-  assert.match(dockerReadme, /docker compose -f deploy\/docker-compose\.yml -f deploy\/docker-compose\.amd-rocm\.yml up -d/);
+  assert.match(dockerReadme, /docker compose -f deploy\/docker\/docker-compose\.yml up -d/);
+  assert.match(dockerReadme, /docker compose -f deploy\/docker\/docker-compose\.yml -f deploy\/docker\/docker-compose\.nvidia-cuda\.yml up -d/);
+  assert.match(dockerReadme, /docker compose -f deploy\/docker\/docker-compose\.yml -f deploy\/docker\/docker-compose\.amd-rocm\.yml up -d/);
   assert.match(
     dockerReadme,
     /source (?:tree|repository)[\s\S]*deploy\/docker\/docker-compose\.yml/i,
@@ -29,7 +29,7 @@ test('docker deployment templates keep compose commands and overlay profiles ali
   );
   assert.match(
     dockerReadme,
-    /extracted bundle root[\s\S]*deploy\/docker-compose\.yml/i,
+    /extracted bundle root[\s\S]*deploy\/docker\/docker-compose\.yml/i,
     'docker deployment docs must explain the packaged bundle command separately from the source-tree template path',
   );
   assert.match(
@@ -38,7 +38,11 @@ test('docker deployment templates keep compose commands and overlay profiles ali
     'docker deployment docs must explain how to render the packaged bundle layout locally from the source tree',
   );
   assert.match(dockerCompose, /context:\s+\.\./);
-  assert.match(dockerCompose, /dockerfile:\s+deploy\/Dockerfile/);
+  assert.match(
+    dockerCompose,
+    /dockerfile:\s+deploy\/docker\/Dockerfile/,
+    'source-tree docker compose must reference deploy/docker/Dockerfile before packaging rewrites the bundle layout',
+  );
   assert.match(dockerCompose, /profiles\/default\.env/);
   assert.match(dockerCompose, /18797:18797/);
   assert.match(dockerCompose, /\/var\/lib\/claw-server/);
@@ -69,10 +73,10 @@ test('docker deployment templates keep compose commands and overlay profiles ali
   );
   assert.match(
     releaseDoc,
-    /extracted bundle root[\s\S]*deploy\/docker-compose\.yml/i,
+    /extracted bundle root[\s\S]*deploy\/docker\/docker-compose\.yml/i,
     'release docs must describe the packaged bundle command surface explicitly',
   );
-  assert.match(releaseDoc, /docker compose -f deploy\/docker-compose\.yml up -d/);
+  assert.match(releaseDoc, /docker compose -f deploy\/docker\/docker-compose\.yml up -d/);
   assert.match(
     dockerReadme,
     /CLAW_SERVER_MANAGE_USERNAME/i,
@@ -230,7 +234,7 @@ test('deployment bootstrap smoke report preserves runtime-backed docker and sing
   );
   assert.match(
     smokeReport,
-    /docker build -f deploy\/Dockerfile -t/,
+    /docker build -f deploy\/docker\/Dockerfile -t/,
     'deployment bootstrap smoke report must include the packaged container image build command',
   );
   assert.match(
@@ -240,7 +244,7 @@ test('deployment bootstrap smoke report preserves runtime-backed docker and sing
   );
   assert.match(
     smokeReport,
-    /docker compose -f deploy\/docker-compose\.yml up -d/,
+    /docker compose -f deploy\/docker\/docker-compose\.yml up -d/,
     'deployment bootstrap smoke report must include docker compose startup smoke',
   );
   assert.match(

@@ -190,7 +190,7 @@ type PendingConnectResult =
       kind: 'interrupted';
     };
 
-const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
+const SILENT_REPLY_TOKENS = new Set(['NO_REPLY', 'ANNOUNCE_SKIP', 'REPLY_SKIP']);
 const MISSING_OPERATOR_READ_SCOPE_MESSAGE = 'missing scope: operator.read';
 const AUTH_UNAUTHORIZED_DETAIL_CODE = 'AUTH_UNAUTHORIZED';
 
@@ -221,7 +221,7 @@ function truncatePreview(value: string, maxLength: number) {
 }
 
 function isSilentReplyText(value: string) {
-  return SILENT_REPLY_PATTERN.test(value);
+  return SILENT_REPLY_TOKENS.has(value.trim());
 }
 
 function isMissingOperatorReadScopeError(error: unknown): boolean {

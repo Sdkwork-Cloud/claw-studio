@@ -29,6 +29,16 @@ assert.equal(
   'run-windows-tauri-bundle must export prepareWindowsNsisRetryScript',
 );
 assert.equal(
+  typeof bundleModule.resolveWindowsNsisSourceReplacementPlans,
+  'function',
+  'run-windows-tauri-bundle must export resolveWindowsNsisSourceReplacementPlans',
+);
+assert.equal(
+  typeof bundleModule.ensureWindowsNsisRetrySourceAliases,
+  'function',
+  'run-windows-tauri-bundle must export ensureWindowsNsisRetrySourceAliases',
+);
+assert.equal(
   typeof bundleModule.buildWindowsTauriBundleCommand,
   'function',
   'run-windows-tauri-bundle must export buildWindowsTauriBundleCommand',
@@ -263,6 +273,144 @@ assert.equal(
   overrideBaseReplacements[3].to,
   'D:\\workspace\\claw-studio\\.cache\\short-mirrors\\web-dist\\',
   'run-windows-tauri-bundle must honor the configured Windows mirror base directory when rewriting direct dist NSIS source paths',
+);
+
+const longResolvedMirrorPlans = bundleModule.resolveWindowsNsisSourceReplacementPlans(
+  syntheticWorkspaceRoot,
+  {
+    env: {
+      SDKWORK_WINDOWS_MIRROR_BASE_DIR: 'D:\\workspace\\claw-studio\\.cache\\short-mirrors',
+    },
+    resolvePathTargetImpl(sourcePath) {
+      if (sourcePath.endsWith('generated\\bundled') || sourcePath.endsWith('generated\\br\\b')) {
+        return [
+          'D:\\workspace\\claw-studio',
+          '.cache',
+          'short-mirrors',
+          'bundled-mirrors',
+          'this-path-is-still-far-too-long-for-makensis-to-open-safely-even-after-fallback',
+          'segment-0001-this-path-is-still-too-long',
+          'segment-0002-this-path-is-still-too-long',
+          'segment-0003-this-path-is-still-too-long',
+          'bundled-20260404-abcdef',
+        ].join('\\');
+      }
+      return null;
+    },
+  },
+);
+assert.equal(
+  longResolvedMirrorPlans[0].actualTargetRoot,
+  [
+    'D:\\workspace\\claw-studio',
+    '.cache',
+    'short-mirrors',
+    'bundled-mirrors',
+    'this-path-is-still-far-too-long-for-makensis-to-open-safely-even-after-fallback',
+    'segment-0001-this-path-is-still-too-long',
+    'segment-0002-this-path-is-still-too-long',
+    'segment-0003-this-path-is-still-too-long',
+    'bundled-20260404-abcdef',
+  ].join('\\'),
+  'run-windows-tauri-bundle must preserve the resolved current bundled mirror target as the physical source for NSIS retry planning',
+);
+assert.equal(
+  longResolvedMirrorPlans[0].to,
+  'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors\\bundled-20260404-abcdef\\',
+  'run-windows-tauri-bundle must route long resolved bundled mirror targets through a shorter retry alias root before rerunning makensis',
+);
+assert.equal(
+  longResolvedMirrorPlans[1].to,
+  'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors\\bundled-20260404-abcdef\\',
+  'run-windows-tauri-bundle must route the bundled bridge replacement through the same shorter retry alias root when the persisted bundled mirror root is still too long',
+);
+
+const projectedLongFileMirrorPlans = bundleModule.resolveWindowsNsisSourceReplacementPlans(
+  syntheticWorkspaceRoot,
+  {
+    env: {
+      SDKWORK_WINDOWS_MIRROR_BASE_DIR: 'D:\\workspace\\claw-studio\\.cache\\short-mirrors',
+    },
+    resolvePathTargetImpl(sourcePath) {
+      if (sourcePath.endsWith('generated\\bundled') || sourcePath.endsWith('generated\\br\\b')) {
+        return 'D:\\workspace\\claw-studio\\.cache\\short-mirrors\\bundled-mirrors\\bundled-20260404-abcdef';
+      }
+      return null;
+    },
+    resolveMaxNestedSourcePathLengthImpl(sourceRoot, actualTargetRoot) {
+      if (
+        sourceRoot.endsWith('generated\\bundled')
+        || sourceRoot.endsWith('generated\\br\\b')
+        || actualTargetRoot.endsWith('bundled-20260404-abcdef')
+      ) {
+        return 160;
+      }
+      return 0;
+    },
+  },
+);
+assert.equal(
+  projectedLongFileMirrorPlans[0].to,
+  'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors\\bundled-20260404-abcdef\\',
+  'run-windows-tauri-bundle must switch to the shorter retry alias root when a resolved bundled mirror would still exceed the NSIS source-path limit after appending a deep nested file path',
+);
+assert.equal(
+  projectedLongFileMirrorPlans[1].to,
+  'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors\\bundled-20260404-abcdef\\',
+  'run-windows-tauri-bundle must keep the bundled bridge replacement aligned with the shorter retry alias root when projected nested file paths still exceed the NSIS source-path limit',
+);
+
+const aliasOperations = [];
+bundleModule.ensureWindowsNsisRetrySourceAliases({
+  plans: longResolvedMirrorPlans,
+  pathExistsImpl(targetPath) {
+    return targetPath === [
+      'D:\\workspace\\claw-studio',
+      '.cache',
+      'short-mirrors',
+      'bundled-mirrors',
+      'this-path-is-still-far-too-long-for-makensis-to-open-safely-even-after-fallback',
+      'segment-0001-this-path-is-still-too-long',
+      'segment-0002-this-path-is-still-too-long',
+      'segment-0003-this-path-is-still-too-long',
+      'bundled-20260404-abcdef',
+    ].join('\\');
+  },
+  mkdirImpl(targetPath) {
+    aliasOperations.push(['mkdir', targetPath]);
+  },
+  rmImpl(targetPath, options) {
+    aliasOperations.push(['rm', targetPath, options]);
+  },
+  symlinkImpl(targetPath, aliasPath, type) {
+    aliasOperations.push(['symlink', targetPath, aliasPath, type]);
+  },
+  resolvePathTargetImpl() {
+    return null;
+  },
+});
+assert.deepEqual(
+  aliasOperations,
+  [
+    ['mkdir', 'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors'],
+    [
+      'symlink',
+      [
+        'D:\\workspace\\claw-studio',
+        '.cache',
+        'short-mirrors',
+        'bundled-mirrors',
+        'this-path-is-still-far-too-long-for-makensis-to-open-safely-even-after-fallback',
+        'segment-0001-this-path-is-still-too-long',
+        'segment-0002-this-path-is-still-too-long',
+        'segment-0003-this-path-is-still-too-long',
+        'bundled-20260404-abcdef',
+      ].join('\\'),
+      'D:\\.sdkwork-bc\\claw-studio\\bundled-mirrors\\bundled-20260404-abcdef',
+      'junction',
+    ],
+  ],
+  'run-windows-tauri-bundle must materialize shorter bundled mirror retry aliases before rerunning makensis from a persisted fallback mirror root',
 );
 
 const sampleInstaller = [

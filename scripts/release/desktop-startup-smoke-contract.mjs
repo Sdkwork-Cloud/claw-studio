@@ -49,3 +49,38 @@ export function normalizeDesktopStartupSmokeChecks(values) {
       .filter((value) => value.id.length > 0)
     : [];
 }
+
+function normalizeOptionalString(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized || '';
+}
+
+export function normalizeDesktopStartupSmokeLocalAiProxyRuntime(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const lifecycle = normalizeOptionalString(value.lifecycle);
+  const observabilityDbPath = normalizeOptionalString(value.observabilityDbPath);
+  const snapshotPath = normalizeOptionalString(value.snapshotPath);
+  const logPath = normalizeOptionalString(value.logPath);
+  const messageCaptureEnabled = value.messageCaptureEnabled;
+
+  if (
+    !lifecycle
+    || !observabilityDbPath
+    || !snapshotPath
+    || !logPath
+    || typeof messageCaptureEnabled !== 'boolean'
+  ) {
+    return null;
+  }
+
+  return {
+    lifecycle,
+    messageCaptureEnabled,
+    observabilityDbPath,
+    snapshotPath,
+    logPath,
+  };
+}

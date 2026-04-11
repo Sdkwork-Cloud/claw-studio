@@ -42,7 +42,7 @@ pnpm dev
 pnpm tauri:dev
 ```
 
-桌面端会先在 `127.0.0.1:1420` 启动 Vite，再拉起 Tauri 应用。
+桌面端会先在 `127.0.0.1:1426` 启动 Vite，再拉起 Tauri 应用。
 
 ### 原生 Server
 

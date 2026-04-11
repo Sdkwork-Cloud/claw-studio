@@ -222,6 +222,11 @@ export function main() {
   );
   assert.match(
     releaseDoc,
+    /localAiProxyRuntime/,
+    'release and deployment docs must describe aggregated desktop startup local ai proxy runtime metadata',
+  );
+  assert.match(
+    releaseDoc,
     /serverBundleSmoke/,
     'release and deployment docs must describe aggregated server bundle smoke metadata',
   );

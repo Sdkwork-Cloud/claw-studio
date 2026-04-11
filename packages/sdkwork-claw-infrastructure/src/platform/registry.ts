@@ -113,6 +113,10 @@ function createDefaultPlatformBridge(): PlatformBridge {
   };
 }
 
+function createUnsupportedPlatformActionError(action: string) {
+  return new Error(`${action} is not available for the active platform bridge.`);
+}
+
 function readGlobalPlatformBridge() {
   const globalState = globalThis as GlobalPlatformBridgeState;
   return globalState[PLATFORM_BRIDGE_GLOBAL_KEY] ?? null;
@@ -341,6 +345,12 @@ export const platform: PlatformAPI = {
   copy: (text) => getPlatformBridge().platform.copy(text),
   showNotification: (notification) => getPlatformBridge().platform.showNotification(notification),
   openExternal: (url) => getPlatformBridge().platform.openExternal(url),
+  openPath: (path) =>
+    getPlatformBridge().platform.openPath?.(path) ??
+    Promise.reject(createUnsupportedPlatformActionError('Opening filesystem paths')),
+  revealPath: (path) =>
+    getPlatformBridge().platform.revealPath?.(path) ??
+    Promise.reject(createUnsupportedPlatformActionError('Revealing filesystem paths')),
   supportsNativeScreenshot: () => getPlatformBridge().platform.supportsNativeScreenshot(),
   captureScreenshot: () => getPlatformBridge().platform.captureScreenshot(),
   fetchRemoteUrl: (url) => getPlatformBridge().platform.fetchRemoteUrl(url),
@@ -423,6 +433,8 @@ export const runtime: RuntimePlatformAPI = {
   subscribeJobUpdates: (listener) => getPlatformBridge().runtime.subscribeJobUpdates(listener),
   subscribeProcessOutput: (listener) =>
     getPlatformBridge().runtime.subscribeProcessOutput(listener),
+  subscribeBuiltInOpenClawStatusChanged: (listener) =>
+    getPlatformBridge().runtime.subscribeBuiltInOpenClawStatusChanged(listener),
 };
 
 export const manage: ManagePlatformAPI = {

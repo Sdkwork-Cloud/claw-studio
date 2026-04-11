@@ -90,7 +90,7 @@ const desktopBundledManifest = existsSync(desktopBundledManifestPath)
 
 assert.equal(
   releaseConfig.stableVersion,
-  '2026.4.2',
+  '2026.4.9',
   'openclaw shared release config must pin the current stable OpenClaw version',
 );
 assert.equal(
@@ -150,7 +150,7 @@ assert.match(
 );
 assert.match(
   clawTypesOpenClawReleaseSource,
-  /runtimeSupplementalPackages:\s*(normalizeRuntimeSupplementalPackages\(\s*metadata\.runtimeSupplementalPackages\s*,?\s*\)|metadata\.runtimeSupplementalPackages)/,
+  /runtimeSupplementalPackages:\s*(normalizeRuntimeSupplementalPackages\(\s*metadata\.runtimeSupplementalPackages\s*,?\s*\)|metadata\.runtimeSupplementalPackages|normalizedSupplementalPackages)/,
   '@sdkwork/claw-types must project bundled runtime supplemental packages from the shared release config, with optional normalization',
 );
 assert.match(

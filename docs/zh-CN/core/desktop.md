@@ -20,7 +20,7 @@ Claw Studio 通过 `@sdkwork/claw-desktop` 提供 Tauri 桌面端运行时。它
 pnpm tauri:dev
 ```
 
-桌面端会通过专用的 Vite 命令在 `127.0.0.1:1420` 启动开发服务器，再拉起 Tauri。
+桌面端会通过专用的 Vite 命令在 `127.0.0.1:1426` 启动开发服务器，再拉起 Tauri。
 
 ## 构建桌面应用
 

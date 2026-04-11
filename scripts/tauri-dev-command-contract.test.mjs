@@ -31,13 +31,14 @@ const tauriLinuxConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri
 const tauriMacosConfig = readJson('packages/sdkwork-claw-desktop/src-tauri/tauri.macos.conf.json');
 const windowsInstallerHooksPath = 'packages/sdkwork-claw-desktop/src-tauri/installer-hooks.nsh';
 const linuxPostInstallHooksPath = './linux-postinstall-openclaw.sh';
+const windowsDesktopBinaryName = 'sdkwork-claw-desktop.exe';
 const bundledSyncDevCommand = 'node ../../scripts/sync-bundled-components.mjs --dev --no-fetch';
 const bundledSyncBuildCommand = 'node ../../scripts/sync-bundled-components.mjs --no-fetch --release';
 const staleTargetGuardCommand = 'node ../../scripts/ensure-tauri-target-clean.mjs src-tauri';
 const rustToolchainGuardCommand = 'node ../../scripts/ensure-tauri-rust-toolchain.mjs';
 const devBinaryUnlockGuardCommand =
   'node ../../scripts/ensure-tauri-dev-binary-unlocked.mjs src-tauri sdkwork-claw-desktop';
-const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1420';
+const devPortGuardCommand = 'node ../../scripts/ensure-tauri-dev-port-free.mjs 127.0.0.1 1426';
 const bundledOpenClawPrepareCommand = 'node ../../scripts/prepare-openclaw-runtime.mjs';
 const desktopBuildVerifyCommand = 'node ../../scripts/verify-desktop-build-assets.mjs';
 const tauriDevRunnerCommand = 'node ../../scripts/run-tauri-cli.mjs dev';
@@ -291,6 +292,11 @@ if (!windowsInstallerHooksSource.includes('--prepare-bundled-openclaw-runtime'))
 if (!windowsInstallerHooksSource.includes('--prepare-bundled-openclaw-runtime --install-root "$INSTDIR"')) {
   fail('Desktop NSIS installer hooks must forward $INSTDIR into the embedded OpenClaw prewarm CLI.');
 }
+if (!windowsInstallerHooksSource.includes(`"$INSTDIR\\${windowsDesktopBinaryName}" --prepare-bundled-openclaw-runtime`)) {
+  fail(
+    `Desktop NSIS installer hooks must invoke ${windowsDesktopBinaryName} for bundled OpenClaw prewarm instead of relying on the product name.`,
+  );
+}
 
 if (!windowsInstallerHooksSource.includes('Abort "Embedded OpenClaw runtime prewarm failed during install')) {
   fail('Desktop NSIS installer hooks must abort the installer when bundled OpenClaw prewarm fails.');
@@ -305,6 +311,11 @@ if (!windowsInstallerHooksSource.includes('--register-openclaw-cli')) {
 }
 if (!windowsInstallerHooksSource.includes('--register-openclaw-cli --install-root "$INSTDIR"')) {
   fail('Desktop NSIS installer hooks must forward $INSTDIR into the embedded OpenClaw CLI registration flow.');
+}
+if (!windowsInstallerHooksSource.includes(`"$INSTDIR\\${windowsDesktopBinaryName}" --register-openclaw-cli`)) {
+  fail(
+    `Desktop NSIS installer hooks must invoke ${windowsDesktopBinaryName} for bundled OpenClaw CLI registration instead of relying on the product name.`,
+  );
 }
 
 if (

@@ -350,16 +350,43 @@ function resolveInstalledDesktopBinaryPath({
 } = {}) {
   const releasePlatform = normalizeDesktopPlatform(platform);
   if (releasePlatform === 'windows') {
-    const productExecutable = path.join(installRoot, `${productName}.exe`);
-    if (existsSync(productExecutable)) {
-      return productExecutable;
+    const preferredRootExecutables = [
+      `${productName}.exe`,
+      'sdkwork-claw-desktop.exe',
+      'claw-studio.exe',
+    ];
+    for (const executableName of preferredRootExecutables) {
+      const productExecutable = path.join(installRoot, executableName);
+      if (existsSync(productExecutable)) {
+        return productExecutable;
+      }
+    }
+
+    const rootExecutables = readdirSync(installRoot, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.exe'))
+      .map((entry) => entry.name)
+      .filter((entryName) => !entryName.toLowerCase().startsWith('uninstall'))
+      .sort((left, right) => left.localeCompare(right));
+    if (rootExecutables.length > 0) {
+      return path.join(installRoot, rootExecutables[0]);
     }
 
     const candidates = findFilesRecursively(
       installRoot,
-      (absolutePath, fileName) =>
+      (absolutePath, fileName) => {
+        const normalizedRelativePath = normalizeArtifactRelativePath(
+          path.relative(installRoot, absolutePath),
+        ).toLowerCase();
+        const normalizedFileName = fileName.toLowerCase();
+
+        return (
         fileName.toLowerCase().endsWith('.exe')
-        && !fileName.toLowerCase().startsWith('uninstall'),
+        && !normalizedFileName.startsWith('uninstall')
+        && normalizedFileName !== 'hub-installer-rs.exe'
+        && normalizedFileName !== 'node.exe'
+        && !normalizedRelativePath.startsWith('generated/bundled/')
+        );
+      },
     );
     if (candidates.length > 0) {
       return candidates[0];

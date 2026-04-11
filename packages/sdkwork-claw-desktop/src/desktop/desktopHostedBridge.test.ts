@@ -762,6 +762,8 @@ await runTest('desktop hosted bridge readiness evidence marks built-in instance 
     {
       mode: 'desktopCombined',
       lifecycle: 'ready',
+      distributionFamily: 'desktop',
+      deploymentFamily: 'bareMetal',
       hostId: 'desktop-local',
       displayName: 'Desktop Combined Host',
       version: 'desktop@test',
@@ -823,7 +825,7 @@ await runTest('desktop hosted bridge readiness evidence marks built-in instance 
         status: 'online',
         baseUrl: 'http://127.0.0.1:18871',
         websocketUrl: 'ws://127.0.0.1:19999',
-      },
+      } as any,
     ],
   );
 

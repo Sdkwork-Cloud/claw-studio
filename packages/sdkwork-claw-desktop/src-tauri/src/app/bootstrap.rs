@@ -6,10 +6,10 @@ use crate::{
             APP_LANGUAGE_PREFERENCE_SIMPLIFIED_CHINESE, APP_LANGUAGE_PREFERENCE_SYSTEM,
             APP_LANGUAGE_PREFERENCE_TRADITIONAL_CHINESE,
         },
-        context::FrameworkContext,
+        context::{BuiltInOpenClawStatusChangedPayload, FrameworkContext},
         events,
         services::local_ai_proxy::SERVICE_ID_LOCAL_AI_PROXY,
-        services::openclaw_runtime::ActivatedOpenClawRuntime,
+        services::openclaw_runtime::{resolve_bundled_resource_root, ActivatedOpenClawRuntime},
         services::studio::StudioInstanceStatus,
         services::supervisor::SERVICE_ID_OPENCLAW_GATEWAY,
         FrameworkError, Result as FrameworkResult,
@@ -109,6 +109,19 @@ struct TrayLabels {
     quit_app: &'static str,
 }
 
+const OPENCLAW_ACTIVATION_STAGE_PREPARE_RUNTIME: &str =
+    "bundled openclaw activation stage: prepare-runtime-activation";
+const OPENCLAW_ACTIVATION_STAGE_BUNDLED_RUNTIME_READY: &str =
+    "bundled openclaw activation stage: bundled-runtime-ready";
+const OPENCLAW_ACTIVATION_STAGE_GATEWAY_CONFIGURED: &str =
+    "bundled openclaw activation stage: gateway-configured";
+const OPENCLAW_ACTIVATION_STAGE_LOCAL_AI_PROXY_READY: &str =
+    "bundled openclaw activation stage: local-ai-proxy-ready";
+const OPENCLAW_ACTIVATION_STAGE_DESKTOP_KERNEL_RUNNING: &str =
+    "bundled openclaw activation stage: desktop-kernel-running";
+const OPENCLAW_ACTIVATION_STAGE_BUILT_IN_INSTANCE_ONLINE: &str =
+    "bundled openclaw activation stage: built-in-instance-online";
+
 pub fn build() -> tauri::Builder<tauri::Wry> {
     plugins::register(tauri::Builder::default())
         .setup(|app| {
@@ -127,8 +140,10 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             let state = AppState::from_metadata(metadata, context.clone());
             app.manage(state);
             ensure_tray(&app_handle)?;
-            activate_bundled_openclaw(&app_handle, context.as_ref())?;
+            let resource_root = resolve_bundled_openclaw_resource_root(&app_handle);
+            sync_built_in_openclaw_status(context.as_ref(), StudioInstanceStatus::Starting);
             app.emit(events::APP_READY, ())?;
+            spawn_bundled_openclaw_activation(context.clone(), resource_root);
 
             Ok(())
         })
@@ -215,6 +230,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::read_binary_file::read_binary_file,
             commands::write_binary_file::write_binary_file,
             commands::open_external::open_external,
+            commands::open_path::open_path,
             commands::process_commands::process_run_capture,
             commands::select_files::select_files,
             commands::save_blob_file::save_blob_file,
@@ -222,6 +238,7 @@ pub fn build() -> tauri::Builder<tauri::Wry> {
             commands::capture_screenshot::capture_screenshot,
             commands::read_text_file::read_text_file,
             commands::read_text_file_for_user_tooling::read_text_file_for_user_tooling,
+            commands::reveal_path::reveal_path,
             commands::write_text_file::write_text_file,
         ])
 }
@@ -634,10 +651,37 @@ fn request_explicit_quit<R: Runtime>(app: AppHandle<R>) {
     });
 }
 
-fn activate_bundled_openclaw<R: Runtime>(
+fn spawn_bundled_openclaw_activation(
+    context: Arc<FrameworkContext>,
+    resource_root: FrameworkResult<std::path::PathBuf>,
+) {
+    thread::spawn(move || {
+        let activation_result = resource_root
+            .and_then(|resource_root| {
+                activate_bundled_openclaw_from_resource_root(context.as_ref(), &resource_root)
+            });
+
+        if let Err(error) = activation_result {
+            sync_built_in_openclaw_status(context.as_ref(), StudioInstanceStatus::Error);
+            let _ = context.logger.error(&format!(
+                "bundled openclaw activation failed after app-ready: {error}"
+            ));
+        }
+    });
+}
+
+fn resolve_bundled_openclaw_resource_root<R: Runtime>(
     app: &AppHandle<R>,
+) -> FrameworkResult<std::path::PathBuf> {
+    let resource_dir = app.path().resource_dir().map_err(FrameworkError::from)?;
+    resolve_bundled_resource_root(&resource_dir)
+}
+
+fn activate_bundled_openclaw_from_resource_root(
     context: &FrameworkContext,
+    resource_root: &std::path::Path,
 ) -> FrameworkResult<()> {
+    log_bundled_openclaw_activation_stage(context, OPENCLAW_ACTIVATION_STAGE_PREPARE_RUNTIME)?;
     context
         .services
         .supervisor
@@ -649,11 +693,15 @@ fn activate_bundled_openclaw<R: Runtime>(
     let runtime = context
         .services
         .openclaw_runtime
-        .ensure_bundled_runtime(app, &context.paths)
+        .ensure_bundled_runtime_from_root(&context.paths, resource_root)
         .map_err(|error| {
             sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
             error
         })?;
+    log_bundled_openclaw_activation_stage(
+        context,
+        OPENCLAW_ACTIVATION_STAGE_BUNDLED_RUNTIME_READY,
+    )?;
     finalize_openclaw_activation(context, runtime)
 }
 
@@ -680,6 +728,10 @@ fn finalize_openclaw_activation(
             sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
             error
         })?;
+    log_bundled_openclaw_activation_stage(
+        context,
+        OPENCLAW_ACTIVATION_STAGE_GATEWAY_CONFIGURED,
+    )?;
     context
         .services
         .ensure_local_ai_proxy_ready(&context.paths, &context.config)
@@ -687,6 +739,10 @@ fn finalize_openclaw_activation(
             sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
             error
         })?;
+    log_bundled_openclaw_activation_stage(
+        context,
+        OPENCLAW_ACTIVATION_STAGE_LOCAL_AI_PROXY_READY,
+    )?;
     if let Err(error) = context
         .services
         .ensure_desktop_kernel_running(&context.paths, &context.config)
@@ -696,7 +752,23 @@ fn finalize_openclaw_activation(
             "failed to start bundled openclaw gateway: {error}"
         )));
     }
+    log_bundled_openclaw_activation_stage(
+        context,
+        OPENCLAW_ACTIVATION_STAGE_DESKTOP_KERNEL_RUNNING,
+    )?;
     sync_built_in_openclaw_status(context, StudioInstanceStatus::Online);
+    log_bundled_openclaw_activation_stage(
+        context,
+        OPENCLAW_ACTIVATION_STAGE_BUILT_IN_INSTANCE_ONLINE,
+    )?;
+    Ok(())
+}
+
+fn log_bundled_openclaw_activation_stage(
+    context: &FrameworkContext,
+    message: &str,
+) -> FrameworkResult<()> {
+    context.logger.info(message)?;
     Ok(())
 }
 
@@ -711,31 +783,19 @@ fn sync_built_in_openclaw_status(context: &FrameworkContext, status: StudioInsta
             "failed to update built-in openclaw lifecycle status to {:?}: {error}",
             status
         ));
+        return;
     }
-}
 
-#[cfg(test)]
-fn activate_bundled_openclaw_from_resource_root(
-    context: &FrameworkContext,
-    resource_root: &std::path::Path,
-) -> FrameworkResult<()> {
-    context
-        .services
-        .supervisor
-        .prepare_openclaw_runtime_activation(&context.paths)
-        .map_err(|error| {
-            sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
-            error
-        })?;
-    let runtime = context
-        .services
-        .openclaw_runtime
-        .ensure_bundled_runtime_from_root(&context.paths, resource_root)
-        .map_err(|error| {
-            sync_built_in_openclaw_status(context, StudioInstanceStatus::Error);
-            error
-        })?;
-    finalize_openclaw_activation(context, runtime)
+    if let Err(error) = context.emit_built_in_openclaw_status_changed(
+        BuiltInOpenClawStatusChangedPayload {
+            instance_id: "local-built-in".to_string(),
+            status,
+        },
+    ) {
+        let _ = context.logger.warn(&format!(
+            "failed to emit built-in openclaw lifecycle status change event: {error}"
+        ));
+    }
 }
 
 fn perform_explicit_shutdown<R: Runtime>(app: &AppHandle<R>) -> FrameworkResult<()> {
@@ -951,8 +1011,8 @@ mod tests {
             .find("ensure_tray(&app_handle)?;")
             .expect("tray setup should ensure the tray exists");
         let activate_runtime_index = production_source
-            .find("activate_bundled_openclaw(&app_handle, context.as_ref())")
-            .expect("tray setup should still start the bundled runtime");
+            .find("spawn_bundled_openclaw_activation(context.clone(), resource_root);")
+            .expect("tray setup should still schedule the bundled runtime activation");
 
         assert!(
             ensure_tray_index < activate_runtime_index,
@@ -961,7 +1021,7 @@ mod tests {
     }
 
     #[test]
-    fn setup_bootstrap_propagates_bundled_openclaw_activation_failures_before_app_ready() {
+    fn setup_bootstrap_emits_app_ready_before_background_bundled_openclaw_activation() {
         let source = include_str!("bootstrap.rs");
         let production_source = source
             .split("mod tests {")
@@ -969,22 +1029,90 @@ mod tests {
             .expect("production bootstrap source");
 
         assert!(
-            !production_source.contains(
-                "if let Err(error) = activate_bundled_openclaw(&app_handle, context.as_ref())"
-            ),
-            "packaged setup must fail fast instead of only logging bundled openclaw activation failures"
+            !production_source.contains("activation_result?;"),
+            "setup should no longer bubble bundled openclaw activation failures before app-ready"
         );
 
-        let activate_runtime_index = production_source
-            .find("activate_bundled_openclaw(&app_handle, context.as_ref())")
-            .expect("setup should activate bundled openclaw");
         let app_ready_index = production_source
             .find("app.emit(events::APP_READY, ())?;")
-            .expect("setup should emit app ready after successful activation");
+            .expect("setup should emit app ready before background activation");
+        let activate_runtime_index = production_source
+            .find("spawn_bundled_openclaw_activation(context.clone(), resource_root);")
+            .expect("setup should schedule bundled openclaw activation in the background");
 
         assert!(
-            activate_runtime_index < app_ready_index,
-            "bundled openclaw activation must finish successfully before app-ready is emitted"
+            app_ready_index < activate_runtime_index,
+            "app-ready should be emitted before bundled openclaw activation is scheduled"
+        );
+    }
+
+    #[test]
+    fn background_bundled_openclaw_activation_logs_failures_without_bubbling_into_setup() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+
+        let activation_failure_log_index = production_source
+            .find("bundled openclaw activation failed after app-ready:")
+            .expect("background activation should log bundled openclaw activation failures");
+        let activation_spawn_index = production_source
+            .find("spawn_bundled_openclaw_activation(context.clone(), resource_root);")
+            .expect("setup should schedule bundled openclaw activation in the background");
+
+        assert!(
+            activation_spawn_index < activation_failure_log_index,
+            "background activation failures should be logged from the async activation path"
+        );
+    }
+
+    #[test]
+    fn bundled_openclaw_activation_emits_stage_logs_for_packaged_setup_debugging() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+
+        for stage_marker in [
+            "bundled openclaw activation stage: prepare-runtime-activation",
+            "bundled openclaw activation stage: bundled-runtime-ready",
+            "bundled openclaw activation stage: gateway-configured",
+            "bundled openclaw activation stage: local-ai-proxy-ready",
+            "bundled openclaw activation stage: desktop-kernel-running",
+            "bundled openclaw activation stage: built-in-instance-online",
+        ] {
+            assert!(
+                production_source.contains(stage_marker),
+                "packaged setup should log activation stage marker {stage_marker}"
+            );
+        }
+    }
+
+    #[test]
+    fn sync_built_in_openclaw_status_emits_a_desktop_event_after_persisting_status() {
+        let source = include_str!("bootstrap.rs");
+        let production_source = source
+            .split("mod tests {")
+            .next()
+            .expect("production bootstrap source");
+        let sync_fn_source = production_source
+            .split("fn sync_built_in_openclaw_status")
+            .nth(1)
+            .and_then(|tail| tail.split("fn perform_explicit_shutdown").next())
+            .expect("sync built-in openclaw status source");
+
+        let persist_index = sync_fn_source
+            .find("context.services.studio.set_built_in_openclaw_status")
+            .expect("sync should persist the built-in instance status");
+        let emit_index = sync_fn_source
+            .find("context.emit_built_in_openclaw_status_changed")
+            .expect("sync should emit a desktop event for background status convergence");
+
+        assert!(
+            persist_index < emit_index,
+            "status persistence should happen before the desktop event is emitted"
         );
     }
 

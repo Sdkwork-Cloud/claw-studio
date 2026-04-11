@@ -40,10 +40,10 @@ UI / Feature
 
 | 能力 | 主入口 | 主调用链 | 下游 API/协议 | 验收点 |
 | --- | --- | --- | --- | --- |
-| 聊天路由解析 | `chatService` + `instanceChatRouteService` | 活动实例 -> 权威实例详情/端点 -> route mode 计算 | 实例 `baseUrl/websocketUrl/gateway` | 路由模式与实例真实 transport 一致 |
-| OpenClaw 网关聊天 | Chat Session Store / OpenClaw Chat Gateway Client | `chat.history/send/abort/inject` | Gateway WebSocket / Official Method | 会话连续、流式输出、可中断 |
-| 兼容 HTTP 聊天 | `chatService.sendMessageStream` | route endpoint -> OpenAI compatible stream | `/v1/chat/completions` 或兼容 HTTP 路径 | 非 Gateway 实例也可稳定流式聊天 |
-| 会话持久化 | `studioConversationService` / `studio` 平台 | `listConversations/putConversation/deleteConversation` | `/claw/api/v1/studio/instances/{id}/conversations`、`/claw/api/v1/studio/conversations/{id}` | 刷新后会话仍一致 |
+| 聊天路由解析 | `resolveAuthoritativeInstanceChatRoute` + `instanceChatRouteService` | 活动实例 -> `studio.getInstanceDetail()` -> 必要时回退 `studio.getInstance()` -> route mode 计算 | 实例 `runtimeKind/transportKind/status/baseUrl/websocketUrl` | 路由模式与实例真实 transport 一致，且托管实例未解出时不回退到本地 HTTP |
+| OpenClaw 网关聊天 | `chatStore` / `openClawGatewaySessionStore` / `OpenClawGatewayClient` | `hydrateInstance -> sessions.subscribe -> chat.history/send/abort -> session.message` | Gateway WebSocket / Official Method | 会话连续、流式输出、可中断、可重连、可 gap recovery |
+| 兼容 HTTP 聊天 | `chatService.sendMessageStream` | route endpoint -> OpenAI compatible stream | `/v1/chat/completions`、`/v1/responses` 或兼容 HTTP 路径 | 非 Gateway 实例也可稳定流式聊天，且不引入 browser-direct provider fallback |
+| 会话持久化与恢复 | `studioConversationGateway` / `chatSessionBootstrap` / `studio` 平台 | route mode 决定 Gateway authority 或 Studio conversation persistence | Gateway transcript + `/claw/api/v1/studio/instances/{id}/conversations`、`/claw/api/v1/studio/conversations/{id}` | Gateway 会话不本地持久化，bootstrap 等待 route 收敛，刷新后会话与路由权威一致 |
 
 ## 5. 实例目录与生命周期矩阵
 
@@ -117,3 +117,38 @@ UI / Feature
   - 写链已很多，但“写后读回 + 失败面 + 日志面 + 升级回归面”尚未全部自动化。
   - `Instance Detail`、`Gateway Client`、聊天状态机仍需拆分，避免调用矩阵继续堆叠到大文件。
 - 因此 `Step 04` 的目标不是新增接口数量，而是把现有能力统一收口为稳定契约面。
+
+## 13. 2026-04-10 已装技能实例资产回读补充
+
+| 能力 | 主入口 | 主调用链 | 下游 API/协议 | 验收点 |
+| --- | --- | --- | --- | --- |
+| 已装技能实例资产回读 | `mySkillService.getMySkills` | `instanceWorkbenchService.getInstanceWorkbench -> agentWorkbenchService.getAgentWorkbench -> mySkillService.toInstalledSkill` | `gateway.skills.status` 投影 + `Skill.instanceAsset` | “我的技能”可读回 `source/scope/status/compatibility`，且不伪造目录兼容信息 |
+| 已装技能卸载/禁用 | `mySkillService.uninstallSkill` | `workspace scope -> agentSkillManagementService.removeSkill`；其他 scope -> `agentSkillManagementService.setSkillEnabled(false)` | OpenClaw Config / Lock File / Workbench 状态 | 卸载后工作台与市场已装技能视图保持一致 |
+
+- `marketService.installSkill` / `installPackWithSkills` 仍然把默认 Agent 工作区作为安装落点，本轮回读补充没有改变安装权威。
+- 当前目录侧 `SkillDetail` / `SkillPackDetail` 的兼容信息仍是静态文案，因此本补充只提升 `CP08-3` 的真实度，尚未关闭 `CP08-4` 与 `Step 08`。
+
+## 14. 2026-04-10 已装技能运行态 UI 回读补充
+
+| 能力 | 主入口 | 主调用链 | 下游 API/协议 | 验收点 |
+| --- | --- | --- | --- | --- |
+| 已装技能卡片状态回读 | `Market` / `buildInstalledSkillCardStatusLabel` | `mySkillService.getMySkills -> Skill.instanceAsset -> Market card` | `gateway.skills.status` 投影 | “我的技能”卡片可区分已安装、已停用、已阻塞、需关注 |
+| 已装技能详情运行态回读 | `SkillDetail` / `buildInstalledSkillInformation` | `mySkillService.getMySkills -> Skill.instanceAsset -> SkillDetail information panel` | `gateway.skills.status` 投影 | 已安装技能详情可读回兼容性、运行状态、来源、范围、缺失要求 |
+
+- 这两条链仍然只在“已安装技能”范围内生效；`SkillPackDetail` 没有新增虚构的 pack 级兼容判断。
+- 因此当前提升的是 UI 读回的一致性，而不是把 Step 08 误判为已经闭环。
+
+## 15. 2026-04-10 Instance Detail installed-skill runtime readback closure
+
+| Capability | UI / Feature | Service path | API / fact source | Contract |
+| --- | --- | --- | --- | --- |
+| Installed-skill runtime metadata in instance workbench | `InstanceDetail` / `InstanceDetailSkillsSection` | `instanceWorkbenchService -> instanceWorkbenchServiceCore -> buildOpenClawSkills -> instanceInstalledSkillPresentation` | `gateway.skills.status` | Instance workbench skill snapshots preserve `instanceAsset` without inventing pack-level compatibility or bypassing runtime truth |
+| Shared installed-skill runtime truth across three surfaces | `My Skills` + `SkillDetail` + `Instance Detail` | `agentWorkbenchService.getAgentWorkbench` and `instanceWorkbenchService` projections | `gateway.skills.status` | All three readback surfaces now consume the same source/scope/status/compatibility/missing-requirement authority |
+
+- `StudioWorkbenchSkillRecord.instanceAsset` is now the shared workbench-level carrier for installed-skill runtime metadata.
+- This closes the previous mismatch where Market consumed installed-skill runtime truth but Instance Detail still showed static catalog facts.
+- The channels bridge, managed OpenClaw provider projection, local proxy routing, and Tauri plugin bootstrap remain unchanged in this loop.
+- Step 08 therefore closes with the current matrix state:
+  - skills and packs install through the default-agent workbench rule
+  - channels remain instance-aware through the managed-config/workbench bridge
+  - installed-skill runtime readback is now consistent across the three user-facing surfaces that actually own truthful runtime evidence

@@ -13,6 +13,7 @@ import {
 import {
   CAPTURED_DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
   DESKTOP_STARTUP_SMOKE_REPORT_FILENAME,
+  normalizeDesktopStartupSmokeLocalAiProxyRuntime,
   normalizeDesktopStartupSmokeChecks,
   resolveCapturedDesktopStartupEvidencePath,
   resolveDesktopStartupSmokeReportPath,
@@ -148,6 +149,24 @@ function validateDesktopStartupEvidence(evidence, evidencePath) {
   }
 }
 
+function extractLocalAiProxyRuntime(evidence, evidencePath) {
+  const localAiProxyRuntime = normalizeDesktopStartupSmokeLocalAiProxyRuntime(
+    evidence?.localAiProxy,
+  );
+  if (!localAiProxyRuntime) {
+    throw new Error(
+      `Desktop startup evidence must preserve local ai proxy runtime lifecycle and artifact paths at ${evidencePath}.`,
+    );
+  }
+  if (localAiProxyRuntime.lifecycle !== 'running') {
+    throw new Error(
+      `Desktop startup evidence must preserve a running local ai proxy runtime at ${evidencePath}.`,
+    );
+  }
+
+  return localAiProxyRuntime;
+}
+
 function buildDesktopStartupSmokeChecks() {
   return [
     {
@@ -175,6 +194,11 @@ function buildDesktopStartupSmokeChecks() {
       status: 'passed',
       detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
     },
+    {
+      id: 'local-ai-proxy-runtime',
+      status: 'passed',
+      detail: 'desktop startup evidence preserved local ai proxy runtime lifecycle and artifact paths',
+    },
   ];
 }
 
@@ -186,6 +210,7 @@ export function writeDesktopStartupSmokeReport({
   manifestPath = '',
   capturedEvidencePath = '',
   evidence,
+  localAiProxyRuntime,
   artifactRelativePaths = [],
 } = {}) {
   const reportPath = resolveDesktopStartupSmokeReportPath({
@@ -210,6 +235,7 @@ export function writeDesktopStartupSmokeReport({
     descriptorBrowserBaseUrl: String(evidence?.descriptor?.browserBaseUrl ?? '').trim(),
     builtInInstanceId: String(evidence?.builtInInstance?.id ?? '').trim(),
     builtInInstanceStatus: String(evidence?.builtInInstance?.status ?? '').trim(),
+    localAiProxyRuntime,
     artifactRelativePaths: [...artifactRelativePaths].sort((left, right) =>
       left.localeCompare(right),
     ),
@@ -260,6 +286,7 @@ export async function smokeDesktopStartupEvidence({
     : canonicalEvidencePath;
   const evidence = readDesktopStartupEvidence(sourceEvidencePath);
   validateDesktopStartupEvidence(evidence, sourceEvidencePath);
+  const localAiProxyRuntime = extractLocalAiProxyRuntime(evidence, sourceEvidencePath);
 
   if (path.resolve(sourceEvidencePath) !== path.resolve(canonicalEvidencePath)) {
     mkdirSync(path.dirname(canonicalEvidencePath), { recursive: true });
@@ -278,6 +305,7 @@ export async function smokeDesktopStartupEvidence({
     manifestPath,
     capturedEvidencePath: canonicalEvidencePath,
     evidence,
+    localAiProxyRuntime,
     artifactRelativePaths: normalizeArtifactRelativePaths(manifest),
   });
 

@@ -35,7 +35,10 @@ import {
   RequestLogsTable,
 } from './apiLogsTables.tsx';
 import { ProviderConfigCenter } from './ProviderConfigCenter.ts';
-import { localAiProxyLogsService } from './services/index.ts';
+import {
+  localAiProxyLogsService,
+  type LocalAiProxyRuntimeSummary,
+} from './services/index.ts';
 
 const EMPTY_REQUEST_LOGS: PaginatedResult<LocalAiProxyRequestLogRecord> = {
   items: [],
@@ -51,6 +54,12 @@ const EMPTY_MESSAGE_LOGS: PaginatedResult<LocalAiProxyMessageLogRecord> = {
   pageSize: 20,
   hasMore: false,
 };
+const EMPTY_RUNTIME_SUMMARY: LocalAiProxyRuntimeSummary = {
+  lifecycle: 'unavailable',
+  observabilityDbPath: null,
+  snapshotPath: null,
+  logPath: null,
+};
 
 export function ApiSettings() {
   const { t } = useTranslation();
@@ -59,6 +68,8 @@ export function ApiSettings() {
     useState<PaginatedResult<LocalAiProxyRequestLogRecord>>(EMPTY_REQUEST_LOGS);
   const [messageLogs, setMessageLogs] =
     useState<PaginatedResult<LocalAiProxyMessageLogRecord>>(EMPTY_MESSAGE_LOGS);
+  const [runtimeSummary, setRuntimeSummary] =
+    useState<LocalAiProxyRuntimeSummary>(EMPTY_RUNTIME_SUMMARY);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -156,6 +167,15 @@ export function ApiSettings() {
     setMessageCaptureUpdatedAt(settings.updatedAt ?? null);
   };
 
+  const loadRuntimeSummary = async () => {
+    try {
+      setRuntimeSummary(await localAiProxyLogsService.getRuntimeSummary());
+    } catch (error: any) {
+      setRuntimeSummary(EMPTY_RUNTIME_SUMMARY);
+      toast.error(error?.message || t('apiLogs.logs.states.loadRuntimeSummaryFailed'));
+    }
+  };
+
   const loadMessageCaptureSettings = async () => {
     setIsLoadingCaptureSettings(true);
     try {
@@ -218,6 +238,13 @@ export function ApiSettings() {
   };
 
   useEffect(() => {
+    if (activeSection === 'providers') {
+      return;
+    }
+    void loadRuntimeSummary();
+  }, [activeSection]);
+
+  useEffect(() => {
     if (activeSection !== 'requests') {
       return;
     }
@@ -240,12 +267,16 @@ export function ApiSettings() {
 
   const handleRefresh = async () => {
     if (activeSection === 'requests') {
-      await loadRequestLogs({ background: true });
+      await Promise.all([loadRuntimeSummary(), loadRequestLogs({ background: true })]);
       return;
     }
 
     if (activeSection === 'messages') {
-      await Promise.all([loadMessageCaptureSettings(), loadMessageLogs({ background: true })]);
+      await Promise.all([
+        loadRuntimeSummary(),
+        loadMessageCaptureSettings(),
+        loadMessageLogs({ background: true }),
+      ]);
     }
   };
 
@@ -322,6 +353,44 @@ export function ApiSettings() {
     .filter(Boolean)
     .join(' · ');
 
+  const runtimeSummaryFields = [
+    {
+      key: 'lifecycle',
+      label: t('apiLogs.logs.runtimeFields.proxyLifecycle'),
+      value: (() => {
+        switch (runtimeSummary.lifecycle.trim().toLowerCase()) {
+          case 'running':
+            return t('apiLogs.logs.runtimeLifecycle.running');
+          case 'failed':
+            return t('apiLogs.logs.runtimeLifecycle.failed');
+          case 'stopped':
+            return t('apiLogs.logs.runtimeLifecycle.stopped');
+          default:
+            return t('apiLogs.logs.runtimeLifecycle.unavailable');
+        }
+      })(),
+      mono: false,
+    },
+    {
+      key: 'logPath',
+      label: t('apiLogs.logs.runtimeFields.logPath'),
+      value: runtimeSummary.logPath || t('apiLogs.logs.values.notAvailable'),
+      mono: true,
+    },
+    {
+      key: 'snapshotPath',
+      label: t('apiLogs.logs.runtimeFields.snapshotPath'),
+      value: runtimeSummary.snapshotPath || t('apiLogs.logs.values.notAvailable'),
+      mono: true,
+    },
+    {
+      key: 'observabilityDbPath',
+      label: t('apiLogs.logs.runtimeFields.observabilityDbPath'),
+      value: runtimeSummary.observabilityDbPath || t('apiLogs.logs.values.notAvailable'),
+      mono: true,
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-wrap gap-2" data-slot="api-settings-top-tabs">
@@ -390,6 +459,34 @@ export function ApiSettings() {
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 {t('apiLogs.logs.refresh')}
               </Button>
+            </div>
+          </div>
+
+          <div
+            className="border-b border-zinc-200 bg-zinc-50/70 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/40"
+            data-slot="api-log-runtime-summary"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {t('apiLogs.logs.runtimeSummaryTitle')}
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {runtimeSummaryFields.map((field) => (
+                <div
+                  key={field.key}
+                  className="rounded-2xl border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                    {field.label}
+                  </div>
+                  <div
+                    className={`mt-2 break-all text-sm text-zinc-800 dark:text-zinc-200 ${
+                      field.mono ? 'font-mono' : ''
+                    }`}
+                  >
+                    {field.value}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

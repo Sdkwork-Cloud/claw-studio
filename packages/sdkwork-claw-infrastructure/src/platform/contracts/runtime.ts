@@ -3,6 +3,7 @@ import type { RuntimeDesktopKernelHostInfo } from './kernel.ts';
 import type {
   LocalAiProxyRouteTestRecord,
   LocalAiProxyRouteRuntimeMetrics,
+  StudioInstanceStatus,
 } from '@sdkwork/claw-types';
 
 export interface RuntimeAppInfo {
@@ -172,6 +173,11 @@ export interface RuntimeProcessOutputEvent {
   command: string;
   stream: RuntimeProcessOutputStream;
   chunk: string;
+}
+
+export interface RuntimeBuiltInOpenClawStatusChangedEvent {
+  instanceId: string;
+  status: StudioInstanceStatus;
 }
 
 export type RuntimeStorageAvailability = 'ready' | 'configurationRequired' | 'planned';
@@ -542,4 +548,7 @@ export interface RuntimePlatformAPI {
   cancelJob(id: string): Promise<RuntimeJobRecord>;
   subscribeJobUpdates(listener: (event: RuntimeJobUpdateEvent) => void): Promise<RuntimeEventUnsubscribe>;
   subscribeProcessOutput(listener: (event: RuntimeProcessOutputEvent) => void): Promise<RuntimeEventUnsubscribe>;
+  subscribeBuiltInOpenClawStatusChanged(
+    listener: (event: RuntimeBuiltInOpenClawStatusChangedEvent) => void,
+  ): Promise<RuntimeEventUnsubscribe>;
 }

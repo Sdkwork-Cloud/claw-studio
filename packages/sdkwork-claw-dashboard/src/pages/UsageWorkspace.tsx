@@ -493,23 +493,24 @@ export function UsageWorkspacePage() {
 
   useEffect(() => {
     if (!activeInstance) {
-      setSnapshot(null);
-      setFocusedSessionKey(null);
-      setSelectedSessionKeys([]);
-      setSessionDetail(null);
+      setSnapshot((current) => (current === null ? current : null));
+      setFocusedSessionKey((current) => (current === null ? current : null));
+      setSelectedSessionKeys((current) => (current.length === 0 ? current : []));
+      setSelectedDays((current) => (current.length === 0 ? current : []));
+      setSessionDetail((current) => (current === null ? current : null));
       return;
     }
     if (isRangeInvalid) return;
     void loadSnapshot(activeInstance);
-  }, [activeInstance, endDate, isRangeInvalid, loadSnapshot, refreshToken, startDate, timeZone]);
+  }, [activeInstance, endDate, isRangeInvalid, refreshToken, startDate, timeZone]);
 
   useEffect(() => {
     if (!activeInstanceId || !detailSessionKey) {
-      setSessionDetail(null);
+      setSessionDetail((current) => (current === null ? current : null));
       return;
     }
     void loadDetail(activeInstanceId, detailSessionKey);
-  }, [activeInstanceId, detailSessionKey, loadDetail, refreshToken]);
+  }, [activeInstanceId, detailSessionKey, refreshToken]);
 
   useEffect(() => {
     setLogRoles([]);

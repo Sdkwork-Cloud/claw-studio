@@ -18,6 +18,7 @@ export {
   studio,
 } from './platform/registry.ts';
 export { openExternalUrl } from './platform/openExternalUrl.ts';
+export { openDiagnosticPath } from './platform/openDiagnosticPath.ts';
 export { WebComponentPlatform } from './platform/webComponents.ts';
 export {
   bootstrapServerBrowserPlatformBridge,

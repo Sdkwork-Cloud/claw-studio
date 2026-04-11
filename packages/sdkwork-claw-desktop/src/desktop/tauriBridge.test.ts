@@ -248,6 +248,69 @@ test('tauriBridge exposes native desktop notifications through the shared platfo
   );
 });
 
+test('tauriBridge exposes desktop filesystem opener commands through the shared platform bridge', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const infrastructureRoot = path.resolve(import.meta.dirname, '../../../sdkwork-claw-infrastructure/src');
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const catalogSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'catalog.ts'),
+    'utf8',
+  );
+  const platformTypesSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/types.ts'),
+    'utf8',
+  );
+  const registrySource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/registry.ts'),
+    'utf8',
+  );
+  const platformIndexSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/index.ts'),
+    'utf8',
+  );
+  const bootstrapSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/app/bootstrap.rs'),
+    'utf8',
+  );
+
+  assert.match(platformTypesSource, /openPath\?\(path: string\): Promise<void>;/);
+  assert.match(platformTypesSource, /revealPath\?\(path: string\): Promise<void>;/);
+  assert.match(catalogSource, /openPath:\s*'open_path'/);
+  assert.match(catalogSource, /revealPath:\s*'reveal_path'/);
+  assert.match(tauriBridgeSource, /export async function openPath\(path: string\): Promise<void>/);
+  assert.match(tauriBridgeSource, /export async function revealPath\(path: string\): Promise<void>/);
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<void>\(DESKTOP_COMMANDS\.openPath,\s*\{\s*path\s*\},\s*\{\s*operation:\s*'shell\.openPath'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /invokeDesktopCommand<void>\(DESKTOP_COMMANDS\.revealPath,\s*\{\s*path\s*\},\s*\{\s*operation:\s*'shell\.revealPath'/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /openPath:\s*\(path\)\s*=>\s*openPath\(path\)/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /revealPath:\s*\(path\)\s*=>\s*revealPath\(path\)/,
+  );
+  assert.match(
+    registrySource,
+    /openPath:\s*\(path\)\s*=>\s*getPlatformBridge\(\)\.platform\.openPath\?\.\(path\)\s*\?\?\s*Promise\.reject/,
+  );
+  assert.match(
+    registrySource,
+    /revealPath:\s*\(path\)\s*=>\s*getPlatformBridge\(\)\.platform\.revealPath\?\.\(path\)\s*\?\?\s*Promise\.reject/,
+  );
+  assert.match(platformIndexSource, /PlatformAPI/);
+  assert.match(bootstrapSource, /commands::open_path::open_path/);
+  assert.match(bootstrapSource, /commands::reveal_path::reveal_path/);
+});
+
 test('tauriBridge exposes managed OpenClaw mirror export through the shared kernel platform bridge', () => {
   const desktopRoot = path.resolve(import.meta.dirname, '../../');
   const tauriBridgeSource = fs.readFileSync(
@@ -795,4 +858,84 @@ test('tauriBridge routes canonical host-manage OpenClaw surfaces through concret
   assert.match(studioServiceSource, /project_openclaw_runtime/);
   assert.match(studioServiceSource, /project_openclaw_gateway/);
   assert.match(studioServiceSource, /managed_openclaw_lifecycle\(supervisor\)\?/);
+});
+
+test('tauriBridge exposes built-in OpenClaw status change events through the shared runtime bridge', () => {
+  const desktopRoot = path.resolve(import.meta.dirname, '../../');
+  const infrastructureRoot = path.resolve(
+    import.meta.dirname,
+    '../../../sdkwork-claw-infrastructure/src',
+  );
+  const tauriBridgeSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'tauriBridge.ts'),
+    'utf8',
+  );
+  const catalogSource = fs.readFileSync(
+    path.join(import.meta.dirname, 'catalog.ts'),
+    'utf8',
+  );
+  const runtimeContractSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/contracts/runtime.ts'),
+    'utf8',
+  );
+  const runtimeIndexSource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/index.ts'),
+    'utf8',
+  );
+  const registrySource = fs.readFileSync(
+    path.join(infrastructureRoot, 'platform/registry.ts'),
+    'utf8',
+  );
+  const bootstrapSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/app/bootstrap.rs'),
+    'utf8',
+  );
+  const contextSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/framework/context.rs'),
+    'utf8',
+  );
+  const eventsSource = fs.readFileSync(
+    path.join(desktopRoot, 'src-tauri/src/framework/events.rs'),
+    'utf8',
+  );
+
+  assert.match(
+    eventsSource,
+    /pub const BUILT_IN_OPENCLAW_STATUS_CHANGED: &str = "studio:\/\/built-in-openclaw-status-changed";/,
+  );
+  assert.match(
+    catalogSource,
+    /builtInOpenClawStatusChanged:\s*'studio:\/\/built-in-openclaw-status-changed'/,
+  );
+  assert.match(
+    runtimeContractSource,
+    /export interface RuntimeBuiltInOpenClawStatusChangedEvent[\s\S]*instanceId: string;[\s\S]*status:/,
+  );
+  assert.match(
+    runtimeContractSource,
+    /subscribeBuiltInOpenClawStatusChanged\(\s*listener: \(event: RuntimeBuiltInOpenClawStatusChangedEvent\) => void,\s*\): Promise<RuntimeEventUnsubscribe>;/,
+  );
+  assert.match(runtimeIndexSource, /RuntimeBuiltInOpenClawStatusChangedEvent/);
+  assert.match(
+    registrySource,
+    /subscribeBuiltInOpenClawStatusChanged:\s*\(listener\)\s*=>\s*getPlatformBridge\(\)\.runtime\.subscribeBuiltInOpenClawStatusChanged\(listener\)/,
+  );
+  assert.match(tauriBridgeSource, /export interface DesktopBuiltInOpenClawStatusChangedEvent/);
+  assert.match(tauriBridgeSource, /export async function subscribeBuiltInOpenClawStatusChanged/);
+  assert.match(
+    tauriBridgeSource,
+    /listenDesktopEvent<DesktopBuiltInOpenClawStatusChangedEvent>\(\s*DESKTOP_EVENTS\.builtInOpenClawStatusChanged,\s*listener,/,
+  );
+  assert.match(
+    tauriBridgeSource,
+    /subscribeBuiltInOpenClawStatusChanged:\s*\(listener\)\s*=>\s*subscribeBuiltInOpenClawStatusChanged\(listener\)/,
+  );
+  assert.match(
+    bootstrapSource,
+    /context\.emit_built_in_openclaw_status_changed\(/,
+  );
+  assert.match(
+    contextSource,
+    /self\.emit\(events::BUILT_IN_OPENCLAW_STATUS_CHANGED,\s*payload\)/,
+  );
 });

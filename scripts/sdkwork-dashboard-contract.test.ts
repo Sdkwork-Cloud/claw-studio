@@ -65,6 +65,10 @@ runTest('sdkwork-claw-dashboard keeps the OpenClaw usage workspace in the shared
   assert.match(usagePageSource, /dashboard\.usage\.metrics\.totalCost/);
   assert.match(usagePageSource, /loadUsageSnapshot/);
   assert.match(usagePageSource, /loadSessionDetail/);
+  assert.match(
+    usagePageSource,
+    /setSelectedSessionKeys\(\(current\) =>\s*\(current\.length === 0 \? current : \[\]\)\)/,
+  );
   assert.match(usageServiceSource, /getGatewaySessionUsage/);
   assert.match(usageServiceSource, /getUsageCost/);
   assert.match(usageServiceSource, /getGatewaySessionUsageTimeseries/);

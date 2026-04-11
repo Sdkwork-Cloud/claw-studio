@@ -5,7 +5,7 @@
       "id": "openclaw",
       "displayName": "OpenClaw",
       "kind": "nodeApp",
-      "bundledVersion": "2026.4.2",
+      "bundledVersion": "2026.4.9",
       "startupMode": "autoStart",
       "installSubdir": "modules/openclaw/current",
       "upgradeChannel": "stable",

@@ -511,6 +511,10 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
       },
     ],
   );
+  assert.equal(dashboard.localAiProxy.messageCaptureEnabled, false);
+  assert.equal(dashboard.localAiProxy.observabilityDbPath, null);
+  assert.deepEqual(dashboard.localAiProxy.routeMetrics, []);
+  assert.deepEqual(dashboard.localAiProxy.routeTests, []);
   assert.equal(dashboard.storage.activeProfileLabel, 'SQLite Profile');
   assert.equal(dashboard.storage.activeProfilePath?.endsWith('default.db'), true);
   assert.deepEqual(dashboard.capabilities.readyKeys, ['doctor']);
@@ -546,6 +550,143 @@ await runTest('kernelCenterService composes kernel status, host ownership, and s
   assert.equal(dashboard.rollouts.phaseCounts.failed, 1);
   assert.equal(dashboard.rollouts.latestUpdatedAt, 1_743_100_300_000);
 });
+
+await runTest(
+  'kernelCenterService forwards local AI proxy observability details into the dashboard',
+  async () => {
+    const { createKernelCenterService } = await import('./kernelCenterService.ts');
+
+    const info = createKernelInfo();
+    info.localAiProxy = {
+      ...info.localAiProxy,
+      routeMetrics: [
+        {
+          routeId: 'local-ai-proxy-system-default-openai-compatible',
+          clientProtocol: 'openai-compatible',
+          upstreamProtocol: 'sdkwork',
+          health: 'healthy',
+          requestCount: 28,
+          successCount: 27,
+          failureCount: 1,
+          rpm: 3.5,
+          totalTokens: 9800,
+          inputTokens: 6400,
+          outputTokens: 3100,
+          cacheTokens: 300,
+          averageLatencyMs: 220,
+          lastLatencyMs: 180,
+          lastUsedAt: 1_743_100_400_000,
+          lastError: 'upstream timeout',
+        },
+      ],
+      routeTests: [
+        {
+          routeId: 'local-ai-proxy-system-default-openai-compatible',
+          status: 'passed',
+          testedAt: 1_743_100_450_000,
+          latencyMs: 260,
+          checkedCapability: 'chat',
+          modelId: 'gpt-4.1-mini',
+          error: null,
+        },
+      ],
+      messageCaptureEnabled: true,
+      observabilityDbPath:
+        'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy-observability.sqlite',
+    };
+
+    const service = createKernelCenterService({
+      kernelPlatformService: {
+        getInfo: async () => info,
+        getStatus: async () => createSnapshot(),
+        ensureRunning: async () => createSnapshot(),
+        restart: async () => createSnapshot(),
+      },
+      hostPlatformService: {
+        getStatus: async () => ({
+          ...createHostPlatformStatus(),
+          capabilityCount: 2,
+          isReady: true,
+        }),
+      },
+      rolloutService: {
+        list: async () => createRolloutListResult({ items: [], total: 0 }),
+        summarizePhases: () => ({
+          active: 0,
+          failed: 0,
+          completed: 0,
+          paused: 0,
+          drafts: 0,
+        }),
+      },
+      hostRuntimeModeService: {
+        getSummary: async () => ({
+          mode: 'desktopCombined',
+          modeLabel: 'Desktop Combined',
+          lifecycle: 'ready',
+          lifecycleLabel: 'Ready',
+          browserManagementSupported: true,
+          browserManagementAvailable: true,
+          browserManagementLabel: 'Embedded Browser Management',
+          manageBasePath: '/claw/manage/v1',
+          internalBasePath: '/claw/internal/v1',
+        }),
+      },
+      hostPortSettingsService: {
+        getSummary: async () => ({
+          totalEndpoints: 1,
+          readyEndpoints: 1,
+          conflictedEndpoints: 0,
+          dynamicPortEndpoints: 0,
+          browserBaseUrl: 'http://127.0.0.1:18797',
+          rows: [],
+        }),
+      },
+      runtimeApi: {
+        getRuntimeInfo: async () => createRuntimeInfo(),
+      },
+    });
+
+    const dashboard = await service.getDashboard();
+
+    assert.equal(dashboard.localAiProxy.messageCaptureEnabled, true);
+    assert.equal(
+      dashboard.localAiProxy.observabilityDbPath,
+      'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy-observability.sqlite',
+    );
+    assert.deepEqual(dashboard.localAiProxy.routeMetrics, [
+      {
+        routeId: 'local-ai-proxy-system-default-openai-compatible',
+        clientProtocol: 'openai-compatible',
+        upstreamProtocol: 'sdkwork',
+        health: 'healthy',
+        requestCount: 28,
+        successCount: 27,
+        failureCount: 1,
+        rpm: 3.5,
+        totalTokens: 9800,
+        inputTokens: 6400,
+        outputTokens: 3100,
+        cacheTokens: 300,
+        averageLatencyMs: 220,
+        lastLatencyMs: 180,
+        lastUsedAt: 1_743_100_400_000,
+        lastError: 'upstream timeout',
+      },
+    ]);
+    assert.deepEqual(dashboard.localAiProxy.routeTests, [
+      {
+        routeId: 'local-ai-proxy-system-default-openai-compatible',
+        status: 'passed',
+        testedAt: 1_743_100_450_000,
+        latencyMs: 260,
+        checkedCapability: 'chat',
+        modelId: 'gpt-4.1-mini',
+        error: null,
+      },
+    ]);
+  },
+);
 
 await runTest(
   'kernelCenterService prefers the dedicated OpenClaw runtime snapshot for provenance fields when available',

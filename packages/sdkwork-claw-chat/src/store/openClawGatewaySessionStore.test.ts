@@ -1222,6 +1222,80 @@ await runTest(
 );
 
 await runTest(
+  'openclaw gateway session store filters assistant ANNOUNCE_SKIP and REPLY_SKIP control replies from history while keeping user content',
+  async () => {
+    const sessionId = 'claw-studio:instance-a:session-control-reply-history';
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-a.json',
+        count: 1,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [
+          {
+            key: sessionId,
+            label: 'Control Reply History Filter',
+            updatedAt: 211,
+            kind: 'direct',
+            model: 'OpenClaw A',
+          },
+        ],
+      },
+      {
+        [sessionId]: {
+          thinkingLevel: null,
+          messages: [
+            {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'ANNOUNCE_SKIP' }],
+            },
+            {
+              role: 'assistant',
+              text: ' REPLY_SKIP ',
+            },
+            {
+              role: 'user',
+              content: [{ type: 'text', text: 'REPLY_SKIP' }],
+            },
+            {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'real reply' }],
+            },
+          ],
+        },
+      },
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 431,
+    });
+
+    await store.hydrateInstance('instance-a');
+
+    const snapshot = store.getSnapshot('instance-a');
+    const session = snapshot.sessions.find((entry) => entry.id === sessionId);
+    assert.ok(session);
+    assert.deepEqual(
+      session?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      [
+        { role: 'user', content: 'REPLY_SKIP' },
+        { role: 'assistant', content: 'real reply' },
+      ],
+    );
+  },
+);
+
+await runTest(
   'openclaw gateway session store ignores assistant NO_REPLY chat events',
   async () => {
     const client = new MockGatewayClient(
@@ -1293,6 +1367,79 @@ await runTest(
 
     snapshot = store.getSnapshot('instance-a');
     session = snapshot.sessions.find((entry) => entry.id === draft.id);
+    assert.ok(session);
+    assert.equal(session?.runId, null);
+    assert.deepEqual(
+      session?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      [{ role: 'user', content: 'user message' }],
+    );
+  },
+);
+
+await runTest(
+  'openclaw gateway session store ignores assistant ANNOUNCE_SKIP and REPLY_SKIP chat events',
+  async () => {
+    const client = new MockGatewayClient(
+      {
+        ts: 1,
+        path: 'sessions-a.json',
+        count: 0,
+        defaults: {
+          modelProvider: null,
+          model: null,
+          contextTokens: null,
+        },
+        sessions: [],
+      },
+      {},
+    );
+
+    const store = new OpenClawGatewaySessionStore({
+      getClient() {
+        return client;
+      },
+      now: () => 445,
+      createSessionKey(instanceId) {
+        return `claw-studio:${instanceId}:draft-control-reply-chat`;
+      },
+    });
+
+    await store.hydrateInstance('instance-a');
+    const draft = store.createDraftSession('instance-a', 'OpenClaw A');
+    await store.sendMessage({
+      instanceId: 'instance-a',
+      sessionId: draft.id,
+      content: 'user message',
+      model: 'OpenClaw A',
+    });
+
+    client.emitChat({
+      runId: 'run-1',
+      sessionKey: draft.id,
+      state: 'delta',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'ANNOUNCE_SKIP' }],
+      },
+    });
+
+    client.emitChat({
+      runId: 'run-1',
+      sessionKey: draft.id,
+      state: 'final',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'REPLY_SKIP' }],
+      },
+    });
+
+    await waitFor(() => client.historyCalls.filter((entry) => entry === draft.id).length === 1);
+
+    const snapshot = store.getSnapshot('instance-a');
+    const session = snapshot.sessions.find((entry) => entry.id === draft.id);
     assert.ok(session);
     assert.equal(session?.runId, null);
     assert.deepEqual(

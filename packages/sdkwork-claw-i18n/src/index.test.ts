@@ -157,8 +157,8 @@ await runTest('language metadata exposes native labels and truthful translation-
 });
 
 await runTest('getAppStoreLanguageFromSnapshot safely parses persisted Zustand state', () => {
-  assert.equal(getAppStoreLanguageFromSnapshot('{"state":{"language":"zh"}}'), 'zh');
-  assert.equal(getAppStoreLanguageFromSnapshot('{"language":"en"}'), 'en');
+  assert.equal(getAppStoreLanguageFromSnapshot('{"state":{"language":"zh"}}'), undefined);
+  assert.equal(getAppStoreLanguageFromSnapshot('{"language":"en"}'), undefined);
   assert.equal(
     getAppStoreLanguageFromSnapshot('{"state":{"languagePreference":"system","language":"zh"}}'),
     undefined,
@@ -172,12 +172,12 @@ await runTest('getAppStoreLanguageFromSnapshot safely parses persisted Zustand s
 });
 
 await runTest(
-  'browser language detection prefers the request cookie over persisted app state and browser hints',
+  'browser language detection prefers persisted app language over stale cookie and browser hints',
   () => {
     const storage = {
       getItem(key: string) {
         if (key === APP_STORE_STORAGE_KEY) {
-          return '{"state":{"language":"zh"}}';
+          return '{"state":{"languagePreference":"zh","language":"zh"}}';
         }
 
         if (key === I18N_STORAGE_KEY) {
@@ -195,18 +195,18 @@ await runTest(
         htmlLanguage: 'en-US',
         navigatorLanguage: 'en-US',
       }),
-      'en',
+      'zh',
     );
   },
 );
 
 await runTest(
-  'browser language detection still prefers persisted app state over detector cache when no cookie exists',
+  'browser language detection still prefers persisted app preference over detector cache when no cookie exists',
   () => {
     const storage = {
       getItem(key: string) {
         if (key === APP_STORE_STORAGE_KEY) {
-          return '{"state":{"language":"zh"}}';
+          return '{"state":{"languagePreference":"zh","language":"zh"}}';
         }
 
         if (key === I18N_STORAGE_KEY) {
@@ -222,6 +222,35 @@ await runTest(
         storage,
         htmlLanguage: 'en-US',
         navigatorLanguage: 'en-US',
+      }),
+      'zh',
+    );
+  },
+);
+
+await runTest(
+  'browser language detection prefers navigator locale over detector/html fallbacks when language preference is system',
+  () => {
+    const storage = {
+      getItem(key: string) {
+        if (key === APP_STORE_STORAGE_KEY) {
+          return '{"state":{"languagePreference":"system","language":"en"}}';
+        }
+
+        if (key === I18N_STORAGE_KEY) {
+          return 'en-US';
+        }
+
+        return null;
+      },
+    };
+
+    assert.equal(
+      detectBrowserLanguage({
+        storage,
+        cookie: 'claw_lang=en',
+        htmlLanguage: 'en',
+        navigatorLanguage: 'zh-CN',
       }),
       'zh',
     );

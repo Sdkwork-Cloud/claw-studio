@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
-import { buildOpenClawProviderWorkspaceState } from './openClawProviderWorkspacePresentation.ts';
+import * as providerWorkspacePresentation from './openClawProviderWorkspacePresentation.ts';
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -127,7 +127,7 @@ function createDetail(overrides: DetailOverrides = {}): StudioInstanceDetailReco
 await runTest(
   'buildOpenClawProviderWorkspaceState treats managed directory routes as Provider Center managed even without a managed config file path',
   () => {
-    const state = buildOpenClawProviderWorkspaceState(
+    const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState(
       createDetail({
         instance: {
           deploymentMode: 'local-external',
@@ -168,7 +168,7 @@ await runTest(
 await runTest(
   'buildOpenClawProviderWorkspaceState keeps remote openclaw provider config editable when no Provider Center managed route exists',
   () => {
-    const state = buildOpenClawProviderWorkspaceState(createDetail());
+    const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState(createDetail());
 
     assert.equal(state.providerCenterManaged, false);
     assert.equal(state.isProviderConfigReadonly, false);
@@ -179,7 +179,7 @@ await runTest(
 await runTest(
   'buildOpenClawProviderWorkspaceState keeps non-openclaw runtimes writable through the standard provider workspace flow',
   () => {
-    const state = buildOpenClawProviderWorkspaceState(
+    const state = providerWorkspacePresentation.buildOpenClawProviderWorkspaceState(
       createDetail({
         instance: {
           runtimeKind: 'custom',
@@ -191,5 +191,185 @@ await runTest(
     assert.equal(state.providerCenterManaged, false);
     assert.equal(state.isProviderConfigReadonly, false);
     assert.equal(state.canManageProviderCatalog, true);
+  },
+);
+
+await runTest(
+  'buildOpenClawProviderSelectionState derives selected provider defaults and delete targets from the workbench truth',
+  () => {
+    const selectionState = (providerWorkspacePresentation as any).buildOpenClawProviderSelectionState({
+      workbench: {
+        llmProviders: [
+          {
+            id: 'provider-a',
+            name: 'Provider A',
+            endpoint: 'https://provider-a.example.com',
+            apiKeySource: 'PROVIDER_A_KEY',
+            defaultModelId: 'model-a',
+            reasoningModelId: 'reasoning-a',
+            embeddingModelId: 'embedding-a',
+            models: [
+              { id: 'model-a', name: 'Model A' },
+              { id: 'model-b', name: 'Model B' },
+            ],
+            config: {
+              retries: 3,
+              request: {
+                temperature: 0.2,
+              },
+            },
+          },
+          {
+            id: 'provider-b',
+            name: 'Provider B',
+            endpoint: 'https://provider-b.example.com',
+            apiKeySource: 'PROVIDER_B_KEY',
+            defaultModelId: 'model-z',
+            reasoningModelId: '',
+            embeddingModelId: '',
+            models: [{ id: 'model-z', name: 'Model Z' }],
+            config: {
+              retries: 1,
+              request: {
+                top_p: 0.7,
+              },
+            },
+          },
+        ],
+      },
+      selectedProviderId: 'provider-a',
+      providerDeleteId: 'provider-b',
+      providerModelDeleteId: 'model-b',
+      providerDrafts: {},
+      providerRequestDrafts: {},
+      t: (key: string) => key,
+    });
+
+    assert.equal(selectionState.selectedProvider?.id, 'provider-a');
+    assert.equal(selectionState.deletingProvider?.id, 'provider-b');
+    assert.equal(selectionState.deletingProviderModel?.id, 'model-b');
+    assert.deepEqual(selectionState.selectedProviderDraft, {
+      endpoint: 'https://provider-a.example.com',
+      apiKeySource: 'PROVIDER_A_KEY',
+      defaultModelId: 'model-a',
+      reasoningModelId: 'reasoning-a',
+      embeddingModelId: 'embedding-a',
+      config: {
+        retries: 3,
+        request: {
+          temperature: 0.2,
+        },
+      },
+    });
+    assert.match(selectionState.selectedProviderRequestDraft, /temperature/);
+    assert.equal(selectionState.selectedProviderRequestParseError, null);
+    assert.equal(selectionState.hasPendingProviderChanges, false);
+  },
+);
+
+await runTest(
+  'buildOpenClawProviderSelectionState keeps explicit provider drafts, surfaces request parse errors, and flags pending changes',
+  () => {
+    const selectionState = (providerWorkspacePresentation as any).buildOpenClawProviderSelectionState({
+      workbench: {
+        llmProviders: [
+          {
+            id: 'provider-a',
+            name: 'Provider A',
+            endpoint: 'https://provider-a.example.com',
+            apiKeySource: 'PROVIDER_A_KEY',
+            defaultModelId: 'model-a',
+            reasoningModelId: 'reasoning-a',
+            embeddingModelId: 'embedding-a',
+            models: [{ id: 'model-a', name: 'Model A' }],
+            config: {
+              retries: 3,
+              request: {
+                temperature: 0.2,
+              },
+            },
+          },
+        ],
+      },
+      selectedProviderId: 'provider-a',
+      providerDeleteId: null,
+      providerModelDeleteId: null,
+      providerDrafts: {
+        'provider-a': {
+          endpoint: 'https://override.example.com',
+          apiKeySource: 'OVERRIDE_KEY',
+          defaultModelId: 'model-a',
+          reasoningModelId: 'reasoning-a',
+          embeddingModelId: 'embedding-a',
+          config: {
+            retries: 5,
+            request: {
+              temperature: 0.9,
+            },
+          },
+        },
+      },
+      providerRequestDrafts: {
+        'provider-a': '{"temperature": }',
+      },
+      t: (key: string) => key,
+    });
+
+    assert.equal(selectionState.selectedProvider?.id, 'provider-a');
+    assert.equal(selectionState.selectedProviderDraft?.endpoint, 'https://override.example.com');
+    assert.equal(selectionState.selectedProviderRequestDraft, '{"temperature": }');
+    assert.ok(selectionState.selectedProviderRequestParseError);
+    assert.equal(selectionState.hasPendingProviderChanges, true);
+  },
+);
+
+await runTest(
+  'buildOpenClawProviderWorkspaceSyncState clears provider selection and draft maps when no providers exist',
+  () => {
+    const syncState = providerWorkspacePresentation.buildOpenClawProviderWorkspaceSyncState({
+      providers: [],
+    });
+
+    assert.equal(syncState.resolveSelectedProviderId('provider-a'), null);
+    assert.deepEqual(syncState.providerDrafts, {});
+    assert.deepEqual(syncState.providerRequestDrafts, {});
+  },
+);
+
+await runTest(
+  'buildOpenClawProviderWorkspaceSyncState preserves a valid current provider and otherwise falls back to the first provider',
+  () => {
+    const syncState = providerWorkspacePresentation.buildOpenClawProviderWorkspaceSyncState({
+      providers: [
+        {
+          id: 'provider-a',
+          name: 'Provider A',
+          endpoint: 'https://provider-a.example.com',
+          apiKeySource: 'PROVIDER_A_KEY',
+          defaultModelId: 'model-a',
+          reasoningModelId: '',
+          embeddingModelId: '',
+          models: [{ id: 'model-a', name: 'Model A' }],
+          config: {},
+        },
+        {
+          id: 'provider-b',
+          name: 'Provider B',
+          endpoint: 'https://provider-b.example.com',
+          apiKeySource: 'PROVIDER_B_KEY',
+          defaultModelId: 'model-b',
+          reasoningModelId: '',
+          embeddingModelId: '',
+          models: [{ id: 'model-b', name: 'Model B' }],
+          config: {},
+        },
+      ],
+    });
+
+    assert.equal(syncState.resolveSelectedProviderId('provider-b'), 'provider-b');
+    assert.equal(syncState.resolveSelectedProviderId('missing-provider'), 'provider-a');
+    assert.equal(syncState.resolveSelectedProviderId(null), 'provider-a');
+    assert.deepEqual(syncState.providerDrafts, {});
+    assert.deepEqual(syncState.providerRequestDrafts, {});
   },
 );

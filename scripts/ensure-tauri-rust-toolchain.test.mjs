@@ -129,4 +129,81 @@ const friendlyMessage = buildMissingRustToolchainMessage([
 assert.match(friendlyMessage, /Missing command\(s\): cargo, rustc/);
 assert.match(friendlyMessage, /Restart the terminal after installation/);
 
+const blockedMessage = buildMissingRustToolchainMessage([
+  {
+    available: false,
+    command: 'cargo',
+    reason: 'spawn-error',
+    error: 'spawnSync cargo EPERM',
+  },
+  {
+    available: false,
+    command: 'rustc',
+    reason: 'spawn-error',
+    error: 'spawnSync rustc EPERM',
+  },
+]);
+
+assert.match(blockedMessage, /Blocked command\(s\): cargo, rustc/);
+assert.doesNotMatch(blockedMessage, /Missing command\(s\): cargo, rustc/);
+assert.match(
+  blockedMessage,
+  /could not be launched by the current Node process/i,
+);
+assert.match(
+  blockedMessage,
+  /where\.exe cargo.*Get-Command cargo.*which cargo/s,
+);
+
+let blockedNodeProcessError;
+try {
+  ensureTauriRustToolchain({
+    platform: 'win32',
+    inspectCommand(command) {
+      if (
+        command === 'cargo'
+        || command === 'rustc'
+        || command === 'cmd.exe'
+        || command === 'powershell.exe'
+      ) {
+        return {
+          available: false,
+          command,
+          reason: 'spawn-error',
+          error: `spawnSync ${command} EPERM`,
+        };
+      }
+
+      return {
+        available: true,
+        command,
+        stdout: `${command} ok`,
+      };
+    },
+  });
+} catch (error) {
+  blockedNodeProcessError = error;
+}
+
+assert.ok(
+  blockedNodeProcessError instanceof Error,
+  'A broader Node child-process block should still fail the Rust toolchain guard',
+);
+assert.match(
+  blockedNodeProcessError.message,
+  /Node child-process blocker\(s\): cmd\.exe, powershell\.exe/,
+);
+assert.match(
+  blockedNodeProcessError.message,
+  /broader child-process restriction than a Rust toolchain problem/i,
+);
+assert.match(
+  blockedNodeProcessError.message,
+  /will keep failing until Node is allowed to spawn Windows executables/i,
+);
+assert.match(
+  blockedNodeProcessError.message,
+  /broader child-process restriction than a Rust toolchain problem[\s\S]*Confirm the executable locations[\s\S]*Then verify in the same terminal:/i,
+);
+
 console.log('ok - tauri rust toolchain guard reports actionable errors and passes when cargo and rustc exist');

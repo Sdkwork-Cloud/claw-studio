@@ -41,6 +41,8 @@ const DEFAULT_RESTART_BACKOFF_MS: u64 = 5_000;
 const DEFAULT_MAX_RESTARTS: usize = 3;
 const DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS: u64 = 10_000;
 const DEFAULT_OPENCLAW_GATEWAY_READY_TIMEOUT_MS: u64 = 30_000;
+const DEFAULT_OPENCLAW_GATEWAY_START_RETRY_ATTEMPTS: usize = 3;
+const DEFAULT_OPENCLAW_GATEWAY_START_RETRY_DELAY_MS: u64 = 250;
 const DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_INTERVAL_MS: u64 = 500;
 const DEFAULT_OPENCLAW_GATEWAY_HEALTH_PROBE_TIMEOUT_MS: u64 = 750;
 #[cfg(windows)]
@@ -356,65 +358,102 @@ impl SupervisorService {
         *self.lock_openclaw_runtime()? = Some(runtime.clone());
 
         self.request_restart(SERVICE_ID_OPENCLAW_GATEWAY)?;
+        let mut last_failure = None;
 
-        let log_file_path = paths.logs_dir.join("openclaw-gateway.log");
-        if let Some(parent) = log_file_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let stdout = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_file_path)?;
-        let stderr = stdout.try_clone()?;
-        let mut command = Command::new(&runtime.node_path);
-        configure_command_for_managed_process(&mut command);
-        command.arg(&runtime.cli_path);
-        command.arg("gateway");
-        command.current_dir(&runtime.runtime_dir);
-        command.env("PATH", prepend_path_env(&paths.user_bin_dir));
-        command.envs(runtime.managed_env());
-        command.stdout(Stdio::from(stdout));
-        command.stderr(Stdio::from(stderr));
+        for attempt in 0..DEFAULT_OPENCLAW_GATEWAY_START_RETRY_ATTEMPTS {
+            let log_file_path = paths.logs_dir.join("openclaw-gateway.log");
+            if let Some(parent) = log_file_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            let stdout = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_file_path)?;
+            let stderr = stdout.try_clone()?;
+            let mut command = Command::new(&runtime.node_path);
+            configure_command_for_managed_process(&mut command);
+            command.arg(&runtime.cli_path);
+            command.arg("gateway");
+            command.current_dir(&runtime.runtime_dir);
+            command.env("PATH", prepend_path_env(&paths.user_bin_dir));
+            command.envs(runtime.managed_env());
+            command.stdout(Stdio::from(stdout));
+            command.stderr(Stdio::from(stderr));
 
-        match command.spawn() {
-            Ok(mut child) => {
-                if let Err(error) = wait_for_gateway_ready(
-                    &mut child,
-                    &runtime,
-                    DEFAULT_OPENCLAW_GATEWAY_READY_TIMEOUT_MS,
-                ) {
-                    let _ = force_process_shutdown(&mut child);
-                    let _ = child.wait();
+            match command.spawn() {
+                Ok(mut child) => {
+                    match wait_for_gateway_ready(
+                        &mut child,
+                        &runtime,
+                        DEFAULT_OPENCLAW_GATEWAY_READY_TIMEOUT_MS,
+                    ) {
+                        Ok(()) => {
+                            let pid = child.id();
+                            self.lock_managed_processes()?.insert(
+                                SERVICE_ID_OPENCLAW_GATEWAY.to_string(),
+                                ManagedServiceProcessHandle {
+                                    children: vec![ManagedChildProcessHandle {
+                                        label: "gateway".to_string(),
+                                        child,
+                                    }],
+                                },
+                            );
+                            self.record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(pid))?;
+                            return Ok(());
+                        }
+                        Err(error) => {
+                            let retryable = should_retry_openclaw_gateway_start_failure(&error);
+                            let _ = force_process_shutdown(&mut child);
+                            let _ = child.wait();
+                            if retryable
+                                && attempt + 1 < DEFAULT_OPENCLAW_GATEWAY_START_RETRY_ATTEMPTS
+                            {
+                                last_failure = Some(error);
+                                thread::sleep(Duration::from_millis(
+                                    DEFAULT_OPENCLAW_GATEWAY_START_RETRY_DELAY_MS,
+                                ));
+                                continue;
+                            }
+                            let _ = self.record_stopped(
+                                SERVICE_ID_OPENCLAW_GATEWAY,
+                                None,
+                                Some(error.to_string()),
+                            );
+                            return Err(error);
+                        }
+                    }
+                }
+                Err(error) => {
+                    let retryable = should_retry_openclaw_gateway_spawn_error(&error);
+                    let failure = FrameworkError::Io(error);
+                    if retryable && attempt + 1 < DEFAULT_OPENCLAW_GATEWAY_START_RETRY_ATTEMPTS {
+                        last_failure = Some(failure);
+                        thread::sleep(Duration::from_millis(
+                            DEFAULT_OPENCLAW_GATEWAY_START_RETRY_DELAY_MS,
+                        ));
+                        continue;
+                    }
                     let _ = self.record_stopped(
                         SERVICE_ID_OPENCLAW_GATEWAY,
                         None,
-                        Some(error.to_string()),
+                        Some(failure.to_string()),
                     );
-                    return Err(error);
+                    return Err(failure);
                 }
-                let pid = child.id();
-                self.lock_managed_processes()?.insert(
-                    SERVICE_ID_OPENCLAW_GATEWAY.to_string(),
-                    ManagedServiceProcessHandle {
-                        children: vec![ManagedChildProcessHandle {
-                            label: "gateway".to_string(),
-                            child,
-                        }],
-                    },
-                );
-                self.record_running(SERVICE_ID_OPENCLAW_GATEWAY, Some(pid))?;
-                Ok(())
-            }
-            Err(error) => {
-                let failure = FrameworkError::Io(error);
-                let _ = self.record_stopped(
-                    SERVICE_ID_OPENCLAW_GATEWAY,
-                    None,
-                    Some(failure.to_string()),
-                );
-                Err(failure)
             }
         }
+
+        let failure = last_failure.unwrap_or_else(|| {
+            FrameworkError::Internal(
+                "openclaw gateway start loop exhausted without producing a final result".to_string(),
+            )
+        });
+        let _ = self.record_stopped(
+            SERVICE_ID_OPENCLAW_GATEWAY,
+            None,
+            Some(failure.to_string()),
+        );
+        Err(failure)
     }
 
     pub fn restart_openclaw_gateway(&self, paths: &AppPaths) -> Result<()> {
@@ -882,6 +921,24 @@ fn wait_for_gateway_ready(
         "openclaw gateway did not become ready on {} within {}ms ({})",
         loopback, timeout_ms, last_probe_detail,
     )))
+}
+
+fn should_retry_openclaw_gateway_start_failure(error: &FrameworkError) -> bool {
+    match error {
+        FrameworkError::Io(io_error) => should_retry_openclaw_gateway_spawn_error(io_error),
+        FrameworkError::ProcessFailed {
+            command,
+            stderr_tail,
+            ..
+        } => command == "openclaw gateway" && stderr_tail.contains("before becoming ready"),
+        _ => false,
+    }
+}
+
+fn should_retry_openclaw_gateway_spawn_error(error: &std::io::Error) -> bool {
+    cfg!(windows)
+        && (error.kind() == std::io::ErrorKind::PermissionDenied
+            || matches!(error.raw_os_error(), Some(5 | 32 | 33)))
 }
 
 fn probe_gateway_ready(
@@ -1695,6 +1752,42 @@ mod tests {
             elapsed >= Duration::from_millis(1_000),
             "expected supervisor to wait for HTTP invoke readiness, only waited {:?}",
             elapsed
+        );
+
+        let running = service.snapshot().expect("running snapshot");
+        let openclaw = running
+            .services
+            .into_iter()
+            .find(|managed_service| managed_service.id == SERVICE_ID_OPENCLAW_GATEWAY)
+            .expect("openclaw service");
+        assert_eq!(openclaw.lifecycle, ManagedServiceLifecycle::Running);
+        assert!(openclaw.pid.is_some());
+
+        service.begin_shutdown().expect("shutdown");
+    }
+
+    #[test]
+    fn supervisor_retries_gateway_start_when_the_first_cold_start_exits_immediately() {
+        let service = SupervisorService::new();
+        let root = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(root.path()).expect("paths");
+        let runtime = fake_gateway_runtime_with_script(
+            &paths,
+            "import fs from 'node:fs';\nimport http from 'node:http';\nconst args = process.argv.slice(2);\nconst configPath = process.env.OPENCLAW_CONFIG_PATH;\nconst attemptPath = `${configPath}.startup-attempt`;\nconst config = JSON.parse(fs.readFileSync(configPath, 'utf8'));\nconst gatewayPort = Number(config.gateway?.port ?? 18789);\nconst expectedAuthorization = `Bearer ${process.env.OPENCLAW_GATEWAY_TOKEN ?? ''}`;\nif (args[0] === 'gateway' && args[1] === 'health') {\n  process.stdout.write(JSON.stringify({ ok: true, result: { status: 'ok' } }));\n  process.exit(0);\n}\nconst attempt = (fs.existsSync(attemptPath) ? Number(fs.readFileSync(attemptPath, 'utf8')) : 0) + 1;\nfs.writeFileSync(attemptPath, String(attempt));\nif (attempt === 1) {\n  process.stderr.write('transient cold-start failure');\n  process.exit(1);\n}\nconst server = http.createServer((req, res) => {\n  if (req.url !== '/tools/invoke' || req.method !== 'POST') {\n    res.writeHead(404, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: false, error: { message: 'unexpected path' } }));\n    return;\n  }\n  if ((req.headers.authorization ?? '') !== expectedAuthorization) {\n    res.writeHead(401, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: false, error: { message: 'unauthorized' } }));\n    return;\n  }\n  let body = '';\n  req.setEncoding('utf8');\n  req.on('data', (chunk) => { body += chunk; });\n  req.on('end', () => {\n    const payload = body.trim() ? JSON.parse(body) : {};\n    res.writeHead(200, { 'content-type': 'application/json' });\n    res.end(JSON.stringify({ ok: true, result: { method: payload.action ? `${payload.tool}.${payload.action}` : payload.tool ?? 'unknown' } }));\n  });\n});\nserver.listen(gatewayPort, '127.0.0.1');\nsetInterval(() => {}, 1000);\n"
+                .to_string(),
+        );
+        let attempt_path = runtime.config_path.with_extension("json.startup-attempt");
+
+        service
+            .configure_openclaw_gateway(&runtime)
+            .expect("configure runtime");
+        service
+            .start_openclaw_gateway(&paths)
+            .expect("gateway should recover from the first cold-start exit");
+
+        assert_eq!(
+            fs::read_to_string(&attempt_path).expect("startup attempt marker"),
+            "2"
         );
 
         let running = service.snapshot().expect("running snapshot");

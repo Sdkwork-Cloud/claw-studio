@@ -32,10 +32,22 @@ export interface DesktopHostedRuntimeDescriptor {
 }
 
 type DesktopHostedFetch = Parameters<typeof createBrowserSessionAwareFetch>[0];
+type DesktopHostedWebSocketOpenHandler =
+  | ((event: unknown) => void)
+  | ((this: WebSocket, event: Event) => unknown)
+  | null;
+type DesktopHostedWebSocketErrorHandler =
+  | ((event: unknown) => void)
+  | ((this: WebSocket, event: Event) => unknown)
+  | null;
+type DesktopHostedWebSocketCloseHandler =
+  | ((event: unknown) => void)
+  | ((this: WebSocket, event: CloseEvent) => unknown)
+  | null;
 type DesktopHostedWebSocketLike = {
-  onopen: ((event: unknown) => void) | null;
-  onerror: ((event: unknown) => void) | null;
-  onclose: ((event: unknown) => void) | null;
+  onopen: DesktopHostedWebSocketOpenHandler;
+  onerror: DesktopHostedWebSocketErrorHandler;
+  onclose: DesktopHostedWebSocketCloseHandler;
   close: () => void;
 };
 type DesktopHostedWebSocketFactory = (url: string) => DesktopHostedWebSocketLike;

@@ -7,8 +7,11 @@ import type {
   InstanceWorkbenchSnapshot,
 } from '../types/index.ts';
 import {
+  createInstanceWorkbenchHydrationResetState,
   mergeLazyLoadedWorkbenchFiles,
   mergeLazyLoadedWorkbenchMemories,
+  startLazyLoadInstanceWorkbenchFiles,
+  startLazyLoadInstanceWorkbenchMemory,
   shouldLazyLoadInstanceWorkbenchFiles,
   shouldLazyLoadInstanceWorkbenchMemory,
 } from './instanceWorkbenchHydration.ts';
@@ -21,6 +24,35 @@ function runTest(name: string, fn: () => void) {
     console.error(`not ok - ${name}`);
     throw error;
   }
+}
+
+function runAsyncTest(name: string, fn: () => Promise<void>) {
+  return Promise.resolve()
+    .then(fn)
+    .then(() => {
+      console.log(`ok - ${name}`);
+    })
+    .catch((error) => {
+      console.error(`not ok - ${name}`);
+      throw error;
+    });
+}
+
+function flushMicrotasks() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+
+  return {
+    promise,
+    resolve,
+  };
 }
 
 function createDetail(overrides: Partial<StudioInstanceDetailRecord> = {}): StudioInstanceDetailRecord {
@@ -217,6 +249,13 @@ runTest('shouldLazyLoadInstanceWorkbenchFiles keeps built-in OpenClaw eligible f
   assert.equal(shouldLoad, true);
 });
 
+runTest('createInstanceWorkbenchHydrationResetState centralizes page lazy-load reset baselines', () => {
+  assert.deepEqual(createInstanceWorkbenchHydrationResetState(), {
+    isFilesLoading: false,
+    isMemoryLoading: false,
+  });
+});
+
 runTest('shouldLazyLoadInstanceWorkbenchMemory keeps built-in OpenClaw eligible for lazy memory loading', () => {
   const shouldLoad = shouldLazyLoadInstanceWorkbenchMemory({
     activeSection: 'memory',
@@ -287,3 +326,165 @@ runTest('mergeLazyLoadedWorkbenchMemories updates memory counts and readiness wh
   assert.equal(merged.sectionCounts.memory, 1);
   assert.equal(merged.sectionAvailability.memory.status, 'ready');
 });
+
+await runAsyncTest(
+  'startLazyLoadInstanceWorkbenchFiles loads files through the injected loader and merges them back into the current workbench',
+  async () => {
+    const workbench = createWorkbench();
+    const files: InstanceWorkbenchFile[] = [
+      {
+        id: 'openclaw-agent-file:ops:AGENTS.md',
+        name: 'AGENTS.md',
+        path: '/workspace/ops/AGENTS.md',
+        category: 'prompt',
+        language: 'markdown',
+        size: '1 KB',
+        updatedAt: '2026-04-05T10:00:00.000Z',
+        status: 'synced',
+        description: 'Main prompt file.',
+        content: '',
+        isReadonly: false,
+      },
+    ];
+    const loadingStates: boolean[] = [];
+    let currentWorkbench: InstanceWorkbenchSnapshot | null = workbench;
+
+    const cleanup = startLazyLoadInstanceWorkbenchFiles({
+      activeSection: 'files',
+      detail: createDetail(),
+      instanceId: workbench.instance.id,
+      workbench,
+      setIsLoading: (value) => {
+        loadingStates.push(value);
+      },
+      setWorkbench: (value) => {
+        currentWorkbench =
+          typeof value === 'function'
+            ? (value as (current: InstanceWorkbenchSnapshot | null) => InstanceWorkbenchSnapshot | null)(
+                currentWorkbench,
+              )
+            : value;
+      },
+      loadFiles: async (instanceId, agents) => {
+        assert.equal(instanceId, workbench.instance.id);
+        assert.equal(agents.length, workbench.agents.length);
+
+        return files;
+      },
+      reportError: (error) => {
+        throw error;
+      },
+    });
+
+    assert.equal(typeof cleanup, 'function');
+
+    await flushMicrotasks();
+
+    assert.deepEqual(loadingStates, [true, false]);
+    assert.notEqual(currentWorkbench, workbench);
+    assert.deepEqual(currentWorkbench?.files, files);
+    assert.equal(currentWorkbench?.sectionCounts.files, 1);
+  },
+);
+
+await runAsyncTest(
+  'startLazyLoadInstanceWorkbenchMemory routes loader failures through the injected error reporter and restores loading when active',
+  async () => {
+    const workbench = createWorkbench();
+    const loadingStates: boolean[] = [];
+    const failure = new Error('memory unavailable');
+    let currentWorkbench: InstanceWorkbenchSnapshot | null = workbench;
+    let reportedError: unknown = null;
+
+    const cleanup = startLazyLoadInstanceWorkbenchMemory({
+      activeSection: 'memory',
+      detail: createDetail(),
+      instanceId: workbench.instance.id,
+      workbench,
+      setIsLoading: (value) => {
+        loadingStates.push(value);
+      },
+      setWorkbench: (value) => {
+        currentWorkbench =
+          typeof value === 'function'
+            ? (value as (current: InstanceWorkbenchSnapshot | null) => InstanceWorkbenchSnapshot | null)(
+                currentWorkbench,
+              )
+            : value;
+      },
+      loadMemories: async (instanceId, agents) => {
+        assert.equal(instanceId, workbench.instance.id);
+        assert.equal(agents.length, workbench.agents.length);
+
+        throw failure;
+      },
+      reportError: (error) => {
+        reportedError = error;
+      },
+    });
+
+    assert.equal(typeof cleanup, 'function');
+
+    await flushMicrotasks();
+
+    assert.deepEqual(loadingStates, [true, false]);
+    assert.equal(currentWorkbench, workbench);
+    assert.equal(reportedError, failure);
+  },
+);
+
+await runAsyncTest(
+  'startLazyLoadInstanceWorkbenchFiles suppresses merge and loading reset after cancellation',
+  async () => {
+    const workbench = createWorkbench();
+    const files: InstanceWorkbenchFile[] = [
+      {
+        id: 'openclaw-agent-file:ops:AGENTS.md',
+        name: 'AGENTS.md',
+        path: '/workspace/ops/AGENTS.md',
+        category: 'prompt',
+        language: 'markdown',
+        size: '1 KB',
+        updatedAt: '2026-04-05T10:00:00.000Z',
+        status: 'synced',
+        description: 'Main prompt file.',
+        content: '',
+        isReadonly: false,
+      },
+    ];
+    const loadingStates: boolean[] = [];
+    let currentWorkbench: InstanceWorkbenchSnapshot | null = workbench;
+    const deferred = createDeferred<InstanceWorkbenchFile[]>();
+
+    const cleanup = startLazyLoadInstanceWorkbenchFiles({
+      activeSection: 'files',
+      detail: createDetail(),
+      instanceId: workbench.instance.id,
+      workbench,
+      setIsLoading: (value) => {
+        loadingStates.push(value);
+      },
+      setWorkbench: (value) => {
+        currentWorkbench =
+          typeof value === 'function'
+            ? (value as (current: InstanceWorkbenchSnapshot | null) => InstanceWorkbenchSnapshot | null)(
+                currentWorkbench,
+              )
+            : value;
+      },
+      loadFiles: async () => deferred.promise,
+      reportError: (error) => {
+        throw error;
+      },
+    });
+
+    assert.equal(typeof cleanup, 'function');
+    cleanup?.();
+    deferred.resolve(files);
+
+    await flushMicrotasks();
+
+    assert.deepEqual(loadingStates, [true]);
+    assert.equal(currentWorkbench, workbench);
+  },
+);

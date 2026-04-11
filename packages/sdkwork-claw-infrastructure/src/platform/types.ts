@@ -70,6 +70,8 @@ export interface PlatformAPI {
   copy(text: string): Promise<void>;
   showNotification(notification: PlatformNotificationRequest): Promise<void>;
   openExternal(url: string): Promise<void>;
+  openPath?(path: string): Promise<void>;
+  revealPath?(path: string): Promise<void>;
   supportsNativeScreenshot(): boolean;
   captureScreenshot(): Promise<PlatformCapturedScreenshot | null>;
   fetchRemoteUrl(url: string): Promise<PlatformFetchedRemoteUrl>;

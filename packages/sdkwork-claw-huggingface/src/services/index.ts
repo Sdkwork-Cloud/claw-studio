@@ -1,2 +1,1 @@
-export * from './huggingfaceService';
-export * from './huggingfaceService.test';
+﻿export * from './huggingfaceService';

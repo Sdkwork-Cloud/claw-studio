@@ -23,6 +23,24 @@ export interface CreateMySkillServiceOptions {
   agentSkillManagementService?: AgentSkillManagementServiceLike;
 }
 
+type InstalledSkillLike = Skill & {
+  source?: string;
+  scope?: NonNullable<Skill['instanceAsset']>['scope'];
+  bundled?: boolean;
+  eligible?: boolean;
+  disabled?: boolean;
+  blockedByAllowlist?: boolean;
+  filePath?: string;
+  baseDir?: string;
+  homepage?: string;
+  missing?: {
+    bins?: string[];
+    anyBins?: string[];
+    env?: string[];
+    config?: string[];
+  };
+};
+
 function paginateSkills(skills: Skill[], params: ListParams = {}): PaginatedResult<Skill> {
   let filteredSkills = [...skills];
 
@@ -49,7 +67,55 @@ function paginateSkills(skills: Skill[], params: ListParams = {}): PaginatedResu
   };
 }
 
-function toInstalledSkill(skill: any): Skill {
+function countMissingRequirements(skill: InstalledSkillLike) {
+  const missing = skill.missing;
+  if (!missing) {
+    return 0;
+  }
+
+  return [
+    Array.isArray(missing.bins) ? missing.bins.length : 0,
+    Array.isArray(missing.anyBins) ? missing.anyBins.length : 0,
+    Array.isArray(missing.env) ? missing.env.length : 0,
+    Array.isArray(missing.config) ? missing.config.length : 0,
+  ].reduce((total, count) => total + count, 0);
+}
+
+function buildInstalledSkillInstanceAsset(skill: InstalledSkillLike): Skill['instanceAsset'] {
+  const hasAssetMetadata =
+    typeof skill.source === 'string' ||
+    typeof skill.scope === 'string' ||
+    typeof skill.bundled === 'boolean' ||
+    typeof skill.disabled === 'boolean' ||
+    typeof skill.blockedByAllowlist === 'boolean' ||
+    typeof skill.filePath === 'string' ||
+    typeof skill.baseDir === 'string' ||
+    typeof skill.eligible === 'boolean' ||
+    Boolean(skill.missing);
+  if (!hasAssetMetadata) {
+    return undefined;
+  }
+
+  const missingRequirementCount = countMissingRequirements(skill);
+  const blocked = skill.blockedByAllowlist === true || skill.eligible === false;
+
+  return {
+    source: typeof skill.source === 'string' && skill.source.trim() ? skill.source : 'unknown',
+    scope: typeof skill.scope === 'string' ? skill.scope : 'unknown',
+    status: blocked ? 'blocked' : skill.disabled === true ? 'disabled' : 'enabled',
+    compatibility: blocked
+      ? 'blocked'
+      : missingRequirementCount > 0
+        ? 'attention'
+        : 'compatible',
+    bundled: skill.bundled === true,
+    ...(typeof skill.filePath === 'string' ? { filePath: skill.filePath } : {}),
+    ...(typeof skill.baseDir === 'string' ? { baseDir: skill.baseDir } : {}),
+    missingRequirementCount,
+  };
+}
+
+function toInstalledSkill(skill: InstalledSkillLike): Skill {
   return {
     id: String(skill.id || ''),
     skillKey: typeof skill.skillKey === 'string' ? skill.skillKey : undefined,
@@ -73,6 +139,7 @@ function toInstalledSkill(skill: any): Skill {
     repositoryUrl: skill.repositoryUrl,
     homepageUrl: skill.homepage,
     documentationUrl: skill.documentationUrl,
+    instanceAsset: buildInstalledSkillInstanceAsset(skill),
   };
 }
 

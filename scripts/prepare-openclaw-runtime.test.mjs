@@ -4,6 +4,7 @@ import { cp, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promi
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 import {
   BUNDLED_RESOURCE_RUNTIME_ARCHIVE_FILENAME,
@@ -62,6 +63,68 @@ const cachedNodeRuntimeSidecarManifestRelativePath = '.sdkwork-node-runtime.json
 const runtimeSidecarManifestRelativePath = path.join('runtime', '.sdkwork-openclaw-runtime.json');
 const trackedResourcePlaceholder = 'packages/sdkwork-claw-desktop/src-tauri/resources/openclaw/.gitkeep';
 const fakeNodeExecutableContent = 'not-a-real-node-runtime';
+
+function formatTarOctal(value, width) {
+  return `${value.toString(8).padStart(width - 2, '0')}\0 `;
+}
+
+function createTarHeader({
+  name,
+  size,
+  type = '0',
+  prefix = '',
+} = {}) {
+  const header = Buffer.alloc(512, 0);
+  Buffer.from(String(name ?? '').slice(0, 100), 'utf8').copy(header, 0);
+  Buffer.from(formatTarOctal(0o644, 8), 'utf8').copy(header, 100);
+  Buffer.from(formatTarOctal(0, 8), 'utf8').copy(header, 108);
+  Buffer.from(formatTarOctal(0, 8), 'utf8').copy(header, 116);
+  Buffer.from(formatTarOctal(size, 12), 'utf8').copy(header, 124);
+  Buffer.from(formatTarOctal(0, 12), 'utf8').copy(header, 136);
+  header.fill(0x20, 148, 156);
+  header.write(String(type ?? '0').slice(0, 1), 156, 1, 'utf8');
+  Buffer.from('ustar\0', 'utf8').copy(header, 257);
+  Buffer.from('00', 'utf8').copy(header, 263);
+  Buffer.from(String(prefix ?? '').slice(0, 155), 'utf8').copy(header, 345);
+
+  let checksum = 0;
+  for (const value of header.values()) {
+    checksum += value;
+  }
+  Buffer.from(formatTarOctal(checksum, 8), 'utf8').copy(header, 148);
+
+  return header;
+}
+
+function createTarRecord({
+  name,
+  content = '',
+  type = '0',
+  prefix = '',
+} = {}) {
+  const contentBuffer = Buffer.isBuffer(content)
+    ? content
+    : Buffer.from(String(content ?? ''), 'utf8');
+  const header = createTarHeader({
+    name,
+    size: contentBuffer.length,
+    type,
+    prefix,
+  });
+  const paddingSize = (512 - (contentBuffer.length % 512)) % 512;
+  return Buffer.concat([
+    header,
+    contentBuffer,
+    Buffer.alloc(paddingSize, 0),
+  ]);
+}
+
+function createTarGzArchiveBuffer(records = []) {
+  return gzipSync(Buffer.concat([
+    ...records,
+    Buffer.alloc(1024, 0),
+  ]));
+}
 
 function listTrackedOpenClawResourceFiles() {
   const result = spawnSync(
@@ -1052,6 +1115,129 @@ try {
   if (matrixDownloadedNativeRuntimeValue !== 'matrix-native-binary') {
     throw new Error(
       `Expected staged Matrix native runtime asset to contain the downloaded payload, received ${matrixDownloadedNativeRuntimeValue}`,
+    );
+  }
+  const expectedDiscordJsOpusPrebuildDirName =
+    `node-v${process.versions.modules}-napi-v3-win32-x64-unknown-unknown`;
+  const expectedDiscordJsOpusArchiveFileName =
+    `opus-v0.10.0-${expectedDiscordJsOpusPrebuildDirName}.tar.gz`;
+  const opusDownloadedNativeRuntimeAsset = resolveDownloadedNativeRuntimeAsset({
+    packageJson: {
+      name: '@discordjs/opus',
+      version: '0.10.0',
+      binary: {
+        module_name: 'opus',
+        module_path: './prebuild/{node_abi}-napi-v{napi_build_version}-{platform}-{arch}-{libc}-{libc_version}/',
+        remote_path: 'v{version}',
+        package_name: '{module_name}-v{version}-{node_abi}-napi-v{napi_build_version}-{platform}-{arch}-{libc}-{libc_version}.tar.gz',
+        host: 'https://github.com/discordjs/opus/releases/download/',
+        napi_versions: [3],
+      },
+    },
+    platform: 'win32',
+    arch: 'x64',
+  });
+  if (!opusDownloadedNativeRuntimeAsset) {
+    throw new Error('Expected @discordjs/opus to resolve a downloaded native runtime asset');
+  }
+  if (
+    opusDownloadedNativeRuntimeAsset.assetFileName !== expectedDiscordJsOpusArchiveFileName
+    || opusDownloadedNativeRuntimeAsset.destinationRelativePath
+      !== path.join('prebuild', expectedDiscordJsOpusPrebuildDirName, 'opus.node')
+    || opusDownloadedNativeRuntimeAsset.downloadUrl
+      !== `https://github.com/discordjs/opus/releases/download/v0.10.0/${expectedDiscordJsOpusArchiveFileName}`
+  ) {
+    throw new Error(
+      `Expected @discordjs/opus downloaded native runtime asset to target the win32-x64 prebuild archive, received ${JSON.stringify(opusDownloadedNativeRuntimeAsset)}`,
+    );
+  }
+  const opusDownloadedNativeRuntimePackageDir = path.join(
+    tempRoot,
+    'opus-downloaded-native-runtime-package',
+  );
+  const opusDownloadedNativeRuntimeArchiveSourceDir = path.join(
+    tempRoot,
+    'opus-downloaded-native-runtime-archive-source',
+  );
+  const opusDownloadedNativeRuntimeArchiveEntryDir = path.join(
+    opusDownloadedNativeRuntimeArchiveSourceDir,
+    expectedDiscordJsOpusPrebuildDirName,
+  );
+  await mkdir(opusDownloadedNativeRuntimePackageDir, { recursive: true });
+  await mkdir(opusDownloadedNativeRuntimeArchiveEntryDir, { recursive: true });
+  await writeFile(
+    path.join(opusDownloadedNativeRuntimeArchiveEntryDir, 'opus.node'),
+    'opus-native-binary',
+  );
+  await writeFile(
+    path.join(opusDownloadedNativeRuntimeArchiveEntryDir, 'opus.lib'),
+    'opus-import-library',
+  );
+  const opusDownloadedNativeRuntimeArchivePath = path.join(
+    tempRoot,
+    expectedDiscordJsOpusArchiveFileName,
+  );
+  await writeFile(
+    opusDownloadedNativeRuntimeArchivePath,
+    createTarGzArchiveBuffer([
+      createTarRecord({
+        name: path.posix.join(expectedDiscordJsOpusPrebuildDirName, 'opus.node'),
+        content: 'opus-native-binary',
+      }),
+      createTarRecord({
+        name: path.posix.join(expectedDiscordJsOpusPrebuildDirName, 'opus.lib'),
+        content: 'opus-import-library',
+      }),
+    ]),
+  );
+  const opusDownloadedNativeRuntimeArchiveBuffer = await readFile(
+    opusDownloadedNativeRuntimeArchivePath,
+  );
+  const opusDownloadedNativeRuntimeResult = await stageDownloadedNativeRuntimeAsset({
+    packageDir: opusDownloadedNativeRuntimePackageDir,
+    runtimeAsset: opusDownloadedNativeRuntimeAsset,
+    fetchImpl: async (url) => {
+      if (url !== opusDownloadedNativeRuntimeAsset.downloadUrl) {
+        throw new Error(
+          `Expected @discordjs/opus native runtime asset download URL ${opusDownloadedNativeRuntimeAsset.downloadUrl}, received ${url}`,
+        );
+      }
+      return new Response(opusDownloadedNativeRuntimeArchiveBuffer);
+    },
+  });
+  if (!opusDownloadedNativeRuntimeResult.downloaded) {
+    throw new Error(
+      'Expected @discordjs/opus native runtime asset staging to download and extract the missing prebuild archive',
+    );
+  }
+  const opusDownloadedNativeRuntimeDestinationDir = path.join(
+    opusDownloadedNativeRuntimePackageDir,
+    'prebuild',
+    expectedDiscordJsOpusPrebuildDirName,
+  );
+  const opusDownloadedNativeRuntimeNodeBinaryPath = path.join(
+    opusDownloadedNativeRuntimeDestinationDir,
+    'opus.node',
+  );
+  const opusDownloadedNativeRuntimeImportLibraryPath = path.join(
+    opusDownloadedNativeRuntimeDestinationDir,
+    'opus.lib',
+  );
+  const opusDownloadedNativeRuntimeNodeBinaryValue = await readFile(
+    opusDownloadedNativeRuntimeNodeBinaryPath,
+    'utf8',
+  );
+  if (opusDownloadedNativeRuntimeNodeBinaryValue !== 'opus-native-binary') {
+    throw new Error(
+      `Expected staged @discordjs/opus native runtime archive to contain the downloaded binary, received ${opusDownloadedNativeRuntimeNodeBinaryValue}`,
+    );
+  }
+  const opusDownloadedNativeRuntimeImportLibraryStat = await stat(
+    opusDownloadedNativeRuntimeImportLibraryPath,
+  );
+  if (!opusDownloadedNativeRuntimeImportLibraryStat.isFile()) {
+    throw new Error(
+      'Expected staged @discordjs/opus native runtime archive extraction to preserve archive sidecar files',
     );
   }
   const hydratedBundledPluginRuntimeInstallRoot = path.join(

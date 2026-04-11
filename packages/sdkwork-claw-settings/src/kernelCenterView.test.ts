@@ -39,11 +39,20 @@ function createDashboard(
     localAiProxy: {
       lifecycle: 'Stopped',
       baseUrl: null,
+      rootBaseUrl: null,
+      openaiCompatibleBaseUrl: null,
+      anthropicBaseUrl: null,
+      geminiBaseUrl: null,
       activePort: null,
       loopbackOnly: true,
       defaultRouteName: null,
+      defaultRoutes: [],
       upstreamBaseUrl: null,
       modelCount: 0,
+      routeMetrics: [],
+      routeTests: [],
+      messageCaptureEnabled: false,
+      observabilityDbPath: null,
       configPath: null,
       snapshotPath: null,
       logPath: null,
@@ -116,3 +125,82 @@ await runTest('resolveLocalAiProxyPortValue stringifies the active local proxy p
 
   assert.equal(module.resolveLocalAiProxyPortValue?.(dashboard), '18791');
 });
+
+await runTest(
+  'formatLocalAiProxyRouteMetricSummary formats route observability metrics into a stable summary string',
+  async () => {
+    const module = await import('./kernelCenterView.ts').catch(() => ({}));
+    assert.equal(typeof module.formatLocalAiProxyRouteMetricSummary, 'function');
+
+    const summary = module.formatLocalAiProxyRouteMetricSummary?.(
+      {
+        routeId: 'route-openai',
+        clientProtocol: 'openai-compatible',
+        upstreamProtocol: 'sdkwork',
+        health: 'healthy',
+        requestCount: 28,
+        successCount: 27,
+        failureCount: 1,
+        rpm: 3.5,
+        totalTokens: 9800,
+        inputTokens: 6400,
+        outputTokens: 3100,
+        cacheTokens: 300,
+        averageLatencyMs: 220,
+        lastLatencyMs: 180,
+        lastUsedAt: 1_743_100_400_000,
+        lastError: 'upstream timeout',
+      },
+      {
+        health: 'Healthy',
+        requests: 'Requests',
+        successes: 'Success',
+        failures: 'Failure',
+        rpm: 'RPM',
+        totalTokens: 'Tokens',
+        averageLatency: 'Avg',
+        lastLatency: 'Last',
+        lastUsedAt: 'Last Used',
+        lastError: 'Error',
+      },
+    );
+
+    assert.equal(
+      summary,
+      'Healthy | Requests 28 | Success 27 | Failure 1 | RPM 3.5 | Tokens 9800 | Avg 220 ms | Last 180 ms | Last Used 2025-03-27T18:33:20.000Z | Error upstream timeout',
+    );
+  },
+);
+
+await runTest(
+  'formatLocalAiProxyRouteTestSummary formats the latest route test record into a stable summary string',
+  async () => {
+    const module = await import('./kernelCenterView.ts').catch(() => ({}));
+    assert.equal(typeof module.formatLocalAiProxyRouteTestSummary, 'function');
+
+    const summary = module.formatLocalAiProxyRouteTestSummary?.(
+      {
+        routeId: 'route-openai',
+        status: 'passed',
+        testedAt: 1_743_100_450_000,
+        latencyMs: 260,
+        checkedCapability: 'chat',
+        modelId: 'gpt-4.1-mini',
+        error: null,
+      },
+      {
+        status: 'Passed',
+        capability: 'Capability',
+        testedAt: 'Tested',
+        latency: 'Latency',
+        model: 'Model',
+        error: 'Error',
+      },
+    );
+
+    assert.equal(
+      summary,
+      'Passed | Capability chat | Tested 2025-03-27T18:34:10.000Z | Latency 260 ms | Model gpt-4.1-mini',
+    );
+  },
+);

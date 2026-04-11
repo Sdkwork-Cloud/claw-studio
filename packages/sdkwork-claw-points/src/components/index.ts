@@ -5,4 +5,3 @@ export * from './PointsTransactionList';
 export * from './PointsUpgradeDialog';
 export * from './pointsCopy';
 export * from './pointsRechargeDialogState';
-export * from './pointsRechargeDialogState.test';

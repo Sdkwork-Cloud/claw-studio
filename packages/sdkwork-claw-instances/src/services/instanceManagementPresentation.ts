@@ -1,5 +1,10 @@
 import type { StudioInstanceDataAccessEntry } from '@sdkwork/claw-types';
 import type { InstanceWorkbenchSnapshot } from '../types/index.ts';
+import {
+  buildBundledOpenClawStartupAlert,
+  type BundledOpenClawStartupAlert,
+  type BundledOpenClawStartupAlertDiagnostic,
+} from './bundledOpenClawStartupAlert.ts';
 
 export type InstanceManagementEntryTone = 'neutral' | 'success' | 'warning';
 
@@ -17,8 +22,12 @@ export interface InstanceManagementEntry {
   mono?: boolean;
 }
 
+export type InstanceManagementAlert = BundledOpenClawStartupAlert;
+export type InstanceManagementAlertDiagnostic = BundledOpenClawStartupAlertDiagnostic;
+
 export interface InstanceManagementSummary {
   entries: InstanceManagementEntry[];
+  alert: InstanceManagementAlert | null;
   notes: string[];
 }
 
@@ -203,9 +212,20 @@ function buildManagementScopeEntry(
   };
 }
 
-function buildNotes(workbench: InstanceWorkbenchSnapshot) {
+function buildNotes(
+  workbench: InstanceWorkbenchSnapshot,
+  alert: InstanceManagementAlert | null,
+) {
+  const filteredLifecycleNotes = workbench.detail.lifecycle.notes.filter((note) => {
+    if (!alert) {
+      return true;
+    }
+
+    return note !== `Last bundled OpenClaw start error: ${alert.message}`;
+  });
+
   return [
-    ...workbench.detail.lifecycle.notes,
+    ...filteredLifecycleNotes,
     ...workbench.detail.officialRuntimeNotes.map((note) =>
       note.content ? `${note.title}: ${note.content}` : note.title,
     ),
@@ -216,6 +236,7 @@ export function buildInstanceManagementSummary(
   workbench: InstanceWorkbenchSnapshot,
 ): InstanceManagementSummary {
   const installMethod = workbench.detail.consoleAccess?.installMethod || null;
+  const alert = buildBundledOpenClawStartupAlert(workbench.detail);
 
   return {
     entries: [
@@ -239,6 +260,7 @@ export function buildInstanceManagementSummary(
       buildDefaultWorkspaceEntry(workbench),
       buildManagementScopeEntry(workbench),
     ],
-    notes: buildNotes(workbench),
+    alert,
+    notes: buildNotes(workbench, alert),
   };
 }

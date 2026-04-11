@@ -7,6 +7,15 @@ import {
   type DesktopBootstrapState,
   type DesktopBootstrapStateActions,
 } from './desktopBootstrapRuntime.ts';
+import {
+  BACKGROUND_RUNTIME_READINESS_TOAST_ID,
+  resolveBackgroundRuntimeReadinessToastPlan,
+  resolveBackgroundRuntimeReadinessToastResetPlan,
+} from './desktopBackgroundRuntimeReadinessToast.ts';
+import {
+  resolveBackgroundRuntimeReadinessRecoveryToastCopy,
+  retryBackgroundRuntimeReadinessRecovery,
+} from './desktopBackgroundRuntimeReadinessRecovery.ts';
 
 function createBootstrapState(): DesktopBootstrapState {
   return {
@@ -315,4 +324,178 @@ test('desktop bootstrap runtime stops cleanly when the run becomes stale before 
     events.includes('start-transition'),
     false,
   );
+});
+
+test('resolveBackgroundRuntimeReadinessToastPlan returns localized toast copy for the current launching shell run', () => {
+  const plan = resolveBackgroundRuntimeReadinessToastPlan({
+    language: 'zh',
+    status: 'launching',
+    shouldRenderShell: true,
+    currentRunId: 8,
+    lastShownSignature: '',
+    notification: {
+      runId: 8,
+      message: 'gateway timed out',
+    },
+  });
+
+  assert.ok(plan);
+  assert.equal(plan.signature, '8:gateway timed out');
+  assert.equal(plan.toastId, BACKGROUND_RUNTIME_READINESS_TOAST_ID);
+  assert.equal(plan.title, '内置 OpenClaw 尚未就绪');
+  assert.equal(plan.retryActionLabel, '立即重试');
+  assert.equal(plan.detailsActionLabel, '查看详情');
+  assert.match(plan.description, /Claw Studio 已打开/);
+  assert.match(plan.description, /gateway timed out/);
+});
+
+test('resolveBackgroundRuntimeReadinessToastResetPlan requests dismissal of the shared toast channel once a failure notification has been shown', () => {
+  assert.deepEqual(
+    resolveBackgroundRuntimeReadinessToastResetPlan('8:gateway timed out'),
+    {
+      nextSignature: '',
+      dismissToastId: BACKGROUND_RUNTIME_READINESS_TOAST_ID,
+    },
+  );
+
+  assert.equal(resolveBackgroundRuntimeReadinessToastResetPlan(''), null);
+});
+
+test('resolveBackgroundRuntimeReadinessToastResetPlan can clear the failure signature without dismissing the active retry toast', () => {
+  assert.deepEqual(
+    resolveBackgroundRuntimeReadinessToastResetPlan('8:gateway timed out', {
+      dismissToast: false,
+    }),
+    {
+      nextSignature: '',
+      dismissToastId: null,
+    },
+  );
+});
+
+test('resolveBackgroundRuntimeReadinessToastPlan suppresses stale, hidden, fatal, and duplicate notifications', () => {
+  assert.equal(
+    resolveBackgroundRuntimeReadinessToastPlan({
+      language: 'en',
+      status: 'launching',
+      shouldRenderShell: true,
+      currentRunId: 9,
+      lastShownSignature: '',
+      notification: {
+        runId: 8,
+        message: 'runtime failed',
+      },
+    }),
+    null,
+  );
+
+  assert.equal(
+    resolveBackgroundRuntimeReadinessToastPlan({
+      language: 'en',
+      status: 'launching',
+      shouldRenderShell: false,
+      currentRunId: 9,
+      lastShownSignature: '',
+      notification: {
+        runId: 9,
+        message: 'runtime failed',
+      },
+    }),
+    null,
+  );
+
+  assert.equal(
+    resolveBackgroundRuntimeReadinessToastPlan({
+      language: 'en',
+      status: 'error',
+      shouldRenderShell: true,
+      currentRunId: 9,
+      lastShownSignature: '',
+      notification: {
+        runId: 9,
+        message: 'runtime failed',
+      },
+    }),
+    null,
+  );
+
+  assert.equal(
+    resolveBackgroundRuntimeReadinessToastPlan({
+      language: 'en',
+      status: 'launching',
+      shouldRenderShell: true,
+      currentRunId: 9,
+      lastShownSignature: '9:runtime failed',
+      notification: {
+        runId: 9,
+        message: 'runtime failed',
+      },
+    }),
+    null,
+  );
+});
+
+test('retryBackgroundRuntimeReadinessRecovery clears prior failure state, restarts the built-in instance, and reconnects readiness probing', async () => {
+  const events: string[] = [];
+
+  await retryBackgroundRuntimeReadinessRecovery({
+    instanceId: 'local-built-in',
+    clearFailureState: () => {
+      events.push('clearFailureState');
+    },
+    restartInstance: async (instanceId) => {
+      events.push(`restartInstance:${instanceId}`);
+      return { id: instanceId };
+    },
+    reconnectHostedRuntimeReadiness: async () => {
+      events.push('reconnectHostedRuntimeReadiness');
+    },
+  });
+
+  assert.deepEqual(events, [
+    'clearFailureState',
+    'restartInstance:local-built-in',
+    'reconnectHostedRuntimeReadiness',
+  ]);
+});
+
+test('retryBackgroundRuntimeReadinessRecovery stops before reconnect when the built-in restart request cannot resolve an instance', async () => {
+  const events: string[] = [];
+
+  await assert.rejects(
+    () =>
+      retryBackgroundRuntimeReadinessRecovery({
+        instanceId: 'local-built-in',
+        clearFailureState: () => {
+          events.push('clearFailureState');
+        },
+        restartInstance: async (instanceId) => {
+          events.push(`restartInstance:${instanceId}`);
+          return null;
+        },
+        reconnectHostedRuntimeReadiness: async () => {
+          events.push('reconnectHostedRuntimeReadiness');
+        },
+      }),
+    /could not be resolved/i,
+  );
+
+  assert.deepEqual(events, [
+    'clearFailureState',
+    'restartInstance:local-built-in',
+  ]);
+});
+
+test('resolveBackgroundRuntimeReadinessRecoveryToastCopy returns localized retry and success copy', () => {
+  const zhCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy('zh');
+  assert.equal(zhCopy.retryActionLabel, '立即重试');
+  assert.equal(zhCopy.detailsActionLabel, '查看详情');
+  assert.match(zhCopy.loadingTitle, /正在重试/);
+  assert.match(zhCopy.readyTitle, /已经就绪/);
+
+  const enCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy('en');
+  assert.equal(enCopy.retryActionLabel, 'Retry now');
+  assert.equal(enCopy.detailsActionLabel, 'View details');
+  assert.match(enCopy.loadingTitle, /Retrying/);
+  assert.match(enCopy.readyTitle, /is ready/);
 });

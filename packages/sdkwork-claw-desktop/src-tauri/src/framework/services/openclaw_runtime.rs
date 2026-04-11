@@ -10,14 +10,13 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
-    io::Read,
+    io::{self, Read},
     path::{Path, PathBuf},
-    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use uuid::Uuid;
+use zip::ZipArchive;
 
 pub const OPENCLAW_RUNTIME_ID: &str = "openclaw";
 const BUNDLED_RESOURCE_DIR: &str = "openclaw";
@@ -137,16 +136,6 @@ impl ActivatedOpenClawRuntime {
 impl OpenClawRuntimeService {
     pub fn new() -> Self {
         Self
-    }
-
-    pub fn ensure_bundled_runtime<R: Runtime>(
-        &self,
-        app: &AppHandle<R>,
-        paths: &AppPaths,
-    ) -> Result<ActivatedOpenClawRuntime> {
-        let resource_dir = app.path().resource_dir().map_err(FrameworkError::from)?;
-        let resource_root = resolve_bundled_resource_root(&resource_dir)?;
-        self.ensure_bundled_runtime_from_root(paths, &resource_root)
     }
 
     pub fn ensure_bundled_runtime_from_root(
@@ -339,13 +328,7 @@ fn ensure_runtime_installation_from_directory(
         })?;
     }
 
-    fs::rename(&staging_dir, install_dir).map_err(|error| {
-        FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime install root {} from {}: {error}",
-            install_dir.display(),
-            staging_dir.display()
-        ))
-    })?;
+    rename_directory_with_retry(&staging_dir, install_dir)?;
 
     if !runtime_dir.exists() {
         return Err(FrameworkError::Internal(format!(
@@ -401,13 +384,7 @@ fn ensure_runtime_installation_from_archive(
         })?;
     }
 
-    fs::rename(&staging_dir, install_dir).map_err(|error| {
-        FrameworkError::Internal(format!(
-            "failed to finalize bundled runtime install root {} from {}: {error}",
-            install_dir.display(),
-            staging_dir.display()
-        ))
-    })?;
+    rename_directory_with_retry(&staging_dir, install_dir)?;
 
     if !runtime_dir.exists() {
         return Err(FrameworkError::Internal(format!(
@@ -504,7 +481,10 @@ fn resolve_launch_runtime_install_dir(
         )));
     }
 
-    fs::rename(&candidate, install_dir).map_err(|error| {
+    rename_directory_with_retry_using(&candidate, install_dir, |source_dir, target_dir| {
+        fs::rename(source_dir, target_dir)
+    })
+    .map_err(|error| {
         FrameworkError::Internal(format!(
             "failed to finalize bundled runtime install root {} from staged candidate {}: {error}",
             install_dir.display(),
@@ -565,6 +545,59 @@ fn validate_materialized_runtime_installation(
             runtime_dir.display()
         ))),
     }
+}
+
+fn rename_directory_with_retry(source_dir: &Path, target_dir: &Path) -> Result<()> {
+    rename_directory_with_retry_using(source_dir, target_dir, |source_dir, target_dir| {
+        fs::rename(source_dir, target_dir)
+    })
+    .map_err(|error| {
+        FrameworkError::Internal(format!(
+            "failed to finalize bundled runtime install root {} from {}: {error}",
+            target_dir.display(),
+            source_dir.display()
+        ))
+    })
+}
+
+fn rename_directory_with_retry_using<F>(
+    source_dir: &Path,
+    target_dir: &Path,
+    mut rename_fn: F,
+) -> std::io::Result<()>
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<()>,
+{
+    const WINDOWS_MAX_RENAME_ATTEMPTS: usize = 120;
+    const WINDOWS_RENAME_RETRY_DELAY_MS: u64 = 100;
+
+    let max_attempts = if cfg!(windows) {
+        WINDOWS_MAX_RENAME_ATTEMPTS
+    } else {
+        1
+    };
+
+    for attempt in 0..max_attempts {
+        match rename_fn(source_dir, target_dir) {
+            Ok(()) => return Ok(()),
+            Err(error)
+                if should_retry_runtime_install_rename(&error) && attempt + 1 < max_attempts =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(
+                    WINDOWS_RENAME_RETRY_DELAY_MS,
+                ));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    Ok(())
+}
+
+fn should_retry_runtime_install_rename(error: &std::io::Error) -> bool {
+    cfg!(windows)
+        && (error.kind() == std::io::ErrorKind::PermissionDenied
+            || matches!(error.raw_os_error(), Some(5 | 32)))
 }
 
 fn manifest_file_matches(path: &Path, expected: &BundledOpenClawManifest) -> bool {
@@ -679,61 +712,85 @@ fn sha256_file_hex(path: &Path) -> Result<String> {
 }
 
 fn extract_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) -> Result<()> {
-    let extract_result = if cfg!(windows) {
-        extract_windows_bundled_runtime_archive(archive_path, destination_dir)
-    } else {
-        extract_unix_bundled_runtime_archive(archive_path, destination_dir)
-    };
+    let archive_file = fs::File::open(archive_path)?;
+    let mut archive = ZipArchive::new(archive_file).map_err(map_zip_error)?;
 
-    extract_result
-}
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(map_zip_error)?;
+        let relative_path = entry.enclosed_name().map(Path::to_path_buf).ok_or_else(|| {
+            FrameworkError::ValidationFailed(format!(
+                "bundled runtime archive contains an unsafe entry at index {index}"
+            ))
+        })?;
+        let destination_path = destination_dir.join(&relative_path);
 
-fn escape_powershell_literal(path: &Path) -> String {
-    path.to_string_lossy().replace('\'', "''")
-}
+        if entry.is_dir() {
+            fs::create_dir_all(&destination_path).map_err(|error| {
+                FrameworkError::Internal(format!(
+                    "failed to create bundled runtime archive directory {} from entry {}: {error}",
+                    destination_path.display(),
+                    relative_path.display()
+                ))
+            })?;
+            continue;
+        }
 
-fn extract_windows_bundled_runtime_archive(
-    archive_path: &Path,
-    destination_dir: &Path,
-) -> Result<()> {
-    let command = format!(
-        "$ErrorActionPreference = 'Stop'; Expand-Archive -Force -LiteralPath '{}' -DestinationPath '{}'",
-        escape_powershell_literal(archive_path),
-        escape_powershell_literal(destination_dir)
-    );
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-Command", &command])
-        .output()?;
+        if let Some(parent) = destination_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                FrameworkError::Internal(format!(
+                    "failed to create bundled runtime archive parent {} for entry {}: {error}",
+                    parent.display(),
+                    relative_path.display()
+                ))
+            })?;
+        }
 
-    if !output.status.success() {
-        return Err(FrameworkError::ProcessFailed {
-            command: "powershell Expand-Archive".to_string(),
-            exit_code: output.status.code(),
-            stderr_tail: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        });
+        let mut output_file = fs::File::create(&destination_path).map_err(|error| {
+            FrameworkError::Internal(format!(
+                "failed to create bundled runtime archive file {} from entry {}: {error}",
+                destination_path.display(),
+                relative_path.display()
+            ))
+        })?;
+        io::copy(&mut entry, &mut output_file).map_err(|error| {
+            FrameworkError::Internal(format!(
+                "failed to extract bundled runtime archive entry {} to {}: {error}",
+                relative_path.display(),
+                destination_path.display()
+            ))
+        })?;
+        apply_zip_entry_permissions(&destination_path, entry.unix_mode()).map_err(|error| {
+            FrameworkError::Internal(format!(
+                "failed to apply bundled runtime archive permissions to {} from entry {}: {error}",
+                destination_path.display(),
+                relative_path.display()
+            ))
+        })?;
     }
 
     Ok(())
 }
 
-fn extract_unix_bundled_runtime_archive(archive_path: &Path, destination_dir: &Path) -> Result<()> {
-    let output = Command::new("unzip")
-        .args([
-            "-qq",
-            archive_path.to_string_lossy().as_ref(),
-            "-d",
-            destination_dir.to_string_lossy().as_ref(),
-        ])
-        .output()?;
+fn map_zip_error(error: zip::result::ZipError) -> FrameworkError {
+    FrameworkError::Internal(format!("bundled runtime archive error: {error}"))
+}
 
-    if !output.status.success() {
-        return Err(FrameworkError::ProcessFailed {
-            command: "unzip -qq".to_string(),
-            exit_code: output.status.code(),
-            stderr_tail: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        });
-    }
+#[cfg(unix)]
+fn apply_zip_entry_permissions(destination_path: &Path, unix_mode: Option<u32>) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
 
+    let Some(unix_mode) = unix_mode else {
+        return Ok(());
+    };
+
+    let mut permissions = fs::metadata(destination_path)?.permissions();
+    permissions.set_mode(unix_mode);
+    fs::set_permissions(destination_path, permissions)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn apply_zip_entry_permissions(_destination_path: &Path, _unix_mode: Option<u32>) -> Result<()> {
     Ok(())
 }
 
@@ -1020,7 +1077,8 @@ fn allocate_gateway_port(requested_port: u16) -> Result<u16> {
 mod tests {
     use super::{
         copy_directory_recursive, load_manifest, normalized_target_arch,
-        normalized_target_platform, resolve_bundled_resource_root,
+        normalized_target_platform, rename_directory_with_retry_using,
+        resolve_bundled_resource_root,
         resolve_bundled_resource_root_with_manifest_dir, resolve_runtime_sidecar_manifest_path,
         sha256_file_hex, staged_runtime_install_dir, BundledOpenClawManifest,
         OpenClawRuntimeService, PreparedOpenClawRuntimeIntegrityFile,
@@ -1030,9 +1088,41 @@ mod tests {
     };
     use crate::framework::{layout::ActiveState, paths::resolve_paths_for_root};
     use serde_json::Value;
-    use std::fs;
+    use std::{
+        env,
+        ffi::OsString,
+        fs,
+        io::Write,
+    };
+    use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
     const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
+
+    struct ScopedPathGuard {
+        original_path: Option<OsString>,
+    }
+
+    impl ScopedPathGuard {
+        fn clear() -> Self {
+            let original_path = env::var_os("PATH");
+            unsafe {
+                env::set_var("PATH", "");
+            }
+            Self { original_path }
+        }
+    }
+
+    impl Drop for ScopedPathGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(original_path) = &self.original_path {
+                    env::set_var("PATH", original_path);
+                } else {
+                    env::remove_var("PATH");
+                }
+            }
+        }
+    }
 
     #[test]
     fn installs_bundled_runtime_into_managed_directory_and_activates_it() {
@@ -1526,6 +1616,104 @@ mod tests {
     }
 
     #[test]
+    fn installs_bundled_runtime_from_runtime_archive_without_shell_tools_on_path() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let paths = resolve_paths_for_root(temp.path()).expect("paths");
+        let resource_root =
+            create_archived_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let service = OpenClawRuntimeService::new();
+        let _path_guard = ScopedPathGuard::clear();
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activate archived runtime without shell tools on PATH");
+
+        assert!(activated.node_path.exists());
+        assert!(activated.cli_path.exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn installs_bundled_runtime_from_runtime_archive_when_windows_paths_exceed_max_path() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let managed_root = create_long_windows_managed_root(temp.path());
+        let paths = resolve_paths_for_root(&managed_root).expect("paths");
+        let resource_root = create_bundled_runtime_fixture(temp.path(), TEST_BUNDLED_OPENCLAW_VERSION);
+        let deep_runtime_relative_path = std::path::Path::new(
+            "runtime/package/node_modules/openclaw/dist/extensions/amazon-bedrock-mantle/node_modules/@aws-sdk/nested-clients/dist-types/submodules/bedrock-agent-runtime/commands/ReallyLongBundledRuntimeSmokeSentinel.d.ts",
+        );
+        let deep_runtime_absolute_path = resource_root.join(deep_runtime_relative_path);
+        fs::create_dir_all(
+            deep_runtime_absolute_path
+                .parent()
+                .expect("deep runtime parent"),
+        )
+        .expect("create deep runtime parent");
+        fs::write(&deep_runtime_absolute_path, "export type SmokeSentinel = 'ready';\n")
+            .expect("write deep runtime sentinel");
+        create_test_runtime_archive(&resource_root);
+        fs::remove_dir_all(resource_root.join("runtime")).expect("remove source runtime dir");
+        let service = OpenClawRuntimeService::new();
+
+        let activated = service
+            .ensure_bundled_runtime_from_root(&paths, &resource_root)
+            .expect("activate archived runtime with long windows paths");
+
+        assert!(
+            activated.install_dir.join(deep_runtime_relative_path).exists(),
+            "archived bundled runtime install should preserve long nested file paths",
+        );
+    }
+
+    #[test]
+    fn retries_runtime_install_finalization_after_transient_access_denied() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let staging_dir = temp.path().join("openclaw.staging");
+        let install_dir = temp.path().join("openclaw");
+        let mut attempts = 0u8;
+
+        fs::create_dir_all(&staging_dir).expect("create staging dir");
+        fs::write(staging_dir.join("manifest.json"), "{}\n").expect("write staging manifest");
+
+        rename_directory_with_retry_using(&staging_dir, &install_dir, |source, target| {
+            attempts = attempts.saturating_add(1);
+            if attempts < 3 {
+                return Err(std::io::Error::from_raw_os_error(5));
+            }
+            fs::rename(source, target)
+        })
+        .expect("finalize runtime install dir after retry");
+
+        assert_eq!(attempts, 3);
+        assert!(install_dir.join("manifest.json").exists());
+        assert!(!staging_dir.exists());
+    }
+
+    #[test]
+    fn retries_runtime_install_finalization_after_sustained_access_denied() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let staging_dir = temp.path().join("openclaw.staging");
+        let install_dir = temp.path().join("openclaw");
+        let mut attempts = 0u16;
+
+        fs::create_dir_all(&staging_dir).expect("create staging dir");
+        fs::write(staging_dir.join("manifest.json"), "{}\n").expect("write staging manifest");
+
+        rename_directory_with_retry_using(&staging_dir, &install_dir, |source, target| {
+            attempts = attempts.saturating_add(1);
+            if attempts < 26 {
+                return Err(std::io::Error::from_raw_os_error(5));
+            }
+            fs::rename(source, target)
+        })
+        .expect("finalize runtime install dir after sustained retry window");
+
+        assert_eq!(attempts, 26);
+        assert!(install_dir.join("manifest.json").exists());
+        assert!(!staging_dir.exists());
+    }
+
+    #[test]
     fn rejects_directory_bundled_runtime_when_runtime_sidecar_is_missing() {
         let temp = tempfile::tempdir().expect("temp dir");
         let paths = resolve_paths_for_root(temp.path()).expect("paths");
@@ -1927,6 +2115,16 @@ mod tests {
         resource_root
     }
 
+    #[cfg(windows)]
+    fn create_long_windows_managed_root(root: &std::path::Path) -> std::path::PathBuf {
+        let mut managed_root = root.join("managed-root");
+        while managed_root.to_string_lossy().len() < 180 {
+            managed_root = managed_root.join("very-long-windows-managed-root-segment");
+        }
+        fs::create_dir_all(&managed_root).expect("create long windows managed root");
+        managed_root
+    }
+
     fn create_bundled_runtime_fixture_for_target(
         root: &std::path::Path,
         version: &str,
@@ -2068,40 +2266,66 @@ mod tests {
 
     fn create_test_runtime_archive(resource_root: &std::path::Path) {
         let archive_path = resource_root.join(BUNDLED_RUNTIME_ARCHIVE_FILE_NAME);
-
-        if cfg!(windows) {
-            let command = format!(
-                "$ErrorActionPreference = 'Stop'; if (Test-Path -LiteralPath '{destination}') {{ Remove-Item -LiteralPath '{destination}' -Force }}; Compress-Archive -Path 'runtime' -DestinationPath '{destination}' -Force",
-                destination = archive_path.to_string_lossy().replace('\'', "''"),
-            );
-            let output = std::process::Command::new("powershell")
-                .args(["-NoProfile", "-Command", &command])
-                .current_dir(resource_root)
-                .output()
-                .expect("create windows runtime archive");
-            assert!(
-                output.status.success(),
-                "windows runtime archive creation failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-            return;
+        if archive_path.exists() {
+            fs::remove_file(&archive_path).expect("remove existing runtime archive");
         }
 
-        let output = std::process::Command::new("zip")
-            .args([
-                "-q",
-                "-r",
-                archive_path.to_string_lossy().as_ref(),
-                "runtime",
-            ])
-            .current_dir(resource_root)
-            .output()
-            .expect("create unix runtime archive");
-        assert!(
-            output.status.success(),
-            "unix runtime archive creation failed: {}",
-            String::from_utf8_lossy(&output.stderr)
+        let archive_file = fs::File::create(&archive_path).expect("create runtime archive file");
+        let mut writer = ZipWriter::new(archive_file);
+        let options = FileOptions::default().compression_method(CompressionMethod::Stored);
+        writer
+            .add_directory("runtime/", options)
+            .expect("add runtime root directory entry");
+        append_directory_to_test_runtime_archive(
+            &mut writer,
+            resource_root,
+            &resource_root.join("runtime"),
+            options,
         );
+        writer.finish().expect("finish runtime archive");
+    }
+
+    fn append_directory_to_test_runtime_archive(
+        writer: &mut ZipWriter<fs::File>,
+        archive_root: &std::path::Path,
+        directory: &std::path::Path,
+        options: FileOptions,
+    ) {
+        let mut entries = fs::read_dir(directory)
+            .expect("read runtime archive directory")
+            .map(|entry| entry.expect("runtime archive directory entry"))
+            .collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.path());
+
+        for entry in entries {
+            let entry_path = entry.path();
+            let metadata = entry
+                .metadata()
+                .expect("runtime archive entry metadata");
+            let relative_path = entry_path
+                .strip_prefix(archive_root)
+                .expect("runtime archive relative path");
+            let archive_path = relative_path
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+
+            if metadata.is_dir() {
+                writer
+                    .add_directory(format!("{archive_path}/"), options)
+                    .expect("add runtime archive directory entry");
+                append_directory_to_test_runtime_archive(writer, archive_root, &entry_path, options);
+                continue;
+            }
+
+            writer
+                .start_file(&archive_path, options)
+                .expect("start runtime archive file entry");
+            let mut file = fs::File::open(&entry_path).expect("open runtime archive source file");
+            std::io::copy(&mut file, writer).expect("write runtime archive file entry");
+            writer.flush().expect("flush runtime archive file entry");
+        }
     }
 
     fn write_runtime_sidecar_manifest(

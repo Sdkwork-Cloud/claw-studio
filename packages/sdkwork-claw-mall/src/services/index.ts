@@ -1,2 +1,1 @@
-export * from './clawMallService';
-export * from './clawMallService.test';
+﻿export * from './clawMallService';

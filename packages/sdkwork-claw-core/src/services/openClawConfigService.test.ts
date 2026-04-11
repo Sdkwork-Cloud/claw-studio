@@ -409,11 +409,11 @@ await runTest('openClawConfigService persists native OpenClaw provider defaults 
     assert.equal(snapshot.channelSnapshots[0]?.configuredFieldCount, 0);
     assert.equal(snapshot.channelSnapshots[0]?.status, 'connected');
     assert.equal(snapshot.channelSnapshots[0]?.enabled, true);
-    assert.equal(snapshot.channelSnapshots[0]?.name, 'SDKWORK公众号');
+    assert.equal(snapshot.channelSnapshots[0]?.name, 'SDKWORK Official Account');
     assert.equal(snapshot.channelSnapshots.some((channel) => channel.id === 'wehcat'), true);
     assert.equal(
       snapshot.channelSnapshots.find((channel) => channel.id === 'wehcat')?.name,
-      '微信公众号',
+      'WeChat Official Account',
     );
     assert.deepEqual(
       snapshot.channelSnapshots.slice(0, 5).map((channel) => channel.id),
@@ -2572,6 +2572,88 @@ await runTest('openClawConfigService saves direct native ollama providers with t
     assert.equal(provider.auth, 'api-key');
     assert.equal(provider.baseUrl, 'http://127.0.0.1:11434');
     assert.equal(snapshot.providerSnapshots.find((entry) => entry.id === 'ollama')?.defaultModelId, 'glm-4.7-flash');
+  } finally {
+    configurePlatformBridge(originalBridge);
+  }
+});
+
+await runTest('openClawConfigService preserves already-qualified OpenRouter model refs when saving provider selections', async () => {
+  const { configurePlatformBridge, getPlatformBridge } = await import('@sdkwork/claw-infrastructure');
+  const { openClawConfigService } = await import('./openClawConfigService.ts');
+
+  const originalBridge = getPlatformBridge();
+  let fileContent = `{
+  agents: {
+    defaults: {
+      model: {},
+    },
+  },
+}`;
+
+  configurePlatformBridge({
+    platform: createPlatformBridgeStub({
+      readFile: async () => fileContent,
+      writeFile: async (_path, content) => {
+        fileContent = content;
+      },
+    }),
+  });
+
+  try {
+    await openClawConfigService.saveProviderSelection({
+      configPath: 'D:/OpenClaw/.openclaw/openclaw.json',
+      provider: {
+        id: 'openrouter',
+        channelId: 'openrouter',
+        name: 'OpenRouter',
+        apiKey: '${OPENROUTER_API_KEY}',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        models: [
+          {
+            id: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+            name: 'Llama 3.1 8B Instruct',
+          },
+          {
+            id: 'anthropic/claude-3.7-sonnet',
+            name: 'Claude 3.7 Sonnet',
+          },
+        ],
+      },
+      selection: {
+        defaultModelId: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+        reasoningModelId: 'anthropic/claude-3.7-sonnet',
+      },
+    });
+
+    const snapshot = await openClawConfigService.readConfigSnapshot(
+      'D:/OpenClaw/.openclaw/openclaw.json',
+    );
+    const defaultsModel = ((snapshot.root.agents as Record<string, any>).defaults as Record<string, any>)
+      .model as Record<string, any>;
+    const defaultsCatalog = (((snapshot.root.agents as Record<string, any>).defaults as Record<string, any>)
+      .models ?? {}) as Record<string, unknown>;
+
+    assert.equal(defaultsModel.primary, 'openrouter/meta-llama/llama-3.1-8b-instruct');
+    assert.deepEqual(defaultsModel.fallbacks, ['anthropic/claude-3.7-sonnet']);
+    assert.equal(
+      Object.hasOwn(defaultsCatalog, 'openrouter/meta-llama/llama-3.1-8b-instruct'),
+      true,
+    );
+    assert.equal(
+      Object.hasOwn(defaultsCatalog, 'anthropic/claude-3.7-sonnet'),
+      true,
+    );
+    assert.equal(
+      Object.hasOwn(
+        defaultsCatalog,
+        'openrouter/openrouter/meta-llama/llama-3.1-8b-instruct',
+      ),
+      false,
+    );
+    assert.equal(
+      Object.hasOwn(defaultsCatalog, 'openrouter/anthropic/claude-3.7-sonnet'),
+      false,
+    );
   } finally {
     configurePlatformBridge(originalBridge);
   }

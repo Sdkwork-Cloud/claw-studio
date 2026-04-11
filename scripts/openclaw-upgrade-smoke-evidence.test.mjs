@@ -51,6 +51,13 @@ test('upgrade smoke evidence summarizes installer and packaged launch smoke', as
           report: {
             status: 'passed',
             phase: 'shell-mounted',
+            localAiProxyRuntime: {
+              lifecycle: 'running',
+              messageCaptureEnabled: true,
+              observabilityDbPath: 'D:/synthetic/workspace/.sdkwork/store/local-ai-proxy-observability.sqlite3',
+              snapshotPath: 'D:/synthetic/workspace/.sdkwork/state/local-ai-proxy.snapshot.json',
+              logPath: 'D:/synthetic/workspace/.sdkwork/logs/local-ai-proxy.log',
+            },
           },
         },
       };
@@ -59,6 +66,18 @@ test('upgrade smoke evidence summarizes installer and packaged launch smoke', as
 
   assert.equal(result.smokeReady, true);
   assert.deepEqual(result.blockers, []);
+  assert.deepEqual(result.packagedLaunchSmokeSummary, {
+    reportPath: 'D:/synthetic/workspace/artifacts/release/desktop/windows/x64/desktop-startup-smoke-report.json',
+    status: 'passed',
+    phase: 'shell-mounted',
+    localAiProxyRuntime: {
+      lifecycle: 'running',
+      messageCaptureEnabled: true,
+      observabilityDbPath: 'D:/synthetic/workspace/.sdkwork/store/local-ai-proxy-observability.sqlite3',
+      snapshotPath: 'D:/synthetic/workspace/.sdkwork/state/local-ai-proxy.snapshot.json',
+      logPath: 'D:/synthetic/workspace/.sdkwork/logs/local-ai-proxy.log',
+    },
+  });
   assert.deepEqual(
     result.phases.map((entry) => ({ id: entry.id, status: entry.status })),
     [

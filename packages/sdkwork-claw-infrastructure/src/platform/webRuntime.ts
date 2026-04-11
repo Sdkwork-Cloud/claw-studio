@@ -1,4 +1,5 @@
 import type {
+  RuntimeBuiltInOpenClawStatusChangedEvent,
   RuntimeEventUnsubscribe,
   RuntimeInfo,
   RuntimeJobRecord,
@@ -48,6 +49,12 @@ export class WebRuntimePlatform implements RuntimePlatformAPI {
   }
 
   async subscribeProcessOutput(_listener: (event: RuntimeProcessOutputEvent) => void): Promise<RuntimeEventUnsubscribe> {
+    return () => {};
+  }
+
+  async subscribeBuiltInOpenClawStatusChanged(
+    _listener: (event: RuntimeBuiltInOpenClawStatusChangedEvent) => void,
+  ): Promise<RuntimeEventUnsubscribe> {
     return () => {};
   }
 }

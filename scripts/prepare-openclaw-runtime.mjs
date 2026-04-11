@@ -333,6 +333,8 @@ export async function syncWindowsPackagedOpenClawAliasRoot({
   );
   const normalizedAliasRoot = pathApi.normalize(aliasRoot);
   const normalizedPackagedResourceDir = pathApi.normalize(packagedResourceDir);
+
+  // Already pointing at the correct location — nothing to do.
   if (normalizedAliasRoot === normalizedPackagedResourceDir) {
     return aliasRoot;
   }
@@ -346,6 +348,7 @@ export async function syncWindowsPackagedOpenClawAliasRoot({
     return aliasRoot;
   }
 
+  // Read manifest for reusability checks and repair fallbacks.
   let expectedManifest = null;
   try {
     expectedManifest = JSON.parse(
@@ -356,6 +359,8 @@ export async function syncWindowsPackagedOpenClawAliasRoot({
       throw error;
     }
   }
+
+  // Reuse existing mirror if it matches the expected manifest.
   if (
     expectedManifest
     && await bundledResourceArchiveMirrorIsReusable({
@@ -369,6 +374,77 @@ export async function syncWindowsPackagedOpenClawAliasRoot({
     return aliasRoot;
   }
 
+  // Try to create or repair the alias root at the primary mirror path.
+  const primaryResult = await tryCreateOrRepairAliasRoot({
+    aliasRoot,
+    packagedResourceDir,
+    expectedManifest,
+    normalizedPlatform,
+    workspaceRootDir,
+    pathApi,
+    mkdirImpl,
+    cleanupImpl,
+    symlinkImpl,
+    repairImpl: repairArchiveOnlyBundledResourceRootInPlaceImpl,
+  });
+  if (primaryResult !== null) {
+    return primaryResult;
+  }
+
+  // Fallback to the secondary mirror base dir.
+  const fallbackMirrorBaseDir = resolveBundledResourceMirrorFallbackBaseDir(
+    workspaceRootDir,
+    normalizedPlatform,
+  );
+  const normalizedFallbackMirrorBaseDir = pathApi.normalize(fallbackMirrorBaseDir);
+  if (
+    !normalizedFallbackMirrorBaseDir
+    || normalizedFallbackMirrorBaseDir === pathApi.dirname(aliasRoot)
+  ) {
+    // No distinct fallback available — the primary error has already been thrown
+    // by tryCreateOrRepairAliasRoot.
+    throw new Error(
+      `Failed to create Windows mirror alias at ${aliasRoot} and no fallback available`,
+    );
+  }
+
+  const fallbackAliasRoot = resolveBundledResourceMirrorRoot(
+    workspaceRootDir,
+    resourceId,
+    normalizedPlatform,
+    normalizedFallbackMirrorBaseDir,
+  );
+  const repairedFallbackAliasRoot = await repairArchiveOnlyBundledResourceRootInPlaceImpl({
+    sourceRoot: packagedResourceDir,
+    mirrorRoot: fallbackAliasRoot,
+    expectedManifest,
+    platform: normalizedPlatform,
+  });
+  await persistBundledResourceMirrorBaseDir(
+    workspaceRootDir,
+    normalizedFallbackMirrorBaseDir,
+    { platform: normalizedPlatform },
+  );
+  return repairedFallbackAliasRoot;
+}
+
+/**
+ * Attempts to create a symlink alias at `aliasRoot` pointing to `packagedResourceDir`.
+ * On cleanup failure, tries to repair in-place using the archive-only strategy.
+ * Returns the alias root path on success, or null if repair is not possible.
+ */
+async function tryCreateOrRepairAliasRoot({
+  aliasRoot,
+  packagedResourceDir,
+  expectedManifest,
+  normalizedPlatform,
+  workspaceRootDir,
+  pathApi,
+  mkdirImpl = mkdir,
+  cleanupImpl = removeDirectoryWithRetries,
+  symlinkImpl = symlinkSync,
+  repairImpl = repairArchiveOnlyBundledResourceRootInPlace,
+} = {}) {
   try {
     await cleanupImpl(aliasRoot);
     await mkdirImpl(pathApi.dirname(aliasRoot), { recursive: true });
@@ -389,7 +465,7 @@ export async function syncWindowsPackagedOpenClawAliasRoot({
     }
 
     try {
-      const repairedAliasRoot = await repairArchiveOnlyBundledResourceRootInPlaceImpl({
+      const repairedAliasRoot = await repairImpl({
         sourceRoot: packagedResourceDir,
         mirrorRoot: aliasRoot,
         expectedManifest,
@@ -401,37 +477,8 @@ export async function syncWindowsPackagedOpenClawAliasRoot({
         { platform: normalizedPlatform },
       );
       return repairedAliasRoot;
-    } catch (repairError) {
-      const fallbackMirrorBaseDir = resolveBundledResourceMirrorFallbackBaseDir(
-        workspaceRootDir,
-        normalizedPlatform,
-      );
-      const normalizedFallbackMirrorBaseDir = pathApi.normalize(fallbackMirrorBaseDir);
-      if (
-        !normalizedFallbackMirrorBaseDir
-        || normalizedFallbackMirrorBaseDir === pathApi.dirname(aliasRoot)
-      ) {
-        throw repairError;
-      }
-
-      const fallbackAliasRoot = resolveBundledResourceMirrorRoot(
-        workspaceRootDir,
-        resourceId,
-        normalizedPlatform,
-        normalizedFallbackMirrorBaseDir,
-      );
-      const repairedFallbackAliasRoot = await repairArchiveOnlyBundledResourceRootInPlaceImpl({
-        sourceRoot: packagedResourceDir,
-        mirrorRoot: fallbackAliasRoot,
-        expectedManifest,
-        platform: normalizedPlatform,
-      });
-      await persistBundledResourceMirrorBaseDir(
-        workspaceRootDir,
-        normalizedFallbackMirrorBaseDir,
-        { platform: normalizedPlatform },
-      );
-      return repairedFallbackAliasRoot;
+    } catch {
+      return null;
     }
   }
 }
@@ -714,6 +761,9 @@ const SUPPORTED_BUNDLED_PLUGIN_RUNTIME_HYDRATION_TARGETS = Object.freeze({
 });
 
 const SUPPORTED_DOWNLOADED_NATIVE_RUNTIME_ASSET_TARGETS = Object.freeze({
+  '@discordjs/opus': Object.freeze({
+    resolver: 'node-pre-gyp-prebuild',
+  }),
   '@matrix-org/matrix-sdk-crypto-nodejs': Object.freeze({
     releaseBaseUrl: 'https://github.com/matrix-org/matrix-rust-sdk-crypto-nodejs/releases/download',
   }),
@@ -972,8 +1022,238 @@ function resolveMatrixSdkCryptoNativeBinaryFileName({
   return null;
 }
 
+function resolveRuntimeNodeAbiLabel(versions = process.versions) {
+  const nodeAbi = String(versions?.modules ?? '').trim();
+  if (!nodeAbi) {
+    return null;
+  }
+
+  return `node-v${nodeAbi}`;
+}
+
+function resolveBestSupportedNapiBuildVersion(packageJson, versions = process.versions) {
+  const napiVersions = Array.isArray(packageJson?.binary?.napi_versions)
+    ? packageJson.binary.napi_versions
+        .map((value) => Number.parseInt(String(value ?? '').trim(), 10))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    : [];
+  if (napiVersions.length === 0) {
+    return null;
+  }
+
+  const supportedNapiVersion = Number.parseInt(String(versions?.napi ?? '').trim(), 10);
+  if (!Number.isInteger(supportedNapiVersion) || supportedNapiVersion <= 0) {
+    return napiVersions.toSorted((left, right) => right - left)[0] ?? null;
+  }
+
+  let bestVersion = null;
+  for (const napiVersion of napiVersions) {
+    if (napiVersion > supportedNapiVersion) {
+      continue;
+    }
+    if (bestVersion === null || napiVersion > bestVersion) {
+      bestVersion = napiVersion;
+    }
+  }
+
+  return bestVersion;
+}
+
+function resolveNodePreGypRuntimeLibcValues({
+  platform = process.platform,
+} = {}) {
+  if (normalizeRuntimeTargetPlatform(platform) !== 'linux') {
+    return {
+      libc: 'unknown',
+      libcVersion: 'unknown',
+    };
+  }
+
+  const report = process.report?.getReport?.();
+  const glibcVersionRuntime = String(report?.header?.glibcVersionRuntime ?? '').trim();
+  if (glibcVersionRuntime) {
+    return {
+      libc: 'glibc',
+      libcVersion: glibcVersionRuntime,
+    };
+  }
+
+  return {
+    libc: 'unknown',
+    libcVersion: 'unknown',
+  };
+}
+
+function applyRuntimeAssetTemplate(template, templateValues) {
+  return String(template ?? '').replace(/\{([^}]+)\}/gu, (_match, key) => {
+    const normalizedKey = String(key ?? '').trim();
+    return String(templateValues[normalizedKey] ?? '');
+  });
+}
+
+function buildDownloadedArchiveRuntimeAsset({
+  packageJson,
+  packageVersion,
+  packageDir = null,
+  binaryHost,
+  binaryModuleName,
+  binaryModulePath,
+  binaryRemotePath,
+  binaryPackageName,
+  templateValues,
+}) {
+  const interpolatedModulePath = applyRuntimeAssetTemplate(binaryModulePath, templateValues)
+    .replace(/^[.][/\\]/u, '')
+    .replace(/[\\/]+$/u, '');
+  if (!interpolatedModulePath) {
+    return null;
+  }
+
+  const normalizedModulePath = path.normalize(interpolatedModulePath);
+  const moduleFileName = `${binaryModuleName}.node`;
+  const assetFileName = applyRuntimeAssetTemplate(binaryPackageName, templateValues).trim();
+  if (!assetFileName) {
+    return null;
+  }
+
+  const remotePath = applyRuntimeAssetTemplate(binaryRemotePath, templateValues)
+    .trim()
+    .replace(/^\/+/u, '')
+    .replace(/\/+$/u, '');
+  const downloadUrl = remotePath
+    ? `${binaryHost.replace(/\/+$/u, '')}/${remotePath}/${assetFileName}`
+    : `${binaryHost.replace(/\/+$/u, '')}/${assetFileName}`;
+  const destinationRelativePath = path.join(normalizedModulePath, moduleFileName);
+  return {
+    packageName: String(packageJson?.name ?? '').trim(),
+    packageVersion,
+    assetFileName,
+    destinationRelativePath,
+    downloadUrl,
+    archiveFormat: 'tar.gz',
+    archiveExtractRootRelativePath: path.dirname(normalizedModulePath),
+  };
+}
+
+function resolveNodePreGypDownloadedNativeRuntimeAssetFromLocalToolchain({
+  packageJson,
+  packageDir,
+  platform = process.platform,
+  arch = process.arch,
+}) {
+  const packageJsonPath = path.join(packageDir, 'package.json');
+  const requireFromPackage = createRequire(packageJsonPath);
+  const versioning = requireFromPackage('@discordjs/node-pre-gyp/lib/util/versioning.js');
+  const napi = requireFromPackage('@discordjs/node-pre-gyp/lib/util/napi.js');
+  const napiBuildVersion = napi.get_best_napi_build_version(packageJson, {});
+  if (!napiBuildVersion) {
+    return null;
+  }
+
+  const evaluation = versioning.evaluate(
+    packageJson,
+    {
+      module_root: packageDir,
+      target_platform: normalizeRuntimeTargetPlatform(platform),
+      target_arch: normalizeRuntimeTargetArch(arch),
+    },
+    napiBuildVersion,
+  );
+  const packageVersion = String(packageJson?.version ?? '').trim();
+  return {
+    packageName: String(packageJson?.name ?? '').trim(),
+    packageVersion,
+    assetFileName: String(evaluation.package_name ?? '').trim(),
+    destinationRelativePath: path.relative(packageDir, evaluation.module),
+    downloadUrl: String(evaluation.hosted_tarball ?? '').trim(),
+    archiveFormat: 'tar.gz',
+    archiveExtractRootRelativePath: path.dirname(path.relative(packageDir, evaluation.module_path)),
+  };
+}
+
+function resolveNodePreGypDownloadedNativeRuntimeAssetFromPackageJson({
+  packageJson,
+  platform = process.platform,
+  arch = process.arch,
+}) {
+  const packageVersion = String(packageJson?.version ?? '').trim();
+  const binary = packageJson?.binary;
+  const binaryHost = String(binary?.host ?? '').trim();
+  const binaryModuleName = String(binary?.module_name ?? '').trim();
+  const binaryModulePath = String(binary?.module_path ?? '').trim();
+  const binaryRemotePath = String(binary?.remote_path ?? '').trim();
+  const binaryPackageName = String(binary?.package_name ?? '').trim();
+  const nodeAbi = resolveRuntimeNodeAbiLabel();
+  const napiBuildVersion = resolveBestSupportedNapiBuildVersion(packageJson);
+  if (
+    !packageVersion
+    || !binary
+    || !binaryHost
+    || !binaryModuleName
+    || !binaryModulePath
+    || !binaryPackageName
+    || !nodeAbi
+    || !napiBuildVersion
+  ) {
+    return null;
+  }
+
+  const normalizedPlatform = normalizeRuntimeTargetPlatform(platform);
+  const normalizedArch = normalizeRuntimeTargetArch(arch);
+  const runtimeLibcValues = resolveNodePreGypRuntimeLibcValues({ platform });
+  return buildDownloadedArchiveRuntimeAsset({
+    packageJson,
+    packageVersion,
+    binaryHost,
+    binaryModuleName,
+    binaryModulePath,
+    binaryRemotePath,
+    binaryPackageName,
+    templateValues: {
+      version: packageVersion,
+      module_name: binaryModuleName,
+      node_abi: nodeAbi,
+      napi_build_version: String(napiBuildVersion),
+      platform: normalizedPlatform,
+      arch: normalizedArch,
+      libc: runtimeLibcValues.libc,
+      libc_version: runtimeLibcValues.libcVersion,
+    },
+  });
+}
+
+function resolveDiscordJsOpusDownloadedNativeRuntimeAsset({
+  packageJson,
+  packageDir = null,
+  platform = process.platform,
+  arch = process.arch,
+}) {
+  if (packageDir) {
+    try {
+      const resolvedFromToolchain = resolveNodePreGypDownloadedNativeRuntimeAssetFromLocalToolchain({
+        packageJson,
+        packageDir,
+        platform,
+        arch,
+      });
+      if (resolvedFromToolchain) {
+        return resolvedFromToolchain;
+      }
+    } catch {
+      // Fall through to the template-based resolver when the package-local toolchain is unavailable.
+    }
+  }
+
+  return resolveNodePreGypDownloadedNativeRuntimeAssetFromPackageJson({
+    packageJson,
+    platform,
+    arch,
+  });
+}
+
 export function resolveDownloadedNativeRuntimeAsset({
   packageJson,
+  packageDir = null,
   platform = process.platform,
   arch = process.arch,
   env = process.env,
@@ -1006,6 +1286,16 @@ export function resolveDownloadedNativeRuntimeAsset({
       destinationRelativePath: assetFileName,
       downloadUrl: `${supportedTarget.releaseBaseUrl}/v${packageVersion}/${assetFileName}`,
     };
+  }
+
+  if (packageName === '@discordjs/opus') {
+    return resolveDiscordJsOpusDownloadedNativeRuntimeAsset({
+      packageJson,
+      packageDir,
+      platform,
+      arch,
+      env,
+    });
   }
 
   return null;
@@ -1388,6 +1678,7 @@ export async function stageDownloadedNativeRuntimeAsset({
   runtimeAsset,
   fetchImpl = globalThis.fetch,
   pathExists = existsSync,
+  runCommandImpl = runCommand,
 }) {
   const downloadUrl = String(runtimeAsset?.downloadUrl ?? '').trim();
   const destinationRelativePath = String(runtimeAsset?.destinationRelativePath ?? '').trim();
@@ -1409,8 +1700,6 @@ export async function stageDownloadedNativeRuntimeAsset({
     );
   }
 
-  await mkdir(path.dirname(destinationPath), { recursive: true });
-  const tempDestinationPath = `${destinationPath}.downloading`;
   const response = await retryOpenClawRuntimeOperation(
     async () => await fetchImpl(downloadUrl),
     {
@@ -1423,6 +1712,50 @@ export async function stageDownloadedNativeRuntimeAsset({
     );
   }
 
+  if (runtimeAsset?.archiveFormat === 'tar.gz') {
+    if (typeof runCommandImpl !== 'function') {
+      throw new Error(
+        `Downloaded native runtime asset archive extraction is unavailable for ${runtimeAsset.packageName ?? destinationRelativePath}`,
+      );
+    }
+    if (!commandExistsSync('tar')) {
+      throw new Error(
+        `Downloaded native runtime asset archive extraction requires tar for ${runtimeAsset.packageName ?? destinationRelativePath}`,
+      );
+    }
+
+    const archiveExtractRootRelativePath = String(
+      runtimeAsset?.archiveExtractRootRelativePath ?? '',
+    ).trim();
+    const archiveExtractRoot = archiveExtractRootRelativePath
+      ? path.join(packageDir, archiveExtractRootRelativePath)
+      : packageDir;
+    await mkdir(archiveExtractRoot, { recursive: true });
+    const archiveTempRoot = await mkdtemp(path.join(os.tmpdir(), 'openclaw-native-runtime-asset-'));
+    const archivePath = path.join(
+      archiveTempRoot,
+      String(runtimeAsset?.assetFileName ?? 'native-runtime-asset.tar.gz').trim() || 'native-runtime-asset.tar.gz',
+    );
+    try {
+      await streamToFile(response.body, archivePath);
+      await runCommandImpl('tar', ['-xzf', archivePath, '-C', archiveExtractRoot]);
+    } finally {
+      await rm(archiveTempRoot, { recursive: true, force: true });
+    }
+
+    if (!pathExists(destinationPath)) {
+      throw new Error(
+        `Downloaded native runtime asset archive ${runtimeAsset.assetFileName ?? archivePath} did not materialize ${destinationRelativePath}`,
+      );
+    }
+    return {
+      downloaded: true,
+      destinationPath,
+    };
+  }
+
+  await mkdir(path.dirname(destinationPath), { recursive: true });
+  const tempDestinationPath = `${destinationPath}.downloading`;
   await streamToFile(response.body, tempDestinationPath);
   await rm(destinationPath, { force: true });
   await cp(tempDestinationPath, destinationPath);
@@ -1459,6 +1792,7 @@ async function stageKnownDownloadedNativeRuntimeAssets({
 
     const runtimeAsset = resolveDownloadedNativeRuntimeAsset({
       packageJson,
+      packageDir,
       platform,
       arch,
       env,

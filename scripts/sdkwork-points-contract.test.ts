@@ -34,6 +34,8 @@ runTest('sdkwork-claw-points stays a dedicated feature package wired to claw-cor
     'packages/sdkwork-claw-core/package.json',
   );
   const indexSource = read('packages/sdkwork-claw-points/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-points/src/services/index.ts');
+  const componentsIndexSource = read('packages/sdkwork-claw-points/src/components/index.ts');
 
   assert.ok(exists('packages/sdkwork-claw-points/src/Points.tsx'));
   assert.ok(exists('packages/sdkwork-claw-points/src/pages/Points.tsx'));
@@ -57,6 +59,9 @@ runTest('sdkwork-claw-points stays a dedicated feature package wired to claw-cor
   assert.match(indexSource, /\.\/Points/);
   assert.match(indexSource, /\.\/components/);
   assert.match(indexSource, /\.\/services/);
+  assert.doesNotMatch(indexSource, /\.test['"]/);
+  assert.doesNotMatch(servicesIndexSource, /\.test['"]/);
+  assert.doesNotMatch(componentsIndexSource, /\.test['"]/);
 });
 
 runTest('sdkwork-claw-points reads live dashboard data through the shared app-sdk wrapper instead of local mock state', () => {
@@ -87,6 +92,8 @@ runTest('sdkwork-claw-points reads live dashboard data through the shared app-sd
   assert.match(pageSource, /data-slot="points-page"/);
   assert.match(pageSource, /data-slot="points-hero"/);
   assert.match(pageSource, /useQuery/);
+  assert.match(pageSource, /useAuthStore/);
+  assert.match(pageSource, /enabled: isAuthenticated/);
   assert.match(pageSource, /pointsQueryKeys\.dashboard/);
   assert.match(pageSource, /filterPointsTransactions/);
   assert.match(pageSource, /PointsRechargeDialog/);
@@ -94,6 +101,8 @@ runTest('sdkwork-claw-points reads live dashboard data through the shared app-sd
   assert.doesNotMatch(pageSource, /subscribeToPointsState/);
 
   assert.match(headerSource, /useQuery/);
+  assert.match(headerSource, /useAuthStore/);
+  assert.match(headerSource, /enabled: isAuthenticated/);
   assert.match(headerSource, /PointsQuickPanel/);
   assert.match(headerSource, /navigate\('\/points'\)/);
   assert.doesNotMatch(headerSource, /subscribeToPointsState/);

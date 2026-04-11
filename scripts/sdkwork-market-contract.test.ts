@@ -142,6 +142,9 @@ runTest('sdkwork-claw-market routes ClawHub browsing through claw-core app sdk w
   assert.match(mySkillServiceSource, /instanceWorkbenchService/);
   assert.match(mySkillServiceSource, /agentWorkbenchService/);
   assert.match(mySkillServiceSource, /agentSkillManagementService/);
+  assert.match(mySkillServiceSource, /instanceAsset/);
+  assert.match(mySkillServiceSource, /compatibility:/);
+  assert.match(mySkillServiceSource, /missingRequirementCount/);
   assert.doesNotMatch(mySkillServiceSource, /clawHubService/);
   assert.doesNotMatch(mySkillServiceSource, /fetch\(/);
   assert.doesNotMatch(mySkillServiceSource, /axios\./);

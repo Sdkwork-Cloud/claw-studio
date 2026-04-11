@@ -41,7 +41,7 @@ test('desktop host runtime resolver refreshes the descriptor after each complete
 });
 
 test('desktop host runtime resolver deduplicates concurrent lookups while a runtime load is in flight', async () => {
-  let releaseLoad: (() => void) | null = null;
+  let releaseLoad: (() => void) | undefined;
   let loadCount = 0;
   const resolver = createDesktopHostRuntimeResolver({
     waitForRuntime: async () => true,
@@ -59,7 +59,8 @@ test('desktop host runtime resolver deduplicates concurrent lookups while a runt
 
   await Promise.resolve();
   assert.equal(loadCount, 1);
-  releaseLoad?.();
+  assert.ok(releaseLoad, 'expected in-flight load release hook');
+  releaseLoad();
 
   const [first, second] = await Promise.all([firstPromise, secondPromise]);
 

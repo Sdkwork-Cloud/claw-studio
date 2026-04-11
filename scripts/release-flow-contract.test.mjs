@@ -231,6 +231,10 @@ test('root package exposes release helper scripts for desktop and asset packagin
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/local-release-command\.test\.mjs/);
   assert.match(rootPackage.scripts['check:release-flow'], /node scripts\/release\/render-release-notes\.mjs --help/);
   assert.match(rootPackage.scripts['check:ci-flow'], /node scripts\/ci-flow-contract\.test\.mjs/);
+  assert.match(
+    rootPackage.scripts['check:automation'],
+    /node scripts\/openclaw-quality-gate-contract\.test\.mjs/,
+  );
   assert.match(rootPackage.scripts['check:automation'], /pnpm check:release-flow && pnpm check:ci-flow/);
   assert.match(rootPackage.scripts['lint'], /pnpm check:automation/);
   assert.match(rootPackage.scripts['check:shared-sdk-release-parity'], /node scripts\/check-shared-sdk-release-parity\.mjs/);
@@ -330,6 +334,11 @@ test('release closure contract documents and guards desktop install-ready smoke 
   );
   assert.match(
     releaseClosureGuard,
+    /localAiProxyRuntime/,
+    'release closure guard must protect aggregated desktop startup local ai proxy runtime metadata',
+  );
+  assert.match(
+    releaseClosureGuard,
     /desktop-startup-evidence\.json/,
     'release closure guard must protect the captured desktop startup evidence path',
   );
@@ -378,6 +387,11 @@ test('release closure contract documents and guards desktop install-ready smoke 
     releaseDoc,
     /desktopStartupSmoke/,
     'release documentation must describe aggregated desktop startup smoke metadata',
+  );
+  assert.match(
+    releaseDoc,
+    /localAiProxyRuntime/,
+    'release documentation must describe aggregated desktop startup local ai proxy runtime metadata',
   );
   assert.match(
     releaseDoc,
@@ -550,7 +564,7 @@ test('release closure contract guards deployment bootstrap smoke evidence', () =
   );
   assert.match(
     deploymentBootstrapSmokeReport,
-    /docker compose -f deploy\/docker-compose\.yml up -d/,
+    /docker compose -f deploy\/docker\/docker-compose\.yml up -d/,
     'deployment bootstrap smoke report must preserve docker compose startup commands',
   );
   assert.match(

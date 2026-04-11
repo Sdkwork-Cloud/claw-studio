@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict';
 import {
+  buildOpenClawAgentModelOptions,
   buildOpenClawAgentInputFromForm,
+  buildOpenClawAgentDialogStateHandlers,
   buildOpenClawAgentParamEntries,
+  createOpenClawAgentCreateDialogState,
+  createOpenClawAgentEditDialogState,
   createOpenClawAgentFormState,
+  createOpenClawAgentWorkspaceResetState,
 } from './openClawAgentPresentation.ts';
-import type { InstanceWorkbenchAgent } from '../types/index.ts';
+import type {
+  InstanceWorkbenchAgent,
+  InstanceWorkbenchLLMProvider,
+} from '../types/index.ts';
 
 async function runTest(name: string, callback: () => void | Promise<void>) {
   try {
@@ -140,5 +148,240 @@ await runTest(
         source: 'defaults',
       },
     ]);
+  },
+);
+
+await runTest(
+  'buildOpenClawAgentModelOptions normalizes legacy provider ids, deduplicates repeated model refs, and keeps the first label',
+  () => {
+    const options = buildOpenClawAgentModelOptions([
+      {
+        id: ' api-router-openai ',
+        name: 'OpenAI',
+        models: [
+          { id: 'gpt-5.4', name: 'GPT-5.4' },
+          { id: 'gpt-4.1', name: 'GPT-4.1' },
+        ],
+      },
+      {
+        id: 'openai',
+        name: 'OpenAI Mirror',
+        models: [
+          { id: 'gpt-5.4', name: 'GPT-5.4 Mirror' },
+          { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
+        ],
+      },
+    ] as InstanceWorkbenchLLMProvider[]);
+
+    assert.deepEqual(options, [
+      {
+        value: 'openai/gpt-5.4',
+        label: 'OpenAI / GPT-5.4',
+      },
+      {
+        value: 'openai/gpt-4.1',
+        label: 'OpenAI / GPT-4.1',
+      },
+      {
+        value: 'openai/gpt-4.1-mini',
+        label: 'OpenAI Mirror / GPT-4.1 Mini',
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'buildOpenClawAgentModelOptions preserves already-qualified OpenRouter model refs whose ids already contain provider prefixes',
+  () => {
+    const options = buildOpenClawAgentModelOptions([
+      {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        models: [
+          {
+            id: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+            name: 'Llama 3.1 8B Instruct',
+          },
+          {
+            id: 'anthropic/claude-3.7-sonnet',
+            name: 'Claude 3.7 Sonnet',
+          },
+        ],
+      },
+    ] as InstanceWorkbenchLLMProvider[]);
+
+    assert.deepEqual(options, [
+      {
+        value: 'openrouter/meta-llama/llama-3.1-8b-instruct',
+        label: 'OpenRouter / Llama 3.1 8B Instruct',
+      },
+      {
+        value: 'anthropic/claude-3.7-sonnet',
+        label: 'OpenRouter / Claude 3.7 Sonnet',
+      },
+    ]);
+  },
+);
+
+await runTest(
+  'buildOpenClawAgentModelOptions tolerates missing providers and empty model catalogs',
+  () => {
+    assert.deepEqual(buildOpenClawAgentModelOptions(undefined), []);
+    assert.deepEqual(
+      buildOpenClawAgentModelOptions([
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          models: [],
+        },
+      ] as InstanceWorkbenchLLMProvider[]),
+      [],
+    );
+  },
+);
+
+await runTest(
+  'createOpenClawAgentCreateDialogState returns a fresh draft with no editing agent selected',
+  () => {
+    const dialogState = createOpenClawAgentCreateDialogState();
+
+    assert.equal(dialogState.editingAgentId, null);
+    assert.deepEqual(dialogState.draft, createOpenClawAgentFormState(null));
+  },
+);
+
+await runTest(
+  'createOpenClawAgentEditDialogState inherits the selected workbench model source when editing the active agent',
+  () => {
+    const agent = createWorkbenchAgent();
+    const dialogState = createOpenClawAgentEditDialogState({
+      agent,
+      selectedAgentWorkbench: {
+        agent,
+        model: {
+          primary: 'openai/gpt-5.4',
+          fallbacks: ['openai/gpt-4.1'],
+          source: 'defaults',
+        },
+      },
+    });
+
+    assert.equal(dialogState.editingAgentId, 'ops');
+    assert.equal(dialogState.draft.fieldSources.model, 'defaults');
+    assert.equal(dialogState.draft.primaryModel, '');
+    assert.equal(dialogState.draft.inherited.primaryModel, 'openai/gpt-5.4');
+  },
+);
+
+await runTest(
+  'createOpenClawAgentEditDialogState falls back to agent-owned model source when the selected workbench belongs to another agent',
+  () => {
+    const activeAgent = createWorkbenchAgent();
+    const editedAgent = createWorkbenchAgent({
+      agent: {
+        id: 'research',
+        name: 'Research',
+        description: 'Research agent.',
+        avatar: 'R',
+        systemPrompt: 'Synthesize findings.',
+        creator: 'OpenClaw',
+      },
+      isDefault: false,
+      model: {
+        primary: 'openai/gpt-4.1',
+        fallbacks: ['openai/gpt-4o-mini'],
+      },
+    });
+    const dialogState = createOpenClawAgentEditDialogState({
+      agent: editedAgent,
+      selectedAgentWorkbench: {
+        agent: activeAgent,
+        model: {
+          primary: 'openai/gpt-5.4',
+          fallbacks: ['openai/gpt-4.1'],
+          source: 'defaults',
+        },
+      },
+    });
+
+    assert.equal(dialogState.editingAgentId, 'research');
+    assert.equal(dialogState.draft.fieldSources.model, 'agent');
+    assert.equal(dialogState.draft.primaryModel, 'openai/gpt-4.1');
+    assert.equal(dialogState.draft.inherited.primaryModel, '');
+  },
+);
+
+await runTest(
+  'createOpenClawAgentWorkspaceResetState centralizes the page reset baseline for agent workbench state',
+  () => {
+    assert.deepEqual(createOpenClawAgentWorkspaceResetState(), {
+      isDialogOpen: false,
+      selectedAgentId: null,
+      selectedAgentWorkbench: null,
+      workbenchError: null,
+      isWorkbenchLoading: false,
+      dialogState: {
+        editingAgentId: null,
+        draft: createOpenClawAgentFormState(null),
+      },
+      deleteId: null,
+      isInstallingSkill: false,
+      updatingSkillKeys: [],
+      removingSkillKeys: [],
+    });
+  },
+);
+
+await runTest(
+  'buildOpenClawAgentDialogStateHandlers routes create and edit dialog state through page-owned setters',
+  () => {
+    const captured = {
+      editingAgentId: 'stale' as string | null,
+      draft: createOpenClawAgentFormState(null),
+      isDialogOpen: false,
+    };
+    const activeAgent = createWorkbenchAgent();
+    const editedAgent = createWorkbenchAgent({
+      agent: {
+        id: 'research',
+        name: 'Research',
+        description: 'Research agent.',
+        avatar: 'R',
+        systemPrompt: 'Synthesize findings.',
+        creator: 'OpenClaw',
+      },
+      isDefault: false,
+    });
+
+    const handlers = buildOpenClawAgentDialogStateHandlers({
+      selectedAgentWorkbench: {
+        agent: activeAgent,
+        model: {
+          primary: 'openai/gpt-5.4',
+          fallbacks: ['openai/gpt-4.1'],
+          source: 'defaults',
+        },
+      },
+      setEditingAgentId: (value) => {
+        captured.editingAgentId = value;
+      },
+      setAgentDialogDraft: (value) => {
+        captured.draft = value;
+      },
+      setIsAgentDialogOpen: (value) => {
+        captured.isDialogOpen = value;
+      },
+    });
+
+    handlers.openCreateAgentDialog();
+    assert.equal(captured.editingAgentId, null);
+    assert.deepEqual(captured.draft, createOpenClawAgentFormState(null));
+    assert.equal(captured.isDialogOpen, true);
+
+    handlers.openEditAgentDialog(editedAgent);
+    assert.equal(captured.editingAgentId, 'research');
+    assert.equal(captured.draft.id, 'research');
+    assert.equal(captured.draft.fieldSources.model, 'agent');
+    assert.equal(captured.isDialogOpen, true);
   },
 );

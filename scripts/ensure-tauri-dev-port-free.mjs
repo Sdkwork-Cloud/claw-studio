@@ -1,6 +1,6 @@
 import net from 'node:net';
 
-const [host = '127.0.0.1', portValue = '1420'] = process.argv.slice(2);
+const [host = '127.0.0.1', portValue = '1426'] = process.argv.slice(2);
 const port = Number(portValue);
 
 if (!Number.isInteger(port) || port <= 0 || port > 65535) {

@@ -3,7 +3,14 @@ import type {
   OpenClawAgentParamSource,
   OpenClawAgentParamValue,
 } from '@sdkwork/claw-core';
-import type { InstanceWorkbenchAgent } from '../types/index.ts';
+import {
+  normalizeLegacyProviderId,
+  normalizeLegacyProviderModelRef,
+} from '@sdkwork/claw-core';
+import type {
+  InstanceWorkbenchAgent,
+  InstanceWorkbenchLLMProvider,
+} from '../types/index.ts';
 
 export type OpenClawAgentModelSource = 'agent' | 'defaults' | 'runtime';
 export type OpenClawAgentParamDisplaySource = OpenClawAgentParamSource | 'runtime';
@@ -54,6 +61,45 @@ export interface OpenClawAgentParamEntry {
   source: OpenClawAgentParamDisplaySource;
 }
 
+export interface OpenClawAgentModelOption {
+  value: string;
+  label: string;
+}
+
+export interface OpenClawAgentDialogState {
+  editingAgentId: string | null;
+  draft: OpenClawAgentFormState;
+}
+
+export interface OpenClawAgentWorkspaceResetState {
+  isDialogOpen: boolean;
+  selectedAgentId: string | null;
+  selectedAgentWorkbench: null;
+  workbenchError: string | null;
+  isWorkbenchLoading: boolean;
+  dialogState: OpenClawAgentDialogState;
+  deleteId: string | null;
+  isInstallingSkill: boolean;
+  updatingSkillKeys: string[];
+  removingSkillKeys: string[];
+}
+
+export interface OpenClawSelectedAgentWorkbenchState {
+  agent: Pick<InstanceWorkbenchAgent, 'agent'>;
+  model: {
+    source: OpenClawAgentModelSource;
+  };
+}
+
+type StateSetter<T> = (value: T) => void;
+
+export interface BuildOpenClawAgentDialogStateHandlersArgs {
+  selectedAgentWorkbench: OpenClawSelectedAgentWorkbenchState | null;
+  setEditingAgentId: StateSetter<string | null>;
+  setAgentDialogDraft: StateSetter<OpenClawAgentFormState>;
+  setIsAgentDialogOpen: StateSetter<boolean>;
+}
+
 const KNOWN_AGENT_PARAM_KEYS: OpenClawAgentParamKey[] = [
   'temperature',
   'topP',
@@ -82,6 +128,42 @@ function resolveParamSource(
   key: OpenClawAgentParamKey,
 ): OpenClawAgentParamDisplaySource {
   return agent?.paramSources?.[key] || 'runtime';
+}
+
+export function buildOpenClawAgentModelOptions(
+  llmProviders: InstanceWorkbenchLLMProvider[] | null | undefined,
+): OpenClawAgentModelOption[] {
+  const options = new Map<string, OpenClawAgentModelOption>();
+
+  (llmProviders || []).forEach((provider) => {
+    const providerId = normalizeLegacyProviderId(provider.id);
+    const providerName = provider.name.trim() || providerId;
+    if (!providerId) {
+      return;
+    }
+
+    provider.models.forEach((model) => {
+      const modelId = model.id.trim();
+      if (!modelId) {
+        return;
+      }
+
+      const normalizedModelRef = normalizeLegacyProviderModelRef(modelId);
+      const value = normalizedModelRef.includes('/')
+        ? normalizedModelRef
+        : `${providerId}/${normalizedModelRef}`;
+      if (options.has(value)) {
+        return;
+      }
+
+      options.set(value, {
+        value,
+        label: `${providerName} / ${model.name.trim() || modelId}`,
+      });
+    });
+  });
+
+  return [...options.values()];
 }
 
 export function parseAgentFallbackModels(value: string) {
@@ -180,6 +262,70 @@ export function createOpenClawAgentFormState(
           : '',
       streaming: streamingSource === 'defaults' ? streamingValue : null,
     },
+  };
+}
+
+export function createOpenClawAgentCreateDialogState(): OpenClawAgentDialogState {
+  return {
+    editingAgentId: null,
+    draft: createOpenClawAgentFormState(null),
+  };
+}
+
+export function createOpenClawAgentWorkspaceResetState(): OpenClawAgentWorkspaceResetState {
+  return {
+    isDialogOpen: false,
+    selectedAgentId: null,
+    selectedAgentWorkbench: null,
+    workbenchError: null,
+    isWorkbenchLoading: false,
+    dialogState: createOpenClawAgentCreateDialogState(),
+    deleteId: null,
+    isInstallingSkill: false,
+    updatingSkillKeys: [],
+    removingSkillKeys: [],
+  };
+}
+
+export function buildOpenClawAgentDialogStateHandlers(
+  args: BuildOpenClawAgentDialogStateHandlersArgs,
+) {
+  return {
+    openCreateAgentDialog: () => {
+      const dialogState = createOpenClawAgentCreateDialogState();
+
+      args.setEditingAgentId(dialogState.editingAgentId);
+      args.setAgentDialogDraft(dialogState.draft);
+      args.setIsAgentDialogOpen(true);
+    },
+    openEditAgentDialog: (agent: InstanceWorkbenchAgent) => {
+      const dialogState = createOpenClawAgentEditDialogState({
+        agent,
+        selectedAgentWorkbench: args.selectedAgentWorkbench,
+      });
+
+      args.setEditingAgentId(dialogState.editingAgentId);
+      args.setAgentDialogDraft(dialogState.draft);
+      args.setIsAgentDialogOpen(true);
+    },
+  };
+}
+
+export function createOpenClawAgentEditDialogState({
+  agent,
+  selectedAgentWorkbench,
+}: {
+  agent: InstanceWorkbenchAgent;
+  selectedAgentWorkbench: OpenClawSelectedAgentWorkbenchState | null;
+}): OpenClawAgentDialogState {
+  const modelSource =
+    selectedAgentWorkbench?.agent.agent.id === agent.agent.id
+      ? selectedAgentWorkbench.model.source
+      : 'agent';
+
+  return {
+    editingAgentId: agent.agent.id,
+    draft: createOpenClawAgentFormState(agent, modelSource),
   };
 }
 

@@ -1,0 +1,201 @@
+import assert from 'node:assert/strict';
+import type { StudioInstanceDetailRecord } from '@sdkwork/claw-types';
+import { buildBundledOpenClawStartupAlert } from './bundledOpenClawStartupAlert.ts';
+
+function runTest(name: string, callback: () => void | Promise<void>) {
+  return Promise.resolve()
+    .then(callback)
+    .then(() => {
+      console.log(`ok - ${name}`);
+    })
+    .catch((error) => {
+      console.error(`not ok - ${name}`);
+      throw error;
+    });
+}
+
+function createDetail(
+  overrides: Partial<StudioInstanceDetailRecord> = {},
+): StudioInstanceDetailRecord {
+  return {
+    instance: {
+      id: 'local-built-in',
+      name: 'Built-In OpenClaw',
+      runtimeKind: 'openclaw',
+      deploymentMode: 'local-managed',
+      transportKind: 'openclawGatewayWs',
+      status: 'error',
+      isBuiltIn: true,
+      isDefault: true,
+      iconType: 'server',
+      version: '2026.4.9',
+      typeLabel: 'OpenClaw Gateway',
+      host: '127.0.0.1',
+      port: 18871,
+      baseUrl: 'http://127.0.0.1:18871',
+      websocketUrl: 'ws://127.0.0.1:18871',
+      cpu: 0,
+      memory: 0,
+      totalMemory: 'Unknown',
+      uptime: '-',
+      capabilities: [],
+      storage: {
+        provider: 'localFile',
+        namespace: 'local-built-in',
+      },
+      config: {
+        port: '18871',
+        sandbox: true,
+        autoUpdate: true,
+        logLevel: 'info',
+        corsOrigins: '*',
+      },
+      createdAt: 1,
+      updatedAt: 1,
+      lastSeenAt: 1,
+      ...(overrides.instance || {}),
+    },
+    config: {
+      port: '18871',
+      sandbox: true,
+      autoUpdate: true,
+      logLevel: 'info',
+      corsOrigins: '*',
+      ...(overrides.config || {}),
+    },
+    logs: '',
+    health: {
+      score: 20,
+      status: 'offline',
+      checks: [],
+      evaluatedAt: 1,
+    },
+    lifecycle: {
+      owner: 'appManaged',
+      startStopSupported: true,
+      configWritable: true,
+      lastActivationStage: 'gatewayConfigured',
+      lastError:
+        'timeout: openclaw gateway did not become ready on 127.0.0.1:18871 within 30000ms',
+      notes: [],
+      ...(overrides.lifecycle || {}),
+    },
+    storage: {
+      status: 'ready',
+      provider: 'localFile',
+      namespace: 'local-built-in',
+      durable: true,
+      queryable: false,
+      transactional: false,
+      remote: false,
+    },
+    connectivity: {
+      primaryTransport: 'openclawGatewayWs',
+      endpoints: [],
+    },
+    observability: {
+      status: 'ready',
+      logAvailable: true,
+      logPreview: [],
+      metricsSource: 'runtime',
+      lastSeenAt: 1,
+      logFilePath: 'D:/OpenClaw/.openclaw/logs/openclaw-gateway.log',
+      ...(overrides.observability || {}),
+    },
+    dataAccess: {
+      routes: [],
+    },
+    artifacts: [
+      {
+        id: 'desktop-main-log-file',
+        label: 'Desktop Main Log',
+        kind: 'logFile',
+        status: 'available',
+        location: 'D:/OpenClaw/.openclaw/logs/app.log',
+        readonly: true,
+        detail: 'Desktop startup and supervisor log.',
+        source: 'runtime',
+      },
+      ...((overrides.artifacts as StudioInstanceDetailRecord['artifacts']) || []),
+    ],
+    capabilities: [],
+    officialRuntimeNotes: [],
+    ...(overrides as Omit<StudioInstanceDetailRecord, 'instance' | 'config' | 'health' | 'lifecycle' | 'storage' | 'connectivity' | 'observability' | 'dataAccess' | 'artifacts'>),
+  };
+}
+
+await runTest(
+  'buildBundledOpenClawStartupAlert returns timeout diagnostics for built-in managed startup failures',
+  () => {
+    const alert = buildBundledOpenClawStartupAlert(createDetail());
+
+    assert.deepEqual(alert, {
+      tone: 'warning',
+      titleKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.title',
+      detailKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.description',
+      message:
+        'timeout: openclaw gateway did not become ready on 127.0.0.1:18871 within 30000ms',
+      recommendedActionDetailKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.actions.gatewayReadinessTimeout',
+      diagnostics: [
+        {
+          id: 'lastActivationStage',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.description',
+          value: 'Gateway Configured',
+        },
+        {
+          id: 'gatewayLogPath',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.gatewayLogPath.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.gatewayLogPath.description',
+          value: 'D:/OpenClaw/.openclaw/logs/openclaw-gateway.log',
+          mono: true,
+        },
+        {
+          id: 'desktopMainLogPath',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.desktopMainLogPath.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.desktopMainLogPath.description',
+          value: 'D:/OpenClaw/.openclaw/logs/app.log',
+          mono: true,
+        },
+      ],
+    });
+  },
+);
+
+await runTest(
+  'buildBundledOpenClawStartupAlert ignores non-built-in or non-error details',
+  () => {
+    assert.equal(
+      buildBundledOpenClawStartupAlert(
+        createDetail({
+          lifecycle: {
+            ...createDetail().lifecycle,
+            lastError: undefined,
+          },
+        }),
+      ),
+      null,
+    );
+
+    assert.equal(
+      buildBundledOpenClawStartupAlert(
+        createDetail({
+          instance: {
+            ...createDetail().instance,
+            isBuiltIn: false,
+          },
+        }),
+      ),
+      null,
+    );
+  },
+);

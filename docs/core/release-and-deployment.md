@@ -138,9 +138,9 @@ Local prerequisite notes:
 
 - `pnpm release:package:desktop` only collects installers and app bundles that already exist; run `pnpm release:desktop` or `pnpm tauri:build` first.
 - `pnpm release:package:desktop` now also runs the same desktop installer smoke contract used by release finalization, so each packaged desktop target persists an `installer-smoke-report.json` beside its `release-asset-manifest.json`.
-- `pnpm release:smoke:desktop` now re-runs the packaged desktop installer smoke and then closes the launched-session check for the same target. When `--startup-evidence-path` is omitted it launches the canonical packaged desktop artifact for that platform, waits until `desktop-startup-evidence.json` reaches `status=passed` and `phase=shell-mounted`, and then writes `desktop-startup-smoke-report.json`. When `--startup-evidence-path` is provided it imports that external evidence instead of launching the package.
+- `pnpm release:smoke:desktop` now re-runs the packaged desktop installer smoke and then closes the launched-session check for the same target. When `--startup-evidence-path` is omitted it launches the canonical packaged desktop artifact for that platform, waits until `desktop-startup-evidence.json` reaches `status=passed` and `phase=shell-mounted`, requires the captured evidence to preserve a running `localAiProxyRuntime`, and then writes `desktop-startup-smoke-report.json`. When `--startup-evidence-path` is provided it imports that external evidence instead of launching the package.
 - `pnpm release:smoke:desktop-packaged-launch` launches the canonical packaged desktop artifact for the requested target, captures isolated packaged-session startup evidence, and forwards that evidence into the canonical startup smoke report writer. On Linux it automatically falls back to `xvfb-run` when no desktop display is available.
-- `pnpm release:smoke:desktop-startup` validates only the captured launched-session startup evidence and copies that evidence into the canonical release asset path when you provide `--startup-evidence-path`.
+- `pnpm release:smoke:desktop-startup` validates only the captured launched-session startup evidence and copies that evidence into the canonical release asset path when you provide `--startup-evidence-path`. The resulting smoke report must preserve `localAiProxyRuntime.lifecycle`, `messageCaptureEnabled`, `observabilityDbPath`, `snapshotPath`, and `logPath`.
 - `pnpm release:package:server` now auto-builds the missing native server release binary before packaging when you invoke the root local wrapper.
 - `pnpm release:package:server` now also runs packaged bundle-runtime smoke and persists a `release-smoke-report.json` beside the server `release-asset-manifest.json`.
 - `pnpm release:package:container` packages Docker deployment assets around a Linux server binary. The root local wrapper auto-builds that binary first when it is missing. On Windows, `pnpm server:build -- --target x86_64-unknown-linux-gnu` bridges into an installed WSL distro automatically. On macOS and other non-Linux hosts, the same fallback still depends on a working Linux target toolchain.
@@ -203,6 +203,7 @@ Desktop artifacts carry additional machine-readable metadata because install-tim
 - `desktopInstallerSmoke.installReadyLayout`: normalized first-launch readiness proof showing how the packaged installer leaves OpenClaw ready for startup reuse
 - `desktopStartupSmoke`: the aggregated launched-session desktop runtime smoke summary lifted from `desktop-startup-smoke-report.json` when that evidence has been captured for the artifact
 - `desktopStartupSmoke.capturedEvidenceRelativePath`: the preserved path of the captured `diagnostics/desktop-startup-evidence.json` launch record inside the release asset directory
+- `desktopStartupSmoke.localAiProxyRuntime`: the normalized local AI proxy runtime summary lifted from launched-session startup smoke, including `lifecycle`, `messageCaptureEnabled`, `observabilityDbPath`, `snapshotPath`, and `logPath`
 
 Server artifacts also carry aggregated runtime evidence because a packaged server bundle is not considered releasable until the extracted archive actually boots:
 
@@ -299,33 +300,33 @@ root.
 
 Inside the extracted bundle root, the same deployment surface becomes:
 
-- `deploy/docker-compose.yml`
-- `deploy/docker-compose.nvidia-cuda.yml`
-- `deploy/docker-compose.amd-rocm.yml`
-- `deploy/Dockerfile`
-- `deploy/profiles/*`
+- `deploy/docker/docker-compose.yml`
+- `deploy/docker/docker-compose.nvidia-cuda.yml`
+- `deploy/docker/docker-compose.amd-rocm.yml`
+- `deploy/docker/Dockerfile`
+- `deploy/docker/profiles/*`
 
-Inside that extracted bundle, `deploy/docker-compose.yml` resolves env overlays from
-`deploy/profiles/*` and treats the extracted bundle root as the Docker build context.
+Inside that extracted bundle, `deploy/docker/docker-compose.yml` resolves env overlays from
+`deploy/docker/profiles/*` and treats the extracted bundle root as the Docker build context.
 
 Base deployment from the extracted bundle root:
 
 ```bash
 export CLAW_SERVER_MANAGE_USERNAME=claw-admin
 export CLAW_SERVER_MANAGE_PASSWORD='replace-with-a-strong-secret'
-docker compose -f deploy/docker-compose.yml up -d
+docker compose -f deploy/docker/docker-compose.yml up -d
 ```
 
 NVIDIA CUDA overlay:
 
 ```bash
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.nvidia-cuda.yml up -d
+docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.nvidia-cuda.yml up -d
 ```
 
 AMD ROCm overlay:
 
 ```bash
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.amd-rocm.yml up -d
+docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.amd-rocm.yml up -d
 ```
 
 The base compose file now requires an explicit manage credential pair before it will start the
@@ -382,7 +383,7 @@ The finalization step emits the final inventory and checksums after all family o
 pnpm release:finalize
 ```
 
-Finalization now requires `desktop-startup-smoke-report.json` beside every desktop partial manifest. It lifts that launched-session evidence onto the matching desktop artifact as `desktopStartupSmoke` and rejects desktop release assets when the packaged launch report or its captured `diagnostics/desktop-startup-evidence.json` evidence is missing, stale, or no longer matches the current artifact set.
+Finalization now requires `desktop-startup-smoke-report.json` beside every desktop partial manifest. It lifts that launched-session evidence onto the matching desktop artifact as `desktopStartupSmoke` and rejects desktop release assets when the packaged launch report or its captured `diagnostics/desktop-startup-evidence.json` evidence is missing, stale, or no longer matches the current artifact set. The finalizer also requires the `local-ai-proxy-runtime` startup-smoke check to pass and the emitted `desktopStartupSmoke.localAiProxyRuntime` summary to match the captured launch evidence.
 
 ## GPU Variant Model
 

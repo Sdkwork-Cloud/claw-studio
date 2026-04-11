@@ -227,6 +227,41 @@ test('desktop installer smoke resolves hub-installer bindings on demand when def
   assert.equal(typeof bindings.detectFormatFn, 'function');
 });
 
+test('desktop installer smoke loads the default hub-installer module entry through a file URL', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  assert.equal(typeof smoke.loadHubInstallerModule, 'function');
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-module-load-'));
+  const fakeEntryPath = path.join(tempRoot, 'hub-installer-entry.mjs');
+
+  try {
+    writeFileSync(
+      fakeEntryPath,
+      [
+        'export function createInstallPlan() {',
+        '  return { request: { dryRun: true }, steps: [], notes: [] };',
+        '}',
+        'export function detectFormat() {',
+        "  return 'exe';",
+        '}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const module = await smoke.loadHubInstallerModule({
+      entryPath: fakeEntryPath,
+    });
+
+    assert.equal(typeof module.createInstallPlan, 'function');
+    assert.equal(typeof module.detectFormat, 'function');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('desktop installer smoke creates dry-run install plans for Windows installers after OpenClaw verification', async () => {
   const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-installers.mjs');
   const smoke = await import(pathToFileURL(smokePath).href);

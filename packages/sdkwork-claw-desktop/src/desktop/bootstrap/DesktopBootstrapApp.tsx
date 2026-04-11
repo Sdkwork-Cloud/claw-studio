@@ -12,6 +12,7 @@ import {
 import {
   AppProviders,
   MainLayout,
+  ROUTE_PATHS,
   bootstrapShellRuntime,
   listSidebarRoutePrefetchPaths,
   prefetchSidebarRoute,
@@ -21,21 +22,26 @@ import {
 import type { DistributionId } from '@sdkwork/claw-distribution';
 import { getDistributionManifest } from '@sdkwork/claw-distribution';
 import type { RuntimeLanguagePreference } from '@sdkwork/claw-infrastructure';
+import { toast } from 'sonner';
 import { getDesktopWindow, isTauriRuntime } from '../runtime';
 import {
   getAppInfo,
   getAppPaths,
+  getDesktopKernelInfo,
   isDesktopHostedRuntimeReadinessError,
   probeDesktopHostedRuntimeReadiness,
   setAppLanguage,
+  studioRestartInstance,
   writeTextFile,
   type DesktopAppInfo,
   type DesktopAppPaths,
   type DesktopHostedRuntimeReadinessSnapshot,
+  type DesktopKernelInfo,
 } from '../tauriBridge';
 import { DesktopProviders } from '../providers/DesktopProviders';
 import { DesktopStartupScreen } from './DesktopStartupScreen';
 import { DesktopTrayRouteBridge } from './DesktopTrayRouteBridge';
+import { connectDesktopRuntimeDuringStartup } from './desktopRuntimeConnection';
 import {
   buildDesktopStartupEvidenceDocument,
   DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH,
@@ -56,8 +62,19 @@ import {
   runDesktopBootstrapSequence,
   type DesktopBootstrapStateActions,
 } from './desktopBootstrapRuntime';
+import {
+  resolveBackgroundRuntimeReadinessRecoveryToastCopy,
+  retryBackgroundRuntimeReadinessRecovery,
+} from './desktopBackgroundRuntimeReadinessRecovery';
+import {
+  BACKGROUND_RUNTIME_READINESS_TOAST_ID,
+  resolveBackgroundRuntimeReadinessToastPlan,
+  resolveBackgroundRuntimeReadinessToastResetPlan,
+  type BackgroundRuntimeReadinessNotification,
+} from './desktopBackgroundRuntimeReadinessToast';
 
 const APP_STORAGE_KEY = 'claw-studio-app-storage';
+const BUILT_IN_OPENCLAW_INSTANCE_ID = 'local-built-in';
 const SPLASH_MINIMUM_VISIBLE_MS = 180;
 const SPLASH_EXIT_DURATION_MS = 120;
 const STARTUP_LOG_PREFIX = '[desktop-startup]';
@@ -73,6 +90,7 @@ interface DesktopStartupEvidenceContext {
   appInfo: DesktopAppInfo | null;
   appPaths: DesktopAppPaths | null;
   readinessSnapshot: DesktopHostedRuntimeReadinessSnapshot | null;
+  localAiProxy: DesktopKernelInfo['localAiProxy'] | null;
 }
 
 function resolveErrorMessage(error: unknown, language: StartupAppearanceSnapshot['language']) {
@@ -207,6 +225,18 @@ export function applyStartupAppearanceHints(appearance: StartupAppearanceSnapsho
   document.body.style.color = '#fff1f2';
 }
 
+function openDesktopShellRoute(pathname: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (window.location.pathname !== pathname) {
+    window.history.pushState({}, '', pathname);
+  }
+
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
 export function DesktopBootstrapApp({
   appName,
   initialAppearance,
@@ -220,12 +250,18 @@ export function DesktopBootstrapApp({
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [status, setStatus] = useState<'booting' | 'launching' | 'error'>('booting');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [backgroundRuntimeReadinessNotification, setBackgroundRuntimeReadinessNotification] =
+    useState<BackgroundRuntimeReadinessNotification | null>(null);
   const startedAtRef = useRef(Date.now());
   const bootRunIdRef = useRef(0);
   const splashHandoffRunIdRef = useRef(0);
   const stageLogSignatureRef = useRef('');
   const startupEvidenceContextRef = useRef<DesktopStartupEvidenceContext | null>(null);
   const startupEvidenceSignatureRef = useRef('');
+  const backgroundRuntimeReadinessNotificationSignatureRef = useRef('');
+  const backgroundRuntimeReadinessRecoveryPendingRef = useRef(false);
+  const backgroundRuntimeReadinessRecoveryInFlightRef = useRef(false);
+  const runtimeReadinessFailureRef = useRef(false);
 
   const stage = useMemo(
     () => resolveStartupBootstrapStage(milestones),
@@ -253,6 +289,7 @@ export function DesktopBootstrapApp({
       appInfo,
       appPaths,
       readinessSnapshot,
+      localAiProxy,
       error,
       runId = bootRunIdRef.current,
     }: {
@@ -261,6 +298,7 @@ export function DesktopBootstrapApp({
       appInfo?: DesktopAppInfo | null;
       appPaths?: DesktopAppPaths | null;
       readinessSnapshot?: DesktopHostedRuntimeReadinessSnapshot | null;
+      localAiProxy?: DesktopKernelInfo['localAiProxy'] | null;
       error?: unknown;
       runId?: number;
     }) => {
@@ -277,6 +315,7 @@ export function DesktopBootstrapApp({
         appInfo: appInfo ?? context?.appInfo ?? null,
         appPaths: appPaths ?? context?.appPaths ?? null,
         readinessSnapshot: readinessSnapshot ?? context?.readinessSnapshot ?? null,
+        localAiProxy: localAiProxy ?? context?.localAiProxy ?? null,
         error,
       });
       const signature = `${document.runId}:${document.status}:${document.phase}`;
@@ -297,6 +336,9 @@ export function DesktopBootstrapApp({
           phase: document.phase,
           descriptorBrowserBaseUrl: document.descriptor?.browserBaseUrl ?? null,
           builtInInstanceStatus: document.builtInInstance?.status ?? null,
+          localAiProxyLifecycle: document.localAiProxy?.lifecycle ?? null,
+          localAiProxySnapshotPath: document.localAiProxy?.snapshotPath ?? null,
+          localAiProxyLogPath: document.localAiProxy?.logPath ?? null,
           readinessReady: document.readinessEvidence?.ready ?? null,
         }, runId);
       } catch (persistenceError) {
@@ -420,11 +462,13 @@ export function DesktopBootstrapApp({
       }
 
       logStartup('info', 'Shell first paint confirmed.', undefined, runId);
-      void persistStartupEvidence({
-        status: 'passed',
-        phase: 'shell-mounted',
-        runId,
-      });
+      if (!runtimeReadinessFailureRef.current) {
+        void persistStartupEvidence({
+          status: 'passed',
+          phase: 'shell-mounted',
+          runId,
+        });
+      }
       setMilestones((current) =>
         current.hasShellMounted ? current : { ...current, hasShellMounted: true },
       );
@@ -434,6 +478,145 @@ export function DesktopBootstrapApp({
       cancelled = true;
     };
   }, [milestones.hasShellMounted, shouldRenderShell, status]);
+
+  const openBuiltInOpenClawDetails = useEffectEvent(() => {
+    openDesktopShellRoute(`${ROUTE_PATHS.INSTANCES}/${BUILT_IN_OPENCLAW_INSTANCE_ID}`);
+  });
+
+  const clearBackgroundRuntimeReadinessFailureState = useEffectEvent((options?: {
+    dismissToast?: boolean;
+  }) => {
+    const resetPlan = resolveBackgroundRuntimeReadinessToastResetPlan(
+      backgroundRuntimeReadinessNotificationSignatureRef.current,
+      options,
+    );
+    backgroundRuntimeReadinessNotificationSignatureRef.current = resetPlan?.nextSignature ?? '';
+    if (resetPlan?.dismissToastId) {
+      toast.dismiss(resetPlan.dismissToastId);
+    }
+    setBackgroundRuntimeReadinessNotification(null);
+  });
+
+  const retryBackgroundRuntimeReadiness = useEffectEvent(async () => {
+    const runId = bootRunIdRef.current;
+    if (
+      backgroundRuntimeReadinessRecoveryInFlightRef.current ||
+      status === 'error' ||
+      !shouldRenderShell
+    ) {
+      return;
+    }
+
+    const retryCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy(appearance.language);
+    backgroundRuntimeReadinessRecoveryInFlightRef.current = true;
+    backgroundRuntimeReadinessRecoveryPendingRef.current = true;
+
+    const retryToastId = BACKGROUND_RUNTIME_READINESS_TOAST_ID;
+    toast.loading(retryCopy.loadingTitle, {
+      id: retryToastId,
+      description: retryCopy.loadingDescription,
+      duration: Infinity,
+      cancel: {
+        label: retryCopy.detailsActionLabel,
+        onClick: () => {
+          openBuiltInOpenClawDetails();
+        },
+      },
+    });
+
+    try {
+      logStartup(
+        'info',
+        'Retrying bundled OpenClaw background startup from the desktop shell.',
+        undefined,
+        runId,
+      );
+      await retryBackgroundRuntimeReadinessRecovery({
+        instanceId: BUILT_IN_OPENCLAW_INSTANCE_ID,
+        clearFailureState: () => {
+          clearBackgroundRuntimeReadinessFailureState({ dismissToast: false });
+        },
+        restartInstance: async (instanceId) => studioRestartInstance(instanceId),
+        reconnectHostedRuntimeReadiness: async () => {
+          await connectDesktopRuntime();
+        },
+      });
+      toast.success(retryCopy.startedTitle, {
+        id: retryToastId,
+        description: retryCopy.startedDescription,
+        duration: 6000,
+        cancel: {
+          label: retryCopy.detailsActionLabel,
+          onClick: () => {
+            openBuiltInOpenClawDetails();
+          },
+        },
+      });
+    } catch (error) {
+      backgroundRuntimeReadinessRecoveryPendingRef.current = false;
+      logStartup(
+        'warn',
+        'Retrying bundled OpenClaw background startup failed before readiness probing resumed.',
+        {
+          error,
+        },
+        runId,
+      );
+      toast.error(retryCopy.failedTitle, {
+        id: retryToastId,
+        description: resolveErrorMessage(error, appearance.language),
+        duration: 12000,
+        cancel: {
+          label: retryCopy.detailsActionLabel,
+          onClick: () => {
+            openBuiltInOpenClawDetails();
+          },
+        },
+      });
+    } finally {
+      backgroundRuntimeReadinessRecoveryInFlightRef.current = false;
+    }
+  });
+
+  useEffect(() => {
+    const toastPlan = resolveBackgroundRuntimeReadinessToastPlan({
+      language: appearance.language,
+      status,
+      shouldRenderShell,
+      currentRunId: bootRunIdRef.current,
+      lastShownSignature: backgroundRuntimeReadinessNotificationSignatureRef.current,
+      notification: backgroundRuntimeReadinessNotification,
+    });
+    if (!toastPlan) {
+      return;
+    }
+
+    backgroundRuntimeReadinessNotificationSignatureRef.current = toastPlan.signature;
+    toast.error(toastPlan.title, {
+      id: toastPlan.toastId,
+      description: toastPlan.description,
+      duration: 12000,
+      action: {
+        label: toastPlan.retryActionLabel,
+        onClick: () => {
+          void retryBackgroundRuntimeReadiness();
+        },
+      },
+      cancel: {
+        label: toastPlan.detailsActionLabel,
+        onClick: () => {
+          openBuiltInOpenClawDetails();
+        },
+      },
+    });
+  }, [
+    appearance.language,
+    backgroundRuntimeReadinessNotification,
+    openBuiltInOpenClawDetails,
+    retryBackgroundRuntimeReadiness,
+    shouldRenderShell,
+    status,
+  ]);
 
   const revealStartupWindow = useEffectEvent(async () => {
     logStartup('info', 'Preparing startup window.');
@@ -470,167 +653,313 @@ export function DesktopBootstrapApp({
   });
 
   const connectDesktopRuntime = useEffectEvent(async () => {
-    let appInfo: DesktopAppInfo | null = null;
-    let appPaths: DesktopAppPaths | null = null;
-
-    logStartup('info', 'Connecting desktop runtime via app.getInfo() and hosted runtime readiness probe.', {
-      isTauriRuntime: isTauriRuntime(),
-    });
-    [appInfo, appPaths] = await Promise.all([getAppInfo(), getAppPaths()]);
-    startupEvidenceContextRef.current = {
-      appInfo,
-      appPaths,
-      readinessSnapshot: null,
-    };
-    logStartup('info', 'app.getInfo() resolved.', appInfo);
-    logStartup('info', 'app.getPaths() resolved.', appPaths
-      ? {
-        dataDir: appPaths.dataDir,
-        logsDir: appPaths.logsDir,
-        mainLogFile: appPaths.mainLogFile,
+    const runId = bootRunIdRef.current;
+    const isCurrentRun = () => bootRunIdRef.current === runId;
+    const captureLocalAiProxyEvidence = async (captureRunId = runId) => {
+      if (!isTauriRuntime()) {
+        return null;
       }
-      : null);
 
-    if (isTauriRuntime() && !appInfo) {
-      logStartup('error', 'Desktop runtime probe returned an empty payload.');
-      throw new Error('The desktop runtime did not respond during startup.');
-    }
+      try {
+        const kernelInfo = await getDesktopKernelInfo();
+        const localAiProxy = kernelInfo?.localAiProxy ?? null;
 
-    if (!isTauriRuntime()) {
-      return;
-    }
+        if (localAiProxy) {
+          logStartup('info', 'Desktop kernel info captured local ai proxy startup evidence.', {
+            lifecycle: localAiProxy.lifecycle,
+            messageCaptureEnabled: localAiProxy.messageCaptureEnabled,
+            observabilityDbPath: localAiProxy.observabilityDbPath ?? null,
+            snapshotPath: localAiProxy.snapshotPath ?? null,
+            logPath: localAiProxy.logPath ?? null,
+          }, captureRunId);
+        } else {
+          logStartup(
+            'warn',
+            'Desktop kernel info did not expose local ai proxy startup evidence.',
+            undefined,
+            captureRunId,
+          );
+        }
 
-    try {
-      const hostedRuntimeReadiness = await probeDesktopHostedRuntimeReadiness({
-        onRetry: ({ attempt, elapsedMs, error }) => {
-          const shouldLogRetry = attempt === 1 || attempt % 10 === 0;
-          if (!shouldLogRetry) {
-            return;
-          }
+        return localAiProxy;
+      } catch (error) {
+        logStartup('warn', 'Desktop kernel info probe failed while capturing local ai proxy startup evidence.', {
+          error,
+        }, captureRunId);
+        return null;
+      }
+    };
+    logStartup(
+      'info',
+      'Connecting desktop runtime metadata first. Hosted runtime readiness will continue in the background.',
+      {
+        isTauriRuntime: isTauriRuntime(),
+      },
+      runId,
+    );
 
-          if (isDesktopHostedRuntimeReadinessError(error)) {
-            const builtInInstance = error.snapshot.instances.find(
-              (instance) => instance.id === 'local-built-in',
+    await connectDesktopRuntimeDuringStartup({
+      isTauriRuntime,
+      getAppInfo,
+      getAppPaths,
+      probeHostedRuntimeReadiness: () =>
+        probeDesktopHostedRuntimeReadiness({
+          onRetry: ({ attempt, elapsedMs, error }) => {
+            if (!isCurrentRun()) {
+              return;
+            }
+
+            const shouldLogRetry = attempt === 1 || attempt % 10 === 0;
+            if (!shouldLogRetry) {
+              return;
+            }
+
+            if (isDesktopHostedRuntimeReadinessError(error)) {
+              const builtInInstance = error.snapshot.instances.find(
+                (instance) => instance.id === BUILT_IN_OPENCLAW_INSTANCE_ID,
+              );
+              logStartup('warn', 'Hosted desktop runtime readiness is still converging.', {
+                attempt,
+                elapsedMs,
+                descriptorBrowserBaseUrl: error.snapshot.descriptor.browserBaseUrl,
+                descriptorEndpointId: error.snapshot.descriptor.endpointId ?? null,
+                descriptorActivePort: error.snapshot.descriptor.activePort ?? null,
+                hostLifecycle: error.snapshot.hostPlatformStatus.lifecycle,
+                hostEndpointCount: error.snapshot.hostEndpoints.length,
+                openClawRuntimeLifecycle: error.snapshot.openClawRuntime.lifecycle,
+                openClawGatewayLifecycle: error.snapshot.openClawGateway.lifecycle,
+                builtInInstanceRuntimeKind: builtInInstance?.runtimeKind ?? null,
+                builtInInstanceDeploymentMode: builtInInstance?.deploymentMode ?? null,
+                builtInInstanceTransportKind: builtInInstance?.transportKind ?? null,
+                builtInInstanceStatus: builtInInstance?.status ?? null,
+                builtInInstanceBaseUrl: builtInInstance?.baseUrl ?? null,
+                builtInInstanceWebsocketUrl: builtInInstance?.websocketUrl ?? null,
+                readinessEvidence: error.snapshot.evidence,
+                error: error.message,
+              }, runId);
+              return;
+            }
+
+            logStartup(
+              'warn',
+              'Hosted desktop runtime readiness probe hit a transient startup failure and will retry.',
+              {
+                attempt,
+                elapsedMs,
+                error,
+              },
+              runId,
             );
-            logStartup('warn', 'Hosted desktop runtime readiness is still converging.', {
-              attempt,
-              elapsedMs,
-              descriptorBrowserBaseUrl: error.snapshot.descriptor.browserBaseUrl,
-              descriptorEndpointId: error.snapshot.descriptor.endpointId ?? null,
-              descriptorActivePort: error.snapshot.descriptor.activePort ?? null,
-              hostLifecycle: error.snapshot.hostPlatformStatus.lifecycle,
-              hostEndpointCount: error.snapshot.hostEndpoints.length,
-              openClawRuntimeLifecycle: error.snapshot.openClawRuntime.lifecycle,
-              openClawGatewayLifecycle: error.snapshot.openClawGateway.lifecycle,
-              builtInInstanceRuntimeKind: builtInInstance?.runtimeKind ?? null,
-              builtInInstanceDeploymentMode: builtInInstance?.deploymentMode ?? null,
-              builtInInstanceTransportKind: builtInInstance?.transportKind ?? null,
-              builtInInstanceStatus: builtInInstance?.status ?? null,
-              builtInInstanceBaseUrl: builtInInstance?.baseUrl ?? null,
-              builtInInstanceWebsocketUrl: builtInInstance?.websocketUrl ?? null,
-              readinessEvidence: error.snapshot.evidence,
-              error: error.message,
-            });
-            return;
-          }
+          },
+        }),
+      captureLocalAiProxyEvidence: () => captureLocalAiProxyEvidence(runId),
+      onBaseContext: async ({ appInfo, appPaths }) => {
+        if (!isCurrentRun()) {
+          logStartup(
+            'warn',
+            'Ignoring stale desktop runtime metadata context from a previous bootstrap run.',
+            undefined,
+            runId,
+          );
+          return;
+        }
 
-          logStartup('warn', 'Hosted desktop runtime readiness probe hit a transient startup failure and will retry.', {
-            attempt,
-            elapsedMs,
-            error,
-          });
-        },
-      });
-      const builtInInstance = hostedRuntimeReadiness.instances.find((instance) => instance.id === 'local-built-in');
-      startupEvidenceContextRef.current = {
-        appInfo,
-        appPaths,
-        readinessSnapshot: hostedRuntimeReadiness,
-      };
-      logStartup('info', 'Hosted desktop runtime readiness probe resolved.', {
-        descriptorBrowserBaseUrl: hostedRuntimeReadiness.descriptor.browserBaseUrl,
-        descriptorEndpointId: hostedRuntimeReadiness.descriptor.endpointId ?? null,
-        descriptorActivePort: hostedRuntimeReadiness.descriptor.activePort ?? null,
-        descriptorStateStoreDriver: hostedRuntimeReadiness.descriptor.stateStoreDriver ?? null,
-        descriptorStateStoreProfileId: hostedRuntimeReadiness.descriptor.stateStoreProfileId ?? null,
-        runtimeDataDir: hostedRuntimeReadiness.descriptor.runtimeDataDir ?? null,
-        webDistDir: hostedRuntimeReadiness.descriptor.webDistDir ?? null,
-        hostLifecycle: hostedRuntimeReadiness.hostPlatformStatus.lifecycle,
-        hostMode: hostedRuntimeReadiness.hostPlatformStatus.mode,
-        hostEndpointCount: hostedRuntimeReadiness.hostEndpoints.length,
-        hostEndpointId: hostedRuntimeReadiness.evidence.manageEndpointId,
-        hostEndpointRequestedPort: hostedRuntimeReadiness.evidence.manageEndpointRequestedPort,
-        hostEndpointActivePort: hostedRuntimeReadiness.evidence.manageEndpointActivePort,
-        hostEndpointBaseUrl: hostedRuntimeReadiness.evidence.manageBaseUrl,
-        openClawRuntimeLifecycle: hostedRuntimeReadiness.openClawRuntime.lifecycle,
-        openClawGatewayLifecycle: hostedRuntimeReadiness.openClawGateway.lifecycle,
-        instanceCount: hostedRuntimeReadiness.instances.length,
-        builtInInstanceRuntimeKind: builtInInstance?.runtimeKind ?? null,
-        builtInInstanceDeploymentMode: builtInInstance?.deploymentMode ?? null,
-        builtInInstanceTransportKind: builtInInstance?.transportKind ?? null,
-        builtInInstanceStatus: builtInInstance?.status ?? null,
-        builtInInstanceBaseUrl: builtInInstance?.baseUrl ?? null,
-        builtInInstanceWebsocketUrl: builtInInstance?.websocketUrl ?? null,
-        readinessEvidence: hostedRuntimeReadiness.evidence,
-      });
-      await persistStartupEvidence({
-        status: 'passed',
-        phase: 'runtime-ready',
-        appInfo,
-        appPaths,
-        readinessSnapshot: hostedRuntimeReadiness,
-      });
-    } catch (error) {
-      if (isDesktopHostedRuntimeReadinessError(error)) {
-        const readinessError = error;
-        const builtInInstance = readinessError.snapshot.instances.find(
-          (instance) => instance.id === 'local-built-in',
-        );
         startupEvidenceContextRef.current = {
           appInfo,
           appPaths,
-          readinessSnapshot: readinessError.snapshot,
+          readinessSnapshot: null,
+          localAiProxy: null,
         };
-        logStartup('error', 'Hosted desktop runtime readiness probe failed.', {
-          descriptorBrowserBaseUrl: readinessError.snapshot.descriptor.browserBaseUrl,
-          descriptorEndpointId: readinessError.snapshot.descriptor.endpointId ?? null,
-          descriptorActivePort: readinessError.snapshot.descriptor.activePort ?? null,
-          descriptorStateStoreDriver: readinessError.snapshot.descriptor.stateStoreDriver ?? null,
-          descriptorStateStoreProfileId: readinessError.snapshot.descriptor.stateStoreProfileId ?? null,
-          runtimeDataDir: readinessError.snapshot.descriptor.runtimeDataDir ?? null,
-          webDistDir: readinessError.snapshot.descriptor.webDistDir ?? null,
-          hostLifecycle: readinessError.snapshot.hostPlatformStatus.lifecycle,
-          hostMode: readinessError.snapshot.hostPlatformStatus.mode,
-          hostEndpointCount: readinessError.snapshot.hostEndpoints.length,
-          hostEndpointId: readinessError.snapshot.evidence.manageEndpointId,
-          hostEndpointRequestedPort: readinessError.snapshot.evidence.manageEndpointRequestedPort,
-          hostEndpointActivePort: readinessError.snapshot.evidence.manageEndpointActivePort,
-          hostEndpointBaseUrl: readinessError.snapshot.evidence.manageBaseUrl,
-          openClawRuntimeLifecycle: readinessError.snapshot.openClawRuntime.lifecycle,
-          openClawGatewayLifecycle: readinessError.snapshot.openClawGateway.lifecycle,
-          instanceCount: readinessError.snapshot.instances.length,
+        logStartup('info', 'app.getInfo() resolved.', appInfo, runId);
+        logStartup(
+          'info',
+          'app.getPaths() resolved.',
+          appPaths
+            ? {
+                dataDir: appPaths.dataDir,
+                logsDir: appPaths.logsDir,
+                mainLogFile: appPaths.mainLogFile,
+              }
+            : null,
+          runId,
+        );
+
+        if (isTauriRuntime() && !appInfo) {
+          logStartup('error', 'Desktop runtime probe returned an empty payload.', undefined, runId);
+        }
+      },
+      onReadinessReady: async ({ appInfo, appPaths, readinessSnapshot, localAiProxy }) => {
+        if (!isCurrentRun()) {
+          logStartup(
+            'warn',
+            'Ignoring stale hosted runtime readiness success from a previous bootstrap run.',
+            undefined,
+            runId,
+          );
+          return;
+        }
+
+        const builtInInstance = readinessSnapshot.instances.find(
+          (instance) => instance.id === BUILT_IN_OPENCLAW_INSTANCE_ID,
+        );
+        const shouldNotifyRecoveryReady = backgroundRuntimeReadinessRecoveryPendingRef.current;
+        backgroundRuntimeReadinessRecoveryPendingRef.current = false;
+        setBackgroundRuntimeReadinessNotification(null);
+        runtimeReadinessFailureRef.current = false;
+        startupEvidenceContextRef.current = {
+          appInfo,
+          appPaths,
+          readinessSnapshot,
+          localAiProxy,
+        };
+        logStartup('info', 'Hosted desktop runtime readiness probe resolved.', {
+          descriptorBrowserBaseUrl: readinessSnapshot.descriptor.browserBaseUrl,
+          descriptorEndpointId: readinessSnapshot.descriptor.endpointId ?? null,
+          descriptorActivePort: readinessSnapshot.descriptor.activePort ?? null,
+          descriptorStateStoreDriver: readinessSnapshot.descriptor.stateStoreDriver ?? null,
+          descriptorStateStoreProfileId: readinessSnapshot.descriptor.stateStoreProfileId ?? null,
+          runtimeDataDir: readinessSnapshot.descriptor.runtimeDataDir ?? null,
+          webDistDir: readinessSnapshot.descriptor.webDistDir ?? null,
+          hostLifecycle: readinessSnapshot.hostPlatformStatus.lifecycle,
+          hostMode: readinessSnapshot.hostPlatformStatus.mode,
+          hostEndpointCount: readinessSnapshot.hostEndpoints.length,
+          hostEndpointId: readinessSnapshot.evidence.manageEndpointId,
+          hostEndpointRequestedPort: readinessSnapshot.evidence.manageEndpointRequestedPort,
+          hostEndpointActivePort: readinessSnapshot.evidence.manageEndpointActivePort,
+          hostEndpointBaseUrl: readinessSnapshot.evidence.manageBaseUrl,
+          openClawRuntimeLifecycle: readinessSnapshot.openClawRuntime.lifecycle,
+          openClawGatewayLifecycle: readinessSnapshot.openClawGateway.lifecycle,
+          instanceCount: readinessSnapshot.instances.length,
           builtInInstanceRuntimeKind: builtInInstance?.runtimeKind ?? null,
           builtInInstanceDeploymentMode: builtInInstance?.deploymentMode ?? null,
           builtInInstanceTransportKind: builtInInstance?.transportKind ?? null,
           builtInInstanceStatus: builtInInstance?.status ?? null,
           builtInInstanceBaseUrl: builtInInstance?.baseUrl ?? null,
           builtInInstanceWebsocketUrl: builtInInstance?.websocketUrl ?? null,
-          readinessEvidence: readinessError.snapshot.evidence,
-          error: readinessError.message,
-          cause: readinessError.cause,
+          readinessEvidence: readinessSnapshot.evidence,
+        }, runId);
+        await persistStartupEvidence({
+          status: 'passed',
+          phase: 'runtime-ready',
+          appInfo,
+          appPaths,
+          readinessSnapshot,
+          localAiProxy,
+          runId,
         });
+        if (shouldNotifyRecoveryReady) {
+          const recoveryCopy = resolveBackgroundRuntimeReadinessRecoveryToastCopy(appearance.language);
+          toast.success(recoveryCopy.readyTitle, {
+            id: BACKGROUND_RUNTIME_READINESS_TOAST_ID,
+            description: recoveryCopy.readyDescription,
+            duration: 6000,
+            cancel: {
+              label: recoveryCopy.detailsActionLabel,
+              onClick: () => {
+                openBuiltInOpenClawDetails();
+              },
+            },
+          });
+        }
+      },
+      onReadinessFailed: async ({ appInfo, appPaths, error, localAiProxy }) => {
+        if (!isCurrentRun()) {
+          logStartup(
+            'warn',
+            'Ignoring stale hosted runtime readiness failure from a previous bootstrap run.',
+            {
+              error,
+            },
+            runId,
+          );
+          return;
+        }
+
+        backgroundRuntimeReadinessRecoveryPendingRef.current = false;
+        runtimeReadinessFailureRef.current = true;
+
+        if (isDesktopHostedRuntimeReadinessError(error)) {
+          const readinessError = error;
+          const builtInInstance = readinessError.snapshot.instances.find(
+            (instance) => instance.id === BUILT_IN_OPENCLAW_INSTANCE_ID,
+          );
+          setBackgroundRuntimeReadinessNotification({
+            runId,
+            message: readinessError.message,
+          });
+          startupEvidenceContextRef.current = {
+            appInfo,
+            appPaths,
+            readinessSnapshot: readinessError.snapshot,
+            localAiProxy,
+          };
+          logStartup('error', 'Hosted desktop runtime readiness probe failed in the background.', {
+            descriptorBrowserBaseUrl: readinessError.snapshot.descriptor.browserBaseUrl,
+            descriptorEndpointId: readinessError.snapshot.descriptor.endpointId ?? null,
+            descriptorActivePort: readinessError.snapshot.descriptor.activePort ?? null,
+            descriptorStateStoreDriver: readinessError.snapshot.descriptor.stateStoreDriver ?? null,
+            descriptorStateStoreProfileId: readinessError.snapshot.descriptor.stateStoreProfileId ?? null,
+            runtimeDataDir: readinessError.snapshot.descriptor.runtimeDataDir ?? null,
+            webDistDir: readinessError.snapshot.descriptor.webDistDir ?? null,
+            hostLifecycle: readinessError.snapshot.hostPlatformStatus.lifecycle,
+            hostMode: readinessError.snapshot.hostPlatformStatus.mode,
+            hostEndpointCount: readinessError.snapshot.hostEndpoints.length,
+            hostEndpointId: readinessError.snapshot.evidence.manageEndpointId,
+            hostEndpointRequestedPort: readinessError.snapshot.evidence.manageEndpointRequestedPort,
+            hostEndpointActivePort: readinessError.snapshot.evidence.manageEndpointActivePort,
+            hostEndpointBaseUrl: readinessError.snapshot.evidence.manageBaseUrl,
+            openClawRuntimeLifecycle: readinessError.snapshot.openClawRuntime.lifecycle,
+            openClawGatewayLifecycle: readinessError.snapshot.openClawGateway.lifecycle,
+            instanceCount: readinessError.snapshot.instances.length,
+            builtInInstanceRuntimeKind: builtInInstance?.runtimeKind ?? null,
+            builtInInstanceDeploymentMode: builtInInstance?.deploymentMode ?? null,
+            builtInInstanceTransportKind: builtInInstance?.transportKind ?? null,
+            builtInInstanceStatus: builtInInstance?.status ?? null,
+            builtInInstanceBaseUrl: builtInInstance?.baseUrl ?? null,
+            builtInInstanceWebsocketUrl: builtInInstance?.websocketUrl ?? null,
+            readinessEvidence: readinessError.snapshot.evidence,
+            error: readinessError.message,
+            cause: readinessError.cause,
+          }, runId);
+          await persistStartupEvidence({
+            status: 'failed',
+            phase: 'runtime-readiness-failed',
+            appInfo,
+            appPaths,
+            readinessSnapshot: readinessError.snapshot,
+            localAiProxy,
+            error: readinessError,
+            runId,
+          });
+          return;
+        }
+
+        setBackgroundRuntimeReadinessNotification({
+          runId,
+          message: resolveErrorMessage(error, appearance.language),
+        });
+        logStartup(
+          'warn',
+          'Hosted desktop runtime readiness background probe failed without a structured snapshot.',
+          {
+            error,
+          },
+          runId,
+        );
         await persistStartupEvidence({
           status: 'failed',
           phase: 'runtime-readiness-failed',
           appInfo,
           appPaths,
-          readinessSnapshot: readinessError.snapshot,
-          error: readinessError,
+          localAiProxy,
+          error,
+          runId,
         });
-      }
-
-      throw error;
-    }
+      },
+      log(level, message, details) {
+        logStartup(level, message, details);
+      },
+    });
   });
 
   const runBootstrap = useEffectEvent(async () => {
@@ -643,6 +972,12 @@ export function DesktopBootstrapApp({
     stageLogSignatureRef.current = '';
     startupEvidenceContextRef.current = null;
     startupEvidenceSignatureRef.current = '';
+    backgroundRuntimeReadinessNotificationSignatureRef.current = '';
+    backgroundRuntimeReadinessRecoveryPendingRef.current = false;
+    backgroundRuntimeReadinessRecoveryInFlightRef.current = false;
+    runtimeReadinessFailureRef.current = false;
+    toast.dismiss(BACKGROUND_RUNTIME_READINESS_TOAST_ID);
+    setBackgroundRuntimeReadinessNotification(null);
     setMilestones(INITIAL_DESKTOP_STARTUP_MILESTONES);
     setStatus('booting');
     setErrorMessage(null);

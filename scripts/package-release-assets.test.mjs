@@ -191,7 +191,7 @@ function readTarGzEntries(archivePath) {
 test('readTarGzEntries preserves PAX long-path metadata for nested release bundle files', () => {
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-release-tar-pax-'));
   const archivePath = path.join(tempRoot, 'bundle.tar.gz');
-  const longPath = 'claw-studio-container-bundle-release-2026-04-03-03-linux-x64-nvidia-cuda/deploy/docker-compose.nvidia-cuda.yml';
+  const longPath = 'claw-studio-container-bundle-release-2026-04-03-03-linux-x64-nvidia-cuda/deploy/docker/docker-compose.nvidia-cuda.yml';
 
   try {
     writeFileSync(
@@ -843,28 +843,28 @@ test('container asset packager bundles deployment overlays, app runtime, and rel
     assert.equal(existsSync(`${archivePath}.sha256.txt`), true, 'missing expected container checksum');
     assert.equal(archiveEntries.has(`${bundleRoot}/app/bin/sdkwork-claw-server`), true);
     assert.equal(archiveEntries.has(`${bundleRoot}/app/start-claw-server.sh`), true);
-    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/Dockerfile`), true);
-    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/docker-compose.nvidia-cuda.yml`), true);
-    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/profiles/default.env`), true);
-    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/README.md`), true);
+    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/docker/Dockerfile`), true);
+    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/docker/docker-compose.nvidia-cuda.yml`), true);
+    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/docker/profiles/default.env`), true);
+    assert.equal(archiveEntries.has(`${bundleRoot}/deploy/docker/README.md`), true);
     assert.equal(archiveEntries.has(`${bundleRoot}/.dockerignore`), true);
     const composeSource = archiveEntries
-      .get(`${bundleRoot}/deploy/docker-compose.yml`)
+      .get(`${bundleRoot}/deploy/docker/docker-compose.yml`)
       .content
       .toString('utf8');
     const nvidiaComposeSource = archiveEntries
-      .get(`${bundleRoot}/deploy/docker-compose.nvidia-cuda.yml`)
+      .get(`${bundleRoot}/deploy/docker/docker-compose.nvidia-cuda.yml`)
       .content
       .toString('utf8');
     const amdComposeSource = archiveEntries
-      .get(`${bundleRoot}/deploy/docker-compose.amd-rocm.yml`)
+      .get(`${bundleRoot}/deploy/docker/docker-compose.amd-rocm.yml`)
       .content
       .toString('utf8');
     const deployReadmeSource = archiveEntries
-      .get(`${bundleRoot}/deploy/README.md`)
+      .get(`${bundleRoot}/deploy/docker/README.md`)
       .content
       .toString('utf8');
-    const composeDir = `${bundleRoot}/deploy`;
+    const composeDir = `${bundleRoot}/deploy/docker`;
     const buildContext = readSingleLineYamlValue(composeSource, 'context');
     const dockerfilePath = readSingleLineYamlValue(composeSource, 'dockerfile');
     const defaultEnvPath = readSingleListYamlValue(composeSource, 'env_file');
@@ -908,7 +908,7 @@ test('container asset packager bundles deployment overlays, app runtime, and rel
     );
     assert.match(
       deployReadmeSource,
-      /extracted bundle root[\s\S]*deploy\/docker-compose\.yml/i,
+      /extracted bundle root[\s\S]*deploy\/docker\/docker-compose\.yml/i,
       'packaged deployment README must preserve the extracted bundle command surface for operators',
     );
     assert.match(

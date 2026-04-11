@@ -83,6 +83,8 @@ export const DESKTOP_COMMANDS = {
   runHubInstall: 'run_hub_install',
   runHubUninstall: 'run_hub_uninstall',
   openExternal: 'open_external',
+  openPath: 'open_path',
+  revealPath: 'reveal_path',
   selectFiles: 'select_files',
   saveBlobFile: 'save_blob_file',
   fetchRemoteUrl: 'fetch_remote_url',
@@ -94,6 +96,7 @@ export type DesktopCommandName =
 
 export const DESKTOP_EVENTS = {
   appReady: 'app://ready',
+  builtInOpenClawStatusChanged: 'studio://built-in-openclaw-status-changed',
   hubInstallProgress: 'hub-installer:progress',
   jobUpdated: 'job://updated',
   processOutput: 'process://output',

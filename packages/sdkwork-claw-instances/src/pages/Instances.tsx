@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useEffectEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -30,7 +30,7 @@ import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useInstanceStore } from '@sdkwork/claw-core';
-import { fileDialogService, platform } from '@sdkwork/claw-infrastructure';
+import { fileDialogService, openDiagnosticPath, platform, runtime } from '@sdkwork/claw-infrastructure';
 import {
   Button,
   Dialog,
@@ -46,12 +46,19 @@ import {
 } from '@sdkwork/claw-ui';
 import {
   buildInstanceActionCapabilities,
-  loadInstanceActionCapabilities,
+  buildBundledOpenClawStartupAlert,
+  buildBundledStartupRecoveryHandler,
+  BUILT_IN_OPENCLAW_STARTUP_REFRESH_INTERVAL_MS,
+  hasPendingBuiltInOpenClawStartup,
   instanceOnboardingService,
   instanceService,
+  loadInstanceActionCapabilities,
+  shouldRefreshInstancesForBuiltInOpenClawStatusChange,
+  type BundledOpenClawStartupAlert,
   type InstanceActionCapabilities,
   type DiscoveredInstalledOpenClawInstall,
 } from '../services';
+import { BuiltInOpenClawStartupBanner } from '../components/BuiltInOpenClawStartupBanner';
 import { Instance } from '../types';
 
 type OnboardingDialogMode = 'associate' | 'remote' | null;
@@ -63,6 +70,14 @@ interface RemoteInstanceFormState {
   secure: boolean;
   authToken: string;
   description: string;
+}
+
+interface BuiltInOpenClawStartupAlertRecord {
+  instanceId: string;
+  instanceName: string;
+  alert: BundledOpenClawStartupAlert;
+  canRetry: boolean;
+  preferRestart: boolean;
 }
 
 function createRemoteInstanceFormState(): RemoteInstanceFormState {
@@ -104,6 +119,7 @@ function getStatusColor(status: string) {
     case 'offline':
       return 'bg-zinc-400';
     case 'starting':
+    case 'syncing':
       return 'bg-amber-500 animate-pulse shadow-amber-500/50';
     case 'error':
       return 'bg-red-500 shadow-red-500/50';
@@ -119,6 +135,7 @@ function getStatusBadge(status: string) {
     case 'offline':
       return 'border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400';
     case 'starting':
+    case 'syncing':
       return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400';
     case 'error':
       return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400';
@@ -158,6 +175,8 @@ export function Instances() {
   const [actionCapabilitiesByInstanceId, setActionCapabilitiesByInstanceId] = useState<
     Record<string, InstanceActionCapabilities>
   >({});
+  const [builtInStartupAlert, setBuiltInStartupAlert] =
+    useState<BuiltInOpenClawStartupAlertRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogMode, setDialogMode] = useState<OnboardingDialogMode>(null);
   const [discoveredInstalls, setDiscoveredInstalls] = useState<DiscoveredInstalledOpenClawInstall[]>([]);
@@ -165,6 +184,7 @@ export function Instances() {
   const [isManualAssociating, setIsManualAssociating] = useState(false);
   const [activeAssociationId, setActiveAssociationId] = useState<string | null>(null);
   const [isCreatingRemoteInstance, setIsCreatingRemoteInstance] = useState(false);
+  const [isRetryingBuiltInStartup, setIsRetryingBuiltInStartup] = useState(false);
   const [remoteForm, setRemoteForm] = useState<RemoteInstanceFormState>(
     createRemoteInstanceFormState(),
   );
@@ -177,9 +197,17 @@ export function Instances() {
 
   const getStatusLabel = (status: string) => t(`instances.shared.status.${status}`);
   const getActionLabel = (action: string) => t(`instances.list.actionNames.${action}`);
+  const getDiagnosticOpenFailureLabel = () => {
+    const translated = t('instances.list.toasts.openDiagnosticFailed');
+    return translated === 'instances.list.toasts.openDiagnosticFailed'
+      ? 'Unable to open the diagnostic location'
+      : translated;
+  };
 
-  const loadInstances = async () => {
-    setIsLoading(true);
+  const loadInstances = async (options: { withSpinner?: boolean; silentError?: boolean } = {}) => {
+    if (options.withSpinner !== false) {
+      setIsLoading(true);
+    }
     try {
       const data = await instanceService.getInstances();
       setInstances(data);
@@ -188,25 +216,128 @@ export function Instances() {
           data.map((instance) => [instance.id, buildInstanceActionCapabilities(instance, null)]),
         ),
       );
-      const nextActionCapabilities = await loadInstanceActionCapabilities(
-        data,
-        async (instanceId) => instanceService.getInstanceDetail(instanceId),
-      );
+      const detailPromises = new Map<string, Promise<Awaited<ReturnType<typeof instanceService.getInstanceDetail>>>>();
+      const loadDetail = (instanceId: string) => {
+        if (!detailPromises.has(instanceId)) {
+          detailPromises.set(
+            instanceId,
+            instanceService.getInstanceDetail(instanceId).catch(() => null),
+          );
+        }
+
+        return detailPromises.get(instanceId)!;
+      };
+      const nextActionCapabilities = await loadInstanceActionCapabilities(data, loadDetail);
       setActionCapabilitiesByInstanceId(nextActionCapabilities);
+      const builtInDetailRecords = await Promise.all(
+        data
+          .filter((instance) => instance.isBuiltIn)
+          .map(async (instance) => ({
+            instance,
+            detail: await loadDetail(instance.id),
+          })),
+      );
+      const nextBuiltInStartupAlert =
+        builtInDetailRecords.find(({ detail }) => Boolean(buildBundledOpenClawStartupAlert(detail))) ||
+        null;
+      if (nextBuiltInStartupAlert) {
+        const alert = buildBundledOpenClawStartupAlert(nextBuiltInStartupAlert.detail);
+        const capabilities =
+          nextActionCapabilities[nextBuiltInStartupAlert.instance.id] ||
+          buildInstanceActionCapabilities(
+            nextBuiltInStartupAlert.instance,
+            nextBuiltInStartupAlert.detail,
+          );
+
+        setBuiltInStartupAlert(
+          alert
+            ? {
+                instanceId: nextBuiltInStartupAlert.instance.id,
+                instanceName: nextBuiltInStartupAlert.instance.name,
+                alert,
+                canRetry: capabilities.canStart || capabilities.canRestart,
+                preferRestart: capabilities.canRestart,
+              }
+            : null,
+        );
+      } else {
+        setBuiltInStartupAlert(null);
+      }
     } catch (error: any) {
-      console.error('Failed to fetch instances:', error);
-      toast.error(t('instances.list.toasts.loadFailed'), {
-        description: error?.message,
-      });
-      setActionCapabilitiesByInstanceId({});
+      if (options.silentError !== true) {
+        console.error('Failed to fetch instances:', error);
+        toast.error(t('instances.list.toasts.loadFailed'), {
+          description: error?.message,
+        });
+        setActionCapabilitiesByInstanceId({});
+        setBuiltInStartupAlert(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (options.withSpinner !== false) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     void loadInstances();
   }, []);
+
+  const handleBuiltInOpenClawStatusChanged = useEffectEvent(
+    (event: { instanceId: string }) => {
+      if (!shouldRefreshInstancesForBuiltInOpenClawStatusChange(instances, event)) {
+        return;
+      }
+
+      void loadInstances({
+        withSpinner: false,
+        silentError: true,
+      });
+    },
+  );
+
+  useEffect(() => {
+    let disposed = false;
+    let unsubscribe = () => {};
+
+    void runtime
+      .subscribeBuiltInOpenClawStatusChanged((event) => {
+        handleBuiltInOpenClawStatusChanged(event);
+      })
+      .then((nextUnsubscribe) => {
+        if (disposed) {
+          void nextUnsubscribe();
+          return;
+        }
+
+        unsubscribe = nextUnsubscribe;
+      })
+      .catch((error) => {
+        console.warn('Failed to subscribe to built-in OpenClaw status changes:', error);
+      });
+
+    return () => {
+      disposed = true;
+      void unsubscribe();
+    };
+  }, [handleBuiltInOpenClawStatusChanged]);
+
+  useEffect(() => {
+    if (!hasPendingBuiltInOpenClawStartup(instances)) {
+      return;
+    }
+
+    const timeoutHandle = window.setTimeout(() => {
+      void loadInstances({
+        withSpinner: false,
+        silentError: true,
+      });
+    }, BUILT_IN_OPENCLAW_STARTUP_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearTimeout(timeoutHandle);
+    };
+  }, [instances]);
 
   const loadInstalledOpenClawInstalls = async () => {
     setIsLoadingInstalls(true);
@@ -275,6 +406,63 @@ export function Instances() {
   const handleOpenBuiltInInstall = () => {
     navigate('/install?product=openclaw');
   };
+
+  const handleOpenBuiltInStartupDetails = () => {
+    if (!builtInStartupAlert) {
+      return;
+    }
+
+    navigate(`/instances/${builtInStartupAlert.instanceId}`);
+  };
+
+  const handleOpenBuiltInDiagnosticPath = async (
+    diagnostic: BundledOpenClawStartupAlert['diagnostics'][number],
+  ) => {
+    const mode =
+      diagnostic.id === 'desktopMainLogPath'
+        ? 'reveal'
+        : diagnostic.id === 'gatewayLogPath'
+          ? 'open'
+          : null;
+    if (!mode) {
+      return;
+    }
+
+    try {
+      await openDiagnosticPath(diagnostic.value, { mode });
+    } catch (error: any) {
+      toast.error(getDiagnosticOpenFailureLabel(), {
+        description: error?.message,
+      });
+    }
+  };
+
+  const handleRetryBuiltInStartup = buildBundledStartupRecoveryHandler({
+    instanceId: builtInStartupAlert?.instanceId,
+    canRetryBundledStartup: Boolean(builtInStartupAlert?.canRetry),
+    preferRestart: builtInStartupAlert?.preferRestart ?? false,
+    runLifecycleAction: async (request) => {
+      setIsRetryingBuiltInStartup(true);
+      try {
+        await request.execute(request.instanceId);
+        toast.success(t(request.successKey));
+      } catch (error: any) {
+        toast.error(error?.message || t(request.failureKey));
+      } finally {
+        setIsRetryingBuiltInStartup(false);
+        await loadInstances({
+          withSpinner: false,
+          silentError: true,
+        });
+      }
+    },
+    executeRestart: async (instanceId) => {
+      await instanceService.restartInstance(instanceId);
+    },
+    executeStart: async (instanceId) => {
+      await instanceService.startInstance(instanceId);
+    },
+  });
 
   const handleOpenAssociationDialog = () => {
     setDialogMode('associate');
@@ -443,6 +631,19 @@ export function Instances() {
           </Button>
         </div>
       </div>
+
+      {builtInStartupAlert ? (
+        <BuiltInOpenClawStartupBanner
+          instanceName={builtInStartupAlert.instanceName}
+          alert={builtInStartupAlert.alert}
+          canRetry={builtInStartupAlert.canRetry}
+          isRetrying={isRetryingBuiltInStartup}
+          onRetry={handleRetryBuiltInStartup}
+          onOpenDetails={handleOpenBuiltInStartupDetails}
+          onOpenDiagnosticPath={handleOpenBuiltInDiagnosticPath}
+          t={t}
+        />
+      ) : null}
 
       <div className="mb-8 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <button

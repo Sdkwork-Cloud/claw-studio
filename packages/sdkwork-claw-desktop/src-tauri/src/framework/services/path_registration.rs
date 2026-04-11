@@ -45,10 +45,7 @@ impl PathRegistrationService {
     }
 
     pub fn ensure_user_bin_on_path(&self, paths: &AppPaths) -> Result<()> {
-        let managed_profile = paths.user_root.join(MANAGED_PROFILE_FILE_NAME);
-        let current_profile = fs::read_to_string(&managed_profile).unwrap_or_default();
-        let next_profile = upsert_path_block(&current_profile, &paths.user_bin_dir);
-        write_if_changed(&managed_profile, &next_profile)?;
+        self.ensure_install_local_user_bin_on_path(paths)?;
 
         if cfg!(test) {
             return Ok(());
@@ -58,7 +55,16 @@ impl PathRegistrationService {
         ensure_windows_path_contains(&paths.user_bin_dir)?;
 
         #[cfg(not(windows))]
-        ensure_shell_profiles_source(&managed_profile)?;
+        ensure_shell_profiles_source(&paths.user_root.join(MANAGED_PROFILE_FILE_NAME))?;
+
+        Ok(())
+    }
+
+    pub fn ensure_install_local_user_bin_on_path(&self, paths: &AppPaths) -> Result<()> {
+        let managed_profile = paths.user_root.join(MANAGED_PROFILE_FILE_NAME);
+        let current_profile = fs::read_to_string(&managed_profile).unwrap_or_default();
+        let next_profile = upsert_path_block(&current_profile, &paths.user_bin_dir);
+        write_if_changed(&managed_profile, &next_profile)?;
 
         Ok(())
     }

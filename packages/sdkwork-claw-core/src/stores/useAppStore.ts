@@ -27,6 +27,7 @@ interface AppState {
   setThemeColor: (color: ThemeColor) => void;
   language: Language;
   languagePreference: LanguagePreference;
+  hasExplicitLanguagePreference: boolean;
   setLanguage: (lang: LanguagePreference) => void;
   isMobileAppDialogOpen: boolean;
   hasSeenMobileAppPrompt: boolean;
@@ -45,6 +46,7 @@ type PersistedAppState = Pick<
   | 'themeColor'
   | 'language'
   | 'languagePreference'
+  | 'hasExplicitLanguagePreference'
   | 'hasSeenMobileAppPrompt'
 >;
 
@@ -105,11 +107,13 @@ export const useAppStore = create<AppState>()(
       themeColor: 'lobster',
       setThemeColor: (themeColor) => set({ themeColor }),
       languagePreference: 'system',
+      hasExplicitLanguagePreference: false,
       language: getDefaultLanguage(),
       setLanguage: (languagePreference) => {
         const nextLanguagePreference = normalizeLanguagePreference(languagePreference);
         set({
           languagePreference: nextLanguagePreference,
+          hasExplicitLanguagePreference: true,
           language: resolveLanguageFromPreference(nextLanguagePreference),
         });
       },
@@ -130,13 +134,21 @@ export const useAppStore = create<AppState>()(
         themeColor: state.themeColor,
         language: state.language,
         languagePreference: state.languagePreference,
+        hasExplicitLanguagePreference: state.hasExplicitLanguagePreference,
         hasSeenMobileAppPrompt: state.hasSeenMobileAppPrompt,
       }),
       merge: (persistedState, currentState) => {
         const nextState = (persistedState as Partial<PersistedAppState>) || {};
-        const languagePreference = normalizeLanguagePreference(
-          nextState.languagePreference ?? nextState.language ?? 'system',
+        const persistedLanguagePreference = normalizeLanguagePreference(
+          nextState.languagePreference ?? 'system',
         );
+        const hasExplicitLanguagePreference =
+          nextState.hasExplicitLanguagePreference === true ||
+          (nextState.hasExplicitLanguagePreference == null &&
+            persistedLanguagePreference !== defaultLanguage);
+        const languagePreference = hasExplicitLanguagePreference
+          ? persistedLanguagePreference
+          : 'system';
         const hiddenSidebarItems =
           nextState.sidebarVisibilityVersion === SIDEBAR_VISIBILITY_VERSION
             ? dedupeSidebarItems(nextState.hiddenSidebarItems ?? currentState.hiddenSidebarItems)
@@ -147,6 +159,7 @@ export const useAppStore = create<AppState>()(
           ...nextState,
           sidebarVisibilityVersion: SIDEBAR_VISIBILITY_VERSION,
           hiddenSidebarItems,
+          hasExplicitLanguagePreference,
           languagePreference,
           language: resolveLanguageFromPreference(languagePreference ?? defaultLanguage),
           isMobileAppDialogOpen: false,

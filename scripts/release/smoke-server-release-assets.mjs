@@ -33,6 +33,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
 const DEFAULT_RELEASE_ASSETS_DIR = path.join(rootDir, 'artifacts', 'release');
 const RELEASE_ASSET_MANIFEST_FILENAME = 'release-asset-manifest.json';
+const RETRYABLE_DIRECTORY_REMOVAL_ERROR_CODES = new Set(['EBUSY', 'EPERM', 'ENOTEMPTY']);
 
 function delay(milliseconds) {
   return new Promise((resolve) => {
@@ -139,19 +140,17 @@ function resolveArtifactAbsolutePath(releaseAssetsDir, artifact) {
   return absolutePath;
 }
 
-function escapePowerShellSingleQuotedValue(value) {
-  return String(value ?? '').replaceAll("'", "''");
-}
-
 function runCommand({
   command,
   args,
   cwd,
   label,
+  shell = false,
 } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: 'utf8',
+    shell,
   });
   if (result.error) {
     throw result.error;
@@ -174,16 +173,32 @@ export async function extractServerArchive({
 
   if (lowerCaseArchivePath.endsWith('.zip')) {
     if (process.platform === 'win32') {
-      runCommand({
-        command: 'powershell',
-        args: [
+      const result = spawnSync(
+        'powershell',
+        [
+          '-NoLogo',
           '-NoProfile',
-          '-NonInteractive',
           '-Command',
-          `Expand-Archive -LiteralPath '${escapePowerShellSingleQuotedValue(archivePath)}' -DestinationPath '${escapePowerShellSingleQuotedValue(extractDir)}' -Force`,
+          'Expand-Archive -LiteralPath $env:SDKWORK_ZIP_SOURCE -DestinationPath $env:SDKWORK_ZIP_DESTINATION -Force',
         ],
-        label: 'Extracting server zip archive',
-      });
+        {
+          cwd: rootDir,
+          stdio: 'inherit',
+          env: {
+            ...process.env,
+            SDKWORK_ZIP_SOURCE: archivePath,
+            SDKWORK_ZIP_DESTINATION: extractDir,
+          },
+        },
+      );
+      if (result.error) {
+        throw result.error;
+      }
+      if (result.status !== 0) {
+        throw new Error(
+          `Extracting server zip archive failed with exit code ${result.status ?? 'unknown'}.`,
+        );
+      }
     } else {
       runCommand({
         command: 'unzip',
@@ -229,23 +244,86 @@ export async function resolveAvailablePort() {
   });
 }
 
-async function stopChildProcess(child) {
-  if (!child || child.exitCode !== null) {
+async function waitForChildExit(child, timeoutMs = 5000, {
+  onceFn = once,
+  delayFn = delay,
+} = {}) {
+  if (!child) {
+    return;
+  }
+  if (child.exitCode !== null || child.signalCode !== null) {
     return;
   }
 
-  child.kill();
   await Promise.race([
-    once(child, 'exit').catch(() => undefined),
-    delay(3000),
+    onceFn(child, 'exit').catch(() => undefined),
+    delayFn(timeoutMs),
   ]);
+}
 
-  if (child.exitCode === null) {
+export async function stopChildProcess(child, {
+  platform = process.platform,
+  runTaskkillFn = (command, args, options) => spawnSync(command, args, options),
+  waitForExitFn = waitForChildExit,
+  onceFn = once,
+  delayFn = delay,
+} = {}) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+
+  const normalizedPlatform = normalizeDesktopPlatform(platform);
+  const childPid = Number(child.pid ?? 0);
+  if (normalizedPlatform === 'windows' && childPid > 0) {
+    const result = runTaskkillFn('taskkill', ['/PID', String(childPid), '/T', '/F'], {
+      encoding: 'utf8',
+      shell: false,
+    });
+    if (!result?.error && result?.status === 0) {
+      await waitForExitFn(child, 5000, {
+        onceFn,
+        delayFn,
+      });
+      return;
+    }
+  }
+
+  child.kill();
+  await waitForExitFn(child, 3000, {
+    onceFn,
+    delayFn,
+  });
+
+  if (child.exitCode === null && child.signalCode === null) {
     child.kill('SIGKILL');
-    await Promise.race([
-      once(child, 'exit').catch(() => undefined),
-      delay(2000),
-    ]);
+    await waitForExitFn(child, 2000, {
+      onceFn,
+      delayFn,
+    });
+  }
+}
+
+export async function removeDirectoryWithRetries(directoryPath, {
+  retries = process.platform === 'win32' ? 20 : 1,
+  delayMs = 500,
+  delayFn = delay,
+  rmDirFn = (targetPath, options) => rmSync(targetPath, options),
+} = {}) {
+  const maxAttempts = Math.max(1, Number(retries) || 1);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      rmDirFn(directoryPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (
+        attempt >= maxAttempts
+        || !RETRYABLE_DIRECTORY_REMOVAL_ERROR_CODES.has(String(error?.code ?? '').trim().toUpperCase())
+      ) {
+        throw error;
+      }
+      await delayFn(delayMs);
+    }
   }
 }
 
@@ -253,49 +331,48 @@ export async function launchServerBundle({
   bundleRoot,
   platform,
   port,
+  spawnFn = spawn,
+  stopChildProcessFn = stopChildProcess,
+  existsSyncFn = existsSync,
 } = {}) {
   const normalizedPlatform = normalizeDesktopPlatform(platform);
   const launcherRelativePath = normalizedPlatform === 'windows'
-    ? 'start-claw-server.cmd'
+    ? 'bin/sdkwork-claw-server.exe'
     : 'start-claw-server.sh';
   const launcherAbsolutePath = path.join(bundleRoot, launcherRelativePath);
-  if (!existsSync(launcherAbsolutePath)) {
+  if (!existsSyncFn(launcherAbsolutePath)) {
     throw new Error(`Missing bundled server launcher: ${launcherAbsolutePath}`);
   }
 
   const smokeDataDir = path.join(bundleRoot, '.smoke-data');
   mkdirSync(smokeDataDir, { recursive: true });
-
+  const childOptions = {
+    cwd: bundleRoot,
+    env: {
+      ...process.env,
+      CLAW_SERVER_HOST: '127.0.0.1',
+      CLAW_SERVER_PORT: String(port),
+      CLAW_SERVER_DATA_DIR: smokeDataDir,
+      CLAW_SERVER_WEB_DIST: path.join(bundleRoot, 'web', 'dist'),
+    },
+    stdio: 'ignore',
+    ...(normalizedPlatform === 'windows'
+      ? {
+        windowsHide: true,
+      }
+      : {}),
+  };
   const child = normalizedPlatform === 'windows'
-    ? spawn('cmd.exe', ['/d', '/s', '/c', launcherAbsolutePath], {
-      cwd: bundleRoot,
-      env: {
-        ...process.env,
-        CLAW_SERVER_HOST: '127.0.0.1',
-        CLAW_SERVER_PORT: String(port),
-        CLAW_SERVER_DATA_DIR: smokeDataDir,
-        CLAW_SERVER_WEB_DIST: path.join(bundleRoot, 'web', 'dist'),
-      },
-      stdio: 'ignore',
-      windowsHide: true,
-    })
-    : spawn('sh', [launcherAbsolutePath], {
-      cwd: bundleRoot,
-      env: {
-        ...process.env,
-        CLAW_SERVER_HOST: '127.0.0.1',
-        CLAW_SERVER_PORT: String(port),
-        CLAW_SERVER_DATA_DIR: smokeDataDir,
-        CLAW_SERVER_WEB_DIST: path.join(bundleRoot, 'web', 'dist'),
-      },
-      stdio: 'ignore',
-    });
+    ? spawnFn(launcherAbsolutePath, [], childOptions)
+    : spawnFn('sh', [launcherAbsolutePath], childOptions);
 
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     launcherRelativePath,
     async stop() {
-      await stopChildProcess(child);
+      await stopChildProcessFn(child, {
+        platform: normalizedPlatform,
+      });
     },
   };
 }
@@ -498,7 +575,9 @@ export async function smokeServerReleaseAssets({
     if (runtime?.stop) {
       await runtime.stop();
     }
-    rmSync(extractDir, { recursive: true, force: true });
+    await removeDirectoryWithRetries(extractDir, {
+      retries: releasePlatform === 'windows' ? 20 : 1,
+    });
   }
 }
 

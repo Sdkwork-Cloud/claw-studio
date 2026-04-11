@@ -53,6 +53,45 @@ function buildDesktopStartupSmokeReport({
   artifactRelativePaths = [
     'desktop/windows/x64/Claw.Studio_0.1.0_x64-setup.exe',
   ],
+  localAiProxyRuntime = {
+    lifecycle: 'running',
+    messageCaptureEnabled: true,
+    observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+    snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+    logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
+  },
+  checks = [
+    {
+      id: 'startup-status',
+      status: 'passed',
+      detail: 'desktop startup evidence recorded a passed launch',
+    },
+    {
+      id: 'startup-phase',
+      status: 'passed',
+      detail: 'desktop startup evidence recorded shell-mounted phase',
+    },
+    {
+      id: 'runtime-readiness',
+      status: 'passed',
+      detail: 'desktop startup evidence preserved ready runtime invariants',
+    },
+    {
+      id: 'built-in-instance',
+      status: 'passed',
+      detail: 'desktop startup evidence preserved the managed built-in instance projection',
+    },
+    {
+      id: 'gateway-websocket',
+      status: 'passed',
+      detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+    },
+    {
+      id: 'local-ai-proxy-runtime',
+      status: 'passed',
+      detail: 'desktop startup evidence preserved local ai proxy runtime lifecycle and artifact paths',
+    },
+  ],
 } = {}) {
   return {
     platform: 'windows',
@@ -66,34 +105,9 @@ function buildDesktopStartupSmokeReport({
     descriptorBrowserBaseUrl: 'http://127.0.0.1:19797',
     builtInInstanceId: 'local-built-in',
     builtInInstanceStatus: 'online',
+    localAiProxyRuntime,
     artifactRelativePaths,
-    checks: [
-      {
-        id: 'startup-status',
-        status: 'passed',
-        detail: 'desktop startup evidence recorded a passed launch',
-      },
-      {
-        id: 'startup-phase',
-        status: 'passed',
-        detail: 'desktop startup evidence recorded shell-mounted phase',
-      },
-      {
-        id: 'runtime-readiness',
-        status: 'passed',
-        detail: 'desktop startup evidence preserved ready runtime invariants',
-      },
-      {
-        id: 'built-in-instance',
-        status: 'passed',
-        detail: 'desktop startup evidence preserved the managed built-in instance projection',
-      },
-      {
-        id: 'gateway-websocket',
-        status: 'passed',
-        detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
-      },
-    ],
+    checks,
   };
 }
 
@@ -119,6 +133,13 @@ function writePassingDesktopStartupSmokeFixture({
       builtInInstance: {
         id: 'local-built-in',
         status: 'online',
+      },
+      localAiProxy: {
+        lifecycle: 'running',
+        messageCaptureEnabled: true,
+        observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+        snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+        logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
       },
       readinessEvidence: {
         ready: true,
@@ -706,6 +727,82 @@ test('release asset finalizer rejects desktop release assets when startup smoke 
       }),
       /Missing desktop startup smoke report/,
     );
+
+    mkdirSync(path.join(windowsDir, 'diagnostics'), { recursive: true });
+    writeFileSync(
+      path.join(windowsDir, 'diagnostics', 'desktop-startup-evidence.json'),
+      `${JSON.stringify({
+        version: 1,
+        status: 'passed',
+        phase: 'shell-mounted',
+        runId: 2,
+        durationMs: 1842,
+        recordedAt: '2026-04-06T12:13:14.000Z',
+        descriptor: {
+          browserBaseUrl: 'http://127.0.0.1:19797',
+        },
+        builtInInstance: {
+          id: 'local-built-in',
+          status: 'online',
+        },
+        localAiProxy: {
+          lifecycle: 'running',
+          messageCaptureEnabled: true,
+          observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+          snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+          logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
+        },
+        readinessEvidence: {
+          ready: true,
+          gatewayWebsocketDialable: true,
+        },
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    writeFileSync(
+      path.join(windowsDir, 'desktop-startup-smoke-report.json'),
+      `${JSON.stringify(buildDesktopStartupSmokeReport({
+        manifestPath: path.join(windowsDir, 'release-asset-manifest.json'),
+        checks: [
+          {
+            id: 'startup-status',
+            status: 'passed',
+            detail: 'desktop startup evidence recorded a passed launch',
+          },
+          {
+            id: 'startup-phase',
+            status: 'passed',
+            detail: 'desktop startup evidence recorded shell-mounted phase',
+          },
+          {
+            id: 'runtime-readiness',
+            status: 'passed',
+            detail: 'desktop startup evidence preserved ready runtime invariants',
+          },
+          {
+            id: 'built-in-instance',
+            status: 'passed',
+            detail: 'desktop startup evidence preserved the managed built-in instance projection',
+          },
+          {
+            id: 'gateway-websocket',
+            status: 'passed',
+            detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+          },
+        ],
+      }), null, 2)}\n`,
+      'utf8',
+    );
+
+    assert.throws(
+      () => finalizer.finalizeReleaseAssets({
+        profileId: 'claw-studio',
+        releaseTag: 'release-2026-04-06-07',
+        repository: 'Sdkwork-Cloud/claw-studio',
+        releaseAssetsDir,
+      }),
+      /local-ai-proxy-runtime/i,
+    );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -794,6 +891,13 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
           id: 'local-built-in',
           status: 'online',
         },
+        localAiProxy: {
+          lifecycle: 'running',
+          messageCaptureEnabled: true,
+          observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+          snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+          logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
+        },
         readinessEvidence: {
           ready: true,
           gatewayWebsocketDialable: true,
@@ -836,6 +940,13 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
         descriptorBrowserBaseUrl: 'http://127.0.0.1:19797',
         builtInInstanceId: 'local-built-in',
         builtInInstanceStatus: 'online',
+        localAiProxyRuntime: {
+          lifecycle: 'running',
+          messageCaptureEnabled: true,
+          observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+          snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+          logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
+        },
         artifactRelativePaths: [artifactRelativePath],
         checks: [
           {
@@ -862,6 +973,11 @@ test('release asset finalizer lifts desktop startup smoke metadata onto desktop 
             id: 'gateway-websocket',
             status: 'passed',
             detail: 'desktop startup evidence proved the managed gateway websocket was dialable',
+          },
+          {
+            id: 'local-ai-proxy-runtime',
+            status: 'passed',
+            detail: 'desktop startup evidence preserved local ai proxy runtime lifecycle and artifact paths',
           },
         ],
       },

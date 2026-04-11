@@ -345,6 +345,7 @@
       "sections": {
         "hostOwnership": "宿主归属",
         "endpointRuntime": "端点与运行时",
+        "startupEvidence": "启动证据",
         "storage": "存储",
         "provenance": "运行来源",
         "capabilityRollup": "能力汇总",
@@ -437,7 +438,44 @@
         "snapshotPath": "快照路径",
         "logPath": "日志路径",
         "modelCount": "模型数量",
-        "lastError": "最后错误"
+        "lastError": "最后错误",
+        "startupEvidenceStatus": "启动证据状态",
+        "startupEvidencePhase": "启动证据阶段",
+        "startupEvidenceRunId": "启动证据运行 ID",
+        "startupEvidenceRecordedAt": "启动证据记录时间",
+        "startupEvidenceDuration": "启动证据耗时",
+        "startupEvidenceReady": "启动证据就绪",
+        "startupEvidencePath": "启动证据路径",
+        "startupEvidenceDescriptorMode": "启动描述符模式",
+        "startupEvidenceDescriptorLifecycle": "启动描述符生命周期",
+        "startupEvidenceDescriptorEndpointId": "启动描述符端点 ID",
+        "startupEvidenceDescriptorRequestedPort": "启动描述符请求端口",
+        "startupEvidenceDescriptorActivePort": "启动描述符活动端口",
+        "startupEvidenceDescriptorLoopbackOnly": "启动描述符仅限环回",
+        "startupEvidenceDescriptorDynamicPort": "启动描述符动态端口",
+        "startupEvidenceDescriptorStateStoreDriver": "启动描述符状态存储驱动",
+        "startupEvidenceDescriptorStateStoreProfileId": "启动描述符状态存储配置 ID",
+        "startupEvidenceDescriptorBrowserBaseUrl": "启动证据浏览器地址",
+        "startupEvidenceManageBaseUrl": "启动证据管理地址",
+        "startupEvidenceBuiltInInstanceId": "内置实例 ID",
+        "startupEvidenceBuiltInInstanceName": "内置实例名称",
+        "startupEvidenceBuiltInInstanceVersion": "内置实例版本",
+        "startupEvidenceBuiltInInstanceRuntimeKind": "内置实例运行时类型",
+        "startupEvidenceBuiltInInstanceDeploymentMode": "内置实例部署模式",
+        "startupEvidenceBuiltInInstanceTransportKind": "内置实例传输类型",
+        "startupEvidenceBuiltInInstanceBaseUrl": "内置实例 Base URL",
+        "startupEvidenceBuiltInInstanceWebsocketUrl": "内置实例 WebSocket URL",
+        "startupEvidenceBuiltInInstanceIsBuiltIn": "内置实例是否为内置",
+        "startupEvidenceBuiltInInstanceIsDefault": "内置实例是否为默认",
+        "startupEvidenceBuiltInInstanceStatus": "内置实例状态",
+        "startupEvidenceRuntimeLifecycle": "运行时生命周期",
+        "startupEvidenceGatewayLifecycle": "网关生命周期",
+        "startupEvidenceErrorCause": "启动证据错误原因",
+        "startupEvidenceErrorMessage": "启动证据错误",
+        "messageCaptureEnabled": "Message Capture Enabled",
+        "observabilityDbPath": "Observability DB Path",
+        "routeMetrics": "Route Metrics",
+        "routeTests": "Route Tests"
       },
       "values": {
         "notAvailable": "不可用",
@@ -484,7 +522,41 @@
         "systemDefault": "系统默认",
         "modelCount_one": "{{count}} 个模型",
         "modelCount_other": "{{count}} 个模型",
-        "defaultRouteLabel": "{{protocol}} 默认"
+        "defaultRouteLabel": "{{protocol}} 默认",
+        "routeMetricLabel": "Route Metrics {{routeId}}",
+        "routeTestLabel": "Route Test {{routeId}}",
+        "observability": {
+          "health": {
+            "healthy": "Healthy",
+            "degraded": "Degraded",
+            "failed": "Failed",
+            "disabled": "Disabled"
+          },
+          "testStatus": {
+            "passed": "Passed",
+            "failed": "Failed"
+          },
+          "capabilities": {
+            "chat": "Chat",
+            "responses": "Responses",
+            "embeddings": "Embeddings",
+            "messages": "Messages",
+            "generateContent": "Generate Content"
+          },
+          "requests": "Requests",
+          "successes": "Success",
+          "failures": "Failure",
+          "rpm": "RPM",
+          "totalTokens": "Tokens",
+          "averageLatency": "Avg",
+          "lastLatency": "Last",
+          "lastUsedAt": "Last Used",
+          "lastError": "Error",
+          "capability": "Capability",
+          "testedAt": "Tested",
+          "latency": "Latency",
+          "model": "Model"
+        }
       },
       "rollouts": {
         "title": "发布控制",
@@ -3412,6 +3484,7 @@
         "associationFailed": "无法关联选中的 OpenClaw 运行时",
         "instanceCreated": "已成功创建 {{name}}",
         "remoteCreateFailed": "无法创建远程 OpenClaw 实例",
+        "openDiagnosticFailed": "无法打开诊断位置",
         "started": "实例已启动",
         "stopped": "实例已停止",
         "restarted": "实例已重启",
@@ -3584,6 +3657,10 @@
         "restart": "重启",
         "stop": "停止",
         "start": "启动",
+        "retryBundledStartup": "重试启动",
+        "retryingBundledStartup": "正在重试启动...",
+        "openGatewayLog": "打开网关日志",
+        "revealDesktopMainLog": "定位桌面日志",
         "factoryReset": "恢复出厂设置",
         "uninstallInstance": "卸载实例",
         "saveConfiguration": "保存配置",
@@ -3598,6 +3675,9 @@
         "failedToStop": "停止实例失败",
         "started": "实例启动成功",
         "failedToStart": "启动实例失败",
+        "retriedBundledStartup": "内置 OpenClaw 已重新触发启动",
+        "failedToRetryBundledStartup": "重新触发内置 OpenClaw 启动失败",
+        "failedToOpenDiagnosticPath": "无法打开诊断位置",
         "uninstalled": "实例卸载成功",
         "failedToUninstall": "卸载实例失败",
         "failedToOpenOpenClawConsole": "打开 OpenClaw 控制台失败"
@@ -4242,6 +4322,32 @@
             "title": "管理视图",
             "description": "直接查看这个实例由谁管理、权威配置在哪里，以及 Claw Studio 当前能够接管到什么程度。",
             "notes": "管理说明",
+            "alerts": {
+              "bundledStartupFailure": {
+                "title": "内置 OpenClaw 启动失败",
+                "description": "桌面壳已经可用，但最近一次内置 OpenClaw 启动没有完成。请先查看下面的失败原因，再决定重试或继续排查托管运行时。",
+                "recommendedActionLabel": "建议下一步",
+                "actions": {
+                  "gatewayReadinessTimeout": "桌面壳已经启动，但内置 gateway 在就绪窗口内始终没有开始接受连接。请先看 gateway 日志，再看桌面主日志，确认启动是否仍在推进、是否卡在 provider 初始化，或是否被其他本地服务占用，然后再重试。",
+                  "runtimeAccessDenied": "Claw Studio 在完成内置 runtime 文件落地时被 Windows 拒绝访问。请先查看桌面主日志和 gateway 日志，再关闭残留的 OpenClaw 或 Claw Studio 进程，并释放杀毒软件或索引器造成的文件锁，然后再重试。",
+                  "checkLogsAndRetry": "请先查看 gateway 日志和桌面主日志，定位最后一个激活阶段与 supervisor 错误，再决定是否重试内置 runtime。"
+                },
+                "diagnostics": {
+                  "lastActivationStage": {
+                    "label": "最后启动阶段",
+                    "description": "桌面壳在本次失败或卡住之前记录到的最后一个内置 OpenClaw 启动阶段。"
+                  },
+                  "gatewayLogPath": {
+                    "label": "Gateway 日志",
+                    "description": "重点查看内置 OpenClaw gateway 的启动输出、provider 初始化过程，以及端口绑定或监听失败。"
+                  },
+                  "desktopMainLogPath": {
+                    "label": "桌面主日志",
+                    "description": "重点查看桌面壳的激活阶段、supervisor 重试过程，以及 runtime 安装或落地阶段的错误。"
+                  }
+                }
+              }
+            },
             "labels": {
               "controlPlane": "管理平面",
               "installMethod": "安装方式",
@@ -6793,6 +6899,19 @@
       "messageCaptureDescription": "启用后，请求消息快照会持久化到本地，便于调试。默认关闭。",
       "messageCaptureUpdatedAt": "更新于 {{value}}",
       "messageCaptureDisabled": "消息捕获已关闭。请求行仍会保留，但不会记录消息快照。",
+      "runtimeSummaryTitle": "运行时证据",
+      "runtimeFields": {
+        "proxyLifecycle": "代理生命周期",
+        "logPath": "日志路径",
+        "snapshotPath": "快照路径",
+        "observabilityDbPath": "可观测数据库"
+      },
+      "runtimeLifecycle": {
+        "running": "运行中",
+        "failed": "失败",
+        "stopped": "已停止",
+        "unavailable": "不可用"
+      },
       "status": {
         "succeeded": "成功",
         "failed": "失败"
@@ -6804,6 +6923,7 @@
         "emptyMessages": "暂无消息记录。",
         "loadRequestsFailed": "加载请求日志失败。",
         "loadMessagesFailed": "加载消息记录失败。",
+        "loadRuntimeSummaryFailed": "加载代理运行时证据失败。",
         "loadCaptureFailed": "加载消息捕获设置失败。",
         "toggleCaptureFailed": "更新消息捕获设置失败。"
       },
@@ -6817,6 +6937,9 @@
         "input": "提示",
         "output": "补全",
         "cache": "缓存"
+      },
+      "values": {
+        "notAvailable": "不可用"
       },
       "pagination": {
         "summary": "第 {{page}} 页 · 第 {{start}}-{{end}} 条，共 {{total}} 条",

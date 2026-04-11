@@ -132,6 +132,7 @@
       "associationFailed": "无法关联选中的 OpenClaw 运行时",
       "instanceCreated": "已成功创建 {{name}}",
       "remoteCreateFailed": "无法创建远程 OpenClaw 实例",
+      "openDiagnosticFailed": "无法打开诊断位置",
       "started": "实例已启动",
       "stopped": "实例已停止",
       "restarted": "实例已重启",
@@ -304,6 +305,10 @@
       "restart": "重启",
       "stop": "停止",
       "start": "启动",
+      "retryBundledStartup": "重试启动",
+      "retryingBundledStartup": "正在重试启动...",
+      "openGatewayLog": "打开网关日志",
+      "revealDesktopMainLog": "定位桌面日志",
       "factoryReset": "恢复出厂设置",
       "uninstallInstance": "卸载实例",
       "saveConfiguration": "保存配置",
@@ -318,6 +323,9 @@
       "failedToStop": "停止实例失败",
       "started": "实例启动成功",
       "failedToStart": "启动实例失败",
+      "retriedBundledStartup": "内置 OpenClaw 已重新触发启动",
+      "failedToRetryBundledStartup": "重新触发内置 OpenClaw 启动失败",
+      "failedToOpenDiagnosticPath": "无法打开诊断位置",
       "uninstalled": "实例卸载成功",
       "failedToUninstall": "卸载实例失败",
       "failedToOpenOpenClawConsole": "打开 OpenClaw 控制台失败"
@@ -962,6 +970,32 @@
           "title": "管理视图",
           "description": "直接查看这个实例由谁管理、权威配置在哪里，以及 Claw Studio 当前能够接管到什么程度。",
           "notes": "管理说明",
+          "alerts": {
+            "bundledStartupFailure": {
+              "title": "内置 OpenClaw 启动失败",
+              "description": "桌面壳已经可用，但最近一次内置 OpenClaw 启动没有完成。请先查看下面的失败原因，再决定重试或继续排查托管运行时。",
+              "recommendedActionLabel": "建议下一步",
+              "actions": {
+                "gatewayReadinessTimeout": "桌面壳已经启动，但内置 gateway 在就绪窗口内始终没有开始接受连接。请先看 gateway 日志，再看桌面主日志，确认启动是否仍在推进、是否卡在 provider 初始化，或是否被其他本地服务占用，然后再重试。",
+                "runtimeAccessDenied": "Claw Studio 在完成内置 runtime 文件落地时被 Windows 拒绝访问。请先查看桌面主日志和 gateway 日志，再关闭残留的 OpenClaw 或 Claw Studio 进程，并释放杀毒软件或索引器造成的文件锁，然后再重试。",
+                "checkLogsAndRetry": "请先查看 gateway 日志和桌面主日志，定位最后一个激活阶段与 supervisor 错误，再决定是否重试内置 runtime。"
+              },
+              "diagnostics": {
+                "lastActivationStage": {
+                  "label": "最后启动阶段",
+                  "description": "桌面壳在本次失败或卡住之前记录到的最后一个内置 OpenClaw 启动阶段。"
+                },
+                "gatewayLogPath": {
+                  "label": "Gateway 日志",
+                  "description": "重点查看内置 OpenClaw gateway 的启动输出、provider 初始化过程，以及端口绑定或监听失败。"
+                },
+                "desktopMainLogPath": {
+                  "label": "桌面主日志",
+                  "description": "重点查看桌面壳的激活阶段、supervisor 重试过程，以及 runtime 安装或落地阶段的错误。"
+                }
+              }
+            }
+          },
           "labels": {
             "controlPlane": "管理平面",
             "installMethod": "安装方式",

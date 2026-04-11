@@ -136,6 +136,10 @@ function formatInspectionFailure(inspection) {
   return 'command inspection failed for an unknown reason';
 }
 
+function formatInspectionCommandList(inspections) {
+  return inspections.map((inspection) => inspection.command).join(', ');
+}
+
 export function inspectCommandAvailability(command, args = ['--version'], options = {}) {
   const platform = options.platform ?? process.platform;
   const env = withRustToolchainPath(options.env ?? process.env, {
@@ -184,22 +188,83 @@ export function inspectCommandAvailability(command, args = ['--version'], option
 }
 
 export function buildMissingRustToolchainMessage(inspections) {
+  return buildMissingRustToolchainMessageWithContext(inspections);
+}
+
+function buildMissingRustToolchainMessageWithContext(inspections, options = {}) {
   const failedInspections = Array.isArray(inspections)
     ? inspections.filter((inspection) => inspection && inspection.available === false)
     : [];
-
-  const missingCommands = failedInspections.map((inspection) => inspection.command).join(', ') || 'cargo, rustc';
+  const blockedNodeProcessInspections = Array.isArray(options.blockedNodeProcessInspections)
+    ? options.blockedNodeProcessInspections.filter((inspection) => inspection && inspection.available === false)
+    : [];
+  const missingInspections = failedInspections.filter((inspection) => inspection.reason === 'not-found');
+  const blockedInspections = failedInspections.filter((inspection) => inspection.reason === 'spawn-error');
+  const unavailableInspections = failedInspections.filter((inspection) => {
+    return inspection.reason !== 'not-found' && inspection.reason !== 'spawn-error';
+  });
   const detailLines = failedInspections.map((inspection) => {
     return `- ${inspection.command}: ${formatInspectionFailure(inspection)}`;
   });
+  const summaryLines = [
+    missingInspections.length > 0
+      ? `Missing command(s): ${formatInspectionCommandList(missingInspections)}`
+      : null,
+    blockedInspections.length > 0
+      ? `Blocked command(s): ${formatInspectionCommandList(blockedInspections)}`
+      : null,
+    unavailableInspections.length > 0
+      ? `Unavailable command(s): ${formatInspectionCommandList(unavailableInspections)}`
+      : null,
+    blockedNodeProcessInspections.length > 0
+      ? `Node child-process blocker(s): ${formatInspectionCommandList(blockedNodeProcessInspections)}`
+      : null,
+  ].filter(Boolean);
+  const guidanceLines = [];
+  const verificationLines = [];
+
+  if (missingInspections.length > 0) {
+    guidanceLines.push(
+      'Install Rust via rustup: https://rustup.rs/',
+    );
+    verificationLines.push('Restart the terminal after installation, then verify:');
+  }
+
+  if (blockedInspections.length > 0 || unavailableInspections.length > 0) {
+    guidanceLines.push(
+      'The Rust commands appear to exist but could not be launched by the current Node process.',
+      'This usually points to endpoint security, execution policy, or sandbox restrictions rather than a missing Rust install.',
+    );
+  }
+
+  if (blockedNodeProcessInspections.length > 0) {
+    guidanceLines.push(
+      'The current Node process also could not launch standard Windows shells.',
+      'This is a broader child-process restriction than a Rust toolchain problem.',
+      'Claw Studio desktop commands will keep failing until Node is allowed to spawn Windows executables.',
+    );
+  }
+
+  if (blockedInspections.length > 0 || unavailableInspections.length > 0) {
+    verificationLines.push(
+      'Confirm the executable locations with "where.exe cargo" / "where.exe rustc" or "Get-Command cargo" / "Get-Command rustc" on Windows, or "which cargo" / "which rustc" on macOS/Linux.',
+      'Then verify in the same terminal:',
+    );
+  }
+
+  if (guidanceLines.length === 0 && verificationLines.length === 0) {
+    verificationLines.push(
+      'Then verify in the same terminal:',
+    );
+  }
 
   return [
     'Rust/Cargo toolchain is required for Claw Studio desktop development and builds.',
-    `Missing command(s): ${missingCommands}`,
+    ...(summaryLines.length > 0 ? summaryLines : ['Unavailable command(s): cargo, rustc']),
     ...(detailLines.length > 0 ? ['', 'Detected issue(s):', ...detailLines] : []),
     '',
-    'Install Rust via rustup: https://rustup.rs/',
-    'Restart the terminal after installation, then verify:',
+    ...guidanceLines,
+    ...verificationLines,
     '- cargo --version',
     '- rustc --version',
     'If you only need the browser host right now, run: pnpm dev',
@@ -262,7 +327,30 @@ export function ensureTauriRustToolchain({
   const failedInspections = inspections.filter((inspection) => inspection?.available === false);
 
   if (failedInspections.length > 0) {
-    throw new Error(buildMissingRustToolchainMessage(failedInspections));
+    const blockedNodeProcessInspections =
+      platform === 'win32'
+      && failedInspections.every((inspection) => inspection?.reason === 'spawn-error')
+        ? ['cmd.exe', 'powershell.exe']
+          .map((command) => {
+            return inspectCommand(
+              command,
+              command === 'cmd.exe'
+                ? ['/d', '/s', '/c', 'echo ok']
+                : ['-NoProfile', '-Command', 'Write-Output ok'],
+              {
+                env: resolvedEnv,
+                platform,
+                requiredCommands: [command],
+              },
+            );
+          })
+          .filter((inspection) => inspection?.available === false && inspection.reason === 'spawn-error')
+        : [];
+    throw new Error(
+      buildMissingRustToolchainMessageWithContext(failedInspections, {
+        blockedNodeProcessInspections,
+      }),
+    );
   }
 
   return inspections;

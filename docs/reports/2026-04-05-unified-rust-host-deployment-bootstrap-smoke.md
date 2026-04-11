@@ -43,7 +43,7 @@ Result:
 Run from the extracted container bundle root:
 
 ```bash
-docker build -f deploy/Dockerfile -t claw-studio-smoke:2026-04-05 .
+docker build -f deploy/docker/Dockerfile -t claw-studio-smoke:2026-04-05 .
 docker run --rm -d --name claw-studio-smoke -p 18797:18797 -e CLAW_SERVER_MANAGE_USERNAME=claw-admin -e CLAW_SERVER_MANAGE_PASSWORD=replace-with-a-strong-secret claw-studio-smoke:2026-04-05
 curl -u claw-admin:replace-with-a-strong-secret http://127.0.0.1:18797/claw/health/live
 curl -u claw-admin:replace-with-a-strong-secret http://127.0.0.1:18797/claw/health/ready
@@ -71,12 +71,12 @@ Run from the extracted container bundle root:
 ```bash
 export CLAW_SERVER_MANAGE_USERNAME=claw-admin
 export CLAW_SERVER_MANAGE_PASSWORD='replace-with-a-strong-secret'
-docker compose -f deploy/docker-compose.yml up -d
-docker compose -f deploy/docker-compose.yml ps
-docker compose -f deploy/docker-compose.yml logs --tail=200
+docker compose -f deploy/docker/docker-compose.yml up -d
+docker compose -f deploy/docker/docker-compose.yml ps
+docker compose -f deploy/docker/docker-compose.yml logs --tail=200
 curl -u claw-admin:replace-with-a-strong-secret http://127.0.0.1:18797/claw/health/ready
 curl -u claw-admin:replace-with-a-strong-secret http://127.0.0.1:18797/claw/manage/v1/host-endpoints
-docker compose -f deploy/docker-compose.yml down -v
+docker compose -f deploy/docker/docker-compose.yml down -v
 ```
 
 Expected evidence:

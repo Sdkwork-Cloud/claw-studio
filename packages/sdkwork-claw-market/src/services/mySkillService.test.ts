@@ -39,6 +39,7 @@ function createSkill(overrides: Partial<Skill> = {}): Skill {
     repositoryUrl: undefined,
     homepageUrl: undefined,
     documentationUrl: undefined,
+    instanceAsset: undefined,
     ...overrides,
   };
 }
@@ -72,7 +73,11 @@ await runTest(
                 downloads: 3200,
                 category: 'Development',
                 version: '1.2.0',
+                source: 'workspace',
                 scope: 'workspace',
+                bundled: false,
+                disabled: false,
+                blockedByAllowlist: false,
                 homepage: 'https://clawhub.sdkwork.com/skills/github-pr-assistant',
                 installOptions: [],
                 missing: {
@@ -95,7 +100,124 @@ await runTest(
 
     assert.deepEqual(
       skills,
-      [createSkill({ homepageUrl: 'https://clawhub.sdkwork.com/skills/github-pr-assistant' })],
+      [
+        createSkill({
+          homepageUrl: 'https://clawhub.sdkwork.com/skills/github-pr-assistant',
+          instanceAsset: {
+            source: 'workspace',
+            scope: 'workspace',
+            status: 'enabled',
+            compatibility: 'compatible',
+            bundled: false,
+            missingRequirementCount: 0,
+          },
+        }),
+      ],
+    );
+  },
+);
+
+await runTest(
+  'mySkillService preserves installed skill instance-asset metadata for disabled and blocked readback cases',
+  async () => {
+    const service = createMySkillService({
+      instanceWorkbenchService: {
+        getInstanceWorkbench: async () =>
+          ({
+            agents: [
+              {
+                agent: { id: 'agent-default' },
+                isDefault: true,
+              },
+            ],
+          }) as any,
+      },
+      agentWorkbenchService: {
+        getAgentWorkbench: async () =>
+          ({
+            skills: [
+              {
+                ...createSkill({
+                  id: '8',
+                  skillKey: 'workflow-guard',
+                  name: 'Workflow Guard',
+                }),
+                source: 'managed',
+                scope: 'managed',
+                bundled: false,
+                disabled: true,
+                blockedByAllowlist: false,
+                filePath: 'D:/OpenClaw/.openclaw/skills/workflow-guard/SKILL.md',
+                baseDir: 'D:/OpenClaw/.openclaw/skills/workflow-guard',
+                installOptions: [],
+                missing: {
+                  bins: [],
+                  anyBins: ['node'],
+                  env: [],
+                  config: [],
+                },
+              },
+              {
+                ...createSkill({
+                  id: '9',
+                  skillKey: 'bundled-guardian',
+                  name: 'Bundled Guardian',
+                }),
+                source: 'bundled',
+                scope: 'bundled',
+                bundled: true,
+                disabled: false,
+                blockedByAllowlist: true,
+                installOptions: [],
+                missing: {
+                  bins: [],
+                  anyBins: [],
+                  env: ['OPENCLAW_TOKEN'],
+                  config: [],
+                },
+              },
+            ],
+          }) as any,
+      },
+      agentSkillManagementService: {
+        removeSkill: async () => undefined,
+        setSkillEnabled: async () => undefined,
+      },
+    });
+
+    const skills = await service.getMySkills('instance-1');
+
+    assert.deepEqual(
+      skills.map((skill) => ({
+        id: skill.id,
+        instanceAsset: skill.instanceAsset,
+      })),
+      [
+        {
+          id: '8',
+          instanceAsset: {
+            source: 'managed',
+            scope: 'managed',
+            status: 'disabled',
+            compatibility: 'attention',
+            bundled: false,
+            filePath: 'D:/OpenClaw/.openclaw/skills/workflow-guard/SKILL.md',
+            baseDir: 'D:/OpenClaw/.openclaw/skills/workflow-guard',
+            missingRequirementCount: 1,
+          },
+        },
+        {
+          id: '9',
+          instanceAsset: {
+            source: 'bundled',
+            scope: 'bundled',
+            status: 'blocked',
+            compatibility: 'blocked',
+            bundled: true,
+            missingRequirementCount: 1,
+          },
+        },
+      ],
     );
   },
 );

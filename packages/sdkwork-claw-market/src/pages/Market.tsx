@@ -27,6 +27,10 @@ import {
   shouldLoadMarketInstalledSkills,
 } from './marketHydrationPolicy.ts';
 import {
+  buildInstalledSkillCardStatusLabel,
+  createInstalledSkillPresentationCopy,
+} from './marketInstalledSkillPresentation.ts';
+import {
   createMySkillsCatalogGridStyle,
   createPackCatalogGridStyle,
   createSkillCatalogGridStyle,
@@ -96,6 +100,7 @@ export function Market() {
     activeTab,
     activeInstanceId,
   });
+  const installedSkillPresentationCopy = createInstalledSkillPresentationCopy(t);
   const formatDownloadCount = (value: number) => new Intl.NumberFormat(i18n.language).format(value);
   const formatInstanceStatus = (status: Instance['status']) =>
     status === 'online' ? t('market.status.online') : t('market.status.offline');
@@ -560,7 +565,10 @@ export function Market() {
                     <SkillCard
                       key={skill.id}
                       skill={skill}
-                      statusLabel={t('market.labels.installed')}
+                      statusLabel={buildInstalledSkillCardStatusLabel(
+                        skill,
+                        installedSkillPresentationCopy,
+                      )}
                       actionLabel={t('market.actions.uninstall')}
                       actionTone="danger"
                       officialLabel={t('market.labels.sdkworkOfficial')}

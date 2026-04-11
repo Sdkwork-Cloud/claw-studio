@@ -163,3 +163,58 @@ await runTest('localAiProxyLogsService preserves prompt, completion, and cache t
   assert.equal(record?.outputTokens, 6);
   assert.equal(record?.cacheTokens, 4_096);
 });
+
+await runTest('localAiProxyLogsService exposes local proxy runtime evidence for the API logs workspace', async () => {
+  const { createLocalAiProxyLogsService } = await import('./localAiProxyLogsService.ts');
+
+  const service = createLocalAiProxyLogsService({
+    kernelPlatformService: {
+      listLocalAiProxyRequestLogs: async (_query: LocalAiProxyRequestLogsQuery) => ({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+      }),
+      listLocalAiProxyMessageLogs: async (_query: LocalAiProxyMessageLogsQuery) => ({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+      }),
+      updateLocalAiProxyMessageCapture: async (enabled: boolean) => ({
+        enabled,
+        updatedAt: 1743512000000,
+      }),
+      getInfo: async () =>
+        ({
+          localAiProxy: {
+            lifecycle: 'running',
+            messageCaptureEnabled: true,
+            observabilityDbPath:
+              'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy-observability.sqlite',
+            snapshotPath:
+              'C:/ProgramData/SdkWork/ClawStudio/runtime/state/local-ai-proxy.snapshot.json',
+            logPath: 'C:/ProgramData/SdkWork/ClawStudio/logs/app/local-ai-proxy.log',
+          },
+        }) as any,
+    } as any,
+  });
+
+  const summary = await service.getRuntimeSummary();
+  const captureSettings = await service.getMessageCaptureSettings();
+
+  assert.deepEqual(summary, {
+    lifecycle: 'running',
+    observabilityDbPath:
+      'C:/ProgramData/SdkWork/ClawStudio/state/local-ai-proxy-observability.sqlite',
+    snapshotPath:
+      'C:/ProgramData/SdkWork/ClawStudio/runtime/state/local-ai-proxy.snapshot.json',
+    logPath: 'C:/ProgramData/SdkWork/ClawStudio/logs/app/local-ai-proxy.log',
+  });
+  assert.deepEqual(captureSettings, {
+    enabled: true,
+    updatedAt: null,
+  });
+});

@@ -23,6 +23,7 @@ import {
 } from './smoke-desktop-installers.mjs';
 import {
   DESKTOP_STARTUP_SMOKE_REPORT_FILENAME,
+  normalizeDesktopStartupSmokeLocalAiProxyRuntime,
   normalizeDesktopStartupSmokeChecks,
 } from './desktop-startup-smoke-contract.mjs';
 import {
@@ -209,6 +210,9 @@ function buildDesktopStartupSmokeMetadata({
     ).trim(),
     builtInInstanceId: String(smokeReport?.builtInInstanceId ?? '').trim(),
     builtInInstanceStatus: String(smokeReport?.builtInInstanceStatus ?? '').trim(),
+    localAiProxyRuntime: normalizeDesktopStartupSmokeLocalAiProxyRuntime(
+      smokeReport?.localAiProxyRuntime,
+    ),
     artifactRelativePaths: normalizeStringArray(smokeReport?.artifactRelativePaths),
     checks: normalizeDesktopStartupSmokeChecks(smokeReport?.checks),
   };
@@ -508,6 +512,30 @@ function requireDesktopStartupSmokeReports({
         `Captured desktop startup evidence must preserve ready runtime readiness at ${capturedEvidencePath}`,
       );
     }
+    const capturedLocalAiProxyRuntime = normalizeDesktopStartupSmokeLocalAiProxyRuntime(
+      capturedEvidence?.localAiProxy,
+    );
+    if (!capturedLocalAiProxyRuntime) {
+      throw new Error(
+        `Captured desktop startup evidence must preserve local ai proxy runtime artifact facts at ${capturedEvidencePath}`,
+      );
+    }
+    const reportedLocalAiProxyRuntime = normalizeDesktopStartupSmokeLocalAiProxyRuntime(
+      smokeReport?.localAiProxyRuntime,
+    );
+    if (!reportedLocalAiProxyRuntime) {
+      throw new Error(
+        `Desktop startup smoke report is missing localAiProxyRuntime metadata: ${smokeReportPath}`,
+      );
+    }
+    if (
+      JSON.stringify(capturedLocalAiProxyRuntime)
+      !== JSON.stringify(reportedLocalAiProxyRuntime)
+    ) {
+      throw new Error(
+        `Desktop startup smoke report local ai proxy runtime metadata mismatch at ${smokeReportPath}`,
+      );
+    }
 
     const reportedArtifactRelativePaths = normalizeStringArray(
       smokeReport?.artifactRelativePaths,
@@ -533,6 +561,7 @@ function requireDesktopStartupSmokeReports({
       'runtime-readiness',
       'built-in-instance',
       'gateway-websocket',
+      'local-ai-proxy-runtime',
     ]) {
       if (passedChecks.get(requiredCheckId) !== 'passed') {
         throw new Error(

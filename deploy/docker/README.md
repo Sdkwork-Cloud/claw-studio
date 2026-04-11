@@ -14,13 +14,13 @@ bundle root for real deployment commands.
 
 Inside the extracted bundle root, the same templates are materialized as:
 
-- `deploy/docker-compose.yml`
-- `deploy/docker-compose.nvidia-cuda.yml`
-- `deploy/docker-compose.amd-rocm.yml`
-- `deploy/Dockerfile`
-- `deploy/profiles/*`
+- `deploy/docker/docker-compose.yml`
+- `deploy/docker/docker-compose.nvidia-cuda.yml`
+- `deploy/docker/docker-compose.amd-rocm.yml`
+- `deploy/docker/Dockerfile`
+- `deploy/docker/profiles/*`
 
-The packaged `deploy/docker-compose*.yml` files resolve env overlays relative to `deploy/` and use
+The packaged `deploy/docker/docker-compose*.yml` files resolve env overlays relative to `deploy/docker/` and use
 the extracted bundle root as the Docker build context for `app/`.
 
 Local packaging prerequisite:
@@ -32,19 +32,19 @@ Base deployment from the extracted bundle root:
 ```bash
 export CLAW_SERVER_MANAGE_USERNAME=claw-admin
 export CLAW_SERVER_MANAGE_PASSWORD='replace-with-a-strong-secret'
-docker compose -f deploy/docker-compose.yml up -d
+docker compose -f deploy/docker/docker-compose.yml up -d
 ```
 
 NVIDIA CUDA overlay:
 
 ```bash
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.nvidia-cuda.yml up -d
+docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.nvidia-cuda.yml up -d
 ```
 
 AMD ROCm overlay from the extracted bundle root:
 
 ```bash
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.amd-rocm.yml up -d
+docker compose -f deploy/docker/docker-compose.yml -f deploy/docker/docker-compose.amd-rocm.yml up -d
 ```
 
 The server binary is identical across CPU and GPU-oriented bundles. GPU variants package

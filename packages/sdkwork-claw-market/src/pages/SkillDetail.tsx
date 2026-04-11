@@ -27,6 +27,10 @@ import { Modal } from '@sdkwork/claw-ui';
 import type { Review, Skill } from '@sdkwork/claw-types';
 import { instanceService, marketService, mySkillService, type Instance } from '../services';
 import { shouldBlockSkillDetailForLoading } from './marketHydrationPolicy.ts';
+import {
+  buildInstalledSkillInformation,
+  createInstalledSkillPresentationCopy,
+} from './marketInstalledSkillPresentation.ts';
 
 export function SkillDetail() {
   const { t, i18n } = useTranslation();
@@ -67,7 +71,8 @@ export function SkillDetail() {
     enabled: !!activeInstanceId,
   });
 
-  const isInstalled = mySkills.some((item) => item.id === id);
+  const installedSkill = mySkills.find((item) => item.id === id) || null;
+  const isInstalled = Boolean(installedSkill);
 
   const { addTask, updateTask } = useTaskStore();
   const formatDateLabel = (value: string) =>
@@ -226,6 +231,10 @@ export function SkillDetail() {
 
   const isInstalling = installMutation.isPending;
   const reviewCount = skill.ratingCount ?? reviews.length;
+  const installedSkillPresentation = buildInstalledSkillInformation(
+    installedSkill || skill,
+    createInstalledSkillPresentationCopy(t),
+  );
   const skillLinks = [
     {
       href: skill.homepageUrl,
@@ -583,9 +592,20 @@ export function SkillDetail() {
                   {t('market.skillDetail.information.compatibility')}
                 </span>
                 <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {t('market.skillDetail.information.compatibilityValue')}
+                  {installedSkillPresentation.compatibilityValue ||
+                    t('market.skillDetail.information.compatibilityValue')}
                 </span>
               </div>
+              {installedSkillPresentation.rows.map((row) => (
+                <div key={row.id} className="flex items-start justify-between">
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                    {row.label}
+                  </span>
+                  <span className="text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {row.value}
+                  </span>
+                </div>
+              ))}
             </div>
 
             {skillLinks.length > 0 ? (

@@ -4,4 +4,5 @@ runNodeTypeScriptChecks([
   'packages/sdkwork-claw-infrastructure/src/services/openClawGatewayClient.test.ts',
   'packages/sdkwork-claw-infrastructure/src/platform/registry.test.ts',
   'packages/sdkwork-claw-infrastructure/src/platform/serverBrowserBridge.test.ts',
+  'packages/sdkwork-claw-infrastructure/src/platform/webStudio.test.ts',
 ]);

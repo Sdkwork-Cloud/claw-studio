@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@sdkwork/claw-core';
 import { pointsQueryKeys, pointsService } from '../services';
 import { formatPoints } from './pointsCopy';
 
@@ -54,6 +55,7 @@ export function PointsHeaderEntry() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const language = i18n.resolvedLanguage ?? i18n.language;
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
@@ -61,7 +63,8 @@ export function PointsHeaderEntry() {
   const {
     data = pointsService.getEmptyDashboard(),
   } = useQuery({
-    queryKey: pointsQueryKeys.dashboard,
+    queryKey: [...pointsQueryKeys.dashboard, isAuthenticated ? 'auth' : 'guest'],
+    enabled: isAuthenticated,
     queryFn: () => pointsService.getDashboard(),
     placeholderData: pointsService.getEmptyDashboard(),
   });

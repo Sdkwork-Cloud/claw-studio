@@ -22,6 +22,13 @@ export interface LocalAiProxyLogsServiceOverrides {
   kernelPlatformService?: Partial<LocalAiProxyLogsServiceDependencies['kernelPlatformService']>;
 }
 
+export interface LocalAiProxyRuntimeSummary {
+  lifecycle: string;
+  observabilityDbPath: string | null;
+  snapshotPath: string | null;
+  logPath: string | null;
+}
+
 function normalizePage(value: number | undefined, fallback: number) {
   return Number.isFinite(value) && Number(value) > 0 ? Math.round(Number(value)) : fallback;
 }
@@ -31,9 +38,14 @@ function normalizePageSize(value: number | undefined, fallback: number) {
   return Math.max(1, Math.min(100, normalized));
 }
 
-function normalizeOptionalText(value: string | undefined) {
+function normalizeOptionalText(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeNullableText(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function normalizeStatus(
@@ -50,6 +62,25 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as T;
+}
+
+function resolveRuntimeSummary(
+  localAiProxy:
+    | {
+        lifecycle?: string | null;
+        observabilityDbPath?: string | null;
+        snapshotPath?: string | null;
+        logPath?: string | null;
+      }
+    | null
+    | undefined,
+): LocalAiProxyRuntimeSummary {
+  return {
+    lifecycle: normalizeOptionalText(localAiProxy?.lifecycle) ?? 'unavailable',
+    observabilityDbPath: normalizeNullableText(localAiProxy?.observabilityDbPath),
+    snapshotPath: normalizeNullableText(localAiProxy?.snapshotPath),
+    logPath: normalizeNullableText(localAiProxy?.logPath),
+  };
 }
 
 export function createLocalAiProxyLogsService(
@@ -108,6 +139,11 @@ export function createLocalAiProxyLogsService(
       enabled: boolean,
     ): Promise<LocalAiProxyMessageCaptureSettings> {
       return dependencies.kernelPlatformService.updateLocalAiProxyMessageCapture(enabled);
+    },
+
+    async getRuntimeSummary(): Promise<LocalAiProxyRuntimeSummary> {
+      const info = await dependencies.kernelPlatformService.getInfo();
+      return resolveRuntimeSummary(info?.localAiProxy);
     },
   };
 }

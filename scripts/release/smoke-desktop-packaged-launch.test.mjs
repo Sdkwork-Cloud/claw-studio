@@ -183,6 +183,74 @@ test('desktop packaged launch smoke selects the canonical packaged launch artifa
   );
 });
 
+test('desktop packaged launch smoke prefers the root desktop executable over nested bundled helper binaries on Windows', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-packaged-launch.mjs');
+  const originalSource = readFileSync(smokePath, 'utf8');
+  const tempModulePath = path.join(
+    rootDir,
+    'scripts',
+    'release',
+    `smoke-desktop-packaged-launch.resolve-binary-${process.pid}-${Date.now()}.mjs`,
+  );
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-installed-binary-'));
+  const installRoot = path.join(tempRoot, 'install-root');
+  const expectedBinaryPath = path.join(installRoot, 'sdkwork-claw-desktop.exe');
+  const nestedHelperPath = path.join(
+    installRoot,
+    'generated',
+    'bundled',
+    'modules',
+    'hub-installer',
+    '0.1.0',
+    'bin',
+    'hub-installer-rs.exe',
+  );
+  const nestedNodePath = path.join(
+    installRoot,
+    'generated',
+    'bundled',
+    'runtimes',
+    'node',
+    '22.16.0',
+    'node.exe',
+  );
+
+  try {
+    writeFileSync(
+      tempModulePath,
+      originalSource.replace(
+        'function resolveInstalledDesktopBinaryPath(',
+        'export function resolveInstalledDesktopBinaryPath(',
+      ),
+      'utf8',
+    );
+
+    const smoke = await import(`${pathToFileURL(tempModulePath).href}?cacheBust=${Date.now()}`);
+
+    mkdirSync(path.dirname(expectedBinaryPath), { recursive: true });
+    writeFileSync(expectedBinaryPath, 'synthetic app exe\n', 'utf8');
+    mkdirSync(path.dirname(nestedHelperPath), { recursive: true });
+    writeFileSync(nestedHelperPath, 'synthetic hub installer exe\n', 'utf8');
+    mkdirSync(path.dirname(nestedNodePath), { recursive: true });
+    writeFileSync(nestedNodePath, 'synthetic node exe\n', 'utf8');
+    writeFileSync(path.join(installRoot, 'uninstall.exe'), 'synthetic uninstall exe\n', 'utf8');
+
+    const resolvedBinaryPath = smoke.resolveInstalledDesktopBinaryPath({
+      installRoot,
+      productName: 'Claw Studio',
+      platform: 'windows',
+    });
+
+    assert.equal(
+      resolvedBinaryPath.replaceAll('\\', '/'),
+      expectedBinaryPath.replaceAll('\\', '/'),
+    );
+  } finally {
+    rmSync(tempModulePath, { force: true });
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('desktop packaged launch smoke waits until captured evidence reaches the shell-mounted passed phase', async () => {
   const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-packaged-launch.mjs');
   const smoke = await import(pathToFileURL(smokePath).href);

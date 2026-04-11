@@ -387,7 +387,7 @@ function writeDeploymentBundleReadme({
   imageDigest = '',
 }) {
   const deploymentCommand = family === 'container'
-    ? 'docker compose -f deploy/docker-compose.yml up -d'
+    ? 'docker compose -f deploy/docker/docker-compose.yml up -d'
     : 'helm upgrade --install claw-studio ./chart -f values.release.yaml';
 
   writeFileSync(
@@ -981,7 +981,7 @@ export function packageContainerAssets({
       serverWebDistDir,
       serverEnvPath,
     });
-    cpSync(deploymentSourceDir, path.join(bundleRoot, 'deploy'), { recursive: true });
+    cpSync(deploymentSourceDir, path.join(bundleRoot, 'deploy', 'docker'), { recursive: true });
     if (existsSync(path.join(deploymentSourceDir, '.dockerignore'))) {
       cpSync(
         path.join(deploymentSourceDir, '.dockerignore'),

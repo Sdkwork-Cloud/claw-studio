@@ -4,6 +4,7 @@ import type {
   ManageOpenClawGatewayRecord,
   ManageOpenClawRuntimeRecord,
   RuntimeAppInfo,
+  RuntimeDesktopLocalAiProxyInfo,
   RuntimePathsInfo,
   StudioInstanceRecord,
 } from '@sdkwork/claw-infrastructure';
@@ -68,6 +69,14 @@ export interface DesktopStartupEvidenceErrorSummary {
   cause: string | null;
 }
 
+export interface DesktopStartupEvidenceLocalAiProxy {
+  lifecycle: RuntimeDesktopLocalAiProxyInfo['lifecycle'];
+  messageCaptureEnabled: boolean;
+  observabilityDbPath: string | null;
+  snapshotPath: string | null;
+  logPath: string | null;
+}
+
 export interface DesktopStartupEvidenceDocument {
   version: 1;
   status: DesktopStartupEvidenceStatus;
@@ -84,6 +93,7 @@ export interface DesktopStartupEvidenceDocument {
   openClawGateway: ManageOpenClawGatewayRecord | null;
   builtInInstance: DesktopStartupEvidenceBuiltInInstance | null;
   readinessEvidence: DesktopHostedRuntimeReadinessEvidence | null;
+  localAiProxy: DesktopStartupEvidenceLocalAiProxy | null;
   error: DesktopStartupEvidenceErrorSummary | null;
 }
 
@@ -151,6 +161,29 @@ export function sanitizeDesktopStartupBuiltInInstance(
   };
 }
 
+function normalizeOptionalString(
+  value: string | null | undefined,
+): string | null {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
+export function sanitizeDesktopStartupLocalAiProxy(
+  localAiProxy: RuntimeDesktopLocalAiProxyInfo | null | undefined,
+): DesktopStartupEvidenceLocalAiProxy | null {
+  if (!localAiProxy) {
+    return null;
+  }
+
+  return {
+    lifecycle: localAiProxy.lifecycle,
+    messageCaptureEnabled: localAiProxy.messageCaptureEnabled,
+    observabilityDbPath: normalizeOptionalString(localAiProxy.observabilityDbPath),
+    snapshotPath: normalizeOptionalString(localAiProxy.snapshotPath),
+    logPath: normalizeOptionalString(localAiProxy.logPath),
+  };
+}
+
 function summarizeStartupError(
   error: unknown,
 ): DesktopStartupEvidenceErrorSummary | null {
@@ -188,6 +221,7 @@ export function buildDesktopStartupEvidenceDocument({
   appInfo = null,
   appPaths = null,
   readinessSnapshot = null,
+  localAiProxy = null,
   error = null,
   recordedAt = new Date().toISOString(),
 }: {
@@ -198,6 +232,7 @@ export function buildDesktopStartupEvidenceDocument({
   appInfo?: RuntimeAppInfo | null;
   appPaths?: RuntimePathsInfo | null;
   readinessSnapshot?: DesktopHostedRuntimeReadinessSnapshot | null;
+  localAiProxy?: RuntimeDesktopLocalAiProxyInfo | null;
   error?: unknown;
   recordedAt?: string;
 }): DesktopStartupEvidenceDocument {
@@ -221,6 +256,7 @@ export function buildDesktopStartupEvidenceDocument({
     openClawGateway: readinessSnapshot?.openClawGateway ?? null,
     builtInInstance: sanitizeDesktopStartupBuiltInInstance(builtInInstance),
     readinessEvidence: readinessSnapshot?.evidence ?? null,
+    localAiProxy: sanitizeDesktopStartupLocalAiProxy(localAiProxy),
     error: summarizeStartupError(error),
   };
 }

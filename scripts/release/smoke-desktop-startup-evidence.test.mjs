@@ -51,6 +51,13 @@ function buildDesktopStartupEvidence({
   ready = true,
   gatewayWebsocketDialable = true,
   builtInInstanceStatus = 'online',
+  localAiProxy = {
+    lifecycle: 'running',
+    messageCaptureEnabled: true,
+    observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+    snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+    logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
+  },
 } = {}) {
   return {
     version: 1,
@@ -144,6 +151,7 @@ function buildDesktopStartupEvidence({
       gatewayWebsocketDialable,
       ready,
     },
+    localAiProxy,
     error: null,
   };
 }
@@ -207,6 +215,16 @@ test('desktop startup smoke validates captured startup evidence and writes a str
     assert.equal(smokeReport.descriptorBrowserBaseUrl, 'http://127.0.0.1:19797');
     assert.equal(smokeReport.builtInInstanceId, 'local-built-in');
     assert.equal(smokeReport.builtInInstanceStatus, 'online');
+    assert.deepEqual(
+      smokeReport.localAiProxyRuntime,
+      {
+        lifecycle: 'running',
+        messageCaptureEnabled: true,
+        observabilityDbPath: 'C:/Users/test/AppData/Roaming/Claw Studio/store/local-ai-proxy-observability.sqlite3',
+        snapshotPath: 'C:/Users/test/AppData/Roaming/Claw Studio/state/local-ai-proxy.snapshot.json',
+        logPath: 'C:/Users/test/AppData/Roaming/Claw Studio/logs/local-ai-proxy.log',
+      },
+    );
     assert.equal(
       smokeReport.capturedEvidenceRelativePath,
       'desktop/windows/x64/diagnostics/desktop-startup-evidence.json',
@@ -220,6 +238,7 @@ test('desktop startup smoke validates captured startup evidence and writes a str
         'runtime-readiness',
         'built-in-instance',
         'gateway-websocket',
+        'local-ai-proxy-runtime',
       ],
     );
     assert.equal(smokeReport.checks.every((check) => check.status === 'passed'), true);
@@ -318,6 +337,57 @@ test('desktop startup smoke rejects captured evidence that did not reach the she
         arch: 'x64',
       }),
       /shell-mounted|passed|ready/i,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('desktop startup smoke rejects captured evidence when local ai proxy runtime artifact facts are missing', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-desktop-startup-evidence.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-smoke-desktop-startup-local-ai-proxy-'));
+  const releaseAssetsDir = path.join(tempRoot, 'release-assets');
+  const artifactRelativePath = 'desktop/windows/x64/nsis/Claw Studio_0.1.0_x64-setup.exe';
+
+  try {
+    writeArtifactFile(releaseAssetsDir, artifactRelativePath);
+    writeDesktopManifest({
+      releaseAssetsDir,
+      platform: 'windows',
+      arch: 'x64',
+      artifacts: [
+        {
+          name: 'Claw Studio_0.1.0_x64-setup.exe',
+          relativePath: artifactRelativePath,
+          family: 'desktop',
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          sha256: 'synthetic',
+          size: 17,
+        },
+      ],
+    });
+    writeJsonFile(
+      smoke.resolveCapturedDesktopStartupEvidencePath({
+        releaseAssetsDir,
+        platform: 'windows',
+        arch: 'x64',
+      }),
+      buildDesktopStartupEvidence({
+        localAiProxy: null,
+      }),
+    );
+
+    await assert.rejects(
+      () => smoke.smokeDesktopStartupEvidence({
+        releaseAssetsDir,
+        platform: 'windows',
+        arch: 'x64',
+      }),
+      /local ai proxy/i,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

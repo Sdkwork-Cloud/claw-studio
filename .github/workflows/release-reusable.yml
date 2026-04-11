@@ -492,7 +492,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ steps.bundle_context.outputs.bundle_root }}
-          file: ${{ steps.bundle_context.outputs.bundle_root }}/deploy/Dockerfile
+          file: ${{ steps.bundle_context.outputs.bundle_root }}/deploy/docker/Dockerfile
           platforms: ${{ steps.oci_image.outputs.docker_platform }}
           push: true
           tags: ${{ steps.oci_image.outputs.image_repository }}:${{ steps.oci_image.outputs.image_tag }}

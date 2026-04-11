@@ -466,3 +466,163 @@ await runTest(
     );
   },
 );
+
+await runTest(
+  'buildInstanceManagementSummary surfaces bundled OpenClaw startup failures with actionable readiness-timeout diagnostics',
+  () => {
+    const startupError =
+      'timeout: openclaw gateway did not become ready on 127.0.0.1:18871 within 30000ms';
+    const detail = createDetail({
+      observability: {
+        ...createDetail().observability,
+        logFilePath: 'D:/OpenClaw/.openclaw/logs/openclaw-gateway.log',
+      },
+      artifacts: [
+        {
+          id: 'desktop-main-log-file',
+          label: 'Desktop Main Log',
+          kind: 'logFile',
+          status: 'available',
+          location: 'D:/OpenClaw/.openclaw/logs/app.log',
+          readonly: true,
+          detail: 'Claw Studio desktop shell log with bootstrap and supervisor events.',
+          source: 'runtime',
+        },
+      ],
+      lifecycle: {
+        ...createDetail().lifecycle,
+        lastActivationStage: 'gatewayConfigured',
+        lastError: startupError,
+        notes: [
+          'Claw Studio manages the bundled OpenClaw runtime.',
+          `Last bundled OpenClaw start error: ${startupError}`,
+        ],
+      },
+    });
+    const summary = buildInstanceManagementSummary(
+      createWorkbench({
+        detail,
+      }),
+    );
+
+    assert.deepEqual(summary.alert, {
+      tone: 'warning',
+      titleKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.title',
+      detailKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.description',
+      message: startupError,
+      recommendedActionDetailKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.actions.gatewayReadinessTimeout',
+      diagnostics: [
+        {
+          id: 'lastActivationStage',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.description',
+          value: 'Gateway Configured',
+        },
+        {
+          id: 'gatewayLogPath',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.gatewayLogPath.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.gatewayLogPath.description',
+          value: 'D:/OpenClaw/.openclaw/logs/openclaw-gateway.log',
+          mono: true,
+        },
+        {
+          id: 'desktopMainLogPath',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.desktopMainLogPath.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.desktopMainLogPath.description',
+          value: 'D:/OpenClaw/.openclaw/logs/app.log',
+          mono: true,
+        },
+      ],
+    });
+    assert.deepEqual(summary.notes, ['Claw Studio manages the bundled OpenClaw runtime.']);
+  },
+);
+
+await runTest(
+  'buildInstanceManagementSummary recommends checking file locks when bundled startup fails with access denied',
+  () => {
+    const startupError =
+      'failed to finalize bundled runtime install root D:/OpenClaw/runtimes/openclaw: 拒绝访问。 (os error 5)';
+    const detail = createDetail({
+      observability: {
+        ...createDetail().observability,
+        logFilePath: 'D:/OpenClaw/.openclaw/logs/openclaw-gateway.log',
+      },
+      artifacts: [
+        {
+          id: 'desktop-main-log-file',
+          label: 'Desktop Main Log',
+          kind: 'logFile',
+          status: 'available',
+          location: 'D:/OpenClaw/.openclaw/logs/app.log',
+          readonly: true,
+          detail: 'Claw Studio desktop shell log with bootstrap and supervisor events.',
+          source: 'runtime',
+        },
+      ],
+      lifecycle: {
+        ...createDetail().lifecycle,
+        lastActivationStage: 'prepareRuntimeActivation',
+        lastError: startupError,
+        notes: [
+          'Claw Studio manages the bundled OpenClaw runtime.',
+          `Last bundled OpenClaw start error: ${startupError}`,
+        ],
+      },
+    });
+
+    const summary = buildInstanceManagementSummary(
+      createWorkbench({
+        detail,
+      }),
+    );
+
+    assert.deepEqual(summary.alert, {
+      tone: 'warning',
+      titleKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.title',
+      detailKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.description',
+      message: startupError,
+      recommendedActionDetailKey:
+        'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.actions.runtimeAccessDenied',
+      diagnostics: [
+        {
+          id: 'lastActivationStage',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.lastActivationStage.description',
+          value: 'Prepare Runtime Activation',
+        },
+        {
+          id: 'gatewayLogPath',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.gatewayLogPath.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.gatewayLogPath.description',
+          value: 'D:/OpenClaw/.openclaw/logs/openclaw-gateway.log',
+          mono: true,
+        },
+        {
+          id: 'desktopMainLogPath',
+          labelKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.desktopMainLogPath.label',
+          detailKey:
+            'instances.detail.instanceWorkbench.overview.management.alerts.bundledStartupFailure.diagnostics.desktopMainLogPath.description',
+          value: 'D:/OpenClaw/.openclaw/logs/app.log',
+          mono: true,
+        },
+      ],
+    });
+  },
+);

@@ -47,6 +47,7 @@ import type {
   PlatformSaveFileOptions,
   PlatformSelectFileOptions,
   RuntimeAppInfo,
+  RuntimeBuiltInOpenClawStatusChangedEvent,
   RuntimeConfigInfo,
   RuntimeDesktopKernelHostInfo,
   RuntimeDesktopKernelInfo,
@@ -176,6 +177,8 @@ interface DesktopFetchedRemoteUrlPayload
 }
 export interface DesktopJobUpdateEvent extends RuntimeJobUpdateEvent {}
 export interface DesktopProcessOutputEvent extends RuntimeProcessOutputEvent {}
+export interface DesktopBuiltInOpenClawStatusChangedEvent
+  extends RuntimeBuiltInOpenClawStatusChangedEvent {}
 export interface DesktopKernelInfo extends RuntimeDesktopKernelInfo {}
 export interface DesktopKernelStatus extends RuntimeDesktopKernelHostInfo {}
 export interface DesktopStorageInfo extends RuntimeStorageInfo {}
@@ -834,6 +837,22 @@ export async function subscribeProcessOutput(
   );
 }
 
+export async function subscribeBuiltInOpenClawStatusChanged(
+  listener: (event: DesktopBuiltInOpenClawStatusChangedEvent) => void,
+): Promise<RuntimeEventUnsubscribe> {
+  if (!isTauriRuntime()) {
+    return noopUnsubscribe;
+  }
+
+  return listenDesktopEvent<DesktopBuiltInOpenClawStatusChangedEvent>(
+    DESKTOP_EVENTS.builtInOpenClawStatusChanged,
+    listener,
+    {
+      operation: 'runtime.subscribeBuiltInOpenClawStatusChanged',
+    },
+  );
+}
+
 export async function subscribeHubInstallProgress(
   listener: (event: HubInstallProgressEvent) => void,
 ): Promise<RuntimeEventUnsubscribe> {
@@ -858,6 +877,26 @@ export async function openExternal(url: string): Promise<void> {
         operation: 'shell.openExternal',
       }),
     () => webPlatform.openExternal(url),
+  );
+}
+
+export async function openPath(path: string): Promise<void> {
+  await runDesktopOnly(
+    'shell.openPath',
+    () =>
+      invokeDesktopCommand<void>(DESKTOP_COMMANDS.openPath, { path }, {
+        operation: 'shell.openPath',
+      }),
+  );
+}
+
+export async function revealPath(path: string): Promise<void> {
+  await runDesktopOnly(
+    'shell.revealPath',
+    () =>
+      invokeDesktopCommand<void>(DESKTOP_COMMANDS.revealPath, { path }, {
+        operation: 'shell.revealPath',
+      }),
   );
 }
 
@@ -1371,6 +1410,8 @@ export const desktopTemplateApi = {
   shell: {
     showNotification: showDesktopNotification,
     openExternal,
+    openPath,
+    revealPath,
     fetchRemoteUrl,
     captureScreenshot,
     supportsNativeScreenshot,
@@ -1396,6 +1437,7 @@ export const desktopTemplateApi = {
   runtime: {
     getInfo: getRuntimeInfo,
     setAppLanguage,
+    subscribeBuiltInOpenClawStatusChanged,
   },
 };
 
@@ -1411,6 +1453,8 @@ export function configureDesktopPlatformBridge() {
       copy: (text) => webPlatform.copy(text),
       showNotification: (notification) => showDesktopNotification(notification),
       openExternal: (url) => openExternal(url),
+      openPath: (path) => openPath(path),
+      revealPath: (path) => revealPath(path),
       supportsNativeScreenshot: () => supportsNativeScreenshot(),
       captureScreenshot: () => captureScreenshot(),
       fetchRemoteUrl: (url) => fetchRemoteUrl(url),
@@ -1482,6 +1526,8 @@ export function configureDesktopPlatformBridge() {
       cancelJob: (id) => cancelJob(id),
       subscribeJobUpdates: (listener) => subscribeJobUpdates(listener),
       subscribeProcessOutput: (listener) => subscribeProcessOutput(listener),
+      subscribeBuiltInOpenClawStatusChanged: (listener) =>
+        subscribeBuiltInOpenClawStatusChanged(listener),
     },
   });
 }

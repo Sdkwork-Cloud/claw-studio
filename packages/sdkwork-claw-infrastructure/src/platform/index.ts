@@ -144,6 +144,7 @@ export type {
   RuntimeDesktopProcessInfo,
   RuntimeDesktopProcessProfileInfo,
   RuntimeDesktopSecurityInfo,
+  RuntimeBuiltInOpenClawStatusChangedEvent,
   RuntimeEventUnsubscribe,
   RuntimeInfo,
   RuntimeJobRecord,
@@ -243,6 +244,7 @@ export {
   isBundledComponentId,
 } from './componentLibrary.ts';
 export { openExternalUrl } from './openExternalUrl.ts';
+export { openDiagnosticPath } from './openDiagnosticPath.ts';
 export { WebComponentPlatform } from './webComponents.ts';
 export {
   bootstrapServerBrowserPlatformBridge,

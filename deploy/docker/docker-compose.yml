@@ -1,8 +1,8 @@
 services:
   claw-server:
     build:
-      context: ..
-      dockerfile: deploy/Dockerfile
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
     image: claw-studio-server:local
     restart: unless-stopped
     env_file:

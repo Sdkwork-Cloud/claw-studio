@@ -31,6 +31,7 @@ runTest('sdkwork-claw-tasks is implemented locally instead of re-exporting claw-
     'packages/sdkwork-claw-tasks/package.json',
   );
   const indexSource = read('packages/sdkwork-claw-tasks/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-tasks/src/services/index.ts');
 
   assert.ok(exists('packages/sdkwork-claw-tasks/src/Tasks.tsx'));
   assert.ok(exists('packages/sdkwork-claw-tasks/src/components/GlobalTaskManager.tsx'));
@@ -48,6 +49,8 @@ runTest('sdkwork-claw-tasks is implemented locally instead of re-exporting claw-
   assert.match(indexSource, /\.\/components\/GlobalTaskManager/);
   assert.match(indexSource, /\.\/store\/useTaskStore/);
   assert.match(indexSource, /taskService/);
+  assert.doesNotMatch(indexSource, /\.test['"]/);
+  assert.doesNotMatch(servicesIndexSource, /\.test['"]/);
 });
 
 runTest('sdkwork-claw-tasks routes cron CRUD through the shared manager and the real runtime bridges', () => {

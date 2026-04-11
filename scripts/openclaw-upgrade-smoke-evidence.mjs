@@ -10,6 +10,9 @@ import {
 import {
   smokeDesktopPackagedLaunch,
 } from './release/smoke-desktop-packaged-launch.mjs';
+import {
+  normalizeDesktopStartupSmokeLocalAiProxyRuntime,
+} from './release/desktop-startup-smoke-contract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +39,31 @@ function normalizeOptionalValue(value) {
   return normalized || '';
 }
 
+function buildPackagedLaunchSmokeSummary(packagedLaunchSmoke) {
+  if (!packagedLaunchSmoke || typeof packagedLaunchSmoke !== 'object') {
+    return null;
+  }
+
+  const smokeReport = packagedLaunchSmoke?.smokeResult?.report;
+  const reportPath = normalizeOptionalValue(packagedLaunchSmoke?.smokeResult?.reportPath);
+  const status = normalizeOptionalValue(smokeReport?.status);
+  const phase = normalizeOptionalValue(smokeReport?.phase);
+  const localAiProxyRuntime = normalizeDesktopStartupSmokeLocalAiProxyRuntime(
+    smokeReport?.localAiProxyRuntime,
+  );
+
+  if (!reportPath || !status || !phase || !localAiProxyRuntime) {
+    return null;
+  }
+
+  return {
+    reportPath,
+    status,
+    phase,
+    localAiProxyRuntime,
+  };
+}
+
 function readOptionValue(argv, index, flag) {
   const next = argv[index + 1];
   const normalizedNext = String(next ?? '').trim();
@@ -58,6 +86,7 @@ export async function buildOpenClawUpgradeSmokeEvidence({
 } = {}) {
   const blockers = [];
   const phases = [];
+  let packagedLaunchSmokeSummary = null;
 
   let installerSmoke = null;
   try {
@@ -100,6 +129,7 @@ export async function buildOpenClawUpgradeSmokeEvidence({
       arch,
       target,
     });
+    packagedLaunchSmokeSummary = buildPackagedLaunchSmokeSummary(packagedLaunchSmoke);
     phases.push(
       createPhase(
         'packaged-launch-smoke',
@@ -107,6 +137,9 @@ export async function buildOpenClawUpgradeSmokeEvidence({
         'desktop packaged launch smoke passed',
         {
           packagedLaunchSmoke,
+          ...(packagedLaunchSmokeSummary
+            ? { packagedLaunchSmokeSummary }
+            : {}),
         },
       ),
     );
@@ -147,6 +180,7 @@ export async function buildOpenClawUpgradeSmokeEvidence({
     phases,
     installerSmoke,
     packagedLaunchSmoke,
+    packagedLaunchSmokeSummary,
   };
 }
 

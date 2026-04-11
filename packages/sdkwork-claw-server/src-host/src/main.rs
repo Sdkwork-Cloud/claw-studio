@@ -303,8 +303,15 @@ mod tests {
 
     #[tokio::test]
     async fn health_ready_route_returns_service_unavailable_without_a_ready_runtime() {
-        let app = build_router(build_server_state_with_rollout_data_dir(
+        let provider = build_control_plane_manage_openclaw_provider(Arc::new(
+            OpenClawControlPlane::inactive("claw-server"),
+        ));
+        let app = build_router(build_server_state_with_overrides(
             create_test_rollout_data_dir("health-ready-inactive"),
+            ServerStateOverrides {
+                manage_openclaw_provider: Some(provider),
+                ..ServerStateOverrides::default()
+            },
         ));
         let response = app
             .oneshot(
@@ -316,6 +323,23 @@ mod tests {
             .expect("health ready request should succeed");
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn health_ready_route_returns_ok_for_default_server_state() {
+        let app = build_router(build_server_state_with_rollout_data_dir(
+            create_test_rollout_data_dir("health-ready-default-server"),
+        ));
+        let response = app
+            .oneshot(
+                Request::get("/claw/health/ready")
+                    .body(Body::empty())
+                    .expect("health ready request should build"),
+            )
+            .await
+            .expect("health ready request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
@@ -5238,7 +5262,7 @@ mod tests {
         directory
     }
 
-    const DESKTOP_HOSTED_BROWSER_ORIGIN: &str = "http://127.0.0.1:1420";
+    const DESKTOP_HOSTED_BROWSER_ORIGIN: &str = "http://127.0.0.1:1426";
     const DESKTOP_BROWSER_SESSION_TOKEN: &str = "desktop-session-token";
 
     fn build_desktop_combined_browser_session_test_app(label: &str) -> axum::Router {

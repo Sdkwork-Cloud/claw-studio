@@ -7,6 +7,26 @@ import { pathToFileURL } from 'node:url';
 
 const rootDir = path.resolve(import.meta.dirname, '..', '..');
 
+function writeSyntheticServerRuntime({
+  serverTargetDir,
+  targetTriple,
+  binaryName,
+  webDistDir,
+  envExamplePath,
+} = {}) {
+  const serverBinaryPath = path.join(serverTargetDir, targetTriple, 'release', binaryName);
+  mkdirSync(path.dirname(serverBinaryPath), { recursive: true });
+  mkdirSync(path.join(webDistDir, 'assets'), { recursive: true });
+  writeFileSync(serverBinaryPath, 'synthetic binary\n', 'utf8');
+  writeFileSync(path.join(webDistDir, 'index.html'), '<html><body>synthetic web</body></html>\n', 'utf8');
+  writeFileSync(path.join(webDistDir, 'assets', 'index.js'), 'console.log("synthetic");\n', 'utf8');
+  writeFileSync(
+    envExamplePath,
+    'CLAW_SERVER_HOST=127.0.0.1\nCLAW_SERVER_PORT=18797\nCLAW_SERVER_WEB_DIST=../sdkwork-claw-web/dist\n',
+    'utf8',
+  );
+}
+
 test('server bundle smoke validates packaged server bundles and writes runtime-backed evidence', async () => {
   const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-server-release-assets.mjs');
   assert.equal(existsSync(smokePath), true, 'missing scripts/release/smoke-server-release-assets.mjs');
@@ -128,6 +148,239 @@ test('server bundle smoke validates packaged server bundles and writes runtime-b
       JSON.parse(readFileSync(result.report.reportPath, 'utf8')).status,
       'passed',
     );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('server bundle smoke can extract Windows zip bundles produced by the release packager', async () => {
+  const packagerPath = path.join(rootDir, 'scripts', 'release', 'package-release-assets.mjs');
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-server-release-assets.mjs');
+  const packager = await import(pathToFileURL(packagerPath).href);
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-server-windows-smoke-'));
+  const outputDir = path.join(tempRoot, 'release-assets');
+  const serverTargetDir = path.join(tempRoot, 'server-target');
+  const webDistDir = path.join(tempRoot, 'web-dist');
+  const envExamplePath = path.join(tempRoot, '.env.example');
+  const releaseTag = 'release-2026-04-10-171';
+
+  try {
+    writeSyntheticServerRuntime({
+      serverTargetDir,
+      targetTriple: 'x86_64-pc-windows-msvc',
+      binaryName: 'sdkwork-claw-server.exe',
+      webDistDir,
+      envExamplePath,
+    });
+
+    packager.packageServerAssets({
+      releaseTag,
+      platform: 'windows',
+      arch: 'x64',
+      target: 'x86_64-pc-windows-msvc',
+      outputDir,
+      serverBuildTargetDir: serverTargetDir,
+      serverWebDistDir: webDistDir,
+      serverEnvPath: envExamplePath,
+    });
+
+    const archivePath = path.join(
+      outputDir,
+      'server',
+      'windows',
+      'x64',
+      `claw-studio-server-${releaseTag}-windows-x64.zip`,
+    );
+    const manifestPath = path.join(
+      outputDir,
+      'server',
+      'windows',
+      'x64',
+      'release-asset-manifest.json',
+    );
+    const bundleRoot = await smoke.extractServerArchive({
+      archivePath,
+      extractDir: path.join(tempRoot, 'extract'),
+    });
+
+    assert.equal(existsSync(archivePath), true, `missing expected server archive ${archivePath}`);
+    assert.equal(existsSync(path.join(bundleRoot, 'bin', 'sdkwork-claw-server.exe')), true);
+    assert.equal(existsSync(path.join(bundleRoot, 'start-claw-server.cmd')), true);
+    assert.equal(existsSync(path.join(bundleRoot, 'web', 'dist', 'index.html')), true);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    assert.equal(manifest.platform, 'windows');
+    assert.equal(manifest.arch, 'x64');
+    assert.equal(
+      manifest.artifacts[0].relativePath,
+      `server/windows/x64/claw-studio-server-${releaseTag}-windows-x64.zip`,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('server bundle smoke stops Windows launcher trees with taskkill before cleanup', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-server-release-assets.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  assert.equal(typeof smoke.stopChildProcess, 'function');
+
+  const taskkillCalls = [];
+  const child = {
+    pid: 4242,
+    exitCode: null,
+    signalCode: null,
+    kill() {
+      throw new Error('windows cleanup should not fall back to child.kill before taskkill');
+    },
+  };
+
+  await smoke.stopChildProcess(child, {
+    platform: 'win32',
+    runTaskkillFn(command, args, options) {
+      taskkillCalls.push({ command, args, options });
+      child.exitCode = 0;
+      return {
+        status: 0,
+        error: null,
+      };
+    },
+    waitForExitFn: async () => {},
+  });
+
+  assert.deepEqual(taskkillCalls, [
+    {
+      command: 'taskkill',
+      args: ['/PID', '4242', '/T', '/F'],
+      options: {
+        encoding: 'utf8',
+        shell: false,
+      },
+    },
+  ]);
+});
+
+test('server bundle smoke falls back to direct child termination when taskkill is blocked', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-server-release-assets.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const killCalls = [];
+  const child = {
+    pid: 5252,
+    exitCode: null,
+    signalCode: null,
+    kill(signal) {
+      killCalls.push(signal ?? 'default');
+      this.exitCode = 0;
+    },
+  };
+
+  await smoke.stopChildProcess(child, {
+    platform: 'win32',
+    runTaskkillFn() {
+      const error = new Error('spawnSync taskkill EPERM');
+      error.code = 'EPERM';
+      return {
+        status: null,
+        error,
+      };
+    },
+    waitForExitFn: async () => {},
+  });
+
+  assert.deepEqual(killCalls, ['default']);
+});
+
+test('server bundle smoke retries transient busy cleanup before failing', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-server-release-assets.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  assert.equal(typeof smoke.removeDirectoryWithRetries, 'function');
+
+  let attempts = 0;
+  await smoke.removeDirectoryWithRetries('C:/synthetic/claw-server-smoke', {
+    retries: 3,
+    delayMs: 1,
+    delayFn: async () => {},
+    rmDirFn() {
+      attempts += 1;
+      if (attempts < 3) {
+        const error = new Error('resource busy');
+        error.code = 'EBUSY';
+        throw error;
+      }
+    },
+  });
+
+  assert.equal(attempts, 3);
+});
+
+test('server bundle smoke launches the bundled server binary directly on Windows', async () => {
+  const smokePath = path.join(rootDir, 'scripts', 'release', 'smoke-server-release-assets.mjs');
+  const smoke = await import(pathToFileURL(smokePath).href);
+
+  const spawnCalls = [];
+  const stopCalls = [];
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'claw-server-launch-'));
+  const bundleRoot = path.join(tempRoot, 'server-bundle');
+  const child = {
+    pid: 7373,
+    exitCode: 0,
+    signalCode: null,
+  };
+
+  try {
+    mkdirSync(bundleRoot, { recursive: true });
+
+    const runtime = await smoke.launchServerBundle({
+      bundleRoot,
+      platform: 'windows',
+      port: 19897,
+      spawnFn(command, args, options) {
+        spawnCalls.push({ command, args, options });
+        return child;
+      },
+      stopChildProcessFn: async (receivedChild, options) => {
+        stopCalls.push({ receivedChild, options });
+      },
+      existsSyncFn(targetPath) {
+        return targetPath === path.join(bundleRoot, 'bin', 'sdkwork-claw-server.exe');
+      },
+    });
+
+    assert.equal(runtime.baseUrl, 'http://127.0.0.1:19897');
+    assert.equal(runtime.launcherRelativePath, 'bin/sdkwork-claw-server.exe');
+    assert.deepEqual(spawnCalls, [
+      {
+        command: path.join(bundleRoot, 'bin', 'sdkwork-claw-server.exe'),
+        args: [],
+        options: {
+          cwd: bundleRoot,
+          env: {
+            ...process.env,
+            CLAW_SERVER_HOST: '127.0.0.1',
+            CLAW_SERVER_PORT: '19897',
+            CLAW_SERVER_DATA_DIR: path.join(bundleRoot, '.smoke-data'),
+            CLAW_SERVER_WEB_DIST: path.join(bundleRoot, 'web', 'dist'),
+          },
+          stdio: 'ignore',
+          windowsHide: true,
+        },
+      },
+    ]);
+
+    await runtime.stop();
+    assert.deepEqual(stopCalls, [
+      {
+        receivedChild: child,
+        options: {
+          platform: 'windows',
+        },
+      },
+    ]);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

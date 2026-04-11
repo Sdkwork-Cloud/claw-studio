@@ -1,12 +1,14 @@
 use crate::{
     framework::{
+        context::BuiltInOpenClawStatusChangedPayload,
         runtime,
         services::studio::{
             HostPlatformStatusRecord, InternalNodeSessionRecord, ManageRolloutListResult,
             ManageRolloutPreview, ManageRolloutRecord, PreviewRolloutInput,
             StudioConversationRecord, StudioCreateInstanceInput, StudioInstanceConfig,
-            StudioInstanceDetailRecord, StudioInstanceRecord, StudioOpenClawGatewayInvokeOptions,
-            StudioOpenClawGatewayInvokeRequest, StudioUpdateInstanceInput,
+            StudioInstanceDetailRecord, StudioInstanceRecord, StudioInstanceStatus,
+            StudioOpenClawGatewayInvokeOptions, StudioOpenClawGatewayInvokeRequest,
+            StudioUpdateInstanceInput,
             StudioUpdateInstanceLlmProviderConfigInput, StudioWorkbenchTaskExecutionRecord,
         },
         Result as FrameworkResult,
@@ -19,6 +21,8 @@ use sdkwork_claw_host_core::{
 };
 use serde::Serialize;
 use serde_json::Value;
+
+const BUILT_IN_OPENCLAW_INSTANCE_ID: &str = "local-built-in";
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +60,24 @@ fn list_instances_from_state(state: &AppState) -> FrameworkResult<Vec<StudioInst
             &state.context.services.storage,
             &state.context.services.supervisor,
         )
+}
+
+fn emit_built_in_openclaw_status_changed_if_needed(
+    state: &AppState,
+    instance_id: &str,
+    status: StudioInstanceStatus,
+) -> Result<(), String> {
+    if instance_id != BUILT_IN_OPENCLAW_INSTANCE_ID {
+        return Ok(());
+    }
+
+    state
+        .context
+        .emit_built_in_openclaw_status_changed(BuiltInOpenClawStatusChangedPayload {
+            instance_id: instance_id.to_string(),
+            status,
+        })
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -203,18 +225,36 @@ pub async fn studio_start_instance(
     id: String,
 ) -> Result<Option<StudioInstanceRecord>, String> {
     let state = state.inner().clone();
-    runtime::run_blocking_async("studio.start_instance", move || {
-        let config = state.config_snapshot();
-        state.context.services.studio.start_instance(
-            &state.paths,
+    let instance_id = id.clone();
+    let command_state = state.clone();
+    let result = runtime::run_blocking_async("studio.start_instance", move || {
+        let config = command_state.config_snapshot();
+        command_state.context.services.studio.start_instance(
+            &command_state.paths,
             &config,
-            &state.context.services.storage,
-            &state.context.services.supervisor,
+            &command_state.context.services.storage,
+            &command_state.context.services.supervisor,
             id.as_str(),
         )
     })
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string());
+
+    match &result {
+        Ok(Some(instance)) => emit_built_in_openclaw_status_changed_if_needed(
+            &state,
+            instance.id.as_str(),
+            instance.status.clone(),
+        )?,
+        Err(_) => emit_built_in_openclaw_status_changed_if_needed(
+            &state,
+            instance_id.as_str(),
+            StudioInstanceStatus::Error,
+        )?,
+        Ok(None) => {}
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -223,18 +263,36 @@ pub async fn studio_stop_instance(
     id: String,
 ) -> Result<Option<StudioInstanceRecord>, String> {
     let state = state.inner().clone();
-    runtime::run_blocking_async("studio.stop_instance", move || {
-        let config = state.config_snapshot();
-        state.context.services.studio.stop_instance(
-            &state.paths,
+    let instance_id = id.clone();
+    let command_state = state.clone();
+    let result = runtime::run_blocking_async("studio.stop_instance", move || {
+        let config = command_state.config_snapshot();
+        command_state.context.services.studio.stop_instance(
+            &command_state.paths,
             &config,
-            &state.context.services.storage,
-            &state.context.services.supervisor,
+            &command_state.context.services.storage,
+            &command_state.context.services.supervisor,
             id.as_str(),
         )
     })
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string());
+
+    match &result {
+        Ok(Some(instance)) => emit_built_in_openclaw_status_changed_if_needed(
+            &state,
+            instance.id.as_str(),
+            instance.status.clone(),
+        )?,
+        Err(_) => emit_built_in_openclaw_status_changed_if_needed(
+            &state,
+            instance_id.as_str(),
+            StudioInstanceStatus::Error,
+        )?,
+        Ok(None) => {}
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -243,18 +301,36 @@ pub async fn studio_restart_instance(
     id: String,
 ) -> Result<Option<StudioInstanceRecord>, String> {
     let state = state.inner().clone();
-    runtime::run_blocking_async("studio.restart_instance", move || {
-        let config = state.config_snapshot();
-        state.context.services.studio.restart_instance(
-            &state.paths,
+    let instance_id = id.clone();
+    let command_state = state.clone();
+    let result = runtime::run_blocking_async("studio.restart_instance", move || {
+        let config = command_state.config_snapshot();
+        command_state.context.services.studio.restart_instance(
+            &command_state.paths,
             &config,
-            &state.context.services.storage,
-            &state.context.services.supervisor,
+            &command_state.context.services.storage,
+            &command_state.context.services.supervisor,
             id.as_str(),
         )
     })
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string());
+
+    match &result {
+        Ok(Some(instance)) => emit_built_in_openclaw_status_changed_if_needed(
+            &state,
+            instance.id.as_str(),
+            instance.status.clone(),
+        )?,
+        Err(_) => emit_built_in_openclaw_status_changed_if_needed(
+            &state,
+            instance_id.as_str(),
+            StudioInstanceStatus::Error,
+        )?,
+        Ok(None) => {}
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -805,4 +881,49 @@ pub async fn invoke_managed_openclaw_gateway(
     })
     .await
     .map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    fn command_source_segment<'a>(source: &'a str, fn_name: &str) -> &'a str {
+        let start = source
+            .find(&format!("pub async fn {fn_name}"))
+            .expect("command function should exist");
+        let rest = &source[start..];
+        let end = rest
+            .find("\n#[tauri::command]\npub async fn ")
+            .map(|offset| start + offset)
+            .unwrap_or(source.len());
+        &source[start..end]
+    }
+
+    #[test]
+    fn built_in_lifecycle_commands_emit_status_changed_events_after_manual_actions() {
+        let source = include_str!("studio_commands.rs");
+        let production_source = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("production source");
+
+        assert!(
+            production_source.contains("fn emit_built_in_openclaw_status_changed_if_needed"),
+            "studio commands should centralize built-in OpenClaw status event emission"
+        );
+
+        for fn_name in [
+            "studio_start_instance",
+            "studio_stop_instance",
+            "studio_restart_instance",
+        ] {
+            let segment = command_source_segment(production_source, fn_name);
+            assert!(
+                segment.contains("emit_built_in_openclaw_status_changed_if_needed"),
+                "{fn_name} should emit the built-in OpenClaw status changed event"
+            );
+            assert!(
+                segment.contains("StudioInstanceStatus::Error"),
+                "{fn_name} should emit an error status when the manual lifecycle action fails"
+            );
+        }
+    }
 }

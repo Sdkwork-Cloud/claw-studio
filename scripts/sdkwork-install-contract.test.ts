@@ -275,7 +275,10 @@ runTest('sdkwork-claw-install keeps hub-installer as an updateable git submodule
   assert.ok(exists('.git/modules/packages/sdkwork-claw-desktop/src-tauri/vendor/hub-installer'));
   assert.match(gitModules, /\[submodule "packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer"\]/);
   assert.match(gitModules, /path = packages\/sdkwork-claw-desktop\/src-tauri\/vendor\/hub-installer/);
-  assert.match(gitModules, /url = https:\/\/github\.com\/Sdkwork-Cloud\/hub-installer/);
+  assert.match(
+    gitModules,
+    /url = (?:https:\/\/github\.com\/Sdkwork-Cloud\/hub-installer(?:\.git)?|git@github\.com:Sdkwork-Cloud\/hub-installer\.git)/,
+  );
   assert.match(gitModules, /branch = main/);
   assert.match(
     submoduleGitPointer,

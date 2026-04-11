@@ -2,12 +2,39 @@ use crate::framework::{
     bundled::{sync_bundled_installation, BundledInstallSyncReport},
     config::{load_or_create_config, AppConfig},
     desktop_host_bootstrap::{bootstrap_desktop_host_runtime, DesktopHostRuntime},
+    events,
+    FrameworkError,
     logging::{init_logger, AppLogger},
     paths::AppPaths,
-    services::FrameworkServices,
+    services::{studio::StudioInstanceStatus, FrameworkServices},
     Result,
 };
-use tauri::{AppHandle, Runtime};
+use std::{fmt::Debug, sync::Arc};
+use tauri::{AppHandle, Emitter, Runtime};
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BuiltInOpenClawStatusChangedPayload {
+    pub instance_id: String,
+    pub status: StudioInstanceStatus,
+}
+
+pub trait FrameworkEventSink: Debug + Send + Sync {
+    fn emit_built_in_openclaw_status_changed(
+        &self,
+        payload: BuiltInOpenClawStatusChangedPayload,
+    ) -> Result<()>;
+}
+
+impl<R: Runtime> FrameworkEventSink for AppHandle<R> {
+    fn emit_built_in_openclaw_status_changed(
+        &self,
+        payload: BuiltInOpenClawStatusChangedPayload,
+    ) -> Result<()> {
+        self.emit(events::BUILT_IN_OPENCLAW_STATUS_CHANGED, payload)
+            .map_err(FrameworkError::from)
+    }
+}
 
 #[derive(Debug)]
 pub struct FrameworkContext {
@@ -15,13 +42,17 @@ pub struct FrameworkContext {
     pub config: AppConfig,
     pub logger: AppLogger,
     pub services: FrameworkServices,
+    event_sink: Option<Arc<dyn FrameworkEventSink>>,
     desktop_host: Option<DesktopHostRuntime>,
 }
 
 impl FrameworkContext {
     pub fn bootstrap<R: Runtime>(app: &AppHandle<R>) -> Result<Self> {
         let paths = crate::framework::paths::resolve_paths(app)?;
-        bootstrap_context_for_paths(paths, |paths| sync_bundled_installation(app, paths))
+        let mut context =
+            bootstrap_context_for_paths(paths, |paths| sync_bundled_installation(app, paths))?;
+        context.event_sink = Some(Arc::new(app.clone()));
+        Ok(context)
     }
 
     pub fn bootstrap_desktop_host(&mut self) -> Result<()> {
@@ -52,6 +83,21 @@ impl FrameworkContext {
         self.desktop_host.as_ref().map(|runtime| runtime.status())
     }
 
+    pub fn emit_built_in_openclaw_status_changed(
+        &self,
+        payload: BuiltInOpenClawStatusChangedPayload,
+    ) -> Result<()> {
+        self.event_sink
+            .as_ref()
+            .ok_or_else(|| {
+                FrameworkError::Internal(
+                    "framework context event sink should be available in the desktop runtime"
+                        .to_string(),
+                )
+            })?
+            .emit_built_in_openclaw_status_changed(payload)
+    }
+
     #[cfg(test)]
     pub fn from_parts(paths: AppPaths, config: AppConfig, logger: AppLogger) -> Self {
         let services = FrameworkServices::new(&paths, &config).expect("framework services");
@@ -61,6 +107,7 @@ impl FrameworkContext {
             config,
             logger,
             services,
+            event_sink: None,
             desktop_host: None,
         }
     }
@@ -93,6 +140,7 @@ where
         config,
         logger,
         services,
+        event_sink: None,
         desktop_host: None,
     })
 }

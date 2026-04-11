@@ -65,3 +65,33 @@
 ## 6. 结论
 
 `Instance Detail` 已经具备强工作台基础。下一步关键不是继续堆区块，而是把“一致性矩阵 + 发布前验收 + 升级后回归”固化为长期工程制度。
+## 7. 2026-04-10 Step 10 quality-gate promotion writeback
+
+## 7. 2026-04-10 Step 10 quality-gate promotion writeback
+
+- Step 10 promotes the Instance Detail consistency baseline into formal quality gates.
+
+### 7.1 Formal gate ownership
+
+- `pnpm.cmd check:sdkwork-instances` is now the main parity owner for Instance Detail and managed OpenClaw workbench consistency.
+- `scripts/sdkwork-instances-contract.test.ts` remains the package-level contract owner for Instance Detail boundary and behavior assertions.
+- `pnpm.cmd check:desktop` and `pnpm.cmd lint` remain release-blocking supersets that catch desktop-hosted regressions and wider parity drift affecting Instance Detail.
+
+### 7.2 Minimum required fact-source coverage
+
+- The formal instance gate now includes the current OpenClaw truth-chain tests that matter for this matrix:
+  - `openClawConfigSchemaSupport.test.ts`
+  - `openClawManagementCapabilities.test.ts`
+  - `openClawProviderWorkspacePresentation.test.ts`
+- The same runner also includes the broader Instance Detail service regressions around:
+  - lifecycle mutations
+  - managed channel/config mutations
+  - provider catalog/delete flows
+  - workbench loader and section availability support
+  - agent and skill workbench state
+
+### 7.3 Acceptance consequence
+
+- Instance Detail consistency is no longer closed by review notes alone.
+- A Step 10-compliant release now requires the formal instance lane to stay green inside the parity gate graph.
+- This satisfies the Step 10 checkpoint that Instance Detail consistency and upgrade-sensitive regressions must be part of the official quality gate, not a sidecar verification path.

@@ -11,6 +11,10 @@ import type {
   RuntimeDesktopKernelInfo,
   RuntimeInfo,
 } from '@sdkwork/claw-infrastructure';
+import type {
+  LocalAiProxyRouteRuntimeMetrics,
+  LocalAiProxyRouteTestRecord,
+} from '@sdkwork/claw-types';
 import { runtime } from '@sdkwork/claw-infrastructure';
 
 export type KernelCenterStatusTone = 'healthy' | 'degraded' | 'warning';
@@ -95,6 +99,10 @@ export interface KernelCenterDashboard {
     }>;
     upstreamBaseUrl: string | null;
     modelCount: number;
+    routeMetrics: LocalAiProxyRouteRuntimeMetrics[];
+    routeTests: LocalAiProxyRouteTestRecord[];
+    messageCaptureEnabled: boolean;
+    observabilityDbPath: string | null;
     configPath: string | null;
     snapshotPath: string | null;
     logPath: string | null;
@@ -626,6 +634,10 @@ function mapDashboard(
       defaultRoutes: info?.localAiProxy?.defaultRoutes ?? [],
       upstreamBaseUrl: info?.localAiProxy?.upstreamBaseUrl ?? null,
       modelCount: info?.localAiProxy?.modelCount ?? 0,
+      routeMetrics: info?.localAiProxy?.routeMetrics ?? [],
+      routeTests: info?.localAiProxy?.routeTests ?? [],
+      messageCaptureEnabled: info?.localAiProxy?.messageCaptureEnabled ?? false,
+      observabilityDbPath: info?.localAiProxy?.observabilityDbPath ?? null,
       configPath: info?.localAiProxy?.configPath ?? null,
       snapshotPath: info?.localAiProxy?.snapshotPath ?? null,
       logPath: info?.localAiProxy?.logPath ?? null,

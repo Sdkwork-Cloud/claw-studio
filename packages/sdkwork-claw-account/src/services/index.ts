@@ -1,2 +1,1 @@
-export * from './accountService';
-export * from './accountService.test';
+﻿export * from './accountService';

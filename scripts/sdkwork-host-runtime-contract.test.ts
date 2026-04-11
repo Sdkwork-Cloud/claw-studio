@@ -109,7 +109,7 @@ runTest('sdkwork-claw-desktop contains the Tauri runtime package surface', () =>
   assert.ok(exists('packages/sdkwork-claw-desktop/src-tauri/tauri.conf.json'));
   assert.equal(
     pkg.scripts?.['dev:tauri'],
-    'node ../../scripts/run-vite-host.mjs serve --host 127.0.0.1 --port 1420 --strictPort',
+    'node ../../scripts/run-vite-host.mjs serve --host 127.0.0.1 --port 1426 --strictPort',
   );
   assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], undefined);
   assert.doesNotMatch(desktopLockImporter, /'@sdkwork\/claw-core':/);
@@ -264,6 +264,12 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   const desktopBootstrapRuntimeSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopBootstrapRuntime.ts',
   );
+  const desktopRuntimeConnectionSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopRuntimeConnection.ts',
+  );
+  const desktopBackgroundRuntimeReadinessToastSource = read(
+    'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopBackgroundRuntimeReadinessToast.ts',
+  );
   const desktopStartupEvidenceSource = read(
     'packages/sdkwork-claw-desktop/src/desktop/bootstrap/desktopStartupEvidence.ts',
   );
@@ -273,9 +279,12 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
 
   assert.match(createDesktopAppSource, /<DesktopBootstrapApp/);
   assert.match(desktopBootstrapAppSource, /bootstrapShellRuntime/);
+  assert.match(desktopBootstrapAppSource, /ROUTE_PATHS/);
   assert.match(desktopBootstrapAppSource, /getAppInfo/);
   assert.match(desktopBootstrapAppSource, /getAppPaths/);
   assert.match(desktopBootstrapAppSource, /writeTextFile/);
+  assert.match(desktopBootstrapAppSource, /toast/);
+  assert.match(desktopBootstrapAppSource, /BACKGROUND_RUNTIME_READINESS_TOAST_ID/);
   assert.match(desktopBootstrapAppSource, /runDesktopBootstrapSequence/);
   assert.match(desktopBootstrapAppSource, /DESKTOP_STARTUP_EVIDENCE_RELATIVE_PATH/);
   assert.match(
@@ -294,11 +303,67 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   assert.match(desktopHostedBridgeSource, /ready:/);
   assert.doesNotMatch(desktopBootstrapAppSource, /@sdkwork\/claw-i18n/);
   assert.ok(connectDesktopRuntimeBody);
-  assert.match(connectDesktopRuntimeBody, /getAppInfo\(/);
-  assert.match(connectDesktopRuntimeBody, /getAppPaths\(/);
+  assert.match(desktopBootstrapAppSource, /connectDesktopRuntimeDuringStartup/);
+  assert.match(
+    desktopBackgroundRuntimeReadinessToastSource,
+    /export const BACKGROUND_RUNTIME_READINESS_TOAST_ID = 'desktop-background-runtime-readiness';/,
+  );
+  assert.match(
+    desktopBackgroundRuntimeReadinessToastSource,
+    /export function resolveBackgroundRuntimeReadinessToastResetPlan\([\s\S]*lastShownSignature:\s*string,[\s\S]*options\?:\s*ResolveBackgroundRuntimeReadinessToastResetPlanOptions,/,
+  );
+  assert.match(
+    desktopBackgroundRuntimeReadinessToastSource,
+    /dismissToastId:\s*options\?\.dismissToast \?\? true \? BACKGROUND_RUNTIME_READINESS_TOAST_ID : null/,
+  );
+  assert.match(
+    desktopBackgroundRuntimeReadinessToastSource,
+    /toastId:\s*BACKGROUND_RUNTIME_READINESS_TOAST_ID/,
+  );
+  assert.match(connectDesktopRuntimeBody, /connectDesktopRuntimeDuringStartup\(\{/);
+  assert.match(connectDesktopRuntimeBody, /const runId = bootRunIdRef\.current;/);
+  assert.match(connectDesktopRuntimeBody, /const isCurrentRun = \(\) => bootRunIdRef\.current === runId;/);
+  assert.match(connectDesktopRuntimeBody, /getAppInfo,/);
+  assert.match(connectDesktopRuntimeBody, /getAppPaths,/);
+  assert.match(
+    connectDesktopRuntimeBody,
+    /const captureLocalAiProxyEvidence = async \(captureRunId = runId\) => \{/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /const kernelInfo = await getDesktopKernelInfo\(\);/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /const localAiProxy = kernelInfo\?\.localAiProxy \?\? null;/,
+  );
   assert.doesNotMatch(
     connectDesktopRuntimeBody,
-    /getDesktopKernelInfo\(/,
+    /kernelInfo\?\.(?!localAiProxy\b)/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /captureLocalAiProxyEvidence:\s*\(\)\s*=>\s*captureLocalAiProxyEvidence\(runId\),/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /onReadinessReady:\s*async\s*\(\{\s*appInfo,\s*appPaths,\s*readinessSnapshot,\s*localAiProxy\s*\}\)\s*=>\s*\{/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /if \(!isCurrentRun\(\)\) \{\s*logStartup\(\s*'warn',\s*'Ignoring stale hosted runtime readiness success from a previous bootstrap run\.'/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /onReadinessFailed:\s*async\s*\(\{\s*appInfo,\s*appPaths,\s*error,\s*localAiProxy\s*\}\)\s*=>\s*\{/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /if \(!isCurrentRun\(\)\) \{\s*logStartup\(\s*'warn',\s*'Ignoring stale hosted runtime readiness failure from a previous bootstrap run\.'/,
+  );
+  assert.match(
+    connectDesktopRuntimeBody,
+    /setBackgroundRuntimeReadinessNotification\(\{\s*runId,\s*message:/,
   );
   assert.doesNotMatch(
     connectDesktopRuntimeBody,
@@ -306,19 +371,19 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     connectDesktopRuntimeBody,
-    /hostEndpointId:\s*hostedRuntimeReadiness\.evidence\.manageEndpointId/,
+    /hostEndpointId:\s*readinessSnapshot\.evidence\.manageEndpointId/,
   );
   assert.match(
     connectDesktopRuntimeBody,
-    /hostEndpointRequestedPort:\s*hostedRuntimeReadiness\.evidence\.manageEndpointRequestedPort/,
+    /hostEndpointRequestedPort:\s*readinessSnapshot\.evidence\.manageEndpointRequestedPort/,
   );
   assert.match(
     connectDesktopRuntimeBody,
-    /hostEndpointActivePort:\s*hostedRuntimeReadiness\.evidence\.manageEndpointActivePort/,
+    /hostEndpointActivePort:\s*readinessSnapshot\.evidence\.manageEndpointActivePort/,
   );
   assert.match(
     connectDesktopRuntimeBody,
-    /hostEndpointBaseUrl:\s*hostedRuntimeReadiness\.evidence\.manageBaseUrl/,
+    /hostEndpointBaseUrl:\s*readinessSnapshot\.evidence\.manageBaseUrl/,
   );
   assert.match(
     connectDesktopRuntimeBody,
@@ -342,7 +407,7 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     connectDesktopRuntimeBody,
-    /Hosted desktop runtime readiness probe failed\./,
+    /Hosted desktop runtime readiness probe failed in the background\./,
   );
   assert.match(
     connectDesktopRuntimeBody,
@@ -358,19 +423,23 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     connectDesktopRuntimeBody,
-    /builtInInstanceRuntimeKind:\s*builtInInstance\?\.runtimeKind\s*\?\?\s*null/,
+    /runtimeReadinessFailureRef\.current = true/,
   );
   assert.match(
-    connectDesktopRuntimeBody,
-    /builtInInstanceDeploymentMode:\s*builtInInstance\?\.deploymentMode\s*\?\?\s*null/,
+    desktopRuntimeConnectionSource,
+    /await Promise\.all\(\[\s*options\.getAppInfo\(\),\s*options\.getAppPaths\(\),\s*\]\)/,
   );
   assert.match(
-    connectDesktopRuntimeBody,
-    /builtInInstanceTransportKind:\s*builtInInstance\?\.transportKind\s*\?\?\s*null/,
+    desktopRuntimeConnectionSource,
+    /Hosted runtime readiness will continue in the background\./,
   );
   assert.match(
-    connectDesktopRuntimeBody,
-    /builtInInstanceStatus:\s*builtInInstance\?\.status\s*\?\?\s*null/,
+    desktopRuntimeConnectionSource,
+    /const readinessTask = \(\s*async \(\) => \{/,
+  );
+  assert.match(
+    desktopRuntimeConnectionSource,
+    /void readinessTask\.catch\(/,
   );
   assert.match(
     desktopBootstrapAppSource,
@@ -378,7 +447,59 @@ runTest('sdkwork-claw-desktop bootstraps shell runtime before mounting the React
   );
   assert.match(
     desktopBootstrapAppSource,
-    /readinessEvidence:\s*hostedRuntimeReadiness\.evidence/,
+    /if \(!runtimeReadinessFailureRef\.current\) \{\s*void persistStartupEvidence\(\{\s*status:\s*'passed',\s*phase:\s*'shell-mounted'/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /const \[backgroundRuntimeReadinessNotification,\s*setBackgroundRuntimeReadinessNotification\]\s*=\s*[\s\S]*?useState/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /const clearBackgroundRuntimeReadinessFailureState = useEffectEvent\(\(options\?: \{\s*dismissToast\?: boolean;\s*}\) => \{/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /const resetPlan = resolveBackgroundRuntimeReadinessToastResetPlan\(\s*backgroundRuntimeReadinessNotificationSignatureRef\.current,\s*options,\s*\);/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /if \(resetPlan\?\.dismissToastId\) \{\s*toast\.dismiss\(resetPlan\.dismissToastId\);/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /const retryToastId = BACKGROUND_RUNTIME_READINESS_TOAST_ID;/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /clearFailureState:\s*\(\)\s*=>\s*\{\s*clearBackgroundRuntimeReadinessFailureState\(\{\s*dismissToast:\s*false\s*}\);/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /toast\.error\([\s\S]*id:\s*toastPlan\.toastId,/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /toast\.loading\([\s\S]*id:\s*retryToastId,/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /toast\.success\([\s\S]*id:\s*retryToastId,/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /toast\.error\([\s\S]*id:\s*retryToastId,/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /openDesktopShellRoute\(`\$\{ROUTE_PATHS\.INSTANCES\}\/\$\{BUILT_IN_OPENCLAW_INSTANCE_ID\}`\);/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /window\.history\.pushState\(\{\}, '', pathname\);/,
+  );
+  assert.match(
+    desktopBootstrapAppSource,
+    /window\.dispatchEvent\(new PopStateEvent\('popstate'\)\);/,
   );
   assert.match(
     desktopBootstrapAppSource,

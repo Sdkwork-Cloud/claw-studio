@@ -42,7 +42,7 @@ This starts the Vite development server for `@sdkwork/claw-web` on `http://local
 pnpm tauri:dev
 ```
 
-The desktop package serves the shell through Vite on `127.0.0.1:1420` and then launches the Tauri application.
+The desktop package serves the shell through Vite on `127.0.0.1:1426` and then launches the Tauri application.
 
 ### Native Server
 

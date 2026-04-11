@@ -29,6 +29,7 @@ function runTest(name: string, fn: () => void) {
 runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware channel wiring', () => {
   const pkg = readJson<{ dependencies?: Record<string, string> }>('packages/sdkwork-claw-channels/package.json');
   const indexSource = read('packages/sdkwork-claw-channels/src/index.ts');
+  const servicesIndexSource = read('packages/sdkwork-claw-channels/src/services/index.ts');
   const serviceSource = read('packages/sdkwork-claw-channels/src/services/channelService.ts');
   const pageSource = read('packages/sdkwork-claw-channels/src/pages/channels/Channels.tsx');
   const zhSidebar = readJson<{ channels: string }>('packages/sdkwork-claw-i18n/src/locales/zh/sidebar.json');
@@ -56,6 +57,8 @@ runTest('sdkwork-claw-channels is implemented locally with V5 instance-aware cha
   assert.equal(pkg.dependencies?.['@sdkwork/claw-core'], 'workspace:*');
   assert.equal(pkg.dependencies?.['@sdkwork/claw-types'], 'workspace:*');
   assert.doesNotMatch(indexSource, /@sdkwork\/claw-studio-channels/);
+  assert.doesNotMatch(indexSource, /\.test['"]/);
+  assert.doesNotMatch(servicesIndexSource, /\.test['"]/);
 
   assert.match(serviceSource, /import\s+\{\s*getPlatformBridge\s*\}\s+from\s+'@sdkwork\/claw-infrastructure'/);
   assert.match(serviceSource, /openClawConfigService/);

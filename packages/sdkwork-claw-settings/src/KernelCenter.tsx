@@ -22,6 +22,8 @@ import {
   type KernelCenterDashboard,
 } from './services/index.ts';
 import {
+  formatLocalAiProxyRouteMetricSummary,
+  formatLocalAiProxyRouteTestSummary,
   resolveEndpointPortValue,
   resolveLocalAiProxyPortValue,
 } from './kernelCenterView.ts';
@@ -164,6 +166,40 @@ function translateLocalAiProxyLifecycle(t: Translate, lifecycle?: string | null)
       return t('settings.kernelCenter.localAiProxyLifecycle.stopped');
     default:
       return t('settings.kernelCenter.localAiProxyLifecycle.unavailable');
+  }
+}
+
+function translateLocalAiProxyRouteHealth(t: Translate, health: string) {
+  switch (health) {
+    case 'healthy':
+      return t('settings.kernelCenter.localAiProxy.observability.health.healthy');
+    case 'degraded':
+      return t('settings.kernelCenter.localAiProxy.observability.health.degraded');
+    case 'failed':
+      return t('settings.kernelCenter.localAiProxy.observability.health.failed');
+    default:
+      return t('settings.kernelCenter.localAiProxy.observability.health.disabled');
+  }
+}
+
+function translateLocalAiProxyRouteTestStatus(t: Translate, status: string) {
+  return status === 'passed'
+    ? t('settings.kernelCenter.localAiProxy.observability.testStatus.passed')
+    : t('settings.kernelCenter.localAiProxy.observability.testStatus.failed');
+}
+
+function translateLocalAiProxyRouteTestCapability(t: Translate, capability: string) {
+  switch (capability) {
+    case 'chat':
+      return t('settings.kernelCenter.localAiProxy.observability.capabilities.chat');
+    case 'responses':
+      return t('settings.kernelCenter.localAiProxy.observability.capabilities.responses');
+    case 'embeddings':
+      return t('settings.kernelCenter.localAiProxy.observability.capabilities.embeddings');
+    case 'messages':
+      return t('settings.kernelCenter.localAiProxy.observability.capabilities.messages');
+    default:
+      return t('settings.kernelCenter.localAiProxy.observability.capabilities.generateContent');
   }
 }
 
@@ -412,6 +448,10 @@ export function KernelCenter() {
     defaultRoutes: [],
     upstreamBaseUrl: null,
     modelCount: 0,
+    routeMetrics: [],
+    routeTests: [],
+    messageCaptureEnabled: false,
+    observabilityDbPath: null,
     configPath: null,
     snapshotPath: null,
     logPath: null,
@@ -1244,6 +1284,17 @@ export function KernelCenter() {
               emptyLabel={notAvailableLabel}
             />
             <ValueRow
+              label={t('settings.kernelCenter.fields.messageCaptureEnabled')}
+              value={translateBoolean(t, Boolean(localAiProxy.messageCaptureEnabled))}
+              emptyLabel={notAvailableLabel}
+            />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.observabilityDbPath')}
+              value={localAiProxy.observabilityDbPath || null}
+              emptyLabel={notAvailableLabel}
+              mono
+            />
+            <ValueRow
               label={t('settings.kernelCenter.fields.defaultRoute')}
               value={localAiProxy.defaultRouteName || null}
               emptyLabel={noneLabel}
@@ -1264,6 +1315,65 @@ export function KernelCenter() {
               emptyLabel={notAvailableLabel}
               mono
             />
+            <ValueRow
+              label={t('settings.kernelCenter.fields.routeMetrics')}
+              value={String(localAiProxy.routeMetrics.length)}
+              emptyLabel={notAvailableLabel}
+            />
+            {localAiProxy.routeMetrics.map((metric) => (
+              <ValueRow
+                key={`metric-${metric.routeId}`}
+                label={t('settings.kernelCenter.localAiProxy.routeMetricLabel', {
+                  routeId: metric.routeId,
+                })}
+                value={formatLocalAiProxyRouteMetricSummary(metric, {
+                  health: translateLocalAiProxyRouteHealth(t, metric.health),
+                  requests: t('settings.kernelCenter.localAiProxy.observability.requests'),
+                  successes: t('settings.kernelCenter.localAiProxy.observability.successes'),
+                  failures: t('settings.kernelCenter.localAiProxy.observability.failures'),
+                  rpm: t('settings.kernelCenter.localAiProxy.observability.rpm'),
+                  totalTokens: t('settings.kernelCenter.localAiProxy.observability.totalTokens'),
+                  averageLatency: t(
+                    'settings.kernelCenter.localAiProxy.observability.averageLatency',
+                  ),
+                  lastLatency: t('settings.kernelCenter.localAiProxy.observability.lastLatency'),
+                  lastUsedAt: t('settings.kernelCenter.localAiProxy.observability.lastUsedAt'),
+                  lastError: t('settings.kernelCenter.localAiProxy.observability.lastError'),
+                })}
+                emptyLabel={noneLabel}
+              />
+            ))}
+            <ValueRow
+              label={t('settings.kernelCenter.fields.routeTests')}
+              value={String(localAiProxy.routeTests.length)}
+              emptyLabel={notAvailableLabel}
+            />
+            {localAiProxy.routeTests.map((test) => (
+              <ValueRow
+                key={`test-${test.routeId}`}
+                label={t('settings.kernelCenter.localAiProxy.routeTestLabel', {
+                  routeId: test.routeId,
+                })}
+                value={formatLocalAiProxyRouteTestSummary(
+                  {
+                    ...test,
+                    checkedCapability: translateLocalAiProxyRouteTestCapability(
+                      t,
+                      test.checkedCapability,
+                    ),
+                  },
+                  {
+                    status: translateLocalAiProxyRouteTestStatus(t, test.status),
+                    capability: t('settings.kernelCenter.localAiProxy.observability.capability'),
+                    testedAt: t('settings.kernelCenter.localAiProxy.observability.testedAt'),
+                    latency: t('settings.kernelCenter.localAiProxy.observability.latency'),
+                    model: t('settings.kernelCenter.localAiProxy.observability.model'),
+                    error: t('settings.kernelCenter.localAiProxy.observability.lastError'),
+                  },
+                )}
+                emptyLabel={noneLabel}
+              />
+            ))}
             <ValueRow
               label={t('settings.kernelCenter.fields.loopbackOnly')}
               value={translateBoolean(t, Boolean(localAiProxy.loopbackOnly))}

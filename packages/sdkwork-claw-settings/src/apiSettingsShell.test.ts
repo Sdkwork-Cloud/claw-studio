@@ -26,7 +26,7 @@ await runTest('api settings shell routes the API tab through a compact three-tab
   assert.match(settingsSource, /activeTab === 'api' && <ApiSettings \/>/);
   assert.doesNotMatch(settingsSource, /activeTab === 'api' && <ProviderConfigCenter \/>/);
 
-  assert.match(settingsIndexSource, /export \* from '\.\/ApiSettings\.ts';/);
+  assert.match(settingsIndexSource, /export \* from '\.\/ApiSettings';/);
   assert.match(apiSettingsWrapperSource, /LazyApiSettings/);
   assert.match(apiSettingsSource, /resolveApiSettingsSection/);
   assert.match(apiSettingsSource, /ProviderConfigCenter/);
@@ -41,6 +41,13 @@ await runTest('api settings shell routes the API tab through a compact three-tab
   assert.match(apiSettingsSource, /messageCaptureEnabled/);
   assert.match(apiSettingsSource, /messageCaptureToolbarLabel/);
   assert.match(apiSettingsSource, /data-slot="api-message-capture-toggle"/);
+  assert.match(apiSettingsSource, /getRuntimeSummary/);
+  assert.match(apiSettingsSource, /data-slot="api-log-runtime-summary"/);
+  assert.match(apiSettingsSource, /apiLogs\.logs\.runtimeSummaryTitle/);
+  assert.match(apiSettingsSource, /apiLogs\.logs\.runtimeFields\.proxyLifecycle/);
+  assert.match(apiSettingsSource, /apiLogs\.logs\.runtimeFields\.logPath/);
+  assert.match(apiSettingsSource, /apiLogs\.logs\.runtimeFields\.snapshotPath/);
+  assert.match(apiSettingsSource, /apiLogs\.logs\.runtimeFields\.observabilityDbPath/);
   assert.match(apiSettingsSource, /className="flex h-10 max-w-full items-center gap-3/);
   assert.match(apiLogsTablesSource, /pageSize/);
   assert.doesNotMatch(apiSettingsSource, /data-slot="api-settings-section-tabs"/);

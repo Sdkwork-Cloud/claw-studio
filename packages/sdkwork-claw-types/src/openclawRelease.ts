@@ -19,15 +19,42 @@ function normalizeRuntimeSupplementalPackages(value: string[] | null | undefined
     .filter(Boolean);
 }
 
+/**
+ * Warns if any supplemental package uses an unstable (0.x.x / 0.0.x) version.
+ * These are pre-release dependencies that may introduce breaking changes without notice.
+ * TODO: Pin to a stable semver (>=1.0.0) once upstream publishes one.
+ */
+function warnUnstableSupplementalPackages(specs: string[]): void {
+  const UNSTABLE_VERSION_PATTERN = /@0\.\d+\.\d+/;
+  for (const spec of specs) {
+    if (UNSTABLE_VERSION_PATTERN.test(spec)) {
+      console.warn(
+        `[openclaw-release] WARNING: Supplemental package "${spec}" uses an unstable version (<1.0.0). `
+        + 'This dependency may break without notice. Pin to a stable version when available.',
+      );
+    }
+  }
+}
+
+const normalizedSupplementalPackages = normalizeRuntimeSupplementalPackages(
+  metadata.runtimeSupplementalPackages,
+);
+warnUnstableSupplementalPackages(normalizedSupplementalPackages);
+
 export const OPENCLAW_RELEASE: Readonly<OpenClawReleaseMetadata> = Object.freeze({
   stableVersion: metadata.stableVersion,
   nodeVersion: metadata.nodeVersion,
   packageName: metadata.packageName,
-  runtimeSupplementalPackages: normalizeRuntimeSupplementalPackages(
-    metadata.runtimeSupplementalPackages,
-  ),
+  runtimeSupplementalPackages: normalizedSupplementalPackages,
 });
 
+/**
+ * Bundled OpenClaw version constants — pinned to the release config.
+ * These represent the version shipped with the built-in (bundled) runtime.
+ *
+ * Naming convention: DEFAULT_BUNDLED_OPENCLAW_<FIELD>
+ * - PACKAGE_NAME (not just PACKAGE) to distinguish the string name from an npm package object.
+ */
 export const DEFAULT_BUNDLED_OPENCLAW_VERSION = OPENCLAW_RELEASE.stableVersion;
 export const DEFAULT_BUNDLED_OPENCLAW_NODE_VERSION = OPENCLAW_RELEASE.nodeVersion;
 export const DEFAULT_BUNDLED_OPENCLAW_PACKAGE_NAME = OPENCLAW_RELEASE.packageName;

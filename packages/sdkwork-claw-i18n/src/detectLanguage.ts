@@ -85,11 +85,9 @@ export function getAppStoreLanguageFromSnapshot(snapshot?: string | null) {
       return languagePreference;
     }
 
-    if (typeof parsed.state?.language === 'string') {
-      return parsed.state.language;
-    }
-
-    return typeof parsed.language === 'string' ? parsed.language : undefined;
+    // Legacy snapshots that only persisted `language` (without `languagePreference`)
+    // are treated as "system" to avoid freezing the app on a stale default.
+    return undefined;
   } catch {
     return undefined;
   }
@@ -98,11 +96,14 @@ export function getAppStoreLanguageFromSnapshot(snapshot?: string | null) {
 export function resolveLanguage(options: ResolveLanguageOptions = {}): AppLanguage {
   const candidates = [
     options.requestLanguage,
-    options.cookieLanguage,
     options.appStoreLanguage,
-    options.detectorLanguage,
-    options.htmlLanguage,
+    // System locale should win when there is no explicit user preference.
     options.navigatorLanguage,
+    options.cookieLanguage,
+    options.detectorLanguage,
+    // HTML lang often starts as a static template default (for example "en"),
+    // so it stays as the final browser-side fallback.
+    options.htmlLanguage,
   ];
 
   for (const candidate of candidates) {

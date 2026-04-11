@@ -227,10 +227,12 @@ fn prepare_bundled_openclaw_runtime_for_current_install(
     install_root: Option<&OsStr>,
 ) -> Result<()> {
     let requested_install_root = resolve_requested_install_root(install_root)?;
+    let (machine_root_override, user_root_override) =
+        resolve_install_scoped_path_overrides(requested_install_root.as_deref());
     let paths = crate::framework::paths::resolve_paths_from_current_process_with_overrides(
         requested_install_root.clone(),
-        None,
-        None,
+        machine_root_override,
+        user_root_override,
     )?;
     let install_root =
         requested_install_root.unwrap_or_else(|| resolve_install_root_from_paths(&paths));
@@ -241,10 +243,13 @@ fn prepare_bundled_openclaw_runtime_for_current_install(
 
 fn register_openclaw_cli_for_current_install(install_root: Option<&OsStr>) -> Result<()> {
     let requested_install_root = resolve_requested_install_root(install_root)?;
+    let has_install_root_override = requested_install_root.is_some();
+    let (machine_root_override, user_root_override) =
+        resolve_install_scoped_path_overrides(requested_install_root.as_deref());
     let paths = crate::framework::paths::resolve_paths_from_current_process_with_overrides(
         requested_install_root.clone(),
-        None,
-        None,
+        machine_root_override,
+        user_root_override,
     )?;
     let install_root =
         requested_install_root.unwrap_or_else(|| resolve_install_root_from_paths(&paths));
@@ -253,7 +258,11 @@ fn register_openclaw_cli_for_current_install(install_root: Option<&OsStr>) -> Re
 
     let path_registration = PathRegistrationService::new();
     path_registration.install_openclaw_shims(&paths, &runtime)?;
-    path_registration.ensure_user_bin_on_path(&paths)?;
+    if has_install_root_override {
+        path_registration.ensure_install_local_user_bin_on_path(&paths)?;
+    } else {
+        path_registration.ensure_user_bin_on_path(&paths)?;
+    }
 
     Ok(())
 }
@@ -351,6 +360,19 @@ fn resolve_current_bundled_resource_root() -> Result<PathBuf> {
 
 fn resolve_install_root_from_paths(paths: &AppPaths) -> PathBuf {
     paths.install_root.clone()
+}
+
+fn resolve_install_scoped_path_overrides(
+    install_root: Option<&Path>,
+) -> (Option<PathBuf>, Option<PathBuf>) {
+    install_root
+        .map(|install_root| {
+            (
+                Some(install_root.join("machine")),
+                Some(install_root.join("user-home")),
+            )
+        })
+        .unwrap_or((None, None))
 }
 
 fn loopback_port_is_ready(port: u16) -> bool {
@@ -568,6 +590,7 @@ fn map_windows_service_error(error: windows_service::Error) -> FrameworkError {
 #[cfg(test)]
 mod tests {
     use super::{
+        prepare_bundled_openclaw_runtime_for_current_install,
         prepare_bundled_openclaw_runtime_for_paths_and_install_root,
         register_openclaw_cli_for_paths_and_install_root, resolve_internal_cli_action,
         run_openclaw_cli_for_paths_and_install_root, InternalCliAction,
@@ -577,10 +600,40 @@ mod tests {
         paths::resolve_paths_for_root, services::openclaw_runtime::BundledOpenClawManifest,
     };
     use sha2::{Digest, Sha256};
-    use std::{ffi::OsString, fs};
+    use std::{env, ffi::{OsStr, OsString}, fs};
 
     const TEST_BUNDLED_OPENCLAW_VERSION: &str = env!("SDKWORK_BUNDLED_OPENCLAW_VERSION");
     const PREPARED_RUNTIME_SIDECAR_MANIFEST_FILE_NAME: &str = ".sdkwork-openclaw-runtime.json";
+
+    struct ScopedEnvVarGuard {
+        key: &'static str,
+        original_value: Option<OsString>,
+    }
+
+    impl ScopedEnvVarGuard {
+        fn set(key: &'static str, value: &OsStr) -> Self {
+            let original_value = env::var_os(key);
+            unsafe {
+                env::set_var(key, value);
+            }
+            Self {
+                key,
+                original_value,
+            }
+        }
+    }
+
+    impl Drop for ScopedEnvVarGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(original_value) = &self.original_value {
+                    env::set_var(self.key, original_value);
+                } else {
+                    env::remove_var(self.key);
+                }
+            }
+        }
+    }
 
     #[test]
     fn detects_internal_register_openclaw_cli_action() {
@@ -729,6 +782,48 @@ mod tests {
         assert_eq!(paths.user_bin_dir.join("openclaw.cmd").exists(), false);
         assert_eq!(paths.user_bin_dir.join("openclaw.ps1").exists(), false);
         assert_eq!(paths.user_bin_dir.join("openclaw").exists(), false);
+    }
+
+    #[test]
+    fn internal_prepare_runtime_with_install_root_override_avoids_global_machine_and_user_roots() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let install_root = root.path().join("install-root");
+        let invalid_program_data = root.path().join("programdata-sentinel");
+        let invalid_user_profile = root.path().join("userprofile-sentinel");
+        fs::write(&invalid_program_data, "sentinel").expect("write invalid ProgramData sentinel");
+        fs::write(&invalid_user_profile, "sentinel").expect("write invalid USERPROFILE sentinel");
+        create_bundled_runtime_fixture(&install_root, None);
+        let _program_data_guard = ScopedEnvVarGuard::set("ProgramData", invalid_program_data.as_os_str());
+        let _user_profile_guard = ScopedEnvVarGuard::set("USERPROFILE", invalid_user_profile.as_os_str());
+
+        prepare_bundled_openclaw_runtime_for_current_install(Some(install_root.as_os_str()))
+            .expect("prepare bundled openclaw runtime with install-root override");
+
+        let prepared_runtime_root = install_root.join("runtimes").join("openclaw");
+        let prepared_runtime_entries = fs::read_dir(&prepared_runtime_root)
+            .expect("read prepared runtime root")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+
+        assert!(
+            prepared_runtime_entries
+                .iter()
+                .any(|entry| entry.join("manifest.json").exists()),
+            "install-root override should still materialize a bundled OpenClaw runtime install",
+        );
+        assert!(
+            install_root
+                .join("user-home")
+                .join("openclaw-home")
+                .join(".openclaw")
+                .exists(),
+            "install-root override should keep managed user state inside the install root during prewarm",
+        );
+        assert!(
+            install_root.join("machine").join("state").exists(),
+            "install-root override should keep managed machine state inside the install root during prewarm",
+        );
     }
 
     #[test]
